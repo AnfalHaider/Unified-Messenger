@@ -10,28 +10,70 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 
 ## Quick start
 
-### Recommended — packaged run (MSIX identity)
+### Run from source (standalone .exe)
 
 ```powershell
 cd "d:\Projects\Unified Messenger\UnifiedMessenger"
 dotnet build
-dotnet run --launch-profile "UnifiedMessenger (Package)"
-```
-
-If `dotnet run` fails with package registration errors, use the WinApp launcher:
-
-```powershell
-Get-Process UnifiedMessenger -ErrorAction SilentlyContinue | Stop-Process -Force
-& "$env:USERPROFILE\.nuget\packages\microsoft.windows.sdk.buildtools.winapp\0.3.2\tools\win-x64\winapp.exe" run ".\bin\Debug\net8.0-windows10.0.26100.0\win-x64" --manifest ".\Package.appxmanifest" --executable UnifiedMessenger.exe
+dotnet run
 ```
 
 ### Visual Studio
 
-Open `UnifiedMessenger.sln` and run the **UnifiedMessenger (Package)** profile.
+Open `UnifiedMessenger.sln` and run the **UnifiedMessenger** profile.
 
-### Unpackaged (limited)
+## Build a release installer
 
-The **UnifiedMessenger (Unpackaged)** profile runs without MSIX. Windows App SDK features (toasts, taskbar badge) may not work fully.
+### 1. Publish self-contained binaries
+
+```powershell
+cd "d:\Projects\Unified Messenger\UnifiedMessenger"
+
+dotnet publish `
+  -c Release `
+  -r win-x64 `
+  --self-contained true `
+  -p:PublishSingleFile=false `
+  -p:WindowsAppSDKSelfContained=true `
+  -p:PublishReadyToRun=true `
+  -o "bin\Release\net8.0-windows10.0.19041.0\win-x64\publish"
+```
+
+For ARM64:
+
+```powershell
+dotnet publish `
+  -c Release `
+  -r win-arm64 `
+  --self-contained true `
+  -p:PublishSingleFile=false `
+  -p:WindowsAppSDKSelfContained=true `
+  -p:PublishReadyToRun=true `
+  -o "bin\Release\net8.0-windows10.0.19041.0\win-arm64\publish"
+```
+
+### 2. Compile the Inno Setup installer
+
+1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php).
+2. Update `#define MyAppVersion` in `installer.iss` to match your release tag (e.g. `1.0.1`).
+3. Compile:
+
+```powershell
+cd "d:\Projects\Unified Messenger"
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+```
+
+Output: `dist\UnifiedMessengerSetup.exe`
+
+### 3. GitHub Release
+
+1. Tag the release (e.g. `v1.0.1`) — version must be newer than the built assembly version.
+2. Upload `dist\UnifiedMessengerSetup.exe` as a release asset with that exact filename.
+3. On next launch, the app checks `AnfalHaider/Unified-Messenger` releases and silently applies updates when a newer tag is found.
+
+## Auto-update
+
+`GitHubUpdateService` runs on startup (non-blocking). When a newer GitHub release is detected, it downloads `UnifiedMessengerSetup.exe` and runs it with Inno silent flags, then exits so files can be replaced.
 
 ## Keyboard shortcuts
 
@@ -40,6 +82,7 @@ The **UnifiedMessenger (Unpackaged)** profile runs without MSIX. Windows App SDK
 | Ctrl+D | Dashboard |
 | Ctrl+, (comma) | Settings |
 | Ctrl+Shift+N | Toggle notification panel |
+| Ctrl+K | Command palette |
 | Ctrl+1–9 | Switch to instance (sidebar order) |
 
 ## User data
