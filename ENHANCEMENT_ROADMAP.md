@@ -112,7 +112,7 @@
 | SYS-01 | Pin to taskbar prompt | `MainWindow.xaml.cs`, `AppSettings.*`, `SettingsPage.*` | — | S | platform | `RequestPinCurrentAppAsync`; don't ask again |
 | SYS-02 | `BadgeNotificationManager` migration | `TaskbarBadgeService.cs`, `.csproj` | — | M | platform | Replace `BadgeUpdateManager`; respects toggle |
 | SYS-03 | Taskbar overlay fallback (Win10) | `TaskbarOverlayService.cs` (new), `TaskbarBadgeService.cs` | SYS-02 | M | platform | `ITaskbarList3` when numeric badge unavailable |
-| SYS-04 | Startup with Windows | `StartupTaskService.cs` (new), `Package.appxmanifest`, `SettingsPage.*` | — | M | platform | StartupTask register/unregister toggle |
+| SYS-04 | Startup with Windows | `StartupTaskService.cs` (new), `SettingsPage.*` | — | M | platform | Registry Run key or Startup folder toggle |
 | SYS-05 | Clear analytics data | `MessageAnalyticsService.cs`, `SettingsPage.*` | — | S | dashboard | Confirm dialog; deletes analytics.json |
 | SYS-06 | Notification sound prefs | `AppNotificationService.cs`, `AppSettings.*`, `SettingsPage.*` | NOT-06 | S | notifications | Silent / default system sound |
 
@@ -122,8 +122,8 @@
 |----|------|-------|------|-----|-------|------------|
 | DASH-05 | Analytics export (CSV/JSON) | `MessageAnalyticsService.cs`, `DashboardPage.*` | DASH-03 | M | dashboard | File picker export per instance metrics |
 | DEV-02 | Adapter tests (headless WebView2) | `UnifiedMessenger.Tests/` (new) | ADAPT-01, ADAPT-05 | L | devops | Fixture HTML; badge-count tests per adapter |
-| DEV-03 | CI/CD pipeline | `.github/workflows/build.yml` | DEV-01 | L | devops | x64/ARM64 build; MSIX artifact on PR |
-| DEV-04 | Auto-update channel | `UpdateCheckService.cs` (new), `AboutPage.*`, `SettingsPage.*` | DEV-03 | L | devops | Version check + update prompt |
+| DEV-03 | CI/CD pipeline | `.github/workflows/build.yml` | DEV-01 | L | devops | x64/ARM64 publish + Inno Setup installer on PR |
+| DEV-04 | Auto-update UI & controls | `GitHubUpdateService.cs`, `AboutPage.*`, `SettingsPage.*` | DEV-03 | M | devops | Manual check, disable auto-update, update prompt before silent install |
 
 ---
 
@@ -158,10 +158,9 @@
 | Asset | Path | Use |
 |-------|------|-----|
 | Icon master (1024) | `Assets/Branding/icon-master.png` | Source for regeneration |
-| Wide master (1240×600) | `Assets/Branding/wide-master.png` | Store tile / splash source |
-| App icon | `Assets/AppIcon.ico` | Window + title bar |
-| Store logo | `Assets/StoreLogo.png` | Package manifest |
-| Tiles | `Assets/Square*.png`, `Wide310x150Logo.scale-200.png` | Start menu / MSIX |
-| Splash | `Assets/SplashScreen.scale-200.png` | Launch splash |
+| Wide master (1240×600) | `Assets/Branding/wide-master.png` | Marketing / store collateral source |
+| App icon | `Assets/AppIcon.ico` | Window, installer, toast logo, About page |
+
+Regenerate with `UnifiedMessenger/tools/Regenerate-BrandingAssets.ps1`.
 
 **Palette:** Slate `#1E293B` · Teal `#14B8A6` · Blue `#3B82F6` · Violet `#8B5CF6`

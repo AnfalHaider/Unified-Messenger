@@ -15,6 +15,10 @@ public sealed class ShellNavigationService
 
     public event EventHandler<string>? ArchivedInstanceRestoreRequested;
 
+    public event EventHandler? LayoutRefreshRequested;
+
+    public event EventHandler? InstanceRegistryRefreshRequested;
+
     public void RequestInstance(string instanceId)
     {
         InstanceLaunchRequested?.Invoke(this, instanceId);
@@ -28,5 +32,15 @@ public sealed class ShellNavigationService
     public void RequestArchivedInstanceRestore(string instanceId)
     {
         ArchivedInstanceRestoreRequested?.Invoke(this, instanceId);
+    }
+
+    public void RequestLayoutRefresh()
+    {
+        LayoutRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RequestInstanceRegistryRefresh()
+    {
+        InstanceRegistryRefreshRequested?.Invoke(this, EventArgs.Empty);
     }
 }

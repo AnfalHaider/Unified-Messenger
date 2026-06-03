@@ -110,6 +110,47 @@ public sealed class MessageAnalyticsService
         }
     }
 
+    public async Task ClearAllDataAsync(CancellationToken cancellationToken = default)
+    {
+        _stats.Clear();
+
+        if (File.Exists(_storePath))
+        {
+            File.Delete(_storePath);
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        await Task.CompletedTask;
+    }
+
+    public async Task ExportToFileAsync(string destinationPath, CancellationToken cancellationToken = default)
+    {
+        var export = new AnalyticsStore
+        {
+            Instances = _stats.ToDictionary(
+                pair => pair.Key,
+                pair => new InstanceMessageStatsDto
+                {
+                    SentCount = pair.Value.SentCount,
+                    ReceivedCount = pair.Value.ReceivedCount,
+                    SlaBreachCount = pair.Value.SlaBreachCount,
+                    TotalReplyMinutes = pair.Value.TotalReplyMinutes,
+                    ReplyCount = pair.Value.ReplyCount,
+                    LastSentUtc = pair.Value.LastSentUtc,
+                    LastReceivedUtc = pair.Value.LastReceivedUtc,
+                    LastChatHint = pair.Value.LastChatHint,
+                    DailySent = pair.Value.DailySent,
+                    DailyReceived = pair.Value.DailyReceived,
+                    HourlyReceived = pair.Value.HourlyReceived
+                },
+                StringComparer.OrdinalIgnoreCase)
+        };
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        await using var stream = File.Create(destinationPath);
+        await JsonSerializer.SerializeAsync(stream, export, JsonOptions, cancellationToken).ConfigureAwait(false);
+    }
+
     public void RecordMessageSent(string instanceId, string? chatHint = null)
     {
         var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
@@ -162,6 +203,20 @@ public sealed class MessageAnalyticsService
 
     public int GetReceivedCount(string instanceId) =>
         _stats.TryGetValue(instanceId, out var stats) ? stats.ReceivedCount : 0;
+
+    public int GetSlaBreachCount(string instanceId) =>
+        _stats.TryGetValue(instanceId, out var stats) ? stats.SlaBreachCount : 0;
+
+    public (double TotalReplyMinutes, int ReplyCount, DateTimeOffset? LastReceivedUtc, DateTimeOffset? LastSentUtc)
+        GetReplyStats(string instanceId)
+    {
+        if (!_stats.TryGetValue(instanceId, out var stats))
+        {
+            return (0, 0, null, null);
+        }
+
+        return (stats.TotalReplyMinutes, stats.ReplyCount, stats.LastReceivedUtc, stats.LastSentUtc);
+    }
 
     public ProfessionalAnalyticsSnapshot CaptureProfessionalSnapshot(
         IEnumerable<MessengerInstance> professionalInstances,

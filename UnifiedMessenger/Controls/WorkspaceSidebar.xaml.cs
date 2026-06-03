@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using Windows.Foundation;
 
 namespace UnifiedMessenger.Controls;
 
@@ -22,7 +23,12 @@ public sealed partial class WorkspaceSidebar : Grid
     public WorkspaceSidebar()
     {
         InitializeComponent();
+        MenuStack.AllowDrop = true;
+        MenuStack.DragOver += MenuStack_DragOver;
+        MenuStack.Drop += MenuStack_Drop;
     }
+
+    public event EventHandler<(string SourceInstanceId, string TargetInstanceId)>? InstanceReorderRequested;
 
     public event EventHandler? DashboardRequested;
 
@@ -267,6 +273,14 @@ public sealed partial class WorkspaceSidebar : Grid
             InstanceRequested?.Invoke(this, instance.Id);
         };
 
+        row.CanDrag = true;
+        row.DragStarting += (_, e) =>
+        {
+            e.Data.SetText(instance.Id);
+            e.Data.Properties.Title = instance.DisplayName;
+            e.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
+        };
+
         _instanceRows[instance.Id] = row;
         UpdateInstanceHealth(instance.Id, instance);
         return row;
@@ -403,4 +417,49 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
         SettingsRequested?.Invoke(this, EventArgs.Empty);
+
+    private void MenuStack_DragOver(object sender, DragEventArgs e)
+    {
+        e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
+        e.DragUIOverride.Caption = "Reorder account";
+    }
+
+    private async void MenuStack_Drop(object sender, DragEventArgs e)
+    {
+        if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+        {
+            return;
+        }
+
+        var sourceId = await e.DataView.GetTextAsync();
+        if (string.IsNullOrWhiteSpace(sourceId))
+        {
+            return;
+        }
+
+        var position = e.GetPosition(MenuStack);
+        var targetId = ResolveDropTargetInstanceId(position);
+        if (string.IsNullOrWhiteSpace(targetId) ||
+            targetId.Equals(sourceId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        InstanceReorderRequested?.Invoke(this, (sourceId, targetId));
+    }
+
+    private string? ResolveDropTargetInstanceId(Point position)
+    {
+        foreach (var (instanceId, row) in _instanceRows)
+        {
+            var transform = row.TransformToVisual(MenuStack);
+            var bounds = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, row.ActualWidth, row.ActualHeight));
+            if (position.Y >= bounds.Top && position.Y <= bounds.Bottom)
+            {
+                return instanceId;
+            }
+        }
+
+        return null;
+    }
 }

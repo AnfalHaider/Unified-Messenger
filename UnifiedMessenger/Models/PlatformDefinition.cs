@@ -41,6 +41,54 @@ public sealed class PlatformDefinition
         },
         new PlatformDefinition
         {
+            Id = "slack",
+            DisplayName = "Slack",
+            DefaultUrl = "https://app.slack.com/client",
+            IconGlyph = "\uE715",
+            AccentColor = "#4A154B"
+        },
+        new PlatformDefinition
+        {
+            Id = "discord",
+            DisplayName = "Discord",
+            DefaultUrl = "https://discord.com/app",
+            IconGlyph = "\uE716",
+            AccentColor = "#5865F2"
+        },
+        new PlatformDefinition
+        {
+            Id = "signal",
+            DisplayName = "Signal",
+            DefaultUrl = "https://signal.org/",
+            IconGlyph = "\uE722",
+            AccentColor = "#3A76F0"
+        },
+        new PlatformDefinition
+        {
+            Id = "teams",
+            DisplayName = "Microsoft Teams",
+            DefaultUrl = "https://teams.microsoft.com/",
+            IconGlyph = "\uE715",
+            AccentColor = "#6264A7"
+        },
+        new PlatformDefinition
+        {
+            Id = "metabusiness",
+            DisplayName = "Meta Business Suite",
+            DefaultUrl = "https://business.facebook.com/latest/inbox/",
+            IconGlyph = "\uE717",
+            AccentColor = "#0866FF"
+        },
+        new PlatformDefinition
+        {
+            Id = "googlebusiness",
+            DisplayName = "Google Business Profile",
+            DefaultUrl = "https://business.google.com/locations",
+            IconGlyph = "\uE774",
+            AccentColor = "#4285F4"
+        },
+        new PlatformDefinition
+        {
             Id = "generic",
             DisplayName = "Custom URL",
             DefaultUrl = string.Empty,

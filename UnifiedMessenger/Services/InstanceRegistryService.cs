@@ -5,6 +5,8 @@ using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
+public sealed record ImportInstancesResult(int ActiveCount, int ArchivedCount);
+
 public sealed partial class InstanceRegistryService
 {
     private const string FileName = "instances.json";
@@ -26,6 +28,12 @@ public sealed partial class InstanceRegistryService
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "UnifiedMessenger");
         _storePath = Path.Combine(appDataRoot, FileName);
+    }
+
+    internal InstanceRegistryService(string storePath)
+    {
+        _storePath = storePath;
+        _store = new InstanceStore();
     }
 
     public IReadOnlyList<MessengerInstance> Instances => _store.Instances;
@@ -240,11 +248,124 @@ public sealed partial class InstanceRegistryService
         await SaveAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task ReorderInstanceBeforeAsync(
+        string instanceId,
+        string targetInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        var instance = FindById(instanceId)
+            ?? throw new InvalidOperationException("Instance not found.");
+        var target = FindById(targetInstanceId)
+            ?? throw new InvalidOperationException("Target instance not found.");
+
+        if (instance.IsProfessional != target.IsProfessional)
+        {
+            return;
+        }
+
+        var peers = _store.Instances
+            .Where(i => i.IsProfessional == instance.IsProfessional)
+            .OrderBy(i => i.SortOrder)
+            .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        peers.Remove(instance);
+        var targetIndex = peers.FindIndex(i => i.Id.Equals(targetInstanceId, StringComparison.OrdinalIgnoreCase));
+        if (targetIndex < 0)
+        {
+            peers.Add(instance);
+        }
+        else
+        {
+            peers.Insert(targetIndex, instance);
+        }
+
+        for (var i = 0; i < peers.Count; i++)
+        {
+            peers[i].SortOrder = i + 1;
+        }
+
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UpdateInstanceMemoryTierAsync(
+        string instanceId,
+        MemoryTierPreference tier,
+        CancellationToken cancellationToken = default)
+    {
+        var instance = FindById(instanceId)
+            ?? throw new InvalidOperationException("Instance not found.");
+
+        instance.MemoryTier = tier;
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task UpdateInstanceMetadataAsync(
+        string instanceId,
+        string displayName,
+        string startUrl,
+        string platformId,
+        string? notes,
+        CancellationToken cancellationToken = default)
+    {
+        var instance = FindById(instanceId)
+            ?? throw new InvalidOperationException("Instance not found.");
+
+        var platform = PlatformDefinition.FindById(platformId)
+            ?? throw new ArgumentException($"Unknown platform: {platformId}", nameof(platformId));
+
+        instance.DisplayName = displayName.Trim();
+        instance.StartUrl = ResolveStartUrl(platform, startUrl);
+        instance.Platform = platform.Id;
+        instance.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        instance.ApplyPlatformBranding();
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public IEnumerable<MessengerInstance> GetOrderedInstances() =>
         _store.Instances
             .OrderBy(i => i.IsProfessional ? 0 : 1)
             .ThenBy(i => i.SortOrder)
             .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase);
+
+    public string StorePath => _storePath;
+
+    public async Task ExportInstancesAsync(string destinationPath, CancellationToken cancellationToken = default)
+    {
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        File.Copy(_storePath, destinationPath, overwrite: true);
+    }
+
+    public async Task<ImportInstancesResult> ImportInstancesAsync(
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(sourcePath))
+        {
+            throw new FileNotFoundException("Import file not found.", sourcePath);
+        }
+
+        await using var stream = File.OpenRead(sourcePath);
+        var imported = await JsonSerializer
+            .DeserializeAsync<InstanceStore>(stream, JsonOptions, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidDataException("Import file is empty or invalid.");
+
+        if (imported.Instances.Count == 0 && imported.ArchivedInstances.Count == 0)
+        {
+            throw new InvalidDataException("Import file contains no instances.");
+        }
+
+        _store = imported;
+        MigrateStoreIfNeeded();
+        ApplyBrandingToAllInstances();
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+
+        return new ImportInstancesResult(
+            _store.Instances.Count,
+            _store.ArchivedInstances.Count);
+    }
 
     private static InstanceStore CreateDefaultStore()
     {

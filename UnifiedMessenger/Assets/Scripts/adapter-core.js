@@ -144,8 +144,24 @@
       });
     }
 
+    if (window.__umHeartbeatHandle) {
+      window.clearInterval(window.__umHeartbeatHandle);
+    }
+
     beat();
-    window.setInterval(beat, interval);
+    window.__umHeartbeatHandle = window.setInterval(beat, interval);
+  };
+
+  window.__umResetAdapterRuntime = function () {
+    if (window.__umHeartbeatHandle) {
+      window.clearInterval(window.__umHeartbeatHandle);
+      window.__umHeartbeatHandle = null;
+    }
+
+    delete window.__unifiedMessengerAdapterInstalled;
+    delete window.__unifiedMessengerCore;
+    delete window.__umOutgoingMonitorInstalled;
+    delete window.__umRecentPreviews;
   };
 
   window.__umCountFromTitle = function () {

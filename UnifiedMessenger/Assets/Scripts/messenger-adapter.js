@@ -12,6 +12,8 @@
   var ADAPTER_ID = 'messenger';
   var lastPostedCount = -1;
   var pollTimer = null;
+  var publishScheduled = false;
+  var lastUrl = location.href;
 
   function postMessage(payload) {
     window.__umPostMessage(payload);
@@ -32,10 +34,12 @@
 
     var badgeSelectors = [
       'span[data-testid="mw_unread_count"]',
+      '[data-testid="unread-count"]',
       '[aria-label*="unread message"]',
       '[aria-label*="Unread message"]',
       '[aria-label*="unread messages"]',
-      '[aria-label*="Unread messages"]'
+      '[aria-label*="Unread messages"]',
+      '[aria-label*="unread conversation"]'
     ];
 
     badgeSelectors.forEach(function (selector) {
@@ -55,8 +59,10 @@
       return total;
     }
 
-    document.querySelectorAll('div[role="row"]').forEach(function (row) {
-      var unreadMarker = row.querySelector('[aria-label*="unread"], [data-testid="mw_unread_count"]');
+    document.querySelectorAll('div[role="row"], div[role="listitem"]').forEach(function (row) {
+      var unreadMarker = row.querySelector(
+        '[aria-label*="unread"], [data-testid="mw_unread_count"], [data-testid="unread-count"]'
+      );
       if (!unreadMarker || seen.has(unreadMarker)) {
         return;
       }
@@ -78,7 +84,8 @@
     return window.__umCountFromTitle();
   }
 
-  function publishBadgeCount() {
+  function publishBadgeCountImmediate() {
+    publishScheduled = false;
     var count = computeUnreadCount();
     if (count === lastPostedCount) {
       return;
@@ -93,7 +100,20 @@
     });
   }
 
-  window.__unifiedMessengerPublishBadge = publishBadgeCount;
+  function schedulePublishBadgeCount() {
+    if (publishScheduled) {
+      return;
+    }
+
+    publishScheduled = true;
+    window.setTimeout(publishBadgeCountImmediate, 120);
+  }
+
+  function publishBadgeCount() {
+    schedulePublishBadgeCount();
+  }
+
+  window.__unifiedMessengerPublishBadge = publishBadgeCountImmediate;
 
   function observeDom() {
     var root = document.body || document.documentElement;
@@ -102,7 +122,7 @@
     }
 
     var observer = new MutationObserver(function () {
-      publishBadgeCount();
+      schedulePublishBadgeCount();
     });
 
     observer.observe(root, {
@@ -110,8 +130,35 @@
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['class', 'title', 'aria-label']
+      attributeFilter: ['class', 'title', 'aria-label', 'data-testid']
     });
+  }
+
+  function hookSpaNavigation() {
+    var notify = function () {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        lastPostedCount = -1;
+      }
+
+      schedulePublishBadgeCount();
+    };
+
+    window.addEventListener('popstate', notify);
+    window.addEventListener('hashchange', notify);
+
+    var originalPushState = history.pushState;
+    var originalReplaceState = history.replaceState;
+
+    history.pushState = function () {
+      originalPushState.apply(history, arguments);
+      notify();
+    };
+
+    history.replaceState = function () {
+      originalReplaceState.apply(history, arguments);
+      notify();
+    };
   }
 
   function startPolling() {
@@ -119,29 +166,35 @@
       return;
     }
 
-    publishBadgeCount();
-    pollTimer = window.setInterval(publishBadgeCount, 3000);
+    publishBadgeCountImmediate();
+    pollTimer = window.setInterval(publishBadgeCountImmediate, 3000);
   }
 
   window.__umInstallNotificationInterceptor(INSTANCE_ID, PLATFORM);
   window.__umInstallOutgoingMessageMonitor(INSTANCE_ID, PLATFORM, {
     composeSelectors: [
       'div[contenteditable="true"][role="textbox"]',
-      'div[aria-label="Message"][contenteditable="true"]'
+      'div[aria-label="Message"][contenteditable="true"]',
+      'div[aria-label*="Message"][contenteditable="true"]'
     ],
     sendSelectors: [
       'div[aria-label="Send"]',
-      'div[aria-label="Press enter to send"]'
+      'div[aria-label="Press enter to send"]',
+      'div[aria-label*="Send"][role="button"]'
     ],
     chatHintSelectors: [
       'h1[dir="auto"]',
-      '[data-testid="conversation-title"]'
+      '[data-testid="conversation-title"]',
+      '[data-testid="thread-title"]'
     ]
   });
   window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
   window.__umStartHeartbeat(INSTANCE_ID, PLATFORM, ADAPTER_ID, 30000);
+  hookSpaNavigation();
   observeDom();
   startPolling();
 
-  window.addEventListener('load', publishBadgeCount);
+  document.addEventListener('visibilitychange', publishBadgeCountImmediate);
+  window.addEventListener('load', publishBadgeCountImmediate);
+  window.addEventListener('pageshow', publishBadgeCountImmediate);
 })();

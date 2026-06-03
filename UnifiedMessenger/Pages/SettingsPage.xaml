@@ -63,6 +63,11 @@
                             Header="Auto-open notification panel"
                             SelectionChanged="PanelAutoOpenBox_SelectionChanged" />
 
+                        <ComboBox
+                            x:Name="ToastSoundBox"
+                            Header="Toast sound"
+                            SelectionChanged="ToastSoundBox_SelectionChanged" />
+
                         <ToggleSwitch
                             x:Name="IncludeMutedBadgesToggle"
                             OffContent="Off"
@@ -138,6 +143,198 @@
                             x:Name="ThemePreferenceBox"
                             Header="App theme"
                             SelectionChanged="ThemePreferenceBox_SelectionChanged" />
+
+                        <ComboBox
+                            x:Name="PanelDockBox"
+                            Header="Notification panel dock"
+                            SelectionChanged="PanelDockBox_SelectionChanged" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock
+                    FontWeight="SemiBold"
+                    Opacity="0.75"
+                    Text="SESSION &amp; PERFORMANCE" />
+                <Border
+                    Padding="16"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel Spacing="12">
+                        <ComboBox
+                            x:Name="StartupWarmModeBox"
+                            Header="Startup warm mode"
+                            SelectionChanged="StartupWarmModeBox_SelectionChanged" />
+
+                        <NumberBox
+                            x:Name="MaxConcurrentWebViewsBox"
+                            Header="Max concurrent WebViews (0 = unlimited)"
+                            Maximum="32"
+                            Minimum="0"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="MaxConcurrentWebViewsBox_ValueChanged" />
+
+                        <Button
+                            HorizontalAlignment="Left"
+                            Click="RefreshAllWebViewsButton_Click"
+                            Content="Refresh all WebViews" />
+
+                        <TextBlock
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Opacity="0.75"
+                            Text="Experimental" />
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Path C session options. Behavior may change in future releases."
+                            TextWrapping="WrapWholeWords" />
+
+                        <ToggleSwitch
+                            x:Name="EnableLazyWebViewLoadingToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableLazyWebViewLoadingToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Enable lazy WebView loading" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnablePerInstanceSleepUnloadToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnablePerInstanceSleepUnloadToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Enable per-instance sleep unload" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnableEditInstanceMetadataToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableEditInstanceMetadataToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Enable edit instance metadata" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnableImportExportInstancesToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableImportExportInstancesToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Enable import / export instances" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <StackPanel
+                            x:Name="ImportExportPanel"
+                            Spacing="8"
+                            Visibility="Collapsed">
+                            <Button
+                                HorizontalAlignment="Left"
+                                Click="ExportInstancesButton_Click"
+                                Content="Export instances.json" />
+                            <Button
+                                HorizontalAlignment="Left"
+                                Click="ImportInstancesButton_Click"
+                                Content="Import instances.json" />
+                        </StackPanel>
+
+                        <ToggleSwitch
+                            x:Name="EnableInstanceNotesTagsToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableInstanceNotesTagsToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Enable instance notes and tags" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock
+                    FontWeight="SemiBold"
+                    Opacity="0.75"
+                    Text="SYSTEM" />
+                <Border
+                    Padding="16"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel Spacing="12">
+                        <ToggleSwitch
+                            x:Name="LaunchAtStartupToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="LaunchAtStartupToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Launch at startup" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Start Unified Messenger when you sign in to Windows."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="PromptPinToTaskbarToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="PromptPinToTaskbarToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Suggest pin to taskbar" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Show a one-time prompt to pin Unified Messenger to the taskbar."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnableAutoUpdateToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableAutoUpdateToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Enable automatic updates" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="PromptBeforeAutoUpdateToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="PromptBeforeAutoUpdateToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Prompt before auto-update installs" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <Button
+                            HorizontalAlignment="Left"
+                            Click="CheckForUpdatesButton_Click"
+                            Content="Check for updates" />
+
+                        <Button
+                            HorizontalAlignment="Left"
+                            Click="ClearAnalyticsButton_Click"
+                            Content="Clear analytics data" />
                     </StackPanel>
                 </Border>
             </StackPanel>

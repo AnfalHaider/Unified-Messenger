@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
+using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
@@ -32,6 +33,31 @@ public sealed class GitHubUpdateService
 
     public async Task CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
+        if (!AppSettingsService.Instance.Settings.EnableAutoUpdate)
+        {
+            return;
+        }
+
+        var result = await CheckForUpdatesInternalAsync(applyUpdate: true, cancellationToken).ConfigureAwait(false);
+        if (result.Status == UpdateCheckStatus.UpdateAvailable &&
+            !string.IsNullOrWhiteSpace(result.DownloadUrl) &&
+            result.LatestVersion is not null)
+        {
+            await ApplyUpdateAsync(result.DownloadUrl, result.LatestVersion, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    public async Task<UpdateCheckResult> CheckForUpdatesManualAsync(CancellationToken cancellationToken = default)
+    {
+        return await CheckForUpdatesInternalAsync(applyUpdate: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<UpdateCheckResult> CheckForUpdatesInternalAsync(
+        bool applyUpdate,
+        CancellationToken cancellationToken)
+    {
+        var currentVersion = GetCurrentVersion();
+
         try
         {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -46,7 +72,10 @@ public sealed class GitHubUpdateService
 
             if (!response.IsSuccessStatusCode)
             {
-                return;
+                return new UpdateCheckResult(
+                    UpdateCheckStatus.Failed,
+                    currentVersion,
+                    ErrorMessage: $"GitHub returned {(int)response.StatusCode}.");
             }
 
             await using var stream = await response.Content
@@ -60,25 +89,34 @@ public sealed class GitHubUpdateService
             var root = document.RootElement;
             if (!root.TryGetProperty("tag_name", out var tagElement))
             {
-                return;
+                return new UpdateCheckResult(
+                    UpdateCheckStatus.Failed,
+                    currentVersion,
+                    ErrorMessage: "Release metadata is missing a version tag.");
             }
 
             var tagName = tagElement.GetString();
             if (!TryParseReleaseVersion(tagName, out var latestVersion))
             {
-                return;
+                return new UpdateCheckResult(
+                    UpdateCheckStatus.Failed,
+                    currentVersion,
+                    ErrorMessage: "Could not parse the latest release version.");
             }
 
-            var currentVersion = GetCurrentVersion();
             if (latestVersion <= currentVersion)
             {
-                return;
+                return new UpdateCheckResult(UpdateCheckStatus.UpToDate, currentVersion, latestVersion);
             }
 
             if (!root.TryGetProperty("assets", out var assetsElement) ||
                 assetsElement.ValueKind != JsonValueKind.Array)
             {
-                return;
+                return new UpdateCheckResult(
+                    UpdateCheckStatus.Failed,
+                    currentVersion,
+                    latestVersion,
+                    ErrorMessage: "Release has no downloadable assets.");
             }
 
             string? downloadUrl = null;
@@ -104,38 +142,72 @@ public sealed class GitHubUpdateService
 
             if (string.IsNullOrWhiteSpace(downloadUrl))
             {
-                return;
+                return new UpdateCheckResult(
+                    UpdateCheckStatus.Failed,
+                    currentVersion,
+                    latestVersion,
+                    ErrorMessage: $"Installer asset '{SetupAssetName}' was not found.");
             }
 
-            var installerPath = Path.Combine(
-                Path.GetTempPath(),
-                $"UnifiedMessengerSetup_{latestVersion}.exe");
-
-            await DownloadFileAsync(downloadUrl, installerPath, timeoutCts.Token).ConfigureAwait(false);
-
-            Process.Start(new ProcessStartInfo
+            if (!applyUpdate)
             {
-                FileName = installerPath,
-                Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
-                UseShellExecute = true
-            });
-
-            if (App.CurrentWindow?.DispatcherQueue is { } dispatcher)
-            {
-                dispatcher.TryEnqueue(() => Application.Current.Exit());
+                return new UpdateCheckResult(
+                    UpdateCheckStatus.UpdateAvailable,
+                    currentVersion,
+                    latestVersion,
+                    DownloadUrl: downloadUrl);
             }
-            else
-            {
-                Environment.Exit(0);
-            }
+
+            await ApplyUpdateAsync(downloadUrl, latestVersion, timeoutCts.Token).ConfigureAwait(false);
+            return new UpdateCheckResult(
+                UpdateCheckStatus.UpdateAvailable,
+                currentVersion,
+                latestVersion,
+                DownloadUrl: downloadUrl);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or IOException)
         {
             Debug.WriteLine($"Update check failed: {ex.Message}");
+            return new UpdateCheckResult(
+                UpdateCheckStatus.Failed,
+                currentVersion,
+                ErrorMessage: ex.Message);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Unexpected update check failure: {ex.Message}");
+            return new UpdateCheckResult(
+                UpdateCheckStatus.Failed,
+                currentVersion,
+                ErrorMessage: ex.Message);
+        }
+    }
+
+    private static async Task ApplyUpdateAsync(
+        string downloadUrl,
+        Version latestVersion,
+        CancellationToken cancellationToken)
+    {
+        var installerPath = Path.Combine(
+            Path.GetTempPath(),
+            $"UnifiedMessengerSetup_{latestVersion}.exe");
+
+        await DownloadFileAsync(downloadUrl, installerPath, cancellationToken).ConfigureAwait(false);
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = installerPath,
+            Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
+            UseShellExecute = true
+        });
+
+        if (App.CurrentWindow?.DispatcherQueue is { } dispatcher)
+        {
+            dispatcher.TryEnqueue(Application.Current.Exit);
+        }
+        else
+        {
+            Environment.Exit(0);
         }
     }
 

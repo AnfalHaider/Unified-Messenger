@@ -8,6 +8,7 @@ using UnifiedMessenger.Models;
 using UnifiedMessenger.Pages;
 using UnifiedMessenger.Services;
 using Windows.System;
+using Windows.UI.Shell;
 
 namespace UnifiedMessenger;
 
@@ -48,6 +49,7 @@ public sealed partial class MainWindow : Window
             SetNotificationPanelVisible(!_notificationPanelVisible);
         WorkspaceSidebar.SettingsRequested += (_, _) => _ = ShowSettingsAsync();
         WorkspaceSidebar.InstanceContextRequested += OnInstanceContextRequested;
+        WorkspaceSidebar.InstanceReorderRequested += OnInstanceReorderRequested;
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -62,9 +64,12 @@ public sealed partial class MainWindow : Window
         _notificationHub.Changed += OnNotificationHubChanged;
         AppNotificationService.Instance.InstanceActivationRequested += OnToastActivationRequested;
         _adapterHealth.Changed += OnAdapterHealthChanged;
+        _adapterHealth.AdapterStaleDetected += OnAdapterStaleDetected;
         ShellNavigationService.Instance.InstanceLaunchRequested += OnShellInstanceLaunchRequested;
         ShellNavigationService.Instance.DashboardRefreshRequested += OnShellDashboardRefreshRequested;
         ShellNavigationService.Instance.ArchivedInstanceRestoreRequested += OnArchivedInstanceRestoreRequested;
+        ShellNavigationService.Instance.LayoutRefreshRequested += OnShellLayoutRefreshRequested;
+        ShellNavigationService.Instance.InstanceRegistryRefreshRequested += OnShellInstanceRegistryRefreshRequested;
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
         AppSettingsService.Instance.Changed += OnAppSettingsChanged;
 
@@ -83,11 +88,26 @@ public sealed partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(RefreshDashboardIfVisible);
     }
 
+    private void OnShellLayoutRefreshRequested(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(ApplyNotificationPanelDockLayout);
+    }
+
+    private void OnShellInstanceRegistryRefreshRequested(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            RebuildInstanceNavigation();
+            RefreshDashboardIfVisible();
+        });
+    }
+
     private void OnAppSettingsChanged(object? sender, EventArgs e)
     {
         DispatcherQueue.TryEnqueue(() =>
         {
             ThemeService.Apply(AppSettingsService.Instance.Settings.ThemePreference);
+            ApplyNotificationPanelDockLayout();
             _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_notificationHub.TotalUnreadCount);
             _ = _sessionManager.BroadcastAdapterSettingsAsync();
         });
@@ -295,6 +315,7 @@ public sealed partial class MainWindow : Window
         _panePinned = AppSettingsService.Instance.Settings.SidebarPinnedExpanded;
         UpdatePanePinUi();
         ApplySidebarLayout(forceVisible: true);
+        ApplyNotificationPanelDockLayout();
 
         RebuildInstanceNavigation();
         RefreshNotificationUi();
@@ -320,6 +341,80 @@ public sealed partial class MainWindow : Window
         }
 
         await ShowDashboardAsync();
+        _ = MaybePromptPinToTaskbarAsync();
+    }
+
+    private async Task MaybePromptPinToTaskbarAsync()
+    {
+        var settings = AppSettingsService.Instance.Settings;
+        if (!settings.PromptPinToTaskbar || settings.HasPromptedPinToTaskbar)
+        {
+            return;
+        }
+
+        var taskbarManager = TaskbarManager.GetDefault();
+        if (!taskbarManager.IsPinningAllowed)
+        {
+            return;
+        }
+
+        if (await taskbarManager.IsCurrentAppPinnedAsync())
+        {
+            await AppSettingsService.Instance.UpdateAsync(s => s.HasPromptedPinToTaskbar = true);
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Pin Unified Messenger?",
+            Content = "Pin this app to your taskbar for quick access to all your messaging accounts.",
+            PrimaryButtonText = "Pin to taskbar",
+            CloseButtonText = "Not now",
+            XamlRoot = Content.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        await AppSettingsService.Instance.UpdateAsync(s => s.HasPromptedPinToTaskbar = true);
+
+        if (result != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        try
+        {
+            await taskbarManager.RequestPinCurrentAppAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Taskbar pin request failed: {ex.Message}");
+            await ShowErrorDialogAsync(
+                "Could not pin to taskbar",
+                "Right-click the taskbar icon and choose Pin to taskbar.");
+        }
+    }
+
+    private void OnAdapterStaleDetected(object? sender, string instanceId)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await _sessionManager.RecoverStaleAdapterAsync(instanceId);
+            RefreshAdapterHealthIndicators();
+        });
+    }
+
+    private async void OnInstanceReorderRequested(object? sender, (string SourceInstanceId, string TargetInstanceId) args)
+    {
+        try
+        {
+            await _registry.ReorderInstanceBeforeAsync(args.SourceInstanceId, args.TargetInstanceId);
+            RebuildInstanceNavigation();
+            RestoreSidebarSelection();
+        }
+        catch (Exception ex)
+        {
+            await ShowErrorDialogAsync("Could not reorder instance", ex.Message);
+        }
     }
 
     private void OnShellInstanceLaunchRequested(object? sender, string instanceId)
@@ -450,6 +545,38 @@ public sealed partial class MainWindow : Window
         muteItem.Click += (_, _) => _ = ToggleInstanceMuteAsync(args.InstanceId);
         flyout.Items.Add(muteItem);
 
+        var refreshItem = new MenuFlyoutItem { Text = "Refresh WebView" };
+        refreshItem.Click += (_, _) => _ = _sessionManager.ReloadSessionAsync(args.InstanceId);
+        flyout.Items.Add(refreshItem);
+
+        var memoryFlyout = new MenuFlyoutSubItem { Text = "Memory tier" };
+        foreach (var tier in Enum.GetValues<MemoryTierPreference>())
+        {
+            var tierItem = new MenuFlyoutItem
+            {
+                Text = tier.ToString(),
+                Tag = tier
+            };
+            tierItem.Click += async (_, _) =>
+            {
+                if (tierItem.Tag is MemoryTierPreference selectedTier)
+                {
+                    await _registry.UpdateInstanceMemoryTierAsync(args.InstanceId, selectedTier);
+                    RebuildInstanceNavigation();
+                }
+            };
+            memoryFlyout.Items.Add(tierItem);
+        }
+
+        flyout.Items.Add(memoryFlyout);
+
+        if (AppSettingsService.Instance.Settings.EnableEditInstanceMetadata)
+        {
+            var editItem = new MenuFlyoutItem { Text = "Edit instance metadata..." };
+            editItem.Click += (_, _) => _ = EditInstanceMetadataAsync(args.InstanceId);
+            flyout.Items.Add(editItem);
+        }
+
         var moveUpItem = new MenuFlyoutItem { Text = "Move up" };
         moveUpItem.Click += (_, _) => _ = MoveInstanceAsync(args.InstanceId, -1);
         flyout.Items.Add(moveUpItem);
@@ -534,6 +661,48 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             await ShowErrorDialogAsync("Could not rename instance", ex.Message);
+        }
+    }
+
+    private async Task EditInstanceMetadataAsync(string instanceId)
+    {
+        var instance = _registry.FindById(instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        var dialog = new EditInstanceMetadataDialog(instance)
+        {
+            XamlRoot = Content.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary ||
+            dialog.ResultDisplayName is null ||
+            dialog.ResultPlatformId is null ||
+            dialog.ResultStartUrl is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _registry.UpdateInstanceMetadataAsync(
+                instanceId,
+                dialog.ResultDisplayName,
+                dialog.ResultStartUrl,
+                dialog.ResultPlatformId,
+                dialog.ResultNotes);
+
+            await _sessionManager.ReloadSessionAsync(instanceId);
+            RebuildInstanceNavigation();
+            RefreshDashboardIfVisible();
+            RestoreSidebarSelection();
+        }
+        catch (Exception ex)
+        {
+            await ShowErrorDialogAsync("Could not update instance metadata", ex.Message);
         }
     }
 
@@ -753,8 +922,43 @@ public sealed partial class MainWindow : Window
     private void SetNotificationPanelVisible(bool isVisible)
     {
         _notificationPanelVisible = isVisible;
-        NotificationColumn.Width = isVisible ? new GridLength(320) : new GridLength(0);
+        ApplyNotificationPanelVisibilityMetrics(isVisible);
         NotificationPanel.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ApplyNotificationPanelDockLayout()
+    {
+        var dock = AppSettingsService.Instance.Settings.PanelDock;
+        if (dock == NotificationPanelDock.Bottom)
+        {
+            Grid.SetColumn(NotificationPanel, 1);
+            Grid.SetRow(NotificationPanel, 1);
+            Grid.SetColumnSpan(NotificationPanel, 1);
+            Grid.SetRowSpan(NotificationPanel, 1);
+        }
+        else
+        {
+            Grid.SetColumn(NotificationPanel, 2);
+            Grid.SetRow(NotificationPanel, 0);
+            Grid.SetColumnSpan(NotificationPanel, 1);
+            Grid.SetRowSpan(NotificationPanel, 2);
+        }
+
+        ApplyNotificationPanelVisibilityMetrics(_notificationPanelVisible);
+    }
+
+    private void ApplyNotificationPanelVisibilityMetrics(bool isVisible)
+    {
+        var dock = AppSettingsService.Instance.Settings.PanelDock;
+        if (dock == NotificationPanelDock.Bottom)
+        {
+            NotificationColumn.Width = new GridLength(0);
+            NotificationRow.Height = isVisible ? new GridLength(240) : new GridLength(0);
+            return;
+        }
+
+        NotificationRow.Height = new GridLength(0);
+        NotificationColumn.Width = isVisible ? new GridLength(320) : new GridLength(0);
     }
 
     private async Task ShowAddInstanceDialogAsync()

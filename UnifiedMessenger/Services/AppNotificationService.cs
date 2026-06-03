@@ -61,7 +61,7 @@ public sealed class AppNotificationService
                     .AddText(string.IsNullOrWhiteSpace(alert.Body) ? "New message" : alert.Body);
             }
 
-            builder.SetAppLogoOverride(new Uri("ms-appx:///Assets/Square44x44Logo.png"));
+            builder.SetAppLogoOverride(new Uri("ms-appx:///Assets/AppIcon.ico"));
 
             AppNotificationManager.Default.Show(builder.BuildNotification());
         }

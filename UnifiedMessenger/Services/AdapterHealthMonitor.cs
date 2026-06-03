@@ -15,6 +15,8 @@ public sealed class AdapterHealthMonitor
 
     public event EventHandler? Changed;
 
+    public event EventHandler<string>? AdapterStaleDetected;
+
     private AdapterHealthMonitor()
     {
         _staleCheckTimer = new Timer(_ => CheckForStaleAdapters(), null, StaleThreshold, StaleThreshold);
@@ -83,7 +85,7 @@ public sealed class AdapterHealthMonitor
         var now = DateTimeOffset.UtcNow;
         var changed = false;
 
-        foreach (var status in _statuses.Values)
+        foreach (var (instanceId, status) in _statuses.ToList())
         {
             if (status.State is AdapterHealthState.NoAdapter or AdapterHealthState.Unknown)
             {
@@ -97,6 +99,7 @@ public sealed class AdapterHealthMonitor
                 {
                     status.State = AdapterHealthState.Stale;
                     changed = true;
+                    AdapterStaleDetected?.Invoke(this, instanceId);
                 }
             }
         }

@@ -63,7 +63,7 @@ dotnet publish `
 ### 2. Compile the Inno Setup installer
 
 1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php).
-2. Update `#define MyAppVersion` in `installer.iss` to match your release tag (e.g. `1.0.1`).
+2. Update `#define MyAppVersion` in `installer.iss` and `<Version>` in `UnifiedMessenger.csproj` to match your release tag (e.g. `1.0.3`).
 3. Compile:
 
 ```powershell
@@ -75,7 +75,7 @@ Output: `dist\UnifiedMessengerSetup.exe`
 
 ### 3. GitHub Release
 
-1. Tag the release (e.g. `v1.0.1`) — version must be newer than the built assembly version.
+1. Tag the release (e.g. `v1.0.3`) — version must be newer than the built assembly version.
 2. Upload `dist\UnifiedMessengerSetup.exe` as a release asset with that exact filename.
 3. On next launch, the app checks `AnfalHaider/Unified-Messenger` releases and silently applies updates when a newer tag is found.
 
@@ -104,4 +104,4 @@ Output: `dist\UnifiedMessengerSetup.exe`
 
 ## Enhancement roadmap
 
-See [ENHANCEMENT_ROADMAP.md](../ENHANCEMENT_ROADMAP.md) for planned features and multi-agent execution batches.
+See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features and multi-agent execution batches.

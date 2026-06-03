@@ -33,6 +33,10 @@ public sealed class MessengerInstance
 
     public bool NotificationsMuted { get; set; }
 
+    public MemoryTierPreference MemoryTier { get; set; } = MemoryTierPreference.Normal;
+
+    public string? Notes { get; set; }
+
     public void ApplyPlatformBranding()
     {
         var platform = PlatformDefinition.FindById(Platform);

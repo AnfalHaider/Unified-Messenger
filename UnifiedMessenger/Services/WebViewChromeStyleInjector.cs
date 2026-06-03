@@ -38,6 +38,12 @@ public static class WebViewChromeStyleInjector
             "whatsapp" => "whatsapp-chrome.css",
             "telegram" => "telegram-chrome.css",
             "messenger" => "messenger-chrome.css",
+            "slack" => "slack-chrome.css",
+            "discord" => "discord-chrome.css",
+            "signal" => "signal-chrome.css",
+            "teams" => "teams-chrome.css",
+            "metabusiness" => "metabusiness-chrome.css",
+            "googlebusiness" => "googlebusiness-chrome.css",
             _ => "generic-chrome.css"
         };
 

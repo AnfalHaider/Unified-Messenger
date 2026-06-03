@@ -1,3 +1,4 @@
+using Microsoft.Windows.BadgeNotifications;
 using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
 
@@ -11,26 +12,80 @@ public sealed class TaskbarBadgeService
 
     public Task SyncBadgeAsync(int count)
     {
+        if (!AppSettingsService.Instance.Settings.ShowTaskbarBadge || count <= 0)
+        {
+            ClearBadge();
+            return Task.CompletedTask;
+        }
+
+        var badgeCount = Math.Min(count, 99);
+
+        if (TrySetBadgeWithAppSdk(badgeCount))
+        {
+            return Task.CompletedTask;
+        }
+
+        if (TrySetBadgeWithLegacyApi(badgeCount))
+        {
+            return Task.CompletedTask;
+        }
+
+        TaskbarOverlayService.TrySetOverlayCount(count);
+        return Task.CompletedTask;
+    }
+
+    private static void ClearBadge()
+    {
         try
         {
-            var updater = BadgeUpdateManager.CreateBadgeUpdaterForApplication();
-
-            if (!AppSettingsService.Instance.Settings.ShowTaskbarBadge || count <= 0)
-            {
-                updater.Update(null);
-                return Task.CompletedTask;
-            }
-
-            var badgeXml = BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
-            var badgeElement = (XmlElement)badgeXml.SelectSingleNode("/badge")!;
-            badgeElement.SetAttribute("value", Math.Min(count, 99).ToString());
-            updater.Update(new BadgeNotification(badgeXml));
+            BadgeNotificationManager.Current.ClearBadge();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Taskbar badge update failed: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"BadgeNotificationManager clear failed: {ex.Message}");
         }
 
-        return Task.CompletedTask;
+        try
+        {
+            BadgeUpdateManager.CreateBadgeUpdaterForApplication().Clear();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"BadgeUpdateManager clear failed: {ex.Message}");
+        }
+
+        TaskbarOverlayService.TrySetOverlayCount(0);
+    }
+
+    private static bool TrySetBadgeWithAppSdk(int badgeCount)
+    {
+        try
+        {
+            BadgeNotificationManager.Current.SetBadgeAsCount((uint)badgeCount);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"BadgeNotificationManager update failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static bool TrySetBadgeWithLegacyApi(int badgeCount)
+    {
+        try
+        {
+            var updater = BadgeUpdateManager.CreateBadgeUpdaterForApplication();
+            var badgeXml = BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
+            var badgeElement = (XmlElement)badgeXml.SelectSingleNode("/badge")!;
+            badgeElement.SetAttribute("value", badgeCount.ToString());
+            updater.Update(new BadgeNotification(badgeXml));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"BadgeUpdateManager update failed: {ex.Message}");
+            return false;
+        }
     }
 }

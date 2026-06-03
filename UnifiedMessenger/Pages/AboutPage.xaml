@@ -8,44 +8,72 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <StackPanel Padding="24,16,24,24" Spacing="16" MaxWidth="640">
-        <HyperlinkButton
-            x:Name="BackLink"
-            Click="BackLink_Click"
-            Content="Back to Settings"
-            Visibility="Collapsed" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="24,16,24,24" Spacing="16" MaxWidth="720">
+            <HyperlinkButton
+                x:Name="BackLink"
+                Click="BackLink_Click"
+                Content="Back to Settings"
+                Visibility="Collapsed" />
 
-        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="About" />
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="About" />
 
-        <Border
-            Padding="20"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1"
-            CornerRadius="8">
-            <StackPanel Spacing="12">
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <Image Width="48" Height="48" Source="Assets/AppIcon.ico" />
-                    <StackPanel VerticalAlignment="Center" Spacing="4">
+            <Border
+                Padding="20"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <StackPanel Spacing="16">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Image Width="48" Height="48" Source="Assets/AppIcon.ico" />
+                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                            <TextBlock
+                                FontSize="20"
+                                FontWeight="SemiBold"
+                                Text="Unified Messenger" />
+                            <TextBlock
+                                x:Name="VersionText"
+                                Opacity="0.7" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="The Central Workspace for Business &amp; Life"
+                        TextWrapping="WrapWholeWords" />
+
+                    <TextBlock
+                        Opacity="0.85"
+                        Text="Unified Messenger transforms how you manage your digital ecosystem by bringing together your professional operational platforms and personal communication into a single, high-performance desktop environment."
+                        TextWrapping="WrapWholeWords" />
+
+                    <TextBlock
+                        Opacity="0.85"
+                        Text="Engineered with a dual-context core, Unified Messenger splits your workflow into dedicated Professional and Personal zones. The built-in Workspace Dashboard delivers real-time operational intelligence—tracking response rates, incoming reviews, and messaging metrics for your business accounts—while keeping your personal feeds cleanly isolated so you can completely disconnect when you are off the clock."
+                        TextWrapping="WrapWholeWords" />
+
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="Key Features:" />
+
                         <TextBlock
-                            FontSize="20"
-                            FontWeight="SemiBold"
-                            Text="Unified Messenger" />
+                            Opacity="0.85"
+                            Text="• Multi-Profile Isolation: Run multiple concurrent instances of the same platform completely independently without session crossover."
+                            TextWrapping="WrapWholeWords" />
+
                         <TextBlock
-                            x:Name="VersionText"
-                            Opacity="0.7" />
+                            Opacity="0.85"
+                            Text="• Resource-Light Architecture: Built natively on Windows utilizing shared environment optimization to keep memory consumption at an absolute minimum."
+                            TextWrapping="WrapWholeWords" />
+
+                        <TextBlock
+                            Opacity="0.85"
+                            Text="• Unified Notification Center: Gather and manage alerts from across all web profiles into one centralized, native panel."
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </StackPanel>
-
-                <TextBlock
-                    Text="A native Windows hub for multiple web messaging accounts. Each account runs in an isolated WebView2 profile while sharing a single browser runtime for lower memory use."
-                    TextWrapping="WrapWholeWords" />
-
-                <TextBlock
-                    Opacity="0.75"
-                    Text="One inbox for WhatsApp, Telegram, Messenger, and custom web apps — unified notifications, professional and personal workspaces."
-                    TextWrapping="WrapWholeWords" />
-            </StackPanel>
-        </Border>
-    </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
 </Page>

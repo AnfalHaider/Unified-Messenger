@@ -12,8 +12,8 @@ public sealed partial class AboutPage : Page
 
         var version = typeof(App).Assembly.GetName().Version;
         VersionText.Text = version is null
-            ? "Version 1.0.0"
-            : $"Version {version.Major}.{version.Minor}.{version.Build}";
+            ? "Unified Messenger v1.0.0"
+            : $"Unified Messenger v{version.Major}.{version.Minor}.{version.Build}";
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)

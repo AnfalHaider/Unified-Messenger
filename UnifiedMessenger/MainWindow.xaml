@@ -46,15 +46,21 @@
             </TitleBar.RightHeader>
         </TitleBar>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="1" x:Name="ShellLayoutGrid">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="SidebarColumn" Width="320" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition x:Name="NotificationColumn" Width="0" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition x:Name="NotificationRow" Height="0" />
+            </Grid.RowDefinitions>
 
             <Border
                 x:Name="SidebarHost"
+                Grid.Row="0"
+                Grid.RowSpan="2"
                 Grid.Column="0"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
@@ -66,7 +72,7 @@
                 <controls:WorkspaceSidebar x:Name="WorkspaceSidebar" />
             </Border>
 
-            <Grid Grid.Column="1">
+            <Grid Grid.Row="0" Grid.Column="1">
                 <Grid x:Name="InstanceWebViewHost" />
 
                 <StackPanel
@@ -90,6 +96,8 @@
 
             <controls:NotificationFeedPanel
                 x:Name="NotificationPanel"
+                Grid.Row="0"
+                Grid.RowSpan="2"
                 Grid.Column="2"
                 Visibility="Collapsed" />
 

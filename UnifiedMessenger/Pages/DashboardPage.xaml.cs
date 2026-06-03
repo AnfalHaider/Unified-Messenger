@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -12,6 +13,7 @@ public sealed partial class DashboardPage : Page
     private InstanceRegistryService? _registry;
     private readonly List<DashboardActivityItem> _allActivity = [];
     private DispatcherTimer? _resourceTimer;
+    private GoogleReviewAlertView? _selectedReviewAlert;
 
     public DashboardPage()
     {
@@ -36,12 +38,14 @@ public sealed partial class DashboardPage : Page
         NotificationHub.Instance.Changed += OnHubChanged;
         AdapterHealthMonitor.Instance.Changed += OnAdapterHealthChanged;
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
+        ProfessionalWorkspaceService.Instance.Changed += OnProfessionalWorkspaceChanged;
 
-        _resourceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _resourceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _resourceTimer.Tick += (_, _) =>
         {
             RefreshResources();
             RefreshProfessionalMetrics();
+            RefreshEnterpriseWidgets();
         };
         _resourceTimer.Start();
     }
@@ -51,6 +55,7 @@ public sealed partial class DashboardPage : Page
         NotificationHub.Instance.Changed -= OnHubChanged;
         AdapterHealthMonitor.Instance.Changed -= OnAdapterHealthChanged;
         MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
+        ProfessionalWorkspaceService.Instance.Changed -= OnProfessionalWorkspaceChanged;
         _resourceTimer?.Stop();
         _resourceTimer = null;
     }
@@ -71,7 +76,110 @@ public sealed partial class DashboardPage : Page
 
     private void OnAnalyticsChanged(object? sender, EventArgs e)
     {
-        DispatcherQueue.TryEnqueue(RefreshProfessionalMetrics);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            RefreshProfessionalMetrics();
+            RefreshEnterpriseWidgets();
+        });
+    }
+
+    private void OnProfessionalWorkspaceChanged(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(RefreshEnterpriseWidgets);
+    }
+
+    private async void ExportAnalyticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FileSavePicker();
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow!);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+        picker.SuggestedFileName = $"unified-messenger-analytics-{DateTime.Now:yyyyMMdd}";
+        picker.FileTypeChoices.Add("JSON", [".json"]);
+        picker.FileTypeChoices.Add("CSV", [".csv"]);
+
+        var file = await picker.PickSaveFileAsync();
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (file.FileType.Equals(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                await ExportAnalyticsCsvAsync(file.Path);
+            }
+            else
+            {
+                await MessageAnalyticsService.Instance.ExportToFileAsync(file.Path);
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = "Export complete",
+                Content = $"Analytics saved to {file.Name}.",
+                CloseButtonText = "OK",
+                XamlRoot = XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Export failed",
+                Content = ex.Message,
+                CloseButtonText = "OK",
+                XamlRoot = XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+    }
+
+    private async Task ExportAnalyticsCsvAsync(string destinationPath)
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        var lines = new List<string>
+        {
+            "InstanceId,DisplayName,Platform,Sent,Received,SlaBreaches,AvgReplyMinutes"
+        };
+
+        foreach (var instance in _registry.Instances)
+        {
+            var sent = MessageAnalyticsService.Instance.GetSentCount(instance.Id);
+            var received = MessageAnalyticsService.Instance.GetReceivedCount(instance.Id);
+            var sla = MessageAnalyticsService.Instance.GetSlaBreachCount(instance.Id);
+            var (totalReply, replyCount, _, _) =
+                MessageAnalyticsService.Instance.GetReplyStats(instance.Id);
+            var avgReply = replyCount > 0 ? totalReply / replyCount : 0;
+
+            lines.Add(string.Join(',',
+                CsvEscape(instance.Id),
+                CsvEscape(instance.DisplayName),
+                CsvEscape(instance.Platform),
+                sent.ToString(),
+                received.ToString(),
+                sla.ToString(),
+                avgReply.ToString("0.##")));
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        await File.WriteAllLinesAsync(destinationPath, lines);
+    }
+
+    private static string CsvEscape(string value)
+    {
+        if (value.Contains('"') || value.Contains(',') || value.Contains('\n'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+
+        return value;
     }
 
     public void RefreshAll()
@@ -97,6 +205,7 @@ public sealed partial class DashboardPage : Page
         RefreshActivity();
         RefreshResources();
         RefreshProfessionalMetrics();
+        RefreshEnterpriseWidgets();
         UpdateSearchSuggestions(GlobalSearchBox.Text);
         UpdateProfessionalEmptyState();
     }
@@ -117,6 +226,56 @@ public sealed partial class DashboardPage : Page
 
     private IEnumerable<MessengerInstance> ProfessionalInstances =>
         _registry?.Instances.Where(i => i.IsProfessional) ?? [];
+
+    private IEnumerable<MessengerInstance> GoogleBusinessInstances =>
+        ProfessionalInstances.Where(i =>
+            i.Platform.Equals("googlebusiness", StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<MessengerInstance> MetaBusinessInstances =>
+        ProfessionalInstances.Where(i =>
+            i.Platform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase));
+
+    private void RefreshEnterpriseWidgets()
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        var trust = ProfessionalWorkspaceService.Instance.CaptureCustomerTrust(GoogleBusinessInstances);
+        AggregateRatingValue.Text = trust.AggregateRatingDisplay;
+        UnrepliedReviewsValue.Text = trust.TotalUnrepliedReviews == 1
+            ? "1 unreplied review"
+            : $"{trust.TotalUnrepliedReviews} unreplied reviews";
+
+        var reviewItems = trust.PendingReviews
+            .Select(review => new GoogleReviewAlertView(review))
+            .ToList();
+        GoogleReviewAlertsList.ItemsSource = reviewItems;
+        var hasReviews = reviewItems.Count > 0;
+        GoogleReviewAlertsEmptyText.Visibility = hasReviews
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        GoogleReviewAlertsList.Visibility = hasReviews
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (_selectedReviewAlert is not null &&
+            reviewItems.All(item => item.AlertId != _selectedReviewAlert.AlertId))
+        {
+            _selectedReviewAlert = null;
+        }
+
+        var meta = ProfessionalWorkspaceService.Instance.CaptureMetaResponseEfficiency(MetaBusinessInstances);
+        MetaAverageResponseValue.Text = meta.AverageResponseDisplay;
+        MetaEfficiencyRatingValue.Text = meta.EfficiencyRating;
+        MetaSampleCountValue.Text = meta.SampleCount.ToString();
+        MetaLastInboundValue.Text = meta.LastInboundDisplay;
+        MetaLastReplyValue.Text = meta.LastReplyDisplay;
+        MetaResponseEmptyText.Visibility = MetaBusinessInstances.Any()
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
 
     private void RefreshProfessionalMetrics()
     {
@@ -379,6 +538,56 @@ public sealed partial class DashboardPage : Page
         }
     }
 
+    private void GoogleReviewAlertsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _selectedReviewAlert = GoogleReviewAlertsList.SelectedItem as GoogleReviewAlertView;
+        if (_selectedReviewAlert is not null && string.IsNullOrWhiteSpace(ReviewReplyBox.Text))
+        {
+            ReviewReplyBox.Text = $"Hi {_selectedReviewAlert.ReviewerName}, thank you for your feedback. ";
+        }
+    }
+
+    private async void SubmitReviewReplyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedReviewAlert is null)
+        {
+            return;
+        }
+
+        var replyText = ReviewReplyBox.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(replyText))
+        {
+            return;
+        }
+
+        ShellNavigationService.Instance.RequestInstance(_selectedReviewAlert.InstanceId);
+
+        var reviewId = JsonSerializer.Serialize(_selectedReviewAlert.ReviewId);
+        var reply = JsonSerializer.Serialize(replyText);
+        var script = $"window.__umSubmitReviewReply({reviewId}, {reply});";
+
+        await InstanceSessionManager.Instance.ExecuteScriptOnInstanceAsync(
+            _selectedReviewAlert.InstanceId,
+            script);
+
+        ProfessionalWorkspaceService.Instance.MarkReviewReplied(_selectedReviewAlert.AlertId);
+        ReviewReplyBox.Text = string.Empty;
+        _selectedReviewAlert = null;
+        GoogleReviewAlertsList.SelectedItem = null;
+        RefreshEnterpriseWidgets();
+    }
+
+    private void OpenSelectedReviewInstanceButton_Click(object sender, RoutedEventArgs e)
+    {
+        var instanceId = _selectedReviewAlert?.InstanceId ??
+            GoogleBusinessInstances.FirstOrDefault()?.Id;
+
+        if (!string.IsNullOrWhiteSpace(instanceId))
+        {
+            ShellNavigationService.Instance.RequestInstance(instanceId);
+        }
+    }
+
     private sealed class DashboardActivityItem
     {
         public required NotificationAlert Alert { get; init; }
@@ -449,5 +658,36 @@ public sealed partial class DashboardPage : Page
         public string InstanceDisplayName { get; }
 
         public string? InstanceId { get; }
+    }
+
+    private sealed class GoogleReviewAlertView
+    {
+        public GoogleReviewAlertView(GoogleReviewAlert alert)
+        {
+            AlertId = alert.Id;
+            InstanceId = alert.InstanceId;
+            ReviewId = alert.ReviewId;
+            ReviewerName = alert.ReviewerName;
+            Snippet = alert.Snippet;
+            LocationLabel = $"{alert.InstanceDisplayName} · {alert.LocationLabel}";
+            RelativeTimeText = alert.RelativeTimeText;
+            RatingDisplay = alert.Rating > 0 ? $"{alert.Rating}★" : "★";
+        }
+
+        public string AlertId { get; }
+
+        public string InstanceId { get; }
+
+        public string ReviewId { get; }
+
+        public string ReviewerName { get; }
+
+        public string Snippet { get; }
+
+        public string LocationLabel { get; }
+
+        public string RelativeTimeText { get; }
+
+        public string RatingDisplay { get; }
     }
 }

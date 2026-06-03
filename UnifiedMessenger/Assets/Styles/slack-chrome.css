@@ -1,0 +1,23 @@
+/* Unified Messenger — Slack Web chrome blend */
+:root {
+  --um-shell-seam: rgba(255, 255, 255, 0.08);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --um-shell-seam: rgba(0, 0, 0, 0.08);
+  }
+}
+
+html, body, #root_app {
+  border-left: 1px solid var(--um-shell-seam) !important;
+}
+
+.p-workspace__sidebar,
+.p-channel_sidebar {
+  box-shadow: inset 1px 0 0 var(--um-shell-seam);
+}
+
+.p-top_nav {
+  border-top-left-radius: 0 !important;
+}

@@ -14,4 +14,10 @@ public static class AdapterMessageTypes
     public const string Heartbeat = "adapter-heartbeat";
 
     public const string MessageSent = "message-sent";
+
+    public const string MetaInboundMessage = "meta-inbound-message";
+
+    public const string GoogleReviewSnapshot = "google-review-snapshot";
+
+    public const string GoogleReviewAlert = "google-review-alert";
 }

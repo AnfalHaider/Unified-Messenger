@@ -3,9 +3,9 @@
 .SYNOPSIS
     Regenerates Unified Messenger branding assets from master icon and logo PNGs.
 .PARAMETER IconPath
-    Square-ish app icon source (used for tiles, title bar, taskbar).
+    Square-ish app icon source (used for window icon, installer, and toasts).
 .PARAMETER LogoPath
-    Wide logo source (used for splash screen and wide Start tile).
+    Wide logo source (stored as branding master for future marketing use).
 #>
 param(
     [Parameter(Mandatory = $true)]
@@ -175,29 +175,8 @@ $logoSource = [System.Drawing.Image]::FromFile($logoSourcePath)
 try {
     $iconMaster = New-SquareBitmap -Source $iconSource -CanvasSize 1024
     $wideMaster = New-WideBitmap -Source $logoSource -Width 1240 -Height 600 -Background $background
-    $wideTile = New-WideBitmap -Source $logoSource -Width 620 -Height 300 -Background $background
-    $splashTile = New-WideBitmap -Source $logoSource -Width 620 -Height 300 -Background $background
-
     Save-Png $iconMaster (Join-Path $brandingPath "icon-master.png")
     Save-Png $wideMaster (Join-Path $brandingPath "wide-master.png")
-
-    $outputs = @(
-        @{ Path = "StoreLogo.png"; Bitmap = (Resize-Bitmap -Source $iconMaster -Size 50) },
-        @{ Path = "Square44x44Logo.scale-200.png"; Bitmap = (Resize-Bitmap -Source $iconMaster -Size 88) },
-        @{ Path = "Square44x44Logo.targetsize-24_altform-unplated.png"; Bitmap = (Resize-Bitmap -Source $iconMaster -Size 24) },
-        @{ Path = "Square44x44Logo.targetsize-48_altform-lightunplated.png"; Bitmap = (Resize-Bitmap -Source $iconMaster -Size 48) },
-        @{ Path = "Square150x150Logo.scale-200.png"; Bitmap = (Resize-Bitmap -Source $iconMaster -Size 300) },
-        @{ Path = "LockScreenLogo.scale-200.png"; Bitmap = (Resize-Bitmap -Source $iconMaster -Size 96) },
-        @{ Path = "Wide310x150Logo.scale-200.png"; Bitmap = $wideTile },
-        @{ Path = "SplashScreen.scale-200.png"; Bitmap = $splashTile }
-    )
-
-    foreach ($output in $outputs) {
-        $targetPath = Join-Path $assetsRootPath $output.Path
-        Save-Png $output.Bitmap $targetPath
-        $output.Bitmap.Dispose()
-        Write-Host "Wrote $targetPath"
-    }
 
     $icoPath = Join-Path $assetsRootPath "AppIcon.ico"
     Save-Icon -SquareMaster $iconMaster -Path $icoPath
