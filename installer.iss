@@ -5,7 +5,7 @@
 #define MyAppExeName "UnifiedMessenger.exe"
 #define MyAppPublisher "AnfalHaider"
 #define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 
 ; Path to the self-contained publish output (adjust Configuration / RID as needed)
 #define PublishDir "UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish"
