@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="UnifiedMessenger.Controls.NotificationFeedPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:UnifiedMessenger.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Width="320"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <controls:NotificationFeedTemplateSelector x:Key="FeedTemplateSelector">
+            <controls:NotificationFeedTemplateSelector.HeaderTemplate>
+                <DataTemplate>
+                    <Grid
+                        Margin="0,12,0,4"
+                        Padding="4,0"
+                        ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Opacity="0.65"
+                            Text="{Binding GroupTitle}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Opacity="0.55"
+                            Text="{Binding GroupUnreadLabel}" />
+                    </Grid>
+                </DataTemplate>
+            </controls:NotificationFeedTemplateSelector.HeaderTemplate>
+            <controls:NotificationFeedTemplateSelector.AlertTemplate>
+                <DataTemplate>
+                    <Grid
+                        Margin="0,0,0,8"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Opacity="{Binding CardOpacity}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border
+                            Background="{Binding AccentBrush}"
+                            CornerRadius="8,0,0,8" />
+
+                        <Grid
+                            Grid.Column="1"
+                            Padding="10,12"
+                            ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    FontWeight="SemiBold"
+                                    Opacity="{Binding TitleOpacity}"
+                                    Text="{Binding Title}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    FontSize="11"
+                                    Opacity="0.55"
+                                    Text="{Binding RelativeTimeText}" />
+                            </Grid>
+
+                            <TextBlock
+                                Grid.Row="1"
+                                Margin="0,4,0,0"
+                                Opacity="{Binding BodyOpacity}"
+                                Text="{Binding Body}"
+                                TextTrimming="CharacterEllipsis"
+                                TextWrapping="WrapWholeWords" />
+
+                            <Button
+                                Grid.RowSpan="2"
+                                Grid.Column="1"
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Top"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="DismissAlertButton_Click"
+                                Tag="{Binding AlertId}"
+                                ToolTipService.ToolTip="Dismiss">
+                                <FontIcon FontSize="10" Glyph="&#xE711;" Opacity="0.6" />
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </DataTemplate>
+            </controls:NotificationFeedTemplateSelector.AlertTemplate>
+        </controls:NotificationFeedTemplateSelector>
+    </UserControl.Resources>
+
+    <Grid Background="{ThemeResource LayerFillColorDefaultBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border
+            Padding="16,12"
+            BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <InfoBadge
+                    x:Name="HeaderBadge"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed" />
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontWeight="SemiBold"
+                    Text="Notifications" />
+                <Button
+                    x:Name="MarkAllReadButton"
+                    Grid.Column="2"
+                    Click="MarkAllReadButton_Click"
+                    ToolTipService.ToolTip="Mark all as read">
+                    <FontIcon FontSize="12" Glyph="&#xE930;" />
+                </Button>
+                <Button
+                    x:Name="ClearAllButton"
+                    Grid.Column="3"
+                    Click="ClearAllButton_Click"
+                    ToolTipService.ToolTip="Clear all">
+                    <FontIcon FontSize="12" Glyph="&#xE894;" />
+                </Button>
+                <Button
+                    Grid.Column="4"
+                    Click="CollapseButton_Click"
+                    ToolTipService.ToolTip="Collapse panel">
+                    <FontIcon FontSize="12" Glyph="&#xE76C;" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <ListView
+                x:Name="AlertsList"
+                Padding="8,0"
+                IsItemClickEnabled="True"
+                ItemClick="AlertsList_ItemClick"
+                ItemTemplateSelector="{StaticResource FeedTemplateSelector}"
+                SelectionMode="None"
+                Visibility="Collapsed">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+            </ListView>
+
+            <StackPanel
+                x:Name="EmptyStatePanel"
+                Padding="16"
+                VerticalAlignment="Center"
+                Spacing="8">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Opacity="0.7"
+                    Text="No notifications yet."
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="12"
+                    Opacity="0.55"
+                    Text="Unread badges appear on sidebar icons. Message previews show here when intercepted."
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

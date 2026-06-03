@@ -1,0 +1,147 @@
+(function () {
+  'use strict';
+
+  if (window.__unifiedMessengerAdapterInstalled) {
+    return;
+  }
+
+  window.__unifiedMessengerAdapterInstalled = true;
+
+  var INSTANCE_ID = '__INSTANCE_ID__';
+  var PLATFORM = '__PLATFORM__';
+  var ADAPTER_ID = 'messenger';
+  var lastPostedCount = -1;
+  var pollTimer = null;
+
+  function postMessage(payload) {
+    window.__umPostMessage(payload);
+  }
+
+  function parseUnreadFromLabel(label) {
+    if (!label) {
+      return 0;
+    }
+
+    var match = String(label).match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : 1;
+  }
+
+  function countFromDom() {
+    var total = 0;
+    var seen = new Set();
+
+    var badgeSelectors = [
+      'span[data-testid="mw_unread_count"]',
+      '[aria-label*="unread message"]',
+      '[aria-label*="Unread message"]',
+      '[aria-label*="unread messages"]',
+      '[aria-label*="Unread messages"]'
+    ];
+
+    badgeSelectors.forEach(function (selector) {
+      document.querySelectorAll(selector).forEach(function (element) {
+        if (seen.has(element)) {
+          return;
+        }
+
+        seen.add(element);
+        var label = element.getAttribute('aria-label');
+        var text = element.textContent;
+        total += label ? parseUnreadFromLabel(label) : window.__umSafeParseInt(text);
+      });
+    });
+
+    if (total > 0) {
+      return total;
+    }
+
+    document.querySelectorAll('div[role="row"]').forEach(function (row) {
+      var unreadMarker = row.querySelector('[aria-label*="unread"], [data-testid="mw_unread_count"]');
+      if (!unreadMarker || seen.has(unreadMarker)) {
+        return;
+      }
+
+      seen.add(unreadMarker);
+      var label = unreadMarker.getAttribute('aria-label');
+      total += label ? parseUnreadFromLabel(label) : window.__umSafeParseInt(unreadMarker.textContent);
+    });
+
+    return total;
+  }
+
+  function computeUnreadCount() {
+    var domCount = countFromDom();
+    if (domCount > 0) {
+      return domCount;
+    }
+
+    return window.__umCountFromTitle();
+  }
+
+  function publishBadgeCount() {
+    var count = computeUnreadCount();
+    if (count === lastPostedCount) {
+      return;
+    }
+
+    lastPostedCount = count;
+    postMessage({
+      type: 'badge-count',
+      instanceId: INSTANCE_ID,
+      platform: PLATFORM,
+      count: count
+    });
+  }
+
+  window.__unifiedMessengerPublishBadge = publishBadgeCount;
+
+  function observeDom() {
+    var root = document.body || document.documentElement;
+    if (!root) {
+      return;
+    }
+
+    var observer = new MutationObserver(function () {
+      publishBadgeCount();
+    });
+
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['class', 'title', 'aria-label']
+    });
+  }
+
+  function startPolling() {
+    if (pollTimer) {
+      return;
+    }
+
+    publishBadgeCount();
+    pollTimer = window.setInterval(publishBadgeCount, 3000);
+  }
+
+  window.__umInstallNotificationInterceptor(INSTANCE_ID, PLATFORM);
+  window.__umInstallOutgoingMessageMonitor(INSTANCE_ID, PLATFORM, {
+    composeSelectors: [
+      'div[contenteditable="true"][role="textbox"]',
+      'div[aria-label="Message"][contenteditable="true"]'
+    ],
+    sendSelectors: [
+      'div[aria-label="Send"]',
+      'div[aria-label="Press enter to send"]'
+    ],
+    chatHintSelectors: [
+      'h1[dir="auto"]',
+      '[data-testid="conversation-title"]'
+    ]
+  });
+  window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
+  window.__umStartHeartbeat(INSTANCE_ID, PLATFORM, ADAPTER_ID, 30000);
+  observeDom();
+  startPolling();
+
+  window.addEventListener('load', publishBadgeCount);
+})();

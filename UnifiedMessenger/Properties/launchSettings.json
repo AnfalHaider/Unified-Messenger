@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "UnifiedMessenger (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "UnifiedMessenger (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

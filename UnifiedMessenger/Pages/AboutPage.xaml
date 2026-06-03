@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="UnifiedMessenger.Pages.AboutPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:UnifiedMessenger.Pages"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Padding="24,16,24,24" Spacing="16" MaxWidth="640">
+        <HyperlinkButton
+            x:Name="BackLink"
+            Click="BackLink_Click"
+            Content="Back to Settings"
+            Visibility="Collapsed" />
+
+        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="About" />
+
+        <Border
+            Padding="20"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <StackPanel Spacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Image Width="48" Height="48" Source="Assets/AppIcon.ico" />
+                    <StackPanel VerticalAlignment="Center" Spacing="4">
+                        <TextBlock
+                            FontSize="20"
+                            FontWeight="SemiBold"
+                            Text="Unified Messenger" />
+                        <TextBlock
+                            x:Name="VersionText"
+                            Opacity="0.7" />
+                    </StackPanel>
+                </StackPanel>
+
+                <TextBlock
+                    Text="A native Windows hub for multiple web messaging accounts. Each account runs in an isolated WebView2 profile while sharing a single browser runtime for lower memory use."
+                    TextWrapping="WrapWholeWords" />
+
+                <TextBlock
+                    Opacity="0.75"
+                    Text="One inbox for WhatsApp, Telegram, Messenger, and custom web apps — unified notifications, professional and personal workspaces."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</Page>
