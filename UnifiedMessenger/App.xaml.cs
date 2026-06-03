@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger;
@@ -16,8 +16,6 @@ public partial class App : Application
 
     protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
-        _ = GitHubUpdateService.Instance.CheckForUpdatesAsync();
-
         await AppSettingsService.Instance.LoadAsync();
         ThemeService.Apply(AppSettingsService.Instance.Settings.ThemePreference);
 
@@ -28,5 +26,7 @@ public partial class App : Application
         CurrentWindow = _window;
         notificationService.TryHandleLaunchActivation();
         _window.Activate();
+
+        _ = GitHubUpdateService.Instance.CheckForUpdatesAsync();
     }
 }

@@ -15,8 +15,15 @@ public sealed class AppNotificationService
 
     public void Initialize()
     {
-        AppNotificationManager.Default.NotificationInvoked += OnNotificationInvoked;
-        AppNotificationManager.Default.Register();
+        try
+        {
+            AppNotificationManager.Default.NotificationInvoked += OnNotificationInvoked;
+            AppNotificationManager.Default.Register();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"App notification registration failed: {ex.Message}");
+        }
     }
 
     public void Shutdown()
