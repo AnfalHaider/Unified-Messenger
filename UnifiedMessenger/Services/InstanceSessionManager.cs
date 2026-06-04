@@ -264,6 +264,7 @@ public sealed class InstanceSessionManager
             _visibleInstanceId = null;
         }
 
+        InstanceConnectionStatusService.Instance.Remove(instanceId);
         RemoveAccessTracking(instanceId);
     }
 

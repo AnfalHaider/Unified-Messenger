@@ -64,6 +64,9 @@ public sealed partial class MainWindow : Window
         AppNotificationService.Instance.ActivationRequested += OnToastActivationRequested;
         _adapterHealth.Changed += OnAdapterHealthChanged;
         _adapterHealth.AdapterStaleDetected += OnAdapterStaleDetected;
+        InstanceConnectionStatusService.Instance.Changed += OnConnectionStatusChanged;
+        _sessionManager.SessionInitializing += OnSessionInitializing;
+        _sessionManager.SessionFailed += OnSessionFailed;
         AttachShellNavigationHandlers();
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
         AppSettingsService.Instance.Changed += OnAppSettingsChanged;
@@ -138,6 +141,9 @@ public sealed partial class MainWindow : Window
         AppNotificationService.Instance.ActivationRequested -= OnToastActivationRequested;
         _adapterHealth.Changed -= OnAdapterHealthChanged;
         _adapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;
+        InstanceConnectionStatusService.Instance.Changed -= OnConnectionStatusChanged;
+        _sessionManager.SessionInitializing -= OnSessionInitializing;
+        _sessionManager.SessionFailed -= OnSessionFailed;
         MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
         AppSettingsService.Instance.Changed -= OnAppSettingsChanged;
     }
@@ -684,6 +690,21 @@ public sealed partial class MainWindow : Window
 
     private void OnAdapterHealthChanged(object? sender, EventArgs e)
     {
+        DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+    }
+
+    private void OnConnectionStatusChanged(object? sender, InstanceConnectionStatusChangedEventArgs e) =>
+        DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+
+    private void OnSessionInitializing(object? sender, InstanceSessionEventArgs e)
+    {
+        InstanceConnectionStatusService.Instance.SetInitializing(e.Instance.Id, "Starting session");
+        DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+    }
+
+    private void OnSessionFailed(object? sender, InstanceSessionErrorEventArgs e)
+    {
+        InstanceConnectionStatusService.Instance.SetError(e.Instance.Id, e.Error.Message);
         DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
     }
 

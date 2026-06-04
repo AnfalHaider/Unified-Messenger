@@ -14,6 +14,8 @@ public sealed partial class DashboardPage : Page
     private readonly List<DashboardActivityItem> _allActivity = [];
     private DispatcherTimer? _resourceTimer;
     private GoogleReviewAlertView? _selectedReviewAlert;
+    private string? _selectedBranchInstanceId;
+    private bool _suppressBranchSelectionChanged;
 
     public DashboardPage()
     {
@@ -168,6 +170,7 @@ public sealed partial class DashboardPage : Page
 
         WelcomeSubtitle.Text = DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
 
+        RefreshBranchFilter();
         RefreshActivity();
         RefreshResources();
         RefreshProfessionalMetrics();
@@ -193,6 +196,9 @@ public sealed partial class DashboardPage : Page
     private IEnumerable<MessengerInstance> ProfessionalInstances =>
         _registry?.Instances.Where(i => i.IsProfessional) ?? [];
 
+    private IEnumerable<MessengerInstance> FilteredProfessionalInstances =>
+        DashboardPageHelper.FilterProfessionalInstances(ProfessionalInstances, _selectedBranchInstanceId);
+
     private IEnumerable<MessengerInstance> GoogleBusinessInstances =>
         ProfessionalInstances.Where(i =>
             i.Platform.Equals("googlebusiness", StringComparison.OrdinalIgnoreCase));
@@ -208,7 +214,8 @@ public sealed partial class DashboardPage : Page
             return;
         }
 
-        var trust = ProfessionalWorkspaceService.Instance.CaptureCustomerTrust(GoogleBusinessInstances);
+        var trust = ProfessionalWorkspaceService.Instance.CaptureCustomerTrust(
+            FilteredGoogleBusinessInstances);
         AggregateRatingValue.Text = trust.AggregateRatingDisplay;
         UnrepliedReviewsValue.Text = DashboardPageHelper.FormatUnrepliedReviewCount(trust.TotalUnrepliedReviews);
 
@@ -230,15 +237,61 @@ public sealed partial class DashboardPage : Page
             _selectedReviewAlert = null;
         }
 
-        var meta = ProfessionalWorkspaceService.Instance.CaptureMetaResponseEfficiency(MetaBusinessInstances);
+        var meta = ProfessionalWorkspaceService.Instance.CaptureMetaResponseEfficiency(
+            FilteredMetaBusinessInstances);
         MetaAverageResponseValue.Text = meta.AverageResponseDisplay;
         MetaEfficiencyRatingValue.Text = meta.EfficiencyRating;
         MetaSampleCountValue.Text = meta.SampleCount.ToString();
         MetaLastInboundValue.Text = meta.LastInboundDisplay;
         MetaLastReplyValue.Text = meta.LastReplyDisplay;
-        MetaResponseEmptyText.Visibility = MetaBusinessInstances.Any()
+        MetaResponseEmptyText.Visibility = FilteredMetaBusinessInstances.Any()
             ? Visibility.Collapsed
             : Visibility.Visible;
+    }
+
+    private IEnumerable<MessengerInstance> FilteredGoogleBusinessInstances =>
+        FilteredProfessionalInstances.Where(i =>
+            i.Platform.Equals("googlebusiness", StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<MessengerInstance> FilteredMetaBusinessInstances =>
+        FilteredProfessionalInstances.Where(i =>
+            i.Platform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase));
+
+    private void RefreshBranchFilter()
+    {
+        if (_registry is null)
+        {
+            BranchFilterBox.ItemsSource = null;
+            return;
+        }
+
+        var options = DashboardPageHelper.BuildBranchOptions(ProfessionalInstances);
+        _suppressBranchSelectionChanged = true;
+        BranchFilterBox.ItemsSource = options;
+        BranchFilterBox.DisplayMemberPath = nameof(DashboardBranchOption.DisplayName);
+        BranchFilterBox.SelectedValuePath = nameof(DashboardBranchOption.InstanceId);
+
+        var selectedId = _selectedBranchInstanceId ?? DashboardPageHelper.AllBranchesOptionId;
+        BranchFilterBox.SelectedItem = options.FirstOrDefault(option =>
+            option.InstanceId.Equals(selectedId, StringComparison.OrdinalIgnoreCase));
+        if (BranchFilterBox.SelectedItem is null)
+        {
+            BranchFilterBox.SelectedIndex = 0;
+        }
+
+        _suppressBranchSelectionChanged = false;
+    }
+
+    private void BranchFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressBranchSelectionChanged || BranchFilterBox.SelectedItem is not DashboardBranchOption option)
+        {
+            return;
+        }
+
+        _selectedBranchInstanceId = string.IsNullOrWhiteSpace(option.InstanceId) ? null : option.InstanceId;
+        RefreshProfessionalMetrics();
+        RefreshEnterpriseWidgets();
     }
 
     private void RefreshProfessionalMetrics()
@@ -249,7 +302,7 @@ public sealed partial class DashboardPage : Page
         }
 
         var snapshot = MessageAnalyticsService.Instance.CaptureProfessionalSnapshot(
-            ProfessionalInstances,
+            FilteredProfessionalInstances,
             NotificationHub.Instance);
 
         AvgReplyTimeValue.Text = snapshot.AverageReplyTimeDisplay;

@@ -58,7 +58,21 @@ public class WorkspaceSidebarHelperTests
     {
         Assert.Equal(
             "Notifications muted",
-            WorkspaceSidebarHelper.ResolveStatusSubtitle(AdapterHealthState.Healthy, notificationsMuted: true));
+            WorkspaceSidebarHelper.ResolveStatusSubtitle(
+                InstanceConnectionStatus.Connected,
+                AdapterHealthState.Healthy,
+                notificationsMuted: true));
+    }
+
+    [Fact]
+    public void ResolveStatusSubtitle_ShowsConnectedWhenHandshakeSucceeds()
+    {
+        Assert.Equal(
+            "Status: Connected",
+            WorkspaceSidebarHelper.ResolveStatusSubtitle(
+                InstanceConnectionStatus.Connected,
+                AdapterHealthState.Healthy,
+                notificationsMuted: false));
     }
 
     [Theory]

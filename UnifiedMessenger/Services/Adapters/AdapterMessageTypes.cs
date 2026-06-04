@@ -13,6 +13,8 @@ public static class AdapterMessageTypes
 
     public const string Heartbeat = "adapter-heartbeat";
 
+    public const string ConnectionStatus = "connection-status";
+
     public const string MessageSent = "message-sent";
 
     public const string MetaInboundMessage = "meta-inbound-message";
@@ -27,6 +29,7 @@ public static class AdapterMessageTypes
         NotificationPreview,
         AdapterReady,
         Heartbeat,
+        ConnectionStatus,
         MessageSent
     };
 

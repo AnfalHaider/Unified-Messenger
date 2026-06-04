@@ -14,17 +14,33 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Spacing="8">
-            <TextBlock
-                x:Name="WelcomeTitle"
-                Style="{StaticResource TitleTextBlockStyle}"
-                Text="Welcome back" />
-            <TextBlock
-                x:Name="WelcomeSubtitle"
-                Opacity="0.7"
-                Text="Your unified messaging workspace"
-                TextWrapping="WrapWholeWords" />
-        </StackPanel>
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="8">
+                <TextBlock
+                    x:Name="WelcomeTitle"
+                    Style="{StaticResource TitleTextBlockStyle}"
+                    Text="Welcome back" />
+                <TextBlock
+                    x:Name="WelcomeSubtitle"
+                    Opacity="0.7"
+                    Text="Your unified messaging workspace"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <ComboBox
+                x:Name="BranchFilterBox"
+                Grid.Column="1"
+                MinWidth="220"
+                VerticalAlignment="Center"
+                Header="Branch"
+                PlaceholderText="All Branches"
+                SelectionChanged="BranchFilterBox_SelectionChanged" />
+        </Grid>
 
         <TabView
             x:Name="DashboardTabs"

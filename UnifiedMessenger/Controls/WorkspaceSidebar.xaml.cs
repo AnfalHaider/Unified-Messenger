@@ -14,6 +14,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private readonly Dictionary<string, Border> _instanceRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, InfoBadge> _instanceBadges = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Ellipse> _instanceStatusDots = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextBlock> _instanceStatusLabels = new(StringComparer.OrdinalIgnoreCase);
 
     private Border? _dashboardRow;
     private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
@@ -55,6 +56,7 @@ public sealed partial class WorkspaceSidebar : Grid
         _instanceRows.Clear();
         _instanceBadges.Clear();
         _instanceStatusDots.Clear();
+        _instanceStatusLabels.Clear();
         _compactHiddenElements.Clear();
         MenuStack.Children.Clear();
 
@@ -173,20 +175,36 @@ public sealed partial class WorkspaceSidebar : Grid
 
     public void UpdateInstanceHealth(string instanceId, MessengerInstance instance)
     {
-        if (string.IsNullOrWhiteSpace(instanceId) ||
-            !_instanceStatusDots.TryGetValue(instanceId.Trim(), out var dot))
+        if (string.IsNullOrWhiteSpace(instanceId))
         {
             return;
         }
 
-        var status = AdapterHealthMonitor.Instance.GetStatus(instanceId);
-        dot.Fill = new SolidColorBrush(WorkspaceSidebarHelper.ResolveHealthIndicatorColor(status.State));
+        var normalizedId = instanceId.Trim();
+        var connectionStatus = InstanceConnectionStatusService.Instance.GetStatus(normalizedId);
+        var adapterStatus = AdapterHealthMonitor.Instance.GetStatus(normalizedId);
+        var detail = InstanceConnectionStatusService.Instance.GetDetail(normalizedId);
 
-        if (_instanceRows.TryGetValue(instanceId.Trim(), out var row))
+        if (_instanceStatusDots.TryGetValue(normalizedId, out var dot))
         {
+            dot.Fill = new SolidColorBrush(
+                WorkspaceSidebarHelper.ResolveConnectionIndicatorColor(connectionStatus, adapterStatus.State));
+        }
+
+        if (_instanceStatusLabels.TryGetValue(normalizedId, out var statusLabel))
+        {
+            statusLabel.Text = WorkspaceSidebarHelper.ResolveStatusSubtitle(
+                connectionStatus,
+                adapterStatus.State,
+                instance.NotificationsMuted);
+        }
+
+        if (_instanceRows.TryGetValue(normalizedId, out var row))
+        {
+            var detailLine = string.IsNullOrWhiteSpace(detail) ? string.Empty : $"\n{detail}";
             ToolTipService.SetToolTip(
                 row,
-                $"{instance.DisplayName}\nWorkspace: {instance.Category}\nAdapter: {status.Description}");
+                $"{instance.DisplayName}\nWorkspace: {instance.Category}\n{statusLabel?.Text ?? connectionStatus.ToString()}{detailLine}\nAdapter: {adapterStatus.Description}");
         }
     }
 
@@ -254,8 +272,11 @@ public sealed partial class WorkspaceSidebar : Grid
     private Border CreateInstanceRow(MessengerInstance instance)
     {
         var instanceId = instance.Id.Trim();
+        var connectionStatus = InstanceConnectionStatusService.Instance.GetStatus(instanceId);
+        var adapterState = AdapterHealthMonitor.Instance.GetStatus(instanceId).State;
         var subtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
-            AdapterHealthMonitor.Instance.GetStatus(instanceId).State,
+            connectionStatus,
+            adapterState,
             instance.NotificationsMuted);
         var row = CreateSelectableRow(
             instanceId,
@@ -331,13 +352,14 @@ public sealed partial class WorkspaceSidebar : Grid
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
-        textPanel.Children.Add(new TextBlock
+        var statusLabel = new TextBlock
         {
             Text = subtitle,
             FontSize = 11,
             Opacity = 0.62,
             TextTrimming = TextTrimming.CharacterEllipsis
-        });
+        };
+        textPanel.Children.Add(statusLabel);
         _compactHiddenElements.Add(textPanel);
 
         var trailing = new StackPanel
@@ -375,6 +397,7 @@ public sealed partial class WorkspaceSidebar : Grid
         if (!WorkspaceSidebarHelper.IsSelectionMatch(key, WorkspaceSidebarHelper.DashboardSelectionKey))
         {
             _instanceStatusDots[key] = statusDot;
+            _instanceStatusLabels[key] = statusLabel;
             _instanceBadges[key] = badge;
         }
 

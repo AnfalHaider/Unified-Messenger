@@ -8,6 +8,41 @@ public static class DashboardPageHelper
 
     public const int MaxSearchSuggestions = 6;
 
+    public const string AllBranchesOptionId = "";
+
+    public static IReadOnlyList<DashboardBranchOption> BuildBranchOptions(
+        IEnumerable<MessengerInstance> professionalInstances)
+    {
+        var options = new List<DashboardBranchOption>
+        {
+            new(AllBranchesOptionId, "All Branches")
+        };
+
+        foreach (var instance in professionalInstances
+                     .Where(instance => !string.IsNullOrWhiteSpace(instance.Id))
+                     .OrderBy(instance => instance.DisplayName, StringComparer.OrdinalIgnoreCase))
+        {
+            options.Add(new DashboardBranchOption(instance.Id.Trim(), instance.DisplayName.Trim()));
+        }
+
+        return options;
+    }
+
+    public static IEnumerable<MessengerInstance> FilterProfessionalInstances(
+        IEnumerable<MessengerInstance> professionalInstances,
+        string? selectedBranchInstanceId)
+    {
+        ArgumentNullException.ThrowIfNull(professionalInstances);
+
+        if (string.IsNullOrWhiteSpace(selectedBranchInstanceId))
+        {
+            return professionalInstances;
+        }
+
+        return professionalInstances.Where(instance =>
+            instance.Id.Equals(selectedBranchInstanceId.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
     public static string BuildWelcomeSubtitle(int professionalCount, int personalCount) =>
         (professionalCount, personalCount) switch
         {
@@ -112,3 +147,5 @@ public readonly record struct DashboardSearchMatch(
     string Label,
     string SubLabel,
     string AccentColorHex);
+
+public readonly record struct DashboardBranchOption(string InstanceId, string DisplayName);

@@ -57,31 +57,52 @@ public static class WorkspaceSidebarHelper
         return (professional, personal);
     }
 
-    public static string ResolveStatusSubtitle(AdapterHealthState state, bool notificationsMuted)
+    public static string ResolveStatusSubtitle(
+        InstanceConnectionStatus connectionStatus,
+        AdapterHealthState adapterState,
+        bool notificationsMuted)
     {
         if (notificationsMuted)
         {
             return "Notifications muted";
         }
 
-        return state switch
+        return connectionStatus switch
         {
-            AdapterHealthState.Healthy => "Status: Online",
-            AdapterHealthState.Ready => "Status: Ready",
-            AdapterHealthState.Stale => "Status: Stale",
-            AdapterHealthState.NoAdapter => "Status: Starting",
-            _ => "Status: Unknown"
+            InstanceConnectionStatus.Connected when adapterState == AdapterHealthState.Healthy =>
+                "Status: Connected",
+            InstanceConnectionStatus.Connected => "Status: Connected · syncing",
+            InstanceConnectionStatus.LoggedOut => "Status: Logged out",
+            InstanceConnectionStatus.Error => "Status: Error",
+            InstanceConnectionStatus.Initializing => "Status: Connecting…",
+            _ => adapterState switch
+            {
+                AdapterHealthState.Healthy => "Status: Online",
+                AdapterHealthState.Ready => "Status: Ready",
+                AdapterHealthState.Stale => "Status: Stale",
+                AdapterHealthState.NoAdapter => "Status: Starting",
+                _ => "Status: Unknown"
+            }
         };
     }
 
-    public static Windows.UI.Color ResolveHealthIndicatorColor(AdapterHealthState state) =>
-        state switch
+    public static Windows.UI.Color ResolveConnectionIndicatorColor(
+        InstanceConnectionStatus connectionStatus,
+        AdapterHealthState adapterState) =>
+        connectionStatus switch
         {
-            AdapterHealthState.Healthy => Windows.UI.Color.FromArgb(255, 16, 124, 16),
-            AdapterHealthState.Ready => Windows.UI.Color.FromArgb(255, 0, 99, 177),
-            AdapterHealthState.Stale => Windows.UI.Color.FromArgb(255, 196, 89, 17),
-            AdapterHealthState.NoAdapter => Windows.UI.Color.FromArgb(255, 128, 128, 128),
-            _ => Windows.UI.Color.FromArgb(255, 160, 160, 160)
+            InstanceConnectionStatus.Connected => Windows.UI.Color.FromArgb(255, 16, 124, 16),
+            InstanceConnectionStatus.LoggedOut => Windows.UI.Color.FromArgb(255, 196, 89, 17),
+            InstanceConnectionStatus.Error => Windows.UI.Color.FromArgb(255, 196, 43, 28),
+            InstanceConnectionStatus.Initializing => Windows.UI.Color.FromArgb(255, 0, 99, 177),
+            _ => adapterState switch
+            {
+                AdapterHealthState.Healthy => Windows.UI.Color.FromArgb(255, 16, 124, 16),
+                AdapterHealthState.Ready => Windows.UI.Color.FromArgb(255, 0, 99, 177),
+                AdapterHealthState.Stale => Windows.UI.Color.FromArgb(255, 196, 89, 17),
+                AdapterHealthState.NoAdapter => Windows.UI.Color.FromArgb(255, 128, 128, 128),
+                _ => Windows.UI.Color.FromArgb(255, 160, 160, 160)
+            }
         };
 
     public static bool ShouldAcceptReorder(string? sourceInstanceId, string? targetInstanceId)

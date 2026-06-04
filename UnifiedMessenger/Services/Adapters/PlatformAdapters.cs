@@ -45,6 +45,9 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         var coreScript = PrepareScript(
             await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false),
             instance);
+        var handshakeScript = PrepareScript(
+            await LoadScriptTemplateAsync("connection-handshake.js", cancellationToken).ConfigureAwait(false),
+            instance);
         var adapterScript = PrepareScript(
             await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
             instance);
@@ -53,8 +56,9 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         {
             coreWebView.Settings.IsWebMessageEnabled = true;
             await AddDocumentCreatedScriptAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
+            await AddDocumentCreatedScriptAsync(coreWebView, handshakeScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
-            RegisterNavigationHooks(coreWebView);
+            RegisterNavigationHooks(coreWebView, instance);
         }).ConfigureAwait(true);
     }
 
@@ -143,17 +147,47 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
     }
 
-    protected virtual void RegisterNavigationHooks(CoreWebView2 coreWebView)
+    protected virtual void RegisterNavigationHooks(CoreWebView2 coreWebView, MessengerInstance instance)
     {
         coreWebView.NavigationCompleted += (sender, args) =>
         {
             if (!args.IsSuccess)
             {
+                InstanceConnectionStatusService.Instance.SetError(
+                    instance.Id,
+                    args.WebErrorStatus.ToString());
                 return;
             }
 
-            _ = ExecutePublishBadgeAsync(coreWebView);
+            _ = OnNavigationCompletedAsync(coreWebView, instance);
         };
+    }
+
+    private async Task OnNavigationCompletedAsync(CoreWebView2 coreWebView, MessengerInstance instance)
+    {
+        InstanceConnectionStatusService.Instance.SetInitializing(instance.Id, "Loading workspace");
+
+        try
+        {
+            await ExecuteScriptSafeAsync(
+                    coreWebView,
+                    BuildConnectionHandshakeScript(instance),
+                    CancellationToken.None)
+                .ConfigureAwait(true);
+            await ExecutePublishBadgeAsync(coreWebView).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Connection handshake failed for {instance.Id}: {ex.Message}");
+            InstanceConnectionStatusService.Instance.SetError(instance.Id, ex.Message);
+        }
+    }
+
+    private static string BuildConnectionHandshakeScript(MessengerInstance instance)
+    {
+        var instanceId = JsonSerializer.Serialize(instance.Id);
+        var platform = JsonSerializer.Serialize(PlatformDefinition.NormalizePlatformId(instance.Platform));
+        return $"window.__umStartConnectionHandshake({instanceId}, {platform});";
     }
 
     protected virtual bool HandleCustomMessage(
@@ -164,6 +198,30 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
     protected static DateTimeOffset ParseMessageTimestamp(JsonElement root) =>
         WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
+
+    private static void ApplyConnectionStatus(string instanceId, string? statusRaw, JsonElement root)
+    {
+        var detail = root.TryGetProperty("detail", out var detailElement)
+            ? detailElement.GetString()
+            : null;
+        var status = InstanceConnectionStatusService.ParseStatus(statusRaw);
+
+        switch (status)
+        {
+            case InstanceConnectionStatus.Connected:
+                InstanceConnectionStatusService.Instance.SetConnected(instanceId, detail);
+                break;
+            case InstanceConnectionStatus.LoggedOut:
+                InstanceConnectionStatusService.Instance.SetLoggedOut(instanceId, detail);
+                break;
+            case InstanceConnectionStatus.Error:
+                InstanceConnectionStatusService.Instance.SetError(instanceId, detail);
+                break;
+            default:
+                InstanceConnectionStatusService.Instance.SetInitializing(instanceId, detail);
+                break;
+        }
+    }
 
     private bool HandleStandardMessage(
         string? type,
@@ -227,6 +285,13 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     ? heartbeatAdapterElement.GetString()
                     : null;
                 health.RecordHeartbeat(instance.Id, heartbeatAdapterId ?? PlatformId);
+                return true;
+
+            case AdapterMessageTypes.ConnectionStatus:
+                var statusRaw = root.TryGetProperty("status", out var statusElement)
+                    ? statusElement.GetString()
+                    : null;
+                ApplyConnectionStatus(instance.Id, statusRaw, root);
                 return true;
 
             case AdapterMessageTypes.MessageSent:
@@ -387,11 +452,14 @@ public sealed class MessengerAdapter : BasePlatformAdapter
 
     public override string PlatformId => "messenger";
 
-    protected override void RegisterNavigationHooks(CoreWebView2 coreWebView)
+    protected override void RegisterNavigationHooks(CoreWebView2 coreWebView, MessengerInstance instance)
     {
-        base.RegisterNavigationHooks(coreWebView);
+        base.RegisterNavigationHooks(coreWebView, instance);
 
-        coreWebView.HistoryChanged += (sender, args) => _ = ExecutePublishBadgeAsync(coreWebView);
+        coreWebView.HistoryChanged += (sender, e) =>
+        {
+            _ = ExecutePublishBadgeAsync(coreWebView);
+        };
     }
 }
 
