@@ -127,6 +127,7 @@ public sealed class OllamaOrchestrationService : IDisposable
         string? systemPrompt = null,
         string? modelOverride = null,
         string? responseFormat = null,
+        InferencePriority priority = InferencePriority.Background,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(prompt))
@@ -139,12 +140,49 @@ public sealed class OllamaOrchestrationService : IDisposable
             yield break;
         }
 
-        if (!await EnsureEngineRunningAsync(cancellationToken).ConfigureAwait(false))
+        if (!ReferenceEquals(this, Instance))
         {
+            if (!await EnsureEngineRunningAsync(cancellationToken).ConfigureAwait(false))
+            {
+                yield break;
+            }
+
+            var directModel = ResolveModelName(modelOverride);
+            await foreach (var token in StreamGenerateDirectAsync(
+                               directModel,
+                               prompt,
+                               systemPrompt,
+                               responseFormat,
+                               cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                yield return token;
+            }
+
             yield break;
         }
 
-        var model = ResolveModelName(modelOverride);
+        await foreach (var token in OllamaInferenceCoordinator.Instance
+                           .StreamTokensAsync(
+                               priority,
+                               prompt,
+                               systemPrompt,
+                               modelOverride,
+                               responseFormat,
+                               cancellationToken)
+                           .ConfigureAwait(false))
+        {
+            yield return token;
+        }
+    }
+
+    internal async IAsyncEnumerable<string> StreamGenerateDirectAsync(
+        string model,
+        string prompt,
+        string? systemPrompt,
+        string? responseFormat,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
         await foreach (var token in _apiClient
                            .StreamGenerateAsync(model, prompt, systemPrompt, responseFormat, cancellationToken)
                            .ConfigureAwait(false))

@@ -407,6 +407,25 @@ public sealed partial class DashboardPage : Page
         UrgencyTriageList.Visibility = hasUrgent ? Visibility.Visible : Visibility.Collapsed;
 
         SentimentChart.SetSeries(triage);
+        ApplyExecutiveInsightsToView();
+    }
+
+    private void ApplyExecutiveInsightsToView()
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        var cards = DashboardPageHelper
+            .BuildExecutiveInsights(ProfessionalInstances, _selectedBranchInstanceId)
+            .Select(card => new ExecutiveInsightCardView(card))
+            .ToList();
+
+        ExecutiveInsightsList.ItemsSource = cards;
+        var hasInsights = cards.Count > 0;
+        ExecutiveInsightsEmptyText.Visibility = hasInsights ? Visibility.Collapsed : Visibility.Visible;
+        ExecutiveInsightsList.Visibility = hasInsights ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async Task RequestBranchScrapeRefreshAsync()
@@ -742,6 +761,50 @@ public sealed partial class DashboardPage : Page
         public string InstanceDisplayName { get; }
 
         public string? InstanceId { get; }
+    }
+
+    private sealed class ExecutiveInsightCardView
+    {
+        public ExecutiveInsightCardView(ExecutiveInsightCardDisplay card)
+        {
+            CustomerName = card.CustomerName;
+            BranchName = card.BranchName;
+            CoreSummary = card.CoreSummary;
+            IntentLabel = card.IntentLabel;
+            UrgencyLabel = card.UrgencyLabel;
+            Fields = card.Fields.Select(field => new ExecutiveInsightFieldView(field)).ToList();
+        }
+
+        public string CustomerName { get; }
+
+        public string BranchName { get; }
+
+        public string CoreSummary { get; }
+
+        public string IntentLabel { get; }
+
+        public string UrgencyLabel { get; }
+
+        public IReadOnlyList<ExecutiveInsightFieldView> Fields { get; }
+    }
+
+    private sealed class ExecutiveInsightFieldView
+    {
+        public ExecutiveInsightFieldView(ExecutiveInsightFieldDisplay field)
+        {
+            Label = field.Label;
+            Value = field.Value;
+            IconGlyph = field.IconGlyph;
+            IsEmphasized = field.Emphasize;
+        }
+
+        public string Label { get; }
+
+        public string Value { get; }
+
+        public string IconGlyph { get; }
+
+        public bool IsEmphasized { get; }
     }
 
     private sealed class MessageTriageItemView

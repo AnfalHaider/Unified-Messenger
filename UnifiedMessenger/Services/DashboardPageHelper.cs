@@ -114,6 +114,98 @@ public static class DashboardPageHelper
             FilterProfessionalInstances(professionalInstances, branchInstanceId));
     }
 
+    public static IReadOnlyList<ExecutiveInsightCardDisplay> BuildExecutiveInsights(
+        IEnumerable<MessengerInstance> professionalInstances,
+        string? branchInstanceId = null,
+        MessageTriageService? triageService = null)
+    {
+        ArgumentNullException.ThrowIfNull(professionalInstances);
+
+        var allowedIds = FilterProfessionalInstances(professionalInstances, branchInstanceId)
+            .Select(instance => instance.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var service = triageService ?? MessageTriageService.Instance;
+
+        return service.GetAllItems()
+            .Where(item => allowedIds.Contains(item.InstanceId))
+            .Where(HasExecutiveInsightContent)
+            .OrderByDescending(item => item.UrgencyScore)
+            .ThenByDescending(item => item.TimestampUtc)
+            .Take(12)
+            .Select(BuildExecutiveInsightCard)
+            .ToList();
+    }
+
+    internal static bool HasExecutiveInsightContent(MessageTriageItem item) =>
+        item.InferenceSource == TriageInferenceSource.LocalAi ||
+        !string.IsNullOrWhiteSpace(item.CoreSummary) ||
+        HasExtractedEntityValue(item.ExtractedEntities);
+
+    private static bool HasExtractedEntityValue(RichTriageExtractedEntities entities) =>
+        !string.IsNullOrWhiteSpace(entities.CustomerName) ||
+        !string.IsNullOrWhiteSpace(entities.ContactNumber) ||
+        !string.IsNullOrWhiteSpace(entities.RequestedDate) ||
+        !string.IsNullOrWhiteSpace(entities.RequestedTime) ||
+        !string.IsNullOrWhiteSpace(entities.ServiceType) ||
+        !string.IsNullOrWhiteSpace(entities.ActionRequired);
+
+    private static ExecutiveInsightCardDisplay BuildExecutiveInsightCard(MessageTriageItem item)
+    {
+        var entities = item.ExtractedEntities ?? new RichTriageExtractedEntities();
+        var fields = new List<ExecutiveInsightFieldDisplay>();
+
+        AddField(fields, "Customer", "\uE77B", entities.CustomerName);
+        AddField(fields, "Contact", "\uE717", entities.ContactNumber);
+        AddField(fields, "Service", "\uE14C", entities.ServiceType);
+        AddField(fields, "Date", "\uE787", entities.RequestedDate);
+        AddField(fields, "Time", "\uE121", entities.RequestedTime);
+        AddField(fields, "Action required", "\uE72C", entities.ActionRequired, emphasize: true);
+
+        return new ExecutiveInsightCardDisplay
+        {
+            CustomerName = string.IsNullOrWhiteSpace(item.CustomerName) ? "Customer" : item.CustomerName.Trim(),
+            BranchName = item.InstanceDisplayName,
+            CoreSummary = string.IsNullOrWhiteSpace(item.CoreSummary)
+                ? item.MessagePreview
+                : item.CoreSummary.Trim(),
+            IntentLabel = FormatCustomerIntent(item.CustomerIntent),
+            UrgencyLabel = item.UrgencyLabel,
+            Fields = fields
+        };
+    }
+
+    private static void AddField(
+        ICollection<ExecutiveInsightFieldDisplay> fields,
+        string label,
+        string iconGlyph,
+        string? value,
+        bool emphasize = false)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        fields.Add(new ExecutiveInsightFieldDisplay
+        {
+            Label = label,
+            Value = value.Trim(),
+            IconGlyph = iconGlyph,
+            Emphasize = emphasize
+        });
+    }
+
+    private static string FormatCustomerIntent(CustomerIntent intent) =>
+        intent switch
+        {
+            CustomerIntent.Booking => "Booking",
+            CustomerIntent.Complaint => "Complaint",
+            CustomerIntent.Spam => "Spam",
+            _ => "Inquiry"
+        };
+
     public static string BuildWelcomeSubtitle(int professionalCount, int personalCount) =>
         (professionalCount, personalCount) switch
         {
@@ -346,6 +438,32 @@ public sealed class ProfessionalDashboardTelemetry
     public required ProfessionalDashboardDisplay Display { get; init; }
 
     public IReadOnlyList<MessengerInstance> FilteredInstances { get; init; } = [];
+}
+
+public sealed class ExecutiveInsightFieldDisplay
+{
+    public required string Label { get; init; }
+
+    public required string Value { get; init; }
+
+    public required string IconGlyph { get; init; }
+
+    public bool Emphasize { get; init; }
+}
+
+public sealed class ExecutiveInsightCardDisplay
+{
+    public required string CustomerName { get; init; }
+
+    public required string BranchName { get; init; }
+
+    public required string CoreSummary { get; init; }
+
+    public required string IntentLabel { get; init; }
+
+    public required string UrgencyLabel { get; init; }
+
+    public IReadOnlyList<ExecutiveInsightFieldDisplay> Fields { get; init; } = [];
 }
 
 public sealed class MetaResponseDisplay

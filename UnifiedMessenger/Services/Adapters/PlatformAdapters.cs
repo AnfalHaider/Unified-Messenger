@@ -53,6 +53,9 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         var adapterScript = PrepareScript(
             await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
             instance);
+        var conversationContextScript = PrepareScript(
+            await LoadScriptTemplateAsync("conversation-context-scraper.js", cancellationToken).ConfigureAwait(false),
+            instance);
         string? draftInjectScript = null;
         string? inboundMonitorScript = null;
 
@@ -72,6 +75,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             await AddDocumentCreatedScriptAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, handshakeScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
+            await AddDocumentCreatedScriptAsync(coreWebView, conversationContextScript, cancellationToken)
+                .ConfigureAwait(true);
 
             if (draftInjectScript is not null)
             {

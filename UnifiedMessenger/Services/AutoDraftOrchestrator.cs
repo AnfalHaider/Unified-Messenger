@@ -70,7 +70,11 @@ public sealed class AutoDraftOrchestrator
 
             var draftBuilder = new StringBuilder();
             await foreach (var token in OllamaOrchestrationService.Instance
-                               .StreamGenerateAsync(prompt.UserPrompt, prompt.SystemPrompt, cancellationToken: cancellationToken)
+                               .StreamGenerateAsync(
+                                   prompt.UserPrompt,
+                                   prompt.SystemPrompt,
+                                   priority: InferencePriority.Background,
+                                   cancellationToken: cancellationToken)
                                .ConfigureAwait(false))
             {
                 if (draftBuilder.Length + token.Length > WebViewDraftInjector.MaxDraftLength)

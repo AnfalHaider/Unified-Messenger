@@ -90,4 +90,98 @@
     field.dispatchEvent(new InputEvent('input', { bubbles: true, data: '' }));
     return { ok: true, reason: 'cleared' };
   };
+
+  window.__umDraftStreamActive = false;
+  window.__umDraftStreamBuffer = '';
+
+  function dispatchFieldInput(field, data) {
+    try {
+      field.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: data }));
+    } catch (error) {
+      // older hosts
+    }
+
+    field.dispatchEvent(new InputEvent('input', { bubbles: true, data: data }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function appendToField(field, chunk) {
+    var text = String(chunk || '');
+    if (!text) {
+      return false;
+    }
+
+    field.setAttribute('data-um-draft', 'true');
+    field.setAttribute('data-um-draft-ts', new Date().toISOString());
+
+    if (typeof field.value === 'string') {
+      field.value = (field.value || '') + text;
+      dispatchFieldInput(field, text);
+      return true;
+    }
+
+    field.focus();
+
+    try {
+      if (document.execCommand('insertText', false, text)) {
+        dispatchFieldInput(field, text);
+        return true;
+      }
+    } catch (error) {
+      console.warn('[UnifiedMessenger] insertText failed', error);
+    }
+
+    var selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      var range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      dispatchFieldInput(field, text);
+      return true;
+    }
+
+    field.textContent = (field.textContent || '') + text;
+    dispatchFieldInput(field, text);
+    return true;
+  }
+
+  window.__umResetDraftStream = function () {
+    window.__umDraftStreamActive = true;
+    window.__umDraftStreamBuffer = '';
+    return window.__umClearDraftReply();
+  };
+
+  window.__umAppendDraftChunk = function (chunk) {
+    if (!window.__umDraftStreamActive) {
+      window.__umDraftStreamActive = true;
+      window.__umDraftStreamBuffer = '';
+    }
+
+    var field = findComposeField();
+    if (!field) {
+      return { ok: false, reason: 'compose-not-found' };
+    }
+
+    var text = String(chunk || '');
+    if (!text) {
+      return { ok: true, reason: 'empty-chunk' };
+    }
+
+    window.__umDraftStreamBuffer += text;
+    return { ok: appendToField(field, text), reason: 'chunk-appended' };
+  };
+
+  window.__umFinalizeDraftStream = function () {
+    window.__umDraftStreamActive = false;
+    var field = findComposeField();
+    if (!field) {
+      return { ok: false, reason: 'compose-not-found' };
+    }
+
+    dispatchFieldInput(field, '');
+    return { ok: true, reason: 'finalized', length: window.__umDraftStreamBuffer.length };
+  };
 })();

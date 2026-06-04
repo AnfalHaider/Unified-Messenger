@@ -17,19 +17,93 @@ public static class WebViewDraftInjector
             return false;
         }
 
+        var trimmed = draftText.Length <= MaxDraftLength
+            ? draftText.Trim()
+            : draftText[..MaxDraftLength].Trim();
+
+        return await ExecuteInjectScriptAsync(
+                instanceId,
+                $"window.__umInjectDraftReply({JsonSerializer.Serialize(trimmed)});",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public static async Task<bool> ClearDraftAsync(
+        string instanceId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return false;
+        }
+
+        return await ExecuteInjectScriptAsync(
+                instanceId,
+                "window.__umClearDraftReply();",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public static async Task<bool> ResetDraftStreamAsync(
+        string instanceId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return false;
+        }
+
+        return await ExecuteInjectScriptAsync(
+                instanceId,
+                "window.__umResetDraftStream();",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public static async Task<bool> AppendDraftChunkAsync(
+        string instanceId,
+        string chunk,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(chunk))
+        {
+            return false;
+        }
+
+        return await ExecuteInjectScriptAsync(
+                instanceId,
+                $"window.__umAppendDraftChunk({JsonSerializer.Serialize(chunk)});",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public static async Task<bool> FinalizeDraftStreamAsync(
+        string instanceId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return false;
+        }
+
+        return await ExecuteInjectScriptAsync(
+                instanceId,
+                "window.__umFinalizeDraftStream();",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task<bool> ExecuteInjectScriptAsync(
+        string instanceId,
+        string script,
+        CancellationToken cancellationToken)
+    {
         var webView = InstanceWebViewRegistry.Instance.TryGet(instanceId);
         var coreWebView = webView?.CoreWebView2;
         if (coreWebView is null)
         {
             return false;
         }
-
-        var trimmed = draftText.Length <= MaxDraftLength
-            ? draftText.Trim()
-            : draftText[..MaxDraftLength].Trim();
-
-        var payload = JsonSerializer.Serialize(trimmed);
-        var script = $"window.__umInjectDraftReply({payload});";
 
         try
         {
@@ -42,37 +116,6 @@ public static class WebViewDraftInjector
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Draft injection failed for {instanceId}: {ex.Message}");
-            return false;
-        }
-    }
-
-    public static async Task<bool> ClearDraftAsync(
-        string instanceId,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(instanceId))
-        {
-            return false;
-        }
-
-        var webView = InstanceWebViewRegistry.Instance.TryGet(instanceId);
-        var coreWebView = webView?.CoreWebView2;
-        if (coreWebView is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            var result = await UiThreadRunner.RunAsync(async () =>
-                    await coreWebView.ExecuteScriptAsync("window.__umClearDraftReply();"))
-                .ConfigureAwait(false);
-
-            return ParseInjectResult(result);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Draft clear failed for {instanceId}: {ex.Message}");
             return false;
         }
     }

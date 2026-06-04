@@ -35,6 +35,7 @@ public sealed class OllamaTriageLlmClient : ITriageLlmClient
                                userPrompt,
                                AiTriagePromptService.SystemPrompt,
                                responseFormat: "json",
+                               priority: InferencePriority.Background,
                                cancellationToken: cancellationToken)
                            .ConfigureAwait(false))
         {
@@ -50,7 +51,6 @@ public sealed class MessageTriageInferenceRunner
     public static readonly TimeSpan InferenceTimeout = TimeSpan.FromSeconds(90);
 
     private readonly ITriageLlmClient _llmClient;
-    private readonly SemaphoreSlim _inferenceGate = new(1, 1);
 
     public MessageTriageInferenceRunner(ITriageLlmClient? llmClient = null)
     {
@@ -61,7 +61,6 @@ public sealed class MessageTriageInferenceRunner
         RichTriageInferenceJob job,
         CancellationToken cancellationToken = default)
     {
-        await _inferenceGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -88,10 +87,6 @@ public sealed class MessageTriageInferenceRunner
         {
             System.Diagnostics.Debug.WriteLine($"Rich triage inference failed: {ex.Message}");
             return null;
-        }
-        finally
-        {
-            _inferenceGate.Release();
         }
     }
 

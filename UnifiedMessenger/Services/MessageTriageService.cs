@@ -85,6 +85,29 @@ public sealed class MessageTriageService
         });
     }
 
+    public IReadOnlyList<MessageTriageItem> GetAllItems() =>
+        _items.Values
+            .OrderByDescending(item => item.UrgencyScore)
+            .ThenByDescending(item => item.TimestampUtc)
+            .ToList();
+
+    internal void RestoreItems(IEnumerable<MessageTriageItem> items)
+    {
+        _items.Clear();
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.Id))
+            {
+                continue;
+            }
+
+            _items[item.Id] = item;
+        }
+
+        PruneExpiredItems();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public MessageTriageDashboardSnapshot BuildSnapshot(IEnumerable<MessengerInstance> professionalInstances)
     {
         var allowedIds = professionalInstances

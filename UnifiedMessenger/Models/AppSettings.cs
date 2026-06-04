@@ -71,6 +71,11 @@ public sealed class AppSettings
     public bool AutoDraftOnlyWhenVisible { get; set; } = true;
 
     /// <summary>
+    /// When true, closing the window hides to the system tray instead of exiting the process.
+    /// </summary>
+    public bool RunInBackgroundOnClose { get; set; } = true;
+
+    /// <summary>
     /// Clamps numeric settings and resets unknown enum values after load or manual edits.
     /// </summary>
     public void Normalize()

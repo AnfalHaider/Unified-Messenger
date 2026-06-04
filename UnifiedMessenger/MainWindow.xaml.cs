@@ -28,6 +28,7 @@ public sealed partial class MainWindow : Window
     private bool _isWindowVisible = true;
     private bool _pendingPanelReveal;
     private int _slaThresholdMinutes = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+    private bool _forceShutdown;
 
     private bool IsAppInForeground =>
         MainWindowShellLayout.IsAppInForeground(_isWindowVisible, _isWindowActivated);
@@ -55,6 +56,7 @@ public sealed partial class MainWindow : Window
         AppWindow.SetIcon("Assets/AppIcon.ico");
 
         AppWindow.Changed += OnAppWindowChanged;
+        AppWindow.Closing += OnAppWindowClosing;
         Activated += OnWindowActivated;
         Closed += OnMainWindowClosed;
 
@@ -117,14 +119,66 @@ public sealed partial class MainWindow : Window
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
     {
+        GlobalHotkeyService.Instance.CtrlSpacePressed -= OnGlobalCopilotHotkey;
         DetachWindowLifetimeHandlers();
         DetachShellNavigationHandlers();
         _keyboardShortcuts.Dispose();
+
+        if (_forceShutdown)
+        {
+            SystemTrayService.Instance.Dispose();
+        }
+    }
+
+    public void ShowFromTray()
+    {
+        AppWindow.Show();
+        Activate();
+        _isWindowVisible = true;
+    }
+
+    /// <summary>
+    /// Invoked only from <see cref="SystemTrayService.TrayMenu_Quit"/> for a full process exit.
+    /// </summary>
+    public async void RequestTrayQuit()
+    {
+        if (_forceShutdown)
+        {
+            return;
+        }
+
+        _forceShutdown = true;
+        GlobalHotkeyService.Instance.Dispose();
+
+        try
+        {
+            await RichTriageStoreService.Instance.FlushAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Triage flush on quit failed: {ex.Message}");
+        }
+
+        SystemTrayService.Instance.Dispose();
+        Close();
+    }
+
+    private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_forceShutdown || !AppSettingsService.Instance.Settings.RunInBackgroundOnClose)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        sender.Hide();
+        _isWindowVisible = false;
     }
 
     private void DetachWindowLifetimeHandlers()
     {
         AppWindow.Changed -= OnAppWindowChanged;
+        AppWindow.Closing -= OnAppWindowClosing;
         Activated -= OnWindowActivated;
 
         WorkspaceSidebar.Loaded -= WorkspaceSidebar_Loaded;
@@ -406,6 +460,7 @@ public sealed partial class MainWindow : Window
         await AppSettingsService.Instance.LoadAsync().ConfigureAwait(true);
         await _registry.LoadAsync().ConfigureAwait(true);
         await MessageAnalyticsService.Instance.LoadAsync().ConfigureAwait(true);
+        await RichTriageStoreService.Instance.LoadAsync().ConfigureAwait(true);
 
         _panePinned = AppSettingsService.Instance.Settings.SidebarPinnedExpanded;
         UpdatePanePinUi();
@@ -438,6 +493,15 @@ public sealed partial class MainWindow : Window
 
         await ShowDashboardAsync().ConfigureAwait(true);
         _ = MaybePromptPinToTaskbarAsync();
+
+        SystemTrayService.Instance.Attach(this);
+        GlobalHotkeyService.Instance.EnsureRegistered();
+        GlobalHotkeyService.Instance.CtrlSpacePressed += OnGlobalCopilotHotkey;
+    }
+
+    private void OnGlobalCopilotHotkey(object? sender, EventArgs e)
+    {
+        _ = HotkeyCopilotOrchestrator.Instance.TryRunCopilotAsync();
     }
 
     private async Task MaybePromptPinToTaskbarAsync()

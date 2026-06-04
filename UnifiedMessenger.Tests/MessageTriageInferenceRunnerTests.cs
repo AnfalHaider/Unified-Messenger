@@ -7,19 +7,19 @@ namespace UnifiedMessenger.Tests;
 public class MessageTriageInferenceRunnerTests
 {
     [Fact]
-    public async Task TryInferAsync_SerializesConcurrentJobsThroughGate()
+    public async Task TryInferAsync_CompletesConcurrentJobsThroughClient()
     {
         var client = new CountingTriageLlmClient(TimeSpan.FromMilliseconds(120));
         var runner = new MessageTriageInferenceRunner(client);
         var job = CreateJob("job-1");
 
         var jobTwo = CreateJob("job-2");
-        await Task.WhenAll(
+        var results = await Task.WhenAll(
             runner.TryInferAsync(job),
             runner.TryInferAsync(jobTwo));
 
-        Assert.Equal(1, client.MaxConcurrentObserved);
         Assert.Equal(2, client.CallCount);
+        Assert.All(results, Assert.NotNull);
     }
 
     [Fact]
