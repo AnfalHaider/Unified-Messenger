@@ -256,7 +256,7 @@
                                         <Button
                                             x:Name="SubmitReviewReplyButton"
                                             Click="SubmitReviewReplyButton_Click"
-                                            Content="Open location &amp; reply" />
+                                            Content="Insert draft in browser" />
                                         <Button
                                             Click="OpenSelectedReviewInstanceButton_Click"
                                             Content="Open Google Business" />

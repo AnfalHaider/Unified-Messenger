@@ -40,7 +40,7 @@ cd "d:\Projects\Unified Messenger"
 dotnet test UnifiedMessenger.sln -c Release -p:Platform=x64
 ```
 
-361+ unit tests cover services, adapters (including HTML fixture selector checks), and dialog helpers.
+420+ unit tests cover services, adapters (including HTML fixture selector checks), and dialog helpers.
 
 ## Connect Google Business Profile
 
@@ -91,7 +91,7 @@ dotnet publish `
 ### 2. Compile Inno Setup installers
 
 1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php).
-2. Keep `#define MyAppVersion` in `installer.iss` / `installer-arm64.iss` and `<Version>` in `UnifiedMessenger.csproj` in sync (currently **1.0.4**).
+2. Keep `#define MyAppVersion` in `installer-shared.iss` and `<Version>` in `UnifiedMessenger.csproj` in sync (currently **1.0.5**).
 3. Compile:
 
 ```powershell
@@ -107,7 +107,7 @@ Output:
 
 ### 3. GitHub Release
 
-Tag with `v1.0.4` (or newer). CI uploads **publish** and **installer** artifacts on every build; pushing a `v*` tag creates a GitHub Release with both installers attached.
+Tag with `v1.0.5` (or newer). CI uploads **publish** and **installer** artifacts on every build; pushing a `v*` tag creates a GitHub Release with both installers attached.
 
 ## CI/CD
 
@@ -142,4 +142,4 @@ GitHub Actions (`.github/workflows/build.yml`):
 
 ## Enhancement roadmap
 
-See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–8 code audit and Tier 9 shipping tasks (CI artifacts, ARM64 installer, fixture tests) are complete in v1.0.4.
+See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–8 code audit and Tier 9 shipping tasks (CI artifacts, ARM64 installer, fixture tests) are complete; v1.0.5 adds local AI, auto-draft, and dashboard triage.

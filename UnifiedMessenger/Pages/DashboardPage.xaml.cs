@@ -580,12 +580,6 @@ public sealed partial class DashboardPage : Page
         await InstanceSessionManager.Instance.ExecuteScriptOnInstanceAsync(
             _selectedReviewAlert.InstanceId,
             script);
-
-        ProfessionalWorkspaceService.Instance.MarkReviewReplied(_selectedReviewAlert.AlertId);
-        ReviewReplyBox.Text = string.Empty;
-        _selectedReviewAlert = null;
-        GoogleReviewAlertsList.SelectedItem = null;
-        RefreshEnterpriseWidgets();
     }
 
     private void OpenSelectedReviewInstanceButton_Click(object sender, RoutedEventArgs e)

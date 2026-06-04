@@ -175,6 +175,7 @@
     return alerts.slice(0, 12);
   }
 
+  // Human-in-the-loop: fills the visible reply field only; never clicks Post/Send.
   window.__umSubmitReviewReply = function (reviewId, replyText) {
     if (!replyText) {
       return false;
@@ -198,14 +199,7 @@
         target.dispatchEvent(new InputEvent('input', { bubbles: true, data: replyText }));
       }
 
-      var submit = document.querySelector(
-        'button[aria-label*="Reply" i], button[aria-label*="Post" i], button[aria-label*="Send" i]'
-      );
-      if (submit) {
-        submit.click();
-        return true;
-      }
-
+      target.focus();
       return true;
     }
 

@@ -50,6 +50,8 @@ public class ProAdapterScriptTests
         Assert.Contains("google-review-snapshot", script, StringComparison.Ordinal);
         Assert.Contains("rememberReviewKey", script, StringComparison.Ordinal);
         Assert.Contains("maxKnownReviewKeys", script, StringComparison.Ordinal);
+        Assert.Contains("__umSubmitReviewReply", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("submit.click()", script, StringComparison.Ordinal);
     }
 
     [Fact]
