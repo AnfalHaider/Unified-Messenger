@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.9](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.9)
+**Current release:** [v1.0.10](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.10)
 
 ## Download (Windows)
 
@@ -15,14 +15,15 @@ All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
 
-### What’s in v1.0.9
+### What’s in v1.0.10
 
-- **Reply detection:** DOM-based outgoing message monitor for WhatsApp and Meta Business Suite so dashboard reply metrics update after you respond in the WebView.
-- **Meta pending count:** unread badge sync on decrease (not only on new inbound), so **pending response** drops when you clear the inbox.
-- **Broader Meta Send selectors** for current Business Suite compose UI.
-- **499** unit tests (x64).
+- **Fix:** self-contained installer builds now bootstrap the Windows App SDK on launch (app no longer exits silently with 0x80040154).
+- **Install layout:** binaries install to `%LocalAppData%\Programs\UnifiedMessenger`; user data remains in `%LocalAppData%\UnifiedMessenger`.
+- **Upgrade safety:** installer removes stale DLLs before copying, including cleanup of legacy mixed binary/data folders.
+- **Startup errors:** native error dialog if launch fails.
+- **501** unit tests (x64).
 
-Earlier highlights: v1.0.8 (professional dashboard cards, data health strip, honest KPIs), v1.0.7 (startup backfill), v1.0.6 and below on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
+Earlier highlights: v1.0.9 (reply detection, Meta unread sync), v1.0.8 (dashboard cards), v1.0.7 (startup backfill), on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
 
 ## Requirements
 
@@ -75,9 +76,9 @@ Before every public release, align these three sources to the same **semver** (e
 
 ## Build a release installer (local)
 
-**Install location:** per-user `%LocalAppData%\UnifiedMessenger` (no admin). User settings, instances, WebView2 profiles, and analytics live in the same folder tree. Upgrades use Restart Manager + `AppMutex` to close a running `UnifiedMessenger.exe` before copying files.
+**Install location:** per-user `%LocalAppData%\Programs\UnifiedMessenger` (no admin). User settings, instances, WebView2 profiles, and analytics live in `%LocalAppData%\UnifiedMessenger`. Upgrades use Restart Manager + `AppMutex` to close a running `UnifiedMessenger.exe`, remove stale binaries, then copy fresh publish output.
 
-If you previously installed to `Program Files`, uninstall the old build and reinstall so binaries and data share one root.
+If you previously installed when binaries lived under `%LocalAppData%\UnifiedMessenger`, run the latest installer once — it cleans legacy binaries in that folder and installs the app under `Programs\UnifiedMessenger`.
 
 ### 1. Publish self-contained binaries
 

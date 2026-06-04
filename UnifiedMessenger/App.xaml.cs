@@ -56,6 +56,10 @@ public partial class App : Application
         catch (Exception ex)
         {
             Debug.WriteLine($"Application launch failed: {ex}");
+            StartupDiagnostics.Log($"Application launch failed: {ex}");
+            NativeDialogService.ShowError(
+                "Unified Messenger",
+                $"The application could not start.\n\n{ex.Message}");
             CurrentWindow?.Close();
             Exit();
         }

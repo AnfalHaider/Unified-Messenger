@@ -15,7 +15,8 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={#InstallDir}
-UsePreviousAppDir=yes
+DisableDirPage=yes
+UsePreviousAppDir=no
 DisableProgramGroupPage=yes
 OutputBaseFilename=UnifiedMessengerSetup
 OutputDir=dist
@@ -51,21 +52,3 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
-
-[Code]
-procedure TaskKill(const FileName: String);
-var
-  ResultCode: Integer;
-begin
-  if Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM /T ' + FileName, '', SW_HIDE,
-    ewWaitUntilTerminated, ResultCode) then
-    Log(Format('taskkill %s exited %d', [FileName, ResultCode]))
-  else
-    Log(Format('taskkill %s failed', [FileName]));
-end;
-
-procedure CurStepChanged(CurStep: TSetupStep);
-begin
-  if CurStep = ssInstall then
-    TaskKill('{#MyAppExeName}');
-end;

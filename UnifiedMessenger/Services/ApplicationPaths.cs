@@ -2,7 +2,7 @@ namespace UnifiedMessenger.Services;
 
 /// <summary>
 /// Canonical per-user paths for unpackaged WinExe deployment (no MSIX container).
-/// Install target: %LocalAppData%\UnifiedMessenger (see installer.iss).
+/// User data: %LocalAppData%\UnifiedMessenger. Install target: %LocalAppData%\Programs\UnifiedMessenger (see installer.iss).
 /// </summary>
 public static class ApplicationPaths
 {
@@ -15,7 +15,12 @@ public static class ApplicationPaths
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             AppDataFolderName);
 
-    public static string DefaultInstallRoot => UserDataRoot;
+    /// <summary>Default per-user install folder for the unpackaged WinExe (binaries only).</summary>
+    public static string DefaultInstallRoot =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Programs",
+            AppDataFolderName);
 
     public static string SettingsFilePath => Path.Combine(UserDataRoot, "settings.json");
 

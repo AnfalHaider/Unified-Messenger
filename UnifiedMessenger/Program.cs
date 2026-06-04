@@ -12,9 +12,20 @@ public static class Program
     {
         RegisterGlobalExceptionHandlers();
 
+        if (!WindowsAppRuntimeBootstrapHelper.TryEnsureInitialized())
+        {
+            var logPath = Path.Combine(ApplicationPaths.UserDataRoot, "startup.log");
+            NativeDialogService.ShowError(
+                "Unified Messenger",
+                "Could not load the Windows App SDK runtime bundled with this install. " +
+                $"Reinstall using the latest UnifiedMessengerSetup.exe. Details: {logPath}");
+            return;
+        }
+
         if (!SingleInstanceGuard.TryAcquire())
         {
             Debug.WriteLine("Unified Messenger is already running; exiting second instance.");
+            WindowsAppRuntimeBootstrapHelper.ShutdownIfNeeded();
             return;
         }
 
@@ -32,6 +43,7 @@ public static class Program
         finally
         {
             SingleInstanceGuard.Release();
+            WindowsAppRuntimeBootstrapHelper.ShutdownIfNeeded();
         }
     }
 

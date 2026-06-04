@@ -10,7 +10,8 @@ public class InstallerScriptTests
         var script = ReadInstallerBundle(scriptName);
 
         Assert.Contains("{localappdata}", script, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("UnifiedMessenger", script, StringComparison.Ordinal);
+        Assert.Contains(@"\Programs\UnifiedMessenger", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CleanAppPayload", script, StringComparison.Ordinal);
         Assert.DoesNotContain("{autopf}", script, StringComparison.OrdinalIgnoreCase);
     }
 
