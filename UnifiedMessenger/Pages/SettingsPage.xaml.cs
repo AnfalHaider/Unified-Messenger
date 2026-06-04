@@ -18,6 +18,13 @@ public sealed partial class SettingsPage : Page
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        Unloaded -= OnUnloaded;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -29,7 +36,7 @@ public sealed partial class SettingsPage : Page
     {
         base.OnNavigatedTo(e);
 
-        if (e.Parameter is SettingsNavigationArgs args)
+        if (e.Parameter is RegistryNavigationArgs args)
         {
             _registry = args.Registry;
         }
@@ -70,7 +77,8 @@ public sealed partial class SettingsPage : Page
         EnableEditInstanceMetadataToggle.IsOn = settings.EnableEditInstanceMetadata;
         EnableImportExportInstancesToggle.IsOn = settings.EnableImportExportInstances;
         EnableInstanceNotesTagsToggle.IsOn = settings.EnableInstanceNotesTags;
-        LaunchAtStartupToggle.IsOn = settings.LaunchAtStartup;
+        LaunchAtStartupToggle.IsOn = StartupTaskService.EnsureRegistrationMatchesPreference(
+            settings.LaunchAtStartup);
         PromptPinToTaskbarToggle.IsOn = settings.PromptPinToTaskbar;
         EnableAutoUpdateToggle.IsOn = settings.EnableAutoUpdate;
         PromptBeforeAutoUpdateToggle.IsOn = settings.PromptBeforeAutoUpdate;
@@ -80,7 +88,7 @@ public sealed partial class SettingsPage : Page
         UpdateImportExportPanelVisibility(settings.EnableImportExportInstances);
         RefreshArchivedAccounts();
         RefreshStoragePaths();
-        VersionText.Text = $"Unified Messenger {GetAppVersion()}";
+        VersionText.Text = SettingsPageHelper.BuildVersionLabel(typeof(App).Assembly.GetName().Version);
     }
 
     private void EnsureComboBoxesInitialized()
@@ -141,19 +149,9 @@ public sealed partial class SettingsPage : Page
         }
     }
 
-    private static string GetAppVersion()
-    {
-        var version = typeof(App).Assembly.GetName().Version;
-        return version is null ? "1.0.0" : $"{version.Major}.{version.Minor}.{version.Build}";
-    }
-
     private void RefreshStoragePaths()
     {
-        var appDataRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "UnifiedMessenger");
-
-        InstancesPathText.Text = _registry?.StorePath ?? Path.Combine(appDataRoot, "instances.json");
+        InstancesPathText.Text = SettingsPageHelper.ResolveInstancesStorePath(_registry?.StorePath);
         ProfilesPathText.Text = WebViewProfileManager.Instance.UserDataFolder;
     }
 
@@ -166,13 +164,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        var items = _registry.ArchivedInstances
-            .OrderBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(i => new ArchivedAccountItem(
-                i.Id,
-                i.DisplayName,
-                PlatformDefinition.FindById(i.Platform)?.DisplayName ?? i.Platform))
-            .ToList();
+        var items = SettingsPageHelper.BuildArchivedAccountItems(_registry.ArchivedInstances);
 
         ArchivedAccountsList.ItemsSource = items;
         NoArchivedAccountsText.Visibility = items.Count == 0
@@ -218,8 +210,6 @@ public sealed partial class SettingsPage : Page
 
         await AppSettingsService.Instance.UpdateAsync(settings =>
             settings.ThemePreference = option.Preference);
-
-        ThemeService.Apply(option.Preference);
     }
 
     private async void PanelAutoOpenBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -275,8 +265,8 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        var value = (int)Math.Clamp(Math.Round(args.NewValue), 0, 32);
-        if (Math.Abs(value - args.NewValue) > 0.01)
+        var value = SettingsPageHelper.NormalizeMaxConcurrentWebViews(args.NewValue);
+        if (SettingsPageHelper.RequiresNumberBoxCorrection(value, args.NewValue))
         {
             sender.Value = value;
             return;
@@ -364,7 +354,7 @@ public sealed partial class SettingsPage : Page
         catch (Exception ex)
         {
             _suppressToggleEvents = true;
-            LaunchAtStartupToggle.IsOn = StartupTaskService.IsRegistered();
+            LaunchAtStartupToggle.IsOn = StartupTaskService.IsRegisteredForCurrentExecutable();
             _suppressToggleEvents = false;
             await ShowMessageDialogAsync("Startup registration failed", ex.Message);
         }
@@ -414,15 +404,10 @@ public sealed partial class SettingsPage : Page
             XamlRoot = XamlRoot
         };
 
-        dialog.Content = result.Status switch
+        dialog.Content = new TextBlock
         {
-            UpdateCheckStatus.UpToDate =>
-                $"You are on the latest version ({FormatVersion(result.CurrentVersion)}).",
-            UpdateCheckStatus.UpdateAvailable =>
-                $"Version {FormatVersion(result.LatestVersion)} is available. You are on {FormatVersion(result.CurrentVersion)}.",
-            _ => string.IsNullOrWhiteSpace(result.ErrorMessage)
-                ? "Could not check for updates. Try again later."
-                : result.ErrorMessage
+            Text = SettingsPageHelper.BuildUpdateCheckMessage(result),
+            TextWrapping = TextWrapping.WrapWholeWords
         };
 
         await dialog.ShowAsync();
@@ -526,7 +511,7 @@ public sealed partial class SettingsPage : Page
             ShellNavigationService.Instance.RequestInstanceRegistryRefresh();
             await ShowMessageDialogAsync(
                 "Import complete",
-                $"Loaded {result.ActiveCount} active and {result.ArchivedCount} archived instances.");
+                SettingsPageHelper.BuildImportSuccessMessage(result.ActiveCount, result.ArchivedCount));
         }
         catch (Exception ex)
         {
@@ -576,8 +561,8 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        var minutes = (int)Math.Clamp(Math.Round(args.NewValue), 5, 120);
-        if (Math.Abs(minutes - args.NewValue) > 0.01)
+        var minutes = SettingsPageHelper.NormalizeSlaThresholdMinutes(args.NewValue);
+        if (SettingsPageHelper.RequiresNumberBoxCorrection(minutes, args.NewValue))
         {
             sender.Value = minutes;
             return;
@@ -596,7 +581,8 @@ public sealed partial class SettingsPage : Page
 
     private void RestoreAccountButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: string instanceId })
+        if (sender is Button { Tag: string instanceId } &&
+            ShellNavigationService.IsValidInstanceId(instanceId))
         {
             ShellNavigationService.Instance.RequestArchivedInstanceRestore(instanceId);
         }
@@ -630,9 +616,6 @@ public sealed partial class SettingsPage : Page
 
         await dialog.ShowAsync();
     }
-
-    private static string FormatVersion(Version? version) =>
-        version is null ? "unknown" : $"{version.Major}.{version.Minor}.{version.Build}";
 
     private sealed record ThemePreferenceOption(AppThemePreference Preference, string Label);
 

@@ -13,8 +13,15 @@
   var lastPostedCount = -1;
   var dbCache = null;
   var pollTimer = null;
+  var domObserver = null;
+  var publishScheduled = false;
   var chatSnapshots = Object.create(null);
   var snapshotsInitialized = false;
+  var lastUrl = location.href;
+  var spaNotify = null;
+  var historyHooked = false;
+  var originalPushState = null;
+  var originalReplaceState = null;
 
   function postMessage(payload) {
     window.__umPostMessage(payload);
@@ -23,6 +30,10 @@
   function isEligibleChat(chat) {
     if (!chat || chat.unreadCount <= 0 || chat.archive) {
       return false;
+    }
+
+    if (window.__umShouldIncludeMutedBadges && window.__umShouldIncludeMutedBadges()) {
+      return true;
     }
 
     if (window.__umIncludeMutedBadges) {
@@ -81,7 +92,9 @@
       return '';
     }
 
-    var rows = document.querySelectorAll('#pane-side [role="row"], #side [role="row"]');
+    var rows = document.querySelectorAll(
+      '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+    );
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i];
       var rowText = row.textContent || '';
@@ -89,7 +102,9 @@
         continue;
       }
 
-      var subtitle = row.querySelector('span[dir="auto"]:last-of-type, div._ak8k span, span[data-testid="last-msg-status"]');
+      var subtitle = row.querySelector(
+        'span[dir="auto"]:last-of-type, div._ak8k span, span[data-testid="last-msg-status"], span[data-testid="last-msg-text"]'
+      );
       if (subtitle && subtitle.textContent) {
         return subtitle.textContent.trim();
       }
@@ -220,24 +235,43 @@
 
   function countFromDomBadges() {
     var total = 0;
-    var badges = document.querySelectorAll('span[data-testid="icon-unread"]');
+    var selectors = [
+      'span[data-testid="icon-unread"]',
+      'span[data-testid="unread-count"]',
+      'span[aria-label*="unread"]'
+    ];
 
-    badges.forEach(function (badge) {
-      total += window.__umSafeParseInt(badge.textContent);
+    selectors.forEach(function (selector) {
+      document.querySelectorAll(selector).forEach(function (badge) {
+        if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(badge)) {
+          return;
+        }
+
+        var label = badge.getAttribute('aria-label') || '';
+        total += /unread/i.test(label)
+          ? window.__umSafeParseInt(label)
+          : window.__umSafeParseInt(badge.textContent);
+      });
     });
 
     if (total > 0) {
       return total;
     }
 
-    var chatRows = document.querySelectorAll('#pane-side [role="row"], #side [role="row"]');
+    var chatRows = document.querySelectorAll(
+      '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+    );
     chatRows.forEach(function (row) {
-      var badgeSpan = row.querySelector('span[aria-label]');
+      if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(row)) {
+        return;
+      }
+
+      var badgeSpan = row.querySelector('span[aria-label*="unread"], span[data-testid="icon-unread"]');
       if (!badgeSpan) {
         return;
       }
 
-      var label = badgeSpan.getAttribute('aria-label') || '';
+      var label = badgeSpan.getAttribute('aria-label') || badgeSpan.textContent || '';
       if (/unread/i.test(label)) {
         total += window.__umSafeParseInt(label);
       }
@@ -246,7 +280,9 @@
     return total;
   }
 
-  function publishBadgeCount() {
+  function publishBadgeCountImmediate() {
+    publishScheduled = false;
+
     readChatsFromIndexedDb(function (result) {
       if (result && result.chats) {
         scanForNewPreviews(result.chats);
@@ -281,25 +317,93 @@
     });
   }
 
-  window.__unifiedMessengerPublishBadge = publishBadgeCount;
-
-  function observeDom() {
-    var root = document.body || document.documentElement;
-    if (!root) {
+  function schedulePublishBadgeCount() {
+    if (publishScheduled) {
       return;
     }
 
-    var observer = new MutationObserver(function () {
-      publishBadgeCount();
+    publishScheduled = true;
+    window.setTimeout(publishBadgeCountImmediate, 150);
+  }
+
+  window.__unifiedMessengerPublishBadge = publishBadgeCountImmediate;
+
+  function observeDom() {
+    var root = document.body || document.documentElement;
+    if (!root || domObserver) {
+      return;
+    }
+
+    domObserver = new MutationObserver(function () {
+      schedulePublishBadgeCount();
     });
 
-    observer.observe(root, {
+    domObserver.observe(root, {
       childList: true,
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['aria-label', 'data-testid', 'title']
+      attributeFilter: ['aria-label', 'data-testid', 'title', 'class']
     });
+  }
+
+  function hookSpaNavigation() {
+    if (historyHooked) {
+      return;
+    }
+
+    historyHooked = true;
+    spaNotify = function () {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        lastPostedCount = -1;
+        snapshotsInitialized = false;
+      }
+
+      schedulePublishBadgeCount();
+    };
+
+    window.addEventListener('popstate', spaNotify);
+    window.addEventListener('hashchange', spaNotify);
+
+    originalPushState = history.pushState;
+    originalReplaceState = history.replaceState;
+
+    history.pushState = function () {
+      originalPushState.apply(history, arguments);
+      spaNotify();
+    };
+
+    history.replaceState = function () {
+      originalReplaceState.apply(history, arguments);
+      spaNotify();
+    };
+  }
+
+  function unhookSpaNavigation() {
+    if (!historyHooked) {
+      return;
+    }
+
+    window.removeEventListener('popstate', spaNotify);
+    window.removeEventListener('hashchange', spaNotify);
+
+    if (originalPushState) {
+      history.pushState = originalPushState;
+    }
+
+    if (originalReplaceState) {
+      history.replaceState = originalReplaceState;
+    }
+
+    historyHooked = false;
+    spaNotify = null;
+  }
+
+  function onVisibilityChange() {
+    if (!document.hidden) {
+      publishBadgeCountImmediate();
+    }
   }
 
   function startPolling() {
@@ -307,29 +411,74 @@
       return;
     }
 
-    publishBadgeCount();
-    pollTimer = window.setInterval(publishBadgeCount, 2500);
+    publishBadgeCountImmediate();
+    pollTimer = window.setInterval(function () {
+      if (!document.hidden) {
+        publishBadgeCountImmediate();
+      }
+    }, 5000);
+  }
+
+  function disposeAdapter() {
+    if (pollTimer) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    if (domObserver) {
+      domObserver.disconnect();
+      domObserver = null;
+    }
+
+    unhookSpaNavigation();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('load', publishBadgeCountImmediate);
+    publishScheduled = false;
+
+    if (dbCache) {
+      try {
+        dbCache.close();
+      } catch (error) {
+        // ignore
+      }
+
+      dbCache = null;
+    }
+
+    chatSnapshots = Object.create(null);
+    snapshotsInitialized = false;
+    lastPostedCount = -1;
+  }
+
+  window.__umAdapterDispose = disposeAdapter;
+  if (window.__umRegisterDisposable) {
+    window.__umRegisterDisposable(disposeAdapter);
   }
 
   window.__umInstallNotificationInterceptor(INSTANCE_ID, PLATFORM);
   window.__umInstallOutgoingMessageMonitor(INSTANCE_ID, PLATFORM, {
     composeSelectors: [
       'div[contenteditable="true"][data-tab="10"]',
-      'footer div[contenteditable="true"]'
+      'footer div[contenteditable="true"]',
+      'div[contenteditable="true"][data-lexical-editor="true"]'
     ],
     sendSelectors: [
       'span[data-testid="send"]',
-      'button[aria-label*="Send"]'
+      'button[aria-label*="Send"]',
+      'button[data-testid="compose-btn-send"]'
     ],
     chatHintSelectors: [
       'header [data-testid="conversation-info-header-chat-title"]',
-      'span[data-testid="conversation-info-header-chat-title"]'
+      'span[data-testid="conversation-info-header-chat-title"]',
+      'header span[dir="auto"]'
     ]
   });
   window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
   window.__umStartHeartbeat(INSTANCE_ID, PLATFORM, ADAPTER_ID, 30000);
+  hookSpaNavigation();
   observeDom();
   startPolling();
 
-  window.addEventListener('load', publishBadgeCount);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('load', publishBadgeCountImmediate);
 })();

@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
@@ -8,7 +7,7 @@ namespace UnifiedMessenger.Controls;
 
 public sealed partial class NotificationFeedPanel : UserControl
 {
-    private readonly NotificationHub _hub = NotificationHub.Instance;
+    private NotificationHub _hub = NotificationHub.Instance;
 
     public event EventHandler? CollapseRequested;
 
@@ -21,14 +20,16 @@ public sealed partial class NotificationFeedPanel : UserControl
 
     public void Refresh(NotificationHub hub, IEnumerable<MessengerInstance>? instances = null)
     {
-        var instanceLookup = instances?
-            .ToDictionary(i => i.Id, StringComparer.OrdinalIgnoreCase)
-            ?? new Dictionary<string, MessengerInstance>(StringComparer.OrdinalIgnoreCase);
+        ArgumentNullException.ThrowIfNull(hub);
+
+        _hub = hub;
+        var instanceLookup = NotificationFeedPanelHelper.BuildInstanceLookup(instances);
 
         var unreadAlerts = hub.UnreadAlertCount;
-        if (unreadAlerts > 0)
+        var headerBadgeValue = NotificationFeedPanelHelper.ResolveHeaderBadgeValue(unreadAlerts);
+        if (headerBadgeValue > 0)
         {
-            HeaderBadge.Value = unreadAlerts > 99 ? 99 : unreadAlerts;
+            HeaderBadge.Value = headerBadgeValue;
             HeaderBadge.Visibility = Visibility.Visible;
         }
         else
@@ -36,25 +37,17 @@ public sealed partial class NotificationFeedPanel : UserControl
             HeaderBadge.Visibility = Visibility.Collapsed;
         }
 
-        ClearAllButton.IsEnabled = hub.Alerts.Count > 0;
-        MarkAllReadButton.IsEnabled = hub.UnreadAlertCount > 0;
+        var commandStates = NotificationFeedPanelHelper.ResolveCommandStates(
+            hub.Alerts.Count,
+            unreadAlerts);
+        ClearAllButton.IsEnabled = commandStates.ClearEnabled;
+        MarkAllReadButton.IsEnabled = commandStates.MarkAllReadEnabled;
 
-        var feedItems = new List<object>();
-        foreach (var group in hub.GetAlertsGroupedByInstance())
-        {
-            var unread = group.Count(a => !a.IsRead);
-            feedItems.Add(NotificationFeedItem.Header(group.Key, unread));
+        AlertsList.ItemsSource = NotificationFeedAlertRow.BuildFeedItems(
+            hub.GetAlertsGroupedByInstance(),
+            instanceLookup);
 
-            foreach (var alert in group.OrderByDescending(a => a.ReceivedAt))
-            {
-                instanceLookup.TryGetValue(alert.InstanceId, out var instance);
-                feedItems.Add(NotificationFeedAlertItem.FromAlert(alert, instance));
-            }
-        }
-
-        AlertsList.ItemsSource = feedItems;
-
-        if (hub.Alerts.Count > 0)
+        if (NotificationFeedPanelHelper.ShouldShowAlertList(hub.Alerts.Count))
         {
             AlertsList.Visibility = Visibility.Visible;
             EmptyStatePanel.Visibility = Visibility.Collapsed;
@@ -66,63 +59,32 @@ public sealed partial class NotificationFeedPanel : UserControl
         }
     }
 
-    private void CollapseButton_Click(object sender, RoutedEventArgs e)
-    {
+    private void CollapseButton_Click(object sender, RoutedEventArgs e) =>
         CollapseRequested?.Invoke(this, EventArgs.Empty);
-    }
 
-    private void MarkAllReadButton_Click(object sender, RoutedEventArgs e)
-    {
+    private void MarkAllReadButton_Click(object sender, RoutedEventArgs e) =>
         _hub.MarkAllAlertsRead();
-    }
 
-    private void ClearAllButton_Click(object sender, RoutedEventArgs e)
-    {
+    private void ClearAllButton_Click(object sender, RoutedEventArgs e) =>
         _hub.ClearAlerts();
-    }
 
     private void DismissAlertButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: string alertId })
+        if (sender is Button { Tag: string alertId } &&
+            NotificationFeedPanelHelper.IsValidAlertId(alertId))
         {
-            _hub.DismissAlert(alertId);
+            _hub.DismissAlert(alertId.Trim());
         }
     }
 
     private void AlertsList_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is NotificationFeedAlertItem { Alert: { } alert })
+        if (e.ClickedItem is not NotificationFeedAlertRow { Alert: { } alert })
         {
-            _hub.MarkAlertRead(alert.Id);
-            AlertClicked?.Invoke(this, alert);
+            return;
         }
-    }
 
-    private sealed class NotificationFeedAlertItem
-    {
-        public required NotificationAlert Alert { get; init; }
-
-        public string AlertId => Alert.Id;
-
-        public string Title => Alert.Title;
-
-        public string Body => Alert.Body;
-
-        public string RelativeTimeText => Alert.RelativeTimeText;
-
-        public SolidColorBrush AccentBrush { get; init; } = new(Windows.UI.Color.FromArgb(255, 107, 114, 128));
-
-        public double CardOpacity => Alert.IsRead ? 0.72 : 1;
-
-        public double TitleOpacity => Alert.IsRead ? 0.75 : 1;
-
-        public double BodyOpacity => Alert.IsRead ? 0.65 : 0.85;
-
-        public static NotificationFeedAlertItem FromAlert(NotificationAlert alert, MessengerInstance? instance) =>
-            new()
-            {
-                Alert = alert,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(instance?.AccentColor ?? "#6B7280")
-            };
+        _hub.MarkAlertRead(alert.Id);
+        AlertClicked?.Invoke(this, alert);
     }
 }

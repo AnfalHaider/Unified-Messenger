@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using UnifiedMessenger.Models;
@@ -16,6 +18,13 @@ public interface IPlatformAdapter
 
 public abstract class BasePlatformAdapter : IPlatformAdapter
 {
+    private const string PublishBadgeScript =
+        "if (window.__unifiedMessengerPublishBadge) { window.__unifiedMessengerPublishBadge(); }";
+
+    private static readonly ConditionalWeakTable<CoreWebView2, object> RegisteredHosts = new();
+    private static readonly Dictionary<string, string> ScriptTemplates = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object ScriptCacheLock = new();
+
     protected abstract string ScriptFileName { get; }
 
     public abstract string PlatformId { get; }
@@ -25,10 +34,18 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         MessengerInstance instance,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(coreWebView);
+        ArgumentNullException.ThrowIfNull(instance);
+
+        if (!TryMarkRegistered(coreWebView))
+        {
+            return;
+        }
+
         coreWebView.Settings.IsWebMessageEnabled = true;
 
-        await InjectScriptAsync(coreWebView, "adapter-core.js", instance, cancellationToken);
-        await InjectScriptAsync(coreWebView, ScriptFileName, instance, cancellationToken);
+        await InjectScriptAsync(coreWebView, "adapter-core.js", instance, cancellationToken).ConfigureAwait(false);
+        await InjectScriptAsync(coreWebView, ScriptFileName, instance, cancellationToken).ConfigureAwait(false);
 
         RegisterNavigationHooks(coreWebView);
     }
@@ -38,24 +55,50 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         MessengerInstance instance,
         CancellationToken cancellationToken = default)
     {
-        await coreWebView.ExecuteScriptAsync(
-            "if (window.__umResetAdapterRuntime) { window.__umResetAdapterRuntime(); }");
+        ArgumentNullException.ThrowIfNull(coreWebView);
+        ArgumentNullException.ThrowIfNull(instance);
 
-        var coreScript = PrepareScript(await LoadScriptTemplateAsync("adapter-core.js", cancellationToken), instance);
-        var adapterScript = PrepareScript(await LoadScriptTemplateAsync(ScriptFileName, cancellationToken), instance);
+        try
+        {
+            await ExecuteScriptSafeAsync(
+                    coreWebView,
+                    "if (window.__umResetAdapterRuntime) { window.__umResetAdapterRuntime(); }",
+                    cancellationToken)
+                .ConfigureAwait(true);
 
-        await coreWebView.ExecuteScriptAsync(coreScript);
-        await coreWebView.ExecuteScriptAsync(adapterScript);
-        await coreWebView.ExecuteScriptAsync(
-            "if (window.__unifiedMessengerPublishBadge) { window.__unifiedMessengerPublishBadge(); }");
+            var coreScript = PrepareScript(await LoadScriptTemplateAsync("adapter-core.js", cancellationToken), instance);
+            await ExecuteScriptSafeAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
+
+            var adapterScript = PrepareScript(await LoadScriptTemplateAsync(ScriptFileName, cancellationToken), instance);
+            await ExecuteScriptSafeAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
+
+            await ExecuteScriptSafeAsync(coreWebView, BuildAdapterSettingsScript(), cancellationToken).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Adapter reinject failed for {instance.Id}: {ex.Message}");
+            throw;
+        }
     }
 
     public void HandleWebMessage(string messageJson, NotificationHub hub, MessengerInstance instance)
     {
+        ArgumentNullException.ThrowIfNull(hub);
+        ArgumentNullException.ThrowIfNull(instance);
+
         try
         {
             using var document = WebMessageParser.Parse(messageJson);
             var root = document.RootElement;
+
+            if (!WebMessageParser.MatchesInstance(root, instance))
+            {
+                return;
+            }
 
             if (!root.TryGetProperty("type", out var typeElement))
             {
@@ -68,11 +111,21 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 return;
             }
 
+            if (!AdapterMessageTypes.IsKnownType(type))
+            {
+                Debug.WriteLine($"Ignoring unknown adapter message type '{type}' for {instance.Id}.");
+                return;
+            }
+
             HandleCustomMessage(type, root, hub, instance);
         }
         catch (JsonException ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WebMessage parse failed: {ex.Message} | Raw: {messageJson}");
+            Debug.WriteLine($"WebMessage parse failed: {ex.Message} | Raw: {messageJson}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WebMessage handling failed: {ex.Message} | Raw: {messageJson}");
         }
     }
 
@@ -85,8 +138,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 return;
             }
 
-            _ = coreWebView.ExecuteScriptAsync(
-                "if (window.__unifiedMessengerPublishBadge) { window.__unifiedMessengerPublishBadge(); }");
+            _ = ExecutePublishBadgeAsync(coreWebView);
         };
     }
 
@@ -96,12 +148,20 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         NotificationHub hub,
         MessengerInstance instance) => false;
 
+    protected static DateTimeOffset ParseMessageTimestamp(JsonElement root) =>
+        WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
+
     private bool HandleStandardMessage(
         string? type,
         JsonElement root,
         NotificationHub hub,
         MessengerInstance instance)
     {
+        if (!AdapterMessageTypes.IsStandardType(type))
+        {
+            return false;
+        }
+
         var health = AdapterHealthMonitor.Instance;
         var muted = instance.NotificationsMuted;
 
@@ -113,11 +173,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     return true;
                 }
 
-                if (root.TryGetProperty("count", out var countElement))
-                {
-                    hub.UpdateBadgeCount(instance.Id, countElement.GetInt32());
-                }
-
+                hub.UpdateBadgeCount(instance.Id, WebMessageParser.ReadNonNegativeInt(root, "count"));
                 return true;
 
             case AdapterMessageTypes.NotificationPreview:
@@ -135,16 +191,13 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
                 MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id);
 
-                hub.AddAlert(new NotificationAlert
-                {
-                    Id = Guid.NewGuid().ToString("N"),
-                    InstanceId = instance.Id,
-                    InstanceDisplayName = instance.DisplayName,
-                    Platform = instance.Platform,
-                    IconGlyph = instance.IconGlyph,
-                    Title = title,
-                    Body = body
-                });
+                hub.AddAlert(NotificationAlert.Create(
+                    instance.Id,
+                    instance.DisplayName,
+                    instance.Platform,
+                    title,
+                    body,
+                    instance.IconGlyph));
 
                 return true;
 
@@ -184,6 +237,17 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
     private static bool IsMetaBusinessPlatform(string platformId) =>
         platformId.Equals("metabusiness", StringComparison.OrdinalIgnoreCase);
 
+    private static bool TryMarkRegistered(CoreWebView2 coreWebView)
+    {
+        if (RegisteredHosts.TryGetValue(coreWebView, out _))
+        {
+            return false;
+        }
+
+        RegisteredHosts.Add(coreWebView, null!);
+        return true;
+    }
+
     private static async Task InjectScriptAsync(
         CoreWebView2 coreWebView,
         string scriptFileName,
@@ -191,7 +255,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         CancellationToken cancellationToken)
     {
         var script = PrepareScript(await LoadScriptTemplateAsync(scriptFileName, cancellationToken), instance);
-        await coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(script);
+        await coreWebView
+            .AddScriptToExecuteOnDocumentCreatedAsync(script)
+            .AsTask()
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static string PrepareScript(string script, MessengerInstance instance)
@@ -199,7 +267,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         var includeMutedBadges = AppSettingsService.Instance.Settings.IncludeMutedChatBadges;
         return script
             .Replace("__INSTANCE_ID__", instance.Id, StringComparison.Ordinal)
-            .Replace("__PLATFORM__", instance.Platform, StringComparison.Ordinal)
+            .Replace("__PLATFORM__", PlatformDefinition.NormalizePlatformId(instance.Platform), StringComparison.Ordinal)
             .Replace("__INCLUDE_MUTED_BADGES__", includeMutedBadges ? "true" : "false", StringComparison.Ordinal);
     }
 
@@ -207,13 +275,54 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         string scriptFileName,
         CancellationToken cancellationToken)
     {
+        lock (ScriptCacheLock)
+        {
+            if (ScriptTemplates.TryGetValue(scriptFileName, out var cached))
+            {
+                return cached;
+            }
+        }
+
         var scriptPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Scripts", scriptFileName);
         if (!File.Exists(scriptPath))
         {
             throw new FileNotFoundException($"Adapter script not found: {scriptPath}");
         }
 
-        return await File.ReadAllTextAsync(scriptPath, cancellationToken).ConfigureAwait(false);
+        var content = await File.ReadAllTextAsync(scriptPath, cancellationToken).ConfigureAwait(false);
+
+        lock (ScriptCacheLock)
+        {
+            ScriptTemplates[scriptFileName] = content;
+        }
+
+        return content;
+    }
+
+    private static string BuildAdapterSettingsScript()
+    {
+        var includeMuted = AppSettingsService.Instance.Settings.IncludeMutedChatBadges ? "true" : "false";
+        return $"window.__umIncludeMutedBadges = {includeMuted}; {PublishBadgeScript}";
+    }
+
+    private static async Task ExecuteScriptSafeAsync(
+        CoreWebView2 coreWebView,
+        string script,
+        CancellationToken cancellationToken)
+    {
+        await coreWebView.ExecuteScriptAsync(script).AsTask().WaitAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    protected static async Task ExecutePublishBadgeAsync(CoreWebView2 coreWebView)
+    {
+        try
+        {
+            await coreWebView.ExecuteScriptAsync(PublishBadgeScript).AsTask().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Publish badge script failed: {ex.Message}");
+        }
     }
 }
 
@@ -231,7 +340,7 @@ public sealed class PlatformAdapterFactory
     private static readonly GenericWebAdapter GenericWeb = new();
 
     public static IPlatformAdapter Resolve(string platformId) =>
-        platformId.ToLowerInvariant() switch
+        PlatformDefinition.NormalizePlatformId(platformId) switch
         {
             "whatsapp" => WhatsApp,
             "telegram" => Telegram,
@@ -270,11 +379,7 @@ public sealed class MessengerAdapter : BasePlatformAdapter
     {
         base.RegisterNavigationHooks(coreWebView);
 
-        coreWebView.HistoryChanged += (_, _) =>
-        {
-            _ = coreWebView.ExecuteScriptAsync(
-                "if (window.__unifiedMessengerPublishBadge) { window.__unifiedMessengerPublishBadge(); }");
-        };
+        coreWebView.HistoryChanged += (sender, args) => _ = ExecutePublishBadgeAsync(coreWebView);
     }
 }
 
@@ -295,28 +400,12 @@ public sealed class MetaBusinessAdapter : BasePlatformAdapter
             return false;
         }
 
-        var timestamp = ParseTimestamp(root);
-        var unread = root.TryGetProperty("unreadCount", out var unreadElement)
-            ? unreadElement.GetInt32()
-            : 0;
-
         ProfessionalWorkspaceService.Instance.HandleMetaInboundMessage(
             instance.Id,
-            timestamp,
-            unread);
+            ParseMessageTimestamp(root),
+            WebMessageParser.ReadNonNegativeInt(root, "unreadCount"));
 
         return true;
-    }
-
-    private static DateTimeOffset ParseTimestamp(JsonElement root)
-    {
-        if (root.TryGetProperty("timestampUtc", out var timestampElement) &&
-            DateTimeOffset.TryParse(timestampElement.GetString(), out var parsed))
-        {
-            return parsed;
-        }
-
-        return DateTimeOffset.UtcNow;
     }
 }
 
@@ -335,9 +424,7 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
         switch (type)
         {
             case AdapterMessageTypes.GoogleReviewSnapshot:
-                var unreplied = root.TryGetProperty("unrepliedCount", out var unrepliedElement)
-                    ? unrepliedElement.GetInt32()
-                    : 0;
+                var unreplied = WebMessageParser.ReadNonNegativeInt(root, "unrepliedCount");
 
                 ProfessionalWorkspaceService.Instance.HandleGoogleReviewSnapshot(
                     instance.Id,
@@ -369,10 +456,8 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
                 var location = root.TryGetProperty("locationLabel", out var locationElement)
                     ? locationElement.GetString() ?? instance.DisplayName
                     : instance.DisplayName;
-                var rating = root.TryGetProperty("rating", out var ratingElement)
-                    ? ratingElement.GetInt32()
-                    : 0;
-                var detectedAt = ParseTimestamp(root);
+                var rating = WebMessageParser.ReadNonNegativeInt(root, "rating");
+                var detectedAt = ParseMessageTimestamp(root);
 
                 ProfessionalWorkspaceService.Instance.HandleGoogleReviewAlert(
                     instance.Id,
@@ -384,33 +469,19 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
                     rating,
                     detectedAt);
 
-                hub.AddAlert(new NotificationAlert
-                {
-                    Id = Guid.NewGuid().ToString("N"),
-                    InstanceId = instance.Id,
-                    InstanceDisplayName = instance.DisplayName,
-                    Platform = instance.Platform,
-                    IconGlyph = instance.IconGlyph,
-                    Title = $"{reviewer} · review",
-                    Body = snippet
-                });
+                hub.AddAlert(NotificationAlert.Create(
+                    instance.Id,
+                    instance.DisplayName,
+                    instance.Platform,
+                    $"{reviewer} · review",
+                    snippet,
+                    instance.IconGlyph));
 
                 return true;
 
             default:
                 return false;
         }
-    }
-
-    private static DateTimeOffset ParseTimestamp(JsonElement root)
-    {
-        if (root.TryGetProperty("timestampUtc", out var timestampElement) &&
-            DateTimeOffset.TryParse(timestampElement.GetString(), out var parsed))
-        {
-            return parsed;
-        }
-
-        return DateTimeOffset.UtcNow;
     }
 }
 
@@ -447,20 +518,4 @@ public sealed class GenericWebAdapter : BasePlatformAdapter
     protected override string ScriptFileName => "generic-adapter.js";
 
     public override string PlatformId => "generic";
-}
-
-internal static class WebMessageParser
-{
-    public static JsonDocument Parse(string raw)
-    {
-        var document = JsonDocument.Parse(raw);
-        if (document.RootElement.ValueKind == JsonValueKind.String)
-        {
-            var inner = document.RootElement.GetString() ?? "{}";
-            document.Dispose();
-            return JsonDocument.Parse(inner);
-        }
-
-        return document;
-    }
 }

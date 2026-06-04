@@ -5,7 +5,9 @@ namespace UnifiedMessenger.Models;
 /// </summary>
 public sealed class InstanceStore
 {
-    public int Version { get; set; } = 3;
+    public const int CurrentVersion = 4;
+
+    public int Version { get; set; } = CurrentVersion;
 
     public List<MessengerInstance> Instances { get; set; } = [];
 

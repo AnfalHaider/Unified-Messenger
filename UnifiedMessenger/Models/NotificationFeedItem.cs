@@ -19,7 +19,12 @@ public sealed class NotificationFeedItem
     public bool IsRead => Alert?.IsRead ?? true;
 
     public static NotificationFeedItem Header(string title, int unread) =>
-        new() { IsGroupHeader = true, GroupTitle = title, GroupUnreadCount = unread };
+        new()
+        {
+            IsGroupHeader = true,
+            GroupTitle = string.IsNullOrWhiteSpace(title) ? "Account" : title.Trim(),
+            GroupUnreadCount = Math.Max(0, unread)
+        };
 
     public static NotificationFeedItem FromAlert(NotificationAlert alert, MessengerInstance? instance) =>
         new()

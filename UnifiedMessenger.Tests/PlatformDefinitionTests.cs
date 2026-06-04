@@ -42,6 +42,13 @@ public class PlatformDefinitionTests
     }
 
     [Fact]
+    public void NormalizePlatformId_UnknownPlatformFallsBackToGeneric()
+    {
+        Assert.Equal("generic", PlatformDefinition.NormalizePlatformId("not-a-platform"));
+        Assert.Equal("whatsapp", PlatformDefinition.NormalizePlatformId("WHATSAPP"));
+    }
+
+    [Fact]
     public void All_ContainsUniquePlatformIds()
     {
         var ids = PlatformDefinition.All.Select(p => p.Id).ToList();

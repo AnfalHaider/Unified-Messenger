@@ -22,27 +22,27 @@ public sealed class GoogleReviewAlert
 
     public bool IsReplied { get; set; }
 
-    public string RelativeTimeText
+    public string RelativeTimeText => RelativeTimeFormatter.Format(DetectedAt);
+
+    public void Normalize()
     {
-        get
+        InstanceId = InstanceId?.Trim() ?? string.Empty;
+        InstanceDisplayName = string.IsNullOrWhiteSpace(InstanceDisplayName)
+            ? "Google Business"
+            : InstanceDisplayName.Trim();
+        ReviewId = ReviewId?.Trim() ?? string.Empty;
+        ReviewerName = string.IsNullOrWhiteSpace(ReviewerName) ? "Customer" : ReviewerName.Trim();
+        Snippet = Snippet?.Trim() ?? string.Empty;
+        LocationLabel = string.IsNullOrWhiteSpace(LocationLabel)
+            ? InstanceDisplayName
+            : LocationLabel.Trim();
+        Rating = Math.Clamp(Rating, 0, 5);
+
+        if (string.IsNullOrWhiteSpace(Id) &&
+            !string.IsNullOrWhiteSpace(InstanceId) &&
+            !string.IsNullOrWhiteSpace(ReviewId))
         {
-            var delta = DateTimeOffset.UtcNow - DetectedAt;
-            if (delta.TotalMinutes < 1)
-            {
-                return "Just now";
-            }
-
-            if (delta.TotalHours < 1)
-            {
-                return $"{(int)delta.TotalMinutes}m ago";
-            }
-
-            if (delta.TotalDays < 1)
-            {
-                return $"{(int)delta.TotalHours}h ago";
-            }
-
-            return $"{(int)delta.TotalDays}d ago";
+            Id = $"{InstanceId}:{ReviewId}";
         }
     }
 }

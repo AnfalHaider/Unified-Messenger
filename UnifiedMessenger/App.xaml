@@ -9,6 +9,17 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Roadmap brand palette (ENHANCEMENT_ROADMAP.md) -->
+            <Color x:Key="UmBrandSlateColor">#1E293B</Color>
+            <Color x:Key="UmBrandTealColor">#14B8A6</Color>
+            <Color x:Key="UmBrandBlueColor">#3B82F6</Color>
+            <Color x:Key="UmBrandVioletColor">#8B5CF6</Color>
+
+            <SolidColorBrush x:Key="UmBrandSlateBrush" Color="{StaticResource UmBrandSlateColor}" />
+            <SolidColorBrush x:Key="UmBrandTealBrush" Color="{StaticResource UmBrandTealColor}" />
+            <SolidColorBrush x:Key="UmBrandBlueBrush" Color="{StaticResource UmBrandBlueColor}" />
+            <SolidColorBrush x:Key="UmBrandVioletBrush" Color="{StaticResource UmBrandVioletColor}" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using UnifiedMessenger.Models;
 
@@ -48,6 +51,9 @@ public sealed class OperationalHighlightItem
 public sealed class MessageAnalyticsService
 {
     private const string FileName = "analytics.json";
+    private const int MaxReplyLatencies = 500;
+    private const int DailyBucketRetentionDays = 30;
+    private const int SaveDebounceMilliseconds = 750;
 
     private static readonly Lazy<MessageAnalyticsService> LazyInstance = new(() => new MessageAnalyticsService());
 
@@ -59,8 +65,11 @@ public sealed class MessageAnalyticsService
 
     private readonly ConcurrentDictionary<string, InstanceMessageStats> _stats = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _storePath;
-    private readonly object _saveGate = new();
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _debounceLock = new();
     private CancellationTokenSource? _saveDebounceCts;
+    private int _saveGeneration;
+    private bool _isLoaded;
 
     public static MessageAnalyticsService Instance => LazyInstance.Value;
 
@@ -74,109 +83,167 @@ public sealed class MessageAnalyticsService
         _storePath = Path.Combine(appDataRoot, FileName);
     }
 
+    internal MessageAnalyticsService(string storePath)
+    {
+        _storePath = storePath;
+    }
+
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(_storePath))
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            return;
-        }
-
-        await using var stream = File.OpenRead(_storePath);
-        var store = await JsonSerializer
-            .DeserializeAsync<AnalyticsStore>(stream, JsonOptions, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (store?.Instances is null)
-        {
-            return;
-        }
-
-        foreach (var (instanceId, dto) in store.Instances)
-        {
-            _stats[instanceId] = new InstanceMessageStats
+            if (_isLoaded)
             {
-                SentCount = dto.SentCount,
-                ReceivedCount = dto.ReceivedCount,
-                SlaBreachCount = dto.SlaBreachCount,
-                TotalReplyMinutes = dto.TotalReplyMinutes,
-                ReplyCount = dto.ReplyCount,
-                LastSentUtc = dto.LastSentUtc,
-                LastReceivedUtc = dto.LastReceivedUtc,
-                LastChatHint = dto.LastChatHint,
-                DailySent = dto.DailySent ?? new Dictionary<string, int>(StringComparer.Ordinal),
-                DailyReceived = dto.DailyReceived ?? new Dictionary<string, int>(StringComparer.Ordinal),
-                HourlyReceived = dto.HourlyReceived ?? new int[24]
-            };
+                return;
+            }
+
+            if (!File.Exists(_storePath))
+            {
+                _isLoaded = true;
+                return;
+            }
+
+            AnalyticsStore? store;
+            try
+            {
+                await using var stream = File.OpenRead(_storePath);
+                store = await JsonSerializer
+                    .DeserializeAsync<AnalyticsStore>(stream, JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (JsonException ex)
+            {
+                Debug.WriteLine($"Analytics file is corrupt; resetting to empty: {ex.Message}");
+                BackupCorruptFile();
+                _isLoaded = true;
+                return;
+            }
+
+            if (store?.Instances is null)
+            {
+                _isLoaded = true;
+                return;
+            }
+
+            _stats.Clear();
+            foreach (var (instanceId, dto) in store.Instances)
+            {
+                if (string.IsNullOrWhiteSpace(instanceId))
+                {
+                    continue;
+                }
+
+                var stats = MapFromDto(dto);
+                NormalizeStats(stats);
+                _stats[instanceId] = stats;
+            }
+
+            RecalculateSlaBreachesCore();
+            _isLoaded = true;
+        }
+        finally
+        {
+            _gate.Release();
         }
     }
 
     public async Task ClearAllDataAsync(CancellationToken cancellationToken = default)
     {
-        _stats.Clear();
+        CancelScheduledSave();
 
-        if (File.Exists(_storePath))
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            File.Delete(_storePath);
+            _stats.Clear();
+
+            if (File.Exists(_storePath))
+            {
+                File.Delete(_storePath);
+            }
+        }
+        finally
+        {
+            _gate.Release();
         }
 
         Changed?.Invoke(this, EventArgs.Empty);
-        await Task.CompletedTask;
     }
 
     public async Task ExportToFileAsync(string destinationPath, CancellationToken cancellationToken = default)
     {
-        var export = new AnalyticsStore
+        var store = BuildStoreSnapshot();
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+
+        await using var stream = File.Create(destinationPath);
+        await JsonSerializer.SerializeAsync(stream, store, JsonOptions, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ExportCsvAsync(
+        IEnumerable<MessengerInstance> instances,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        var lines = new List<string>
         {
-            Instances = _stats.ToDictionary(
-                pair => pair.Key,
-                pair => new InstanceMessageStatsDto
-                {
-                    SentCount = pair.Value.SentCount,
-                    ReceivedCount = pair.Value.ReceivedCount,
-                    SlaBreachCount = pair.Value.SlaBreachCount,
-                    TotalReplyMinutes = pair.Value.TotalReplyMinutes,
-                    ReplyCount = pair.Value.ReplyCount,
-                    LastSentUtc = pair.Value.LastSentUtc,
-                    LastReceivedUtc = pair.Value.LastReceivedUtc,
-                    LastChatHint = pair.Value.LastChatHint,
-                    DailySent = pair.Value.DailySent,
-                    DailyReceived = pair.Value.DailyReceived,
-                    HourlyReceived = pair.Value.HourlyReceived
-                },
-                StringComparer.OrdinalIgnoreCase)
+            "InstanceId,DisplayName,Platform,Sent,Received,SlaBreaches,AvgReplyMinutes"
         };
 
+        foreach (var instance in instances)
+        {
+            var sent = GetSentCount(instance.Id);
+            var received = GetReceivedCount(instance.Id);
+            var sla = GetSlaBreachCount(instance.Id);
+            var (totalReply, replyCount, _, _) = GetReplyStats(instance.Id);
+            var avgReply = replyCount > 0 ? totalReply / replyCount : 0;
+
+            lines.Add(string.Join(',',
+                CsvEscape(instance.Id),
+                CsvEscape(instance.DisplayName),
+                CsvEscape(instance.Platform),
+                sent.ToString(CultureInfo.InvariantCulture),
+                received.ToString(CultureInfo.InvariantCulture),
+                sla.ToString(CultureInfo.InvariantCulture),
+                avgReply.ToString("0.##", CultureInfo.InvariantCulture)));
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-        await using var stream = File.Create(destinationPath);
-        await JsonSerializer.SerializeAsync(stream, export, JsonOptions, cancellationToken).ConfigureAwait(false);
+        await File.WriteAllLinesAsync(destinationPath, lines, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
     }
 
     public void RecordMessageSent(string instanceId, string? chatHint = null)
     {
-        var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
-        stats.SentCount++;
-        IncrementDaily(stats.DailySent, 1);
-
-        if (stats.LastReceivedUtc is { } receivedAt)
+        if (string.IsNullOrWhiteSpace(instanceId))
         {
-            var replyAt = DateTimeOffset.UtcNow;
-            var deltaMinutes = (replyAt - receivedAt).TotalMinutes;
-            if (deltaMinutes >= 0)
-            {
-                stats.TotalReplyMinutes += deltaMinutes;
-                stats.ReplyCount++;
-                if (deltaMinutes > GetSlaThresholdMinutes())
-                {
-                    stats.SlaBreachCount++;
-                }
-            }
+            return;
         }
 
-        stats.LastSentUtc = DateTimeOffset.UtcNow;
-
-        if (!string.IsNullOrWhiteSpace(chatHint))
+        lock (_debounceLock)
         {
-            stats.LastChatHint = chatHint.Trim();
+            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
+            stats.SentCount++;
+            IncrementDaily(stats.DailySent, 1);
+
+            if (stats.LastReceivedUtc is { } receivedAt)
+            {
+                var replyAt = DateTimeOffset.UtcNow;
+                var deltaMinutes = (replyAt - receivedAt).TotalMinutes;
+                if (deltaMinutes >= 0)
+                {
+                    stats.TotalReplyMinutes += deltaMinutes;
+                    stats.ReplyCount++;
+                    stats.ReplyLatenciesMinutes.Add(deltaMinutes);
+                    TrimReplyLatencies(stats);
+                    stats.SlaBreachCount = CountSlaBreaches(stats);
+                }
+            }
+
+            stats.LastSentUtc = DateTimeOffset.UtcNow;
+
+            if (!string.IsNullOrWhiteSpace(chatHint))
+            {
+                stats.LastChatHint = chatHint.Trim();
+            }
         }
 
         NotifyChanged();
@@ -184,18 +251,48 @@ public sealed class MessageAnalyticsService
 
     public void RecordMessageReceived(string instanceId)
     {
-        var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
-        stats.ReceivedCount++;
-        stats.LastReceivedUtc = DateTimeOffset.UtcNow;
-        IncrementDaily(stats.DailyReceived, 1);
-
-        var hour = DateTimeOffset.Now.Hour;
-        if (stats.HourlyReceived.Length == 24)
+        if (string.IsNullOrWhiteSpace(instanceId))
         {
-            stats.HourlyReceived[hour]++;
+            return;
+        }
+
+        lock (_debounceLock)
+        {
+            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
+            stats.ReceivedCount++;
+            stats.LastReceivedUtc = DateTimeOffset.UtcNow;
+            IncrementDaily(stats.DailyReceived, 1);
+
+            var hour = DateTimeOffset.Now.Hour;
+            if (stats.HourlyReceived.Length == 24)
+            {
+                stats.HourlyReceived[hour]++;
+            }
         }
 
         NotifyChanged();
+    }
+
+    internal void SetReplyLatenciesForTests(string instanceId, params double[] latencies)
+    {
+        lock (_debounceLock)
+        {
+            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
+            stats.ReplyLatenciesMinutes = latencies.ToList();
+            stats.ReplyCount = latencies.Length;
+            stats.SlaBreachCount = CountSlaBreaches(stats);
+        }
+    }
+
+    public void RecalculateSlaBreaches()
+    {
+        lock (_debounceLock)
+        {
+            RecalculateSlaBreachesCore();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        ScheduleSave();
     }
 
     public int GetSentCount(string instanceId) =>
@@ -205,7 +302,7 @@ public sealed class MessageAnalyticsService
         _stats.TryGetValue(instanceId, out var stats) ? stats.ReceivedCount : 0;
 
     public int GetSlaBreachCount(string instanceId) =>
-        _stats.TryGetValue(instanceId, out var stats) ? stats.SlaBreachCount : 0;
+        _stats.TryGetValue(instanceId, out var stats) ? CountSlaBreaches(stats) : 0;
 
     public (double TotalReplyMinutes, int ReplyCount, DateTimeOffset? LastReceivedUtc, DateTimeOffset? LastSentUtc)
         GetReplyStats(string instanceId)
@@ -246,10 +343,10 @@ public sealed class MessageAnalyticsService
             }
 
             received += instanceReceived;
+            slaBreaches += GetSlaBreachCount(instance.Id);
 
             if (_stats.TryGetValue(instance.Id, out var stats))
             {
-                slaBreaches += stats.SlaBreachCount;
                 totalReplyMinutes += stats.TotalReplyMinutes;
                 replyCount += stats.ReplyCount;
 
@@ -279,8 +376,33 @@ public sealed class MessageAnalyticsService
 
     private static double GetSlaThresholdMinutes()
     {
-        var minutes = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
-        return Math.Clamp(minutes, 5, 120);
+        return Math.Clamp(
+            AppSettingsService.Instance.Settings.SlaThresholdMinutes,
+            AppSettings.MinSlaThresholdMinutes,
+            AppSettings.MaxSlaThresholdMinutes);
+    }
+
+    private int CountSlaBreaches(InstanceMessageStats stats)
+    {
+        if (stats.ReplyLatenciesMinutes.Count > 0)
+        {
+            var threshold = GetSlaThresholdMinutes();
+            return stats.ReplyLatenciesMinutes.Count(minutes => minutes > threshold);
+        }
+
+        return stats.SlaBreachCount;
+    }
+
+    private void RecalculateSlaBreachesCore()
+    {
+        var threshold = GetSlaThresholdMinutes();
+        foreach (var stats in _stats.Values)
+        {
+            if (stats.ReplyLatenciesMinutes.Count > 0)
+            {
+                stats.SlaBreachCount = stats.ReplyLatenciesMinutes.Count(minutes => minutes > threshold);
+            }
+        }
     }
 
     private static void IncrementDaily(Dictionary<string, int> buckets, int amount)
@@ -288,6 +410,41 @@ public sealed class MessageAnalyticsService
         var key = DateTime.Now.ToString("yyyy-MM-dd");
         buckets.TryGetValue(key, out var current);
         buckets[key] = current + amount;
+    }
+
+    private static void TrimReplyLatencies(InstanceMessageStats stats)
+    {
+        if (stats.ReplyLatenciesMinutes.Count <= MaxReplyLatencies)
+        {
+            return;
+        }
+
+        var overflow = stats.ReplyLatenciesMinutes.Count - MaxReplyLatencies;
+        stats.ReplyLatenciesMinutes.RemoveRange(0, overflow);
+    }
+
+    private static void PruneDailyBuckets(Dictionary<string, int> buckets)
+    {
+        var cutoff = DateTime.Now.Date.AddDays(-DailyBucketRetentionDays);
+        var staleKeys = buckets.Keys
+            .Where(key => DateTime.TryParseExact(key, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+                          && date < cutoff)
+            .ToList();
+
+        foreach (var key in staleKeys)
+        {
+            buckets.Remove(key);
+        }
+    }
+
+    private static void NormalizeStats(InstanceMessageStats stats)
+    {
+        stats.HourlyReceived = stats.HourlyReceived.Length == 24
+            ? stats.HourlyReceived
+            : new int[24];
+
+        PruneDailyBuckets(stats.DailySent);
+        PruneDailyBuckets(stats.DailyReceived);
     }
 
     private static string FormatAverageReplyTime(double totalMinutes, int replyCount)
@@ -441,60 +598,168 @@ public sealed class MessageAnalyticsService
         ScheduleSave();
     }
 
+    private void CancelScheduledSave()
+    {
+        lock (_debounceLock)
+        {
+            Interlocked.Increment(ref _saveGeneration);
+            _saveDebounceCts?.Cancel();
+            _saveDebounceCts?.Dispose();
+            _saveDebounceCts = null;
+        }
+    }
+
     private void ScheduleSave()
     {
-        lock (_saveGate)
+        CancellationToken token;
+        int generation;
+
+        lock (_debounceLock)
         {
             _saveDebounceCts?.Cancel();
+            _saveDebounceCts?.Dispose();
             _saveDebounceCts = new CancellationTokenSource();
-            var token = _saveDebounceCts.Token;
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(750, token).ConfigureAwait(false);
-                    await SaveAsync(token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    // debounced
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Analytics save failed: {ex.Message}");
-                }
-            }, token);
+            token = _saveDebounceCts.Token;
+            generation = Interlocked.Increment(ref _saveGeneration);
         }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(SaveDebounceMilliseconds, token).ConfigureAwait(false);
+                if (generation != Volatile.Read(ref _saveGeneration))
+                {
+                    return;
+                }
+
+                await SaveAsync(token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // debounced or cleared
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Analytics save failed: {ex.Message}");
+            }
+        }, token);
     }
 
     private async Task SaveAsync(CancellationToken cancellationToken)
     {
-        var store = new AnalyticsStore
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
+            AnalyticsStore store;
+            lock (_debounceLock)
+            {
+                store = BuildStoreSnapshot();
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
+
+            var tempPath = _storePath + ".tmp";
+            await using (var stream = new FileStream(
+                             tempPath,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             bufferSize: 4096,
+                             options: FileOptions.Asynchronous))
+            {
+                await JsonSerializer
+                    .SerializeAsync(stream, store, JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            File.Move(tempPath, _storePath, overwrite: true);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private AnalyticsStore BuildStoreSnapshot()
+    {
+        return new AnalyticsStore
+        {
+            Version = AnalyticsStore.CurrentVersion,
             Instances = _stats.ToDictionary(
                 pair => pair.Key,
-                pair => new InstanceMessageStatsDto
-                {
-                    SentCount = pair.Value.SentCount,
-                    ReceivedCount = pair.Value.ReceivedCount,
-                    SlaBreachCount = pair.Value.SlaBreachCount,
-                    TotalReplyMinutes = pair.Value.TotalReplyMinutes,
-                    ReplyCount = pair.Value.ReplyCount,
-                    LastSentUtc = pair.Value.LastSentUtc,
-                    LastReceivedUtc = pair.Value.LastReceivedUtc,
-                    LastChatHint = pair.Value.LastChatHint,
-                    DailySent = pair.Value.DailySent,
-                    DailyReceived = pair.Value.DailyReceived,
-                    HourlyReceived = pair.Value.HourlyReceived
-                },
+                pair => MapToDto(pair.Value),
                 StringComparer.OrdinalIgnoreCase)
         };
+    }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
+    private static InstanceMessageStats MapFromDto(InstanceMessageStatsDto dto)
+    {
+        return new InstanceMessageStats
+        {
+            SentCount = dto.SentCount,
+            ReceivedCount = dto.ReceivedCount,
+            SlaBreachCount = dto.SlaBreachCount,
+            TotalReplyMinutes = dto.TotalReplyMinutes,
+            ReplyCount = dto.ReplyCount,
+            LastSentUtc = dto.LastSentUtc,
+            LastReceivedUtc = dto.LastReceivedUtc,
+            LastChatHint = dto.LastChatHint,
+            DailySent = dto.DailySent ?? new Dictionary<string, int>(StringComparer.Ordinal),
+            DailyReceived = dto.DailyReceived ?? new Dictionary<string, int>(StringComparer.Ordinal),
+            HourlyReceived = dto.HourlyReceived ?? new int[24],
+            ReplyLatenciesMinutes = dto.ReplyLatenciesMinutes ?? []
+        };
+    }
 
-        await using var stream = File.Create(_storePath);
-        await JsonSerializer.SerializeAsync(stream, store, JsonOptions, cancellationToken).ConfigureAwait(false);
+    private static InstanceMessageStatsDto MapToDto(InstanceMessageStats stats)
+    {
+        NormalizeStats(stats);
+
+        return new InstanceMessageStatsDto
+        {
+            SentCount = stats.SentCount,
+            ReceivedCount = stats.ReceivedCount,
+            SlaBreachCount = stats.SlaBreachCount,
+            TotalReplyMinutes = stats.TotalReplyMinutes,
+            ReplyCount = stats.ReplyCount,
+            LastSentUtc = stats.LastSentUtc,
+            LastReceivedUtc = stats.LastReceivedUtc,
+            LastChatHint = stats.LastChatHint,
+            DailySent = stats.DailySent,
+            DailyReceived = stats.DailyReceived,
+            HourlyReceived = stats.HourlyReceived,
+            ReplyLatenciesMinutes = stats.ReplyLatenciesMinutes
+        };
+    }
+
+    private void BackupCorruptFile()
+    {
+        try
+        {
+            if (!File.Exists(_storePath))
+            {
+                return;
+            }
+
+            var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
+            File.Move(_storePath, backupPath, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Could not back up corrupt analytics file: {ex.Message}");
+        }
+    }
+
+    private static string CsvEscape(string value)
+    {
+        if (value.Contains('"') || value.Contains(',') || value.Contains('\n'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+
+        return value;
     }
 
     private sealed class InstanceMessageStats
@@ -520,11 +785,18 @@ public sealed class MessageAnalyticsService
         public Dictionary<string, int> DailyReceived { get; set; } = new(StringComparer.Ordinal);
 
         public int[] HourlyReceived { get; set; } = new int[24];
+
+        public List<double> ReplyLatenciesMinutes { get; set; } = [];
     }
 
     private sealed class AnalyticsStore
     {
-        public Dictionary<string, InstanceMessageStatsDto> Instances { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public const int CurrentVersion = 1;
+
+        public int Version { get; set; } = CurrentVersion;
+
+        public Dictionary<string, InstanceMessageStatsDto> Instances { get; set; } =
+            new(StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class InstanceMessageStatsDto
@@ -550,5 +822,7 @@ public sealed class MessageAnalyticsService
         public Dictionary<string, int>? DailyReceived { get; set; }
 
         public int[]? HourlyReceived { get; set; }
+
+        public List<double>? ReplyLatenciesMinutes { get; set; }
     }
 }

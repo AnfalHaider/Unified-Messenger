@@ -1,24 +1,40 @@
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 using UnifiedMessenger.Models;
-using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Services;
+
+public sealed class ToastActivationEventArgs : EventArgs
+{
+    public required string InstanceId { get; init; }
+
+    public string? AlertId { get; init; }
+
+    public string? Action { get; init; }
+}
 
 public sealed class AppNotificationService
 {
     private static readonly Lazy<AppNotificationService> LazyInstance = new(() => new AppNotificationService());
 
+    private bool _registered;
+
     public static AppNotificationService Instance => LazyInstance.Value;
 
-    public event EventHandler<string>? InstanceActivationRequested;
+    public event EventHandler<ToastActivationEventArgs>? ActivationRequested;
 
     public void Initialize()
     {
+        if (_registered)
+        {
+            return;
+        }
+
         try
         {
             AppNotificationManager.Default.NotificationInvoked += OnNotificationInvoked;
             AppNotificationManager.Default.Register();
+            _registered = true;
         }
         catch (Exception ex)
         {
@@ -28,12 +44,26 @@ public sealed class AppNotificationService
 
     public void Shutdown()
     {
+        if (!_registered)
+        {
+            return;
+        }
+
         AppNotificationManager.Default.NotificationInvoked -= OnNotificationInvoked;
         AppNotificationManager.Default.Unregister();
+        _registered = false;
     }
 
     public void ShowAlertToast(NotificationAlert alert, MessengerInstance? instance = null)
     {
+        ArgumentNullException.ThrowIfNull(alert);
+
+        if (string.IsNullOrWhiteSpace(alert.InstanceId) ||
+            NotificationHub.Instance.IsInstanceMuted(alert.InstanceId))
+        {
+            return;
+        }
+
         try
         {
             var settings = AppSettingsService.Instance.Settings;
@@ -41,7 +71,7 @@ public sealed class AppNotificationService
                 .AddArgument("action", "openAlert")
                 .AddArgument("alertId", alert.Id)
                 .AddArgument("instanceId", alert.InstanceId)
-                .SetTag(alert.Id);
+                .SetTag(ResolveToastTag(settings, alert));
 
             if (settings.ToastGroupByInstance)
             {
@@ -61,6 +91,7 @@ public sealed class AppNotificationService
                     .AddText(string.IsNullOrWhiteSpace(alert.Body) ? "New message" : alert.Body);
             }
 
+            ApplyToastSound(builder, settings);
             builder.SetAppLogoOverride(new Uri("ms-appx:///Assets/AppIcon.ico"));
 
             AppNotificationManager.Default.Show(builder.BuildNotification());
@@ -83,7 +114,7 @@ public sealed class AppNotificationService
 
             if (activatedArgs.Data is AppNotificationActivatedEventArgs notificationArgs)
             {
-                HandleActivationArguments(notificationArgs.Argument);
+                TryRaiseActivation(notificationArgs.Argument);
                 return true;
             }
         }
@@ -95,26 +126,64 @@ public sealed class AppNotificationService
         return false;
     }
 
-    private void OnNotificationInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args)
+    internal static string ResolveToastTag(AppSettings settings, NotificationAlert alert) =>
+        settings.ToastGroupByInstance ? alert.InstanceId : alert.Id;
+
+    internal static bool ShouldMuteToast(AppSettings settings) =>
+        settings.ToastSound == ToastSoundPreference.Silent;
+
+    internal static void ApplyToastSound(AppNotificationBuilder builder, AppSettings settings)
     {
-        HandleActivationArguments(args.Argument);
+        if (ShouldMuteToast(settings))
+        {
+            builder.MuteAudio();
+        }
     }
 
-    private void HandleActivationArguments(string? argumentString)
+    internal static bool TryParseActivationArguments(
+        string? argumentString,
+        out ToastActivationEventArgs activation)
     {
+        activation = null!;
+
         if (string.IsNullOrWhiteSpace(argumentString))
         {
-            return;
+            return false;
         }
 
         var arguments = ParseArguments(argumentString);
         if (!arguments.TryGetValue("instanceId", out var instanceId) ||
             string.IsNullOrWhiteSpace(instanceId))
         {
+            return false;
+        }
+
+        arguments.TryGetValue("alertId", out var alertId);
+        arguments.TryGetValue("action", out var action);
+
+        activation = new ToastActivationEventArgs
+        {
+            InstanceId = instanceId,
+            AlertId = string.IsNullOrWhiteSpace(alertId) ? null : alertId,
+            Action = string.IsNullOrWhiteSpace(action) ? null : action
+        };
+
+        return true;
+    }
+
+    private void OnNotificationInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args)
+    {
+        TryRaiseActivation(args.Argument);
+    }
+
+    private void TryRaiseActivation(string? argumentString)
+    {
+        if (!TryParseActivationArguments(argumentString, out var activation))
+        {
             return;
         }
 
-        InstanceActivationRequested?.Invoke(this, instanceId);
+        ActivationRequested?.Invoke(this, activation);
     }
 
     private static Dictionary<string, string> ParseArguments(string argumentString)

@@ -12,8 +12,13 @@
   var ADAPTER_ID = 'messenger';
   var lastPostedCount = -1;
   var pollTimer = null;
+  var domObserver = null;
   var publishScheduled = false;
   var lastUrl = location.href;
+  var spaNotify = null;
+  var historyHooked = false;
+  var originalPushState = null;
+  var originalReplaceState = null;
 
   function postMessage(payload) {
     window.__umPostMessage(payload);
@@ -35,16 +40,22 @@
     var badgeSelectors = [
       'span[data-testid="mw_unread_count"]',
       '[data-testid="unread-count"]',
+      '[data-testid="MWUnreadBadge"]',
       '[aria-label*="unread message"]',
       '[aria-label*="Unread message"]',
       '[aria-label*="unread messages"]',
       '[aria-label*="Unread messages"]',
-      '[aria-label*="unread conversation"]'
+      '[aria-label*="unread conversation"]',
+      '[aria-label*="Unread conversation"]'
     ];
 
     badgeSelectors.forEach(function (selector) {
       document.querySelectorAll(selector).forEach(function (element) {
         if (seen.has(element)) {
+          return;
+        }
+
+        if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(element)) {
           return;
         }
 
@@ -59,11 +70,17 @@
       return total;
     }
 
-    document.querySelectorAll('div[role="row"], div[role="listitem"]').forEach(function (row) {
+    document.querySelectorAll(
+      'div[role="row"], div[role="listitem"], div[role="gridcell"]'
+    ).forEach(function (row) {
       var unreadMarker = row.querySelector(
-        '[aria-label*="unread"], [data-testid="mw_unread_count"], [data-testid="unread-count"]'
+        '[aria-label*="unread"], [data-testid="mw_unread_count"], [data-testid="unread-count"], [data-testid="MWUnreadBadge"]'
       );
       if (!unreadMarker || seen.has(unreadMarker)) {
+        return;
+      }
+
+      if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(unreadMarker)) {
         return;
       }
 
@@ -109,23 +126,19 @@
     window.setTimeout(publishBadgeCountImmediate, 120);
   }
 
-  function publishBadgeCount() {
-    schedulePublishBadgeCount();
-  }
-
   window.__unifiedMessengerPublishBadge = publishBadgeCountImmediate;
 
   function observeDom() {
     var root = document.body || document.documentElement;
-    if (!root) {
+    if (!root || domObserver) {
       return;
     }
 
-    var observer = new MutationObserver(function () {
+    domObserver = new MutationObserver(function () {
       schedulePublishBadgeCount();
     });
 
-    observer.observe(root, {
+    domObserver.observe(root, {
       childList: true,
       subtree: true,
       characterData: true,
@@ -135,7 +148,12 @@
   }
 
   function hookSpaNavigation() {
-    var notify = function () {
+    if (historyHooked) {
+      return;
+    }
+
+    historyHooked = true;
+    spaNotify = function () {
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         lastPostedCount = -1;
@@ -144,21 +162,47 @@
       schedulePublishBadgeCount();
     };
 
-    window.addEventListener('popstate', notify);
-    window.addEventListener('hashchange', notify);
+    window.addEventListener('popstate', spaNotify);
+    window.addEventListener('hashchange', spaNotify);
 
-    var originalPushState = history.pushState;
-    var originalReplaceState = history.replaceState;
+    originalPushState = history.pushState;
+    originalReplaceState = history.replaceState;
 
     history.pushState = function () {
       originalPushState.apply(history, arguments);
-      notify();
+      spaNotify();
     };
 
     history.replaceState = function () {
       originalReplaceState.apply(history, arguments);
-      notify();
+      spaNotify();
     };
+  }
+
+  function unhookSpaNavigation() {
+    if (!historyHooked) {
+      return;
+    }
+
+    window.removeEventListener('popstate', spaNotify);
+    window.removeEventListener('hashchange', spaNotify);
+
+    if (originalPushState) {
+      history.pushState = originalPushState;
+    }
+
+    if (originalReplaceState) {
+      history.replaceState = originalReplaceState;
+    }
+
+    historyHooked = false;
+    spaNotify = null;
+  }
+
+  function onVisibilityChange() {
+    if (!document.hidden) {
+      publishBadgeCountImmediate();
+    }
   }
 
   function startPolling() {
@@ -167,7 +211,35 @@
     }
 
     publishBadgeCountImmediate();
-    pollTimer = window.setInterval(publishBadgeCountImmediate, 3000);
+    pollTimer = window.setInterval(function () {
+      if (!document.hidden) {
+        publishBadgeCountImmediate();
+      }
+    }, 5000);
+  }
+
+  function disposeAdapter() {
+    if (pollTimer) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    if (domObserver) {
+      domObserver.disconnect();
+      domObserver = null;
+    }
+
+    unhookSpaNavigation();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('load', publishBadgeCountImmediate);
+    window.removeEventListener('pageshow', publishBadgeCountImmediate);
+    publishScheduled = false;
+    lastPostedCount = -1;
+  }
+
+  window.__umAdapterDispose = disposeAdapter;
+  if (window.__umRegisterDisposable) {
+    window.__umRegisterDisposable(disposeAdapter);
   }
 
   window.__umInstallNotificationInterceptor(INSTANCE_ID, PLATFORM);
@@ -175,17 +247,20 @@
     composeSelectors: [
       'div[contenteditable="true"][role="textbox"]',
       'div[aria-label="Message"][contenteditable="true"]',
-      'div[aria-label*="Message"][contenteditable="true"]'
+      'div[aria-label*="Message"][contenteditable="true"]',
+      'div[aria-label*="Aa"][contenteditable="true"]'
     ],
     sendSelectors: [
       'div[aria-label="Send"]',
       'div[aria-label="Press enter to send"]',
-      'div[aria-label*="Send"][role="button"]'
+      'div[aria-label*="Send"][role="button"]',
+      'div[aria-label*="Send message"][role="button"]'
     ],
     chatHintSelectors: [
       'h1[dir="auto"]',
       '[data-testid="conversation-title"]',
-      '[data-testid="thread-title"]'
+      '[data-testid="thread-title"]',
+      '[data-testid="chat-title"]'
     ]
   });
   window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
@@ -194,7 +269,7 @@
   observeDom();
   startPolling();
 
-  document.addEventListener('visibilitychange', publishBadgeCountImmediate);
+  document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('load', publishBadgeCountImmediate);
   window.addEventListener('pageshow', publishBadgeCountImmediate);
 })();

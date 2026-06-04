@@ -12,10 +12,35 @@
   var ADAPTER_ID = 'googlebusiness';
   var lastPostedUnreplied = -1;
   var knownReviewKeys = Object.create(null);
+  var knownReviewOrder = [];
+  var maxKnownReviewKeys = 80;
   var pollTimer = null;
+  var domObserver = null;
+  var publishScheduled = false;
+  var lastUrl = location.href;
+  var spaNotify = null;
+  var historyHooked = false;
+  var originalPushState = null;
+  var originalReplaceState = null;
 
   function postMessage(payload) {
     window.__umPostMessage(payload);
+  }
+
+  function rememberReviewKey(key) {
+    if (knownReviewKeys[key]) {
+      return false;
+    }
+
+    knownReviewKeys[key] = true;
+    knownReviewOrder.push(key);
+
+    while (knownReviewOrder.length > maxKnownReviewKeys) {
+      var oldest = knownReviewOrder.shift();
+      delete knownReviewKeys[oldest];
+    }
+
+    return true;
   }
 
   function walkTextNodes(root, visitor) {
@@ -45,7 +70,8 @@
         return window.__umSafeParseInt(text);
       }
 
-      var badge = sibling.querySelector && sibling.querySelector('[aria-label*="unreplied" i], [aria-label*="review" i]');
+      var badge = sibling.querySelector &&
+        sibling.querySelector('[aria-label*="unreplied" i], [aria-label*="review" i]');
       if (badge) {
         var badgeText = (badge.textContent || badge.getAttribute('aria-label') || '').trim();
         var match = badgeText.match(/(\d+)/);
@@ -92,7 +118,9 @@
       }
     });
 
-    var ariaNodes = document.querySelectorAll('[aria-label*="review" i], [aria-label*="unreplied" i]');
+    var ariaNodes = document.querySelectorAll(
+      '[aria-label*="review" i], [aria-label*="unreplied" i], [data-review-id]'
+    );
     for (var a = 0; a < ariaNodes.length; a++) {
       var aria = ariaNodes[a].getAttribute('aria-label') || '';
       var ariaMatch = aria.match(/(\d+)/);
@@ -110,7 +138,7 @@
   function scanReviewAlerts() {
     var alerts = [];
     var reviewNodes = document.querySelectorAll(
-      '[aria-label*="review" i], [role="listitem"], [role="article"], [data-review-id]'
+      '[aria-label*="review" i], [role="listitem"], [role="article"], [data-review-id], [data-rating]'
     );
 
     for (var i = 0; i < reviewNodes.length; i++) {
@@ -184,7 +212,8 @@
     return false;
   };
 
-  window.__unifiedMessengerPublishBadge = function () {
+  function publishImmediate() {
+    publishScheduled = false;
     var scan = scanUnrepliedCounts();
     var unreplied = scan.totalUnreplied;
     var alerts = scanReviewAlerts();
@@ -212,11 +241,10 @@
     for (var r = 0; r < alerts.length; r++) {
       var alert = alerts[r];
       var key = alert.reviewId + '|' + alert.snippet;
-      if (knownReviewKeys[key]) {
+      if (!rememberReviewKey(key)) {
         continue;
       }
 
-      knownReviewKeys[key] = true;
       postMessage({
         type: 'google-review-alert',
         instanceId: INSTANCE_ID,
@@ -229,38 +257,146 @@
         timestampUtc: new Date().toISOString()
       });
 
-      window.__umForwardPreview(INSTANCE_ID, PLATFORM, alert.reviewerName + ' · review', {
-        body: alert.snippet
-      });
+      var previewTitle = alert.reviewerName + ' · review';
+      var normalized = window.__umNormalizePreview(previewTitle, alert.snippet);
+      if (window.__umShouldEmitPreview(INSTANCE_ID, normalized.title, normalized.body)) {
+        window.__umForwardPreview(INSTANCE_ID, PLATFORM, normalized.title, {
+          body: normalized.body
+        });
+      }
     }
-  };
+  }
 
-  function observeShell() {
-    if (!document.body) {
+  function schedulePublish() {
+    if (publishScheduled) {
       return;
     }
 
-    var observer = new MutationObserver(function () {
-      window.__unifiedMessengerPublishBadge();
+    publishScheduled = true;
+    window.setTimeout(publishImmediate, 150);
+  }
+
+  window.__unifiedMessengerPublishBadge = publishImmediate;
+
+  function observeShell() {
+    if (!document.body || domObserver) {
+      return;
+    }
+
+    domObserver = new MutationObserver(function () {
+      schedulePublish();
     });
 
-    observer.observe(document.body, {
+    domObserver.observe(document.body, {
       childList: true,
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ['aria-label', 'data-review-id']
+      attributeFilter: ['aria-label', 'data-review-id', 'class']
     });
+  }
+
+  function hookSpaNavigation() {
+    if (historyHooked) {
+      return;
+    }
+
+    historyHooked = true;
+    spaNotify = function () {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        lastPostedUnreplied = -1;
+      }
+
+      schedulePublish();
+    };
+
+    window.addEventListener('popstate', spaNotify);
+    window.addEventListener('hashchange', spaNotify);
+
+    originalPushState = history.pushState;
+    originalReplaceState = history.replaceState;
+
+    history.pushState = function () {
+      originalPushState.apply(history, arguments);
+      spaNotify();
+    };
+
+    history.replaceState = function () {
+      originalReplaceState.apply(history, arguments);
+      spaNotify();
+    };
+  }
+
+  function unhookSpaNavigation() {
+    if (!historyHooked) {
+      return;
+    }
+
+    window.removeEventListener('popstate', spaNotify);
+    window.removeEventListener('hashchange', spaNotify);
+
+    if (originalPushState) {
+      history.pushState = originalPushState;
+    }
+
+    if (originalReplaceState) {
+      history.replaceState = originalReplaceState;
+    }
+
+    historyHooked = false;
+    spaNotify = null;
+  }
+
+  function onVisibilityChange() {
+    if (!document.hidden) {
+      publishImmediate();
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) {
+      return;
+    }
+
+    publishImmediate();
+    pollTimer = window.setInterval(function () {
+      if (!document.hidden) {
+        publishImmediate();
+      }
+    }, 20000);
+  }
+
+  function disposeAdapter() {
+    if (pollTimer) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    if (domObserver) {
+      domObserver.disconnect();
+      domObserver = null;
+    }
+
+    unhookSpaNavigation();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    publishScheduled = false;
+    lastPostedUnreplied = -1;
+    knownReviewKeys = Object.create(null);
+    knownReviewOrder = [];
+  }
+
+  window.__umAdapterDispose = disposeAdapter;
+  if (window.__umRegisterDisposable) {
+    window.__umRegisterDisposable(disposeAdapter);
   }
 
   window.__umInstallNotificationInterceptor(INSTANCE_ID, PLATFORM);
   window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
   window.__umStartHeartbeat(INSTANCE_ID, PLATFORM, ADAPTER_ID, 30000);
-
+  hookSpaNavigation();
   observeShell();
-  pollTimer = window.setInterval(function () {
-    window.__unifiedMessengerPublishBadge();
-  }, 20000);
+  startPolling();
 
-  window.__unifiedMessengerPublishBadge();
+  document.addEventListener('visibilitychange', onVisibilityChange);
 })();

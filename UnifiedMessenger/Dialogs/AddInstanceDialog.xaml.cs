@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Dialogs;
 
@@ -11,9 +12,10 @@ public sealed partial class AddInstanceDialog : ContentDialog
 
     public AddInstanceDialog(IReadOnlyList<MessengerInstance> archivedInstances)
     {
-        _archivedInstances = archivedInstances;
+        _archivedInstances = archivedInstances ?? [];
         InitializeComponent();
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     public string? ResultDisplayName { get; private set; }
@@ -40,7 +42,7 @@ public sealed partial class AddInstanceDialog : ContentDialog
         CategoryBox.DisplayMemberPath = nameof(WorkspaceCategoryOption.Label);
         CategoryBox.SelectedIndex = 0;
 
-        if (_archivedInstances.Count > 0)
+        if (AddInstanceDialogHelper.ShouldShowRestorePicker(_archivedInstances.Count))
         {
             RestoreBox.Visibility = Visibility.Visible;
             RestoreBox.ItemsSource = _archivedInstances;
@@ -51,9 +53,15 @@ public sealed partial class AddInstanceDialog : ContentDialog
         UpdateFormMode();
     }
 
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        Unloaded -= OnUnloaded;
+    }
+
     private void RestoreBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _isRestoreMode = RestoreBox.SelectedItem is MessengerInstance;
+        _isRestoreMode = AddInstanceDialogHelper.IsRestoreMode(RestoreBox.SelectedItem as MessengerInstance);
         UpdateFormMode();
     }
 
@@ -72,7 +80,7 @@ public sealed partial class AddInstanceDialog : ContentDialog
 
     private void UpdateFormMode()
     {
-        var enableNewFields = !_isRestoreMode;
+        var enableNewFields = AddInstanceDialogHelper.ShouldEnableNewInstanceFields(_isRestoreMode);
         DisplayNameBox.IsEnabled = enableNewFields;
         PlatformBox.IsEnabled = enableNewFields;
         CategoryBox.IsEnabled = enableNewFields;
@@ -83,11 +91,12 @@ public sealed partial class AddInstanceDialog : ContentDialog
     {
         if (PlatformBox.SelectedItem is PlatformDefinition platform)
         {
-            CustomUrlBox.Visibility = platform.Id == "generic"
+            CustomUrlBox.Visibility = AddInstanceDialogHelper.ShouldShowCustomUrlField(platform.Id)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
-            if (platform.Id != "generic" && string.IsNullOrWhiteSpace(CustomUrlBox.Text))
+            if (!AddInstanceDialogHelper.ShouldShowCustomUrlField(platform.Id)
+                && string.IsNullOrWhiteSpace(CustomUrlBox.Text))
             {
                 CustomUrlBox.PlaceholderText = platform.DefaultUrl;
             }
@@ -98,54 +107,29 @@ public sealed partial class AddInstanceDialog : ContentDialog
     {
         ValidationMessage.Visibility = Visibility.Collapsed;
 
-        if (_isRestoreMode && RestoreBox.SelectedItem is MessengerInstance archived)
-        {
-            ResultRestoreInstanceId = archived.Id;
-            return;
-        }
+        var category = CategoryBox.SelectedItem is WorkspaceCategoryOption categoryOption
+            ? categoryOption.Category
+            : ResultCategory;
 
-        if (string.IsNullOrWhiteSpace(DisplayNameBox.Text))
+        var submission = AddInstanceDialogHelper.ValidatePrimaryAction(
+            RestoreBox.SelectedItem as MessengerInstance,
+            DisplayNameBox.Text,
+            PlatformBox.SelectedItem as PlatformDefinition,
+            CustomUrlBox.Text,
+            category);
+
+        if (!submission.IsValid)
         {
-            ShowValidation("Display name is required.");
+            ShowValidation(submission.ValidationMessage ?? "Could not add this instance.");
             args.Cancel = true;
             return;
         }
 
-        if (PlatformBox.SelectedItem is not PlatformDefinition platform)
-        {
-            ShowValidation("Select a platform.");
-            args.Cancel = true;
-            return;
-        }
-
-        var customUrl = string.IsNullOrWhiteSpace(CustomUrlBox.Text) ? null : CustomUrlBox.Text.Trim();
-
-        if (platform.Id == "generic" && string.IsNullOrWhiteSpace(customUrl))
-        {
-            ShowValidation("Enter a custom URL for this platform.");
-            args.Cancel = true;
-            return;
-        }
-
-        if (!string.IsNullOrWhiteSpace(customUrl))
-        {
-            if (!Uri.TryCreate(customUrl, UriKind.Absolute, out var uri) ||
-                uri.Scheme is not ("https" or "http"))
-            {
-                ShowValidation("Custom URL must be a valid http or https address.");
-                args.Cancel = true;
-                return;
-            }
-        }
-
-        ResultDisplayName = DisplayNameBox.Text.Trim();
-        ResultPlatformId = platform.Id;
-        ResultCustomUrl = customUrl;
-
-        if (CategoryBox.SelectedItem is WorkspaceCategoryOption categoryOption)
-        {
-            ResultCategory = categoryOption.Category;
-        }
+        ResultRestoreInstanceId = submission.RestoreInstanceId;
+        ResultDisplayName = submission.DisplayName;
+        ResultPlatformId = submission.PlatformId;
+        ResultCustomUrl = submission.CustomUrl;
+        ResultCategory = submission.Category;
     }
 
     private sealed record WorkspaceCategoryOption(WorkspaceCategory Category, string Label);

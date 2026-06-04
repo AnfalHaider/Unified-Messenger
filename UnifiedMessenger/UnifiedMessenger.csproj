@@ -1,4 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unified Messenger — WinUI 3 unpackaged desktop app (.NET 8).
+    Publish: use Properties/PublishProfiles/win-{x64,arm64,x86}.pubxml or README commands.
+    Native AOT / trimming: intentionally disabled (WinUI 3 + WebView2 require full runtime).
+    ReadyToRun: disabled — breaks self-contained WinUI publish (0xC0000139).
+  -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
@@ -7,86 +13,45 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <Platforms>x86;x64;ARM64</Platforms>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
-    <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
     <WindowsPackageType>None</WindowsPackageType>
     <EnableMsixTooling>false</EnableMsixTooling>
-    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+
+    <!-- Versioning (keep in sync with app.manifest assemblyIdentity and installer.iss). -->
     <Version>1.0.3</Version>
     <AssemblyVersion>1.0.3.0</AssemblyVersion>
     <FileVersion>1.0.3.0</FileVersion>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <ApplicationDisplayVersion>1.0.3</ApplicationDisplayVersion>
+
+    <!-- Match host CPU for local `dotnet run`; publish profiles override RID. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
+    <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
+  </PropertyGroup>
+
+  <!-- Self-contained shipping (see also PublishProfiles). Dev builds stay framework-dependent unless publishing. -->
+  <PropertyGroup>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsAppSdkUndockedRegFreeWinRTInitialize>true</WindowsAppSdkUndockedRegFreeWinRTInitialize>
+    <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
   </PropertyGroup>
 
   <ItemGroup>
     <Content Include="Assets\AppIcon.ico" />
     <Content Include="Assets\Branding\icon-master.png" />
     <Content Include="Assets\Branding\wide-master.png" />
-    <Content Include="Assets\Scripts\adapter-core.js">
+    <Content Include="Assets\Scripts\*.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Assets\Scripts\whatsapp-adapter.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\telegram-adapter.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\messenger-adapter.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\meta_business_scraper.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\google_business_scraper.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\generic-adapter.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\slack-adapter.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\discord-adapter.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\signal-adapter.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Scripts\teams-adapter.js">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\whatsapp-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\telegram-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\messenger-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\generic-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\slack-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\discord-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\signal-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\teams-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\metabusiness-chrome.css">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\Styles\googlebusiness-chrome.css">
+    <Content Include="Assets\Styles\*-chrome.css">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -105,21 +70,18 @@
     <InternalsVisibleTo Include="UnifiedMessenger.Tests" />
   </ItemGroup>
 
-  <!-- Publish Properties -->
-  <PropertyGroup>
-    <!-- ReadyToRun breaks published unpackaged WinUI self-contained builds (0xC0000139). -->
-    <PublishReadyToRun>false</PublishReadyToRun>
-    <PublishTrimmed>false</PublishTrimmed>
-  </PropertyGroup>
-
-  <!-- `dotnet publish` omits WinUI compiled XAML (.xbf) and app PRI; copy from build output. -->
+  <!-- WinUI publish omits compiled XAML (.xbf) and app PRI; copy from build output. -->
   <Target Name="CopyWinUIResourcesToPublish" AfterTargets="Publish">
     <PropertyGroup>
       <_PublishDir>$([MSBuild]::EnsureTrailingSlash('$(PublishDir)'))</_PublishDir>
+      <_ResourceSourceDir>$([MSBuild]::EnsureTrailingSlash('$(OutputPath)'))</_ResourceSourceDir>
+      <_ResourceSourceDir Condition="!Exists('$(_ResourceSourceDir)UnifiedMessenger.pri') and '$(Platform)' != '' and '$(Platform)' != 'AnyCPU'">
+        $([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)\bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)'))
+      </_ResourceSourceDir>
     </PropertyGroup>
     <ItemGroup>
-      <_WinUIResourceFiles Include="$(OutputPath)**\*.xbf" Exclude="$(_PublishDir)**\*" />
-      <_WinUIResourceFiles Include="$(OutputPath)UnifiedMessenger.pri" Condition="Exists('$(OutputPath)UnifiedMessenger.pri')" />
+      <_WinUIResourceFiles Include="$(_ResourceSourceDir)**\*.xbf" Exclude="$(_PublishDir)**\*" />
+      <_WinUIResourceFiles Include="$(_ResourceSourceDir)UnifiedMessenger.pri" Condition="Exists('$(_ResourceSourceDir)UnifiedMessenger.pri')" />
     </ItemGroup>
     <Copy
       SourceFiles="@(_WinUIResourceFiles)"

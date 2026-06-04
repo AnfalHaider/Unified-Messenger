@@ -8,18 +8,29 @@ namespace UnifiedMessenger.Services;
 
 public static class PlatformBrandingHelper
 {
-    public static SolidColorBrush GetAccentBrush(MessengerInstance instance)
+    public const string DefaultAccentHex = "#6B7280";
+
+    private static readonly Color DefaultAccentColor = Color.FromArgb(255, 107, 114, 128);
+
+    public static SolidColorBrush GetAccentBrush(MessengerInstance? instance)
     {
-        return new SolidColorBrush(ParseColor(instance.AccentColor));
+        return new SolidColorBrush(ParseAccentColor(instance?.AccentColor));
     }
 
-    public static SolidColorBrush GetAccentBrush(string accentColorHex)
+    public static SolidColorBrush GetAccentBrush(string? accentColorHex)
     {
-        return new SolidColorBrush(ParseColor(accentColorHex));
+        return new SolidColorBrush(ParseAccentColor(accentColorHex));
     }
 
     public static UIElement CreatePlatformIcon(MessengerInstance instance, double size = 16)
     {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        if (size <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(size), "Icon size must be greater than zero.");
+        }
+
         var brush = GetAccentBrush(instance);
         var host = new Microsoft.UI.Xaml.Controls.Grid
         {
@@ -48,46 +59,53 @@ public static class PlatformBrandingHelper
         return host;
     }
 
-    public static string GetInitials(string displayName)
+    public static string GetInitials(string? displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName))
         {
             return "?";
         }
 
-        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (parts.Length >= 2)
         {
             return $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}";
         }
 
-        return displayName.Length >= 2
-            ? displayName[..2].ToUpperInvariant()
-            : displayName.ToUpperInvariant();
+        var single = parts[0];
+        return single.Length >= 2
+            ? single[..2].ToUpperInvariant()
+            : single.ToUpperInvariant();
     }
 
-    private static Color ParseColor(string hex)
+    internal static Color ParseAccentColor(string? hex)
     {
         if (string.IsNullOrWhiteSpace(hex))
         {
-            return Color.FromArgb(255, 107, 114, 128);
+            return DefaultAccentColor;
         }
 
-        hex = hex.TrimStart('#');
+        hex = hex.Trim().TrimStart('#');
+        if (hex.Length == 3)
+        {
+            hex = string.Concat(hex.Select(character => $"{character}{character}"));
+        }
+
         if (hex.Length == 6)
         {
             hex = "FF" + hex;
         }
 
-        if (uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
+        if (hex.Length != 8
+            || !uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var value))
         {
-            return Color.FromArgb(
-                (byte)((value >> 24) & 0xFF),
-                (byte)((value >> 16) & 0xFF),
-                (byte)((value >> 8) & 0xFF),
-                (byte)(value & 0xFF));
+            return DefaultAccentColor;
         }
 
-        return Color.FromArgb(255, 107, 114, 128);
+        return Color.FromArgb(
+            (byte)((value >> 24) & 0xFF),
+            (byte)((value >> 16) & 0xFF),
+            (byte)((value >> 8) & 0xFF),
+            (byte)(value & 0xFF));
     }
 }

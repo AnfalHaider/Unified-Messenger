@@ -7,29 +7,49 @@ namespace UnifiedMessenger.Services;
 /// </summary>
 public static class TaskbarOverlayService
 {
-    private const int ITaskbarList3Clsid = 0x56FDF344;
+    private static readonly Guid TaskbarListClsid = new("56FDF344-FD6D-11d0-958A-006097C9A090");
 
-    public static void TrySetOverlayCount(int count)
+    public static bool TrySetOverlayCount(int count)
     {
+        if (App.CurrentWindow is null)
+        {
+            return false;
+        }
+
         try
         {
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow!);
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow);
             if (hwnd == IntPtr.Zero)
             {
-                return;
+                return false;
             }
 
-            var taskbar = (ITaskbarList3?)Activator.CreateInstance(
-                Type.GetTypeFromCLSID(new Guid("56FDF344-FD6D-11d0-958A-006097C9A090"))!);
+            var taskbar = (ITaskbarList3?)Activator.CreateInstance(Type.GetTypeFromCLSID(TaskbarListClsid)!);
+            if (taskbar is null)
+            {
+                return false;
+            }
 
-            taskbar?.HrInit();
-            taskbar?.SetOverlayIcon(hwnd, IntPtr.Zero, count > 0 ? count.ToString() : string.Empty);
+            taskbar.HrInit();
+
+            var description = count > 0 ? NormalizeOverlayCount(count).ToString() : string.Empty;
+            taskbar.SetOverlayIcon(hwnd, IntPtr.Zero, description);
+            return true;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Taskbar overlay fallback failed: {ex.Message}");
+            return false;
         }
     }
+
+    public static void ClearOverlay()
+    {
+        TrySetOverlayCount(0);
+    }
+
+    internal static int NormalizeOverlayCount(int count) =>
+        count <= 0 ? 0 : Math.Min(count, 99);
 
     [ComImport]
     [Guid("56FDF344-FD6D-11d0-958A-006097C9A090")]

@@ -19,9 +19,19 @@ public sealed class ShellNavigationService
 
     public event EventHandler? InstanceRegistryRefreshRequested;
 
+    internal static ShellNavigationService CreateForTests() => new();
+
+    internal static bool IsValidInstanceId(string? instanceId) =>
+        !string.IsNullOrWhiteSpace(instanceId);
+
     public void RequestInstance(string instanceId)
     {
-        InstanceLaunchRequested?.Invoke(this, instanceId);
+        if (!IsValidInstanceId(instanceId))
+        {
+            return;
+        }
+
+        InstanceLaunchRequested?.Invoke(this, instanceId.Trim());
     }
 
     public void RequestDashboardRefresh()
@@ -31,7 +41,12 @@ public sealed class ShellNavigationService
 
     public void RequestArchivedInstanceRestore(string instanceId)
     {
-        ArchivedInstanceRestoreRequested?.Invoke(this, instanceId);
+        if (!IsValidInstanceId(instanceId))
+        {
+            return;
+        }
+
+        ArchivedInstanceRestoreRequested?.Invoke(this, instanceId.Trim());
     }
 
     public void RequestLayoutRefresh()

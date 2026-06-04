@@ -1,18 +1,4 @@
-/* Unified Messenger — Google Business Profile chrome blend */
-:root {
-  --um-shell-seam: rgba(255, 255, 255, 0.08);
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --um-shell-seam: rgba(0, 0, 0, 0.08);
-  }
-}
-
-html, body {
-  border-left: 1px solid var(--um-shell-seam) !important;
-}
-
+/* Unified Messenger — Google Business Profile chrome blend (platform-specific) */
 header, .gb_ka {
   border-top-left-radius: 0 !important;
 }

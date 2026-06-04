@@ -6,9 +6,14 @@ public sealed class AdapterHealthMonitor
 {
     private static readonly Lazy<AdapterHealthMonitor> LazyInstance = new(() => new AdapterHealthMonitor());
 
-    private static readonly TimeSpan StaleThreshold = TimeSpan.FromSeconds(90);
+    internal static TimeSpan StaleThreshold { get; } = TimeSpan.FromSeconds(90);
+
+    internal static TimeSpan StaleRecoveryCooldown { get; } = TimeSpan.FromMinutes(5);
 
     private readonly Dictionary<string, AdapterHealthStatus> _statuses = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTimeOffset> _lastStaleNotification = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _recoveryInProgress = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _gate = new();
     private readonly Timer _staleCheckTimer;
 
     public static AdapterHealthMonitor Instance => LazyInstance.Value;
@@ -24,13 +29,26 @@ public sealed class AdapterHealthMonitor
 
     public AdapterHealthStatus GetStatus(string instanceId)
     {
-        return _statuses.TryGetValue(instanceId, out var status)
-            ? status
-            : new AdapterHealthStatus();
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return new AdapterHealthStatus();
+        }
+
+        lock (_gate)
+        {
+            return _statuses.TryGetValue(instanceId, out var status)
+                ? status.Clone()
+                : new AdapterHealthStatus();
+        }
     }
 
     public void MarkNoAdapter(string instanceId)
     {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
         SetStatus(instanceId, new AdapterHealthStatus
         {
             State = AdapterHealthState.NoAdapter
@@ -39,6 +57,11 @@ public sealed class AdapterHealthMonitor
 
     public void MarkReady(string instanceId, string adapterId)
     {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
         SetStatus(instanceId, new AdapterHealthStatus
         {
             State = AdapterHealthState.Ready,
@@ -49,64 +72,158 @@ public sealed class AdapterHealthMonitor
 
     public void RecordHeartbeat(string instanceId, string? adapterId = null)
     {
-        if (!_statuses.TryGetValue(instanceId, out var status))
+        if (string.IsNullOrWhiteSpace(instanceId))
         {
-            status = new AdapterHealthStatus();
-            _statuses[instanceId] = status;
+            return;
         }
 
-        status.State = AdapterHealthState.Healthy;
-        status.LastHeartbeat = DateTimeOffset.UtcNow;
-
-        if (!string.IsNullOrWhiteSpace(adapterId))
+        lock (_gate)
         {
-            status.AdapterId = adapterId;
-        }
+            if (!_statuses.TryGetValue(instanceId, out var status))
+            {
+                status = new AdapterHealthStatus();
+                _statuses[instanceId] = status;
+            }
 
-        Changed?.Invoke(this, EventArgs.Empty);
+            var previousState = status.State;
+            status.State = AdapterHealthState.Healthy;
+            status.LastHeartbeat = DateTimeOffset.UtcNow;
+
+            if (!string.IsNullOrWhiteSpace(adapterId))
+            {
+                status.AdapterId = adapterId;
+            }
+
+            status.Normalize();
+            _lastStaleNotification.Remove(instanceId);
+
+            if (previousState != status.State)
+            {
+                RaiseChanged();
+            }
+        }
     }
 
     public void RemoveInstance(string instanceId)
     {
-        if (_statuses.Remove(instanceId))
+        if (string.IsNullOrWhiteSpace(instanceId))
         {
-            Changed?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        lock (_gate)
+        {
+            var removed = _statuses.Remove(instanceId);
+            _lastStaleNotification.Remove(instanceId);
+            _recoveryInProgress.Remove(instanceId);
+
+            if (removed)
+            {
+                RaiseChanged();
+            }
+        }
+    }
+
+    public bool TryBeginRecovery(string instanceId)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _recoveryInProgress.Add(instanceId);
+        }
+    }
+
+    public void EndRecovery(string instanceId)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _recoveryInProgress.Remove(instanceId);
+        }
+    }
+
+    internal static bool EvaluateIsStale(AdapterHealthStatus status, DateTimeOffset now, TimeSpan threshold)
+    {
+        if (status.State is AdapterHealthState.NoAdapter or AdapterHealthState.Unknown)
+        {
+            return false;
+        }
+
+        return status.LastHeartbeat is null ||
+               now - status.LastHeartbeat.Value > threshold;
+    }
+
+    internal void CheckForStaleAdapters(DateTimeOffset? utcNow = null)
+    {
+        var now = utcNow ?? DateTimeOffset.UtcNow;
+        var changed = false;
+
+        lock (_gate)
+        {
+            foreach (var (instanceId, status) in _statuses.ToList())
+            {
+                if (!EvaluateIsStale(status, now, StaleThreshold))
+                {
+                    continue;
+                }
+
+                if (status.State != AdapterHealthState.Stale)
+                {
+                    status.State = AdapterHealthState.Stale;
+                    status.Normalize();
+                    changed = true;
+                    NotifyStaleLocked(instanceId, now);
+                    continue;
+                }
+
+                if (ShouldRetryRecoveryLocked(instanceId, now))
+                {
+                    NotifyStaleLocked(instanceId, now);
+                }
+            }
+
+            if (changed)
+            {
+                RaiseChanged();
+            }
         }
     }
 
     private void SetStatus(string instanceId, AdapterHealthStatus status)
     {
-        _statuses[instanceId] = status;
-        Changed?.Invoke(this, EventArgs.Empty);
+        status.Normalize();
+
+        lock (_gate)
+        {
+            _statuses[instanceId] = status;
+            _lastStaleNotification.Remove(instanceId);
+            RaiseChanged();
+        }
     }
 
-    private void CheckForStaleAdapters()
+    private bool ShouldRetryRecoveryLocked(string instanceId, DateTimeOffset now)
     {
-        var now = DateTimeOffset.UtcNow;
-        var changed = false;
-
-        foreach (var (instanceId, status) in _statuses.ToList())
+        if (!_lastStaleNotification.TryGetValue(instanceId, out var lastNotified))
         {
-            if (status.State is AdapterHealthState.NoAdapter or AdapterHealthState.Unknown)
-            {
-                continue;
-            }
-
-            if (status.LastHeartbeat is null ||
-                now - status.LastHeartbeat.Value > StaleThreshold)
-            {
-                if (status.State != AdapterHealthState.Stale)
-                {
-                    status.State = AdapterHealthState.Stale;
-                    changed = true;
-                    AdapterStaleDetected?.Invoke(this, instanceId);
-                }
-            }
+            return true;
         }
 
-        if (changed)
-        {
-            Changed?.Invoke(this, EventArgs.Empty);
-        }
+        return now - lastNotified >= StaleRecoveryCooldown;
     }
+
+    private void NotifyStaleLocked(string instanceId, DateTimeOffset now)
+    {
+        _lastStaleNotification[instanceId] = now;
+        AdapterStaleDetected?.Invoke(this, instanceId);
+    }
+
+    private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
 }

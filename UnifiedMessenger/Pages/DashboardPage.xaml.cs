@@ -22,10 +22,17 @@ public sealed partial class DashboardPage : Page
         Unloaded += OnUnloaded;
     }
 
+    private void OnResourceTimerTick(object? sender, object e)
+    {
+        RefreshResources();
+        RefreshProfessionalMetrics();
+        RefreshEnterpriseWidgets();
+    }
+
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        if (e.Parameter is DashboardNavigationArgs args)
+        if (e.Parameter is RegistryNavigationArgs args)
         {
             _registry = args.Registry;
         }
@@ -40,24 +47,29 @@ public sealed partial class DashboardPage : Page
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
         ProfessionalWorkspaceService.Instance.Changed += OnProfessionalWorkspaceChanged;
 
-        _resourceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        _resourceTimer.Tick += (_, _) =>
+        _resourceTimer = new DispatcherTimer
         {
-            RefreshResources();
-            RefreshProfessionalMetrics();
-            RefreshEnterpriseWidgets();
+            Interval = TimeSpan.FromSeconds(DashboardPageHelper.ResourceRefreshIntervalSeconds)
         };
+        _resourceTimer.Tick += OnResourceTimerTick;
         _resourceTimer.Start();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        Loaded -= OnLoaded;
+        Unloaded -= OnUnloaded;
         NotificationHub.Instance.Changed -= OnHubChanged;
         AdapterHealthMonitor.Instance.Changed -= OnAdapterHealthChanged;
         MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
         ProfessionalWorkspaceService.Instance.Changed -= OnProfessionalWorkspaceChanged;
-        _resourceTimer?.Stop();
-        _resourceTimer = null;
+
+        if (_resourceTimer is not null)
+        {
+            _resourceTimer.Tick -= OnResourceTimerTick;
+            _resourceTimer.Stop();
+            _resourceTimer = null;
+        }
     }
 
     private void OnHubChanged(object? sender, NotificationHubChangedEventArgs e)
@@ -108,7 +120,12 @@ public sealed partial class DashboardPage : Page
         {
             if (file.FileType.Equals(".csv", StringComparison.OrdinalIgnoreCase))
             {
-                await ExportAnalyticsCsvAsync(file.Path);
+                if (_registry is null)
+                {
+                    return;
+                }
+
+                await MessageAnalyticsService.Instance.ExportCsvAsync(_registry.Instances, file.Path);
             }
             else
             {
@@ -137,51 +154,6 @@ public sealed partial class DashboardPage : Page
         }
     }
 
-    private async Task ExportAnalyticsCsvAsync(string destinationPath)
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        var lines = new List<string>
-        {
-            "InstanceId,DisplayName,Platform,Sent,Received,SlaBreaches,AvgReplyMinutes"
-        };
-
-        foreach (var instance in _registry.Instances)
-        {
-            var sent = MessageAnalyticsService.Instance.GetSentCount(instance.Id);
-            var received = MessageAnalyticsService.Instance.GetReceivedCount(instance.Id);
-            var sla = MessageAnalyticsService.Instance.GetSlaBreachCount(instance.Id);
-            var (totalReply, replyCount, _, _) =
-                MessageAnalyticsService.Instance.GetReplyStats(instance.Id);
-            var avgReply = replyCount > 0 ? totalReply / replyCount : 0;
-
-            lines.Add(string.Join(',',
-                CsvEscape(instance.Id),
-                CsvEscape(instance.DisplayName),
-                CsvEscape(instance.Platform),
-                sent.ToString(),
-                received.ToString(),
-                sla.ToString(),
-                avgReply.ToString("0.##")));
-        }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-        await File.WriteAllLinesAsync(destinationPath, lines);
-    }
-
-    private static string CsvEscape(string value)
-    {
-        if (value.Contains('"') || value.Contains(',') || value.Contains('\n'))
-        {
-            return $"\"{value.Replace("\"", "\"\"")}\"";
-        }
-
-        return value;
-    }
-
     public void RefreshAll()
     {
         if (_registry is null)
@@ -194,13 +166,7 @@ public sealed partial class DashboardPage : Page
         var professionalCount = _registry.Instances.Count(i => i.IsProfessional);
         var personalCount = _registry.Instances.Count - professionalCount;
 
-        WelcomeSubtitle.Text = (professionalCount, personalCount) switch
-        {
-            (0, 0) => "Add an account to start receiving unified notifications.",
-            ( > 0, > 0) => $"{professionalCount} professional and {personalCount} personal accounts connected.",
-            ( > 0, 0) => $"{professionalCount} professional account{(professionalCount == 1 ? "" : "s")} connected.",
-            _ => $"{personalCount} personal account{(personalCount == 1 ? "" : "s")} connected."
-        };
+        WelcomeSubtitle.Text = DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
 
         RefreshActivity();
         RefreshResources();
@@ -244,9 +210,7 @@ public sealed partial class DashboardPage : Page
 
         var trust = ProfessionalWorkspaceService.Instance.CaptureCustomerTrust(GoogleBusinessInstances);
         AggregateRatingValue.Text = trust.AggregateRatingDisplay;
-        UnrepliedReviewsValue.Text = trust.TotalUnrepliedReviews == 1
-            ? "1 unreplied review"
-            : $"{trust.TotalUnrepliedReviews} unreplied reviews";
+        UnrepliedReviewsValue.Text = DashboardPageHelper.FormatUnrepliedReviewCount(trust.TotalUnrepliedReviews);
 
         var reviewItems = trust.PendingReviews
             .Select(review => new GoogleReviewAlertView(review))
@@ -335,7 +299,7 @@ public sealed partial class DashboardPage : Page
                 RelativeTimeText = alert.RelativeTimeText,
                 IconGlyph = instance?.IconGlyph ?? alert.IconGlyph,
                 AccentBrush = PlatformBrandingHelper.GetAccentBrush(
-                    instance?.AccentColor ?? "#6B7280")
+                    instance?.AccentColor ?? PlatformBrandingHelper.DefaultAccentHex)
             });
         }
 
@@ -358,12 +322,8 @@ public sealed partial class DashboardPage : Page
 
         ActiveAccountsValue.Text = snapshot.ActiveAccountCount.ToString();
         MemoryValue.Text = $"{snapshot.WorkingSetMegabytes} MB";
-        UnreadValue.Text = personalList.Sum(i => NotificationHub.Instance.GetBadgeCount(i.Id)).ToString();
-
-        var visibleId = InstanceSessionManager.Instance.VisibleInstanceId;
-        VisibleAccountValue.Text = personalList
-            .FirstOrDefault(i => i.Id.Equals(visibleId, StringComparison.OrdinalIgnoreCase))
-            ?.DisplayName ?? "None";
+        UnreadValue.Text = snapshot.TotalUnreadCount.ToString();
+        VisibleAccountValue.Text = snapshot.VisibleInstanceName;
 
         InstanceTilesList.ItemsSource = snapshot.InstanceTiles
             .Select(tile => new DashboardInstanceTileItem
@@ -371,29 +331,11 @@ public sealed partial class DashboardPage : Page
                 InstanceId = tile.InstanceId,
                 DisplayName = tile.DisplayName,
                 PlatformLabel = tile.Platform,
-                StatusLine = BuildStatusLine(tile),
+                StatusLine = DashboardPageHelper.BuildInstanceStatusLine(tile),
                 IconGlyph = tile.IconGlyph,
                 AccentBrush = PlatformBrandingHelper.GetAccentBrush(tile.AccentColor)
             })
             .ToList();
-    }
-
-    private static string BuildStatusLine(InstanceResourceTile tile)
-    {
-        var parts = new List<string>();
-        if (tile.IsVisible)
-        {
-            parts.Add("Visible");
-        }
-
-        parts.Add(tile.MemoryTier);
-        if (tile.UnreadCount > 0)
-        {
-            parts.Add($"{tile.UnreadCount} unread");
-        }
-
-        parts.Add(tile.HealthState.ToString());
-        return string.Join(" · ", parts);
     }
 
     private void GlobalSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
@@ -443,39 +385,21 @@ public sealed partial class DashboardPage : Page
 
     private List<DashboardSearchSuggestion> BuildSearchSuggestions(string? query)
     {
-        if (_registry is null || string.IsNullOrWhiteSpace(query))
+        if (_registry is null)
         {
             return [];
         }
 
-        query = query.Trim();
-        var suggestions = new List<DashboardSearchSuggestion>();
-
-        foreach (var instance in PersonalInstances)
-        {
-            var platform = PlatformDefinition.FindById(instance.Platform);
-            var platformLabel = platform?.DisplayName ?? instance.Platform;
-            if (!instance.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase) &&
-                !platformLabel.Contains(query, StringComparison.OrdinalIgnoreCase))
+        return DashboardPageHelper
+            .FilterPersonalSearchMatches(PersonalInstances, query)
+            .Select(match => new DashboardSearchSuggestion
             {
-                continue;
-            }
-
-            suggestions.Add(new DashboardSearchSuggestion
-            {
-                Label = instance.DisplayName,
-                SubLabel = platformLabel,
-                InstanceId = instance.Id,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(instance)
-            });
-
-            if (suggestions.Count >= 6)
-            {
-                break;
-            }
-        }
-
-        return suggestions;
+                Label = match.Label,
+                SubLabel = match.SubLabel,
+                InstanceId = match.InstanceId,
+                AccentBrush = PlatformBrandingHelper.GetAccentBrush(match.AccentColorHex)
+            })
+            .ToList();
     }
 
     private static void NavigateFromSearchSuggestion(DashboardSearchSuggestion suggestion)
@@ -500,9 +424,7 @@ public sealed partial class DashboardPage : Page
 
         if (list.Count == 0)
         {
-            RecentActivityEmptyText.Text = hasQuery
-                ? "No personal activity matches your search."
-                : "No recent notifications from personal accounts.";
+            RecentActivityEmptyText.Text = DashboardPageHelper.ResolveEmptyActivityMessage(hasQuery);
             RecentActivityEmptyText.Visibility = Visibility.Visible;
             RecentActivityList.Visibility = Visibility.Collapsed;
         }
@@ -604,13 +526,8 @@ public sealed partial class DashboardPage : Page
 
         public required SolidColorBrush AccentBrush { get; init; }
 
-        public bool Matches(string query)
-        {
-            query = query.Trim();
-            return Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                   Body.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                   InstanceDisplayName.Contains(query, StringComparison.OrdinalIgnoreCase);
-        }
+        public bool Matches(string query) =>
+            DashboardPageHelper.ActivityMatches(Title, Body, InstanceDisplayName, query);
     }
 
     private sealed class DashboardInstanceTileItem

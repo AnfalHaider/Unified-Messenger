@@ -1,4 +1,5 @@
 using Microsoft.Windows.BadgeNotifications;
+using UnifiedMessenger.Models;
 using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
 
@@ -8,33 +9,71 @@ public sealed class TaskbarBadgeService
 {
     private static readonly Lazy<TaskbarBadgeService> LazyInstance = new(() => new TaskbarBadgeService());
 
+    private readonly object _gate = new();
+    private int _lastAppliedCount = -1;
+    private bool _lastAppliedVisible;
+
     public static TaskbarBadgeService Instance => LazyInstance.Value;
+
+    internal static int NormalizeBadgeCount(int count) =>
+        count <= 0 ? 0 : Math.Min(count, 99);
+
+    internal static bool ShouldDisplayBadge(AppSettings settings, int count) =>
+        settings.ShowTaskbarBadge && count > 0;
 
     public Task SyncBadgeAsync(int count)
     {
-        if (!AppSettingsService.Instance.Settings.ShowTaskbarBadge || count <= 0)
+        var settings = AppSettingsService.Instance.Settings;
+        var visible = ShouldDisplayBadge(settings, count);
+        var badgeCount = NormalizeBadgeCount(count);
+
+        lock (_gate)
         {
-            ClearBadge();
-            return Task.CompletedTask;
+            if (visible == _lastAppliedVisible && badgeCount == _lastAppliedCount)
+            {
+                return Task.CompletedTask;
+            }
+
+            if (!visible)
+            {
+                ClearAllBadgeSurfaces();
+                _lastAppliedVisible = false;
+                _lastAppliedCount = 0;
+                return Task.CompletedTask;
+            }
+
+            if (TrySetBadgeWithAppSdk(badgeCount))
+            {
+                ClearLegacyBadge();
+                TaskbarOverlayService.ClearOverlay();
+            }
+            else if (TrySetBadgeWithLegacyApi(badgeCount))
+            {
+                ClearAppSdkBadge();
+                TaskbarOverlayService.ClearOverlay();
+            }
+            else
+            {
+                ClearAppSdkBadge();
+                ClearLegacyBadge();
+                TaskbarOverlayService.TrySetOverlayCount(badgeCount);
+            }
+
+            _lastAppliedVisible = true;
+            _lastAppliedCount = badgeCount;
         }
 
-        var badgeCount = Math.Min(count, 99);
-
-        if (TrySetBadgeWithAppSdk(badgeCount))
-        {
-            return Task.CompletedTask;
-        }
-
-        if (TrySetBadgeWithLegacyApi(badgeCount))
-        {
-            return Task.CompletedTask;
-        }
-
-        TaskbarOverlayService.TrySetOverlayCount(count);
         return Task.CompletedTask;
     }
 
-    private static void ClearBadge()
+    internal static void ClearAllBadgeSurfaces()
+    {
+        ClearAppSdkBadge();
+        ClearLegacyBadge();
+        TaskbarOverlayService.ClearOverlay();
+    }
+
+    private static void ClearAppSdkBadge()
     {
         try
         {
@@ -44,7 +83,10 @@ public sealed class TaskbarBadgeService
         {
             System.Diagnostics.Debug.WriteLine($"BadgeNotificationManager clear failed: {ex.Message}");
         }
+    }
 
+    private static void ClearLegacyBadge()
+    {
         try
         {
             BadgeUpdateManager.CreateBadgeUpdaterForApplication().Clear();
@@ -53,8 +95,6 @@ public sealed class TaskbarBadgeService
         {
             System.Diagnostics.Debug.WriteLine($"BadgeUpdateManager clear failed: {ex.Message}");
         }
-
-        TaskbarOverlayService.TrySetOverlayCount(0);
     }
 
     private static bool TrySetBadgeWithAppSdk(int badgeCount)

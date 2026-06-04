@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
@@ -7,6 +9,13 @@ public class InstanceRegistryServiceTests : IDisposable
 {
     private readonly string _tempDirectory;
     private readonly string _storePath;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() }
+    };
 
     public InstanceRegistryServiceTests()
     {
@@ -49,6 +58,95 @@ public class InstanceRegistryServiceTests : IDisposable
         Assert.Equal("slack", updated.Platform);
         Assert.Equal("Primary support channel", updated.Notes);
         Assert.StartsWith("https://", updated.StartUrl);
+    }
+
+    [Fact]
+    public async Task LoadAsync_RecoversFromCorruptJson()
+    {
+        await File.WriteAllTextAsync(_storePath, "{ not valid json");
+
+        var registry = new InstanceRegistryService(_storePath);
+        await registry.LoadAsync();
+
+        Assert.NotEmpty(registry.Instances);
+        Assert.NotEmpty(Directory.GetFiles(_tempDirectory, "instances.json.corrupt-*.bak"));
+    }
+
+    [Fact]
+    public async Task ImportInstancesAsync_RepairsDuplicateProfileNames()
+    {
+        var importPath = Path.Combine(_tempDirectory, "import.json");
+        var store = new InstanceStore
+        {
+            Version = InstanceStore.CurrentVersion,
+            Instances =
+            [
+                new MessengerInstance
+                {
+                    Id = "a",
+                    DisplayName = "One",
+                    ProfileName = "shared-profile",
+                    Platform = "whatsapp",
+                    StartUrl = "https://web.whatsapp.com/",
+                    SortOrder = 1
+                },
+                new MessengerInstance
+                {
+                    Id = "b",
+                    DisplayName = "Two",
+                    ProfileName = "shared-profile",
+                    Platform = "telegram",
+                    StartUrl = "https://web.telegram.org/",
+                    SortOrder = 2
+                }
+            ]
+        };
+
+        await File.WriteAllTextAsync(importPath, JsonSerializer.Serialize(store, JsonOptions));
+
+        var registry = new InstanceRegistryService(_storePath);
+        var result = await registry.ImportInstancesAsync(importPath);
+
+        Assert.Equal(2, result.ActiveCount);
+        var profiles = registry.Instances.Select(i => i.ProfileName).ToList();
+        Assert.Equal(2, profiles.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    [Fact]
+    public async Task RestoreArchivedInstanceAsync_AssignsSortOrder()
+    {
+        var registry = new InstanceRegistryService(_storePath);
+        var instance = await registry.AddInstanceAsync("Archive Me", "whatsapp", null);
+        await registry.RemoveFromSidebarAsync(instance.Id);
+
+        var restored = await registry.RestoreArchivedInstanceAsync(instance.Id);
+
+        Assert.True(restored.SortOrder > 0);
+        Assert.NotNull(registry.FindById(instance.Id));
+    }
+
+    [Fact]
+    public async Task LoadAsync_PersistsPerCategorySortOrder()
+    {
+        var registry = new InstanceRegistryService(_storePath);
+        await registry.AddInstanceAsync("Personal A", "whatsapp", null);
+        await registry.AddInstanceAsync("Personal B", "telegram", null);
+        await registry.AddInstanceAsync("Pro A", "slack", null, WorkspaceCategory.Professional);
+
+        var reloaded = new InstanceRegistryService(_storePath);
+        await reloaded.LoadAsync();
+
+        var personalOrders = reloaded.Instances
+            .Where(i => !i.IsProfessional)
+            .Select(i => i.SortOrder)
+            .ToList();
+        var proOrders = reloaded.Instances
+            .Where(i => i.IsProfessional)
+            .Select(i => i.SortOrder)
+            .ToList();
+
+        Assert.Equal([1, 2], personalOrders);
+        Assert.Equal([1], proOrders);
     }
 
     public void Dispose()

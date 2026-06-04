@@ -14,9 +14,6 @@ namespace UnifiedMessenger;
 
 public sealed partial class MainWindow : Window
 {
-    private const double SidebarWidthExpanded = 320;
-    private const double SidebarWidthCompact = 56;
-
     private readonly InstanceRegistryService _registry = new();
     private readonly InstanceSessionManager _sessionManager = InstanceSessionManager.Instance;
     private readonly NotificationHub _notificationHub = NotificationHub.Instance;
@@ -30,8 +27,10 @@ public sealed partial class MainWindow : Window
     private bool _isWindowActivated = true;
     private bool _isWindowVisible = true;
     private bool _pendingPanelReveal;
+    private int _slaThresholdMinutes = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
 
-    private bool IsAppInForeground => _isWindowVisible && _isWindowActivated;
+    private bool IsAppInForeground =>
+        MainWindowShellLayout.IsAppInForeground(_isWindowVisible, _isWindowActivated);
 
     public MainWindow()
     {
@@ -42,12 +41,11 @@ public sealed partial class MainWindow : Window
 
         _sessionManager.AttachHost(InstanceWebViewHost);
 
-        WorkspaceSidebar.DashboardRequested += (_, _) => _ = ShowDashboardAsync();
-        WorkspaceSidebar.InstanceRequested += (_, instanceId) => _ = SelectInstanceAsync(instanceId);
-        WorkspaceSidebar.AddInstanceRequested += (_, _) => _ = ShowAddInstanceDialogAsync();
-        WorkspaceSidebar.NotificationsRequested += (_, _) =>
-            SetNotificationPanelVisible(!_notificationPanelVisible);
-        WorkspaceSidebar.SettingsRequested += (_, _) => _ = ShowSettingsAsync();
+        WorkspaceSidebar.DashboardRequested += WorkspaceSidebar_DashboardRequested;
+        WorkspaceSidebar.InstanceRequested += WorkspaceSidebar_InstanceRequested;
+        WorkspaceSidebar.AddInstanceRequested += WorkspaceSidebar_AddInstanceRequested;
+        WorkspaceSidebar.NotificationsRequested += WorkspaceSidebar_NotificationsRequested;
+        WorkspaceSidebar.SettingsRequested += WorkspaceSidebar_SettingsRequested;
         WorkspaceSidebar.InstanceContextRequested += OnInstanceContextRequested;
         WorkspaceSidebar.InstanceReorderRequested += OnInstanceReorderRequested;
 
@@ -58,24 +56,90 @@ public sealed partial class MainWindow : Window
 
         AppWindow.Changed += OnAppWindowChanged;
         Activated += OnWindowActivated;
+        Closed += OnMainWindowClosed;
 
         NotificationPanel.CollapseRequested += NotificationPanel_CollapseRequested;
         NotificationPanel.AlertClicked += NotificationPanel_AlertClicked;
         _notificationHub.Changed += OnNotificationHubChanged;
-        AppNotificationService.Instance.InstanceActivationRequested += OnToastActivationRequested;
+        AppNotificationService.Instance.ActivationRequested += OnToastActivationRequested;
         _adapterHealth.Changed += OnAdapterHealthChanged;
         _adapterHealth.AdapterStaleDetected += OnAdapterStaleDetected;
-        ShellNavigationService.Instance.InstanceLaunchRequested += OnShellInstanceLaunchRequested;
-        ShellNavigationService.Instance.DashboardRefreshRequested += OnShellDashboardRefreshRequested;
-        ShellNavigationService.Instance.ArchivedInstanceRestoreRequested += OnArchivedInstanceRestoreRequested;
-        ShellNavigationService.Instance.LayoutRefreshRequested += OnShellLayoutRefreshRequested;
-        ShellNavigationService.Instance.InstanceRegistryRefreshRequested += OnShellInstanceRegistryRefreshRequested;
+        AttachShellNavigationHandlers();
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
         AppSettingsService.Instance.Changed += OnAppSettingsChanged;
 
-        WorkspaceSidebar.Loaded += (_, _) => RebuildInstanceNavigation();
+        WorkspaceSidebar.Loaded += WorkspaceSidebar_Loaded;
 
         _ = InitializeAsync();
+    }
+
+    private void WorkspaceSidebar_Loaded(object sender, RoutedEventArgs e) =>
+        RebuildInstanceNavigation();
+
+    private void WorkspaceSidebar_DashboardRequested(object? sender, EventArgs e) =>
+        _ = ShowDashboardAsync();
+
+    private void WorkspaceSidebar_InstanceRequested(object? sender, string instanceId) =>
+        _ = SelectInstanceAsync(instanceId);
+
+    private void WorkspaceSidebar_AddInstanceRequested(object? sender, EventArgs e) =>
+        _ = ShowAddInstanceDialogAsync();
+
+    private void WorkspaceSidebar_NotificationsRequested(object? sender, EventArgs e) =>
+        SetNotificationPanelVisible(!_notificationPanelVisible);
+
+    private void WorkspaceSidebar_SettingsRequested(object? sender, EventArgs e) =>
+        _ = ShowSettingsAsync();
+
+    private void AttachShellNavigationHandlers()
+    {
+        var shell = ShellNavigationService.Instance;
+        shell.InstanceLaunchRequested += OnShellInstanceLaunchRequested;
+        shell.DashboardRefreshRequested += OnShellDashboardRefreshRequested;
+        shell.ArchivedInstanceRestoreRequested += OnArchivedInstanceRestoreRequested;
+        shell.LayoutRefreshRequested += OnShellLayoutRefreshRequested;
+        shell.InstanceRegistryRefreshRequested += OnShellInstanceRegistryRefreshRequested;
+    }
+
+    private void DetachShellNavigationHandlers()
+    {
+        var shell = ShellNavigationService.Instance;
+        shell.InstanceLaunchRequested -= OnShellInstanceLaunchRequested;
+        shell.DashboardRefreshRequested -= OnShellDashboardRefreshRequested;
+        shell.ArchivedInstanceRestoreRequested -= OnArchivedInstanceRestoreRequested;
+        shell.LayoutRefreshRequested -= OnShellLayoutRefreshRequested;
+        shell.InstanceRegistryRefreshRequested -= OnShellInstanceRegistryRefreshRequested;
+    }
+
+    private void OnMainWindowClosed(object sender, WindowEventArgs args)
+    {
+        DetachWindowLifetimeHandlers();
+        DetachShellNavigationHandlers();
+        _keyboardShortcuts.Dispose();
+    }
+
+    private void DetachWindowLifetimeHandlers()
+    {
+        AppWindow.Changed -= OnAppWindowChanged;
+        Activated -= OnWindowActivated;
+
+        WorkspaceSidebar.Loaded -= WorkspaceSidebar_Loaded;
+        WorkspaceSidebar.DashboardRequested -= WorkspaceSidebar_DashboardRequested;
+        WorkspaceSidebar.InstanceRequested -= WorkspaceSidebar_InstanceRequested;
+        WorkspaceSidebar.AddInstanceRequested -= WorkspaceSidebar_AddInstanceRequested;
+        WorkspaceSidebar.NotificationsRequested -= WorkspaceSidebar_NotificationsRequested;
+        WorkspaceSidebar.SettingsRequested -= WorkspaceSidebar_SettingsRequested;
+        WorkspaceSidebar.InstanceContextRequested -= OnInstanceContextRequested;
+        WorkspaceSidebar.InstanceReorderRequested -= OnInstanceReorderRequested;
+
+        NotificationPanel.CollapseRequested -= NotificationPanel_CollapseRequested;
+        NotificationPanel.AlertClicked -= NotificationPanel_AlertClicked;
+        _notificationHub.Changed -= OnNotificationHubChanged;
+        AppNotificationService.Instance.ActivationRequested -= OnToastActivationRequested;
+        _adapterHealth.Changed -= OnAdapterHealthChanged;
+        _adapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;
+        MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
+        AppSettingsService.Instance.Changed -= OnAppSettingsChanged;
     }
 
     private void OnAnalyticsChanged(object? sender, EventArgs e)
@@ -107,6 +171,14 @@ public sealed partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(() =>
         {
             ThemeService.Apply(AppSettingsService.Instance.Settings.ThemePreference);
+
+            var slaThreshold = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+            if (slaThreshold != _slaThresholdMinutes)
+            {
+                _slaThresholdMinutes = slaThreshold;
+                MessageAnalyticsService.Instance.RecalculateSlaBreaches();
+            }
+
             ApplyNotificationPanelDockLayout();
             _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_notificationHub.TotalUnreadCount);
             _ = _sessionManager.BroadcastAdapterSettingsAsync();
@@ -115,31 +187,46 @@ public sealed partial class MainWindow : Window
 
     private void RegisterKeyboardShortcuts()
     {
-        _keyboardShortcuts.Register(VirtualKey.D, VirtualKeyModifiers.Control, () => _ = ShowDashboardAsync());
-        _keyboardShortcuts.Register(VirtualKey.K, VirtualKeyModifiers.Control, OpenCommandPalette);
-        _keyboardShortcuts.Register((VirtualKey)188, VirtualKeyModifiers.Control, () => _ = ShowSettingsAsync());
+        bool CanUseGlobalShortcuts() => !CommandPaletteOverlay.IsOpen;
+
+        _keyboardShortcuts.Register(
+            VirtualKey.D,
+            VirtualKeyModifiers.Control,
+            () => _ = ShowDashboardAsync(),
+            CanUseGlobalShortcuts);
+        _keyboardShortcuts.Register(
+            VirtualKey.K,
+            VirtualKeyModifiers.Control,
+            OpenCommandPalette,
+            CanUseGlobalShortcuts);
+        _keyboardShortcuts.Register(
+            KeyboardShortcutService.SettingsShortcutKey,
+            VirtualKeyModifiers.Control,
+            () => _ = ShowSettingsAsync(),
+            CanUseGlobalShortcuts);
         _keyboardShortcuts.Register(
             VirtualKey.N,
             VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
-            () => SetNotificationPanelVisible(!_notificationPanelVisible));
+            () => SetNotificationPanelVisible(!_notificationPanelVisible),
+            CanUseGlobalShortcuts);
 
-        for (var i = 0; i < 9; i++)
-        {
-            var index = i;
-            _keyboardShortcuts.Register(
-                (VirtualKey)((int)VirtualKey.Number1 + index),
-                VirtualKeyModifiers.Control,
-                () => ActivateInstanceByIndex(index));
-        }
+        _keyboardShortcuts.RegisterIndexedShortcuts(
+            VirtualKey.Number1,
+            9,
+            VirtualKeyModifiers.Control,
+            ActivateInstanceByIndex,
+            CanUseGlobalShortcuts);
     }
 
     private void ActivateInstanceByIndex(int index)
     {
         var instances = GetSidebarOrderedInstances();
-        if (index >= 0 && index < instances.Count)
+        if (index < 0 || index >= instances.Count)
         {
-            _ = SelectInstanceAsync(instances[index].Id);
+            return;
         }
+
+        _ = SelectInstanceAsync(instances[index].Id);
     }
 
     private IReadOnlyList<MessengerInstance> GetSidebarOrderedInstances()
@@ -396,10 +483,22 @@ public sealed partial class MainWindow : Window
 
     private void OnAdapterStaleDetected(object? sender, string instanceId)
     {
+        if (!_adapterHealth.TryBeginRecovery(instanceId))
+        {
+            return;
+        }
+
         DispatcherQueue.TryEnqueue(async () =>
         {
-            await _sessionManager.RecoverStaleAdapterAsync(instanceId);
-            RefreshAdapterHealthIndicators();
+            try
+            {
+                await _sessionManager.RecoverStaleAdapterAsync(instanceId);
+                RefreshAdapterHealthIndicators();
+            }
+            finally
+            {
+                _adapterHealth.EndRecovery(instanceId);
+            }
         });
     }
 
@@ -433,7 +532,7 @@ public sealed partial class MainWindow : Window
         SetInstanceLoading(false, null);
         ContentFrame.Visibility = Visibility.Visible;
 
-        var navArgs = new DashboardNavigationArgs { Registry = _registry };
+        var navArgs = new RegistryNavigationArgs { Registry = _registry };
         ContentFrame.Navigate(typeof(DashboardPage), navArgs);
         AppTitleBar.Subtitle = "Dashboard";
 
@@ -455,19 +554,12 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private double GetSidebarTargetWidth()
-    {
-        if (_panePinned || _sidebarHoverExpanded)
-        {
-            return SidebarWidthExpanded;
-        }
-
-        return SidebarWidthCompact;
-    }
+    private double GetSidebarTargetWidth() =>
+        MainWindowShellLayout.ResolveSidebarWidth(_panePinned, _sidebarHoverExpanded);
 
     private void ApplySidebarLayout(bool forceVisible = false)
     {
-        if (SidebarColumn.Width.Value <= 0 && !forceVisible)
+        if (MainWindowShellLayout.ShouldUseCompactSidebarDisplay(SidebarColumn.Width.Value, forceVisible))
         {
             WorkspaceSidebar.SetCompactDisplay(true);
             return;
@@ -475,7 +567,7 @@ public sealed partial class MainWindow : Window
 
         var width = GetSidebarTargetWidth();
         SidebarColumn.Width = new GridLength(width);
-        WorkspaceSidebar.SetCompactDisplay(width <= SidebarWidthCompact + 1);
+        WorkspaceSidebar.SetCompactDisplay(MainWindowShellLayout.IsCompactSidebarWidth(width));
     }
 
     private void UpdatePanePinUi()
@@ -493,12 +585,9 @@ public sealed partial class MainWindow : Window
     }
 
     private bool ShouldAutoOpenNotificationPanel() =>
-        AppSettingsService.Instance.Settings.PanelAutoOpen switch
-        {
-            NotificationPanelAutoOpenMode.Always => true,
-            NotificationPanelAutoOpenMode.Never => false,
-            _ => !IsAppInForeground
-        };
+        MainWindowShellLayout.ShouldAutoOpenNotificationPanel(
+            AppSettingsService.Instance.Settings.PanelAutoOpen,
+            IsAppInForeground);
 
     private void RebuildInstanceNavigation()
     {
@@ -802,16 +891,21 @@ public sealed partial class MainWindow : Window
         });
     }
 
-    private void OnToastActivationRequested(object? sender, string instanceId)
+    private void OnToastActivationRequested(object? sender, ToastActivationEventArgs e)
     {
         DispatcherQueue.TryEnqueue(async () =>
         {
             Activate();
             AppWindow.Show();
 
-            if (_registry.FindById(instanceId) is not null)
+            if (!string.IsNullOrWhiteSpace(e.AlertId))
             {
-                await SelectInstanceAsync(instanceId);
+                _notificationHub.MarkAlertRead(e.AlertId);
+            }
+
+            if (_registry.FindById(e.InstanceId) is not null)
+            {
+                await SelectInstanceAsync(e.InstanceId);
             }
 
             if (!_notificationPanelVisible)
@@ -894,7 +988,7 @@ public sealed partial class MainWindow : Window
         SetInstanceLoading(false, null);
         ContentFrame.Visibility = Visibility.Visible;
 
-        var navArgs = new SettingsNavigationArgs { Registry = _registry };
+        var navArgs = new RegistryNavigationArgs { Registry = _registry };
         ContentFrame.Navigate(typeof(SettingsPage), navArgs);
         AppTitleBar.Subtitle = "Settings";
     }
@@ -911,7 +1005,7 @@ public sealed partial class MainWindow : Window
 
     private void NotificationPanel_AlertClicked(object? sender, NotificationAlert alert)
     {
-        SelectInstance(alert.InstanceId);
+        _ = SelectInstanceAsync(alert.InstanceId);
     }
 
     public void ShowNotificationPanel()
@@ -949,16 +1043,11 @@ public sealed partial class MainWindow : Window
 
     private void ApplyNotificationPanelVisibilityMetrics(bool isVisible)
     {
-        var dock = AppSettingsService.Instance.Settings.PanelDock;
-        if (dock == NotificationPanelDock.Bottom)
-        {
-            NotificationColumn.Width = new GridLength(0);
-            NotificationRow.Height = isVisible ? new GridLength(240) : new GridLength(0);
-            return;
-        }
-
-        NotificationRow.Height = new GridLength(0);
-        NotificationColumn.Width = isVisible ? new GridLength(320) : new GridLength(0);
+        var metrics = MainWindowShellLayout.ResolveNotificationPanelMetrics(
+            AppSettingsService.Instance.Settings.PanelDock,
+            isVisible);
+        NotificationColumn.Width = metrics.ColumnWidth;
+        NotificationRow.Height = metrics.RowHeight;
     }
 
     private async Task ShowAddInstanceDialogAsync()
@@ -1053,6 +1142,7 @@ public sealed partial class MainWindow : Window
 
             _notificationHub.RemoveAlertsForInstance(instanceId);
             _adapterHealth.RemoveInstance(instanceId);
+            ProfessionalWorkspaceService.Instance.RemoveInstance(instanceId);
             RebuildInstanceNavigation();
             RefreshNotificationUi();
 
@@ -1090,15 +1180,16 @@ public sealed partial class MainWindow : Window
         WorkspaceSidebar.SetSelection(_isDashboardSelected, _selectedInstanceId);
     }
 
-    private void SelectInstance(string instanceId)
-    {
-        _ = SelectInstanceAsync(instanceId);
-    }
-
     private async Task SelectInstanceAsync(string instanceId)
     {
-        WorkspaceSidebar.SetSelection(false, instanceId);
-        await NavigateToInstanceAsync(instanceId);
+        if (!ShellNavigationService.IsValidInstanceId(instanceId))
+        {
+            return;
+        }
+
+        var normalizedId = instanceId.Trim();
+        WorkspaceSidebar.SetSelection(false, normalizedId);
+        await NavigateToInstanceAsync(normalizedId);
     }
 
     private async Task NavigateToInstanceAsync(string instanceId)

@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Pages;
 
@@ -9,17 +10,33 @@ public sealed partial class AboutPage : Page
     public AboutPage()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+        RefreshContent();
+    }
 
-        var version = typeof(App).Assembly.GetName().Version;
-        VersionText.Text = version is null
-            ? "Unified Messenger v1.0.0"
-            : $"Unified Messenger v{version.Major}.{version.Minor}.{version.Build}";
+    private void OnLoaded(object sender, RoutedEventArgs e) => RefreshNavigationChrome();
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        Unloaded -= OnUnloaded;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        BackLink.Visibility = Frame?.CanGoBack == true
+        RefreshNavigationChrome();
+    }
+
+    private void RefreshContent()
+    {
+        VersionText.Text = AboutPageHelper.BuildAboutVersionLabel(typeof(App).Assembly.GetName().Version);
+    }
+
+    private void RefreshNavigationChrome()
+    {
+        BackLink.Visibility = AboutPageHelper.ShouldShowBackLink(Frame?.CanGoBack == true)
             ? Visibility.Visible
             : Visibility.Collapsed;
     }

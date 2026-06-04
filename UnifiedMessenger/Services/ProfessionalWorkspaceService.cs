@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
@@ -30,7 +29,7 @@ public sealed class CustomerTrustSnapshot
 
 public sealed class ProfessionalWorkspaceService
 {
-    private const int MaxStoredReviews = 40;
+    internal const int MaxStoredReviews = 40;
 
     private static readonly Lazy<ProfessionalWorkspaceService> LazyInstance =
         new(() => new ProfessionalWorkspaceService());
@@ -43,9 +42,22 @@ public sealed class ProfessionalWorkspaceService
 
     public event EventHandler? Changed;
 
+    internal static ProfessionalWorkspaceService CreateForTests() => new();
+
     public void HandleGoogleReviewSnapshot(string instanceId, string instanceDisplayName, int unrepliedCount)
     {
-        _unrepliedByInstance[instanceId] = Math.Max(0, unrepliedCount);
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        unrepliedCount = Math.Max(0, unrepliedCount);
+        if (_unrepliedByInstance.TryGetValue(instanceId, out var existing) && existing == unrepliedCount)
+        {
+            return;
+        }
+
+        _unrepliedByInstance[instanceId] = unrepliedCount;
         NotifyChanged();
     }
 
@@ -59,6 +71,11 @@ public sealed class ProfessionalWorkspaceService
         int rating,
         DateTimeOffset detectedAt)
     {
+        if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(reviewId))
+        {
+            return;
+        }
+
         var alert = new GoogleReviewAlert
         {
             Id = $"{instanceId}:{reviewId}",
@@ -72,6 +89,17 @@ public sealed class ProfessionalWorkspaceService
             DetectedAt = detectedAt
         };
 
+        alert.Normalize();
+
+        if (_reviewAlerts.TryGetValue(alert.Id, out var existing) &&
+            !existing.IsReplied &&
+            existing.Rating == alert.Rating &&
+            existing.Snippet.Equals(alert.Snippet, StringComparison.Ordinal) &&
+            existing.ReviewerName.Equals(alert.ReviewerName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         _reviewAlerts[alert.Id] = alert;
         TrimReviewAlerts();
         NotifyChanged();
@@ -79,24 +107,42 @@ public sealed class ProfessionalWorkspaceService
 
     public void MarkReviewReplied(string alertId)
     {
-        if (_reviewAlerts.TryGetValue(alertId, out var alert))
+        if (string.IsNullOrWhiteSpace(alertId) ||
+            !_reviewAlerts.TryGetValue(alertId, out var alert) ||
+            alert.IsReplied)
         {
-            alert.IsReplied = true;
-            NotifyChanged();
+            return;
         }
+
+        alert.IsReplied = true;
+        NotifyChanged();
     }
 
     public void HandleMetaInboundMessage(string instanceId, DateTimeOffset timestampUtc, int unreadCount)
     {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        unreadCount = Math.Max(0, unreadCount);
         var state = _metaInbound.GetOrAdd(instanceId, _ => new MetaInboundState());
+        var changed = state.ActiveUnreadCount != unreadCount ||
+                      state.LastInboundUtc != timestampUtc;
+
         state.LastInboundUtc = timestampUtc;
         state.ActiveUnreadCount = unreadCount;
-        NotifyChanged();
+
+        if (changed)
+        {
+            NotifyChanged();
+        }
     }
 
     public void HandleMetaReplySent(string instanceId, DateTimeOffset replyUtc)
     {
-        if (!_metaInbound.TryGetValue(instanceId, out var state) ||
+        if (string.IsNullOrWhiteSpace(instanceId) ||
+            !_metaInbound.TryGetValue(instanceId, out var state) ||
             state.LastInboundUtc is not { } inboundAt)
         {
             return;
@@ -115,10 +161,38 @@ public sealed class ProfessionalWorkspaceService
         NotifyChanged();
     }
 
+    public void RemoveInstance(string instanceId)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        var removedReviews = false;
+        foreach (var key in _reviewAlerts.Keys.ToList())
+        {
+            if (_reviewAlerts.TryGetValue(key, out var alert) &&
+                alert.InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase) &&
+                _reviewAlerts.TryRemove(key, out _))
+            {
+                removedReviews = true;
+            }
+        }
+
+        var removedUnreplied = _unrepliedByInstance.TryRemove(instanceId, out _);
+        var removedMeta = _metaInbound.TryRemove(instanceId, out _);
+
+        if (removedReviews || removedUnreplied || removedMeta)
+        {
+            NotifyChanged();
+        }
+    }
+
     public CustomerTrustSnapshot CaptureCustomerTrust(IEnumerable<MessengerInstance> googleInstances)
     {
         var instanceIds = googleInstances
             .Select(i => i.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var pending = _reviewAlerts.Values
@@ -216,7 +290,7 @@ public sealed class ProfessionalWorkspaceService
         };
     }
 
-    private static string ClassifyEfficiency(double totalMinutes, int sampleCount)
+    internal static string ClassifyEfficiency(double totalMinutes, int sampleCount, int slaThresholdMinutes)
     {
         if (sampleCount == 0)
         {
@@ -224,25 +298,27 @@ public sealed class ProfessionalWorkspaceService
         }
 
         var average = totalMinutes / sampleCount;
-        var sla = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
 
-        if (average <= sla * 0.5)
+        if (average <= slaThresholdMinutes * 0.5)
         {
             return "Excellent";
         }
 
-        if (average <= sla)
+        if (average <= slaThresholdMinutes)
         {
             return "Good";
         }
 
-        if (average <= sla * 1.5)
+        if (average <= slaThresholdMinutes * 1.5)
         {
             return "Fair";
         }
 
         return "Needs attention";
     }
+
+    private static string ClassifyEfficiency(double totalMinutes, int sampleCount) =>
+        ClassifyEfficiency(totalMinutes, sampleCount, AppSettingsService.Instance.Settings.SlaThresholdMinutes);
 
     private static string FormatMinutes(double minutes)
     {
@@ -259,31 +335,8 @@ public sealed class ProfessionalWorkspaceService
         return $"{Math.Round(minutes / 60.0, 1)} hr";
     }
 
-    private static string FormatRelative(DateTimeOffset? timestamp)
-    {
-        if (timestamp is null)
-        {
-            return "—";
-        }
-
-        var delta = DateTimeOffset.UtcNow - timestamp.Value;
-        if (delta.TotalMinutes < 1)
-        {
-            return "Just now";
-        }
-
-        if (delta.TotalHours < 1)
-        {
-            return $"{(int)delta.TotalMinutes}m ago";
-        }
-
-        if (delta.TotalDays < 1)
-        {
-            return $"{(int)delta.TotalHours}h ago";
-        }
-
-        return $"{(int)delta.TotalDays}d ago";
-    }
+    private static string FormatRelative(DateTimeOffset? timestamp) =>
+        timestamp is null ? "—" : RelativeTimeFormatter.Format(timestamp.Value);
 
     private void TrimReviewAlerts()
     {
@@ -293,7 +346,8 @@ public sealed class ProfessionalWorkspaceService
         }
 
         var removeIds = _reviewAlerts.Values
-            .OrderBy(a => a.DetectedAt)
+            .OrderBy(a => a.IsReplied)
+            .ThenBy(a => a.DetectedAt)
             .Take(_reviewAlerts.Count - MaxStoredReviews)
             .Select(a => a.Id)
             .ToList();

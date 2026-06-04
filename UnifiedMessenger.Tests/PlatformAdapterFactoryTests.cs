@@ -16,6 +16,7 @@ public class PlatformAdapterFactoryTests
     [InlineData("metabusiness", "metabusiness")]
     [InlineData("googlebusiness", "googlebusiness")]
     [InlineData("unknown", "generic")]
+    [InlineData(" WhatsApp ", "whatsapp")]
     public void Resolve_ReturnsExpectedPlatformId(string platformId, string expectedPlatformId)
     {
         var adapter = PlatformAdapterFactory.Resolve(platformId);

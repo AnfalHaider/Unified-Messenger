@@ -1,60 +1,137 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
+using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
+/// <summary>
+/// Injects per-platform chrome CSS into WebView2 documents so messenger sites blend with the app shell (ADAPT-06).
+/// Base seam styles live in <c>generic-chrome.css</c>; platform files add selectors only.
+/// </summary>
 public static class WebViewChromeStyleInjector
 {
+    private const string GenericFileName = "generic-chrome.css";
+    private const string StyleElementId = "unified-messenger-chrome";
+
+    private static readonly string StylesRoot = Path.Combine(AppContext.BaseDirectory, "Assets", "Styles");
+    private static readonly ConditionalWeakTable<CoreWebView2, object> RegisteredWebViews = new();
+    private static readonly Dictionary<string, string> CssCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object CacheLock = new();
+
     public static async Task InjectAsync(
         CoreWebView2 coreWebView,
         string platformId,
         CancellationToken cancellationToken = default)
     {
-        var css = await LoadChromeCssAsync(platformId, cancellationToken);
+        ArgumentNullException.ThrowIfNull(coreWebView);
+
+        var css = await LoadChromeCssAsync(platformId, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(css))
         {
             return;
         }
 
+        if (!TryMarkRegistered(coreWebView))
+        {
+            return;
+        }
+
+        await coreWebView
+            .AddScriptToExecuteOnDocumentCreatedAsync(BuildDocumentCreatedScript(css))
+            .AsTask()
+            .ConfigureAwait(false);
+    }
+
+    internal static string ResolvePlatformStylesheetFileName(string? platformId)
+    {
+        var normalized = PlatformDefinition.NormalizePlatformId(platformId);
+        if (normalized.Equals("generic", StringComparison.OrdinalIgnoreCase))
+        {
+            return GenericFileName;
+        }
+
+        var platformFile = $"{normalized}-chrome.css";
+        return File.Exists(Path.Combine(StylesRoot, platformFile)) ? platformFile : GenericFileName;
+    }
+
+    internal static async Task<string> LoadChromeCssAsync(
+        string? platformId,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = PlatformDefinition.NormalizePlatformId(platformId);
+
+        lock (CacheLock)
+        {
+            if (CssCache.TryGetValue(normalized, out var cached))
+            {
+                return cached;
+            }
+        }
+
+        var css = await LoadChromeCssCoreAsync(normalized, cancellationToken).ConfigureAwait(false);
+
+        lock (CacheLock)
+        {
+            CssCache[normalized] = css;
+        }
+
+        return css;
+    }
+
+    internal static string BuildDocumentCreatedScript(string css)
+    {
         var cssLiteral = JsonSerializer.Serialize(css);
-        var script = $$"""
+        return $$"""
             (function () {
-              if (window.__unifiedMessengerChromeInjected) { return; }
-              window.__unifiedMessengerChromeInjected = true;
+              if (document.getElementById('{{StyleElementId}}')) { return; }
               var style = document.createElement('style');
-              style.id = 'unified-messenger-chrome';
+              style.id = '{{StyleElementId}}';
               style.textContent = {{cssLiteral}};
               (document.head || document.documentElement).appendChild(style);
             })();
             """;
-
-        await coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(script);
     }
 
-    private static async Task<string> LoadChromeCssAsync(string platformId, CancellationToken cancellationToken)
+    private static bool TryMarkRegistered(CoreWebView2 coreWebView)
     {
-        var fileName = platformId.ToLowerInvariant() switch
+        if (RegisteredWebViews.TryGetValue(coreWebView, out _))
         {
-            "whatsapp" => "whatsapp-chrome.css",
-            "telegram" => "telegram-chrome.css",
-            "messenger" => "messenger-chrome.css",
-            "slack" => "slack-chrome.css",
-            "discord" => "discord-chrome.css",
-            "signal" => "signal-chrome.css",
-            "teams" => "teams-chrome.css",
-            "metabusiness" => "metabusiness-chrome.css",
-            "googlebusiness" => "googlebusiness-chrome.css",
-            _ => "generic-chrome.css"
-        };
-
-        var path = Path.Combine(AppContext.BaseDirectory, "Assets", "Styles", fileName);
-        if (!File.Exists(path))
-        {
-            path = Path.Combine(AppContext.BaseDirectory, "Assets", "Styles", "generic-chrome.css");
+            return false;
         }
 
-        return File.Exists(path)
-            ? await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false)
+        RegisteredWebViews.Add(coreWebView, null!);
+        return true;
+    }
+
+    private static async Task<string> LoadChromeCssCoreAsync(
+        string normalizedPlatformId,
+        CancellationToken cancellationToken)
+    {
+        var genericPath = Path.Combine(StylesRoot, GenericFileName);
+        var genericCss = File.Exists(genericPath)
+            ? await File.ReadAllTextAsync(genericPath, cancellationToken).ConfigureAwait(false)
             : string.Empty;
+
+        if (normalizedPlatformId.Equals("generic", StringComparison.OrdinalIgnoreCase))
+        {
+            return genericCss;
+        }
+
+        var platformPath = Path.Combine(StylesRoot, $"{normalizedPlatformId}-chrome.css");
+        if (!File.Exists(platformPath))
+        {
+            return genericCss;
+        }
+
+        var platformCss = await File.ReadAllTextAsync(platformPath, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(platformCss))
+        {
+            return genericCss;
+        }
+
+        return string.IsNullOrWhiteSpace(genericCss)
+            ? platformCss
+            : genericCss + Environment.NewLine + platformCss;
     }
 }

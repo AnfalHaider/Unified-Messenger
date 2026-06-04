@@ -1,8 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Controls;
 
@@ -23,6 +23,7 @@ public sealed partial class CommandPalette : UserControl
 
     public void SetEntries(IReadOnlyList<CommandPaletteEntry> entries)
     {
+        ArgumentNullException.ThrowIfNull(entries);
         _allEntries = entries;
         ApplyFilter(SearchBox.Text);
     }
@@ -38,26 +39,22 @@ public sealed partial class CommandPalette : UserControl
 
     public void Close()
     {
+        if (!IsOpen)
+        {
+            return;
+        }
+
         Visibility = Visibility.Collapsed;
         IsHitTestVisible = false;
         SearchBox.Text = string.Empty;
         CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    public bool IsOpen => Visibility == Visibility.Visible;
+
     private void ApplyFilter(string? query)
     {
-        query = query?.Trim() ?? string.Empty;
-        IEnumerable<CommandPaletteEntry> filtered = _allEntries;
-
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            filtered = _allEntries
-                .Where(e => e.Matches(query))
-                .OrderByDescending(e => e.Score(query))
-                .ThenBy(e => e.Title, StringComparer.OrdinalIgnoreCase);
-        }
-
-        ResultsList.ItemsSource = filtered.Take(12).ToList();
+        ResultsList.ItemsSource = CommandPaletteHelper.FilterEntries(_allEntries, query);
     }
 
     private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
@@ -88,19 +85,18 @@ public sealed partial class CommandPalette : UserControl
 
     private void SelectEntry(CommandPaletteEntry entry)
     {
+        if (!CommandPaletteHelper.IsValidSelection(entry.Selection))
+        {
+            return;
+        }
+
         ItemSelected?.Invoke(this, entry.Selection);
         Close();
     }
 
-    private void Overlay_PointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        Close();
-    }
+    private void Overlay_PointerPressed(object sender, PointerRoutedEventArgs e) => Close();
 
-    private void Panel_PointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        e.Handled = true;
-    }
+    private void Panel_PointerPressed(object sender, PointerRoutedEventArgs e) => e.Handled = true;
 
     private void Root_KeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -108,61 +104,15 @@ public sealed partial class CommandPalette : UserControl
         {
             Close();
             e.Handled = true;
+            return;
         }
-    }
-}
 
-public sealed class CommandPaletteEntry
-{
-    public required string Title { get; init; }
-
-    public required string Subtitle { get; init; }
-
-    public required string Category { get; init; }
-
-    public required CommandPaletteSelection Selection { get; init; }
-
-    public bool Matches(string query)
-    {
-        query = query.Trim();
-        return Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               Subtitle.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-               Category.Contains(query, StringComparison.OrdinalIgnoreCase);
-    }
-
-    public int Score(string query)
-    {
-        query = query.Trim();
-        if (Title.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        if (e.Key == Windows.System.VirtualKey.Enter &&
+            ResultsList.ItemsSource is IList<CommandPaletteEntry> items &&
+            items.Count > 0)
         {
-            return 100;
+            SelectEntry(items[0]);
+            e.Handled = true;
         }
-
-        if (Title.Contains(query, StringComparison.OrdinalIgnoreCase))
-        {
-            return 50;
-        }
-
-        return Subtitle.Contains(query, StringComparison.OrdinalIgnoreCase) ? 25 : 0;
     }
-}
-
-public sealed class CommandPaletteSelection
-{
-    public CommandPaletteAction Action { get; init; }
-
-    public string? InstanceId { get; init; }
-
-    public string? AlertId { get; init; }
-}
-
-public enum CommandPaletteAction
-{
-    OpenInstance,
-    OpenDashboard,
-    OpenSettings,
-    OpenAlert,
-    ToggleNotifications,
-    ClearNotifications,
-    MarkAllRead
 }

@@ -1,14 +1,4 @@
-/* Unified Messenger — Telegram Web chrome blend */
-:root {
-  --um-shell-seam: rgba(255, 255, 255, 0.08);
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --um-shell-seam: rgba(0, 0, 0, 0.08);
-  }
-}
-
+/* Unified Messenger — Telegram Web chrome blend (platform-specific) */
 html, body, #Main {
   border-left: 1px solid var(--um-shell-seam) !important;
 }

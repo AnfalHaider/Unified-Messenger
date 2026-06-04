@@ -2,6 +2,16 @@ namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
+    public const int CurrentVersion = 1;
+
+    public const int MinSlaThresholdMinutes = 5;
+
+    public const int MaxSlaThresholdMinutes = 120;
+
+    public const int MaxConcurrentWebViewsCap = 32;
+
+    public int Version { get; set; } = CurrentVersion;
+
     public bool EnableBackgroundToasts { get; set; } = true;
 
     public bool ShowTaskbarBadge { get; set; } = true;
@@ -35,7 +45,7 @@ public sealed class AppSettings
 
     public bool HasPromptedPinToTaskbar { get; set; }
 
-    public int MaxConcurrentWebViews { get; set; } = 0;
+    public int MaxConcurrentWebViews { get; set; }
 
     public StartupWarmMode StartupWarmMode { get; set; } = StartupWarmMode.WarmAll;
 
@@ -49,4 +59,43 @@ public sealed class AppSettings
     public bool EnableImportExportInstances { get; set; }
 
     public bool EnableInstanceNotesTags { get; set; }
+
+    /// <summary>
+    /// Clamps numeric settings and resets unknown enum values after load or manual edits.
+    /// </summary>
+    public void Normalize()
+    {
+        if (Version < 1)
+        {
+            Version = 1;
+        }
+
+        SlaThresholdMinutes = Math.Clamp(SlaThresholdMinutes, MinSlaThresholdMinutes, MaxSlaThresholdMinutes);
+        MaxConcurrentWebViews = Math.Clamp(MaxConcurrentWebViews, 0, MaxConcurrentWebViewsCap);
+
+        if (!Enum.IsDefined(ThemePreference))
+        {
+            ThemePreference = AppThemePreference.System;
+        }
+
+        if (!Enum.IsDefined(PanelAutoOpen))
+        {
+            PanelAutoOpen = NotificationPanelAutoOpenMode.UnfocusedOnly;
+        }
+
+        if (!Enum.IsDefined(PanelDock))
+        {
+            PanelDock = NotificationPanelDock.Right;
+        }
+
+        if (!Enum.IsDefined(ToastSound))
+        {
+            ToastSound = ToastSoundPreference.Default;
+        }
+
+        if (!Enum.IsDefined(StartupWarmMode))
+        {
+            StartupWarmMode = StartupWarmMode.WarmAll;
+        }
+    }
 }

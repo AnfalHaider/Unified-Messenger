@@ -97,6 +97,24 @@ public sealed class PlatformDefinition
         }
     ];
 
-    public static PlatformDefinition? FindById(string? platformId) =>
-        All.FirstOrDefault(p => p.Id.Equals(platformId, StringComparison.OrdinalIgnoreCase));
+    public static PlatformDefinition? FindById(string? platformId)
+    {
+        if (string.IsNullOrWhiteSpace(platformId))
+        {
+            return null;
+        }
+
+        return All.FirstOrDefault(p => p.Id.Equals(platformId.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static string NormalizePlatformId(string? platformId)
+    {
+        if (string.IsNullOrWhiteSpace(platformId))
+        {
+            return "generic";
+        }
+
+        var match = All.FirstOrDefault(p => p.Id.Equals(platformId.Trim(), StringComparison.OrdinalIgnoreCase));
+        return match?.Id ?? "generic";
+    }
 }

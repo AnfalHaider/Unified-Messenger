@@ -1,4 +1,5 @@
-﻿using Microsoft.UI.Xaml;
+﻿using System.Diagnostics;
+using Microsoft.UI.Xaml;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger;
@@ -12,21 +13,60 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        UnhandledException += OnUnhandledException;
     }
 
-    protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        await AppSettingsService.Instance.LoadAsync();
-        ThemeService.Apply(AppSettingsService.Instance.Settings.ThemePreference);
+        _ = LaunchAsync(args);
+    }
 
-        var notificationService = AppNotificationService.Instance;
-        notificationService.Initialize();
+    private async Task LaunchAsync(LaunchActivatedEventArgs args)
+    {
+        try
+        {
+            await AppSettingsService.Instance.LoadAsync();
 
-        _window = new MainWindow();
-        CurrentWindow = _window;
-        notificationService.TryHandleLaunchActivation();
-        _window.Activate();
+            StartupTaskService.EnsureRegistrationMatchesPreference(
+                AppSettingsService.Instance.Settings.LaunchAtStartup);
 
-        _ = GitHubUpdateService.Instance.CheckForUpdatesAsync();
+            ThemeService.ApplyInitialLaunchTheme(AppSettingsService.Instance.Settings.ThemePreference);
+
+            var notificationService = AppNotificationService.Instance;
+            notificationService.Initialize();
+
+            _window = new MainWindow();
+            CurrentWindow = _window;
+
+            ThemeService.Apply(AppSettingsService.Instance.Settings.ThemePreference);
+
+            notificationService.TryHandleLaunchActivation();
+            _window.Activate();
+
+            if (AppSettingsService.Instance.Settings.EnableAutoUpdate)
+            {
+                _ = GitHubUpdateService.Instance.CheckForUpdatesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Application launch failed: {ex}");
+            CurrentWindow?.Close();
+            Exit();
+        }
+    }
+
+    private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs eventArgs)
+    {
+        Debug.WriteLine($"Unhandled XAML exception: {eventArgs.Message}");
+
+        if (eventArgs.Exception is null)
+        {
+            return;
+        }
+
+        Debug.WriteLine(eventArgs.Exception.ToString());
+
+        // Leave Handled=false so the process can terminate on non-recoverable faults.
     }
 }

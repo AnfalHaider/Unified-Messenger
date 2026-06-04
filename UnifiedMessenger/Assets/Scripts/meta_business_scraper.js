@@ -12,11 +12,30 @@
   var ADAPTER_ID = 'metabusiness';
   var lastPostedCount = -1;
   var lastTitleCount = -1;
-  var lastInboundAt = null;
   var pollTimer = null;
+  var publishScheduled = false;
+  var activeObservers = [];
+  var lastUrl = location.href;
+  var spaNotify = null;
+  var historyHooked = false;
+  var originalPushState = null;
+  var originalReplaceState = null;
 
   function postMessage(payload) {
     window.__umPostMessage(payload);
+  }
+
+  function trackObserver(observer) {
+    activeObservers.push(observer);
+    return observer;
+  }
+
+  function disconnectObservers() {
+    for (var i = 0; i < activeObservers.length; i++) {
+      activeObservers[i].disconnect();
+    }
+
+    activeObservers = [];
   }
 
   function countFromTitle() {
@@ -58,12 +77,16 @@
   }
 
   function countFromNavigation() {
-    var navRoots = document.querySelectorAll('[role="navigation"], nav, [aria-label*="navigation" i]');
+    var navRoots = document.querySelectorAll(
+      '[role="navigation"], nav, [aria-label*="navigation" i], [data-pagelet*="BizInbox"]'
+    );
     var maxCount = 0;
 
     for (var n = 0; n < navRoots.length; n++) {
       var nav = navRoots[n];
-      var inboxNodes = nav.querySelectorAll('[aria-label*="Inbox" i], [href*="inbox" i], a, button, [role="link"], [role="button"]');
+      var inboxNodes = nav.querySelectorAll(
+        '[aria-label*="Inbox" i], [href*="inbox" i], a, button, [role="link"], [role="button"]'
+      );
 
       for (var i = 0; i < inboxNodes.length; i++) {
         var node = inboxNodes[i];
@@ -123,7 +146,6 @@
 
   function emitInboundSignal(count, source) {
     var now = new Date().toISOString();
-    lastInboundAt = now;
 
     postMessage({
       type: 'meta-inbound-message',
@@ -134,12 +156,19 @@
       timestampUtc: now
     });
 
-    window.__umForwardPreview(INSTANCE_ID, PLATFORM, 'Meta Business inbox', {
-      body: count === 1 ? '1 unread customer message' : count + ' unread customer messages'
-    });
+    var previewTitle = 'Meta Business inbox';
+    var previewBody = count === 1 ? '1 unread customer message' : count + ' unread customer messages';
+    var normalized = window.__umNormalizePreview(previewTitle, previewBody);
+
+    if (window.__umShouldEmitPreview(INSTANCE_ID, normalized.title, normalized.body)) {
+      window.__umForwardPreview(INSTANCE_ID, PLATFORM, normalized.title, {
+        body: normalized.body
+      });
+    }
   }
 
-  window.__unifiedMessengerPublishBadge = function () {
+  function publishImmediate() {
+    publishScheduled = false;
     var count = resolveUnreadCount();
 
     if (count !== lastPostedCount) {
@@ -155,7 +184,18 @@
         count: count
       });
     }
-  };
+  }
+
+  function schedulePublish() {
+    if (publishScheduled) {
+      return;
+    }
+
+    publishScheduled = true;
+    window.setTimeout(publishImmediate, 150);
+  }
+
+  window.__unifiedMessengerPublishBadge = publishImmediate;
 
   function observeTitle() {
     var titleElement = document.querySelector('title');
@@ -163,13 +203,13 @@
       return;
     }
 
-    var titleObserver = new MutationObserver(function () {
+    var titleObserver = trackObserver(new MutationObserver(function () {
       var titleCount = countFromTitle();
       if (titleCount !== lastTitleCount) {
         lastTitleCount = titleCount;
-        window.__unifiedMessengerPublishBadge();
+        schedulePublish();
       }
-    });
+    }));
 
     titleObserver.observe(titleElement, {
       childList: true,
@@ -184,25 +224,25 @@
         return;
       }
 
-      var navObserver = new MutationObserver(function () {
-        window.__unifiedMessengerPublishBadge();
-      });
+      var navObserver = trackObserver(new MutationObserver(function () {
+        schedulePublish();
+      }));
 
       navObserver.observe(root, {
         childList: true,
         subtree: true,
         characterData: true,
         attributes: true,
-        attributeFilter: ['aria-label', 'aria-hidden', 'data-count']
+        attributeFilter: ['aria-label', 'aria-hidden', 'data-count', 'class']
       });
     };
 
-    var navRoots = document.querySelectorAll('[role="navigation"], nav');
+    var navRoots = document.querySelectorAll('[role="navigation"], nav, [data-pagelet*="BizInbox"]');
     for (var i = 0; i < navRoots.length; i++) {
       attachObserver(navRoots[i]);
     }
 
-    var bodyObserver = new MutationObserver(function (mutations) {
+    var bodyObserver = trackObserver(new MutationObserver(function (mutations) {
       for (var m = 0; m < mutations.length; m++) {
         var added = mutations[m].addedNodes;
         for (var a = 0; a < added.length; a++) {
@@ -215,19 +255,112 @@
             attachObserver(node);
           }
 
-          var nested = node.querySelectorAll ? node.querySelectorAll('[role="navigation"], nav') : [];
+          var nested = node.querySelectorAll
+            ? node.querySelectorAll('[role="navigation"], nav, [data-pagelet*="BizInbox"]')
+            : [];
           for (var n = 0; n < nested.length; n++) {
             attachObserver(nested[n]);
           }
         }
       }
 
-      window.__unifiedMessengerPublishBadge();
-    });
+      schedulePublish();
+    }));
 
     if (document.body) {
       bodyObserver.observe(document.body, { childList: true, subtree: true });
     }
+  }
+
+  function hookSpaNavigation() {
+    if (historyHooked) {
+      return;
+    }
+
+    historyHooked = true;
+    spaNotify = function () {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        lastPostedCount = -1;
+        lastTitleCount = -1;
+      }
+
+      schedulePublish();
+    };
+
+    window.addEventListener('popstate', spaNotify);
+    window.addEventListener('hashchange', spaNotify);
+
+    originalPushState = history.pushState;
+    originalReplaceState = history.replaceState;
+
+    history.pushState = function () {
+      originalPushState.apply(history, arguments);
+      spaNotify();
+    };
+
+    history.replaceState = function () {
+      originalReplaceState.apply(history, arguments);
+      spaNotify();
+    };
+  }
+
+  function unhookSpaNavigation() {
+    if (!historyHooked) {
+      return;
+    }
+
+    window.removeEventListener('popstate', spaNotify);
+    window.removeEventListener('hashchange', spaNotify);
+
+    if (originalPushState) {
+      history.pushState = originalPushState;
+    }
+
+    if (originalReplaceState) {
+      history.replaceState = originalReplaceState;
+    }
+
+    historyHooked = false;
+    spaNotify = null;
+  }
+
+  function onVisibilityChange() {
+    if (!document.hidden) {
+      publishImmediate();
+    }
+  }
+
+  function startPolling() {
+    if (pollTimer) {
+      return;
+    }
+
+    publishImmediate();
+    pollTimer = window.setInterval(function () {
+      if (!document.hidden) {
+        publishImmediate();
+      }
+    }, 15000);
+  }
+
+  function disposeAdapter() {
+    if (pollTimer) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    disconnectObservers();
+    unhookSpaNavigation();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    publishScheduled = false;
+    lastPostedCount = -1;
+    lastTitleCount = -1;
+  }
+
+  window.__umAdapterDispose = disposeAdapter;
+  if (window.__umRegisterDisposable) {
+    window.__umRegisterDisposable(disposeAdapter);
   }
 
   window.__umInstallNotificationInterceptor(INSTANCE_ID, PLATFORM);
@@ -254,13 +387,10 @@
 
   window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
   window.__umStartHeartbeat(INSTANCE_ID, PLATFORM, ADAPTER_ID, 30000);
-
+  hookSpaNavigation();
   observeTitle();
   observeNavigation();
+  startPolling();
 
-  pollTimer = window.setInterval(function () {
-    window.__unifiedMessengerPublishBadge();
-  }, 15000);
-
-  window.__unifiedMessengerPublishBadge();
+  document.addEventListener('visibilitychange', onVisibilityChange);
 })();

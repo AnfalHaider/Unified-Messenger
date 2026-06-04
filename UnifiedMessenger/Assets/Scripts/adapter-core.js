@@ -8,6 +8,11 @@
   window.__unifiedMessengerCore = true;
   window.__umRecentPreviews = Object.create(null);
   window.__umIncludeMutedBadges = __INCLUDE_MUTED_BADGES__;
+  window.__umRuntimeDisposables = [];
+
+  var previewPruneCounter = 0;
+  var previewMaxEntries = 200;
+  var previewMaxAgeMs = 600000;
 
   window.__umPostMessage = function (payload) {
     if (!window.chrome || !window.chrome.webview) {
@@ -18,6 +23,41 @@
       window.chrome.webview.postMessage(payload);
     } catch (error) {
       console.warn('[UnifiedMessenger] postMessage failed', error);
+    }
+  };
+
+  window.__umShouldIncludeMutedBadges = function () {
+    return window.__umIncludeMutedBadges === true;
+  };
+
+  window.__umIsDomBadgeMuted = function (element) {
+    if (window.__umShouldIncludeMutedBadges()) {
+      return false;
+    }
+
+    if (!element) {
+      return false;
+    }
+
+    var node = element.nodeType === 1 ? element : element.parentElement;
+    while (node) {
+      if (node.classList &&
+        (node.classList.contains('muted') ||
+          node.classList.contains('is-muted') ||
+          node.classList.contains('isMuted') ||
+          node.getAttribute('data-muted') === 'true')) {
+        return true;
+      }
+
+      node = node.parentElement;
+    }
+
+    return false;
+  };
+
+  window.__umRegisterDisposable = function (disposeFn) {
+    if (typeof disposeFn === 'function') {
+      window.__umRuntimeDisposables.push(disposeFn);
     }
   };
 
@@ -45,6 +85,32 @@
     };
   };
 
+  function pruneRecentPreviews(now) {
+    var keys = Object.keys(window.__umRecentPreviews);
+    if (keys.length <= previewMaxEntries) {
+      return;
+    }
+
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      if (now - window.__umRecentPreviews[key] > previewMaxAgeMs) {
+        delete window.__umRecentPreviews[key];
+      }
+    }
+
+    keys = Object.keys(window.__umRecentPreviews);
+    if (keys.length > previewMaxEntries) {
+      keys.sort(function (a, b) {
+        return window.__umRecentPreviews[a] - window.__umRecentPreviews[b];
+      });
+
+      var overflow = keys.length - previewMaxEntries;
+      for (var j = 0; j < overflow; j++) {
+        delete window.__umRecentPreviews[keys[j]];
+      }
+    }
+  }
+
   window.__umShouldEmitPreview = function (instanceId, title, body, windowMs) {
     var normalized = window.__umNormalizePreview(title, body);
     var signature = instanceId + '|' + normalized.title + '|' + normalized.body;
@@ -57,6 +123,12 @@
     }
 
     window.__umRecentPreviews[signature] = now;
+
+    previewPruneCounter += 1;
+    if (previewPruneCounter % 25 === 0) {
+      pruneRecentPreviews(now);
+    }
+
     return true;
   };
 
@@ -84,6 +156,10 @@
 
     window.__umNotificationInterceptorInstalled = true;
 
+    if (window.Notification && !window.__umOriginalNotification) {
+      window.__umOriginalNotification = window.Notification;
+    }
+
     if (window.Notification) {
       function UnifiedNotification(title, options) {
         window.__umForwardPreview(instanceId, platform, title, options);
@@ -104,7 +180,11 @@
     }
 
     if (typeof ServiceWorkerRegistration !== 'undefined' &&
-      ServiceWorkerRegistration.prototype.showNotification) {
+      ServiceWorkerRegistration.prototype.showNotification &&
+      !ServiceWorkerRegistration.prototype.__umOriginalShowNotification) {
+      ServiceWorkerRegistration.prototype.__umOriginalShowNotification =
+        ServiceWorkerRegistration.prototype.showNotification;
+
       ServiceWorkerRegistration.prototype.showNotification = function (title, options) {
         window.__umForwardPreview(instanceId, platform, title, options);
         return Promise.resolve();
@@ -146,10 +226,18 @@
 
     if (window.__umHeartbeatHandle) {
       window.clearInterval(window.__umHeartbeatHandle);
+      window.__umHeartbeatHandle = null;
     }
 
     beat();
     window.__umHeartbeatHandle = window.setInterval(beat, interval);
+
+    window.__umRegisterDisposable(function () {
+      if (window.__umHeartbeatHandle) {
+        window.clearInterval(window.__umHeartbeatHandle);
+        window.__umHeartbeatHandle = null;
+      }
+    });
   };
 
   window.__umResetAdapterRuntime = function () {
@@ -158,10 +246,56 @@
       window.__umHeartbeatHandle = null;
     }
 
+    if (Array.isArray(window.__umRuntimeDisposables)) {
+      window.__umRuntimeDisposables.forEach(function (disposeFn) {
+        try {
+          disposeFn();
+        } catch (error) {
+          // ignore dispose errors during recovery
+        }
+      });
+    }
+
+    window.__umRuntimeDisposables = [];
+
+    if (typeof window.__umAdapterDispose === 'function') {
+      try {
+        window.__umAdapterDispose();
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    delete window.__umAdapterDispose;
+
+    if (window.__umOutgoingKeydownHandler) {
+      document.removeEventListener('keydown', window.__umOutgoingKeydownHandler, true);
+      delete window.__umOutgoingKeydownHandler;
+    }
+
+    if (window.__umOutgoingClickHandler) {
+      document.removeEventListener('click', window.__umOutgoingClickHandler, true);
+      delete window.__umOutgoingClickHandler;
+    }
+
+    if (window.__umOriginalNotification) {
+      window.Notification = window.__umOriginalNotification;
+      delete window.__umOriginalNotification;
+    }
+
+    if (typeof ServiceWorkerRegistration !== 'undefined' &&
+      ServiceWorkerRegistration.prototype.__umOriginalShowNotification) {
+      ServiceWorkerRegistration.prototype.showNotification =
+        ServiceWorkerRegistration.prototype.__umOriginalShowNotification;
+      delete ServiceWorkerRegistration.prototype.__umOriginalShowNotification;
+    }
+
     delete window.__unifiedMessengerAdapterInstalled;
     delete window.__unifiedMessengerCore;
+    delete window.__umNotificationInterceptorInstalled;
     delete window.__umOutgoingMonitorInstalled;
     delete window.__umRecentPreviews;
+    delete window.__unifiedMessengerPublishBadge;
   };
 
   window.__umCountFromTitle = function () {
@@ -285,7 +419,7 @@
       });
     }
 
-    document.addEventListener('keydown', function (event) {
+    window.__umOutgoingKeydownHandler = function (event) {
       if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.isComposing) {
         return;
       }
@@ -302,15 +436,32 @@
       window.setTimeout(function () {
         emitSent('enter-key');
       }, 0);
-    }, true);
+    };
 
-    document.addEventListener('click', function (event) {
+    window.__umOutgoingClickHandler = function (event) {
       if (!isSendButton(event.target)) {
         return;
       }
 
       emitSent('send-button');
-    }, true);
+    };
+
+    document.addEventListener('keydown', window.__umOutgoingKeydownHandler, true);
+    document.addEventListener('click', window.__umOutgoingClickHandler, true);
+
+    window.__umRegisterDisposable(function () {
+      if (window.__umOutgoingKeydownHandler) {
+        document.removeEventListener('keydown', window.__umOutgoingKeydownHandler, true);
+        delete window.__umOutgoingKeydownHandler;
+      }
+
+      if (window.__umOutgoingClickHandler) {
+        document.removeEventListener('click', window.__umOutgoingClickHandler, true);
+        delete window.__umOutgoingClickHandler;
+      }
+
+      delete window.__umOutgoingMonitorInstalled;
+    });
   };
 
 })();

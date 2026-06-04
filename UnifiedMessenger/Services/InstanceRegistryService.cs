@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -20,7 +21,9 @@ public sealed partial class InstanceRegistryService
     };
 
     private readonly string _storePath;
+    private readonly SemaphoreSlim _gate = new(1, 1);
     private InstanceStore _store = new();
+    private bool _isLoaded;
 
     public InstanceRegistryService()
     {
@@ -42,31 +45,58 @@ public sealed partial class InstanceRegistryService
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(_storePath))
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            _store = CreateDefaultStore();
-            await SaveAsync(cancellationToken).ConfigureAwait(false);
-            return;
+            if (_isLoaded)
+            {
+                return;
+            }
+
+            if (!File.Exists(_storePath))
+            {
+                _store = CreateDefaultStore();
+                NormalizeStore(ensureUniqueIdentifiers: true);
+                await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+                _isLoaded = true;
+                return;
+            }
+
+            InstanceStore loaded;
+            try
+            {
+                await using var stream = File.OpenRead(_storePath);
+                loaded = await JsonSerializer
+                    .DeserializeAsync<InstanceStore>(stream, JsonOptions, cancellationToken)
+                    .ConfigureAwait(false) ?? CreateDefaultStore();
+            }
+            catch (JsonException ex)
+            {
+                Debug.WriteLine($"Instances file is corrupt; resetting to defaults: {ex.Message}");
+                BackupCorruptFile();
+                loaded = CreateDefaultStore();
+            }
+
+            _store = loaded;
+            var migrated = MigrateStoreIfNeeded();
+            NormalizeStore(ensureUniqueIdentifiers: migrated);
+
+            if (migrated || _store.Instances.Count == 0)
+            {
+                if (_store.Instances.Count == 0)
+                {
+                    _store.Instances.Add(CreateDefaultWhatsAppInstance());
+                    NormalizeStore(ensureUniqueIdentifiers: true);
+                }
+
+                await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            _isLoaded = true;
         }
-
-        await using var stream = File.OpenRead(_storePath);
-        var loaded = await JsonSerializer
-            .DeserializeAsync<InstanceStore>(stream, JsonOptions, cancellationToken)
-            .ConfigureAwait(false);
-
-        _store = loaded ?? CreateDefaultStore();
-        var migrated = MigrateStoreIfNeeded();
-        ApplyBrandingToAllInstances();
-
-        if (migrated)
+        finally
         {
-            await SaveAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        if (_store.Instances.Count == 0)
-        {
-            _store.Instances.Add(CreateDefaultWhatsAppInstance());
-            await SaveAsync(cancellationToken).ConfigureAwait(false);
+            _gate.Release();
         }
     }
 
@@ -96,12 +126,21 @@ public sealed partial class InstanceRegistryService
             IconGlyph = platform.IconGlyph,
             AccentColor = platform.AccentColor,
             Category = category,
-            SortOrder = _store.Instances.Count + 1
+            SortOrder = NextSortOrder(category)
         };
-        instance.ApplyPlatformBranding();
+        instance.Normalize();
 
-        _store.Instances.Add(instance);
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _store.Instances.Add(instance);
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
         return instance;
     }
 
@@ -109,51 +148,81 @@ public sealed partial class InstanceRegistryService
         string instanceId,
         CancellationToken cancellationToken = default)
     {
-        var archived = _store.ArchivedInstances.FirstOrDefault(
-            i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException("Archived instance not found.");
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var archived = _store.ArchivedInstances.FirstOrDefault(
+                i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidOperationException("Archived instance not found.");
 
-        _store.ArchivedInstances.Remove(archived);
-        _store.Instances.Add(archived);
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
-        return archived;
+            _store.ArchivedInstances.Remove(archived);
+            archived.SortOrder = NextSortOrder(archived.Category);
+            _store.Instances.Add(archived);
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+            return archived;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task RemoveFromSidebarAsync(
         string instanceId,
         CancellationToken cancellationToken = default)
     {
-        var instance = FindById(instanceId)
-            ?? throw new InvalidOperationException("Instance not found.");
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
 
-        _store.Instances.Remove(instance);
-        _store.ArchivedInstances.RemoveAll(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
-        _store.ArchivedInstances.Add(instance);
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+            _store.Instances.Remove(instance);
+            _store.ArchivedInstances.RemoveAll(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+            _store.ArchivedInstances.Add(instance);
+            RenormalizeSortOrders(_store.Instances.Where(i => i.IsProfessional == instance.IsProfessional));
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task RemovePermanentlyAsync(
         string instanceId,
         CancellationToken cancellationToken = default)
     {
-        var instance = FindById(instanceId) ??
-                       _store.ArchivedInstances.FirstOrDefault(
-                           i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
-                       ?? throw new InvalidOperationException("Instance not found.");
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var instance = FindById(instanceId) ??
+                           _store.ArchivedInstances.FirstOrDefault(
+                               i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
+                           ?? throw new InvalidOperationException("Instance not found.");
 
-        _store.Instances.RemoveAll(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
-        _store.ArchivedInstances.RemoveAll(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+            _store.Instances.RemoveAll(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+            _store.ArchivedInstances.RemoveAll(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+            RenormalizeSortOrders(_store.Instances.Where(i => i.IsProfessional == instance.IsProfessional));
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
-
-        await using var stream = File.Create(_storePath);
-        await JsonSerializer
-            .SerializeAsync(stream, _store, JsonOptions, cancellationToken)
-            .ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public MessengerInstance? FindById(string instanceId) =>
@@ -164,16 +233,28 @@ public sealed partial class InstanceRegistryService
         WorkspaceCategory category,
         CancellationToken cancellationToken = default)
     {
-        var instance = FindById(instanceId)
-            ?? throw new InvalidOperationException("Instance not found.");
-
-        if (instance.Category == category)
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            return;
-        }
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
 
-        instance.Category = category;
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+            if (instance.Category == category)
+            {
+                return;
+            }
+
+            var previousCategory = instance.Category;
+            instance.Category = category;
+            instance.SortOrder = NextSortOrder(category);
+            RenormalizeSortOrders(_store.Instances.Where(i => i.IsProfessional == (previousCategory == WorkspaceCategory.Professional)));
+            RenormalizeSortOrders(_store.Instances.Where(i => i.IsProfessional == instance.IsProfessional));
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task UpdateInstanceDisplayNameAsync(
@@ -187,16 +268,24 @@ public sealed partial class InstanceRegistryService
             throw new ArgumentException("Display name is required.", nameof(displayName));
         }
 
-        var instance = FindById(instanceId)
-            ?? throw new InvalidOperationException("Instance not found.");
-
-        if (instance.DisplayName.Equals(trimmed, StringComparison.Ordinal))
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            return;
-        }
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
 
-        instance.DisplayName = trimmed;
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+            if (instance.DisplayName.Equals(trimmed, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            instance.DisplayName = trimmed;
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task UpdateInstanceNotificationsMutedAsync(
@@ -204,11 +293,19 @@ public sealed partial class InstanceRegistryService
         bool muted,
         CancellationToken cancellationToken = default)
     {
-        var instance = FindById(instanceId)
-            ?? throw new InvalidOperationException("Instance not found.");
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
 
-        instance.NotificationsMuted = muted;
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+            instance.NotificationsMuted = muted;
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task MoveInstanceAsync(
@@ -216,36 +313,44 @@ public sealed partial class InstanceRegistryService
         int direction,
         CancellationToken cancellationToken = default)
     {
-        var instance = FindById(instanceId)
-            ?? throw new InvalidOperationException("Instance not found.");
-
-        var peers = _store.Instances
-            .Where(i => i.IsProfessional == instance.IsProfessional)
-            .OrderBy(i => i.SortOrder)
-            .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var index = peers.FindIndex(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
-        if (index < 0)
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            return;
-        }
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
 
-        var targetIndex = index + direction;
-        if (targetIndex < 0 || targetIndex >= peers.Count)
+            var peers = _store.Instances
+                .Where(i => i.IsProfessional == instance.IsProfessional)
+                .OrderBy(i => i.SortOrder)
+                .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var index = peers.FindIndex(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+            {
+                return;
+            }
+
+            var targetIndex = index + direction;
+            if (targetIndex < 0 || targetIndex >= peers.Count)
+            {
+                return;
+            }
+
+            var other = peers[targetIndex];
+            (instance.SortOrder, other.SortOrder) = (other.SortOrder, instance.SortOrder);
+            if (instance.SortOrder == other.SortOrder)
+            {
+                instance.SortOrder = index + direction + 1;
+                other.SortOrder = index + 1;
+            }
+
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
         {
-            return;
+            _gate.Release();
         }
-
-        var other = peers[targetIndex];
-        (instance.SortOrder, other.SortOrder) = (other.SortOrder, instance.SortOrder);
-        if (instance.SortOrder == other.SortOrder)
-        {
-            instance.SortOrder = index + direction + 1;
-            other.SortOrder = index + 1;
-        }
-
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task ReorderInstanceBeforeAsync(
@@ -253,39 +358,43 @@ public sealed partial class InstanceRegistryService
         string targetInstanceId,
         CancellationToken cancellationToken = default)
     {
-        var instance = FindById(instanceId)
-            ?? throw new InvalidOperationException("Instance not found.");
-        var target = FindById(targetInstanceId)
-            ?? throw new InvalidOperationException("Target instance not found.");
-
-        if (instance.IsProfessional != target.IsProfessional)
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            return;
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
+            var target = FindById(targetInstanceId)
+                ?? throw new InvalidOperationException("Target instance not found.");
+
+            if (instance.IsProfessional != target.IsProfessional)
+            {
+                return;
+            }
+
+            var peers = _store.Instances
+                .Where(i => i.IsProfessional == instance.IsProfessional)
+                .OrderBy(i => i.SortOrder)
+                .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            peers.Remove(instance);
+            var targetIndex = peers.FindIndex(i => i.Id.Equals(targetInstanceId, StringComparison.OrdinalIgnoreCase));
+            if (targetIndex < 0)
+            {
+                peers.Add(instance);
+            }
+            else
+            {
+                peers.Insert(targetIndex, instance);
+            }
+
+            RenormalizeSortOrders(peers, preserveListOrder: true);
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
         }
-
-        var peers = _store.Instances
-            .Where(i => i.IsProfessional == instance.IsProfessional)
-            .OrderBy(i => i.SortOrder)
-            .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        peers.Remove(instance);
-        var targetIndex = peers.FindIndex(i => i.Id.Equals(targetInstanceId, StringComparison.OrdinalIgnoreCase));
-        if (targetIndex < 0)
+        finally
         {
-            peers.Add(instance);
+            _gate.Release();
         }
-        else
-        {
-            peers.Insert(targetIndex, instance);
-        }
-
-        for (var i = 0; i < peers.Count; i++)
-        {
-            peers[i].SortOrder = i + 1;
-        }
-
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task UpdateInstanceMemoryTierAsync(
@@ -293,11 +402,19 @@ public sealed partial class InstanceRegistryService
         MemoryTierPreference tier,
         CancellationToken cancellationToken = default)
     {
-        var instance = FindById(instanceId)
-            ?? throw new InvalidOperationException("Instance not found.");
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
 
-        instance.MemoryTier = tier;
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+            instance.MemoryTier = tier;
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public async Task UpdateInstanceMetadataAsync(
@@ -308,18 +425,26 @@ public sealed partial class InstanceRegistryService
         string? notes,
         CancellationToken cancellationToken = default)
     {
-        var instance = FindById(instanceId)
-            ?? throw new InvalidOperationException("Instance not found.");
-
         var platform = PlatformDefinition.FindById(platformId)
             ?? throw new ArgumentException($"Unknown platform: {platformId}", nameof(platformId));
 
-        instance.DisplayName = displayName.Trim();
-        instance.StartUrl = ResolveStartUrl(platform, startUrl);
-        instance.Platform = platform.Id;
-        instance.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
-        instance.ApplyPlatformBranding();
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
+
+            instance.DisplayName = displayName.Trim();
+            instance.StartUrl = ResolveStartUrl(platform, startUrl);
+            instance.Platform = platform.Id;
+            instance.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+            instance.Normalize();
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public IEnumerable<MessengerInstance> GetOrderedInstances() =>
@@ -346,25 +471,82 @@ public sealed partial class InstanceRegistryService
             throw new FileNotFoundException("Import file not found.", sourcePath);
         }
 
-        await using var stream = File.OpenRead(sourcePath);
-        var imported = await JsonSerializer
-            .DeserializeAsync<InstanceStore>(stream, JsonOptions, cancellationToken)
-            .ConfigureAwait(false)
-            ?? throw new InvalidDataException("Import file is empty or invalid.");
+        InstanceStore imported;
+        try
+        {
+            await using var stream = File.OpenRead(sourcePath);
+            imported = await JsonSerializer
+                .DeserializeAsync<InstanceStore>(stream, JsonOptions, cancellationToken)
+                .ConfigureAwait(false)
+                ?? throw new InvalidDataException("Import file is empty or invalid.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("Import file is not valid JSON.", ex);
+        }
 
         if (imported.Instances.Count == 0 && imported.ArchivedInstances.Count == 0)
         {
             throw new InvalidDataException("Import file contains no instances.");
         }
 
-        _store = imported;
-        MigrateStoreIfNeeded();
-        ApplyBrandingToAllInstances();
-        await SaveAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            _store = imported;
+            MigrateStoreIfNeeded();
+            NormalizeStore(ensureUniqueIdentifiers: true);
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
 
-        return new ImportInstancesResult(
-            _store.Instances.Count,
-            _store.ArchivedInstances.Count);
+            return new ImportInstancesResult(
+                _store.Instances.Count,
+                _store.ArchivedInstances.Count);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task SaveCoreAsync(CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
+
+        var tempPath = _storePath + ".tmp";
+
+        await using (var stream = new FileStream(
+                         tempPath,
+                         FileMode.Create,
+                         FileAccess.Write,
+                         FileShare.None,
+                         bufferSize: 4096,
+                         options: FileOptions.Asynchronous))
+        {
+            await JsonSerializer
+                .SerializeAsync(stream, _store, JsonOptions, cancellationToken)
+                .ConfigureAwait(false);
+            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        File.Move(tempPath, _storePath, overwrite: true);
+    }
+
+    private void BackupCorruptFile()
+    {
+        try
+        {
+            if (!File.Exists(_storePath))
+            {
+                return;
+            }
+
+            var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
+            File.Move(_storePath, backupPath, overwrite: true);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Could not back up corrupt instances file: {ex.Message}");
+        }
     }
 
     private static InstanceStore CreateDefaultStore()
@@ -388,7 +570,8 @@ public sealed partial class InstanceRegistryService
             Platform = platform.Id,
             IconGlyph = platform.IconGlyph,
             AccentColor = platform.AccentColor,
-            Category = WorkspaceCategory.Personal
+            Category = WorkspaceCategory.Personal,
+            SortOrder = 1
         };
     }
 
@@ -398,7 +581,7 @@ public sealed partial class InstanceRegistryService
 
         if (_store.Version < 2)
         {
-            foreach (var instance in _store.Instances.Concat(_store.ArchivedInstances))
+            foreach (var instance in AllInstances())
             {
                 if (!Enum.IsDefined(instance.Category))
                 {
@@ -425,19 +608,112 @@ public sealed partial class InstanceRegistryService
             migrated = true;
         }
 
+        if (_store.Version < InstanceStore.CurrentVersion)
+        {
+            RenormalizeSortOrders(_store.Instances.Where(i => i.IsProfessional));
+            RenormalizeSortOrders(_store.Instances.Where(i => !i.IsProfessional));
+            _store.Version = InstanceStore.CurrentVersion;
+            migrated = true;
+        }
+
         return migrated;
     }
 
-    private void ApplyBrandingToAllInstances()
+    private void NormalizeStore(bool ensureUniqueIdentifiers)
     {
-        foreach (var instance in _store.Instances)
+        foreach (var instance in AllInstances())
         {
-            instance.ApplyPlatformBranding();
+            instance.Normalize();
         }
 
-        foreach (var instance in _store.ArchivedInstances)
+        RenormalizeSortOrders(_store.Instances.Where(i => i.IsProfessional));
+        RenormalizeSortOrders(_store.Instances.Where(i => !i.IsProfessional));
+
+        if (!ensureUniqueIdentifiers)
         {
-            instance.ApplyPlatformBranding();
+            return;
+        }
+
+        EnsureUniqueInstanceIds();
+        EnsureValidProfileNames();
+    }
+
+    private IEnumerable<MessengerInstance> AllInstances() =>
+        _store.Instances.Concat(_store.ArchivedInstances);
+
+    private void EnsureUniqueInstanceIds()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var instance in AllInstances())
+        {
+            if (string.IsNullOrWhiteSpace(instance.Id) || !seen.Add(instance.Id))
+            {
+                instance.Id = Guid.NewGuid().ToString("N");
+                seen.Add(instance.Id);
+            }
+        }
+    }
+
+    private void EnsureValidProfileNames()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var instance in AllInstances())
+        {
+            if (string.IsNullOrWhiteSpace(instance.ProfileName) ||
+                !TryValidateProfileName(instance.ProfileName))
+            {
+                instance.ProfileName = CreateProfileName(instance.DisplayName, instance.Platform);
+            }
+
+            var baseName = instance.ProfileName;
+            var suffix = 2;
+            while (!seen.Add(instance.ProfileName))
+            {
+                instance.ProfileName = CreateProfileName($"{baseName}-{suffix}", instance.Platform);
+                suffix++;
+            }
+        }
+    }
+
+    private static bool TryValidateProfileName(string profileName)
+    {
+        try
+        {
+            WebViewProfileManager.ValidateProfileName(profileName);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private int NextSortOrder(WorkspaceCategory category)
+    {
+        var isProfessional = category == WorkspaceCategory.Professional;
+        var maxOrder = _store.Instances
+            .Where(i => i.IsProfessional == isProfessional)
+            .Select(i => i.SortOrder)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return maxOrder + 1;
+    }
+
+    private static void RenormalizeSortOrders(
+        IEnumerable<MessengerInstance> instances,
+        bool preserveListOrder = false)
+    {
+        List<MessengerInstance> ordered = preserveListOrder
+            ? instances.ToList()
+            : instances
+                .OrderBy(i => i.SortOrder)
+                .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+        for (var i = 0; i < ordered.Count; i++)
+        {
+            ordered[i].SortOrder = i + 1;
         }
     }
 

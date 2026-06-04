@@ -20,31 +20,33 @@ public sealed class NotificationAlert
 
     public bool IsRead { get; set; }
 
-    public string RelativeTimeText => FormatRelativeTime(ReceivedAt);
+    public string RelativeTimeText => RelativeTimeFormatter.Format(ReceivedAt);
 
-    private static string FormatRelativeTime(DateTimeOffset time)
+    public static NotificationAlert Create(
+        string instanceId,
+        string instanceDisplayName,
+        string platform,
+        string title,
+        string? body = null,
+        string? iconGlyph = null,
+        string? id = null)
     {
-        var delta = DateTimeOffset.Now - time;
-        if (delta.TotalSeconds < 45)
-        {
-            return "Just now";
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
 
-        if (delta.TotalMinutes < 60)
-        {
-            return $"{(int)delta.TotalMinutes}m ago";
-        }
+        var displayName = string.IsNullOrWhiteSpace(instanceDisplayName)
+            ? "Account"
+            : instanceDisplayName.Trim();
 
-        if (delta.TotalHours < 24)
+        return new NotificationAlert
         {
-            return $"{(int)delta.TotalHours}h ago";
-        }
-
-        if (delta.TotalDays < 7)
-        {
-            return $"{(int)delta.TotalDays}d ago";
-        }
-
-        return time.ToLocalTime().ToString("MMM d");
+            Id = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : id.Trim(),
+            InstanceId = instanceId.Trim(),
+            InstanceDisplayName = displayName,
+            Platform = PlatformDefinition.NormalizePlatformId(platform),
+            IconGlyph = string.IsNullOrWhiteSpace(iconGlyph) ? "\uE8BD" : iconGlyph,
+            Title = string.IsNullOrWhiteSpace(title) ? displayName : title.Trim(),
+            Body = body?.Trim() ?? string.Empty,
+            ReceivedAt = DateTimeOffset.UtcNow
+        };
     }
 }

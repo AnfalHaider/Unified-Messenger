@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Windows.Foundation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
@@ -7,15 +9,14 @@ using UnifiedMessenger.Services.Adapters;
 namespace UnifiedMessenger.Services;
 
 /// <summary>
-/// Keeps one live WebView2 per instance (unique profile each). All sessions stay connected
-/// for background WebSocket/DOM monitoring; switching only changes which WebView is visible.
+/// Keeps one live WebView2 per instance (unique profile each). Background instances suspend on switch (MEM-01);
+/// LRU eviction enforces <see cref="AppSettings.MaxConcurrentWebViews"/> while keeping the visible session (MEM-04).
 /// </summary>
 public sealed class InstanceSessionManager
 {
     private static readonly Lazy<InstanceSessionManager> LazyInstance = new(() => new InstanceSessionManager());
 
-    private readonly Dictionary<string, WebView2> _sessions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _profileOwners = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SessionEntry> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _recentAccessOrder = new();
     private readonly Dictionary<string, LinkedListNode<string>> _accessNodes = new(StringComparer.OrdinalIgnoreCase);
 
@@ -25,7 +26,13 @@ public sealed class InstanceSessionManager
 
     public static InstanceSessionManager Instance => LazyInstance.Value;
 
+    internal InstanceSessionManager()
+    {
+    }
+
     public string? VisibleInstanceId => _visibleInstanceId;
+
+    public int ActiveSessionCount => _sessions.Count;
 
     public event EventHandler<InstanceSessionEventArgs>? SessionInitializing;
 
@@ -36,6 +43,12 @@ public sealed class InstanceSessionManager
     public void AttachHost(Grid host)
     {
         _host = host;
+    }
+
+    public void SyncInstance(MessengerInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        _instanceLookup[instance.Id] = instance;
     }
 
     /// <summary>
@@ -49,7 +62,7 @@ public sealed class InstanceSessionManager
         var list = instances.ToList();
         foreach (var instance in list)
         {
-            _instanceLookup[instance.Id] = instance;
+            SyncInstance(instance);
         }
 
         var settings = AppSettingsService.Instance.Settings;
@@ -60,19 +73,6 @@ public sealed class InstanceSessionManager
         switch (warmMode)
         {
             case StartupWarmMode.Lazy:
-                if (!string.IsNullOrWhiteSpace(visibleInstanceId))
-                {
-                    var visible = list.FirstOrDefault(i =>
-                        i.Id.Equals(visibleInstanceId, StringComparison.OrdinalIgnoreCase));
-                    if (visible is not null)
-                    {
-                        await EnsureSessionAsync(visible, cancellationToken).ConfigureAwait(true);
-                        await SwitchToAsync(visible, cancellationToken).ConfigureAwait(true);
-                    }
-                }
-
-                return;
-
             case StartupWarmMode.VisibleOnly:
                 if (!string.IsNullOrWhiteSpace(visibleInstanceId))
                 {
@@ -109,6 +109,8 @@ public sealed class InstanceSessionManager
     public async Task SwitchToAsync(MessengerInstance instance, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(instance);
+        SyncInstance(instance);
+
         if (_host is null)
         {
             throw new InvalidOperationException("Instance host grid is not attached.");
@@ -122,7 +124,7 @@ public sealed class InstanceSessionManager
         if (_visibleInstanceId is not null && _sessions.TryGetValue(_visibleInstanceId, out var current))
         {
             var previousInstanceId = _visibleInstanceId;
-            SetSessionVisualState(previousInstanceId, current, isForeground: false);
+            SetSessionVisualState(previousInstanceId, current.WebView, isForeground: false);
 
             if (AppSettingsService.Instance.Settings.EnablePerInstanceSleepUnload)
             {
@@ -140,17 +142,17 @@ public sealed class InstanceSessionManager
         {
             await EnsureSessionAsync(instance, cancellationToken).ConfigureAwait(true);
 
-            if (!_sessions.TryGetValue(instance.Id, out var webView))
+            if (!_sessions.TryGetValue(instance.Id, out var entry))
             {
                 throw new InvalidOperationException($"Session for \"{instance.DisplayName}\" was not created.");
             }
 
-            if (!_host.Children.Contains(webView))
+            if (!_host.Children.Contains(entry.WebView))
             {
-                _host.Children.Add(webView);
+                _host.Children.Add(entry.WebView);
             }
 
-            SetSessionVisualState(instance.Id, webView, isForeground: true);
+            SetSessionVisualState(instance.Id, entry.WebView, isForeground: true);
             _visibleInstanceId = instance.Id;
             TouchAccessOrder(instance.Id);
 
@@ -167,7 +169,7 @@ public sealed class InstanceSessionManager
 
     public async Task EnsureSessionAsync(MessengerInstance instance, CancellationToken cancellationToken = default)
     {
-        _instanceLookup[instance.Id] = instance;
+        SyncInstance(instance);
 
         if (_sessions.ContainsKey(instance.Id))
         {
@@ -179,34 +181,37 @@ public sealed class InstanceSessionManager
 
         SessionInitializing?.Invoke(this, new InstanceSessionEventArgs(instance));
 
+        SessionEntry? entry = null;
         try
         {
-            if (_profileOwners.TryGetValue(instance.ProfileName, out var ownerId) &&
-                !ownerId.Equals(instance.Id, StringComparison.OrdinalIgnoreCase))
+            if (InstanceWebViewRegistry.Instance.IsProfileOwnedByOther(instance.ProfileName, instance.Id))
             {
                 throw new InvalidOperationException(
                     $"Profile \"{instance.ProfileName}\" is already assigned to another instance.");
             }
 
-            var webView = await CreateConfiguredWebViewAsync(instance, cancellationToken).ConfigureAwait(true);
+            entry = await CreateSessionEntryAsync(instance, cancellationToken).ConfigureAwait(true);
+            _sessions[instance.Id] = entry;
+            InstanceWebViewRegistry.Instance.Register(instance.Id, instance.ProfileName, entry.WebView);
 
-            _sessions[instance.Id] = webView;
-            _profileOwners[instance.ProfileName] = instance.Id;
-            InstanceWebViewRegistry.Instance.Register(instance.Id, webView);
-
-            if (_host is not null && !_host.Children.Contains(webView))
+            if (_host is not null && !_host.Children.Contains(entry.WebView))
             {
-                _host.Children.Add(webView);
+                _host.Children.Add(entry.WebView);
             }
 
-            SetSessionVisualState(instance.Id, webView, isForeground: false);
-            webView.Source = new Uri(instance.StartUrl);
+            SetSessionVisualState(instance.Id, entry.WebView, isForeground: false);
+            entry.WebView.Source = new Uri(instance.StartUrl);
             TouchAccessOrder(instance.Id);
 
             SessionReady?.Invoke(this, new InstanceSessionEventArgs(instance));
         }
         catch (Exception ex)
         {
+            if (entry is not null)
+            {
+                await DisposeSessionEntryAsync(instance.Id, entry, unregister: true).ConfigureAwait(true);
+            }
+
             SessionFailed?.Invoke(this, new InstanceSessionErrorEventArgs(instance, ex));
             throw;
         }
@@ -215,71 +220,49 @@ public sealed class InstanceSessionManager
     /// <summary>
     /// Hides the visible instance without tearing down its WebView (background monitoring continues).
     /// </summary>
-    public Task HideVisibleSessionAsync()
+    public async Task HideVisibleSessionAsync()
     {
         if (_visibleInstanceId is not null && _sessions.TryGetValue(_visibleInstanceId, out var current))
         {
-            SetSessionVisualState(_visibleInstanceId, current, isForeground: false);
+            SetSessionVisualState(_visibleInstanceId, current.WebView, isForeground: false);
+            await TrySuspendSessionAsync(_visibleInstanceId).ConfigureAwait(true);
         }
 
         _visibleInstanceId = null;
-        return Task.CompletedTask;
     }
 
     public async Task CloseSessionAsync(string instanceId)
     {
-        if (!_sessions.TryGetValue(instanceId, out var webView))
+        if (!_sessions.TryGetValue(instanceId, out var entry))
         {
             return;
         }
 
-        var profileName = webView.CoreWebView2?.Profile.ProfileName;
-
-        if (_host?.Children.Contains(webView) == true)
-        {
-            _host.Children.Remove(webView);
-        }
-
-        if (webView.CoreWebView2 is not null)
-        {
-            webView.Close();
-        }
-
-        _sessions.Remove(instanceId);
-        InstanceWebViewRegistry.Instance.Unregister(instanceId);
-
-        if (!string.IsNullOrWhiteSpace(profileName))
-        {
-            _profileOwners.Remove(profileName);
-        }
+        await DisposeSessionEntryAsync(instanceId, entry, unregister: true).ConfigureAwait(true);
 
         if (_visibleInstanceId == instanceId)
         {
             _visibleInstanceId = null;
         }
 
-        _accessNodes.Remove(instanceId);
-        _recentAccessOrder.Remove(instanceId);
-        _instanceLookup.Remove(instanceId);
-
-        await Task.CompletedTask;
+        RemoveAccessTracking(instanceId);
     }
 
     public async Task ReloadSessionAsync(string instanceId, CancellationToken cancellationToken = default)
     {
-        if (!_sessions.TryGetValue(instanceId, out var webView) ||
-            webView.CoreWebView2 is null)
+        if (!_sessions.TryGetValue(instanceId, out var entry) ||
+            entry.WebView.CoreWebView2 is null)
         {
             return;
         }
 
         try
         {
-            webView.CoreWebView2.Reload();
+            entry.WebView.CoreWebView2.Reload();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WebView reload failed: {ex.Message}");
+            Debug.WriteLine($"WebView reload failed: {ex.Message}");
         }
 
         await Task.CompletedTask;
@@ -290,17 +273,17 @@ public sealed class InstanceSessionManager
         foreach (var instanceId in _sessions.Keys.ToList())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(false);
+            await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(true);
         }
     }
 
     public async Task RecoverStaleAdapterAsync(string instanceId, CancellationToken cancellationToken = default)
     {
-        if (!_sessions.TryGetValue(instanceId, out var webView) ||
-            webView.CoreWebView2 is null ||
+        if (!_sessions.TryGetValue(instanceId, out var entry) ||
+            entry.WebView.CoreWebView2 is null ||
             !_instanceLookup.TryGetValue(instanceId, out var instance))
         {
-            await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(false);
+            await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(true);
             return;
         }
 
@@ -309,79 +292,102 @@ public sealed class InstanceSessionManager
             var adapter = PlatformAdapterFactory.Resolve(instance.Platform);
             if (adapter is BasePlatformAdapter platformAdapter)
             {
-                await platformAdapter.ReinjectAsync(webView.CoreWebView2, instance, cancellationToken)
-                    .ConfigureAwait(false);
+                await platformAdapter.ReinjectAsync(entry.WebView.CoreWebView2, instance, cancellationToken)
+                    .ConfigureAwait(true);
                 AdapterHealthMonitor.Instance.MarkReady(instanceId, platformAdapter.PlatformId);
                 return;
             }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Adapter reinject failed: {ex.Message}");
+            Debug.WriteLine($"Adapter reinject failed: {ex.Message}");
         }
 
-        await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(false);
+        await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(true);
     }
 
     public async Task TrySuspendSessionAsync(string instanceId)
     {
-        if (!_sessions.TryGetValue(instanceId, out var webView) ||
-            webView.CoreWebView2 is null)
+        if (!_sessions.TryGetValue(instanceId, out var entry) ||
+            entry.WebView.CoreWebView2 is null)
         {
             return;
         }
 
         try
         {
-            await webView.CoreWebView2.TrySuspendAsync();
+            await entry.WebView.CoreWebView2.TrySuspendAsync();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WebView suspend failed: {ex.Message}");
+            Debug.WriteLine($"WebView suspend failed: {ex.Message}");
         }
     }
 
     public async Task TryResumeSessionAsync(string instanceId)
     {
-        if (!_sessions.TryGetValue(instanceId, out var webView) ||
-            webView.CoreWebView2 is null)
+        if (!_sessions.TryGetValue(instanceId, out var entry) ||
+            entry.WebView.CoreWebView2 is null)
         {
             return;
         }
 
         try
         {
-            webView.CoreWebView2.Resume();
+            entry.WebView.CoreWebView2.Resume();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WebView resume failed: {ex.Message}");
+            Debug.WriteLine($"WebView resume failed: {ex.Message}");
         }
 
         await Task.CompletedTask;
     }
 
+    internal string? SelectLruEvictionCandidate(string incomingInstanceId)
+    {
+        for (var node = _recentAccessOrder.Last; node is not null; node = node.Previous)
+        {
+            var candidateId = node.Value;
+            if (candidateId.Equals(incomingInstanceId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (candidateId.Equals(_visibleInstanceId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return candidateId;
+        }
+
+        return null;
+    }
+
+    internal void TrackAccessForTests(string instanceId) => TouchAccessOrder(instanceId);
+
+    internal void SetVisibleInstanceForTests(string? instanceId) => _visibleInstanceId = instanceId;
+
     private async Task EnforceSessionCapAsync(string incomingInstanceId, CancellationToken cancellationToken)
     {
         var cap = AppSettingsService.Instance.Settings.MaxConcurrentWebViews;
-        if (cap <= 0 || _sessions.Count < cap)
+        if (cap <= 0)
         {
             return;
         }
 
         while (_sessions.Count >= cap)
         {
-            var evictionCandidate = _recentAccessOrder
-                .FirstOrDefault(id =>
-                    !id.Equals(incomingInstanceId, StringComparison.OrdinalIgnoreCase) &&
-                    !id.Equals(_visibleInstanceId, StringComparison.OrdinalIgnoreCase));
+            cancellationToken.ThrowIfCancellationRequested();
 
+            var evictionCandidate = SelectLruEvictionCandidate(incomingInstanceId);
             if (string.IsNullOrWhiteSpace(evictionCandidate))
             {
                 break;
             }
 
-            await CloseSessionAsync(evictionCandidate).ConfigureAwait(false);
+            await CloseSessionAsync(evictionCandidate).ConfigureAwait(true);
         }
     }
 
@@ -396,39 +402,51 @@ public sealed class InstanceSessionManager
         _accessNodes[instanceId] = node;
     }
 
+    private void RemoveAccessTracking(string instanceId)
+    {
+        if (_accessNodes.Remove(instanceId, out var node))
+        {
+            _recentAccessOrder.Remove(node);
+        }
+        else
+        {
+            _recentAccessOrder.Remove(instanceId);
+        }
+    }
+
     public void ApplyAppWindowState(bool isAppActive)
     {
-        foreach (var (instanceId, webView) in _sessions)
+        foreach (var (instanceId, entry) in _sessions)
         {
             var isForeground = isAppActive &&
                                instanceId.Equals(_visibleInstanceId, StringComparison.OrdinalIgnoreCase);
-            SetSessionVisualState(instanceId, webView, isForeground);
+            SetSessionVisualState(instanceId, entry.WebView, isForeground);
         }
     }
 
     public WebView2? TryGetWebView(string instanceId)
     {
-        _sessions.TryGetValue(instanceId, out var webView);
-        return webView;
+        return _sessions.TryGetValue(instanceId, out var entry) ? entry.WebView : null;
     }
 
-    public IEnumerable<WebView2> AllActiveWebViews => _sessions.Values;
+    public IEnumerable<WebView2> AllActiveWebViews =>
+        _sessions.Values.Select(entry => entry.WebView);
 
     public async Task ExecuteScriptOnInstanceAsync(string instanceId, string script)
     {
-        if (!_sessions.TryGetValue(instanceId, out var webView) ||
-            webView.CoreWebView2 is null)
+        if (!_sessions.TryGetValue(instanceId, out var entry) ||
+            entry.WebView.CoreWebView2 is null)
         {
             return;
         }
 
         try
         {
-            await webView.CoreWebView2.ExecuteScriptAsync(script).AsTask().ConfigureAwait(false);
+            await entry.WebView.CoreWebView2.ExecuteScriptAsync(script).AsTask().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Instance script execution failed: {ex.Message}");
+            Debug.WriteLine($"Instance script execution failed: {ex.Message}");
         }
     }
 
@@ -439,22 +457,57 @@ public sealed class InstanceSessionManager
             $"window.__umIncludeMutedBadges = {includeMuted}; " +
             "if (window.__unifiedMessengerPublishBadge) { window.__unifiedMessengerPublishBadge(); }";
 
-        foreach (var webView in _sessions.Values)
+        foreach (var entry in _sessions.Values)
         {
-            if (webView.CoreWebView2 is null)
+            if (entry.WebView.CoreWebView2 is null)
             {
                 continue;
             }
 
             try
             {
-                await webView.CoreWebView2.ExecuteScriptAsync(script).AsTask().ConfigureAwait(false);
+                await entry.WebView.CoreWebView2.ExecuteScriptAsync(script).AsTask().ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Adapter settings broadcast failed: {ex.Message}");
+                Debug.WriteLine($"Adapter settings broadcast failed: {ex.Message}");
             }
         }
+    }
+
+    private async Task DisposeSessionEntryAsync(string instanceId, SessionEntry entry, bool unregister)
+    {
+        DetachMessageHandler(entry);
+
+        if (_host?.Children.Contains(entry.WebView) == true)
+        {
+            _host.Children.Remove(entry.WebView);
+        }
+
+        if (entry.WebView.CoreWebView2 is not null)
+        {
+            entry.WebView.Close();
+        }
+
+        _sessions.Remove(instanceId);
+
+        if (unregister)
+        {
+            InstanceWebViewRegistry.Instance.Unregister(instanceId);
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private static void DetachMessageHandler(SessionEntry entry)
+    {
+        if (entry.WebView.CoreWebView2 is null || entry.MessageHandler is null)
+        {
+            return;
+        }
+
+        entry.WebView.CoreWebView2.WebMessageReceived -= entry.MessageHandler;
+        entry.MessageHandler = null;
     }
 
     private static void SetSessionVisualState(string instanceId, WebView2 webView, bool isForeground)
@@ -476,17 +529,12 @@ public sealed class InstanceSessionManager
             return CoreWebView2MemoryUsageTargetLevel.Normal;
         }
 
-        if (InstanceSessionManager.Instance.TryGetInstanceMemoryTier(instanceId) == MemoryTierPreference.High)
+        return InstanceSessionManager.Instance.TryGetInstanceMemoryTier(instanceId) switch
         {
-            return CoreWebView2MemoryUsageTargetLevel.Normal;
-        }
-
-        if (InstanceSessionManager.Instance.TryGetInstanceMemoryTier(instanceId) == MemoryTierPreference.Low)
-        {
-            return CoreWebView2MemoryUsageTargetLevel.Low;
-        }
-
-        return CoreWebView2MemoryUsageTargetLevel.Low;
+            MemoryTierPreference.High => CoreWebView2MemoryUsageTargetLevel.Normal,
+            MemoryTierPreference.Low => CoreWebView2MemoryUsageTargetLevel.Low,
+            _ => CoreWebView2MemoryUsageTargetLevel.Low
+        };
     }
 
     internal MemoryTierPreference TryGetInstanceMemoryTier(string instanceId)
@@ -496,7 +544,7 @@ public sealed class InstanceSessionManager
             : MemoryTierPreference.Normal;
     }
 
-    private static async Task<WebView2> CreateConfiguredWebViewAsync(
+    private static async Task<SessionEntry> CreateSessionEntryAsync(
         MessengerInstance instance,
         CancellationToken cancellationToken)
     {
@@ -509,23 +557,29 @@ public sealed class InstanceSessionManager
         var coreWebView = webView.CoreWebView2
             ?? throw new InvalidOperationException("CoreWebView2 was not initialized.");
 
-        if (!coreWebView.Profile.ProfileName.Equals(instance.ProfileName, StringComparison.OrdinalIgnoreCase))
-        {
-            webView.Close();
-            throw new InvalidOperationException(
-                $"Profile mismatch. Expected \"{instance.ProfileName}\" but got \"{coreWebView.Profile.ProfileName}\".");
-        }
-
         var adapter = PlatformAdapterFactory.Resolve(instance.Platform);
-        coreWebView.WebMessageReceived += (_, args) =>
+        TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs> messageHandler = (_, args) =>
         {
             adapter.HandleWebMessage(args.WebMessageAsJson, NotificationHub.Instance, instance);
         };
 
+        coreWebView.WebMessageReceived += messageHandler;
+
         await WebViewChromeStyleInjector.InjectAsync(coreWebView, instance.Platform, cancellationToken);
         await adapter.RegisterAsync(coreWebView, instance, cancellationToken);
 
-        return webView;
+        return new SessionEntry
+        {
+            WebView = webView,
+            MessageHandler = messageHandler
+        };
+    }
+
+    private sealed class SessionEntry
+    {
+        public required WebView2 WebView { get; init; }
+
+        public TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs>? MessageHandler { get; set; }
     }
 }
 

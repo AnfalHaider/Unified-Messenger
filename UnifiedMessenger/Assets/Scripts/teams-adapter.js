@@ -12,6 +12,13 @@
   var ADAPTER_ID = 'teams';
   var lastPostedCount = -1;
   var pollTimer = null;
+  var domObserver = null;
+  var publishScheduled = false;
+  var lastUrl = location.href;
+  var spaNotify = null;
+  var historyHooked = false;
+  var originalPushState = null;
+  var originalReplaceState = null;
 
   function postMessage(payload) {
     window.__umPostMessage(payload);
@@ -21,14 +28,22 @@
     var total = 0;
     var selectors = [
       '[data-tid="activity-feed-badge"]',
+      '[data-tid="team-channels-unread-count"]',
       '.activity-badge',
       '[aria-label*="Activity"] [class*="badge"]',
-      '.ts-badge'
+      '[aria-label*="Unread"] [class*="badge"]',
+      '.ts-badge',
+      'span[data-tid="badge-count"]'
     ];
 
     selectors.forEach(function (selector) {
       document.querySelectorAll(selector).forEach(function (badge) {
-        total += window.__umSafeParseInt(badge.textContent);
+        if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(badge)) {
+          return;
+        }
+
+        var label = badge.getAttribute('aria-label') || badge.textContent || '';
+        total += window.__umSafeParseInt(label);
       });
     });
 
@@ -44,7 +59,8 @@
     return window.__umCountFromTitle();
   }
 
-  function publishBadgeCount() {
+  function publishBadgeCountImmediate() {
+    publishScheduled = false;
     var count = computeUnreadCount();
     if (count === lastPostedCount) {
       return;
@@ -59,19 +75,28 @@
     });
   }
 
-  window.__unifiedMessengerPublishBadge = publishBadgeCount;
-
-  function observeDom() {
-    var root = document.body || document.documentElement;
-    if (!root) {
+  function schedulePublishBadgeCount() {
+    if (publishScheduled) {
       return;
     }
 
-    var observer = new MutationObserver(function () {
-      publishBadgeCount();
+    publishScheduled = true;
+    window.setTimeout(publishBadgeCountImmediate, 120);
+  }
+
+  window.__unifiedMessengerPublishBadge = publishBadgeCountImmediate;
+
+  function observeDom() {
+    var root = document.body || document.documentElement;
+    if (!root || domObserver) {
+      return;
+    }
+
+    domObserver = new MutationObserver(function () {
+      schedulePublishBadgeCount();
     });
 
-    observer.observe(root, {
+    domObserver.observe(root, {
       childList: true,
       subtree: true,
       characterData: true,
@@ -80,21 +105,107 @@
     });
   }
 
+  function hookSpaNavigation() {
+    if (historyHooked) {
+      return;
+    }
+
+    historyHooked = true;
+    spaNotify = function () {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        lastPostedCount = -1;
+      }
+
+      schedulePublishBadgeCount();
+    };
+
+    window.addEventListener('popstate', spaNotify);
+    window.addEventListener('hashchange', spaNotify);
+
+    originalPushState = history.pushState;
+    originalReplaceState = history.replaceState;
+
+    history.pushState = function () {
+      originalPushState.apply(history, arguments);
+      spaNotify();
+    };
+
+    history.replaceState = function () {
+      originalReplaceState.apply(history, arguments);
+      spaNotify();
+    };
+  }
+
+  function unhookSpaNavigation() {
+    if (!historyHooked) {
+      return;
+    }
+
+    window.removeEventListener('popstate', spaNotify);
+    window.removeEventListener('hashchange', spaNotify);
+
+    if (originalPushState) {
+      history.pushState = originalPushState;
+    }
+
+    if (originalReplaceState) {
+      history.replaceState = originalReplaceState;
+    }
+
+    historyHooked = false;
+    spaNotify = null;
+  }
+
+  function onVisibilityChange() {
+    if (!document.hidden) {
+      publishBadgeCountImmediate();
+    }
+  }
+
   function startPolling() {
     if (pollTimer) {
       return;
     }
 
-    publishBadgeCount();
-    pollTimer = window.setInterval(publishBadgeCount, 4000);
+    publishBadgeCountImmediate();
+    pollTimer = window.setInterval(function () {
+      if (!document.hidden) {
+        publishBadgeCountImmediate();
+      }
+    }, 5000);
+  }
+
+  function disposeAdapter() {
+    if (pollTimer) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    if (domObserver) {
+      domObserver.disconnect();
+      domObserver = null;
+    }
+
+    unhookSpaNavigation();
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('load', publishBadgeCountImmediate);
+    publishScheduled = false;
+    lastPostedCount = -1;
+  }
+
+  window.__umAdapterDispose = disposeAdapter;
+  if (window.__umRegisterDisposable) {
+    window.__umRegisterDisposable(disposeAdapter);
   }
 
   window.__umInstallNotificationInterceptor(INSTANCE_ID, PLATFORM);
   window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
   window.__umStartHeartbeat(INSTANCE_ID, PLATFORM, ADAPTER_ID, 30000);
+  hookSpaNavigation();
   observeDom();
   startPolling();
 
-  document.addEventListener('visibilitychange', publishBadgeCount);
-  window.addEventListener('load', publishBadgeCount);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('load', publishBadgeCountImmediate);
 })();

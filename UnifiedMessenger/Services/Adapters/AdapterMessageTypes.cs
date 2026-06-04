@@ -20,4 +20,22 @@ public static class AdapterMessageTypes
     public const string GoogleReviewSnapshot = "google-review-snapshot";
 
     public const string GoogleReviewAlert = "google-review-alert";
+
+    private static readonly HashSet<string> StandardTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        BadgeCount,
+        NotificationPreview,
+        AdapterReady,
+        Heartbeat,
+        MessageSent
+    };
+
+    public static bool IsStandardType(string? type) =>
+        !string.IsNullOrWhiteSpace(type) && StandardTypes.Contains(type);
+
+    public static bool IsKnownType(string? type) =>
+        IsStandardType(type) ||
+        MetaInboundMessage.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        GoogleReviewSnapshot.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        GoogleReviewAlert.Equals(type, StringComparison.OrdinalIgnoreCase);
 }

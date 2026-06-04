@@ -48,4 +48,43 @@ public sealed class MessengerInstance
         IconGlyph = platform.IconGlyph;
         AccentColor = platform.AccentColor;
     }
+
+    /// <summary>
+    /// Repairs invalid persisted values after load, import, or manual JSON edits.
+    /// </summary>
+    public void Normalize()
+    {
+        Id = Id?.Trim() ?? string.Empty;
+        DisplayName = DisplayName?.Trim() ?? string.Empty;
+        ProfileName = ProfileName?.Trim() ?? string.Empty;
+        StartUrl = StartUrl?.Trim() ?? string.Empty;
+        Platform = PlatformDefinition.NormalizePlatformId(Platform);
+        Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes.Trim();
+
+        if (string.IsNullOrWhiteSpace(DisplayName))
+        {
+            DisplayName = PlatformDefinition.FindById(Platform)?.DisplayName ?? "Account";
+        }
+
+        if (!Enum.IsDefined(Category))
+        {
+            Category = WorkspaceCategory.Personal;
+        }
+
+        if (!Enum.IsDefined(MemoryTier))
+        {
+            MemoryTier = MemoryTierPreference.Normal;
+        }
+
+        if (string.IsNullOrWhiteSpace(ProfileName) && !string.IsNullOrWhiteSpace(Id))
+        {
+            ProfileName = $"{Platform}-{Id}";
+            if (ProfileName.Length > 64)
+            {
+                ProfileName = ProfileName[..64].TrimEnd('.', ' ');
+            }
+        }
+
+        ApplyPlatformBranding();
+    }
 }

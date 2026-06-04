@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
@@ -19,7 +20,7 @@ public sealed partial class WebViewProfileManager
     private WebViewProfileManager()
     {
         UserDataFolder = Path.Combine(
-            System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "UnifiedMessenger",
             "WebView2");
     }
@@ -64,6 +65,11 @@ public sealed partial class WebViewProfileManager
 
             return _sharedEnvironment;
         }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WebView2 environment initialization failed: {ex.Message}");
+            throw;
+        }
         finally
         {
             _environmentLock.Release();
@@ -78,18 +84,36 @@ public sealed partial class WebViewProfileManager
         string profileName,
         CancellationToken cancellationToken = default)
     {
+        profileName = NormalizeProfileName(profileName);
         ValidateProfileName(profileName);
 
         // Do not ConfigureAwait(false) here — WebView2 is a UI control and must stay on the UI thread.
         var environment = await EnsureEnvironmentAsync(cancellationToken);
 
-        var webView = new WebView2();
-        var options = environment.CreateCoreWebView2ControllerOptions();
-        options.ProfileName = profileName;
+        WebView2? webView = null;
+        try
+        {
+            webView = new WebView2();
+            var options = environment.CreateCoreWebView2ControllerOptions();
+            options.ProfileName = profileName;
 
-        await webView.EnsureCoreWebView2Async(environment, options);
+            await webView.EnsureCoreWebView2Async(environment, options);
 
-        return webView;
+            var actualProfile = webView.CoreWebView2?.Profile.ProfileName;
+            if (actualProfile is null ||
+                !actualProfile.Equals(profileName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Profile mismatch. Expected \"{profileName}\" but got \"{actualProfile ?? "null"}\".");
+            }
+
+            return webView;
+        }
+        catch
+        {
+            webView?.Close();
+            throw;
+        }
     }
 
     /// <summary>
@@ -101,12 +125,14 @@ public sealed partial class WebViewProfileManager
         WebView2? activeWebView = null,
         CancellationToken cancellationToken = default)
     {
+        profileName = NormalizeProfileName(profileName);
         ValidateProfileName(profileName);
 
         if (activeWebView?.CoreWebView2 is not null)
         {
             await WipeProfileAsync(activeWebView.CoreWebView2.Profile, cancellationToken);
             activeWebView.Close();
+            InstanceWebViewRegistry.Instance.ReleaseProfile(profileName);
             return;
         }
 
@@ -121,6 +147,7 @@ public sealed partial class WebViewProfileManager
         finally
         {
             ephemeralWebView.Close();
+            InstanceWebViewRegistry.Instance.ReleaseProfile(profileName);
         }
     }
 
@@ -157,9 +184,27 @@ public sealed partial class WebViewProfileManager
         }
     }
 
+    public static string NormalizeProfileName(string profileName) =>
+        profileName.Trim();
+
+    public static bool TryValidateProfileName(string profileName)
+    {
+        try
+        {
+            ValidateProfileName(profileName);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
     public static void ValidateProfileName(string profileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(profileName);
+
+        profileName = NormalizeProfileName(profileName);
 
         if (profileName.Length > 64)
         {

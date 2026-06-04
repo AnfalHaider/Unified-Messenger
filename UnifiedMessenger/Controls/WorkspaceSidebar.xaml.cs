@@ -16,7 +16,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private readonly Dictionary<string, Ellipse> _instanceStatusDots = new(StringComparer.OrdinalIgnoreCase);
 
     private Border? _dashboardRow;
-    private string? _selectedKey = "dashboard";
+    private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
     private bool _isCompact;
     private readonly List<FrameworkElement> _compactHiddenElements = [];
 
@@ -26,6 +26,7 @@ public sealed partial class WorkspaceSidebar : Grid
         MenuStack.AllowDrop = true;
         MenuStack.DragOver += MenuStack_DragOver;
         MenuStack.Drop += MenuStack_Drop;
+        Unloaded += OnUnloaded;
     }
 
     public event EventHandler<(string SourceInstanceId, string TargetInstanceId)>? InstanceReorderRequested;
@@ -48,7 +49,9 @@ public sealed partial class WorkspaceSidebar : Grid
         string? selectedInstanceId,
         bool dashboardSelected)
     {
-        _selectedKey = dashboardSelected ? "dashboard" : selectedInstanceId;
+        ArgumentNullException.ThrowIfNull(instances);
+
+        _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(dashboardSelected, selectedInstanceId);
         _instanceRows.Clear();
         _instanceBadges.Clear();
         _instanceStatusDots.Clear();
@@ -59,16 +62,7 @@ public sealed partial class WorkspaceSidebar : Grid
         _dashboardRow = CreateDashboardRow();
         MenuStack.Children.Add(_dashboardRow);
 
-        var professional = instances
-            .Where(i => i.IsProfessional)
-            .OrderBy(i => i.SortOrder)
-            .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var personal = instances
-            .Where(i => !i.IsProfessional)
-            .OrderBy(i => i.SortOrder)
-            .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var (professional, personal) = WorkspaceSidebarHelper.PartitionInstances(instances);
 
         AddSectionHeader("Pro / Business");
         if (professional.Count == 0)
@@ -135,20 +129,22 @@ public sealed partial class WorkspaceSidebar : Grid
 
     public void SetSelection(bool dashboardSelected, string? instanceId)
     {
-        _selectedKey = dashboardSelected ? "dashboard" : instanceId;
+        _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(dashboardSelected, instanceId);
         ApplySelectionVisuals();
     }
 
     public void UpdateInstanceBadge(string instanceId, int count, MessengerInstance? instance = null)
     {
-        if (!_instanceBadges.TryGetValue(instanceId, out var badge))
+        if (string.IsNullOrWhiteSpace(instanceId) ||
+            !_instanceBadges.TryGetValue(instanceId.Trim(), out var badge))
         {
             return;
         }
 
-        if (count > 0)
+        var clampedCount = WorkspaceSidebarHelper.ClampBadgeCount(count);
+        if (clampedCount > 0)
         {
-            badge.Value = count > 99 ? 99 : count;
+            badge.Value = clampedCount;
             badge.Visibility = Visibility.Visible;
             if (instance is not null)
             {
@@ -163,9 +159,10 @@ public sealed partial class WorkspaceSidebar : Grid
 
     public void UpdateNotificationHubBadge(int total)
     {
-        if (total > 0)
+        var clampedTotal = WorkspaceSidebarHelper.ClampBadgeCount(total);
+        if (clampedTotal > 0)
         {
-            NotificationHubBadge.Value = total > 99 ? 99 : total;
+            NotificationHubBadge.Value = clampedTotal;
             NotificationHubBadge.Visibility = Visibility.Visible;
         }
         else
@@ -176,27 +173,28 @@ public sealed partial class WorkspaceSidebar : Grid
 
     public void UpdateInstanceHealth(string instanceId, MessengerInstance instance)
     {
-        if (!_instanceStatusDots.TryGetValue(instanceId, out var dot))
+        if (string.IsNullOrWhiteSpace(instanceId) ||
+            !_instanceStatusDots.TryGetValue(instanceId.Trim(), out var dot))
         {
             return;
         }
 
         var status = AdapterHealthMonitor.Instance.GetStatus(instanceId);
-        dot.Fill = new SolidColorBrush(status.State switch
-        {
-            AdapterHealthState.Healthy => Windows.UI.Color.FromArgb(255, 16, 124, 16),
-            AdapterHealthState.Ready => Windows.UI.Color.FromArgb(255, 0, 99, 177),
-            AdapterHealthState.Stale => Windows.UI.Color.FromArgb(255, 196, 89, 17),
-            AdapterHealthState.NoAdapter => Windows.UI.Color.FromArgb(255, 128, 128, 128),
-            _ => Windows.UI.Color.FromArgb(255, 160, 160, 160)
-        });
+        dot.Fill = new SolidColorBrush(WorkspaceSidebarHelper.ResolveHealthIndicatorColor(status.State));
 
-        if (_instanceRows.TryGetValue(instanceId, out var row))
+        if (_instanceRows.TryGetValue(instanceId.Trim(), out var row))
         {
             ToolTipService.SetToolTip(
                 row,
                 $"{instance.DisplayName}\nWorkspace: {instance.Category}\nAdapter: {status.Description}");
         }
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        MenuStack.DragOver -= MenuStack_DragOver;
+        MenuStack.Drop -= MenuStack_Drop;
+        Unloaded -= OnUnloaded;
     }
 
     private void AddSectionHeader(string title)
@@ -230,10 +228,13 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private Border CreateDashboardRow()
     {
-        var row = CreateSelectableRow("dashboard", null, "Dashboard", "Overview", null);
-        row.PointerPressed += (_, _) => DashboardRequested?.Invoke(this, EventArgs.Empty);
+        var row = CreateSelectableRow(WorkspaceSidebarHelper.DashboardSelectionKey, null, "Dashboard", "Overview", null);
+        row.PointerPressed += DashboardRow_PointerPressed;
         return row;
     }
+
+    private void DashboardRow_PointerPressed(object sender, PointerRoutedEventArgs e) =>
+        DashboardRequested?.Invoke(this, EventArgs.Empty);
 
     private static FrameworkElement CreateFallbackIcon(string glyph, SolidColorBrush accentBrush, double size)
     {
@@ -252,38 +253,47 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private Border CreateInstanceRow(MessengerInstance instance)
     {
-        var subtitle = instance.NotificationsMuted
-            ? "Notifications muted"
-            : GetStatusSubtitle(instance.Id);
+        var instanceId = instance.Id.Trim();
+        var subtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
+            AdapterHealthMonitor.Instance.GetStatus(instanceId).State,
+            instance.NotificationsMuted);
         var row = CreateSelectableRow(
-            instance.Id,
+            instanceId,
             instance,
             instance.DisplayName,
             subtitle,
             PlatformBrandingHelper.GetAccentBrush(instance));
 
-        row.PointerPressed += (_, e) =>
-        {
-            if (e.GetCurrentPoint(row).Properties.IsRightButtonPressed)
-            {
-                InstanceContextRequested?.Invoke(this, (instance.Id, instance, row));
-                return;
-            }
-
-            InstanceRequested?.Invoke(this, instance.Id);
-        };
-
+        row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
         row.CanDrag = true;
-        row.DragStarting += (_, e) =>
-        {
-            e.Data.SetText(instance.Id);
-            e.Data.Properties.Title = instance.DisplayName;
-            e.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
-        };
+        row.DragStarting += (_, e) => InstanceRow_DragStarting(e, instanceId, instance.DisplayName);
 
-        _instanceRows[instance.Id] = row;
-        UpdateInstanceHealth(instance.Id, instance);
+        _instanceRows[instanceId] = row;
+        UpdateInstanceHealth(instanceId, instance);
         return row;
+    }
+
+    private void InstanceRow_PointerPressed(
+        object sender,
+        PointerRoutedEventArgs e,
+        string instanceId,
+        MessengerInstance instance,
+        Border row)
+    {
+        if (e.GetCurrentPoint(row).Properties.IsRightButtonPressed)
+        {
+            InstanceContextRequested?.Invoke(this, (instanceId, instance, row));
+            return;
+        }
+
+        InstanceRequested?.Invoke(this, instanceId);
+    }
+
+    private static void InstanceRow_DragStarting(DragStartingEventArgs e, string instanceId, string displayName)
+    {
+        e.Data.SetText(instanceId);
+        e.Data.Properties.Title = displayName;
+        e.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
     }
 
     private Border CreateSelectableRow(
@@ -293,7 +303,7 @@ public sealed partial class WorkspaceSidebar : Grid
         string subtitle,
         SolidColorBrush? accentBrush)
     {
-        accentBrush ??= new SolidColorBrush(Windows.UI.Color.FromArgb(255, 107, 114, 128));
+        accentBrush ??= PlatformBrandingHelper.GetAccentBrush((string?)null);
 
         var row = new Border
         {
@@ -362,7 +372,7 @@ public sealed partial class WorkspaceSidebar : Grid
         row.Child = grid;
         ToolTipService.SetToolTip(row, $"{title}\n{subtitle}");
 
-        if (key != "dashboard")
+        if (!WorkspaceSidebarHelper.IsSelectionMatch(key, WorkspaceSidebarHelper.DashboardSelectionKey))
         {
             _instanceStatusDots[key] = statusDot;
             _instanceBadges[key] = badge;
@@ -371,29 +381,18 @@ public sealed partial class WorkspaceSidebar : Grid
         return row;
     }
 
-    private static string GetStatusSubtitle(string instanceId)
-    {
-        var status = AdapterHealthMonitor.Instance.GetStatus(instanceId);
-        return status.State switch
-        {
-            AdapterHealthState.Healthy => "Status: Online",
-            AdapterHealthState.Ready => "Status: Ready",
-            AdapterHealthState.Stale => "Status: Stale",
-            AdapterHealthState.NoAdapter => "Status: Starting",
-            _ => "Status: Unknown"
-        };
-    }
-
     private void ApplySelectionVisuals()
     {
         if (_dashboardRow is not null)
         {
-            ApplyRowSelection(_dashboardRow, _selectedKey == "dashboard");
+            ApplyRowSelection(
+                _dashboardRow,
+                WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, WorkspaceSidebarHelper.DashboardSelectionKey));
         }
 
         foreach (var (instanceId, row) in _instanceRows)
         {
-            ApplyRowSelection(row, _selectedKey == instanceId);
+            ApplyRowSelection(row, WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, instanceId));
         }
     }
 
@@ -431,35 +430,27 @@ public sealed partial class WorkspaceSidebar : Grid
             return;
         }
 
-        var sourceId = await e.DataView.GetTextAsync();
-        if (string.IsNullOrWhiteSpace(sourceId))
-        {
-            return;
-        }
-
+        var sourceId = (await e.DataView.GetTextAsync()).Trim();
         var position = e.GetPosition(MenuStack);
         var targetId = ResolveDropTargetInstanceId(position);
-        if (string.IsNullOrWhiteSpace(targetId) ||
-            targetId.Equals(sourceId, StringComparison.OrdinalIgnoreCase))
+        if (!WorkspaceSidebarHelper.ShouldAcceptReorder(sourceId, targetId))
         {
             return;
         }
 
-        InstanceReorderRequested?.Invoke(this, (sourceId, targetId));
+        InstanceReorderRequested?.Invoke(this, (sourceId, targetId!));
     }
 
     private string? ResolveDropTargetInstanceId(Point position)
     {
+        var bounds = new List<SidebarRowBounds>(_instanceRows.Count);
         foreach (var (instanceId, row) in _instanceRows)
         {
             var transform = row.TransformToVisual(MenuStack);
-            var bounds = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, row.ActualWidth, row.ActualHeight));
-            if (position.Y >= bounds.Top && position.Y <= bounds.Bottom)
-            {
-                return instanceId;
-            }
+            var rowBounds = transform.TransformBounds(new Rect(0, 0, row.ActualWidth, row.ActualHeight));
+            bounds.Add(new SidebarRowBounds(instanceId, rowBounds.Top, rowBounds.Bottom));
         }
 
-        return null;
+        return WorkspaceSidebarHelper.ResolveDropTargetInstanceId(position.Y, bounds);
     }
 }
