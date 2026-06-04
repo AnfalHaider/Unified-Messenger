@@ -2,6 +2,8 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
+**Current release:** [v1.0.7](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.7)
+
 ## Download (Windows)
 
 | Platform | Installer |
@@ -12,6 +14,16 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
+
+### What’s in v1.0.7
+
+- **Startup backfill** (`BackfillSyncManager`) for **Professional** instances: reconciles unread inbox state after connect so Dashboard triage, Executive Insights, and SLA KPIs are not empty after install/restart.
+- **WhatsApp:** IndexedDB backfill (`__umCollectBackfillCandidates` / `__umCommitInboundBaseline`) without notification toasts or auto-draft on historical messages.
+- **Meta / Google Business:** one forced dashboard scrape per connect for professional telemetry.
+- **Settings → SYSTEM → Enable startup backfill** (default on).
+- **484** unit tests (x64).
+
+Earlier highlights: v1.0.6 (telemetry/scrapers), v1.0.5 and below on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
 
 ## Requirements
 
@@ -37,10 +49,10 @@ Open `UnifiedMessenger.sln`, set **Platform** to **x64**, and run the **UnifiedM
 
 ```powershell
 cd "d:\Projects\Unified Messenger"
-dotnet test UnifiedMessenger.sln -c Release -p:Platform=x64
+dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -c Release -p:Platform=x64
 ```
 
-420+ unit tests cover services, adapters (including HTML fixture selector checks), and dialog helpers.
+484 unit tests cover services, adapters (including HTML fixture selector checks), backfill orchestration, and dialog helpers.
 
 ## Connect Google Business Profile
 
@@ -50,7 +62,19 @@ dotnet test UnifiedMessenger.sln -c Release -p:Platform=x64
 4. Sign in at `https://business.google.com/locations` in the embedded browser
 5. Open **Dashboard** for review alerts and response-time analytics
 
-## Build a release installer
+## Version numbers (keep in sync)
+
+Before every public release, align these three sources to the same **semver** (e.g. `1.0.7`):
+
+| File | Field |
+|------|--------|
+| `UnifiedMessenger/UnifiedMessenger.csproj` | `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<ApplicationDisplayVersion>` |
+| `UnifiedMessenger/app.manifest` | `<assemblyIdentity version="…">` (four-part: `1.0.7.0`) |
+| `installer-shared.iss` | `#define MyAppVersion "1.0.7"` |
+
+`installer.iss` and `installer-arm64.iss` include `installer-shared.iss` and do not need a separate version line.
+
+## Build a release installer (local)
 
 **Install location:** per-user `%LocalAppData%\UnifiedMessenger` (no admin). User settings, instances, WebView2 profiles, and analytics live in the same folder tree. Upgrades use Restart Manager + `AppMutex` to close a running `UnifiedMessenger.exe` before copying files.
 
@@ -91,7 +115,7 @@ dotnet publish `
 ### 2. Compile Inno Setup installers
 
 1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php).
-2. Keep `#define MyAppVersion` in `installer-shared.iss` and `<Version>` in `UnifiedMessenger.csproj` in sync (currently **1.0.6**).
+2. Confirm version sync (table above).
 3. Compile:
 
 ```powershell
@@ -105,17 +129,60 @@ Output:
 - `dist\UnifiedMessengerSetup.exe` (x64)
 - `dist\UnifiedMessengerSetup-arm64.exe` (ARM64)
 
-### 3. GitHub Release
+Commit updated `dist\*.exe` when shipping from a maintainer machine (this repo tracks installers in `dist/` for convenience).
 
-Tag with `v1.0.6` (or newer). CI uploads **publish** and **installer** artifacts on every build; pushing a `v*` tag creates a GitHub Release with both installers attached.
+### 3. Run tests
+
+```powershell
+dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -p:Platform=x64
+```
+
+## GitHub Releases (how they appear on Git)
+
+**Important:** Pushing commits to `main` does **not** create or update the release shown on GitHub. The [Releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page and the **latest** download links are driven by **annotated version tags** (`v1.0.7`, etc.).
+
+| Action | Effect on GitHub |
+|--------|------------------|
+| Push to `main` only | Source updates; **Releases** unchanged unless a new tag exists |
+| Push tag `v1.0.7` | Triggers CI **release** job; creates/updates GitHub Release with both installers |
+| Commit `dist/*.exe` without a tag | Installers in repo tree only; **not** attached to Releases |
+
+### Maintainer release checklist
+
+1. Bump version in **csproj**, **app.manifest**, and **installer-shared.iss**.
+2. Implement and merge features on `main`.
+3. `dotnet test` (x64).
+4. `dotnet publish` (x64 + ARM64) and compile Inno Setup → update `dist\`.
+5. Commit (e.g. `release: v1.0.7 with rebuilt x64 and ARM64 installers`).
+6. Create and push the tag (must match semver, with `v` prefix):
+
+```powershell
+git tag v1.0.7
+git push origin main
+git push origin v1.0.7
+```
+
+7. Wait for [GitHub Actions](https://github.com/AnfalHaider/Unified-Messenger/actions) **build** workflow: **verify** → **package** → **release**.
+8. Confirm [releases/latest](https://github.com/AnfalHaider/Unified-Messenger/releases/latest) serves the new installers.
+
+`GitHubUpdateService` compares the running app version to the newest **GitHub Release** tag; users only auto-update after step 7 succeeds.
+
+### Re-tagging an existing version
+
+Do **not** move `v1.0.6` (or any published tag) to a new commit if users may have already downloaded that release. Ship fixes as **v1.0.8**, etc., instead.
 
 ## CI/CD
 
 GitHub Actions (`.github/workflows/build.yml`):
 
 1. **verify** — build + test (Release, x64)
-2. **package** — publish win-x64 and win-arm64, compile Inno Setup, upload artifacts
-3. **release** — on version tags, attach installers to GitHub Releases
+2. **package** — publish win-x64 and win-arm64, compile Inno Setup, upload artifacts (runs on `main` and on tags)
+3. **release** — runs only when the ref is `refs/tags/v*`; downloads CI-built installers and runs `gh release create` with both `.exe` files
+
+Workflow triggers:
+
+- **push** to `main` → verify + package artifacts (no GitHub Release)
+- **push** tag `v*` → verify + package + **GitHub Release**
 
 ## Auto-update
 
@@ -130,6 +197,7 @@ GitHub Actions (`.github/workflows/build.yml`):
 | Ctrl+Shift+N | Toggle notification panel |
 | Ctrl+K | Command palette |
 | Ctrl+1–9 | Switch to instance (sidebar order) |
+| Ctrl+Space | Global copilot (when Local AI enabled) |
 
 ## User data
 
@@ -137,9 +205,10 @@ GitHub Actions (`.github/workflows/build.yml`):
 |------|----------|
 | Instance registry | `%LocalAppData%\UnifiedMessenger\instances.json` |
 | Analytics | `%LocalAppData%\UnifiedMessenger\analytics.json` |
+| Triage (rich) | `%LocalAppData%\UnifiedMessenger\triage_v2.json` |
 | Settings | `%LocalAppData%\UnifiedMessenger\settings.json` |
 | WebView profiles | `%LocalAppData%\UnifiedMessenger\WebView2\` |
 
 ## Enhancement roadmap
 
-See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–8 code audit and Tier 9 shipping tasks (CI artifacts, ARM64 installer, fixture tests) are complete; v1.0.6 extends the telemetry pipeline (connection handshake, DOM scrapers, branch filtering).
+See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–9 shipping baseline is complete; v1.0.7 adds professional startup backfill for triage, dashboard AI panels, and SLA reconciliation.
