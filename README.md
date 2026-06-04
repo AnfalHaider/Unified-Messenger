@@ -1,10 +1,13 @@
 # Unified Messenger
 
-Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, and custom URLs) with unified notifications and workspace split.
+Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
 ## Download (Windows)
 
-**Latest installer:** [UnifiedMessengerSetup.exe](https://github.com/AnfalHaider/Unified-Messenger/releases/latest/download/UnifiedMessengerSetup.exe)
+| Platform | Installer |
+|----------|-----------|
+| **x64** | [UnifiedMessengerSetup.exe](https://github.com/AnfalHaider/Unified-Messenger/releases/latest/download/UnifiedMessengerSetup.exe) |
+| **ARM64** | [UnifiedMessengerSetup-arm64.exe](https://github.com/AnfalHaider/Unified-Messenger/releases/latest/download/UnifiedMessengerSetup-arm64.exe) |
 
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
@@ -12,27 +15,46 @@ Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preins
 
 ## Requirements
 
-- Windows 10 1809+ / Windows 11
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Windows 10 1809+ / Windows 11 (x64 or ARM64)
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (development)
 - WebView2 Runtime (usually preinstalled on Windows 11)
 
 ## Quick start
 
-### Run from source (standalone .exe)
+### Run from source
 
 ```powershell
 cd "d:\Projects\Unified Messenger\UnifiedMessenger"
-dotnet build
-dotnet run
+dotnet build -c Release -p:Platform=x64
+dotnet run -c Release -p:Platform=x64
 ```
 
 ### Visual Studio
 
-Open `UnifiedMessenger.sln` and run the **UnifiedMessenger** profile.
+Open `UnifiedMessenger.sln`, set **Platform** to **x64**, and run the **UnifiedMessenger** profile.
+
+### Tests
+
+```powershell
+cd "d:\Projects\Unified Messenger"
+dotnet test UnifiedMessenger.sln -c Release -p:Platform=x64
+```
+
+361+ unit tests cover services, adapters (including HTML fixture selector checks), and dialog helpers.
+
+## Connect Google Business Profile
+
+1. Sidebar → **Add Instance**
+2. **Platform:** Google Business Profile
+3. **Workspace:** Professional (enables dashboard review widgets)
+4. Sign in at `https://business.google.com/locations` in the embedded browser
+5. Open **Dashboard** for review alerts and response-time analytics
 
 ## Build a release installer
 
 ### 1. Publish self-contained binaries
+
+**x64:**
 
 ```powershell
 cd "d:\Projects\Unified Messenger\UnifiedMessenger"
@@ -41,47 +63,59 @@ dotnet publish `
   -c Release `
   -r win-x64 `
   --self-contained true `
+  -p:Platform=x64 `
   -p:PublishSingleFile=false `
   -p:WindowsAppSDKSelfContained=true `
   -p:PublishReadyToRun=false `
   -o "bin\Release\net8.0-windows10.0.19041.0\win-x64\publish"
 ```
 
-For ARM64:
+**ARM64:**
 
 ```powershell
 dotnet publish `
   -c Release `
   -r win-arm64 `
   --self-contained true `
+  -p:Platform=ARM64 `
   -p:PublishSingleFile=false `
   -p:WindowsAppSDKSelfContained=true `
   -p:PublishReadyToRun=false `
   -o "bin\Release\net8.0-windows10.0.19041.0\win-arm64\publish"
 ```
 
-### 2. Compile the Inno Setup installer
+### 2. Compile Inno Setup installers
 
 1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php).
-2. Update `#define MyAppVersion` in `installer.iss` and `<Version>` in `UnifiedMessenger.csproj` to match your release tag (e.g. `1.0.3`).
+2. Keep `#define MyAppVersion` in `installer.iss` / `installer-arm64.iss` and `<Version>` in `UnifiedMessenger.csproj` in sync (currently **1.0.4**).
 3. Compile:
 
 ```powershell
 cd "d:\Projects\Unified Messenger"
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+& "$env:LOCALAPPDATA\InnoSetup6\ISCC.exe" installer.iss
+& "$env:LOCALAPPDATA\InnoSetup6\ISCC.exe" installer-arm64.iss
 ```
 
-Output: `dist\UnifiedMessengerSetup.exe`
+Output:
+
+- `dist\UnifiedMessengerSetup.exe` (x64)
+- `dist\UnifiedMessengerSetup-arm64.exe` (ARM64)
 
 ### 3. GitHub Release
 
-1. Tag the release (e.g. `v1.0.3`) — version must be newer than the built assembly version.
-2. Upload `dist\UnifiedMessengerSetup.exe` as a release asset with that exact filename.
-3. On next launch, the app checks `AnfalHaider/Unified-Messenger` releases and silently applies updates when a newer tag is found.
+Tag with `v1.0.4` (or newer). CI uploads **publish** and **installer** artifacts on every build; pushing a `v*` tag creates a GitHub Release with both installers attached.
+
+## CI/CD
+
+GitHub Actions (`.github/workflows/build.yml`):
+
+1. **verify** — build + test (Release, x64)
+2. **package** — publish win-x64 and win-arm64, compile Inno Setup, upload artifacts
+3. **release** — on version tags, attach installers to GitHub Releases
 
 ## Auto-update
 
-`GitHubUpdateService` runs on startup (non-blocking). When a newer GitHub release is detected, it downloads `UnifiedMessengerSetup.exe` and runs it with Inno silent flags, then exits so files can be replaced.
+`GitHubUpdateService` runs on startup (non-blocking). When a newer GitHub release is detected, it downloads `UnifiedMessengerSetup.exe` and runs it with Inno silent flags, then exits so files can be replaced. Disable or prompt before update in **Settings → Updates**.
 
 ## Keyboard shortcuts
 
@@ -104,4 +138,4 @@ Output: `dist\UnifiedMessengerSetup.exe`
 
 ## Enhancement roadmap
 
-See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features and multi-agent execution batches.
+See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–8 code audit and Tier 9 shipping tasks (CI artifacts, ARM64 installer, fixture tests) are complete in v1.0.4.

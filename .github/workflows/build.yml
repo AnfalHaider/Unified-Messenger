@@ -3,15 +3,50 @@ name: Build
 on:
   push:
     branches: [main, master]
+    tags: ["v*"]
   pull_request:
     branches: [main, master]
 
+env:
+  DOTNET_VERSION: 8.0.x
+  CONFIGURATION: Release
+  PLATFORM: x64
+
 jobs:
-  build:
+  verify:
     runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore UnifiedMessenger.sln
+
+      - name: Build
+        run: dotnet build UnifiedMessenger.sln --configuration ${{ env.CONFIGURATION }} --no-restore -p:Platform=${{ env.PLATFORM }}
+
+      - name: Test
+        run: dotnet test UnifiedMessenger.sln --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal -p:Platform=${{ env.PLATFORM }}
+
+  package:
+    runs-on: windows-latest
+    needs: verify
     strategy:
+      fail-fast: false
       matrix:
-        rid: [win-x64, win-arm64]
+        include:
+          - rid: win-x64
+            platform: x64
+            installer_script: installer.iss
+            setup_artifact: UnifiedMessengerSetup.exe
+          - rid: win-arm64
+            platform: ARM64
+            installer_script: installer-arm64.iss
+            setup_artifact: UnifiedMessengerSetup-arm64.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -19,22 +54,23 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
-
-      - name: Restore
-        run: dotnet restore UnifiedMessenger.sln
-
-      - name: Build
-        run: dotnet build UnifiedMessenger.sln --configuration Release --no-restore -p:Platform=x64
-
-      - name: Test
-        run: dotnet test UnifiedMessenger.sln --configuration Release --no-build --verbosity normal -p:Platform=x64
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Publish ${{ matrix.rid }}
-        run: dotnet publish UnifiedMessenger/UnifiedMessenger.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishReadyToRun=false -p:Platform=x64
+        shell: pwsh
+        run: |
+          $publishDir = "UnifiedMessenger/bin/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish"
+          dotnet publish UnifiedMessenger/UnifiedMessenger.csproj `
+            -c ${{ env.CONFIGURATION }} `
+            -r ${{ matrix.rid }} `
+            --self-contained true `
+            -p:Platform=${{ matrix.platform }} `
+            -p:PublishSingleFile=false `
+            -p:WindowsAppSDKSelfContained=true `
+            -p:PublishReadyToRun=false `
+            -o $publishDir
 
-      - name: Build installer (x64 only)
-        if: matrix.rid == 'win-x64'
+      - name: Build installer
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -43,7 +79,63 @@ jobs:
             $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           }
           if (Test-Path $iscc) {
-            & $iscc installer.iss
+            & $iscc "${{ matrix.installer_script }}"
           } else {
             Write-Warning "Inno Setup not available; skipping installer build."
           }
+
+      - name: Upload publish output
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-${{ matrix.rid }}
+          path: UnifiedMessenger/bin/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish/
+          if-no-files-found: error
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.rid }}
+          path: dist/${{ matrix.setup_artifact }}
+          if-no-files-found: warn
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    needs: package
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download x64 installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-win-x64
+          path: dist
+
+      - name: Download ARM64 installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-win-arm64
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notes = @"
+          ## Unified Messenger $tag
+
+          - x64: ``UnifiedMessengerSetup.exe``
+          - ARM64: ``UnifiedMessengerSetup-arm64.exe``
+
+          Requires Windows 10 1809+ and WebView2 Runtime.
+          "@
+          gh release create $tag `
+            --repo "${{ github.repository }}" `
+            --title "Unified Messenger $tag" `
+            --notes $notes `
+            dist/UnifiedMessengerSetup.exe `
+            dist/UnifiedMessengerSetup-arm64.exe

@@ -23,10 +23,10 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 
     <!-- Versioning (keep in sync with app.manifest assemblyIdentity and installer.iss). -->
-    <Version>1.0.3</Version>
-    <AssemblyVersion>1.0.3.0</AssemblyVersion>
-    <FileVersion>1.0.3.0</FileVersion>
-    <ApplicationDisplayVersion>1.0.3</ApplicationDisplayVersion>
+    <Version>1.0.4</Version>
+    <AssemblyVersion>1.0.4.0</AssemblyVersion>
+    <FileVersion>1.0.4.0</FileVersion>
+    <ApplicationDisplayVersion>1.0.4</ApplicationDisplayVersion>
 
     <!-- Match host CPU for local `dotnet run`; publish profiles override RID. -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>

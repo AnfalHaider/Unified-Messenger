@@ -17,6 +17,9 @@ public sealed partial class WeeklyActivityChart : UserControl
         ChartHost.Children.Clear();
         ChartHost.ColumnDefinitions.Clear();
 
+        var summary = WeeklyActivityChartHelper.BuildSummary(series);
+        SummaryText.Text = summary.SummaryText;
+
         if (series is null || series.Count == 0)
         {
             EmptyHint.Visibility = Visibility.Visible;
@@ -30,7 +33,7 @@ public sealed partial class WeeklyActivityChart : UserControl
             ChartHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         }
 
-        var max = series.Max(p => Math.Max(p.Sent, p.Received));
+        var max = WeeklyActivityChartHelper.ComputeScaleMaximum(series);
         const double maxHeight = 100;
         var accentBrush = Application.Current.Resources["AccentFillColorDefaultBrush"] as Brush;
         var receivedBrush = Application.Current.Resources["SystemFillColorSuccessBrush"] as Brush;
@@ -38,15 +41,18 @@ public sealed partial class WeeklyActivityChart : UserControl
         for (var i = 0; i < series.Count; i++)
         {
             var point = series[i];
-            var sentHeight = max == 0 ? 4 : Math.Max(4, maxHeight * point.Sent / max);
-            var receivedHeight = max == 0 ? 4 : Math.Max(4, maxHeight * point.Received / max);
+            var sentHeight = WeeklyActivityChartHelper.ComputeBarHeight(point.Sent, max, maxHeight);
+            var receivedHeight = WeeklyActivityChartHelper.ComputeBarHeight(point.Received, max, maxHeight);
+            var dailyTotal = point.Sent + point.Received;
 
             var column = new StackPanel
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Spacing = 4
             };
-            ToolTipService.SetToolTip(column, $"{point.Sent} sent · {point.Received} received");
+            ToolTipService.SetToolTip(
+                column,
+                $"{point.Label}: {point.Sent} sent, {point.Received} received ({dailyTotal} total)");
 
             var bars = new Grid { Height = 100, VerticalAlignment = VerticalAlignment.Bottom };
             bars.ColumnDefinitions.Add(new ColumnDefinition());

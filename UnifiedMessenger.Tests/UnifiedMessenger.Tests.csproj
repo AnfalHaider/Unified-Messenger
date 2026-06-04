@@ -24,4 +24,10 @@
     <ProjectReference Include="..\UnifiedMessenger\UnifiedMessenger.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Fixtures\**\*.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

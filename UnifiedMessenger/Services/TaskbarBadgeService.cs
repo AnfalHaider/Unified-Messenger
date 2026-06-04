@@ -1,7 +1,5 @@
 using Microsoft.Windows.BadgeNotifications;
 using UnifiedMessenger.Models;
-using Windows.Data.Xml.Dom;
-using Windows.UI.Notifications;
 
 namespace UnifiedMessenger.Services;
 
@@ -44,18 +42,11 @@ public sealed class TaskbarBadgeService
 
             if (TrySetBadgeWithAppSdk(badgeCount))
             {
-                ClearLegacyBadge();
-                TaskbarOverlayService.ClearOverlay();
-            }
-            else if (TrySetBadgeWithLegacyApi(badgeCount))
-            {
-                ClearAppSdkBadge();
                 TaskbarOverlayService.ClearOverlay();
             }
             else
             {
                 ClearAppSdkBadge();
-                ClearLegacyBadge();
                 TaskbarOverlayService.TrySetOverlayCount(badgeCount);
             }
 
@@ -69,7 +60,6 @@ public sealed class TaskbarBadgeService
     internal static void ClearAllBadgeSurfaces()
     {
         ClearAppSdkBadge();
-        ClearLegacyBadge();
         TaskbarOverlayService.ClearOverlay();
     }
 
@@ -85,18 +75,6 @@ public sealed class TaskbarBadgeService
         }
     }
 
-    private static void ClearLegacyBadge()
-    {
-        try
-        {
-            BadgeUpdateManager.CreateBadgeUpdaterForApplication().Clear();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"BadgeUpdateManager clear failed: {ex.Message}");
-        }
-    }
-
     private static bool TrySetBadgeWithAppSdk(int badgeCount)
     {
         try
@@ -107,24 +85,6 @@ public sealed class TaskbarBadgeService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"BadgeNotificationManager update failed: {ex.Message}");
-            return false;
-        }
-    }
-
-    private static bool TrySetBadgeWithLegacyApi(int badgeCount)
-    {
-        try
-        {
-            var updater = BadgeUpdateManager.CreateBadgeUpdaterForApplication();
-            var badgeXml = BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
-            var badgeElement = (XmlElement)badgeXml.SelectSingleNode("/badge")!;
-            badgeElement.SetAttribute("value", badgeCount.ToString());
-            updater.Update(new BadgeNotification(badgeXml));
-            return true;
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"BadgeUpdateManager update failed: {ex.Message}");
             return false;
         }
     }
