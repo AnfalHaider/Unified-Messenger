@@ -20,6 +20,14 @@ public sealed class MessageTriageItem
 
     public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
 
+    public TriageInferenceSource InferenceSource { get; init; } = TriageInferenceSource.Heuristic;
+
+    public CustomerIntent CustomerIntent { get; init; } = CustomerIntent.Inquiry;
+
+    public string CoreSummary { get; init; } = string.Empty;
+
+    public RichTriageExtractedEntities ExtractedEntities { get; init; } = new();
+
     public string UrgencyLabel => UrgencyScore switch
     {
         >= 80 => "Critical",

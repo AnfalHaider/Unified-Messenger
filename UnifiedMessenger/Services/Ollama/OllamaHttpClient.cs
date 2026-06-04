@@ -77,6 +77,7 @@ internal sealed class OllamaHttpClient : IDisposable
         string model,
         string prompt,
         string? systemPrompt,
+        string? responseFormat = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var requestBody = new OllamaGenerateRequest
@@ -84,7 +85,8 @@ internal sealed class OllamaHttpClient : IDisposable
             Model = model,
             Prompt = prompt,
             System = systemPrompt,
-            Stream = true
+            Stream = true,
+            Format = responseFormat
         };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/generate")

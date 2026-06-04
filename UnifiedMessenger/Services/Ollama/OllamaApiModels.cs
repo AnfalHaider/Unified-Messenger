@@ -35,6 +35,10 @@ internal sealed class OllamaGenerateRequest
 
     [JsonPropertyName("stream")]
     public bool Stream { get; init; } = true;
+
+    [JsonPropertyName("format")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Format { get; init; }
 }
 
 internal sealed class OllamaGenerateChunk

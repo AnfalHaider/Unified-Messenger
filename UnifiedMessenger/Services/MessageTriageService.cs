@@ -7,6 +7,7 @@ namespace UnifiedMessenger.Services;
 public sealed class MessageTriageService
 {
     private const int MaxQueueCapacity = 64;
+    private const int MaxInferenceQueueCapacity = 32;
     private const int MaxStoredItems = 200;
     private static readonly TimeSpan RetentionWindow = TimeSpan.FromHours(48);
 
@@ -22,12 +23,37 @@ public sealed class MessageTriageService
             SingleWriter = false
         });
 
+    private readonly Channel<RichTriageInferenceJob> _inferenceChannel =
+        Channel.CreateBounded<RichTriageInferenceJob>(new BoundedChannelOptions(MaxInferenceQueueCapacity)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false
+        });
+
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _worker;
+    private readonly Task _inferenceWorker;
+    private readonly MessageTriageInferenceRunner _inferenceRunner;
 
-    private MessageTriageService(bool startBackgroundWorker)
+    private MessageTriageService(bool startBackgroundWorker, MessageTriageInferenceRunner? inferenceRunner = null)
     {
-        _worker = startBackgroundWorker ? Task.Run(ProcessQueueAsync) : Task.CompletedTask;
+        _inferenceRunner = inferenceRunner ?? new MessageTriageInferenceRunner();
+        if (startBackgroundWorker)
+        {
+            _worker = Task.Run(ProcessQueueAsync);
+            _inferenceWorker = Task.Run(ProcessInferenceQueueAsync);
+        }
+        else
+        {
+            _worker = Task.CompletedTask;
+            _inferenceWorker = Task.CompletedTask;
+        }
+    }
+
+    internal MessageTriageService(MessageTriageInferenceRunner inferenceRunner)
+        : this(startBackgroundWorker: false, inferenceRunner)
+    {
     }
 
     internal MessageTriageService()
@@ -103,6 +129,11 @@ public sealed class MessageTriageService
         });
     }
 
+    internal async Task ProcessInferenceForTestsAsync(RichTriageInferenceJob job)
+    {
+        await ProcessInferenceJobAsync(job, CancellationToken.None).ConfigureAwait(false);
+    }
+
     internal async Task ProcessQueueAsync()
     {
         try
@@ -125,6 +156,28 @@ public sealed class MessageTriageService
         }
     }
 
+    internal async Task ProcessInferenceQueueAsync()
+    {
+        try
+        {
+            await foreach (var job in _inferenceChannel.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
+            {
+                try
+                {
+                    await ProcessInferenceJobAsync(job, _cts.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Message triage inference failed: {ex.Message}");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // shutdown
+        }
+    }
+
     private void ProcessRequest(MessageTriageRequest request)
     {
         var urgency = MessageTriageScorer.ScoreUrgency(request.MessageText, request.ConversationHint);
@@ -133,9 +186,10 @@ public sealed class MessageTriageService
             ? request.MessageText
             : request.MessageText[..217] + "...";
 
+        var itemId = $"{request.InstanceId}|{Guid.NewGuid():N}";
         var item = new MessageTriageItem
         {
-            Id = $"{request.InstanceId}|{Guid.NewGuid():N}",
+            Id = itemId,
             InstanceId = request.InstanceId,
             InstanceDisplayName = request.InstanceDisplayName,
             Platform = request.Platform,
@@ -143,12 +197,57 @@ public sealed class MessageTriageService
             CustomerName = request.CustomerName,
             UrgencyScore = urgency,
             Sentiment = sentiment,
-            TimestampUtc = request.TimestampUtc
+            TimestampUtc = request.TimestampUtc,
+            InferenceSource = TriageInferenceSource.Heuristic
         };
 
         _items[item.Id] = item;
         PruneExpiredItems();
+        Changed?.Invoke(this, EventArgs.Empty);
 
+        QueueInferenceJob(request, itemId, urgency, sentiment);
+    }
+
+    private void QueueInferenceJob(
+        MessageTriageRequest request,
+        string triageItemId,
+        int heuristicUrgency,
+        MessageSentiment heuristicSentiment)
+    {
+        if (!AppSettingsService.Instance.Settings.EnableLocalAi)
+        {
+            return;
+        }
+
+        _ = _inferenceChannel.Writer.TryWrite(new RichTriageInferenceJob
+        {
+            TriageItemId = triageItemId,
+            InstanceId = request.InstanceId,
+            InstanceDisplayName = request.InstanceDisplayName,
+            Platform = request.Platform,
+            MessageText = request.MessageText,
+            CustomerName = request.CustomerName,
+            ConversationHint = request.ConversationHint,
+            TimestampUtc = request.TimestampUtc,
+            HeuristicUrgencyScore = heuristicUrgency,
+            HeuristicSentiment = heuristicSentiment
+        });
+    }
+
+    private async Task ProcessInferenceJobAsync(RichTriageInferenceJob job, CancellationToken cancellationToken)
+    {
+        if (!_items.TryGetValue(job.TriageItemId, out var baseline))
+        {
+            return;
+        }
+
+        var response = await _inferenceRunner.TryInferAsync(job, cancellationToken).ConfigureAwait(false);
+        if (response is null)
+        {
+            return;
+        }
+
+        _items[job.TriageItemId] = MessageTriageInferenceRunner.ApplyInference(baseline, response);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

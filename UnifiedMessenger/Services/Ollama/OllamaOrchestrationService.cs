@@ -126,6 +126,7 @@ public sealed class OllamaOrchestrationService : IDisposable
         string prompt,
         string? systemPrompt = null,
         string? modelOverride = null,
+        string? responseFormat = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(prompt))
@@ -145,7 +146,7 @@ public sealed class OllamaOrchestrationService : IDisposable
 
         var model = ResolveModelName(modelOverride);
         await foreach (var token in _apiClient
-                           .StreamGenerateAsync(model, prompt, systemPrompt, cancellationToken)
+                           .StreamGenerateAsync(model, prompt, systemPrompt, responseFormat, cancellationToken)
                            .ConfigureAwait(false))
         {
             yield return token;
