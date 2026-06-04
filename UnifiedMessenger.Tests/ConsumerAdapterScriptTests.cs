@@ -62,6 +62,15 @@ public class ConsumerAdapterScriptTests
     }
 
     [Fact]
+    public void WhatsAppAdapter_RegistersStartupBackfillHooks()
+    {
+        var script = ReadScript("whatsapp-adapter.js");
+
+        Assert.Contains("__umCollectBackfillCandidates", script, StringComparison.Ordinal);
+        Assert.Contains("__umCommitInboundBaseline", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InboundMessageMonitor_IncludesWhatsAppProfile()
     {
         var script = ReadScript("inbound-message-monitor.js");

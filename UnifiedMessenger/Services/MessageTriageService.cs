@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Services;
 
@@ -65,10 +66,24 @@ public sealed class MessageTriageService
 
     public event EventHandler? Changed;
 
-    public void Enqueue(InboundMessageSelection selection, string? instanceDisplayName = null)
+    public void Enqueue(
+        InboundMessageSelection selection,
+        string? instanceDisplayName = null,
+        bool allowLlmInference = true,
+        bool skipDedupeCheck = false)
     {
         ArgumentNullException.ThrowIfNull(selection);
         if (string.IsNullOrWhiteSpace(selection.MessageText))
+        {
+            return;
+        }
+
+        if (!skipDedupeCheck &&
+            !BackfillDedupeRegistry.TryAccept(
+                selection.InstanceId,
+                selection.Platform,
+                selection.ConversationHint,
+                selection.MessageText))
         {
             return;
         }
@@ -81,7 +96,8 @@ public sealed class MessageTriageService
             MessageText = selection.MessageText.Trim(),
             CustomerName = selection.CustomerName,
             ConversationHint = selection.ConversationHint,
-            TimestampUtc = selection.TimestampUtc
+            TimestampUtc = selection.TimestampUtc,
+            AllowLlmInference = allowLlmInference
         });
     }
 
@@ -148,7 +164,8 @@ public sealed class MessageTriageService
             MessageText = selection.MessageText.Trim(),
             CustomerName = selection.CustomerName,
             ConversationHint = selection.ConversationHint,
-            TimestampUtc = selection.TimestampUtc
+            TimestampUtc = selection.TimestampUtc,
+            AllowLlmInference = true
         });
     }
 
@@ -237,7 +254,7 @@ public sealed class MessageTriageService
         int heuristicUrgency,
         MessageSentiment heuristicSentiment)
     {
-        if (!AppSettingsService.Instance.Settings.EnableLocalAi)
+        if (!request.AllowLlmInference || !AppSettingsService.Instance.Settings.EnableLocalAi)
         {
             return;
         }
@@ -337,5 +354,7 @@ public sealed class MessageTriageService
         public string ConversationHint { get; init; } = string.Empty;
 
         public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
+
+        public bool AllowLlmInference { get; init; } = true;
     }
 }

@@ -266,19 +266,67 @@ public sealed class MessageAnalyticsService
 
         lock (_debounceLock)
         {
-            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
-            stats.ReceivedCount++;
-            stats.LastReceivedUtc = DateTimeOffset.UtcNow;
-            IncrementDaily(stats.DailyReceived, 1);
+            ApplyReceivedIncrement(_stats.GetOrAdd(instanceId, _ => new InstanceMessageStats()), DateTimeOffset.UtcNow);
+        }
 
-            var hour = DateTimeOffset.Now.Hour;
-            if (stats.HourlyReceived.Length == 24)
+        NotifyChanged();
+    }
+
+    /// <summary>
+    /// Records inbound activity discovered during startup backfill (one row per conversation).
+    /// May add an SLA latency candidate when the message age exceeds the configured threshold.
+    /// </summary>
+    public void RecordBackfillInbound(
+        string instanceId,
+        DateTimeOffset receivedAtUtc,
+        int slaThresholdMinutes)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        lock (_debounceLock)
+        {
+            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
+            ApplyReceivedIncrement(stats, receivedAtUtc);
+
+            var ageMinutes = (DateTimeOffset.UtcNow - receivedAtUtc).TotalMinutes;
+            if (ageMinutes > slaThresholdMinutes)
             {
-                stats.HourlyReceived[hour]++;
+                stats.ReplyLatenciesMinutes.Add(ageMinutes);
+                TrimReplyLatencies(stats);
+                stats.SlaBreachCount = CountSlaBreaches(stats);
             }
         }
 
         NotifyChanged();
+    }
+
+    internal void RecordBackfillSlaCandidateForTests(string instanceId, double latencyMinutes)
+    {
+        lock (_debounceLock)
+        {
+            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
+            stats.ReplyLatenciesMinutes.Add(latencyMinutes);
+            TrimReplyLatencies(stats);
+            stats.SlaBreachCount = CountSlaBreaches(stats);
+        }
+
+        NotifyChanged();
+    }
+
+    private static void ApplyReceivedIncrement(InstanceMessageStats stats, DateTimeOffset receivedAtUtc)
+    {
+        stats.ReceivedCount++;
+        stats.LastReceivedUtc = receivedAtUtc;
+        IncrementDaily(stats.DailyReceived, 1);
+
+        var hour = receivedAtUtc.LocalDateTime.Hour;
+        if (stats.HourlyReceived.Length == 24)
+        {
+            stats.HourlyReceived[hour]++;
+        }
     }
 
     internal void SetReplyLatenciesForTests(string instanceId, params double[] latencies)

@@ -290,6 +290,23 @@
                         </ToggleSwitch>
 
                         <ToggleSwitch
+                            x:Name="EnableStartupBackfillToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableStartupBackfillToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Enable startup backfill" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="After connect, reconcile unread professional inbox state for triage and dashboard KPIs without replaying notification toasts."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
                             x:Name="LaunchAtStartupToggle"
                             OffContent="Off"
                             OnContent="On"

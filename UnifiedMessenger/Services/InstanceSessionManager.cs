@@ -457,23 +457,28 @@ public sealed class InstanceSessionManager
     public IEnumerable<WebView2> AllActiveWebViews =>
         _sessions.Values.Select(entry => entry.WebView);
 
-    public async Task ExecuteScriptOnInstanceAsync(string instanceId, string script)
-    {
-        if (!_sessions.TryGetValue(instanceId, out var entry) ||
-            entry.WebView.CoreWebView2 is null)
-        {
-            return;
-        }
+    public Task ExecuteScriptOnInstanceAsync(string instanceId, string script) =>
+        TryExecuteScriptOnInstanceAsync(instanceId, script);
 
-        try
+    public async Task<string?> TryExecuteScriptOnInstanceAsync(string instanceId, string script) =>
+        await UiThreadRunner.RunAsync(async () =>
         {
-            await entry.WebView.CoreWebView2.ExecuteScriptAsync(script).AsTask().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Instance script execution failed: {ex.Message}");
-        }
-    }
+            if (!_sessions.TryGetValue(instanceId, out var entry) ||
+                entry.WebView.CoreWebView2 is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return await entry.WebView.CoreWebView2.ExecuteScriptAsync(script).AsTask().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Instance script execution failed: {ex.Message}");
+                return null;
+            }
+        }).ConfigureAwait(false);
 
     public Task BroadcastAdapterSettingsAsync() =>
         UiThreadRunner.RunAsync(BroadcastAdapterSettingsCoreAsync);

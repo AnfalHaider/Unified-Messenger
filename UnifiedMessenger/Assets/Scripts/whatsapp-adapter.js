@@ -462,6 +462,88 @@
     lastPostedCount = -1;
   }
 
+  function resolveLastMessageTimestamp(chat) {
+    if (chat && chat.lastMessage && chat.lastMessage.timestamp) {
+      try {
+        return new Date(chat.lastMessage.timestamp * 1000).toISOString();
+      } catch (error) {
+        return null;
+      }
+    }
+
+    if (chat && chat.t) {
+      try {
+        return new Date(chat.t * 1000).toISOString();
+      } catch (error) {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  window.__umCollectBackfillCandidates = function (maxChats) {
+    maxChats = maxChats || 20;
+
+    return new Promise(function (resolve) {
+      readChatsFromIndexedDb(function (result) {
+        if (!result || !result.chats) {
+          resolve({ ok: false, candidates: [] });
+          return;
+        }
+
+        var candidates = [];
+        for (var i = 0; i < result.chats.length && candidates.length < maxChats; i++) {
+          var chat = result.chats[i];
+          if (!isEligibleChat(chat)) {
+            continue;
+          }
+
+          var chatKey = getChatKey(chat);
+          if (!chatKey) {
+            continue;
+          }
+
+          var title = getChatTitle(chat);
+          var body = getChatPreviewBody(chat, chat.unreadCount);
+          if (!body || body.length < 8) {
+            continue;
+          }
+
+          candidates.push({
+            chatKey: chatKey,
+            title: title,
+            lastMessageBody: body,
+            lastMessageTimestamp: resolveLastMessageTimestamp(chat),
+            unreadCount: chat.unreadCount
+          });
+        }
+
+        resolve({ ok: candidates.length > 0, candidates: candidates });
+      });
+    });
+  };
+
+  window.__umCommitInboundBaseline = function () {
+    readChatsFromIndexedDb(function (result) {
+      if (result && result.chats) {
+        for (var i = 0; i < result.chats.length; i++) {
+          var chat = result.chats[i];
+          var chatKey = getChatKey(chat);
+          if (!chatKey) {
+            continue;
+          }
+
+          chatSnapshots[chatKey] = chat.unreadCount;
+        }
+      }
+
+      snapshotsInitialized = true;
+    });
+
+    return { ok: true };
+  };
+
   window.__umAdapterDispose = disposeAdapter;
   if (window.__umRegisterDisposable) {
     window.__umRegisterDisposable(disposeAdapter);

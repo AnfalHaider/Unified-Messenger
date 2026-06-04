@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Services.Adapters;
 
@@ -230,6 +231,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             }
 
             await ExecutePublishBadgeAsync(coreWebView).ConfigureAwait(true);
+
+            if (instance.IsProfessional)
+            {
+                BackfillSyncManager.Instance.Schedule(instance);
+            }
         }
         catch (Exception ex)
         {
@@ -276,13 +282,18 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             return true;
         }
 
-        var customerName = root.TryGetProperty("customerName", out var customerElement)
-            ? customerElement.GetString() ?? "Customer"
-            : "Customer";
         var conversationHint = root.TryGetProperty("conversationHint", out var hintElement)
             ? hintElement.GetString() ?? string.Empty
             : string.Empty;
 
+        if (!BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, conversationHint, messageText))
+        {
+            return true;
+        }
+
+        var customerName = root.TryGetProperty("customerName", out var customerElement)
+            ? customerElement.GetString() ?? "Customer"
+            : "Customer";
         MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id);
 
         var selection = new InboundMessageSelection
@@ -295,7 +306,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             TimestampUtc = ParseMessageTimestamp(root)
         };
 
-        MessageTriageService.Instance.Enqueue(selection, instance.DisplayName);
+        MessageTriageService.Instance.Enqueue(selection, instance.DisplayName, skipDedupeCheck: true);
         AutoDraftOrchestrator.Instance.HandleInboundMessage(selection);
 
         return true;

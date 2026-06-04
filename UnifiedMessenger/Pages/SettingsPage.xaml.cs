@@ -78,6 +78,7 @@ public sealed partial class SettingsPage : Page
         EnableImportExportInstancesToggle.IsOn = settings.EnableImportExportInstances;
         EnableInstanceNotesTagsToggle.IsOn = settings.EnableInstanceNotesTags;
         RunInBackgroundOnCloseToggle.IsOn = settings.RunInBackgroundOnClose;
+        EnableStartupBackfillToggle.IsOn = settings.EnableStartupBackfill;
         LaunchAtStartupToggle.IsOn = StartupTaskService.EnsureRegistrationMatchesPreference(
             settings.LaunchAtStartup);
         PromptPinToTaskbarToggle.IsOn = settings.PromptPinToTaskbar;
@@ -348,6 +349,17 @@ public sealed partial class SettingsPage : Page
 
         await AppSettingsService.Instance.UpdateAsync(settings =>
             settings.RunInBackgroundOnClose = RunInBackgroundOnCloseToggle.IsOn);
+    }
+
+    private async void EnableStartupBackfillToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents)
+        {
+            return;
+        }
+
+        await AppSettingsService.Instance.UpdateAsync(settings =>
+            settings.EnableStartupBackfill = EnableStartupBackfillToggle.IsOn);
     }
 
     private async void LaunchAtStartupToggle_Toggled(object sender, RoutedEventArgs e)

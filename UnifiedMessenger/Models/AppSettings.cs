@@ -76,6 +76,11 @@ public sealed class AppSettings
     public bool RunInBackgroundOnClose { get; set; } = true;
 
     /// <summary>
+    /// When true, professional instances reconcile unread inbox state once after connect.
+    /// </summary>
+    public bool EnableStartupBackfill { get; set; } = true;
+
+    /// <summary>
     /// Clamps numeric settings and resets unknown enum values after load or manual edits.
     /// </summary>
     public void Normalize()

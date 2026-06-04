@@ -2,6 +2,7 @@ using System.Reflection;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Adapters;
+using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Tests;
 
@@ -51,5 +52,37 @@ public class WhatsAppInboundTriageTests
         var snapshot = triage.BuildSnapshot([instance]);
         Assert.NotEmpty(snapshot.UrgentQueue);
         Assert.True(snapshot.PositiveCount + snapshot.NeutralCount + snapshot.NegativeCount > 0);
+    }
+
+    [Fact]
+    public void Enqueue_DedupesBackfillAndLiveWithinWindow()
+    {
+        BackfillDedupeRegistry.ClearForTests();
+        var instance = new MessengerInstance
+        {
+            Id = "wa-dedupe",
+            DisplayName = "WhatsApp",
+            Platform = "whatsapp",
+            Category = WorkspaceCategory.Professional
+        };
+
+        const string message = "Duplicate preview body for dedupe validation.";
+
+        Assert.True(BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, "Alex", message));
+        Assert.False(BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, "Alex", message));
+
+        var triage = new MessageTriageService();
+        var selection = new InboundMessageSelection
+        {
+            InstanceId = instance.Id,
+            Platform = instance.Platform,
+            MessageText = message,
+            CustomerName = "Alex",
+            ConversationHint = "Alex",
+            TimestampUtc = DateTimeOffset.UtcNow
+        };
+
+        triage.Enqueue(selection, instance.DisplayName, skipDedupeCheck: true);
+        triage.Enqueue(selection, instance.DisplayName);
     }
 }
