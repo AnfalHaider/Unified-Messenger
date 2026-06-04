@@ -6,11 +6,15 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 env:
   DOTNET_VERSION: 8.0.x
   CONFIGURATION: Release
   PLATFORM: x64
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -73,15 +77,29 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) {
+          $isccCandidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
             choco install innosetup -y --no-progress
-            $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+            $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
-          if (Test-Path $iscc) {
+          if ($iscc) {
             & $iscc "${{ matrix.installer_script }}"
+          } elseif ("${{ github.ref }}" -like 'refs/tags/v*') {
+            throw "Inno Setup is required to compile installers for release tags."
           } else {
-            Write-Warning "Inno Setup not available; skipping installer build."
+            Write-Warning "Inno Setup not available; using installers committed under dist/ if present."
+          }
+
+      - name: Verify installer artifact
+        shell: pwsh
+        run: |
+          $path = "dist/${{ matrix.setup_artifact }}"
+          if (-not (Test-Path $path)) {
+            throw "Missing installer: $path"
           }
 
       - name: Upload publish output
@@ -96,35 +114,38 @@ jobs:
         with:
           name: installer-${{ matrix.rid }}
           path: dist/${{ matrix.setup_artifact }}
-          if-no-files-found: warn
+          if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
-    needs: package
+    needs: verify
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download x64 installer
-        uses: actions/download-artifact@v4
-        with:
-          name: installer-win-x64
-          path: dist
+      - name: Verify committed installers
+        shell: pwsh
+        run: |
+          $files = @(
+            "dist/UnifiedMessengerSetup.exe",
+            "dist/UnifiedMessengerSetup-arm64.exe"
+          )
+          foreach ($file in $files) {
+            if (-not (Test-Path $file)) {
+              throw "Release tag must include $file in the repository. Rebuild installers locally, commit dist/, then re-tag."
+            }
+            Write-Host "Found $file ($((Get-Item $file).Length) bytes)"
+          }
 
-      - name: Download ARM64 installer
-        uses: actions/download-artifact@v4
-        with:
-          name: installer-win-arm64
-          path: dist
-
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
+          $repo = "${{ github.repository }}"
           $notes = @"
           ## Unified Messenger $tag
 
@@ -133,8 +154,20 @@ jobs:
 
           Requires Windows 10 1809+ and WebView2 Runtime.
           "@
+
+          $view = gh release view $tag --repo $repo 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag exists; uploading assets."
+            gh release upload $tag `
+              --repo $repo `
+              --clobber `
+              dist/UnifiedMessengerSetup.exe `
+              dist/UnifiedMessengerSetup-arm64.exe
+            exit $LASTEXITCODE
+          }
+
           gh release create $tag `
-            --repo "${{ github.repository }}" `
+            --repo $repo `
             --title "Unified Messenger $tag" `
             --notes $notes `
             dist/UnifiedMessengerSetup.exe `
