@@ -22,6 +22,14 @@
   var historyHooked = false;
   var originalPushState = null;
   var originalReplaceState = null;
+  var VIEW_CONTEXT = {
+    Unknown: 'unknown',
+    LocationsDirectory: 'locations-directory',
+    DeepData: 'deep-data'
+  };
+  var lastViewContext = VIEW_CONTEXT.Unknown;
+  var navigationCooldownUntil = 0;
+  var NAVIGATION_COOLDOWN_MS = 12000;
 
   function postMessage(payload) {
     window.__umPostMessage(payload);
@@ -231,8 +239,150 @@
     return false;
   };
 
+  function isLocationsDirectoryView() {
+    try {
+      var href = (location.href || '').toLowerCase();
+      var pathMatch =
+        /business\.google\.com\/locations\b/.test(href) ||
+        /\/locations\/?($|\?|#)/.test(href) ||
+        /businessprofilemanager.*\/locations\b/.test(href);
+
+      if (!pathMatch) {
+        return false;
+      }
+
+      var hasLocationCards =
+        document.querySelectorAll(
+          '[data-location-id], [data-merchant-id], a[href*="/location/"], a[href*="/reviews"], [role="row"]'
+        ).length > 0;
+
+      var bodyText = document.body ? document.body.innerText || '' : '';
+      var hasDeepReviewDom =
+        document.querySelectorAll(
+          '[data-review-id], [aria-label*="unreplied" i][aria-label*="review" i], [role="article"]'
+        ).length > 0 &&
+        /unreplied|needs reply|awaiting/i.test(bodyText);
+
+      return hasLocationCards && !hasDeepReviewDom;
+    } catch (error) {
+      console.warn('[UnifiedMessenger] locations directory detection failed', error);
+      return false;
+    }
+  }
+
+  function isDeepDataView() {
+    try {
+      var href = (location.href || '').toLowerCase();
+      if (/business\.google\.com\/(reviews|messaging)\b/.test(href)) {
+        return true;
+      }
+
+      var unrepliedScan = scanUnrepliedCounts();
+      if (unrepliedScan && ((unrepliedScan.totalUnreplied || 0) > 0 || (unrepliedScan.locations || []).length > 0)) {
+        return true;
+      }
+
+      return scanReviewAlerts().length > 0;
+    } catch (error) {
+      console.warn('[UnifiedMessenger] deep data detection failed', error);
+      return false;
+    }
+  }
+
+  function resolveViewContext() {
+    if (isDeepDataView()) {
+      return VIEW_CONTEXT.DeepData;
+    }
+
+    if (isLocationsDirectoryView()) {
+      return VIEW_CONTEXT.LocationsDirectory;
+    }
+
+    return VIEW_CONTEXT.Unknown;
+  }
+
+  function publishViewContextStatus(viewState, detail) {
+    postMessage({
+      type: 'dashboard-scrape-status',
+      instanceId: INSTANCE_ID,
+      platform: PLATFORM,
+      success: true,
+      context: 'google-view-context',
+      viewState: viewState || VIEW_CONTEXT.Unknown,
+      detail: detail || '',
+      timestampUtc: new Date().toISOString()
+    });
+  }
+
+  function tryNavigateFromLocationsDirectory() {
+    if (Date.now() < navigationCooldownUntil) {
+      return false;
+    }
+
+    navigationCooldownUntil = Date.now() + NAVIGATION_COOLDOWN_MS;
+
+    var candidates = [
+      'a[href*="/reviews" i]',
+      'a[aria-label*="review" i]',
+      'a[aria-label*="See your profile" i]',
+      'button[aria-label*="See your profile" i]',
+      'a[href*="business.google.com"][href*="review"]',
+      '[role="link"][href*="/messaging" i]',
+      'a[href*="/messaging" i]'
+    ];
+
+    for (var i = 0; i < candidates.length; i++) {
+      var node = window.__umQueryVisible
+        ? window.__umQueryVisible(candidates[i])
+        : document.querySelector(candidates[i]);
+
+      if (!node || typeof node.click !== 'function') {
+        continue;
+      }
+
+      try {
+        node.click();
+        publishViewContextStatus(
+          VIEW_CONTEXT.LocationsDirectory,
+          'Connected · awaiting view context'
+        );
+        return true;
+      } catch (clickError) {
+        console.warn('[UnifiedMessenger] safe navigation click failed', clickError);
+      }
+    }
+
+    return false;
+  }
+
+  function ensureScrapeViewContext() {
+    var context = resolveViewContext();
+    lastViewContext = context;
+
+    if (context === VIEW_CONTEXT.LocationsDirectory) {
+      publishViewContextStatus(
+        VIEW_CONTEXT.LocationsDirectory,
+        'Connected · awaiting view context'
+      );
+      tryNavigateFromLocationsDirectory();
+      return false;
+    }
+
+    if (context === VIEW_CONTEXT.DeepData) {
+      publishViewContextStatus(VIEW_CONTEXT.DeepData, '');
+      return true;
+    }
+
+    publishViewContextStatus(VIEW_CONTEXT.Unknown, 'Connected · awaiting view context');
+    return true;
+  }
+
   function publishImmediate() {
     publishScheduled = false;
+
+    if (!ensureScrapeViewContext()) {
+      return;
+    }
 
     window.__umRunSafeScrape(INSTANCE_ID, PLATFORM, 'google-dashboard', function () {
       var scan = scanUnrepliedCounts() || { totalUnreplied: 0, locations: [] };
@@ -341,6 +491,7 @@
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         lastPostedUnreplied = -1;
+        lastViewContext = VIEW_CONTEXT.Unknown;
       }
 
       schedulePublish();

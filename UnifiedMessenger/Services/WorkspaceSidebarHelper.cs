@@ -60,11 +60,18 @@ public static class WorkspaceSidebarHelper
     public static string ResolveStatusSubtitle(
         InstanceConnectionStatus connectionStatus,
         AdapterHealthState adapterState,
-        bool notificationsMuted)
+        bool notificationsMuted,
+        string? connectionDetail = null)
     {
         if (notificationsMuted)
         {
             return "Notifications muted";
+        }
+
+        if (connectionStatus == InstanceConnectionStatus.Connected &&
+            !string.IsNullOrWhiteSpace(connectionDetail))
+        {
+            return FormatConnectedDetailSubtitle(connectionDetail);
         }
 
         return connectionStatus switch
@@ -77,6 +84,19 @@ public static class WorkspaceSidebarHelper
             InstanceConnectionStatus.Initializing => "Status: Connecting…",
             _ => "Status: Connecting…"
         };
+    }
+
+    internal static string FormatConnectedDetailSubtitle(string connectionDetail)
+    {
+        var detail = connectionDetail.Trim();
+        if (detail.StartsWith("Status:", StringComparison.OrdinalIgnoreCase))
+        {
+            return detail;
+        }
+
+        return detail.StartsWith("Connected", StringComparison.OrdinalIgnoreCase)
+            ? $"Status: {detail}"
+            : $"Status: Connected · {detail}";
     }
 
     public static Windows.UI.Color ResolveConnectionIndicatorColor(

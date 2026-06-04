@@ -236,31 +236,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
     protected static DateTimeOffset ParseMessageTimestamp(JsonElement root) =>
         WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
 
-    protected static void HandleDashboardScrapeStatus(JsonElement root, MessengerInstance instance)
-    {
-        var success = !root.TryGetProperty("success", out var successElement) ||
-                      successElement.ValueKind == JsonValueKind.True ||
-                      (successElement.ValueKind == JsonValueKind.String &&
-                       successElement.GetString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true);
-
-        if (success)
-        {
-            return;
-        }
-
-        var context = root.TryGetProperty("context", out var contextElement)
-            ? contextElement.GetString() ?? "scrape"
-            : "scrape";
-        var detail = root.TryGetProperty("detail", out var detailElement)
-            ? detailElement.GetString() ?? "Scrape failed"
-            : "Scrape failed";
-
-        Debug.WriteLine(
-            $"Dashboard scrape failed for {instance.Id} ({instance.Platform}) [{context}]: {detail}");
-        AdapterHealthMonitor.Instance.RecordHeartbeat(
-            instance.Id,
-            PlatformDefinition.NormalizePlatformId(instance.Platform));
-    }
+    protected static void HandleDashboardScrapeStatus(JsonElement root, MessengerInstance instance) =>
+        DashboardScrapeStatusHandler.Apply(root, instance);
 
     protected static bool TryHandleInboundMessageSelected(
         string? type,

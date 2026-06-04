@@ -196,7 +196,8 @@ public sealed partial class WorkspaceSidebar : Grid
             statusLabel.Text = WorkspaceSidebarHelper.ResolveStatusSubtitle(
                 connectionStatus,
                 adapterStatus.State,
-                instance.NotificationsMuted);
+                instance.NotificationsMuted,
+                detail);
         }
 
         if (_instanceRows.TryGetValue(normalizedId, out var row))
@@ -274,10 +275,12 @@ public sealed partial class WorkspaceSidebar : Grid
         var instanceId = instance.Id.Trim();
         var connectionStatus = InstanceConnectionStatusService.Instance.GetStatus(instanceId);
         var adapterState = AdapterHealthMonitor.Instance.GetStatus(instanceId).State;
+        var connectionDetail = InstanceConnectionStatusService.Instance.GetDetail(instanceId);
         var subtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
             connectionStatus,
             adapterState,
-            instance.NotificationsMuted);
+            instance.NotificationsMuted,
+            connectionDetail);
         var row = CreateSelectableRow(
             instanceId,
             instance,

@@ -60,6 +60,19 @@ public class ProAdapterScriptTests
     }
 
     [Fact]
+    public void GoogleBusinessScraper_RoutesLocationsDirectoryViewContext()
+    {
+        var script = ReadScript("google_business_scraper.js");
+
+        Assert.Contains("locations-directory", script, StringComparison.Ordinal);
+        Assert.Contains("google-view-context", script, StringComparison.Ordinal);
+        Assert.Contains("ensureScrapeViewContext", script, StringComparison.Ordinal);
+        Assert.Contains("NAVIGATION_COOLDOWN_MS = 12000", script, StringComparison.Ordinal);
+        Assert.Contains("Connected · awaiting view context", script, StringComparison.Ordinal);
+        Assert.Contains("tryNavigateFromLocationsDirectory", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AdapterCore_ProvidesSafeScrapeBridge()
     {
         var script = ReadScript("adapter-core.js");

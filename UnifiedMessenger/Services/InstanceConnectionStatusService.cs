@@ -150,14 +150,16 @@ public sealed class InstanceConnectionStatusService
                 return;
             }
 
+            var normalizedDetail = string.IsNullOrWhiteSpace(detail) ? null : detail.Trim();
+            var detailChanged = !string.Equals(entry.Detail, normalizedDetail, StringComparison.Ordinal);
             entry.Status = status;
-            entry.Detail = string.IsNullOrWhiteSpace(detail) ? null : detail.Trim();
+            entry.Detail = normalizedDetail;
             entry.UpdatedUtc = DateTimeOffset.UtcNow;
-        }
 
-        if (previous != status)
-        {
-            Changed?.Invoke(this, new InstanceConnectionStatusChangedEventArgs(normalizedId, status, detail));
+            if (previous != status || detailChanged)
+            {
+                Changed?.Invoke(this, new InstanceConnectionStatusChangedEventArgs(normalizedId, status, normalizedDetail));
+            }
         }
     }
 

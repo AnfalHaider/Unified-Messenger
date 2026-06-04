@@ -49,4 +49,23 @@ public class InstanceConnectionStatusServiceTests
             InstanceConnectionStatus.Initializing,
             InstanceConnectionStatus.Connected));
     }
+
+    [Fact]
+    public void SetConnected_RaisesChangedWhenDetailUpdatesWithoutStatusChange()
+    {
+        var service = new InstanceConnectionStatusService();
+        var instanceId = $"detail-{Guid.NewGuid():N}";
+        var changeCount = 0;
+
+        service.Changed += (_, _) => changeCount++;
+
+        service.SetInitializing(instanceId);
+        service.SetConnected(instanceId, null);
+        var afterConnect = changeCount;
+
+        service.SetConnected(instanceId, "Connected · awaiting view context");
+
+        Assert.Equal(afterConnect + 1, changeCount);
+        Assert.Equal("Connected · awaiting view context", service.GetDetail(instanceId));
+    }
 }

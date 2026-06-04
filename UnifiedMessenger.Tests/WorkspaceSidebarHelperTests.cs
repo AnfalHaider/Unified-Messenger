@@ -86,6 +86,26 @@ public class WorkspaceSidebarHelperTests
                 notificationsMuted: false));
     }
 
+    [Fact]
+    public void ResolveStatusSubtitle_ShowsAwaitingViewContextFromDetail()
+    {
+        Assert.Equal(
+            "Status: Connected · awaiting view context",
+            WorkspaceSidebarHelper.ResolveStatusSubtitle(
+                InstanceConnectionStatus.Connected,
+                AdapterHealthState.Healthy,
+                notificationsMuted: false,
+                connectionDetail: "Connected · awaiting view context"));
+    }
+
+    [Fact]
+    public void FormatConnectedDetailSubtitle_PreservesStatusPrefix()
+    {
+        Assert.Equal(
+            "Status: Connected · awaiting view context",
+            WorkspaceSidebarHelper.FormatConnectedDetailSubtitle("Connected · awaiting view context"));
+    }
+
     [Theory]
     [InlineData("inst-1", "inst-2", true)]
     [InlineData("inst-1", "inst-1", false)]
