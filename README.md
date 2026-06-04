@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.8](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.8)
+**Current release:** [v1.0.9](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.9)
 
 ## Download (Windows)
 
@@ -15,16 +15,14 @@ All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
 
-### What’s in v1.0.8
+### What’s in v1.0.9
 
-- **Professional dashboard cards:** context-aware empty states (connected ≠ “Connect Google…”), **Recent inbound** triage list, branch scope subtitle.
-- **Data health strip** with per-instance backfill/adapter/triage chips and **Refresh all professional data**.
-- **Honest KPIs** when no replies logged (inbound-only response rate); Meta pending-response hint; Google scrape status footer.
-- **Heuristic Executive Insights** (Settings toggle) when Local AI extraction is unavailable.
-- **Settings:** dashboard urgency threshold (15–50), heuristic insights toggle.
-- **497** unit tests (x64).
+- **Reply detection:** DOM-based outgoing message monitor for WhatsApp and Meta Business Suite so dashboard reply metrics update after you respond in the WebView.
+- **Meta pending count:** unread badge sync on decrease (not only on new inbound), so **pending response** drops when you clear the inbox.
+- **Broader Meta Send selectors** for current Business Suite compose UI.
+- **499** unit tests (x64).
 
-Earlier highlights: v1.0.7 (startup backfill, WhatsApp/Meta/Google reconciliation), v1.0.6 and below on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
+Earlier highlights: v1.0.8 (professional dashboard cards, data health strip, honest KPIs), v1.0.7 (startup backfill), v1.0.6 and below on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
 
 ## Requirements
 
@@ -65,13 +63,13 @@ dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -c Release -p:P
 
 ## Version numbers (keep in sync)
 
-Before every public release, align these three sources to the same **semver** (e.g. `1.0.8`):
+Before every public release, align these three sources to the same **semver** (e.g. `1.0.9`):
 
 | File | Field |
 |------|--------|
 | `UnifiedMessenger/UnifiedMessenger.csproj` | `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<ApplicationDisplayVersion>` |
-| `UnifiedMessenger/app.manifest` | `<assemblyIdentity version="…">` (four-part: `1.0.8.0`) |
-| `installer-shared.iss` | `#define MyAppVersion "1.0.8"` |
+| `UnifiedMessenger/app.manifest` | `<assemblyIdentity version="…">` (four-part: `1.0.9.0`) |
+| `installer-shared.iss` | `#define MyAppVersion "1.0.9"` |
 
 `installer.iss` and `installer-arm64.iss` include `installer-shared.iss` and do not need a separate version line.
 
@@ -170,7 +168,7 @@ git push origin v1.0.7
 
 ### Re-tagging an existing version
 
-Do **not** move `v1.0.6` (or any published tag) to a new commit if users may have already downloaded that release. Ship fixes as **v1.0.8**, etc., instead.
+Do **not** move `v1.0.6` (or any published tag) to a new commit if users may have already downloaded that release. Ship fixes as **v1.0.9**, etc., instead.
 
 ## CI/CD
 
@@ -212,4 +210,4 @@ Workflow triggers:
 
 ## Enhancement roadmap
 
-See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–9 shipping baseline is complete; v1.0.8 improves Professional Operations dashboard accuracy and operator ergonomics.
+See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–9 shipping baseline is complete; v1.0.9 improves reply detection and Meta unread sync on the Professional Operations dashboard.

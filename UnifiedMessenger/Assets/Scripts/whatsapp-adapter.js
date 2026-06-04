@@ -567,6 +567,21 @@
       'header span[dir="auto"]'
     ]
   });
+  window.__umInstallOutgoingDomReplyMonitor(INSTANCE_ID, PLATFORM, {
+    conversationPanelSelectors: [
+      '[data-testid="conversation-panel-messages"]',
+      '#main'
+    ],
+    outgoingMessageSelectors: [
+      'div.message-out',
+      '[data-testid*="msg-out"]'
+    ],
+    chatHintSelectors: [
+      'header [data-testid="conversation-info-header-chat-title"]',
+      'span[data-testid="conversation-info-header-chat-title"]',
+      'header span[dir="auto"]'
+    ]
+  });
   window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
   window.__umStartHeartbeat(INSTANCE_ID, PLATFORM, ADAPTER_ID, 30000);
   hookSpaNavigation();

@@ -50,6 +50,32 @@ public class ProfessionalWorkspaceServiceTests
     }
 
     [Fact]
+    public void SyncMetaUnreadCount_UpdatesPendingWithoutInboundTimestamp()
+    {
+        var service = ProfessionalWorkspaceService.CreateForTests();
+        var inboundAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+        service.HandleMetaInboundMessage("meta-1", inboundAt, 25);
+
+        var before = service.CaptureMetaResponseEfficiency(
+        [
+            new MessengerInstance { Id = "meta-1", DisplayName = "Meta", ProfileName = "meta", Platform = "metabusiness" }
+        ]);
+
+        Assert.Equal(25, before.ActiveUnreadCount);
+        Assert.Equal("30m ago", before.LastInboundDisplay);
+
+        service.SyncMetaUnreadCount("meta-1", 3);
+
+        var after = service.CaptureMetaResponseEfficiency(
+        [
+            new MessengerInstance { Id = "meta-1", DisplayName = "Meta", ProfileName = "meta", Platform = "metabusiness" }
+        ]);
+
+        Assert.Equal(3, after.ActiveUnreadCount);
+        Assert.Equal("30m ago", after.LastInboundDisplay);
+    }
+
+    [Fact]
     public void HandleMetaInboundMessage_SkipsUnchangedState()
     {
         var service = ProfessionalWorkspaceService.CreateForTests();

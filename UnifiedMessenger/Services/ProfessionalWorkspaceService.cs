@@ -180,6 +180,27 @@ public sealed class ProfessionalWorkspaceService
         }
     }
 
+    /// <summary>
+    /// Updates Meta unread badge counts from scrapes without treating every poll as new inbound activity.
+    /// </summary>
+    public void SyncMetaUnreadCount(string instanceId, int unreadCount)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        unreadCount = Math.Max(0, unreadCount);
+        var state = _metaInbound.GetOrAdd(instanceId, _ => new MetaInboundState());
+        if (state.ActiveUnreadCount == unreadCount)
+        {
+            return;
+        }
+
+        state.ActiveUnreadCount = unreadCount;
+        NotifyChanged();
+    }
+
     public void HandleMetaReplySent(string instanceId, DateTimeOffset replyUtc)
     {
         if (string.IsNullOrWhiteSpace(instanceId) ||

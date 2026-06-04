@@ -351,12 +351,18 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         switch (type)
         {
             case AdapterMessageTypes.BadgeCount:
+                var badgeCount = WebMessageParser.ReadNonNegativeInt(root, "count");
+                if (IsMetaBusinessPlatform(instance.Platform))
+                {
+                    ProfessionalWorkspaceService.Instance.SyncMetaUnreadCount(instance.Id, badgeCount);
+                }
+
                 if (muted)
                 {
                     return true;
                 }
 
-                hub.UpdateBadgeCount(instance.Id, WebMessageParser.ReadNonNegativeInt(root, "count"));
+                hub.UpdateBadgeCount(instance.Id, badgeCount);
                 return true;
 
             case AdapterMessageTypes.NotificationPreview:

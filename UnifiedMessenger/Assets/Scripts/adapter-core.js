@@ -294,6 +294,8 @@
     delete window.__unifiedMessengerCore;
     delete window.__umNotificationInterceptorInstalled;
     delete window.__umOutgoingMonitorInstalled;
+    delete window.__umOutgoingDomMonitorInstalled;
+    delete window.__umLastMessageSentAt;
     delete window.__umRecentPreviews;
     delete window.__unifiedMessengerPublishBadge;
   };
@@ -301,6 +303,164 @@
   window.__umCountFromTitle = function () {
     var match = document.title.match(/\((\d+)\)/);
     return match ? parseInt(match[1], 10) : 0;
+  };
+
+  window.__umEmitMessageSent = function (instanceId, platform, source, chatHint) {
+    var debounceMs = 500;
+    var now = Date.now();
+    if (window.__umLastMessageSentAt && now - window.__umLastMessageSentAt < debounceMs) {
+      return;
+    }
+
+    window.__umLastMessageSentAt = now;
+    window.__umPostMessage({
+      type: 'message-sent',
+      instanceId: instanceId,
+      platform: platform,
+      source: source || 'unknown',
+      chatHint: chatHint || '',
+      timestampUtc: new Date().toISOString()
+    });
+  };
+
+  window.__umInstallOutgoingDomReplyMonitor = function (instanceId, platform, options) {
+    if (window.__umOutgoingDomMonitorInstalled) {
+      return;
+    }
+
+    window.__umOutgoingDomMonitorInstalled = true;
+
+    var opts = options || {};
+    var outgoingSelectors = (opts.outgoingMessageSelectors || []).concat([
+      'div.message-out',
+      '[class*="message-out"]',
+      '[data-testid*="outgoing"]',
+      '[data-testid*="message-out"]'
+    ]);
+    var panelSelectors = (opts.conversationPanelSelectors || []).concat([
+      '[data-testid="conversation-panel-messages"]',
+      '[role="main"]',
+      'main'
+    ]);
+    var chatHintSelectors = opts.chatHintSelectors || [
+      'header [data-testid="conversation-info-header-chat-title"]',
+      'header span[title]',
+      'header h1',
+      'header h2',
+      '[aria-label*="Conversation" i]',
+      '[role="heading"]'
+    ];
+    var lastOutgoingSignature = '';
+    var domDebounceTimer = null;
+
+    function resolveChatHint() {
+      for (var i = 0; i < chatHintSelectors.length; i++) {
+        try {
+          var node = document.querySelector(chatHintSelectors[i]);
+          if (!node) {
+            continue;
+          }
+
+          var hint = (node.getAttribute && node.getAttribute('title')) ||
+            node.textContent ||
+            node.innerText ||
+            '';
+          hint = String(hint).trim();
+          if (hint) {
+            return hint;
+          }
+        } catch (error) {
+          // ignore
+        }
+      }
+
+      return '';
+    }
+
+    function findLatestOutgoingSignature() {
+      for (var p = 0; p < panelSelectors.length; p++) {
+        var panel = null;
+        try {
+          panel = document.querySelector(panelSelectors[p]);
+        } catch (error) {
+          panel = null;
+        }
+
+        if (!panel) {
+          continue;
+        }
+
+        for (var o = 0; o < outgoingSelectors.length; o++) {
+          var nodes;
+          try {
+            nodes = panel.querySelectorAll(outgoingSelectors[o]);
+          } catch (error) {
+            nodes = null;
+          }
+
+          if (!nodes || nodes.length === 0) {
+            continue;
+          }
+
+          var lastNode = nodes[nodes.length - 1];
+          var text = String(lastNode.textContent || lastNode.innerText || '').replace(/\s+/g, ' ').trim();
+          if (text.length >= 1) {
+            return text.length > 160 ? text.slice(0, 157) + '...' : text;
+          }
+        }
+      }
+
+      return '';
+    }
+
+    function checkOutgoingDom() {
+      domDebounceTimer = null;
+      var signature = findLatestOutgoingSignature();
+      if (!signature || signature === lastOutgoingSignature) {
+        return;
+      }
+
+      lastOutgoingSignature = signature;
+      window.__umEmitMessageSent(instanceId, platform, 'dom-outgoing', resolveChatHint());
+    }
+
+    function scheduleDomCheck() {
+      if (domDebounceTimer) {
+        window.clearTimeout(domDebounceTimer);
+      }
+
+      domDebounceTimer = window.setTimeout(checkOutgoingDom, 350);
+    }
+
+    var domObserver = new MutationObserver(function () {
+      scheduleDomCheck();
+    });
+
+    var root = document.documentElement || document.body;
+    if (root) {
+      domObserver.observe(root, {
+        childList: true,
+        subtree: true,
+        characterData: true
+      });
+    }
+
+    document.addEventListener('click', scheduleDomCheck, true);
+    scheduleDomCheck();
+
+    window.__umRegisterDisposable(function () {
+      if (domObserver) {
+        domObserver.disconnect();
+      }
+
+      document.removeEventListener('click', scheduleDomCheck, true);
+      if (domDebounceTimer) {
+        window.clearTimeout(domDebounceTimer);
+        domDebounceTimer = null;
+      }
+
+      delete window.__umOutgoingDomMonitorInstalled;
+    });
   };
 
   window.__umInstallOutgoingMessageMonitor = function (instanceId, platform, options) {
@@ -311,8 +471,6 @@
     window.__umOutgoingMonitorInstalled = true;
 
     var opts = options || {};
-    var debounceMs = opts.debounceMs || 500;
-    var lastSentAt = 0;
 
     var defaultComposeSelectors = [
       'div[contenteditable="true"]',
@@ -403,20 +561,7 @@
     }
 
     function emitSent(source) {
-      var now = Date.now();
-      if (now - lastSentAt < debounceMs) {
-        return;
-      }
-
-      lastSentAt = now;
-      window.__umPostMessage({
-        type: 'message-sent',
-        instanceId: instanceId,
-        platform: platform,
-        source: source || 'unknown',
-        chatHint: getChatHint(),
-        timestampUtc: new Date().toISOString()
-      });
+      window.__umEmitMessageSent(instanceId, platform, source, getChatHint());
     }
 
     window.__umOutgoingKeydownHandler = function (event) {

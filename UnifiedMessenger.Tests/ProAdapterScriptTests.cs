@@ -36,6 +36,7 @@ public class ProAdapterScriptTests
     {
         var script = ReadScript("meta_business_scraper.js");
 
+        Assert.Contains("__umInstallOutgoingDomReplyMonitor", script, StringComparison.Ordinal);
         Assert.Contains("meta-inbound-message", script, StringComparison.Ordinal);
         Assert.Contains("meta-telemetry-snapshot", script, StringComparison.Ordinal);
         Assert.Contains("__umRunSafeScrape", script, StringComparison.Ordinal);

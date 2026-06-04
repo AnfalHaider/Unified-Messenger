@@ -45,6 +45,16 @@ public class AdapterCoreScriptTests
     }
 
     [Fact]
+    public void AdapterCoreScript_SupportsDomReplyDetection()
+    {
+        var script = ReadAdapterCoreScript();
+
+        Assert.Contains("__umEmitMessageSent", script, StringComparison.Ordinal);
+        Assert.Contains("__umInstallOutgoingDomReplyMonitor", script, StringComparison.Ordinal);
+        Assert.Contains("dom-outgoing", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AdapterCoreScript_PrunesPreviewThrottleMap()
     {
         var script = ReadAdapterCoreScript();

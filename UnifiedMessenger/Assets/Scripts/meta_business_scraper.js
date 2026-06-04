@@ -433,7 +433,27 @@
     sendSelectors: [
       'button[aria-label*="Send" i]',
       '[aria-label*="Press Enter to send" i]',
-      'div[role="button"][aria-label*="Send" i]'
+      'div[role="button"][aria-label*="Send" i]',
+      'div[aria-label="Send"]',
+      '[data-testid*="send" i]',
+      'button[type="submit"]'
+    ],
+    chatHintSelectors: [
+      '[aria-label*="Conversation" i]',
+      'header h1',
+      'header h2',
+      '[role="heading"]'
+    ]
+  });
+  window.__umInstallOutgoingDomReplyMonitor(INSTANCE_ID, PLATFORM, {
+    conversationPanelSelectors: [
+      '[data-pagelet="BizInbox"]',
+      '[role="main"]'
+    ],
+    outgoingMessageSelectors: [
+      '[data-testid*="message"][class*="outgoing" i]',
+      '[class*="outgoing" i][dir="auto"]',
+      '[aria-label*="You sent" i]'
     ],
     chatHintSelectors: [
       '[aria-label*="Conversation" i]',
