@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Pages;
 
@@ -191,7 +192,10 @@ public sealed partial class DashboardPage : Page
     private async void RefreshDashboardDataButton_Click(object sender, RoutedEventArgs e) =>
         await RequestProfessionalTelemetryRefreshAsync();
 
-    private async Task RequestProfessionalTelemetryRefreshAsync()
+    private async void RefreshAllProfessionalDataButton_Click(object sender, RoutedEventArgs e) =>
+        await RequestProfessionalTelemetryRefreshAsync(refreshAllInstances: true);
+
+    private async Task RequestProfessionalTelemetryRefreshAsync(bool refreshAllInstances = false)
     {
         if (_registry is null)
         {
@@ -199,15 +203,77 @@ public sealed partial class DashboardPage : Page
         }
 
         RefreshDashboardDataButton.IsEnabled = false;
+        RefreshAllProfessionalDataButton.IsEnabled = false;
         try
         {
             ApplyProfessionalTelemetryToView();
             ApplyEnterpriseTelemetryToView();
-            await RequestBranchScrapeRefreshAsync().ConfigureAwait(true);
+            ScheduleBackfillRetryIfNeeded();
+            if (refreshAllInstances)
+            {
+                await RequestAllProfessionalScrapeRefreshAsync().ConfigureAwait(true);
+            }
+            else
+            {
+                await RequestBranchScrapeRefreshAsync().ConfigureAwait(true);
+            }
         }
         finally
         {
             RefreshDashboardDataButton.IsEnabled = true;
+            RefreshAllProfessionalDataButton.IsEnabled = true;
+        }
+    }
+
+    private void ScheduleBackfillRetryIfNeeded()
+    {
+        if (!AppSettingsService.Instance.Settings.EnableStartupBackfill)
+        {
+            return;
+        }
+
+        foreach (var instance in ProfessionalInstances)
+        {
+            var state = BackfillSyncManager.Instance.GetState(instance.Id);
+            if (state is BackfillSyncState.NotStarted or BackfillSyncState.Failed or BackfillSyncState.Skipped)
+            {
+                BackfillSyncManager.Instance.Schedule(instance);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Google/Meta scrapers require active WebView sessions and visible inbox DOM for reliable telemetry.
+    /// </summary>
+    private async Task RequestAllProfessionalScrapeRefreshAsync()
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        var scrapeTargets = ProfessionalInstances
+            .Where(DashboardScrapeOrchestrator.IsDashboardScrapeCapable)
+            .ToList();
+
+        if (scrapeTargets.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await DashboardScrapeOrchestrator.Instance
+                .RefreshProfessionalInstancesAsync(scrapeTargets)
+                .ConfigureAwait(true);
+
+            MessageAnalyticsService.Instance.NotifyDashboardRefresh();
+            ApplyProfessionalTelemetryToView();
+            ApplyEnterpriseTelemetryToView();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"All-instance scrape refresh failed: {ex.Message}");
         }
     }
 
@@ -257,10 +323,24 @@ public sealed partial class DashboardPage : Page
             .ToList();
         GoogleReviewAlertsList.ItemsSource = reviewItems;
         var hasReviews = reviewItems.Count > 0;
-        GoogleReviewAlertsEmptyText.Visibility = hasReviews
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        var hasGoogleInstances = FilteredGoogleBusinessInstances.Any();
+        var googleEmptyReason = DashboardCardEmptyStateHelper.ResolveGoogleTrustEmptyReason(
+            hasGoogleInstances,
+            trust);
+        GoogleReviewAlertsEmptyText.Text =
+            DashboardCardEmptyStateHelper.FormatGoogleTrustEmptyMessage(googleEmptyReason);
+        var showGoogleEmpty = !hasReviews && googleEmptyReason != DashboardCardEmptyReason.HasData;
+        GoogleReviewAlertsEmptyText.Visibility = showGoogleEmpty
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         GoogleReviewAlertsList.Visibility = hasReviews
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        var googleIds = FilteredGoogleBusinessInstances.Select(i => i.Id).ToList();
+        var scrapeFooter = DashboardScrapeStatusService.Instance.BuildGoogleTrustScrapeFooter(googleIds);
+        GoogleTrustScrapeStatusText.Text = scrapeFooter;
+        GoogleTrustScrapeStatusText.Visibility = hasGoogleInstances && !string.IsNullOrWhiteSpace(scrapeFooter)
             ? Visibility.Visible
             : Visibility.Collapsed;
 
@@ -278,7 +358,19 @@ public sealed partial class DashboardPage : Page
         MetaSampleCountValue.Text = metaDisplay.SampleCount;
         MetaLastInboundValue.Text = metaDisplay.LastInbound;
         MetaLastReplyValue.Text = metaDisplay.LastReply;
-        MetaResponseEmptyText.Visibility = FilteredMetaBusinessInstances.Any()
+
+        var hasMetaInstances = FilteredMetaBusinessInstances.Any();
+        var metaEmptyReason = DashboardCardEmptyStateHelper.ResolveMetaResponseEmptyReason(
+            hasMetaInstances,
+            meta);
+        MetaResponseEmptyText.Text =
+            DashboardCardEmptyStateHelper.FormatMetaResponseEmptyMessage(metaEmptyReason);
+        MetaResponseEmptyText.Visibility = metaEmptyReason == DashboardCardEmptyReason.HasData
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        MetaPendingResponseText.Text = metaDisplay.PendingResponseLabel;
+        MetaPendingResponseText.Visibility = string.IsNullOrWhiteSpace(metaDisplay.PendingResponseLabel)
             ? Visibility.Collapsed
             : Visibility.Visible;
     }
@@ -361,8 +453,17 @@ public sealed partial class DashboardPage : Page
     {
         var display = telemetry.Display;
 
+        if (_registry is not null)
+        {
+            ProfessionalBranchScopeText.Text = DashboardCardEmptyStateHelper.BuildBranchScopeSubtitle(
+                ProfessionalInstances,
+                _selectedBranchInstanceId);
+        }
+
         AvgReplyTimeValue.Text = display.AverageReplyTime;
+        ApplySubtext(AvgReplyTimeSubtext, display.AverageReplyTimeSubtext);
         SlaBreachesValue.Text = display.SlaBreaches;
+        ApplySubtext(SlaThresholdSubtext, display.SlaThresholdSubtext);
         ResponseRateValue.Text = display.ResponseRate;
         PeakHourValue.Text = display.PeakHour;
         DailyTrendValue.Text = display.DailyTrend;
@@ -383,7 +484,31 @@ public sealed partial class DashboardPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
 
+        ApplyProfessionalHealthChips();
         ApplyTriageTelemetryToView(display.Triage);
+    }
+
+    private static void ApplySubtext(TextBlock target, string text)
+    {
+        var visible = !string.IsNullOrWhiteSpace(text);
+        target.Text = text;
+        target.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ApplyProfessionalHealthChips()
+    {
+        if (_registry is null)
+        {
+            ProfessionalHealthChipsItems.ItemsSource = null;
+            return;
+        }
+
+        var chips = DashboardDataHealthHelper
+            .BuildProfessionalHealthChips(ProfessionalInstances)
+            .Select(chip => new ProfessionalHealthChipView(chip))
+            .ToList();
+
+        ProfessionalHealthChipsItems.ItemsSource = chips;
     }
 
     private void ApplyTriageTelemetryToView(MessageTriageDashboardSnapshot? triage = null)
@@ -403,8 +528,22 @@ public sealed partial class DashboardPage : Page
 
         UrgencyTriageList.ItemsSource = urgentItems;
         var hasUrgent = urgentItems.Count > 0;
+        var urgencyEmptyReason = DashboardCardEmptyStateHelper.ResolveUrgencyEmptyReason(triage);
+        UrgencyTriageEmptyText.Text =
+            DashboardCardEmptyStateHelper.FormatUrgencyEmptyMessage(urgencyEmptyReason);
         UrgencyTriageEmptyText.Visibility = hasUrgent ? Visibility.Collapsed : Visibility.Visible;
         UrgencyTriageList.Visibility = hasUrgent ? Visibility.Visible : Visibility.Collapsed;
+
+        var recentItems = triage.RecentInbound
+            .Select(item => new MessageTriageItemView(item))
+            .ToList();
+        RecentInboundTriageList.ItemsSource = recentItems;
+        var hasRecent = recentItems.Count > 0;
+        RecentInboundHeaderText.Visibility = hasRecent ? Visibility.Visible : Visibility.Collapsed;
+        RecentInboundTriageList.Visibility = hasRecent ? Visibility.Visible : Visibility.Collapsed;
+        RecentInboundEmptyText.Visibility = triage.TotalTriageCount > 0 && !hasRecent && !hasUrgent
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         SentimentChart.SetSeries(triage);
         ApplyExecutiveInsightsToView();
@@ -424,6 +563,15 @@ public sealed partial class DashboardPage : Page
 
         ExecutiveInsightsList.ItemsSource = cards;
         var hasInsights = cards.Count > 0;
+        var triageSnapshot = DashboardPageHelper.BuildFilteredTriageSnapshot(
+            ProfessionalInstances,
+            _selectedBranchInstanceId);
+        var insightsEmptyReason = DashboardCardEmptyStateHelper.ResolveExecutiveInsightsEmptyReason(
+            AppSettingsService.Instance.Settings.EnableLocalAi,
+            triageSnapshot.TotalTriageCount,
+            cards.Count);
+        ExecutiveInsightsEmptyText.Text =
+            DashboardCardEmptyStateHelper.FormatExecutiveInsightsEmptyMessage(insightsEmptyReason);
         ExecutiveInsightsEmptyText.Visibility = hasInsights ? Visibility.Collapsed : Visibility.Visible;
         ExecutiveInsightsList.Visibility = hasInsights ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -772,6 +920,7 @@ public sealed partial class DashboardPage : Page
             CoreSummary = card.CoreSummary;
             IntentLabel = card.IntentLabel;
             UrgencyLabel = card.UrgencyLabel;
+            SourceLabel = card.SourceLabel;
             Fields = card.Fields.Select(field => new ExecutiveInsightFieldView(field)).ToList();
         }
 
@@ -785,7 +934,20 @@ public sealed partial class DashboardPage : Page
 
         public string UrgencyLabel { get; }
 
+        public string SourceLabel { get; }
+
         public IReadOnlyList<ExecutiveInsightFieldView> Fields { get; }
+    }
+
+    private sealed class ProfessionalHealthChipView
+    {
+        public ProfessionalHealthChipView(DashboardInstanceHealthChip chip)
+        {
+            Summary =
+                $"{chip.DisplayName}: backfill {chip.BackfillState}, {chip.AdapterHealth}, {chip.TriageItemCount} triage";
+        }
+
+        public string Summary { get; }
     }
 
     private sealed class ExecutiveInsightFieldView

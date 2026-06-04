@@ -27,6 +27,12 @@ public static class DashboardScrapeStatusHandler
             return;
         }
 
+        DashboardScrapeStatusService.Instance.Record(
+            instance.Id,
+            success,
+            context,
+            ReadString(root, "detail"));
+
         if (success)
         {
             return;

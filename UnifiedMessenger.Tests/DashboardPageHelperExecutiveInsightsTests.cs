@@ -67,6 +67,30 @@ public class DashboardPageHelperExecutiveInsightsTests
     }
 
     [Fact]
+    public void BuildExecutiveInsights_OmitsHeuristicWhenSettingDisabled()
+    {
+        AppSettingsService.Instance.Settings.ShowHeuristicExecutiveInsights = false;
+
+        var triage = new MessageTriageService();
+        triage.ProcessInboundForTests(
+            new InboundMessageSelection
+            {
+                InstanceId = "wa-1",
+                Platform = "whatsapp",
+                MessageText = "Need a haircut appointment tomorrow if possible please.",
+                CustomerName = "Ali",
+                ConversationHint = "Ali"
+            },
+            "WA");
+
+        var cards = DashboardPageHelper.BuildExecutiveInsights(
+            [new MessengerInstance { Id = "wa-1", DisplayName = "WA", Category = WorkspaceCategory.Professional }],
+            triageService: triage);
+
+        Assert.Empty(cards);
+    }
+
+    [Fact]
     public void HasExecutiveInsightContent_RequiresRichSignals()
     {
         var heuristicOnly = new MessageTriageItem

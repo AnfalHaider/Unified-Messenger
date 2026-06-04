@@ -117,7 +117,8 @@ public static class DashboardPageHelper
     public static IReadOnlyList<ExecutiveInsightCardDisplay> BuildExecutiveInsights(
         IEnumerable<MessengerInstance> professionalInstances,
         string? branchInstanceId = null,
-        MessageTriageService? triageService = null)
+        MessageTriageService? triageService = null,
+        bool? includeHeuristic = null)
     {
         ArgumentNullException.ThrowIfNull(professionalInstances);
 
@@ -127,16 +128,45 @@ public static class DashboardPageHelper
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var service = triageService ?? MessageTriageService.Instance;
+        var showHeuristic = includeHeuristic ??
+                            AppSettingsService.Instance.Settings.ShowHeuristicExecutiveInsights;
 
-        return service.GetAllItems()
+        var items = service.GetAllItems()
             .Where(item => allowedIds.Contains(item.InstanceId))
-            .Where(HasExecutiveInsightContent)
             .OrderByDescending(item => item.UrgencyScore)
             .ThenByDescending(item => item.TimestampUtc)
-            .Take(12)
-            .Select(BuildExecutiveInsightCard)
             .ToList();
+
+        var cards = new List<ExecutiveInsightCardDisplay>();
+        foreach (var item in items.Where(HasExecutiveInsightContent))
+        {
+            var sourceLabel = item.InferenceSource == TriageInferenceSource.LocalAi ? "Local AI" : "Rich";
+            cards.Add(BuildExecutiveInsightCard(item, sourceLabel));
+            if (cards.Count >= 12)
+            {
+                return cards;
+            }
+        }
+
+        if (!showHeuristic)
+        {
+            return cards;
+        }
+
+        foreach (var item in items.Where(item => !HasExecutiveInsightContent(item)))
+        {
+            cards.Add(BuildHeuristicInsightCard(item));
+            if (cards.Count >= 12)
+            {
+                break;
+            }
+        }
+
+        return cards;
     }
+
+    internal static ExecutiveInsightCardDisplay BuildHeuristicInsightCard(MessageTriageItem item) =>
+        BuildExecutiveInsightCard(item, "Heuristic");
 
     internal static bool HasExecutiveInsightContent(MessageTriageItem item) =>
         item.InferenceSource == TriageInferenceSource.LocalAi ||
@@ -151,7 +181,9 @@ public static class DashboardPageHelper
         !string.IsNullOrWhiteSpace(entities.ServiceType) ||
         !string.IsNullOrWhiteSpace(entities.ActionRequired);
 
-    private static ExecutiveInsightCardDisplay BuildExecutiveInsightCard(MessageTriageItem item)
+    private static ExecutiveInsightCardDisplay BuildExecutiveInsightCard(
+        MessageTriageItem item,
+        string sourceLabel)
     {
         var entities = item.ExtractedEntities ?? new RichTriageExtractedEntities();
         var fields = new List<ExecutiveInsightFieldDisplay>();
@@ -163,6 +195,12 @@ public static class DashboardPageHelper
         AddField(fields, "Time", "\uE121", entities.RequestedTime);
         AddField(fields, "Action required", "\uE72C", entities.ActionRequired, emphasize: true);
 
+        if (fields.Count == 0 && sourceLabel.Equals("Heuristic", StringComparison.OrdinalIgnoreCase))
+        {
+            AddField(fields, "Sentiment", "\uE8BD", item.Sentiment.ToString());
+            AddField(fields, "Urgency", "\uE7BA", item.UrgencyScore.ToString());
+        }
+
         return new ExecutiveInsightCardDisplay
         {
             CustomerName = string.IsNullOrWhiteSpace(item.CustomerName) ? "Customer" : item.CustomerName.Trim(),
@@ -172,6 +210,7 @@ public static class DashboardPageHelper
                 : item.CoreSummary.Trim(),
             IntentLabel = FormatCustomerIntent(item.CustomerIntent),
             UrgencyLabel = item.UrgencyLabel,
+            SourceLabel = sourceLabel,
             Fields = fields
         };
     }
@@ -218,21 +257,50 @@ public static class DashboardPageHelper
     public static string FormatUnrepliedReviewCount(int count) =>
         count == 1 ? "1 unreplied review" : $"{count} unreplied reviews";
 
+    public static string FormatInboundOnlyResponseRate(int receivedCount, int replyPairCount)
+    {
+        if (receivedCount <= 0)
+        {
+            return Placeholder;
+        }
+
+        var percent = replyPairCount <= 0
+            ? 0
+            : (int)Math.Round(replyPairCount * 100.0 / receivedCount, MidpointRounding.AwayFromZero);
+
+        return $"Inbound: {receivedCount} · Replied: {replyPairCount} ({percent}%)";
+    }
+
     public static ProfessionalDashboardDisplay BuildProfessionalDisplay(ProfessionalAnalyticsSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
+        var slaThreshold = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+        var averageReply = snapshot.HasReplyMetrics
+            ? snapshot.AverageReplyTimeDisplay
+            : snapshot.ReceivedCount > 0
+                ? "No replies logged yet"
+                : Placeholder;
+
+        var responseRate = snapshot.HasReplyMetrics
+            ? snapshot.ResponseRateDisplay
+            : FormatInboundOnlyResponseRate(snapshot.ReceivedCount, snapshot.ReplyPairCount);
+
         return new ProfessionalDashboardDisplay
         {
-            AverageReplyTime = snapshot.HasReplyMetrics
-                ? snapshot.AverageReplyTimeDisplay
-                : Placeholder,
+            AverageReplyTime = averageReply,
+            AverageReplyTimeSubtext = snapshot.HasReplyMetrics
+                ? string.Empty
+                : snapshot.ReceivedCount > 0
+                    ? "Reply in a professional inbox to measure response time"
+                    : string.Empty,
             SlaBreaches = snapshot.HasMessageVolume
                 ? snapshot.SlaBreaches.ToString()
                 : Placeholder,
-            ResponseRate = snapshot.HasReplyMetrics
-                ? snapshot.ResponseRateDisplay
-                : Placeholder,
+            SlaThresholdSubtext = snapshot.HasMessageVolume
+                ? $"Threshold: {slaThreshold} min"
+                : string.Empty,
+            ResponseRate = responseRate,
             PeakHour = snapshot.HasMessageVolume
                 ? snapshot.PeakHourDisplay
                 : Placeholder,
@@ -276,16 +344,21 @@ public static class DashboardPageHelper
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        var hasData = snapshot.SampleCount > 0 ||
+        var hasInbound = snapshot.LastInboundDisplay != Placeholder;
+        var hasReplySamples = snapshot.SampleCount > 0;
+        var hasData = hasReplySamples ||
                         snapshot.ActiveUnreadCount > 0 ||
-                        snapshot.LastInboundDisplay != Placeholder ||
+                        hasInbound ||
                         snapshot.LastReplyDisplay != Placeholder;
+
+        var inboundOnly = hasData && !hasReplySamples && hasInbound;
+        var average = snapshot.AverageResponseDisplay != Placeholder
+            ? snapshot.AverageResponseDisplay
+            : Placeholder;
 
         return new MetaResponseDisplay
         {
-            AverageResponse = hasData && snapshot.AverageResponseDisplay != Placeholder
-                ? snapshot.AverageResponseDisplay
-                : Placeholder,
+            AverageResponse = average,
             EfficiencyRating = hasData
                 ? snapshot.EfficiencyRating
                 : "Awaiting data",
@@ -294,7 +367,11 @@ public static class DashboardPageHelper
                 : Placeholder,
             LastInbound = hasData ? snapshot.LastInboundDisplay : Placeholder,
             LastReply = hasData ? snapshot.LastReplyDisplay : Placeholder,
-            HasData = hasData
+            HasData = hasData,
+            InboundOnly = inboundOnly,
+            PendingResponseLabel = inboundOnly && snapshot.ActiveUnreadCount > 0
+                ? $"{snapshot.ActiveUnreadCount} pending response"
+                : string.Empty
         };
     }
 
@@ -399,7 +476,11 @@ public sealed class ProfessionalDashboardDisplay
 {
     public required string AverageReplyTime { get; init; }
 
+    public string AverageReplyTimeSubtext { get; init; } = string.Empty;
+
     public required string SlaBreaches { get; init; }
+
+    public string SlaThresholdSubtext { get; init; } = string.Empty;
 
     public required string ResponseRate { get; init; }
 
@@ -463,6 +544,8 @@ public sealed class ExecutiveInsightCardDisplay
 
     public required string UrgencyLabel { get; init; }
 
+    public string SourceLabel { get; init; } = "Local AI";
+
     public IReadOnlyList<ExecutiveInsightFieldDisplay> Fields { get; init; } = [];
 }
 
@@ -479,4 +562,8 @@ public sealed class MetaResponseDisplay
     public required string LastReply { get; init; }
 
     public bool HasData { get; init; }
+
+    public bool InboundOnly { get; init; }
+
+    public string PendingResponseLabel { get; init; } = string.Empty;
 }

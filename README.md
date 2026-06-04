@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.7](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.7)
+**Current release:** [v1.0.8](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.8)
 
 ## Download (Windows)
 
@@ -15,15 +15,16 @@ All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
 
-### What’s in v1.0.7
+### What’s in v1.0.8
 
-- **Startup backfill** (`BackfillSyncManager`) for **Professional** instances: reconciles unread inbox state after connect so Dashboard triage, Executive Insights, and SLA KPIs are not empty after install/restart.
-- **WhatsApp:** IndexedDB backfill (`__umCollectBackfillCandidates` / `__umCommitInboundBaseline`) without notification toasts or auto-draft on historical messages.
-- **Meta / Google Business:** one forced dashboard scrape per connect for professional telemetry.
-- **Settings → SYSTEM → Enable startup backfill** (default on).
-- **484** unit tests (x64).
+- **Professional dashboard cards:** context-aware empty states (connected ≠ “Connect Google…”), **Recent inbound** triage list, branch scope subtitle.
+- **Data health strip** with per-instance backfill/adapter/triage chips and **Refresh all professional data**.
+- **Honest KPIs** when no replies logged (inbound-only response rate); Meta pending-response hint; Google scrape status footer.
+- **Heuristic Executive Insights** (Settings toggle) when Local AI extraction is unavailable.
+- **Settings:** dashboard urgency threshold (15–50), heuristic insights toggle.
+- **497** unit tests (x64).
 
-Earlier highlights: v1.0.6 (telemetry/scrapers), v1.0.5 and below on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
+Earlier highlights: v1.0.7 (startup backfill, WhatsApp/Meta/Google reconciliation), v1.0.6 and below on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
 
 ## Requirements
 
@@ -52,7 +53,7 @@ cd "d:\Projects\Unified Messenger"
 dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -c Release -p:Platform=x64
 ```
 
-484 unit tests cover services, adapters (including HTML fixture selector checks), backfill orchestration, and dialog helpers.
+497 unit tests cover services, adapters (including HTML fixture selector checks), backfill orchestration, dashboard card helpers, and dialog helpers.
 
 ## Connect Google Business Profile
 
@@ -64,13 +65,13 @@ dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -c Release -p:P
 
 ## Version numbers (keep in sync)
 
-Before every public release, align these three sources to the same **semver** (e.g. `1.0.7`):
+Before every public release, align these three sources to the same **semver** (e.g. `1.0.8`):
 
 | File | Field |
 |------|--------|
 | `UnifiedMessenger/UnifiedMessenger.csproj` | `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<ApplicationDisplayVersion>` |
-| `UnifiedMessenger/app.manifest` | `<assemblyIdentity version="…">` (four-part: `1.0.7.0`) |
-| `installer-shared.iss` | `#define MyAppVersion "1.0.7"` |
+| `UnifiedMessenger/app.manifest` | `<assemblyIdentity version="…">` (four-part: `1.0.8.0`) |
+| `installer-shared.iss` | `#define MyAppVersion "1.0.8"` |
 
 `installer.iss` and `installer-arm64.iss` include `installer-shared.iss` and do not need a separate version line.
 
@@ -211,4 +212,4 @@ Workflow triggers:
 
 ## Enhancement roadmap
 
-See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–9 shipping baseline is complete; v1.0.7 adds professional startup backfill for triage, dashboard AI panels, and SLA reconciliation.
+See [ENHANCEMENT_ROADMAP.md](ENHANCEMENT_ROADMAP.md) for planned features. Tier 0–9 shipping baseline is complete; v1.0.8 improves Professional Operations dashboard accuracy and operator ergonomics.

@@ -306,6 +306,37 @@
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
 
+                        <NumberBox
+                            x:Name="DashboardUrgencyThresholdBox"
+                            Header="Dashboard urgency threshold"
+                            Minimum="15"
+                            Maximum="50"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="DashboardUrgencyThresholdBox_ValueChanged">
+                            <NumberBox.Description>
+                                <TextBlock
+                                    Text="Minimum urgency score (15–50) for the professional urgent triage queue."
+                                    TextWrapping="WrapWholeWords" />
+                            </NumberBox.Description>
+                        </NumberBox>
+
+                        <ToggleSwitch
+                            x:Name="ShowHeuristicExecutiveInsightsToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="ShowHeuristicExecutiveInsightsToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Show heuristic Executive Insights" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Display compact insight cards from heuristic triage when Local AI extraction is unavailable."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
                         <ToggleSwitch
                             x:Name="LaunchAtStartupToggle"
                             OffContent="Off"

@@ -79,6 +79,8 @@ public sealed partial class SettingsPage : Page
         EnableInstanceNotesTagsToggle.IsOn = settings.EnableInstanceNotesTags;
         RunInBackgroundOnCloseToggle.IsOn = settings.RunInBackgroundOnClose;
         EnableStartupBackfillToggle.IsOn = settings.EnableStartupBackfill;
+        DashboardUrgencyThresholdBox.Value = settings.DashboardUrgencyThreshold;
+        ShowHeuristicExecutiveInsightsToggle.IsOn = settings.ShowHeuristicExecutiveInsights;
         LaunchAtStartupToggle.IsOn = StartupTaskService.EnsureRegistrationMatchesPreference(
             settings.LaunchAtStartup);
         PromptPinToTaskbarToggle.IsOn = settings.PromptPinToTaskbar;
@@ -360,6 +362,29 @@ public sealed partial class SettingsPage : Page
 
         await AppSettingsService.Instance.UpdateAsync(settings =>
             settings.EnableStartupBackfill = EnableStartupBackfillToggle.IsOn);
+    }
+
+    private async void DashboardUrgencyThresholdBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_suppressToggleEvents || double.IsNaN(args.NewValue))
+        {
+            return;
+        }
+
+        var value = (int)Math.Round(args.NewValue, MidpointRounding.AwayFromZero);
+        await AppSettingsService.Instance.UpdateAsync(settings =>
+            settings.DashboardUrgencyThreshold = value);
+    }
+
+    private async void ShowHeuristicExecutiveInsightsToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents)
+        {
+            return;
+        }
+
+        await AppSettingsService.Instance.UpdateAsync(settings =>
+            settings.ShowHeuristicExecutiveInsights = ShowHeuristicExecutiveInsightsToggle.IsOn);
     }
 
     private async void LaunchAtStartupToggle_Toggled(object sender, RoutedEventArgs e)

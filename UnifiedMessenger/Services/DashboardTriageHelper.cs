@@ -25,6 +25,16 @@ public static class DashboardTriageHelper
         return Math.Max(1, series.Max(point => point.Positive + point.Neutral + point.Negative));
     }
 
-    public static double ComputeBarHeight(int value, int maxValue, double maxHeight) =>
-        maxValue <= 0 ? 0 : Math.Max(2, value * maxHeight / maxValue);
+    public const double MinNonZeroBarHeight = 8;
+
+    public static double ComputeBarHeight(int value, int maxValue, double maxHeight)
+    {
+        if (value <= 0 || maxValue <= 0)
+        {
+            return 0;
+        }
+
+        var scaled = value * maxHeight / maxValue;
+        return Math.Max(MinNonZeroBarHeight, scaled);
+    }
 }

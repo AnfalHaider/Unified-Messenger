@@ -105,5 +105,6 @@ public class DashboardPageHelperTests
         Assert.Equal("—", display.AverageReplyTime);
         Assert.Equal("—", display.SlaBreaches);
         Assert.Equal("—", display.SentCount);
+        Assert.Equal("—", display.ResponseRate);
     }
 }

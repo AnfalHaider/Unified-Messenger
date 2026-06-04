@@ -36,6 +36,8 @@ public sealed class ProfessionalAnalyticsSnapshot
 
     public bool HasMessageVolume { get; init; }
 
+    public int ReplyPairCount { get; init; }
+
     public IReadOnlyList<DailyActivityPoint> WeeklyActivity { get; init; } = [];
 
     public IReadOnlyList<OperationalHighlightItem> Highlights { get; init; } = [];
@@ -429,6 +431,7 @@ public sealed class MessageAnalyticsService
         {
             SentCount = sent,
             ReceivedCount = received,
+            ReplyPairCount = replyCount,
             AverageReplyTimeDisplay = FormatAverageReplyTime(totalReplyMinutes, replyCount),
             SlaBreaches = slaBreaches,
             ResponseRateDisplay = FormatResponseRate(replyCount, slaBreaches),

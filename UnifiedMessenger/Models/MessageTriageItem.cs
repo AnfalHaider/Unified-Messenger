@@ -49,6 +49,13 @@ public sealed class MessageTriageDashboardSnapshot
 
     public IReadOnlyList<MessageTriageItem> UrgentQueue { get; init; } = [];
 
+    /// <summary>
+    /// Recent professional inbound with urgency below the urgent threshold (see <see cref="DashboardCardEmptyStateHelper.UrgentScoreThreshold"/>).
+    /// </summary>
+    public IReadOnlyList<MessageTriageItem> RecentInbound { get; init; } = [];
+
+    public int TotalTriageCount => PositiveCount + NeutralCount + NegativeCount;
+
     public IReadOnlyList<DailySentimentPoint> WeeklySentiment { get; init; } = [];
 }
 

@@ -141,14 +141,21 @@ public sealed class MessageTriageService
         var neutral = items.Count(item => item.Sentiment == MessageSentiment.Neutral);
         var negative = items.Count(item => item.Sentiment == MessageSentiment.Negative);
 
+        var urgentThreshold = DashboardCardEmptyStateHelper.GetUrgentScoreThreshold();
+
         return new MessageTriageDashboardSnapshot
         {
             PositiveCount = positive,
             NeutralCount = neutral,
             NegativeCount = negative,
             UrgentQueue = items
-                .Where(item => item.UrgencyScore >= 30)
+                .Where(item => item.UrgencyScore >= urgentThreshold)
                 .Take(12)
+                .ToList(),
+            RecentInbound = items
+                .Where(item => item.UrgencyScore < urgentThreshold)
+                .OrderByDescending(item => item.TimestampUtc)
+                .Take(DashboardCardEmptyStateHelper.RecentInboundMaxItems)
                 .ToList(),
             WeeklySentiment = BuildWeeklySentiment(items)
         };

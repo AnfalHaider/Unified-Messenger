@@ -80,6 +80,19 @@ public sealed partial class SentimentActivityChart : UserControl
             bars.Children.Add(negativeBar);
 
             column.Children.Add(bars);
+
+            var dayTotal = point.Positive + point.Neutral + point.Negative;
+            if (dayTotal > 0)
+            {
+                column.Children.Add(new TextBlock
+                {
+                    Text = dayTotal.ToString(),
+                    FontSize = 10,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+            }
+
             column.Children.Add(new TextBlock
             {
                 Text = point.Label,
