@@ -43,6 +43,7 @@ public sealed class InstanceSessionManager
     public void AttachHost(Grid host)
     {
         _host = host;
+        UiThreadRunner.Register(host.DispatcherQueue);
     }
 
     public void SyncInstance(MessengerInstance instance)
@@ -54,10 +55,16 @@ public sealed class InstanceSessionManager
     /// <summary>
     /// Creates WebViews for every instance so background monitoring starts immediately.
     /// </summary>
-    public async Task WarmAllSessionsAsync(
+    public Task WarmAllSessionsAsync(
         IEnumerable<MessengerInstance> instances,
         string? visibleInstanceId = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        UiThreadRunner.RunAsync(() => WarmAllSessionsCoreAsync(instances, visibleInstanceId, cancellationToken));
+
+    private async Task WarmAllSessionsCoreAsync(
+        IEnumerable<MessengerInstance> instances,
+        string? visibleInstanceId,
+        CancellationToken cancellationToken)
     {
         var list = instances.ToList();
         foreach (var instance in list)
@@ -106,7 +113,10 @@ public sealed class InstanceSessionManager
         }
     }
 
-    public async Task SwitchToAsync(MessengerInstance instance, CancellationToken cancellationToken = default)
+    public Task SwitchToAsync(MessengerInstance instance, CancellationToken cancellationToken = default) =>
+        UiThreadRunner.RunAsync(() => SwitchToCoreAsync(instance, cancellationToken));
+
+    private async Task SwitchToCoreAsync(MessengerInstance instance, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(instance);
         SyncInstance(instance);
@@ -167,7 +177,10 @@ public sealed class InstanceSessionManager
         }
     }
 
-    public async Task EnsureSessionAsync(MessengerInstance instance, CancellationToken cancellationToken = default)
+    public Task EnsureSessionAsync(MessengerInstance instance, CancellationToken cancellationToken = default) =>
+        UiThreadRunner.RunAsync(() => EnsureSessionCoreAsync(instance, cancellationToken));
+
+    private async Task EnsureSessionCoreAsync(MessengerInstance instance, CancellationToken cancellationToken)
     {
         SyncInstance(instance);
 
@@ -220,7 +233,10 @@ public sealed class InstanceSessionManager
     /// <summary>
     /// Hides the visible instance without tearing down its WebView (background monitoring continues).
     /// </summary>
-    public async Task HideVisibleSessionAsync()
+    public Task HideVisibleSessionAsync() =>
+        UiThreadRunner.RunAsync(HideVisibleSessionCoreAsync);
+
+    private async Task HideVisibleSessionCoreAsync()
     {
         if (_visibleInstanceId is not null && _sessions.TryGetValue(_visibleInstanceId, out var current))
         {
@@ -231,7 +247,10 @@ public sealed class InstanceSessionManager
         _visibleInstanceId = null;
     }
 
-    public async Task CloseSessionAsync(string instanceId)
+    public Task CloseSessionAsync(string instanceId) =>
+        UiThreadRunner.RunAsync(() => CloseSessionCoreAsync(instanceId));
+
+    private async Task CloseSessionCoreAsync(string instanceId)
     {
         if (!_sessions.TryGetValue(instanceId, out var entry))
         {
@@ -277,7 +296,10 @@ public sealed class InstanceSessionManager
         }
     }
 
-    public async Task RecoverStaleAdapterAsync(string instanceId, CancellationToken cancellationToken = default)
+    public Task RecoverStaleAdapterAsync(string instanceId, CancellationToken cancellationToken = default) =>
+        UiThreadRunner.RunAsync(() => RecoverStaleAdapterCoreAsync(instanceId, cancellationToken));
+
+    private async Task RecoverStaleAdapterCoreAsync(string instanceId, CancellationToken cancellationToken)
     {
         if (!_sessions.TryGetValue(instanceId, out var entry) ||
             entry.WebView.CoreWebView2 is null ||
@@ -416,6 +438,8 @@ public sealed class InstanceSessionManager
 
     public void ApplyAppWindowState(bool isAppActive)
     {
+        UiThreadRunner.VerifyThreadAccess();
+
         foreach (var (instanceId, entry) in _sessions)
         {
             var isForeground = isAppActive &&
@@ -450,7 +474,10 @@ public sealed class InstanceSessionManager
         }
     }
 
-    public async Task BroadcastAdapterSettingsAsync()
+    public Task BroadcastAdapterSettingsAsync() =>
+        UiThreadRunner.RunAsync(BroadcastAdapterSettingsCoreAsync);
+
+    private async Task BroadcastAdapterSettingsCoreAsync()
     {
         var includeMuted = AppSettingsService.Instance.Settings.IncludeMutedChatBadges ? "true" : "false";
         var script =

@@ -69,9 +69,9 @@ public sealed partial class MainWindow : Window
         AppSettingsService.Instance.Changed += OnAppSettingsChanged;
 
         WorkspaceSidebar.Loaded += WorkspaceSidebar_Loaded;
-
-        _ = InitializeAsync();
     }
+
+    public Task RunInitializationAsync() => InitializeAsync();
 
     private void WorkspaceSidebar_Loaded(object sender, RoutedEventArgs e) =>
         RebuildInstanceNavigation();
@@ -407,7 +407,7 @@ public sealed partial class MainWindow : Window
         RebuildInstanceNavigation();
         RefreshNotificationUi();
 
-        await WarmUpWebViewEnvironmentAsync();
+        await WarmUpWebViewEnvironmentAsync().ConfigureAwait(true);
 
         var instances = _registry.Instances;
         if (instances.Count > 0)
@@ -415,11 +415,12 @@ public sealed partial class MainWindow : Window
             SetInstanceLoading(true, "Starting accounts...");
             try
             {
-                await _sessionManager.WarmAllSessionsAsync(instances, visibleInstanceId: null);
+                await _sessionManager.WarmAllSessionsAsync(instances, visibleInstanceId: null)
+                    .ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                await ShowErrorDialogAsync("Could not start instances", ex.Message);
+                await ShowErrorDialogAsync("Could not start instances", FormatExceptionMessage(ex));
             }
             finally
             {
@@ -427,7 +428,7 @@ public sealed partial class MainWindow : Window
             }
         }
 
-        await ShowDashboardAsync();
+        await ShowDashboardAsync().ConfigureAwait(true);
         _ = MaybePromptPinToTaskbarAsync();
     }
 
@@ -546,7 +547,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            await WebViewProfileManager.Instance.EnsureEnvironmentAsync();
+            await WebViewProfileManager.Instance.EnsureEnvironmentAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -1162,6 +1163,22 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private static string FormatExceptionMessage(Exception ex)
+    {
+        var message = ex.Message?.Trim();
+        if (ex.InnerException is { } inner)
+        {
+            var innerMessage = inner.Message?.Trim();
+            if (!string.IsNullOrWhiteSpace(innerMessage) &&
+                !string.Equals(message, innerMessage, StringComparison.Ordinal))
+            {
+                return $"{message}{Environment.NewLine}{innerMessage}";
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(message) ? ex.GetType().Name : message;
+    }
+
     private async Task ShowErrorDialogAsync(string title, string message)
     {
         var dialog = new ContentDialog
@@ -1214,7 +1231,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            await ShowErrorDialogAsync("Could not load instance", ex.Message);
+            await ShowErrorDialogAsync("Could not load instance", FormatExceptionMessage(ex));
         }
         finally
         {

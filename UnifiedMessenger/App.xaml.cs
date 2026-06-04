@@ -25,7 +25,7 @@ public partial class App : Application
     {
         try
         {
-            await AppSettingsService.Instance.LoadAsync();
+            await AppSettingsService.Instance.LoadAsync().ConfigureAwait(true);
 
             StartupTaskService.EnsureRegistrationMatchesPreference(
                 AppSettingsService.Instance.Settings.LaunchAtStartup);
@@ -42,6 +42,8 @@ public partial class App : Application
 
             notificationService.TryHandleLaunchActivation();
             _window.Activate();
+
+            await _window.RunInitializationAsync().ConfigureAwait(true);
 
             if (AppSettingsService.Instance.Settings.EnableAutoUpdate)
             {

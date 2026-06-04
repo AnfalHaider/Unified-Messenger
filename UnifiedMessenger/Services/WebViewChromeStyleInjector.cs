@@ -32,15 +32,18 @@ public static class WebViewChromeStyleInjector
             return;
         }
 
-        if (!TryMarkRegistered(coreWebView))
+        await UiThreadRunner.RunAsync(async () =>
         {
-            return;
-        }
+            if (!TryMarkRegistered(coreWebView))
+            {
+                return;
+            }
 
-        await coreWebView
-            .AddScriptToExecuteOnDocumentCreatedAsync(BuildDocumentCreatedScript(css))
-            .AsTask()
-            .ConfigureAwait(false);
+            await coreWebView
+                .AddScriptToExecuteOnDocumentCreatedAsync(BuildDocumentCreatedScript(css))
+                .AsTask()
+                .ConfigureAwait(true);
+        }).ConfigureAwait(true);
     }
 
     internal static string ResolvePlatformStylesheetFileName(string? platformId)

@@ -80,15 +80,19 @@ public sealed partial class WebViewProfileManager
     /// Creates and initializes a <see cref="WebView2"/> control mapped to the given profile name.
     /// Must be called from the UI thread. The caller owns the control and must close it when unloaded.
     /// </summary>
-    public async Task<WebView2> CreateWebViewAsync(
+    public Task<WebView2> CreateWebViewAsync(
         string profileName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        UiThreadRunner.RunAsync(() => CreateWebViewCoreAsync(profileName, cancellationToken));
+
+    private async Task<WebView2> CreateWebViewCoreAsync(
+        string profileName,
+        CancellationToken cancellationToken)
     {
         profileName = NormalizeProfileName(profileName);
         ValidateProfileName(profileName);
 
-        // Do not ConfigureAwait(false) here — WebView2 is a UI control and must stay on the UI thread.
-        var environment = await EnsureEnvironmentAsync(cancellationToken);
+        var environment = await EnsureEnvironmentAsync(cancellationToken).ConfigureAwait(true);
 
         WebView2? webView = null;
         try
@@ -97,7 +101,7 @@ public sealed partial class WebViewProfileManager
             var options = environment.CreateCoreWebView2ControllerOptions();
             options.ProfileName = profileName;
 
-            await webView.EnsureCoreWebView2Async(environment, options);
+            await webView.EnsureCoreWebView2Async(environment, options).AsTask().ConfigureAwait(true);
 
             var actualProfile = webView.CoreWebView2?.Profile.ProfileName;
             if (actualProfile is null ||

@@ -42,12 +42,20 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             return;
         }
 
-        coreWebView.Settings.IsWebMessageEnabled = true;
+        var coreScript = PrepareScript(
+            await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false),
+            instance);
+        var adapterScript = PrepareScript(
+            await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
+            instance);
 
-        await InjectScriptAsync(coreWebView, "adapter-core.js", instance, cancellationToken).ConfigureAwait(false);
-        await InjectScriptAsync(coreWebView, ScriptFileName, instance, cancellationToken).ConfigureAwait(false);
-
-        RegisterNavigationHooks(coreWebView);
+        await UiThreadRunner.RunAsync(async () =>
+        {
+            coreWebView.Settings.IsWebMessageEnabled = true;
+            await AddDocumentCreatedScriptAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
+            await AddDocumentCreatedScriptAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
+            RegisterNavigationHooks(coreWebView);
+        }).ConfigureAwait(true);
     }
 
     public async Task ReinjectAsync(
@@ -60,19 +68,25 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
         try
         {
-            await ExecuteScriptSafeAsync(
-                    coreWebView,
-                    "if (window.__umResetAdapterRuntime) { window.__umResetAdapterRuntime(); }",
-                    cancellationToken)
-                .ConfigureAwait(true);
+            var coreScript = PrepareScript(
+                await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false),
+                instance);
+            var adapterScript = PrepareScript(
+                await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
+                instance);
+            var settingsScript = BuildAdapterSettingsScript();
 
-            var coreScript = PrepareScript(await LoadScriptTemplateAsync("adapter-core.js", cancellationToken), instance);
-            await ExecuteScriptSafeAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
-
-            var adapterScript = PrepareScript(await LoadScriptTemplateAsync(ScriptFileName, cancellationToken), instance);
-            await ExecuteScriptSafeAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
-
-            await ExecuteScriptSafeAsync(coreWebView, BuildAdapterSettingsScript(), cancellationToken).ConfigureAwait(true);
+            await UiThreadRunner.RunAsync(async () =>
+            {
+                await ExecuteScriptSafeAsync(
+                        coreWebView,
+                        "if (window.__umResetAdapterRuntime) { window.__umResetAdapterRuntime(); }",
+                        cancellationToken)
+                    .ConfigureAwait(true);
+                await ExecuteScriptSafeAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
+                await ExecuteScriptSafeAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
+                await ExecuteScriptSafeAsync(coreWebView, settingsScript, cancellationToken).ConfigureAwait(true);
+            }).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -248,18 +262,16 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         return true;
     }
 
-    private static async Task InjectScriptAsync(
+    private static async Task AddDocumentCreatedScriptAsync(
         CoreWebView2 coreWebView,
-        string scriptFileName,
-        MessengerInstance instance,
+        string script,
         CancellationToken cancellationToken)
     {
-        var script = PrepareScript(await LoadScriptTemplateAsync(scriptFileName, cancellationToken), instance);
         await coreWebView
             .AddScriptToExecuteOnDocumentCreatedAsync(script)
             .AsTask()
             .WaitAsync(cancellationToken)
-            .ConfigureAwait(false);
+            .ConfigureAwait(true);
     }
 
     private static string PrepareScript(string script, MessengerInstance instance)
