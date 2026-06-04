@@ -456,6 +456,28 @@
                 <TextBlock
                     FontWeight="SemiBold"
                     Opacity="0.75"
+                    Text="LOCAL AI" />
+                <Border
+                    Padding="16"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Configure Ollama, download models, and choose the default drafting model."
+                            TextWrapping="WrapWholeWords" />
+                        <HyperlinkButton Click="LocalAiSettingsLink_Click" Content="Open local AI settings" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock
+                    FontWeight="SemiBold"
+                    Opacity="0.75"
                     Text="ABOUT" />
                 <Border
                     Padding="16"

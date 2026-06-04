@@ -24,10 +24,7 @@ public sealed class AppSettingsService
 
     private AppSettingsService()
     {
-        _storePath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "UnifiedMessenger",
-            FileName);
+        _storePath = Path.Combine(ApplicationPaths.UserDataRoot, FileName);
     }
 
     internal AppSettingsService(string storePath)

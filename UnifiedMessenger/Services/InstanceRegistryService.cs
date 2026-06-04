@@ -27,10 +27,7 @@ public sealed partial class InstanceRegistryService
 
     public InstanceRegistryService()
     {
-        var appDataRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "UnifiedMessenger");
-        _storePath = Path.Combine(appDataRoot, FileName);
+        _storePath = Path.Combine(ApplicationPaths.UserDataRoot, FileName);
     }
 
     internal InstanceRegistryService(string storePath)

@@ -35,6 +35,8 @@ public sealed class ProfessionalAnalyticsSnapshot
     public IReadOnlyList<DailyActivityPoint> WeeklyActivity { get; init; } = [];
 
     public IReadOnlyList<OperationalHighlightItem> Highlights { get; init; } = [];
+
+    public MessageTriageDashboardSnapshot Triage { get; init; } = MessageTriageDashboardSnapshot.Empty;
 }
 
 public sealed class OperationalHighlightItem
@@ -77,10 +79,7 @@ public sealed class MessageAnalyticsService
 
     public MessageAnalyticsService()
     {
-        var appDataRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "UnifiedMessenger");
-        _storePath = Path.Combine(appDataRoot, FileName);
+        _storePath = Path.Combine(ApplicationPaths.UserDataRoot, FileName);
     }
 
     internal MessageAnalyticsService(string storePath)
@@ -370,7 +369,8 @@ public sealed class MessageAnalyticsService
             PeakHourDisplay = FormatPeakHour(hourlyTotals),
             DailyTrendDisplay = ComputeDailyTrend(instances),
             WeeklyActivity = BuildWeeklyActivity(instances),
-            Highlights = BuildOperationalHighlights(instances)
+            Highlights = BuildOperationalHighlights(instances),
+            Triage = MessageTriageService.Instance.BuildSnapshot(instances)
         };
     }
 

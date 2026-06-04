@@ -15,8 +15,11 @@
     <Platforms>x86;x64;ARM64</Platforms>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
+    <!-- Standalone WinExe — no MSIX container or packaging project. -->
     <WindowsPackageType>None</WindowsPackageType>
     <EnableMsixTooling>false</EnableMsixTooling>
+    <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
+    <AppxPackage>false</AppxPackage>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -28,9 +31,8 @@
     <FileVersion>1.0.4.0</FileVersion>
     <ApplicationDisplayVersion>1.0.4</ApplicationDisplayVersion>
 
-    <!-- Match host CPU for local `dotnet run`; publish profiles override RID. -->
+    <!-- Match host CPU for local `dotnet run`; use README publish commands for shipping. -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
-    <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
   </PropertyGroup>
 
   <!-- Self-contained shipping (see also PublishProfiles). Dev builds stay framework-dependent unless publishing. -->
@@ -48,6 +50,9 @@
     <Content Include="Assets\AppIcon.ico" />
     <Content Include="Assets\Branding\icon-master.png" />
     <Content Include="Assets\Branding\wide-master.png" />
+    <Content Include="Assets\Config\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Assets\Scripts\*.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

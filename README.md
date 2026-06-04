@@ -52,6 +52,10 @@ dotnet test UnifiedMessenger.sln -c Release -p:Platform=x64
 
 ## Build a release installer
 
+**Install location:** per-user `%LocalAppData%\UnifiedMessenger` (no admin). User settings, instances, WebView2 profiles, and analytics live in the same folder tree. Upgrades use Restart Manager + `AppMutex` to close a running `UnifiedMessenger.exe` before copying files.
+
+If you previously installed to `Program Files`, uninstall the old build and reinstall so binaries and data share one root.
+
 ### 1. Publish self-contained binaries
 
 **x64:**

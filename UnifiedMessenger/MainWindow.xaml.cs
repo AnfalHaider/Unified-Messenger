@@ -67,6 +67,7 @@ public sealed partial class MainWindow : Window
         InstanceConnectionStatusService.Instance.Changed += OnConnectionStatusChanged;
         _sessionManager.SessionInitializing += OnSessionInitializing;
         _sessionManager.SessionFailed += OnSessionFailed;
+        AutoDraftOrchestrator.Instance.DraftCompleted += OnAutoDraftCompleted;
         AttachShellNavigationHandlers();
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
         AppSettingsService.Instance.Changed += OnAppSettingsChanged;
@@ -144,6 +145,7 @@ public sealed partial class MainWindow : Window
         InstanceConnectionStatusService.Instance.Changed -= OnConnectionStatusChanged;
         _sessionManager.SessionInitializing -= OnSessionInitializing;
         _sessionManager.SessionFailed -= OnSessionFailed;
+        AutoDraftOrchestrator.Instance.DraftCompleted -= OnAutoDraftCompleted;
         MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
         AppSettingsService.Instance.Changed -= OnAppSettingsChanged;
     }
@@ -541,6 +543,7 @@ public sealed partial class MainWindow : Window
 
         var navArgs = new RegistryNavigationArgs { Registry = _registry };
         ContentFrame.Navigate(typeof(DashboardPage), navArgs);
+        ActiveWorkspaceContext.SetDashboardVisible();
         AppTitleBar.Subtitle = "Dashboard";
 
         if (ContentFrame.Content is DashboardPage dashboard)
@@ -1012,7 +1015,36 @@ public sealed partial class MainWindow : Window
 
         var navArgs = new RegistryNavigationArgs { Registry = _registry };
         ContentFrame.Navigate(typeof(SettingsPage), navArgs);
+        ActiveWorkspaceContext.SetSettingsVisible();
         AppTitleBar.Subtitle = "Settings";
+    }
+
+    private void OnAutoDraftCompleted(object? sender, AutoDraftCompletedEventArgs e)
+    {
+        if (!ActiveWorkspaceContext.IsInstanceActive(e.InstanceId))
+        {
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            AppTitleBar.Subtitle = "AI draft ready — review before sending";
+            _ = ClearAutoDraftSubtitleAsync();
+        });
+    }
+
+    private async Task ClearAutoDraftSubtitleAsync()
+    {
+        await Task.Delay(TimeSpan.FromSeconds(8)).ConfigureAwait(true);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (AppTitleBar.Subtitle == "AI draft ready — review before sending" &&
+                !string.IsNullOrWhiteSpace(_selectedInstanceId) &&
+                _registry.FindById(_selectedInstanceId) is { } instance)
+            {
+                AppTitleBar.Subtitle = instance.DisplayName;
+            }
+        });
     }
 
     private void NotificationToggleButton_Click(object sender, RoutedEventArgs e)
@@ -1240,6 +1272,7 @@ public sealed partial class MainWindow : Window
 
         _selectedInstanceId = instanceId;
         _isDashboardSelected = false;
+        ActiveWorkspaceContext.SetActiveInstance(instanceId);
         WorkspaceSidebar.SetSelection(false, instanceId);
         ContentFrame.Visibility = Visibility.Collapsed;
         InstanceWebViewHost.Visibility = Visibility.Visible;

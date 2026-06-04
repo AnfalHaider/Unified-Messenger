@@ -92,7 +92,12 @@ public sealed class AppNotificationService
             }
 
             ApplyToastSound(builder, settings);
-            builder.SetAppLogoOverride(new Uri("ms-appx:///Assets/AppIcon.ico"));
+
+            var iconUri = ApplicationPaths.TryResolveAppIconUri();
+            if (!string.IsNullOrWhiteSpace(iconUri))
+            {
+                builder.SetAppLogoOverride(new Uri(iconUri));
+            }
 
             AppNotificationManager.Default.Show(builder.BuildNotification());
         }

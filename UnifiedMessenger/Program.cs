@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger;
 
@@ -11,14 +12,27 @@ public static class Program
     {
         RegisterGlobalExceptionHandlers();
 
-        WinRT.ComWrappersSupport.InitializeComWrappers();
-        Application.Start(_ =>
+        if (!SingleInstanceGuard.TryAcquire())
         {
-            var context = new DispatcherQueueSynchronizationContext(
-                DispatcherQueue.GetForCurrentThread());
-            SynchronizationContext.SetSynchronizationContext(context);
-            new App();
-        });
+            Debug.WriteLine("Unified Messenger is already running; exiting second instance.");
+            return;
+        }
+
+        try
+        {
+            WinRT.ComWrappersSupport.InitializeComWrappers();
+            Application.Start(_ =>
+            {
+                var context = new DispatcherQueueSynchronizationContext(
+                    DispatcherQueue.GetForCurrentThread());
+                SynchronizationContext.SetSynchronizationContext(context);
+                new App();
+            });
+        }
+        finally
+        {
+            SingleInstanceGuard.Release();
+        }
     }
 
     private static void RegisterGlobalExceptionHandlers()

@@ -2,7 +2,7 @@ namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -60,6 +60,16 @@ public sealed class AppSettings
 
     public bool EnableInstanceNotesTags { get; set; }
 
+    public bool EnableLocalAi { get; set; }
+
+    public bool OllamaAutoBootstrap { get; set; } = true;
+
+    public string LocalAiModelName { get; set; } = "phi3:mini";
+
+    public bool EnableAutoDraft { get; set; }
+
+    public bool AutoDraftOnlyWhenVisible { get; set; } = true;
+
     /// <summary>
     /// Clamps numeric settings and resets unknown enum values after load or manual edits.
     /// </summary>
@@ -97,5 +107,9 @@ public sealed class AppSettings
         {
             StartupWarmMode = StartupWarmMode.WarmAll;
         }
+
+        LocalAiModelName = string.IsNullOrWhiteSpace(LocalAiModelName)
+            ? "phi3:mini"
+            : LocalAiModelName.Trim();
     }
 }

@@ -5,7 +5,7 @@ namespace UnifiedMessenger.Services;
 
 public static class SettingsPageHelper
 {
-    public const string AppDataFolderName = "UnifiedMessenger";
+    public const string AppDataFolderName = ApplicationPaths.AppDataFolderName;
 
     public const string InstancesFileName = "instances.json";
 
@@ -43,10 +43,7 @@ public static class SettingsPageHelper
     public static bool RequiresNumberBoxCorrection(double normalizedValue, double rawValue) =>
         Math.Abs(normalizedValue - rawValue) > 0.01;
 
-    public static string GetDefaultAppDataRoot() =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            AppDataFolderName);
+    public static string GetDefaultAppDataRoot() => ApplicationPaths.UserDataRoot;
 
     public static string ResolveInstancesStorePath(string? registryStorePath) =>
         string.IsNullOrWhiteSpace(registryStorePath)

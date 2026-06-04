@@ -19,6 +19,7 @@ public class AdapterMessageTypesTests
     [Theory]
     [InlineData("badge-count", true)]
     [InlineData("google-review-snapshot", true)]
+    [InlineData("inbound-message-selected", true)]
     [InlineData("unknown-type", false)]
     public void IsKnownType_ClassifiesSupportedMessages(string type, bool expected)
     {

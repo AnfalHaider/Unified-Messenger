@@ -72,10 +72,7 @@ public static class ProfileAvatarService
 
     internal static string ResolveCacheRoot() =>
         s_cacheRootOverrideForTests
-        ?? System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "UnifiedMessenger",
-            AvatarsFolderName);
+        ?? System.IO.Path.Combine(ApplicationPaths.UserDataRoot, AvatarsFolderName);
 
     internal static string? SanitizeInstanceId(string instanceId)
     {

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Ollama;
 
 namespace UnifiedMessenger;
 
@@ -49,6 +50,8 @@ public partial class App : Application
             {
                 _ = GitHubUpdateService.Instance.CheckForUpdatesAsync();
             }
+
+            OllamaOrchestrationService.Instance.WarmupInBackground();
         }
         catch (Exception ex)
         {

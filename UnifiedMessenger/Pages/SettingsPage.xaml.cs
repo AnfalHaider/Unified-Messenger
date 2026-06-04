@@ -588,6 +588,9 @@ public sealed partial class SettingsPage : Page
         }
     }
 
+    private void LocalAiSettingsLink_Click(object sender, RoutedEventArgs e) =>
+        Frame?.Navigate(typeof(LocalAISettingsPage));
+
     private void AboutLink_Click(object sender, RoutedEventArgs e)
     {
         Frame?.Navigate(typeof(AboutPage));

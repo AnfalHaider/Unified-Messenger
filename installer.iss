@@ -1,13 +1,8 @@
-; Inno Setup script for Unified Messenger (standalone .exe deployment)
-; Compile after `dotnet publish` — see README or release docs for exact CLI.
+; Inno Setup — Unified Messenger x64 (unpackaged WinExe)
+; Publish first: see README "Build a release installer".
 
-#define MyAppName "Unified Messenger"
-#define MyAppExeName "UnifiedMessenger.exe"
-#define MyAppPublisher "AnfalHaider"
-#define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "1.0.4"
+#include "installer-shared.iss"
 
-; Path to the self-contained publish output (adjust Configuration / RID as needed)
 #define PublishDir "UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish"
 
 [Setup]
@@ -19,8 +14,8 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\{#MyAppName}
-DefaultGroupName={#MyAppName}
+DefaultDirName={#InstallDir}
+UsePreviousAppDir=yes
 DisableProgramGroupPage=yes
 OutputBaseFilename=UnifiedMessengerSetup
 OutputDir=dist
@@ -33,6 +28,8 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
+CloseApplicationsFilter={#MyAppExeName}
+AppMutex={#MyAppMutex}
 RestartApplications=no
 MinVersion=10.0.17763
 
@@ -44,10 +41,31 @@ Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent unchecked
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+
+[Code]
+procedure TaskKill(const FileName: String);
+var
+  ResultCode: Integer;
+begin
+  if Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM /T ' + FileName, '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode) then
+    Log(Format('taskkill %s exited %d', [FileName, ResultCode]))
+  else
+    Log(Format('taskkill %s failed', [FileName]));
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+    TaskKill('{#MyAppExeName}');
+end;

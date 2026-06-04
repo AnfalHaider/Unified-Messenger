@@ -27,6 +27,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
     protected abstract string ScriptFileName { get; }
 
+    protected virtual bool SupportsInboundAutoDraft => false;
+
     public abstract string PlatformId { get; }
 
     public async Task RegisterAsync(
@@ -51,6 +53,18 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         var adapterScript = PrepareScript(
             await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
             instance);
+        string? draftInjectScript = null;
+        string? inboundMonitorScript = null;
+
+        if (SupportsInboundAutoDraft)
+        {
+            draftInjectScript = PrepareScript(
+                await LoadScriptTemplateAsync("ai-draft-inject.js", cancellationToken).ConfigureAwait(false),
+                instance);
+            inboundMonitorScript = PrepareScript(
+                await LoadScriptTemplateAsync("inbound-message-monitor.js", cancellationToken).ConfigureAwait(false),
+                instance);
+        }
 
         await UiThreadRunner.RunAsync(async () =>
         {
@@ -58,6 +72,19 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             await AddDocumentCreatedScriptAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, handshakeScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
+
+            if (draftInjectScript is not null)
+            {
+                await AddDocumentCreatedScriptAsync(coreWebView, draftInjectScript, cancellationToken)
+                    .ConfigureAwait(true);
+            }
+
+            if (inboundMonitorScript is not null)
+            {
+                await AddDocumentCreatedScriptAsync(coreWebView, inboundMonitorScript, cancellationToken)
+                    .ConfigureAwait(true);
+            }
+
             RegisterNavigationHooks(coreWebView, instance);
         }).ConfigureAwait(true);
     }
@@ -174,6 +201,16 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     BuildConnectionHandshakeScript(instance),
                     CancellationToken.None)
                 .ConfigureAwait(true);
+
+            if (SupportsInboundAutoDraft)
+            {
+                await ExecuteScriptSafeAsync(
+                        coreWebView,
+                        "if (window.__umStartInboundMessageMonitor) { window.__umStartInboundMessageMonitor(); }",
+                        CancellationToken.None)
+                    .ConfigureAwait(true);
+            }
+
             await ExecutePublishBadgeAsync(coreWebView).ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -198,6 +235,50 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
     protected static DateTimeOffset ParseMessageTimestamp(JsonElement root) =>
         WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
+
+    protected static bool TryHandleInboundMessageSelected(
+        string? type,
+        JsonElement root,
+        MessengerInstance instance)
+    {
+        if (!AdapterMessageTypes.InboundMessageSelected.Equals(type, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var messageText = root.TryGetProperty("messageText", out var messageElement)
+            ? messageElement.GetString()
+            : null;
+
+        if (string.IsNullOrWhiteSpace(messageText))
+        {
+            return true;
+        }
+
+        var customerName = root.TryGetProperty("customerName", out var customerElement)
+            ? customerElement.GetString() ?? "Customer"
+            : "Customer";
+        var conversationHint = root.TryGetProperty("conversationHint", out var hintElement)
+            ? hintElement.GetString() ?? string.Empty
+            : string.Empty;
+
+        MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id);
+
+        var selection = new InboundMessageSelection
+        {
+            InstanceId = instance.Id,
+            Platform = instance.Platform,
+            MessageText = messageText,
+            CustomerName = customerName,
+            ConversationHint = conversationHint,
+            TimestampUtc = ParseMessageTimestamp(root)
+        };
+
+        MessageTriageService.Instance.Enqueue(selection, instance.DisplayName);
+        AutoDraftOrchestrator.Instance.HandleInboundMessage(selection);
+
+        return true;
+    }
 
     private static void ApplyConnectionStatus(string instanceId, string? statusRaw, JsonElement root)
     {
@@ -467,6 +548,8 @@ public sealed class MetaBusinessAdapter : BasePlatformAdapter
 {
     protected override string ScriptFileName => "meta_business_scraper.js";
 
+    protected override bool SupportsInboundAutoDraft => true;
+
     public override string PlatformId => "metabusiness";
 
     protected override bool HandleCustomMessage(
@@ -475,6 +558,11 @@ public sealed class MetaBusinessAdapter : BasePlatformAdapter
         NotificationHub hub,
         MessengerInstance instance)
     {
+        if (TryHandleInboundMessageSelected(type, root, instance))
+        {
+            return true;
+        }
+
         if (!AdapterMessageTypes.MetaInboundMessage.Equals(type, StringComparison.OrdinalIgnoreCase))
         {
             return false;
@@ -493,6 +581,8 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
 {
     protected override string ScriptFileName => "google_business_scraper.js";
 
+    protected override bool SupportsInboundAutoDraft => true;
+
     public override string PlatformId => "googlebusiness";
 
     protected override bool HandleCustomMessage(
@@ -501,6 +591,11 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
         NotificationHub hub,
         MessengerInstance instance)
     {
+        if (TryHandleInboundMessageSelected(type, root, instance))
+        {
+            return true;
+        }
+
         switch (type)
         {
             case AdapterMessageTypes.GoogleReviewSnapshot:
@@ -556,6 +651,22 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
                     $"{reviewer} · review",
                     snippet,
                     instance.IconGlyph));
+
+                if (!string.IsNullOrWhiteSpace(snippet))
+                {
+                    var selection = new InboundMessageSelection
+                    {
+                        InstanceId = instance.Id,
+                        Platform = instance.Platform,
+                        MessageText = snippet,
+                        CustomerName = reviewer,
+                        ConversationHint = location,
+                        TimestampUtc = detectedAt
+                    };
+
+                    MessageTriageService.Instance.Enqueue(selection, instance.DisplayName);
+                    AutoDraftOrchestrator.Instance.HandleInboundMessage(selection);
+                }
 
                 return true;
 

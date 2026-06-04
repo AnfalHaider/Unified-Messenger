@@ -19,10 +19,7 @@ public sealed partial class WebViewProfileManager
 
     private WebViewProfileManager()
     {
-        UserDataFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "UnifiedMessenger",
-            "WebView2");
+        UserDataFolder = Path.Combine(ApplicationPaths.UserDataRoot, "WebView2");
     }
 
     public static WebViewProfileManager Instance => LazyInstance.Value;

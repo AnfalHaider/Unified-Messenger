@@ -47,6 +47,7 @@ public sealed partial class DashboardPage : Page
         NotificationHub.Instance.Changed += OnHubChanged;
         AdapterHealthMonitor.Instance.Changed += OnAdapterHealthChanged;
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
+        MessageTriageService.Instance.Changed += OnTriageChanged;
         ProfessionalWorkspaceService.Instance.Changed += OnProfessionalWorkspaceChanged;
 
         _resourceTimer = new DispatcherTimer
@@ -64,6 +65,7 @@ public sealed partial class DashboardPage : Page
         NotificationHub.Instance.Changed -= OnHubChanged;
         AdapterHealthMonitor.Instance.Changed -= OnAdapterHealthChanged;
         MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
+        MessageTriageService.Instance.Changed -= OnTriageChanged;
         ProfessionalWorkspaceService.Instance.Changed -= OnProfessionalWorkspaceChanged;
 
         if (_resourceTimer is not null)
@@ -96,6 +98,9 @@ public sealed partial class DashboardPage : Page
             RefreshEnterpriseWidgets();
         });
     }
+
+    private void OnTriageChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => RefreshTriageTelemetry());
 
     private void OnProfessionalWorkspaceChanged(object? sender, EventArgs e)
     {
@@ -327,7 +332,29 @@ public sealed partial class DashboardPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
 
+        RefreshTriageTelemetry(snapshot.Triage);
         UpdateProfessionalEmptyState();
+    }
+
+    private void RefreshTriageTelemetry(MessageTriageDashboardSnapshot? triage = null)
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        triage ??= MessageTriageService.Instance.BuildSnapshot(FilteredProfessionalInstances);
+
+        var urgentItems = triage.UrgentQueue
+            .Select(item => new MessageTriageItemView(item))
+            .ToList();
+
+        UrgencyTriageList.ItemsSource = urgentItems;
+        var hasUrgent = urgentItems.Count > 0;
+        UrgencyTriageEmptyText.Visibility = hasUrgent ? Visibility.Collapsed : Visibility.Visible;
+        UrgencyTriageList.Visibility = hasUrgent ? Visibility.Visible : Visibility.Collapsed;
+
+        SentimentChart.SetSeries(triage);
     }
 
     private void RefreshActivity()
@@ -513,6 +540,15 @@ public sealed partial class DashboardPage : Page
         }
     }
 
+    private void UrgencyTriageList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is MessageTriageItemView item &&
+            !string.IsNullOrWhiteSpace(item.InstanceId))
+        {
+            ShellNavigationService.Instance.RequestInstance(item.InstanceId);
+        }
+    }
+
     private void GoogleReviewAlertsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _selectedReviewAlert = GoogleReviewAlertsList.SelectedItem as GoogleReviewAlertView;
@@ -628,6 +664,28 @@ public sealed partial class DashboardPage : Page
         public string InstanceDisplayName { get; }
 
         public string? InstanceId { get; }
+    }
+
+    private sealed class MessageTriageItemView
+    {
+        public MessageTriageItemView(MessageTriageItem item)
+        {
+            InstanceId = item.InstanceId;
+            InstanceDisplayName = item.InstanceDisplayName;
+            CustomerName = item.CustomerName;
+            MessagePreview = item.MessagePreview;
+            UrgencyLabel = $"{item.UrgencyLabel} · {item.UrgencyScore}";
+        }
+
+        public string InstanceId { get; }
+
+        public string InstanceDisplayName { get; }
+
+        public string CustomerName { get; }
+
+        public string MessagePreview { get; }
+
+        public string UrgencyLabel { get; }
     }
 
     private sealed class GoogleReviewAlertView

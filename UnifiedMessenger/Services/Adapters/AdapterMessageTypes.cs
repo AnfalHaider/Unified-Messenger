@@ -23,6 +23,8 @@ public static class AdapterMessageTypes
 
     public const string GoogleReviewAlert = "google-review-alert";
 
+    public const string InboundMessageSelected = "inbound-message-selected";
+
     private static readonly HashSet<string> StandardTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         BadgeCount,
@@ -40,5 +42,6 @@ public static class AdapterMessageTypes
         IsStandardType(type) ||
         MetaInboundMessage.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         GoogleReviewSnapshot.Equals(type, StringComparison.OrdinalIgnoreCase) ||
-        GoogleReviewAlert.Equals(type, StringComparison.OrdinalIgnoreCase);
+        GoogleReviewAlert.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        InboundMessageSelected.Equals(type, StringComparison.OrdinalIgnoreCase);
 }
