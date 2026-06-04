@@ -161,6 +161,19 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 return;
             }
 
+            if (AdapterMessageTypes.InboundMessageSelected.Equals(type, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!SupportsInboundAutoDraft)
+                {
+                    Debug.WriteLine(
+                        $"Ignoring inbound message for {instance.Id}; adapter does not support inbound monitoring.");
+                    return;
+                }
+
+                TryHandleInboundMessageSelected(type, root, instance);
+                return;
+            }
+
             if (!AdapterMessageTypes.IsKnownType(type))
             {
                 Debug.WriteLine($"Ignoring unknown adapter message type '{type}' for {instance.Id}.");
@@ -523,6 +536,8 @@ public sealed class WhatsAppAdapter : BasePlatformAdapter
 {
     protected override string ScriptFileName => "whatsapp-adapter.js";
 
+    protected override bool SupportsInboundAutoDraft => true;
+
     public override string PlatformId => "whatsapp";
 }
 
@@ -564,11 +579,6 @@ public sealed class MetaBusinessAdapter : BasePlatformAdapter
         NotificationHub hub,
         MessengerInstance instance)
     {
-        if (TryHandleInboundMessageSelected(type, root, instance))
-        {
-            return true;
-        }
-
         if (AdapterMessageTypes.DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
         {
             HandleDashboardScrapeStatus(root, instance);
@@ -616,11 +626,6 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
         NotificationHub hub,
         MessengerInstance instance)
     {
-        if (TryHandleInboundMessageSelected(type, root, instance))
-        {
-            return true;
-        }
-
         if (AdapterMessageTypes.DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
         {
             HandleDashboardScrapeStatus(root, instance);

@@ -53,6 +53,25 @@ public class ConsumerAdapterScriptTests
     }
 
     [Fact]
+    public void WhatsAppAdapter_PostsInboundTriageFromUnreadPreviews()
+    {
+        var script = ReadScript("whatsapp-adapter.js");
+
+        Assert.Contains("inbound-message-selected", script, StringComparison.Ordinal);
+        Assert.Contains("scanForNewPreviews", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InboundMessageMonitor_IncludesWhatsAppProfile()
+    {
+        var script = ReadScript("inbound-message-monitor.js");
+
+        Assert.Contains("whatsapp:", script, StringComparison.Ordinal);
+        Assert.Contains("message-in", script, StringComparison.Ordinal);
+        Assert.Contains("__umStartInboundMessageMonitor", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TelegramAdapter_SupportsWebKAndWebZ()
     {
         var script = ReadScript("telegram-adapter.js");

@@ -26,6 +26,15 @@
       ],
       outgoingHints: [/your reply/i, /replied/i, /owner response/i]
     },
+    whatsapp: {
+      messageSelectors: [
+        'div.message-in span.selectable-text',
+        '[data-testid="conversation-panel-messages"] div.message-in span.selectable-text',
+        '[data-testid*="msg-container"] span.selectable-text',
+        'span.selectable-text.copyable-text'
+      ],
+      outgoingHints: [/^you:/i, /^you$/i, /message-out/i, /outgoing/i, /you sent/i]
+    },
     generic: {
       messageSelectors: ['[role="article"]', '[role="row"]', 'p'],
       outgoingHints: [/you$/i, /sent/i]
