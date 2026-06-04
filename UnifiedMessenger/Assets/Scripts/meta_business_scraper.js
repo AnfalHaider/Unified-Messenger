@@ -141,7 +141,57 @@
   function resolveUnreadCount() {
     var titleCount = countFromTitle();
     var navCount = countFromNavigation();
-    return Math.max(titleCount, navCount, 0);
+    var bodyMatch = window.__umFindTextMatch &&
+      window.__umFindTextMatch(/(\d+)\s*(?:unread|new)\s*(?:message|conversation)/i);
+    var bodyCount = bodyMatch ? window.__umSafeParseInt(bodyMatch[1]) : 0;
+    return Math.max(titleCount, navCount, bodyCount, 0);
+  }
+
+  function scanTelemetrySnapshot(unreadCount) {
+    var bodyText = (document.body && document.body.innerText) || '';
+    var avgMatch = bodyText.match(
+      /(?:avg|average)\s*(?:response|reply)\s*(?:time)?\s*[:.]?\s*(\d+(?:\.\d+)?)\s*(min|minute|hr|hour)/i
+    );
+    var averageResponseMinutes = null;
+    if (avgMatch) {
+      var value = parseFloat(avgMatch[1]);
+      var unit = String(avgMatch[2] || '').toLowerCase();
+      averageResponseMinutes = /hr|hour/.test(unit) ? value * 60 : value;
+    }
+
+    var slaBreachHints = 0;
+    if (/(?:sla|response time)\s*(?:breach|missed|overdue)/i.test(bodyText)) {
+      slaBreachHints++;
+    }
+    var breachMatch = bodyText.match(/(\d+)\s*(?:sla\s*)?(?:breach|overdue|late)\s*(?:response|reply)/i);
+    if (breachMatch) {
+      slaBreachHints = Math.max(slaBreachHints, window.__umSafeParseInt(breachMatch[1]));
+    }
+
+    return {
+      averageResponseMinutes: averageResponseMinutes,
+      slaBreachHints: slaBreachHints,
+      unreadCount: unreadCount
+    };
+  }
+
+  function publishTelemetry(unreadCount) {
+    var telemetry = scanTelemetrySnapshot(unreadCount);
+    if (telemetry.averageResponseMinutes === null &&
+        telemetry.slaBreachHints === 0 &&
+        telemetry.unreadCount === 0) {
+      return;
+    }
+
+    postMessage({
+      type: 'meta-telemetry-snapshot',
+      instanceId: INSTANCE_ID,
+      platform: PLATFORM,
+      averageResponseMinutes: telemetry.averageResponseMinutes,
+      slaBreachHints: telemetry.slaBreachHints,
+      unreadCount: telemetry.unreadCount,
+      timestampUtc: new Date().toISOString()
+    });
   }
 
   function emitInboundSignal(count, source) {
@@ -169,22 +219,30 @@
 
   function publishImmediate() {
     publishScheduled = false;
-    var count = resolveUnreadCount();
 
-    if (count !== lastPostedCount) {
-      if (count > lastPostedCount && lastPostedCount >= 0) {
-        emitInboundSignal(count, 'badge-increase');
+    window.__umRunSafeScrape(INSTANCE_ID, PLATFORM, 'meta-dashboard', function () {
+      var count = resolveUnreadCount();
+
+      if (count !== lastPostedCount) {
+        if (count > lastPostedCount && lastPostedCount >= 0) {
+          emitInboundSignal(count, 'badge-increase');
+        }
+
+        lastPostedCount = count;
+        postMessage({
+          type: 'badge-count',
+          instanceId: INSTANCE_ID,
+          platform: PLATFORM,
+          count: count
+        });
       }
 
-      lastPostedCount = count;
-      postMessage({
-        type: 'badge-count',
-        instanceId: INSTANCE_ID,
-        platform: PLATFORM,
-        count: count
-      });
-    }
+      publishTelemetry(count);
+      return true;
+    });
   }
+
+  window.__umForceDashboardScrape = publishImmediate;
 
   function schedulePublish() {
     if (publishScheduled) {

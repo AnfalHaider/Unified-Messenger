@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -16,6 +17,9 @@ public sealed partial class DashboardPage : Page
     private GoogleReviewAlertView? _selectedReviewAlert;
     private string? _selectedBranchInstanceId;
     private bool _suppressBranchSelectionChanged;
+    private readonly ObservableCollection<DashboardBranchFilterEntry> _branchFilterEntries = new();
+
+    public ObservableCollection<DashboardBranchFilterEntry> BranchFilterEntries => _branchFilterEntries;
 
     public DashboardPage()
     {
@@ -27,8 +31,8 @@ public sealed partial class DashboardPage : Page
     private void OnResourceTimerTick(object? sender, object e)
     {
         RefreshResources();
-        RefreshProfessionalMetrics();
-        RefreshEnterpriseWidgets();
+        ApplyProfessionalTelemetryToView();
+        ApplyEnterpriseTelemetryToView();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -81,7 +85,7 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             RefreshActivity();
-            RefreshProfessionalMetrics();
+            ApplyProfessionalTelemetryToView();
         });
     }
 
@@ -94,17 +98,17 @@ public sealed partial class DashboardPage : Page
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            RefreshProfessionalMetrics();
-            RefreshEnterpriseWidgets();
+            ApplyProfessionalTelemetryToView();
+            ApplyEnterpriseTelemetryToView();
         });
     }
 
     private void OnTriageChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => RefreshTriageTelemetry());
+        DispatcherQueue.TryEnqueue(() => ApplyTriageTelemetryToView());
 
     private void OnProfessionalWorkspaceChanged(object? sender, EventArgs e)
     {
-        DispatcherQueue.TryEnqueue(RefreshEnterpriseWidgets);
+        DispatcherQueue.TryEnqueue(ApplyEnterpriseTelemetryToView);
     }
 
     private async void ExportAnalyticsButton_Click(object sender, RoutedEventArgs e)
@@ -178,10 +182,33 @@ public sealed partial class DashboardPage : Page
         RefreshBranchFilter();
         RefreshActivity();
         RefreshResources();
-        RefreshProfessionalMetrics();
-        RefreshEnterpriseWidgets();
+        ApplyProfessionalTelemetryToView();
+        ApplyEnterpriseTelemetryToView();
         UpdateSearchSuggestions(GlobalSearchBox.Text);
         UpdateProfessionalEmptyState();
+    }
+
+    private async void RefreshDashboardDataButton_Click(object sender, RoutedEventArgs e) =>
+        await RequestProfessionalTelemetryRefreshAsync();
+
+    private async Task RequestProfessionalTelemetryRefreshAsync()
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        RefreshDashboardDataButton.IsEnabled = false;
+        try
+        {
+            ApplyProfessionalTelemetryToView();
+            ApplyEnterpriseTelemetryToView();
+            await RequestBranchScrapeRefreshAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            RefreshDashboardDataButton.IsEnabled = true;
+        }
     }
 
     private void UpdateProfessionalEmptyState()
@@ -212,7 +239,7 @@ public sealed partial class DashboardPage : Page
         ProfessionalInstances.Where(i =>
             i.Platform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase));
 
-    private void RefreshEnterpriseWidgets()
+    private void ApplyEnterpriseTelemetryToView()
     {
         if (_registry is null)
         {
@@ -221,10 +248,11 @@ public sealed partial class DashboardPage : Page
 
         var trust = ProfessionalWorkspaceService.Instance.CaptureCustomerTrust(
             FilteredGoogleBusinessInstances);
-        AggregateRatingValue.Text = trust.AggregateRatingDisplay;
-        UnrepliedReviewsValue.Text = DashboardPageHelper.FormatUnrepliedReviewCount(trust.TotalUnrepliedReviews);
+        var trustDisplay = DashboardPageHelper.BuildCustomerTrustDisplay(trust);
+        AggregateRatingValue.Text = trustDisplay.AggregateRating;
+        UnrepliedReviewsValue.Text = trustDisplay.UnrepliedReviews;
 
-        var reviewItems = trust.PendingReviews
+        var reviewItems = trustDisplay.PendingReviews
             .Select(review => new GoogleReviewAlertView(review))
             .ToList();
         GoogleReviewAlertsList.ItemsSource = reviewItems;
@@ -244,11 +272,12 @@ public sealed partial class DashboardPage : Page
 
         var meta = ProfessionalWorkspaceService.Instance.CaptureMetaResponseEfficiency(
             FilteredMetaBusinessInstances);
-        MetaAverageResponseValue.Text = meta.AverageResponseDisplay;
-        MetaEfficiencyRatingValue.Text = meta.EfficiencyRating;
-        MetaSampleCountValue.Text = meta.SampleCount.ToString();
-        MetaLastInboundValue.Text = meta.LastInboundDisplay;
-        MetaLastReplyValue.Text = meta.LastReplyDisplay;
+        var metaDisplay = DashboardPageHelper.BuildMetaResponseDisplay(meta);
+        MetaAverageResponseValue.Text = metaDisplay.AverageResponse;
+        MetaEfficiencyRatingValue.Text = metaDisplay.EfficiencyRating;
+        MetaSampleCountValue.Text = metaDisplay.SampleCount;
+        MetaLastInboundValue.Text = metaDisplay.LastInbound;
+        MetaLastReplyValue.Text = metaDisplay.LastReply;
         MetaResponseEmptyText.Visibility = FilteredMetaBusinessInstances.Any()
             ? Visibility.Collapsed
             : Visibility.Visible;
@@ -266,22 +295,31 @@ public sealed partial class DashboardPage : Page
     {
         if (_registry is null)
         {
-            BranchFilterBox.ItemsSource = null;
+            _branchFilterEntries.Clear();
             return;
         }
 
-        var options = DashboardPageHelper.BuildBranchOptions(ProfessionalInstances);
         _suppressBranchSelectionChanged = true;
-        BranchFilterBox.ItemsSource = options;
-        BranchFilterBox.DisplayMemberPath = nameof(DashboardBranchOption.DisplayName);
-        BranchFilterBox.SelectedValuePath = nameof(DashboardBranchOption.InstanceId);
+        _branchFilterEntries.Clear();
+        _branchFilterEntries.Add(DashboardBranchFilterEntry.CreateAllBranches());
+
+        foreach (var instance in ProfessionalInstances
+                     .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
+                     .OrderBy(instance => instance.DisplayName, StringComparer.OrdinalIgnoreCase))
+        {
+            _branchFilterEntries.Add(DashboardBranchFilterEntry.FromInstance(instance));
+        }
 
         var selectedId = _selectedBranchInstanceId ?? DashboardPageHelper.AllBranchesOptionId;
-        BranchFilterBox.SelectedItem = options.FirstOrDefault(option =>
-            option.InstanceId.Equals(selectedId, StringComparison.OrdinalIgnoreCase));
-        if (BranchFilterBox.SelectedItem is null)
+        BranchFilterBox.SelectedItem = _branchFilterEntries.FirstOrDefault(entry =>
+            (entry.IsAllBranches && string.IsNullOrWhiteSpace(selectedId)) ||
+            (!entry.IsAllBranches &&
+             entry.InstanceId.Equals(selectedId, StringComparison.OrdinalIgnoreCase)));
+
+        if (BranchFilterBox.SelectedItem is null && _branchFilterEntries.Count > 0)
         {
             BranchFilterBox.SelectedIndex = 0;
+            _selectedBranchInstanceId = null;
         }
 
         _suppressBranchSelectionChanged = false;
@@ -289,37 +327,50 @@ public sealed partial class DashboardPage : Page
 
     private void BranchFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_suppressBranchSelectionChanged || BranchFilterBox.SelectedItem is not DashboardBranchOption option)
+        if (_suppressBranchSelectionChanged ||
+            BranchFilterBox.SelectedItem is not DashboardBranchFilterEntry entry)
         {
             return;
         }
 
-        _selectedBranchInstanceId = string.IsNullOrWhiteSpace(option.InstanceId) ? null : option.InstanceId;
-        RefreshProfessionalMetrics();
-        RefreshEnterpriseWidgets();
+        _selectedBranchInstanceId = DashboardPageHelper.ResolveBranchInstanceId(entry);
+
+        ApplyProfessionalTelemetryToView();
+        ApplyEnterpriseTelemetryToView();
+
+        _ = RequestBranchScrapeRefreshAsync();
     }
 
-    private void RefreshProfessionalMetrics()
+    private void ApplyProfessionalTelemetryToView()
     {
         if (_registry is null)
         {
             return;
         }
 
-        var snapshot = MessageAnalyticsService.Instance.CaptureProfessionalSnapshot(
-            FilteredProfessionalInstances,
-            NotificationHub.Instance);
+        var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
+            ProfessionalInstances,
+            NotificationHub.Instance,
+            _selectedBranchInstanceId);
 
-        AvgReplyTimeValue.Text = snapshot.AverageReplyTimeDisplay;
-        SlaBreachesValue.Text = snapshot.SlaBreaches.ToString();
-        ResponseRateValue.Text = snapshot.ResponseRateDisplay;
-        PeakHourValue.Text = snapshot.PeakHourDisplay;
-        DailyTrendValue.Text = snapshot.DailyTrendDisplay;
-        SentCountValue.Text = snapshot.SentCount.ToString();
-        ReceivedCountValue.Text = snapshot.ReceivedCount.ToString();
-        WeeklyChart.SetSeries(snapshot.WeeklyActivity);
+        BindProfessionalTelemetryToView(telemetry);
+        UpdateProfessionalEmptyState();
+    }
 
-        var highlights = snapshot.Highlights
+    private void BindProfessionalTelemetryToView(ProfessionalDashboardTelemetry telemetry)
+    {
+        var display = telemetry.Display;
+
+        AvgReplyTimeValue.Text = display.AverageReplyTime;
+        SlaBreachesValue.Text = display.SlaBreaches;
+        ResponseRateValue.Text = display.ResponseRate;
+        PeakHourValue.Text = display.PeakHour;
+        DailyTrendValue.Text = display.DailyTrend;
+        SentCountValue.Text = display.SentCount;
+        ReceivedCountValue.Text = display.ReceivedCount;
+        WeeklyChart.SetSeries(display.WeeklyActivity);
+
+        var highlights = display.Highlights
             .Select(h => new OperationalHighlightItemView(h))
             .ToList();
 
@@ -332,18 +383,19 @@ public sealed partial class DashboardPage : Page
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        RefreshTriageTelemetry(snapshot.Triage);
-        UpdateProfessionalEmptyState();
+        ApplyTriageTelemetryToView(display.Triage);
     }
 
-    private void RefreshTriageTelemetry(MessageTriageDashboardSnapshot? triage = null)
+    private void ApplyTriageTelemetryToView(MessageTriageDashboardSnapshot? triage = null)
     {
         if (_registry is null)
         {
             return;
         }
 
-        triage ??= MessageTriageService.Instance.BuildSnapshot(FilteredProfessionalInstances);
+        triage ??= DashboardPageHelper.BuildFilteredTriageSnapshot(
+            ProfessionalInstances,
+            _selectedBranchInstanceId);
 
         var urgentItems = triage.UrgentQueue
             .Select(item => new MessageTriageItemView(item))
@@ -355,6 +407,38 @@ public sealed partial class DashboardPage : Page
         UrgencyTriageList.Visibility = hasUrgent ? Visibility.Visible : Visibility.Collapsed;
 
         SentimentChart.SetSeries(triage);
+    }
+
+    private async Task RequestBranchScrapeRefreshAsync()
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        var scrapeTargets = FilteredProfessionalInstances
+            .Where(DashboardScrapeOrchestrator.IsDashboardScrapeCapable)
+            .ToList();
+
+        if (scrapeTargets.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await DashboardScrapeOrchestrator.Instance
+                .RefreshProfessionalInstancesAsync(scrapeTargets)
+                .ConfigureAwait(true);
+
+            MessageAnalyticsService.Instance.NotifyDashboardRefresh();
+            ApplyProfessionalTelemetryToView();
+            ApplyEnterpriseTelemetryToView();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Branch scrape refresh failed: {ex.Message}");
+        }
     }
 
     private void RefreshActivity()

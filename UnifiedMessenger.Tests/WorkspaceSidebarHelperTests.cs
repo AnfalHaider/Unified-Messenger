@@ -65,6 +65,17 @@ public class WorkspaceSidebarHelperTests
     }
 
     [Fact]
+    public void ResolveStatusSubtitle_DoesNotShowUnknownForConnectedAdapter()
+    {
+        Assert.Equal(
+            "Status: Connected · syncing",
+            WorkspaceSidebarHelper.ResolveStatusSubtitle(
+                InstanceConnectionStatus.Connected,
+                AdapterHealthState.Unknown,
+                notificationsMuted: false));
+    }
+
+    [Fact]
     public void ResolveStatusSubtitle_ShowsConnectedWhenHandshakeSucceeds()
     {
         Assert.Equal(

@@ -696,25 +696,50 @@ public sealed partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
     }
 
-    private void OnConnectionStatusChanged(object? sender, InstanceConnectionStatusChangedEventArgs e) =>
-        DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+    private void OnConnectionStatusChanged(object? sender, InstanceConnectionStatusChangedEventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            var instance = _registry.FindById(e.InstanceId);
+            if (instance is not null)
+            {
+                instance.Status = e.Status;
+                WorkspaceSidebar.UpdateInstanceHealth(e.InstanceId, instance);
+                RefreshDashboardIfVisible();
+                return;
+            }
+
+            RefreshAdapterHealthIndicators();
+        });
+    }
 
     private void OnSessionInitializing(object? sender, InstanceSessionEventArgs e)
     {
         InstanceConnectionStatusService.Instance.SetInitializing(e.Instance.Id, "Starting session");
-        DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+        e.Instance.Status = InstanceConnectionStatus.Initializing;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            WorkspaceSidebar.UpdateInstanceHealth(e.Instance.Id, e.Instance);
+            RefreshDashboardIfVisible();
+        });
     }
 
     private void OnSessionFailed(object? sender, InstanceSessionErrorEventArgs e)
     {
         InstanceConnectionStatusService.Instance.SetError(e.Instance.Id, e.Error.Message);
-        DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+        e.Instance.Status = InstanceConnectionStatus.Error;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            WorkspaceSidebar.UpdateInstanceHealth(e.Instance.Id, e.Instance);
+            RefreshDashboardIfVisible();
+        });
     }
 
     private void RefreshAdapterHealthIndicators()
     {
         foreach (var instance in _registry.Instances)
         {
+            InstanceConnectionStatusService.Instance.MirrorStatusToInstance(instance);
             WorkspaceSidebar.UpdateInstanceHealth(instance.Id, instance);
         }
 

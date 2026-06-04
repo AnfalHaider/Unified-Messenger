@@ -2,8 +2,13 @@ using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
-public sealed class InstanceConnectionStatusChangedEventArgs(InstanceConnectionStatus status, string? detail) : EventArgs
+public sealed class InstanceConnectionStatusChangedEventArgs(
+    string instanceId,
+    InstanceConnectionStatus status,
+    string? detail) : EventArgs
 {
+    public string InstanceId { get; } = instanceId;
+
     public InstanceConnectionStatus Status { get; } = status;
 
     public string? Detail { get; } = detail;
@@ -91,15 +96,35 @@ public sealed class InstanceConnectionStatusService
             _ => false
         };
 
-    internal static InstanceConnectionStatus ParseStatus(string? raw) =>
-        raw?.Trim() switch
+    internal static InstanceConnectionStatus ParseStatus(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
         {
-            "Connected" => InstanceConnectionStatus.Connected,
-            "LoggedOut" => InstanceConnectionStatus.LoggedOut,
-            "Error" => InstanceConnectionStatus.Error,
-            "Initializing" => InstanceConnectionStatus.Initializing,
+            return InstanceConnectionStatus.Initializing;
+        }
+
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "connected" => InstanceConnectionStatus.Connected,
+            "loggedout" => InstanceConnectionStatus.LoggedOut,
+            "error" => InstanceConnectionStatus.Error,
+            "initializing" => InstanceConnectionStatus.Initializing,
             _ => InstanceConnectionStatus.Initializing
         };
+    }
+
+    public void ApplyHandshakeStatus(MessengerInstance instance, string? statusRaw, string? detail)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        ApplyConnectionStatus(instance.Id, statusRaw, detail);
+        instance.Status = GetStatus(instance.Id);
+    }
+
+    public void MirrorStatusToInstance(MessengerInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        instance.Status = GetStatus(instance.Id);
+    }
 
     private void Transition(string instanceId, InstanceConnectionStatus status, string? detail)
     {
@@ -132,7 +157,27 @@ public sealed class InstanceConnectionStatusService
 
         if (previous != status)
         {
-            Changed?.Invoke(this, new InstanceConnectionStatusChangedEventArgs(status, detail));
+            Changed?.Invoke(this, new InstanceConnectionStatusChangedEventArgs(normalizedId, status, detail));
+        }
+    }
+
+    internal void ApplyConnectionStatus(string instanceId, string? statusRaw, string? detail)
+    {
+        var status = ParseStatus(statusRaw);
+        switch (status)
+        {
+            case InstanceConnectionStatus.Connected:
+                SetConnected(instanceId, detail);
+                break;
+            case InstanceConnectionStatus.LoggedOut:
+                SetLoggedOut(instanceId, detail);
+                break;
+            case InstanceConnectionStatus.Error:
+                SetError(instanceId, detail);
+                break;
+            default:
+                SetInitializing(instanceId, detail);
+                break;
         }
     }
 

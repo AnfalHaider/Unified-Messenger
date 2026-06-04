@@ -85,9 +85,35 @@
     return inline ? window.__umSafeParseInt(inline[1]) : 0;
   }
 
+  function parseCountFromAriaLabel(label) {
+    if (!label) {
+      return 0;
+    }
+
+    var unreplied = label.match(/(\d+)\s*(?:unreplied|pending|need(?:s)?\s+(?:a\s+)?reply)/i);
+    if (unreplied) {
+      return window.__umSafeParseInt(unreplied[1]);
+    }
+
+    var generic = label.match(/(\d+)/);
+    return generic ? window.__umSafeParseInt(generic[1]) : 0;
+  }
+
   function scanUnrepliedCounts() {
     var totalUnreplied = 0;
     var locationBreakdown = [];
+    var seenLabels = Object.create(null);
+
+    var ariaNodes = document.querySelectorAll(
+      '[aria-label*="review" i], [aria-label*="unreplied" i], [aria-label*="reply" i], [data-review-id]'
+    );
+    for (var a = 0; a < ariaNodes.length; a++) {
+      var ariaLabel = ariaNodes[a].getAttribute('aria-label') || '';
+      var ariaCount = parseCountFromAriaLabel(ariaLabel);
+      if (ariaCount > 0) {
+        totalUnreplied = Math.max(totalUnreplied, ariaCount);
+      }
+    }
 
     walkTextNodes(document.body, function (textNode) {
       var value = (textNode.textContent || '').trim();
@@ -98,35 +124,34 @@
       if (/unreplied/i.test(value) || /needs reply/i.test(value) || /awaiting response/i.test(value)) {
         var count = findAdjacentCount(textNode);
         if (count > 0) {
-          totalUnreplied += count;
-          locationBreakdown.push({
-            label: value.replace(/\d+/g, '').trim() || 'Location',
-            count: count
-          });
+          totalUnreplied = Math.max(totalUnreplied, count);
+          var label = value.replace(/\d+/g, '').trim() || 'Location';
+          if (!seenLabels[label]) {
+            seenLabels[label] = true;
+            locationBreakdown.push({ label: label, count: count });
+          }
         }
       }
 
       if (/^reviews?$/i.test(value) || /manage reviews?/i.test(value)) {
         var reviewCount = findAdjacentCount(textNode);
         if (reviewCount > 0) {
-          totalUnreplied += reviewCount;
-          locationBreakdown.push({
-            label: 'Reviews',
-            count: reviewCount
-          });
+          totalUnreplied = Math.max(totalUnreplied, reviewCount);
+          if (!seenLabels.Reviews) {
+            seenLabels.Reviews = true;
+            locationBreakdown.push({ label: 'Reviews', count: reviewCount });
+          }
         }
       }
     });
 
-    var ariaNodes = document.querySelectorAll(
-      '[aria-label*="review" i], [aria-label*="unreplied" i], [data-review-id]'
-    );
-    for (var a = 0; a < ariaNodes.length; a++) {
-      var aria = ariaNodes[a].getAttribute('aria-label') || '';
-      var ariaMatch = aria.match(/(\d+)/);
-      if (ariaMatch) {
-        totalUnreplied = Math.max(totalUnreplied, window.__umSafeParseInt(ariaMatch[1]));
-      }
+    var ratingMatch = window.__umFindTextMatch &&
+      window.__umFindTextMatch(/(\d+(?:\.\d+)?)\s*(?:stars?|★)\s*(?:average|overall)?/i);
+    if (ratingMatch) {
+      locationBreakdown.push({
+        label: 'Aggregate rating',
+        count: window.__umSafeParseInt(ratingMatch[1])
+      });
     }
 
     return {
@@ -208,58 +233,74 @@
 
   function publishImmediate() {
     publishScheduled = false;
-    var scan = scanUnrepliedCounts();
-    var unreplied = scan.totalUnreplied;
-    var alerts = scanReviewAlerts();
 
-    if (unreplied !== lastPostedUnreplied) {
-      lastPostedUnreplied = unreplied;
+    window.__umRunSafeScrape(INSTANCE_ID, PLATFORM, 'google-dashboard', function () {
+      var scan = scanUnrepliedCounts() || { totalUnreplied: 0, locations: [] };
+      var unreplied = scan.totalUnreplied || 0;
+      var alerts = scanReviewAlerts() || [];
 
-      postMessage({
-        type: 'badge-count',
-        instanceId: INSTANCE_ID,
-        platform: PLATFORM,
-        count: unreplied
-      });
+      if (unreplied !== lastPostedUnreplied) {
+        lastPostedUnreplied = unreplied;
 
-      postMessage({
-        type: 'google-review-snapshot',
-        instanceId: INSTANCE_ID,
-        platform: PLATFORM,
-        unrepliedCount: unreplied,
-        locations: scan.locations,
-        timestampUtc: new Date().toISOString()
-      });
-    }
+        postMessage({
+          type: 'badge-count',
+          instanceId: INSTANCE_ID,
+          platform: PLATFORM,
+          count: unreplied
+        });
 
-    for (var r = 0; r < alerts.length; r++) {
-      var alert = alerts[r];
-      var key = alert.reviewId + '|' + alert.snippet;
-      if (!rememberReviewKey(key)) {
-        continue;
-      }
-
-      postMessage({
-        type: 'google-review-alert',
-        instanceId: INSTANCE_ID,
-        platform: PLATFORM,
-        reviewId: alert.reviewId,
-        reviewerName: alert.reviewerName,
-        snippet: alert.snippet,
-        rating: alert.rating,
-        locationLabel: alert.locationLabel,
-        timestampUtc: new Date().toISOString()
-      });
-
-      var previewTitle = alert.reviewerName + ' · review';
-      var normalized = window.__umNormalizePreview(previewTitle, alert.snippet);
-      if (window.__umShouldEmitPreview(INSTANCE_ID, normalized.title, normalized.body)) {
-        window.__umForwardPreview(INSTANCE_ID, PLATFORM, normalized.title, {
-          body: normalized.body
+        postMessage({
+          type: 'google-review-snapshot',
+          instanceId: INSTANCE_ID,
+          platform: PLATFORM,
+          unrepliedCount: unreplied,
+          locations: scan.locations || [],
+          timestampUtc: new Date().toISOString()
+        });
+      } else {
+        postMessage({
+          type: 'google-review-snapshot',
+          instanceId: INSTANCE_ID,
+          platform: PLATFORM,
+          unrepliedCount: unreplied,
+          locations: scan.locations || [],
+          timestampUtc: new Date().toISOString()
         });
       }
-    }
+
+      for (var r = 0; r < alerts.length; r++) {
+        var alert = alerts[r];
+        var key = alert.reviewId + '|' + alert.snippet;
+        if (!rememberReviewKey(key)) {
+          continue;
+        }
+
+        postMessage({
+          type: 'google-review-alert',
+          instanceId: INSTANCE_ID,
+          platform: PLATFORM,
+          reviewId: alert.reviewId,
+          reviewerName: alert.reviewerName,
+          snippet: alert.snippet,
+          rating: alert.rating,
+          locationLabel: alert.locationLabel,
+          timestampUtc: new Date().toISOString()
+        });
+
+        var previewTitle = alert.reviewerName + ' · review';
+        var normalized = window.__umNormalizePreview(previewTitle, alert.snippet);
+        if (window.__umShouldEmitPreview(INSTANCE_ID, normalized.title, normalized.body)) {
+          window.__umForwardPreview(INSTANCE_ID, PLATFORM, normalized.title, {
+            body: normalized.body
+          });
+        }
+      }
+
+      return true;
+    });
   }
+
+  window.__umForceDashboardScrape = publishImmediate;
 
   function schedulePublish() {
     if (publishScheduled) {

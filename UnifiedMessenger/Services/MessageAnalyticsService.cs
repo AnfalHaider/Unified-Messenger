@@ -32,11 +32,20 @@ public sealed class ProfessionalAnalyticsSnapshot
 
     public string DailyTrendDisplay { get; init; } = "—";
 
+    public bool HasReplyMetrics { get; init; }
+
+    public bool HasMessageVolume { get; init; }
+
     public IReadOnlyList<DailyActivityPoint> WeeklyActivity { get; init; } = [];
 
     public IReadOnlyList<OperationalHighlightItem> Highlights { get; init; } = [];
 
     public MessageTriageDashboardSnapshot Triage { get; init; } = MessageTriageDashboardSnapshot.Empty;
+
+    /// <summary>Empty when all professional branches are included.</summary>
+    public string? FilteredBranchInstanceId { get; init; }
+
+    public IReadOnlyList<string> IncludedInstanceIds { get; init; } = [];
 }
 
 public sealed class OperationalHighlightItem
@@ -316,9 +325,12 @@ public sealed class MessageAnalyticsService
 
     public ProfessionalAnalyticsSnapshot CaptureProfessionalSnapshot(
         IEnumerable<MessengerInstance> professionalInstances,
-        NotificationHub notificationHub)
+        NotificationHub notificationHub,
+        string? branchInstanceId = null)
     {
-        var instances = professionalInstances.ToList();
+        var instances = DashboardPageHelper
+            .FilterProfessionalInstances(professionalInstances, branchInstanceId)
+            .ToList();
         var alertsByInstance = notificationHub.GetAlertsSortedByInstance()
             .GroupBy(a => a.InstanceId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
@@ -359,6 +371,12 @@ public sealed class MessageAnalyticsService
             }
         }
 
+        var weeklyActivity = BuildWeeklyActivity(instances);
+        var hasMessageVolume = sent > 0 ||
+                               received > 0 ||
+                               weeklyActivity.Any(point => point.Sent > 0 || point.Received > 0);
+        var hasReplyMetrics = replyCount > 0;
+
         return new ProfessionalAnalyticsSnapshot
         {
             SentCount = sent,
@@ -368,10 +386,21 @@ public sealed class MessageAnalyticsService
             ResponseRateDisplay = FormatResponseRate(replyCount, slaBreaches),
             PeakHourDisplay = FormatPeakHour(hourlyTotals),
             DailyTrendDisplay = ComputeDailyTrend(instances),
-            WeeklyActivity = BuildWeeklyActivity(instances),
+            HasReplyMetrics = hasReplyMetrics,
+            HasMessageVolume = hasMessageVolume,
+            WeeklyActivity = weeklyActivity,
             Highlights = BuildOperationalHighlights(instances),
-            Triage = MessageTriageService.Instance.BuildSnapshot(instances)
+            Triage = MessageTriageService.Instance.BuildSnapshot(instances),
+            FilteredBranchInstanceId = string.IsNullOrWhiteSpace(branchInstanceId)
+                ? null
+                : branchInstanceId.Trim(),
+            IncludedInstanceIds = instances.Select(instance => instance.Id).ToList()
         };
+    }
+
+    public void NotifyDashboardRefresh()
+    {
+        NotifyChanged();
     }
 
     private static double GetSlaThresholdMinutes()

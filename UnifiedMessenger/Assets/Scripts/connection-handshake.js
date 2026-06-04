@@ -13,40 +13,69 @@
         '[data-merchant-id]',
         '[aria-label*="Business Profile" i]',
         '[href*="business.google.com"][aria-current]',
-        'img[alt*="logo" i][src*="googleusercontent"]'
+        'img[alt*="logo" i][src*="googleusercontent"]',
+        '[role="main"]',
+        'a[href*="/reviews" i]',
+        'a[href*="/messaging" i]'
       ],
       loggedOut: [
         'input[type="email"]',
         '#identifierId',
         '[data-action="sign in" i]',
-        'form[action*="accounts.google.com"]'
-      ]
+        'form[action*="accounts.google.com"]',
+        'button[jsname*="login" i]'
+      ],
+      urlLoggedIn: ['business.google.com/locations', 'business.google.com/reviews', 'business.google.com/messaging']
     },
     metabusiness: {
       loggedIn: [
         '[data-testid="inbox_thread_list"]',
         '[aria-label*="Inbox" i]',
         '[role="navigation"] a[href*="inbox"]',
-        '[data-pagelet="BizInbox"]'
+        '[data-pagelet="BizInbox"]',
+        '[role="main"] [role="row"]',
+        'div[aria-label*="Conversation" i]'
       ],
       loggedOut: [
         'input[name="email"]',
         '#email',
         '[data-testid="login_form"]',
-        'button[name="login"]'
-      ]
+        'button[name="login"]',
+        'input[type="password"][name="pass"]'
+      ],
+      urlLoggedIn: ['business.facebook.com', 'facebook.com/latest/inbox']
     },
     whatsapp: {
       loggedIn: [
         '#pane-side',
         '[data-testid="chat-list"]',
-        '[aria-label="Chat list"]'
+        '[aria-label="Chat list"]',
+        '[data-testid="chat-list-search"]',
+        '#side'
       ],
       loggedOut: [
         '[data-testid="qrcode"]',
         'canvas[aria-label*="QR" i]',
-        '[data-ref] div[data-testid="intro-text"]'
-      ]
+        '[data-ref] div[data-testid="intro-text"]',
+        '[data-testid="link-device-phone-number-code-screen-instructions"]'
+      ],
+      urlLoggedIn: ['web.whatsapp.com']
+    },
+    discord: {
+      loggedIn: [
+        '[aria-label="Servers sidebar"]',
+        '[class*="guilds"]',
+        '[class*="sidebar"] [role="tree"]',
+        'nav[aria-label*="Servers" i]',
+        '[data-list-id="guildsnav"]'
+      ],
+      loggedOut: [
+        'form[class*="authBox"]',
+        'input[name="email"]',
+        'button[type="submit"]',
+        '[class*="authBox"] h1'
+      ],
+      urlLoggedIn: ['discord.com/channels', 'discord.com/app']
     },
     telegram: {
       loggedIn: [
@@ -58,7 +87,8 @@
         '#auth-pages',
         '.auth-form',
         'input[type="tel"]'
-      ]
+      ],
+      urlLoggedIn: ['web.telegram.org']
     },
     slack: {
       loggedIn: [
@@ -70,19 +100,8 @@
         '[data-qa="signin_form"]',
         'input[name="email"]',
         '#signin_btn'
-      ]
-    },
-    discord: {
-      loggedIn: [
-        '[class*="guilds"]',
-        '[aria-label="Servers sidebar"]',
-        '[class*="sidebar"] [role="tree"]'
       ],
-      loggedOut: [
-        'form[class*="authBox"]',
-        'input[name="email"]',
-        'button[type="submit"]'
-      ]
+      urlLoggedIn: ['app.slack.com/client']
     },
     messenger: {
       loggedIn: [
@@ -94,7 +113,8 @@
         'input[name="email"]',
         '#email',
         'button[name="login"]'
-      ]
+      ],
+      urlLoggedIn: ['messenger.com']
     },
     teams: {
       loggedIn: [
@@ -106,7 +126,8 @@
         'input[type="email"]',
         '#i0116',
         '#idSIButton9'
-      ]
+      ],
+      urlLoggedIn: ['teams.microsoft.com']
     },
     signal: {
       loggedIn: [
@@ -117,11 +138,13 @@
       loggedOut: [
         '.module-sign-in',
         'input[type="tel"]'
-      ]
+      ],
+      urlLoggedIn: []
     },
     generic: {
       loggedIn: ['main', '[role="main"]', 'nav', 'header'],
-      loggedOut: ['input[type="password"]', 'input[type="email"]', 'form[action*="login" i]']
+      loggedOut: ['input[type="password"]', 'input[type="email"]', 'form[action*="login" i]'],
+      urlLoggedIn: []
     }
   };
 
@@ -130,10 +153,15 @@
     return profiles[key] || profiles.generic;
   }
 
+  function isVisible(element) {
+    return !!(element && (element.offsetParent !== null || element.getClientRects().length > 0));
+  }
+
   function anySelectorMatches(selectors) {
     for (var i = 0; i < selectors.length; i++) {
       try {
-        if (document.querySelector(selectors[i])) {
+        var node = document.querySelector(selectors[i]);
+        if (isVisible(node)) {
           return true;
         }
       } catch (error) {
@@ -142,6 +170,26 @@
     }
 
     return false;
+  }
+
+  function urlHintsLoggedIn(profile) {
+    if (!profile.urlLoggedIn || !profile.urlLoggedIn.length) {
+      return false;
+    }
+
+    var href = String(window.location.href || '').toLowerCase();
+    for (var i = 0; i < profile.urlLoggedIn.length; i++) {
+      if (href.indexOf(profile.urlLoggedIn[i]) >= 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function bodyContainsAuthPrompt() {
+    var text = (document.body && document.body.innerText) || '';
+    return /\b(sign in|log in|continue with google|scan.*qr|link.*device)\b/i.test(text);
   }
 
   function publishStatus(instanceId, platform, status, detail) {
@@ -158,12 +206,12 @@
   function evaluateConnection(instanceId, platform) {
     var profile = resolveProfile(platform);
 
-    if (anySelectorMatches(profile.loggedIn)) {
+    if (anySelectorMatches(profile.loggedIn) || urlHintsLoggedIn(profile)) {
       publishStatus(instanceId, platform, 'Connected', 'Signed-in UI detected');
       return 'Connected';
     }
 
-    if (anySelectorMatches(profile.loggedOut)) {
+    if (anySelectorMatches(profile.loggedOut) || bodyContainsAuthPrompt()) {
       publishStatus(instanceId, platform, 'LoggedOut', 'Sign-in UI detected');
       return 'LoggedOut';
     }
@@ -184,6 +232,11 @@
       window.__umConnectionObserver = null;
     }
 
+    if (window.__umConnectionPollTimer) {
+      clearInterval(window.__umConnectionPollTimer);
+      window.__umConnectionPollTimer = null;
+    }
+
     var lastStatus = null;
     var evaluate = function () {
       var next = evaluateConnection(instanceId, platform);
@@ -193,6 +246,16 @@
     };
 
     evaluate();
+
+    var scheduleEvaluate = function (delayMs) {
+      window.setTimeout(evaluate, delayMs);
+    };
+
+    scheduleEvaluate(400);
+    scheduleEvaluate(1200);
+    scheduleEvaluate(3000);
+
+    window.__umConnectionPollTimer = window.setInterval(evaluate, 2500);
 
     window.__umConnectionObserver = new MutationObserver(function () {
       evaluate();
@@ -211,6 +274,11 @@
       if (window.__umConnectionObserver) {
         window.__umConnectionObserver.disconnect();
         window.__umConnectionObserver = null;
+      }
+
+      if (window.__umConnectionPollTimer) {
+        clearInterval(window.__umConnectionPollTimer);
+        window.__umConnectionPollTimer = null;
       }
     });
   };

@@ -75,14 +75,7 @@ public static class WorkspaceSidebarHelper
             InstanceConnectionStatus.LoggedOut => "Status: Logged out",
             InstanceConnectionStatus.Error => "Status: Error",
             InstanceConnectionStatus.Initializing => "Status: Connecting…",
-            _ => adapterState switch
-            {
-                AdapterHealthState.Healthy => "Status: Online",
-                AdapterHealthState.Ready => "Status: Ready",
-                AdapterHealthState.Stale => "Status: Stale",
-                AdapterHealthState.NoAdapter => "Status: Starting",
-                _ => "Status: Unknown"
-            }
+            _ => "Status: Connecting…"
         };
     }
 

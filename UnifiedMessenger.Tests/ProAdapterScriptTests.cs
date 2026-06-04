@@ -37,6 +37,9 @@ public class ProAdapterScriptTests
         var script = ReadScript("meta_business_scraper.js");
 
         Assert.Contains("meta-inbound-message", script, StringComparison.Ordinal);
+        Assert.Contains("meta-telemetry-snapshot", script, StringComparison.Ordinal);
+        Assert.Contains("__umRunSafeScrape", script, StringComparison.Ordinal);
+        Assert.Contains("__umForceDashboardScrape", script, StringComparison.Ordinal);
         Assert.Contains("__umShouldEmitPreview", script, StringComparison.Ordinal);
         Assert.Contains("disconnectObservers", script, StringComparison.Ordinal);
     }
@@ -52,6 +55,18 @@ public class ProAdapterScriptTests
         Assert.Contains("maxKnownReviewKeys", script, StringComparison.Ordinal);
         Assert.Contains("__umSubmitReviewReply", script, StringComparison.Ordinal);
         Assert.DoesNotContain("submit.click()", script, StringComparison.Ordinal);
+        Assert.Contains("__umRunSafeScrape", script, StringComparison.Ordinal);
+        Assert.Contains("__umForceDashboardScrape", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AdapterCore_ProvidesSafeScrapeBridge()
+    {
+        var script = ReadScript("adapter-core.js");
+
+        Assert.Contains("__umPublishDashboardScrapeStatus", script, StringComparison.Ordinal);
+        Assert.Contains("__umRunSafeScrape", script, StringComparison.Ordinal);
+        Assert.Contains("dashboard-scrape-status", script, StringComparison.Ordinal);
     }
 
     [Fact]

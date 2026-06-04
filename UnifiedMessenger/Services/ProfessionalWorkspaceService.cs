@@ -37,6 +37,8 @@ public sealed class ProfessionalWorkspaceService
     private readonly ConcurrentDictionary<string, GoogleReviewAlert> _reviewAlerts = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, int> _unrepliedByInstance = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, MetaInboundState> _metaInbound = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, MetaTelemetryHint> _metaTelemetryHints =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public static ProfessionalWorkspaceService Instance => LazyInstance.Value;
 
@@ -118,6 +120,45 @@ public sealed class ProfessionalWorkspaceService
         NotifyChanged();
     }
 
+    public void HandleMetaTelemetrySnapshot(
+        string instanceId,
+        double? averageResponseMinutes,
+        int slaBreachHints,
+        int unreadCount)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        var hint = _metaTelemetryHints.GetOrAdd(instanceId, _ => new MetaTelemetryHint());
+        var changed = false;
+
+        if (averageResponseMinutes is > 0 &&
+            Math.Abs((hint.AverageResponseMinutes ?? 0) - averageResponseMinutes.Value) > 0.01)
+        {
+            hint.AverageResponseMinutes = averageResponseMinutes;
+            changed = true;
+        }
+
+        if (slaBreachHints >= 0 && hint.SlaBreachHints != slaBreachHints)
+        {
+            hint.SlaBreachHints = slaBreachHints;
+            changed = true;
+        }
+
+        if (unreadCount >= 0 && hint.UnreadCount != unreadCount)
+        {
+            hint.UnreadCount = unreadCount;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            NotifyChanged();
+        }
+    }
+
     public void HandleMetaInboundMessage(string instanceId, DateTimeOffset timestampUtc, int unreadCount)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
@@ -181,8 +222,9 @@ public sealed class ProfessionalWorkspaceService
 
         var removedUnreplied = _unrepliedByInstance.TryRemove(instanceId, out _);
         var removedMeta = _metaInbound.TryRemove(instanceId, out _);
+        var removedHints = _metaTelemetryHints.TryRemove(instanceId, out _);
 
-        if (removedReviews || removedUnreplied || removedMeta)
+        if (removedReviews || removedUnreplied || removedMeta || removedHints)
         {
             NotifyChanged();
         }
@@ -275,14 +317,18 @@ public sealed class ProfessionalWorkspaceService
             }
         }
 
-        var averageDisplay = sampleCount == 0
-            ? "—"
-            : FormatMinutes(totalMinutes / sampleCount);
+        var averageDisplay = sampleCount > 0
+            ? FormatMinutes(totalMinutes / sampleCount)
+            : ResolveDomAverageDisplay(instances);
+
+        var efficiencyRating = sampleCount > 0
+            ? ClassifyEfficiency(totalMinutes, sampleCount)
+            : ClassifyEfficiencyFromDomHint(instances);
 
         return new MetaResponseEfficiencySnapshot
         {
             AverageResponseDisplay = averageDisplay,
-            EfficiencyRating = ClassifyEfficiency(totalMinutes, sampleCount),
+            EfficiencyRating = efficiencyRating,
             SampleCount = sampleCount,
             LastInboundDisplay = FormatRelative(latestInbound),
             LastReplyDisplay = FormatRelative(latestReply),
@@ -338,6 +384,41 @@ public sealed class ProfessionalWorkspaceService
     private static string FormatRelative(DateTimeOffset? timestamp) =>
         timestamp is null ? "—" : RelativeTimeFormatter.Format(timestamp.Value);
 
+    private string ResolveDomAverageDisplay(IReadOnlyList<MessengerInstance> instances)
+    {
+        double? best = null;
+        foreach (var instance in instances)
+        {
+            if (!_metaTelemetryHints.TryGetValue(instance.Id, out var hint) ||
+                hint.AverageResponseMinutes is not { } minutes ||
+                minutes <= 0)
+            {
+                continue;
+            }
+
+            best = best is null ? minutes : Math.Min(best.Value, minutes);
+        }
+
+        return best is null ? "—" : FormatMinutes(best.Value);
+    }
+
+    private string ClassifyEfficiencyFromDomHint(IReadOnlyList<MessengerInstance> instances)
+    {
+        var domAverage = ResolveDomAverageDisplay(instances);
+        if (domAverage == "—")
+        {
+            return "Awaiting data";
+        }
+
+        var threshold = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+        if (_metaTelemetryHints.Values.Any(h => h.SlaBreachHints > 0))
+        {
+            return "Needs attention";
+        }
+
+        return "Good";
+    }
+
     private void TrimReviewAlerts()
     {
         if (_reviewAlerts.Count <= MaxStoredReviews)
@@ -371,5 +452,14 @@ public sealed class ProfessionalWorkspaceService
         public int ResponseSampleCount { get; set; }
 
         public int ActiveUnreadCount { get; set; }
+    }
+
+    private sealed class MetaTelemetryHint
+    {
+        public double? AverageResponseMinutes { get; set; }
+
+        public int SlaBreachHints { get; set; }
+
+        public int UnreadCount { get; set; }
     }
 }

@@ -66,4 +66,44 @@ public class DashboardPageHelperTests
     {
         Assert.Equal(expected, DashboardPageHelper.FormatUnrepliedReviewCount(count));
     }
+
+    [Fact]
+    public void BuildProfessionalDisplay_ReplacesPlaceholdersWhenMetricsExist()
+    {
+        var snapshot = new ProfessionalAnalyticsSnapshot
+        {
+            SentCount = 4,
+            ReceivedCount = 9,
+            AverageReplyTimeDisplay = "12 min",
+            SlaBreaches = 1,
+            ResponseRateDisplay = "80%",
+            PeakHourDisplay = "3 PM",
+            DailyTrendDisplay = "+2 vs yesterday",
+            HasReplyMetrics = true,
+            HasMessageVolume = true,
+            WeeklyActivity =
+            [
+                new DailyActivityPoint { Label = "Today", Sent = 1, Received = 2 }
+            ]
+        };
+
+        var display = DashboardPageHelper.BuildProfessionalDisplay(snapshot);
+
+        Assert.Equal("12 min", display.AverageReplyTime);
+        Assert.Equal("1", display.SlaBreaches);
+        Assert.Equal("4", display.SentCount);
+        Assert.Equal("9", display.ReceivedCount);
+    }
+
+    [Fact]
+    public void BuildProfessionalDisplay_KeepsPlaceholdersWhenNoMetrics()
+    {
+        var snapshot = new ProfessionalAnalyticsSnapshot();
+
+        var display = DashboardPageHelper.BuildProfessionalDisplay(snapshot);
+
+        Assert.Equal("—", display.AverageReplyTime);
+        Assert.Equal("—", display.SlaBreaches);
+        Assert.Equal("—", display.SentCount);
+    }
 }

@@ -51,6 +51,27 @@ internal static class WebMessageParser
         return element.TryGetInt32(out var value) ? Math.Max(0, value) : 0;
     }
 
+    internal static double? ReadOptionalDouble(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetDouble(out var numeric))
+        {
+            return numeric;
+        }
+
+        if (element.ValueKind == JsonValueKind.String &&
+            double.TryParse(element.GetString(), out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
     internal static DateTimeOffset ReadTimestampUtc(JsonElement root, DateTimeOffset fallback)
     {
         if (root.TryGetProperty("timestampUtc", out var timestampElement) &&

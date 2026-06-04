@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace UnifiedMessenger.Models;
 
 /// <summary>
@@ -6,6 +8,12 @@ namespace UnifiedMessenger.Models;
 public sealed class MessengerInstance
 {
     public string Id { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Runtime connection state from the WebView handshake (not persisted to instances.json).
+    /// </summary>
+    [JsonIgnore]
+    public InstanceConnectionStatus Status { get; set; } = InstanceConnectionStatus.Initializing;
 
     public string DisplayName { get; set; } = string.Empty;
 

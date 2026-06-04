@@ -236,6 +236,32 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
     protected static DateTimeOffset ParseMessageTimestamp(JsonElement root) =>
         WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
 
+    protected static void HandleDashboardScrapeStatus(JsonElement root, MessengerInstance instance)
+    {
+        var success = !root.TryGetProperty("success", out var successElement) ||
+                      successElement.ValueKind == JsonValueKind.True ||
+                      (successElement.ValueKind == JsonValueKind.String &&
+                       successElement.GetString()?.Equals("true", StringComparison.OrdinalIgnoreCase) == true);
+
+        if (success)
+        {
+            return;
+        }
+
+        var context = root.TryGetProperty("context", out var contextElement)
+            ? contextElement.GetString() ?? "scrape"
+            : "scrape";
+        var detail = root.TryGetProperty("detail", out var detailElement)
+            ? detailElement.GetString() ?? "Scrape failed"
+            : "Scrape failed";
+
+        Debug.WriteLine(
+            $"Dashboard scrape failed for {instance.Id} ({instance.Platform}) [{context}]: {detail}");
+        AdapterHealthMonitor.Instance.RecordHeartbeat(
+            instance.Id,
+            PlatformDefinition.NormalizePlatformId(instance.Platform));
+    }
+
     protected static bool TryHandleInboundMessageSelected(
         string? type,
         JsonElement root,
@@ -280,27 +306,25 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         return true;
     }
 
-    private static void ApplyConnectionStatus(string instanceId, string? statusRaw, JsonElement root)
+    private static void ApplyConnectionStatus(MessengerInstance instance, string? statusRaw, JsonElement root)
     {
         var detail = root.TryGetProperty("detail", out var detailElement)
             ? detailElement.GetString()
             : null;
-        var status = InstanceConnectionStatusService.ParseStatus(statusRaw);
 
-        switch (status)
+        var messageInstanceId = root.TryGetProperty("instanceId", out var instanceIdElement)
+            ? instanceIdElement.GetString()
+            : null;
+        var targetId = string.IsNullOrWhiteSpace(messageInstanceId) ? instance.Id : messageInstanceId.Trim();
+
+        InstanceConnectionStatusService.Instance.ApplyConnectionStatus(targetId, statusRaw, detail);
+        instance.Status = InstanceConnectionStatusService.Instance.GetStatus(targetId);
+
+        if (instance.Status == InstanceConnectionStatus.Connected)
         {
-            case InstanceConnectionStatus.Connected:
-                InstanceConnectionStatusService.Instance.SetConnected(instanceId, detail);
-                break;
-            case InstanceConnectionStatus.LoggedOut:
-                InstanceConnectionStatusService.Instance.SetLoggedOut(instanceId, detail);
-                break;
-            case InstanceConnectionStatus.Error:
-                InstanceConnectionStatusService.Instance.SetError(instanceId, detail);
-                break;
-            default:
-                InstanceConnectionStatusService.Instance.SetInitializing(instanceId, detail);
-                break;
+            AdapterHealthMonitor.Instance.MarkReady(
+                targetId,
+                PlatformDefinition.NormalizePlatformId(instance.Platform));
         }
     }
 
@@ -372,7 +396,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 var statusRaw = root.TryGetProperty("status", out var statusElement)
                     ? statusElement.GetString()
                     : null;
-                ApplyConnectionStatus(instance.Id, statusRaw, root);
+                ApplyConnectionStatus(instance, statusRaw, root);
                 return true;
 
             case AdapterMessageTypes.MessageSent:
@@ -563,6 +587,25 @@ public sealed class MetaBusinessAdapter : BasePlatformAdapter
             return true;
         }
 
+        if (AdapterMessageTypes.DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
+        {
+            HandleDashboardScrapeStatus(root, instance);
+            return true;
+        }
+
+        if (AdapterMessageTypes.MetaTelemetrySnapshot.Equals(type, StringComparison.OrdinalIgnoreCase))
+        {
+            var avgMinutes = WebMessageParser.ReadOptionalDouble(root, "averageResponseMinutes");
+            var slaHints = WebMessageParser.ReadNonNegativeInt(root, "slaBreachHints");
+            var unread = WebMessageParser.ReadNonNegativeInt(root, "unreadCount");
+            ProfessionalWorkspaceService.Instance.HandleMetaTelemetrySnapshot(
+                instance.Id,
+                avgMinutes,
+                slaHints,
+                unread);
+            return true;
+        }
+
         if (!AdapterMessageTypes.MetaInboundMessage.Equals(type, StringComparison.OrdinalIgnoreCase))
         {
             return false;
@@ -593,6 +636,12 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
     {
         if (TryHandleInboundMessageSelected(type, root, instance))
         {
+            return true;
+        }
+
+        if (AdapterMessageTypes.DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
+        {
+            HandleDashboardScrapeStatus(root, instance);
             return true;
         }
 

@@ -20,6 +20,8 @@ public class AdapterMessageTypesTests
     [InlineData("badge-count", true)]
     [InlineData("google-review-snapshot", true)]
     [InlineData("inbound-message-selected", true)]
+    [InlineData("dashboard-scrape-status", true)]
+    [InlineData("meta-telemetry-snapshot", true)]
     [InlineData("unknown-type", false)]
     public void IsKnownType_ClassifiesSupportedMessages(string type, bool expected)
     {
@@ -73,5 +75,15 @@ public class WebMessageParserTests
         using var document = WebMessageParser.Parse("""{"count":-5}""");
 
         Assert.Equal(0, WebMessageParser.ReadNonNegativeInt(document.RootElement, "count"));
+    }
+
+    [Fact]
+    public void ReadOptionalDouble_ParsesNumericAndStringValues()
+    {
+        using var numeric = WebMessageParser.Parse("""{"averageResponseMinutes":12.5}""");
+        using var text = WebMessageParser.Parse("""{"averageResponseMinutes":"18"}""");
+
+        Assert.Equal(12.5, WebMessageParser.ReadOptionalDouble(numeric.RootElement, "averageResponseMinutes"));
+        Assert.Equal(18, WebMessageParser.ReadOptionalDouble(text.RootElement, "averageResponseMinutes"));
     }
 }

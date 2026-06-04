@@ -464,4 +464,57 @@
     });
   };
 
+  window.__umPublishDashboardScrapeStatus = function (instanceId, platform, success, context, detail) {
+    window.__umPostMessage({
+      type: 'dashboard-scrape-status',
+      instanceId: instanceId,
+      platform: platform,
+      success: success !== false,
+      context: context || 'dashboard-scrape',
+      detail: detail || '',
+      timestampUtc: new Date().toISOString()
+    });
+  };
+
+  window.__umRunSafeScrape = function (instanceId, platform, context, scrapeFn) {
+    try {
+      var result = typeof scrapeFn === 'function' ? scrapeFn() : null;
+      window.__umPublishDashboardScrapeStatus(instanceId, platform, true, context, '');
+      return result;
+    } catch (error) {
+      var message = error && error.message ? error.message : String(error);
+      window.__umPublishDashboardScrapeStatus(instanceId, platform, false, context, message);
+      console.warn('[UnifiedMessenger] scrape failed', context, error);
+      return null;
+    }
+  };
+
+  window.__umQueryVisible = function (selector, root) {
+    try {
+      var scope = root || document;
+      var node = scope.querySelector(selector);
+      if (!node) {
+        return null;
+      }
+
+      if (node.offsetParent !== null || node.getClientRects().length > 0) {
+        return node;
+      }
+    } catch (error) {
+      console.warn('[UnifiedMessenger] query failed', selector, error);
+    }
+
+    return null;
+  };
+
+  window.__umFindTextMatch = function (pattern, root) {
+    var body = (root || document.body);
+    if (!body || !body.innerText) {
+      return null;
+    }
+
+    var match = body.innerText.match(pattern);
+    return match || null;
+  };
+
 })();

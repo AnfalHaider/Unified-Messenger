@@ -25,6 +25,10 @@ public static class AdapterMessageTypes
 
     public const string InboundMessageSelected = "inbound-message-selected";
 
+    public const string DashboardScrapeStatus = "dashboard-scrape-status";
+
+    public const string MetaTelemetrySnapshot = "meta-telemetry-snapshot";
+
     private static readonly HashSet<string> StandardTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         BadgeCount,
@@ -43,5 +47,7 @@ public static class AdapterMessageTypes
         MetaInboundMessage.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         GoogleReviewSnapshot.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         GoogleReviewAlert.Equals(type, StringComparison.OrdinalIgnoreCase) ||
-        InboundMessageSelected.Equals(type, StringComparison.OrdinalIgnoreCase);
+        InboundMessageSelected.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        MetaTelemetrySnapshot.Equals(type, StringComparison.OrdinalIgnoreCase);
 }

@@ -11,6 +11,9 @@ public class ConnectionHandshakeScriptTests
         Assert.Contains("__umStartConnectionHandshake", script, StringComparison.Ordinal);
         Assert.Contains("MutationObserver", script, StringComparison.Ordinal);
         Assert.Contains("'Connected'", script, StringComparison.Ordinal);
+        Assert.Contains("__umConnectionPollTimer", script, StringComparison.Ordinal);
+        Assert.Contains("urlLoggedIn", script, StringComparison.Ordinal);
+        Assert.Contains("discord", script, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
