@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.12](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.12)
+**Current release:** [v1.0.13](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.13)
 
 ## Download (Windows)
 
@@ -15,15 +15,13 @@ All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
 
-### What’s in v1.0.12
+### What’s in v1.0.13
 
-- **Unified Messenger Control Center:** multi-branch operations dashboard with revenue-at-risk, branch latency cards, immediate-action lane, and kanban workspaces.
-- **AI insights engine:** background intent/sentiment/urgency analysis, hanging-lead detection, and next-action summaries (local Ollama + heuristic fallback).
-- **Thread sync pipeline:** WhatsApp/Meta/Google thread-status auditors, dual-lane inference coordinator, and `triage_v2.json` thread registry.
-- **Lifecycle:** hide-to-tray with warm WebView sessions, global Ctrl+Space copilot, and streaming draft injection.
+- **Startup threading fix:** WebView2 session warm-up re-marshals to the UI thread after WinRT awaits, fixing *"Could not start instances"* on launch.
+- **UI thread hardening:** reload, suspend/resume, adapter reinject, chrome inject, and profile cleanup paths use consistent dispatcher marshaling.
 - **534** unit tests (x64).
 
-Earlier highlights: v1.0.11 (installer launch fix), v1.0.9 (reply detection), v1.0.8 (dashboard cards), on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
+Earlier highlights: v1.0.12 (control center + AI insights), v1.0.11 (installer launch fix), on the [releases](https://github.com/AnfalHaider/Unified-Messenger/releases) page.
 
 ## Requirements
 
@@ -52,7 +50,7 @@ cd "d:\Projects\Unified Messenger"
 dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -c Release -p:Platform=x64
 ```
 
-497 unit tests cover services, adapters (including HTML fixture selector checks), backfill orchestration, dashboard card helpers, and dialog helpers.
+534 unit tests cover services, adapters (including HTML fixture selector checks), backfill orchestration, dashboard card helpers, and dialog helpers.
 
 ## Connect Google Business Profile
 

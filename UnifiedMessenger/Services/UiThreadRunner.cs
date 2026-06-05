@@ -4,6 +4,7 @@ namespace UnifiedMessenger.Services;
 
 /// <summary>
 /// Marshals async work onto the WinUI dispatcher. WebView2 and XAML objects require this.
+/// WinRT awaitables often resume on thread-pool threads even when ConfigureAwait(true) is used.
 /// </summary>
 internal static class UiThreadRunner
 {
@@ -18,13 +19,19 @@ internal static class UiThreadRunner
         ?? DispatcherQueue.GetForCurrentThread()
         ?? throw new InvalidOperationException("No UI dispatcher is available.");
 
-    public static void VerifyThreadAccess()
+    /// <summary>
+    /// Ensures subsequent UI-bound work runs on the dispatcher thread.
+    /// Call after awaits that may touch WebView2 or XAML.
+    /// </summary>
+    public static Task YieldToUiAsync()
     {
-        if (!GetDispatcher().HasThreadAccess)
+        var dispatcher = GetDispatcher();
+        if (dispatcher.HasThreadAccess)
         {
-            throw new InvalidOperationException(
-                "This method can only be called from the thread that created the object.");
+            return Task.CompletedTask;
         }
+
+        return RunAsync(static () => Task.CompletedTask);
     }
 
     public static async Task RunAsync(Func<Task> action) =>

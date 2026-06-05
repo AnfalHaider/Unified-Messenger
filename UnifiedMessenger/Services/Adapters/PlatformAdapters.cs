@@ -103,6 +103,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
             RegisterNavigationHooks(coreWebView, instance);
         }).ConfigureAwait(true);
+
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
     }
 
     public async Task ReinjectAsync(
@@ -134,6 +136,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 await ExecuteScriptSafeAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, settingsScript, cancellationToken).ConfigureAwait(true);
             }).ConfigureAwait(true);
+
+            await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {

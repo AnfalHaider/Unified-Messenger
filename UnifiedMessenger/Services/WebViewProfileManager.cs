@@ -89,33 +89,62 @@ public sealed partial class WebViewProfileManager
         profileName = NormalizeProfileName(profileName);
         ValidateProfileName(profileName);
 
-        var environment = await EnsureEnvironmentAsync(cancellationToken).ConfigureAwait(true);
+        var environment = await EnsureEnvironmentAsync(cancellationToken).ConfigureAwait(false);
 
-        WebView2? webView = null;
-        try
+        return await InitializeWebViewControlAsync(environment, profileName, cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    private static Task<WebView2> InitializeWebViewControlAsync(
+        CoreWebView2Environment environment,
+        string profileName,
+        CancellationToken cancellationToken) =>
+        UiThreadRunner.RunAsync(async () =>
         {
-            webView = new WebView2();
-            var options = environment.CreateCoreWebView2ControllerOptions();
-            options.ProfileName = profileName;
+            WebView2? webView = null;
+            try
+            {
+                webView = new WebView2();
+                var options = environment.CreateCoreWebView2ControllerOptions();
+                options.ProfileName = profileName;
 
-            await webView.EnsureCoreWebView2Async(environment, options).AsTask().ConfigureAwait(true);
+                // WinRT may resume on a thread-pool thread; validate and return on the UI thread.
+                await webView.EnsureCoreWebView2Async(environment, options).AsTask().ConfigureAwait(false);
 
+                return await FinalizeWebViewControlAsync(webView, profileName).ConfigureAwait(false);
+            }
+            catch
+            {
+                if (webView is not null)
+                {
+                    await CloseWebViewOnUiThreadAsync(webView).ConfigureAwait(false);
+                }
+
+                throw;
+            }
+        });
+
+    private static Task<WebView2> FinalizeWebViewControlAsync(WebView2 webView, string profileName) =>
+        UiThreadRunner.RunAsync(() =>
+        {
             var actualProfile = webView.CoreWebView2?.Profile.ProfileName;
             if (actualProfile is null ||
                 !actualProfile.Equals(profileName, StringComparison.OrdinalIgnoreCase))
             {
+                webView.Close();
                 throw new InvalidOperationException(
                     $"Profile mismatch. Expected \"{profileName}\" but got \"{actualProfile ?? "null"}\".");
             }
 
-            return webView;
-        }
-        catch
+            return Task.FromResult(webView);
+        });
+
+    private static Task CloseWebViewOnUiThreadAsync(WebView2 webView) =>
+        UiThreadRunner.RunAsync(() =>
         {
-            webView?.Close();
-            throw;
-        }
-    }
+            webView.Close();
+            return Task.CompletedTask;
+        });
 
     /// <summary>
     /// Clears all browsing data and marks the profile for deletion on disk.
@@ -132,7 +161,11 @@ public sealed partial class WebViewProfileManager
         if (activeWebView?.CoreWebView2 is not null)
         {
             await WipeProfileAsync(activeWebView.CoreWebView2.Profile, cancellationToken);
-            activeWebView.Close();
+            await UiThreadRunner.RunAsync(() =>
+            {
+                activeWebView.Close();
+                return Task.CompletedTask;
+            }).ConfigureAwait(true);
             InstanceWebViewRegistry.Instance.ReleaseProfile(profileName);
             return;
         }
@@ -147,7 +180,11 @@ public sealed partial class WebViewProfileManager
         }
         finally
         {
-            ephemeralWebView.Close();
+            await UiThreadRunner.RunAsync(() =>
+            {
+                ephemeralWebView.Close();
+                return Task.CompletedTask;
+            }).ConfigureAwait(true);
             InstanceWebViewRegistry.Instance.ReleaseProfile(profileName);
         }
     }
@@ -166,23 +203,28 @@ public sealed partial class WebViewProfileManager
     /// </summary>
     public void ApplyBackgroundMemoryPolicy(IEnumerable<WebView2> webViews, bool isBackground)
     {
-        var targetLevel = isBackground
-            ? CoreWebView2MemoryUsageTargetLevel.Low
-            : CoreWebView2MemoryUsageTargetLevel.Normal;
-
-        foreach (var webView in webViews)
+        _ = UiThreadRunner.RunAsync(() =>
         {
-            if (webView.CoreWebView2 is null)
+            var targetLevel = isBackground
+                ? CoreWebView2MemoryUsageTargetLevel.Low
+                : CoreWebView2MemoryUsageTargetLevel.Normal;
+
+            foreach (var webView in webViews)
             {
-                continue;
+                if (webView.CoreWebView2 is null)
+                {
+                    continue;
+                }
+
+                webView.Visibility = isBackground
+                    ? Microsoft.UI.Xaml.Visibility.Collapsed
+                    : Microsoft.UI.Xaml.Visibility.Visible;
+
+                webView.CoreWebView2.MemoryUsageTargetLevel = targetLevel;
             }
 
-            webView.Visibility = isBackground
-                ? Microsoft.UI.Xaml.Visibility.Collapsed
-                : Microsoft.UI.Xaml.Visibility.Visible;
-
-            webView.CoreWebView2.MemoryUsageTargetLevel = targetLevel;
-        }
+            return Task.CompletedTask;
+        });
     }
 
     public static string NormalizeProfileName(string profileName) =>

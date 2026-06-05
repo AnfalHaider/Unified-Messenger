@@ -44,6 +44,8 @@ public static class WebViewChromeStyleInjector
                 .AsTask()
                 .ConfigureAwait(true);
         }).ConfigureAwait(true);
+
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
     }
 
     internal static string ResolvePlatformStylesheetFileName(string? platformId)

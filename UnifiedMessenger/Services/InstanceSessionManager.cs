@@ -120,6 +120,8 @@ public sealed class InstanceSessionManager
 
     private async Task SwitchToCoreAsync(MessengerInstance instance, CancellationToken cancellationToken)
     {
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+
         ArgumentNullException.ThrowIfNull(instance);
         SyncInstance(instance);
 
@@ -153,13 +155,14 @@ public sealed class InstanceSessionManager
         try
         {
             await EnsureSessionAsync(instance, cancellationToken).ConfigureAwait(true);
+            await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
 
             if (!_sessions.TryGetValue(instance.Id, out var entry))
             {
                 throw new InvalidOperationException($"Session for \"{instance.DisplayName}\" was not created.");
             }
 
-            if (!_host.Children.Contains(entry.WebView))
+            if (_host is not null && !_host.Children.Contains(entry.WebView))
             {
                 _host.Children.Add(entry.WebView);
             }
@@ -184,6 +187,8 @@ public sealed class InstanceSessionManager
 
     private async Task EnsureSessionCoreAsync(MessengerInstance instance, CancellationToken cancellationToken)
     {
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+
         SyncInstance(instance);
 
         if (_sessions.ContainsKey(instance.Id))
@@ -206,19 +211,8 @@ public sealed class InstanceSessionManager
             }
 
             entry = await CreateSessionEntryAsync(instance, cancellationToken).ConfigureAwait(true);
-            _sessions[instance.Id] = entry;
-            InstanceWebViewRegistry.Instance.Register(instance.Id, instance.ProfileName, entry.WebView);
-
-            if (_host is not null && !_host.Children.Contains(entry.WebView))
-            {
-                _host.Children.Add(entry.WebView);
-            }
-
-            SetSessionVisualState(instance.Id, entry.WebView, isForeground: false);
-            entry.WebView.Source = new Uri(instance.StartUrl);
-            TouchAccessOrder(instance.Id);
-
-            SessionReady?.Invoke(this, new InstanceSessionEventArgs(instance));
+            await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+            await AttachSessionEntryAsync(instance, entry).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -270,8 +264,13 @@ public sealed class InstanceSessionManager
         RemoveAccessTracking(instanceId);
     }
 
-    public async Task ReloadSessionAsync(string instanceId, CancellationToken cancellationToken = default)
+    public Task ReloadSessionAsync(string instanceId, CancellationToken cancellationToken = default) =>
+        UiThreadRunner.RunAsync(() => ReloadSessionCoreAsync(instanceId, cancellationToken));
+
+    private async Task ReloadSessionCoreAsync(string instanceId, CancellationToken cancellationToken)
     {
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+
         if (!_sessions.TryGetValue(instanceId, out var entry) ||
             entry.WebView.CoreWebView2 is null)
         {
@@ -286,8 +285,6 @@ public sealed class InstanceSessionManager
         {
             Debug.WriteLine($"WebView reload failed: {ex.Message}");
         }
-
-        await Task.CompletedTask;
     }
 
     public async Task ReloadAllSessionsAsync(CancellationToken cancellationToken = default)
@@ -331,8 +328,13 @@ public sealed class InstanceSessionManager
         await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(true);
     }
 
-    public async Task TrySuspendSessionAsync(string instanceId)
+    public Task TrySuspendSessionAsync(string instanceId) =>
+        UiThreadRunner.RunAsync(() => TrySuspendSessionCoreAsync(instanceId));
+
+    private async Task TrySuspendSessionCoreAsync(string instanceId)
     {
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+
         if (!_sessions.TryGetValue(instanceId, out var entry) ||
             entry.WebView.CoreWebView2 is null)
         {
@@ -341,7 +343,7 @@ public sealed class InstanceSessionManager
 
         try
         {
-            await entry.WebView.CoreWebView2.TrySuspendAsync();
+            await entry.WebView.CoreWebView2.TrySuspendAsync().AsTask().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -349,12 +351,15 @@ public sealed class InstanceSessionManager
         }
     }
 
-    public async Task TryResumeSessionAsync(string instanceId)
+    public Task TryResumeSessionAsync(string instanceId) =>
+        UiThreadRunner.RunAsync(() => TryResumeSessionCoreAsync(instanceId));
+
+    private Task TryResumeSessionCoreAsync(string instanceId)
     {
         if (!_sessions.TryGetValue(instanceId, out var entry) ||
             entry.WebView.CoreWebView2 is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         try
@@ -366,7 +371,7 @@ public sealed class InstanceSessionManager
             Debug.WriteLine($"WebView resume failed: {ex.Message}");
         }
 
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     internal string? SelectLruEvictionCandidate(string incomingInstanceId)
@@ -441,14 +446,17 @@ public sealed class InstanceSessionManager
 
     public void ApplyAppWindowState(bool isAppActive)
     {
-        UiThreadRunner.VerifyThreadAccess();
-
-        foreach (var (instanceId, entry) in _sessions)
+        _ = UiThreadRunner.RunAsync(() =>
         {
-            var isForeground = isAppActive &&
-                               instanceId.Equals(_visibleInstanceId, StringComparison.OrdinalIgnoreCase);
-            SetSessionVisualState(instanceId, entry.WebView, isForeground);
-        }
+            foreach (var (instanceId, entry) in _sessions)
+            {
+                var isForeground = isAppActive &&
+                                   instanceId.Equals(_visibleInstanceId, StringComparison.OrdinalIgnoreCase);
+                SetSessionVisualState(instanceId, entry.WebView, isForeground);
+            }
+
+            return Task.CompletedTask;
+        });
     }
 
     public WebView2? TryGetWebView(string instanceId)
@@ -487,6 +495,8 @@ public sealed class InstanceSessionManager
 
     private async Task BroadcastAdapterSettingsCoreAsync()
     {
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+
         var includeMuted = AppSettingsService.Instance.Settings.IncludeMutedChatBadges ? "true" : "false";
         var script =
             $"window.__umIncludeMutedBadges = {includeMuted}; " +
@@ -510,7 +520,10 @@ public sealed class InstanceSessionManager
         }
     }
 
-    private async Task DisposeSessionEntryAsync(string instanceId, SessionEntry entry, bool unregister)
+    private Task DisposeSessionEntryAsync(string instanceId, SessionEntry entry, bool unregister) =>
+        UiThreadRunner.RunAsync(() => DisposeSessionEntryCoreAsync(instanceId, entry, unregister));
+
+    private async Task DisposeSessionEntryCoreAsync(string instanceId, SessionEntry entry, bool unregister)
     {
         DetachMessageHandler(entry);
 
@@ -584,31 +597,56 @@ public sealed class InstanceSessionManager
         CancellationToken cancellationToken)
     {
         var webView = await WebViewProfileManager.Instance
-            .CreateWebViewAsync(instance.ProfileName, cancellationToken);
+            .CreateWebViewAsync(instance.ProfileName, cancellationToken)
+            .ConfigureAwait(true);
 
-        webView.HorizontalAlignment = HorizontalAlignment.Stretch;
-        webView.VerticalAlignment = VerticalAlignment.Stretch;
-
-        var coreWebView = webView.CoreWebView2
-            ?? throw new InvalidOperationException("CoreWebView2 was not initialized.");
-
-        var adapter = PlatformAdapterFactory.Resolve(instance.Platform);
-        TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs> messageHandler = (_, args) =>
+        return await UiThreadRunner.RunAsync(async () =>
         {
-            adapter.HandleWebMessage(args.WebMessageAsJson, NotificationHub.Instance, instance);
-        };
+            webView.HorizontalAlignment = HorizontalAlignment.Stretch;
+            webView.VerticalAlignment = VerticalAlignment.Stretch;
 
-        coreWebView.WebMessageReceived += messageHandler;
+            var coreWebView = webView.CoreWebView2
+                ?? throw new InvalidOperationException("CoreWebView2 was not initialized.");
 
-        await WebViewChromeStyleInjector.InjectAsync(coreWebView, instance.Platform, cancellationToken);
-        await adapter.RegisterAsync(coreWebView, instance, cancellationToken);
+            var adapter = PlatformAdapterFactory.Resolve(instance.Platform);
+            TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs> messageHandler = (_, args) =>
+            {
+                adapter.HandleWebMessage(args.WebMessageAsJson, NotificationHub.Instance, instance);
+            };
 
-        return new SessionEntry
-        {
-            WebView = webView,
-            MessageHandler = messageHandler
-        };
+            coreWebView.WebMessageReceived += messageHandler;
+
+            await WebViewChromeStyleInjector.InjectAsync(coreWebView, instance.Platform, cancellationToken)
+                .ConfigureAwait(true);
+            await adapter.RegisterAsync(coreWebView, instance, cancellationToken).ConfigureAwait(true);
+            await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+
+            return new SessionEntry
+            {
+                WebView = webView,
+                MessageHandler = messageHandler
+            };
+        }).ConfigureAwait(true);
     }
+
+    private Task AttachSessionEntryAsync(MessengerInstance instance, SessionEntry entry) =>
+        UiThreadRunner.RunAsync(() =>
+        {
+            _sessions[instance.Id] = entry;
+            InstanceWebViewRegistry.Instance.Register(instance.Id, instance.ProfileName, entry.WebView);
+
+            if (_host is not null && !_host.Children.Contains(entry.WebView))
+            {
+                _host.Children.Add(entry.WebView);
+            }
+
+            SetSessionVisualState(instance.Id, entry.WebView, isForeground: false);
+            entry.WebView.Source = new Uri(instance.StartUrl);
+            TouchAccessOrder(instance.Id);
+
+            SessionReady?.Invoke(this, new InstanceSessionEventArgs(instance));
+            return Task.CompletedTask;
+        });
 
     private sealed class SessionEntry
     {
