@@ -65,7 +65,6 @@ public sealed class HotkeyCopilotOrchestrator
 
             var pending = new StringBuilder();
             var lastFlush = Environment.TickCount64;
-            const int flushIntervalMs = 60;
 
             await foreach (var token in OllamaOrchestrationService.Instance
                                .StreamGenerateAsync(
@@ -77,16 +76,20 @@ public sealed class HotkeyCopilotOrchestrator
             {
                 pending.Append(token);
                 var now = Environment.TickCount64;
-                if (now - lastFlush < flushIntervalMs)
+                if (now - lastFlush < DraftStreamFlushHelper.DefaultFlushIntervalMs)
                 {
                     continue;
                 }
 
-                await FlushPendingAsync(instanceId, pending, cancellationToken).ConfigureAwait(false);
+                await DraftStreamFlushHelper
+                    .FlushPendingAsync(instanceId, pending, cancellationToken)
+                    .ConfigureAwait(false);
                 lastFlush = now;
             }
 
-            await FlushPendingAsync(instanceId, pending, cancellationToken).ConfigureAwait(false);
+            await DraftStreamFlushHelper
+                .FlushPendingAsync(instanceId, pending, cancellationToken)
+                .ConfigureAwait(false);
             await WebViewDraftInjector.FinalizeDraftStreamAsync(instanceId, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -102,22 +105,6 @@ public sealed class HotkeyCopilotOrchestrator
         {
             _runGate.Release();
         }
-    }
-
-    private static async Task FlushPendingAsync(
-        string instanceId,
-        StringBuilder pending,
-        CancellationToken cancellationToken)
-    {
-        if (pending.Length == 0)
-        {
-            return;
-        }
-
-        var chunk = pending.ToString();
-        pending.Clear();
-        await WebViewDraftInjector.AppendDraftChunkAsync(instanceId, chunk, cancellationToken)
-            .ConfigureAwait(false);
     }
 
     private static string? ResolveTargetInstanceId()

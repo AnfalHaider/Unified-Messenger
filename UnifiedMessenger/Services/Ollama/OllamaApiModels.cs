@@ -39,6 +39,16 @@ internal sealed class OllamaGenerateRequest
     [JsonPropertyName("format")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Format { get; init; }
+
+    [JsonPropertyName("options")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OllamaGenerateOptions? Options { get; init; }
+}
+
+internal sealed class OllamaGenerateOptions
+{
+    [JsonPropertyName("temperature")]
+    public double Temperature { get; init; }
 }
 
 internal sealed class OllamaGenerateChunk

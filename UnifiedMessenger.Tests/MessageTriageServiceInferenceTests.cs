@@ -37,13 +37,15 @@ public class MessageTriageServiceInferenceTests
         var after = service.BuildSnapshot(instances).UrgentQueue[0];
         Assert.Equal(TriageInferenceSource.Heuristic, after.InferenceSource);
         Assert.Equal(baseline.UrgencyScore, after.UrgencyScore);
+        Assert.Equal(UnifiedMessengerIntentCategory.Booking, after.AiIntentCategory);
+        Assert.False(string.IsNullOrWhiteSpace(after.NextActionSummary));
     }
 
     [Fact]
     public async Task ProcessInference_UpgradesItemWhenLlmReturnsValidJson()
     {
         const string json = """
-            {"UrgencyScore":95,"Sentiment":"Negative","CustomerIntent":"Complaint","ExtractedEntities":{"CustomerName":"Sara","ContactNumber":null,"RequestedDate":null,"RequestedTime":null,"ServiceType":null,"ActionRequired":"call"},"CoreSummary":"Urgent cancellation request"}
+            {"UrgencyScore":95,"Sentiment":"Negative","CustomerIntent":"Complaint","ExtractedEntities":{"CustomerName":"Sara","ContactNumber":null,"RequestedDate":null,"RequestedTime":null,"ServiceType":null,"ActionRequired":"call"},"CoreSummary":"Urgent cancellation request","AiIntentCategory":"Complaint","ClientSentiment":"Critical","OperationalUrgency":5,"EstimatedValue":25000,"NextActionSummary":"Call Sara immediately","IsRevenueLeakageRisk":false}
             """;
         var service = new MessageTriageService(new MessageTriageInferenceRunner(new StubTriageLlmClient(json)));
         var instances = CreateInstances("branch-a");
@@ -81,6 +83,9 @@ public class MessageTriageServiceInferenceTests
         Assert.Equal("Critical", after.UrgencyLabel);
         Assert.Equal(CustomerIntent.Complaint, after.CustomerIntent);
         Assert.Equal("Urgent cancellation request", after.CoreSummary);
+        Assert.Equal(ClientSentimentLabel.Critical, after.ClientSentiment);
+        Assert.Equal(5, after.OperationalUrgency);
+        Assert.Equal(25000, after.EstimatedValue);
     }
 
     private static MessengerInstance[] CreateInstances(string id) =>

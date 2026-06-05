@@ -69,8 +69,6 @@ public class DashboardPageHelperExecutiveInsightsTests
     [Fact]
     public void BuildExecutiveInsights_OmitsHeuristicWhenSettingDisabled()
     {
-        AppSettingsService.Instance.Settings.ShowHeuristicExecutiveInsights = false;
-
         var triage = new MessageTriageService();
         triage.ProcessInboundForTests(
             new InboundMessageSelection
@@ -85,7 +83,8 @@ public class DashboardPageHelperExecutiveInsightsTests
 
         var cards = DashboardPageHelper.BuildExecutiveInsights(
             [new MessengerInstance { Id = "wa-1", DisplayName = "WA", Category = WorkspaceCategory.Professional }],
-            triageService: triage);
+            triageService: triage,
+            includeHeuristic: false);
 
         Assert.Empty(cards);
     }

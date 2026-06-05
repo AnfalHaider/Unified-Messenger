@@ -29,6 +29,8 @@ public static class AdapterMessageTypes
 
     public const string MetaTelemetrySnapshot = "meta-telemetry-snapshot";
 
+    public const string UpdateThreadStatus = "update-thread-status";
+
     private static readonly HashSet<string> StandardTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         BadgeCount,
@@ -49,5 +51,6 @@ public static class AdapterMessageTypes
         GoogleReviewAlert.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         InboundMessageSelected.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
-        MetaTelemetrySnapshot.Equals(type, StringComparison.OrdinalIgnoreCase);
+        MetaTelemetrySnapshot.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        UpdateThreadStatus.Equals(type, StringComparison.OrdinalIgnoreCase);
 }

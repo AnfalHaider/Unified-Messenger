@@ -30,6 +30,9 @@ public sealed class OllamaInferenceCoordinator : IDisposable
 
     public OllamaInferenceActivity CurrentActivity => _activity;
 
+    public bool IsInteractiveActive =>
+        _activity == OllamaInferenceActivity.InteractiveStreaming;
+
     public event EventHandler<OllamaInferenceActivity>? ActivityChanged;
 
     public async IAsyncEnumerable<string> StreamTokensAsync(
@@ -269,6 +272,8 @@ public sealed class OllamaInferenceCoordinator : IDisposable
         _activity = activity;
         ActivityChanged?.Invoke(this, activity);
     }
+
+    internal void SetActivityForTests(OllamaInferenceActivity activity) => SetActivity(activity);
 
     public void Dispose()
     {

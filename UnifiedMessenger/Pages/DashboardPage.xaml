@@ -870,6 +870,10 @@
                 </ScrollViewer>
             </TabViewItem>
 
+            <TabViewItem Header="Unified Messenger Control Center" IsClosable="False">
+                <controls:UnifiedMessengerControlCenter x:Name="UnifiedMessengerControlCenterPanel" />
+            </TabViewItem>
+
             <TabViewItem Header="Personal Overview" IsClosable="False">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <Grid RowSpacing="16">

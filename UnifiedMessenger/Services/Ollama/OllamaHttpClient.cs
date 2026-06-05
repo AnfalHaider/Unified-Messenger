@@ -86,7 +86,10 @@ internal sealed class OllamaHttpClient : IDisposable
             Prompt = prompt,
             System = systemPrompt,
             Stream = true,
-            Format = responseFormat
+            Format = responseFormat,
+            Options = string.Equals(responseFormat, "json", StringComparison.OrdinalIgnoreCase)
+                ? new OllamaGenerateOptions { Temperature = 0 }
+                : null
         };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/generate")

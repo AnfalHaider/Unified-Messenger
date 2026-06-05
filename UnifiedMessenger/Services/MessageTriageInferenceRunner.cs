@@ -27,7 +27,8 @@ public sealed class OllamaTriageLlmClient : ITriageLlmClient
             job.Platform,
             job.MessageText,
             job.CustomerName,
-            job.ConversationHint);
+            job.ConversationHint,
+            job.ConversationTranscript);
 
         var builder = new StringBuilder();
         await foreach (var token in OllamaOrchestrationService.Instance
@@ -116,8 +117,79 @@ public sealed class MessageTriageInferenceRunner
             InferenceSource = TriageInferenceSource.LocalAi,
             CustomerIntent = ParseCustomerIntent(response.CustomerIntent),
             CoreSummary = TrimCoreSummary(response.CoreSummary),
-            ExtractedEntities = entities
+            ExtractedEntities = entities,
+            ThreadId = baseline.ThreadId,
+            ConversationKey = baseline.ConversationKey,
+            BranchName = baseline.BranchName,
+            OperationalUrgency = Math.Clamp(
+                response.OperationalUrgency > 0
+                    ? response.OperationalUrgency
+                    : MapOperationalUrgency(response.UrgencyScore),
+                1,
+                5),
+            AiIntentCategory = ParseAiIntentCategory(response.AiIntentCategory, response.CustomerIntent),
+            ClientSentiment = ParseClientSentiment(response.ClientSentiment, response.Sentiment),
+            NextActionSummary = TrimNextActionSummary(response.NextActionSummary, response.CoreSummary),
+            EstimatedValue = Math.Max(0, response.EstimatedValue),
+            IsRevenueLeakageRisk = response.IsRevenueLeakageRisk
         };
+    }
+
+    internal static int MapOperationalUrgency(int urgencyScore) =>
+        urgencyScore switch
+        {
+            >= 80 => 5,
+            >= 55 => 4,
+            >= 30 => 3,
+            >= 15 => 2,
+            _ => 1
+        };
+
+    internal static string ParseAiIntentCategory(string? raw, string? customerIntentFallback)
+    {
+        if (!string.IsNullOrWhiteSpace(raw))
+        {
+            return raw.Trim();
+        }
+
+        return ParseCustomerIntent(customerIntentFallback) switch
+        {
+            CustomerIntent.Booking => UnifiedMessengerIntentCategory.Booking,
+            CustomerIntent.Complaint => UnifiedMessengerIntentCategory.Complaint,
+            _ => UnifiedMessengerIntentCategory.Inquiry
+        };
+    }
+
+    internal static string ParseClientSentiment(string? raw, string? legacySentiment)
+    {
+        if (!string.IsNullOrWhiteSpace(raw))
+        {
+            return raw.Trim() switch
+            {
+                "Positive" => ClientSentimentLabel.Positive,
+                "Neutral" => ClientSentimentLabel.Neutral,
+                "Frustrated" => ClientSentimentLabel.Frustrated,
+                "Critical" => ClientSentimentLabel.Critical,
+                _ => raw.Trim()
+            };
+        }
+
+        return legacySentiment?.Trim().ToLowerInvariant() switch
+        {
+            "positive" => ClientSentimentLabel.Positive,
+            "negative" => ClientSentimentLabel.Frustrated,
+            _ => ClientSentimentLabel.Neutral
+        };
+    }
+
+    internal static string TrimNextActionSummary(string? nextAction, string? coreSummary)
+    {
+        if (!string.IsNullOrWhiteSpace(nextAction))
+        {
+            return nextAction.Trim();
+        }
+
+        return TrimCoreSummary(coreSummary);
     }
 
     internal static MessageSentiment ParseSentiment(string? raw, MessageSentiment fallback) =>

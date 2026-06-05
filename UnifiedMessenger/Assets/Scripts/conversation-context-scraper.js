@@ -9,6 +9,17 @@
 
   var PLATFORM = '__PLATFORM__';
 
+  var noisePatterns = [
+    /messages and calls are end-to-end encrypted/i,
+    /security code changed/i,
+    /you joined using this community/i,
+    /^this business uses/i,
+    /^hi,? welcome to/i,
+    /automated message/i,
+    /tap to learn more/i,
+    /^message yourself$/i
+  ];
+
   var profiles = {
     metabusiness: {
       messageSelectors: [
@@ -35,6 +46,15 @@
       ],
       outgoingHints: [/^you:/i, /^you$/i, /message-out/i, /outgoing/i, /you sent/i]
     },
+    whatsappbusiness: {
+      messageSelectors: [
+        'div.message-in span.selectable-text',
+        '[data-testid="conversation-panel-messages"] div.message-in span.selectable-text',
+        '[data-testid*="msg-container"] span.selectable-text',
+        'span.selectable-text.copyable-text'
+      ],
+      outgoingHints: [/^you:/i, /^you$/i, /message-out/i, /outgoing/i, /you sent/i]
+    },
     generic: {
       messageSelectors: ['[role="article"]', '[role="row"]', 'p'],
       outgoingHints: [/you$/i, /sent/i]
@@ -48,6 +68,21 @@
 
   function normalizeText(value) {
     return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function isNoise(text) {
+    var normalized = normalizeText(text);
+    if (normalized.length < 2) {
+      return true;
+    }
+
+    for (var i = 0; i < noisePatterns.length; i++) {
+      if (noisePatterns[i].test(normalized)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   function isOutgoing(text, profile) {
@@ -80,7 +115,7 @@
           }
 
           var text = normalizeText(node.textContent || node.innerText || '');
-          if (text.length < 2 || seen[text]) {
+          if (text.length < 2 || seen[text] || isNoise(text)) {
             continue;
           }
 

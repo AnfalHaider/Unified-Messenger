@@ -11,6 +11,8 @@ namespace UnifiedMessenger.Services;
 /// <summary>
 /// Keeps one live WebView2 per instance (unique profile each). Background instances suspend on switch (MEM-01);
 /// LRU eviction enforces <see cref="AppSettings.MaxConcurrentWebViews"/> while keeping the visible session (MEM-04).
+/// All sessions share the persistent user data folder from <see cref="WebViewProfileManager.UserDataFolder"/>.
+/// WhatsApp Business instances target <c>https://web.whatsapp.com</c> with auditor scripts for reply verification.
 /// </summary>
 public sealed class InstanceSessionManager
 {

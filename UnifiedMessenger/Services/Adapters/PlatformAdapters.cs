@@ -30,6 +30,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
     protected virtual bool SupportsInboundAutoDraft => false;
 
+    protected virtual IReadOnlyList<string> AdditionalScriptFileNames => [];
+
     public abstract string PlatformId { get; }
 
     public async Task RegisterAsync(
@@ -89,6 +91,14 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             {
                 await AddDocumentCreatedScriptAsync(coreWebView, inboundMonitorScript, cancellationToken)
                     .ConfigureAwait(true);
+            }
+
+            foreach (var additionalScript in AdditionalScriptFileNames)
+            {
+                var script = PrepareScript(
+                    await LoadScriptTemplateAsync(additionalScript, cancellationToken).ConfigureAwait(false),
+                    instance);
+                await AddDocumentCreatedScriptAsync(coreWebView, script, cancellationToken).ConfigureAwait(true);
             }
 
             RegisterNavigationHooks(coreWebView, instance);
@@ -172,6 +182,12 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 }
 
                 TryHandleInboundMessageSelected(type, root, instance);
+                return;
+            }
+
+            if (AdapterMessageTypes.UpdateThreadStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
+            {
+                HandleUpdateThreadStatus(root, instance);
                 return;
             }
 
@@ -259,6 +275,43 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
     protected static DateTimeOffset ParseMessageTimestamp(JsonElement root) =>
         WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
+
+    protected static void HandleUpdateThreadStatus(JsonElement root, MessengerInstance instance)
+    {
+        try
+        {
+            var status = root.TryGetProperty("status", out var statusElement)
+                ? statusElement.GetString()
+                : null;
+
+            if (!"RESOLVED".Equals(status, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var conversationKey = root.TryGetProperty("conversationKey", out var keyElement)
+                ? keyElement.GetString()
+                : null;
+            var customerName = root.TryGetProperty("customerName", out var customerElement)
+                ? customerElement.GetString()
+                : null;
+            var source = root.TryGetProperty("source", out var sourceElement)
+                ? sourceElement.GetString() ?? "webview"
+                : "webview";
+
+            UnifiedMessengerStateSyncService.Instance.EnqueueThreadResolved(
+                instance.Id,
+                conversationKey,
+                customerName,
+                ParseMessageTimestamp(root),
+                source);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(
+                $"Thread status update failed for {instance.Id}: {ex.Message}");
+        }
+    }
 
     protected static void HandleDashboardScrapeStatus(JsonElement root, MessengerInstance instance) =>
         DashboardScrapeStatusHandler.Apply(root, instance);
@@ -423,6 +476,13 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                         DateTimeOffset.UtcNow);
                 }
 
+                UnifiedMessengerStateSyncService.Instance.EnqueueThreadResolved(
+                    instance.Id,
+                    chatHint,
+                    chatHint,
+                    DateTimeOffset.UtcNow,
+                    source: "message-sent");
+
                 return true;
 
             default:
@@ -523,6 +583,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 public sealed class PlatformAdapterFactory
 {
     private static readonly WhatsAppAdapter WhatsApp = new();
+    private static readonly WhatsAppBusinessAdapter WhatsAppBusiness = new();
     private static readonly TelegramAdapter Telegram = new();
     private static readonly MessengerAdapter Messenger = new();
     private static readonly MetaBusinessAdapter MetaBusiness = new();
@@ -537,6 +598,7 @@ public sealed class PlatformAdapterFactory
         PlatformDefinition.NormalizePlatformId(platformId) switch
         {
             "whatsapp" => WhatsApp,
+            "whatsappbusiness" => WhatsAppBusiness,
             "telegram" => Telegram,
             "messenger" => Messenger,
             "metabusiness" => MetaBusiness,
@@ -556,6 +618,19 @@ public sealed class WhatsAppAdapter : BasePlatformAdapter
     protected override bool SupportsInboundAutoDraft => true;
 
     public override string PlatformId => "whatsapp";
+
+    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
+}
+
+public sealed class WhatsAppBusinessAdapter : BasePlatformAdapter
+{
+    protected override string ScriptFileName => "whatsapp-adapter.js";
+
+    protected override bool SupportsInboundAutoDraft => true;
+
+    public override string PlatformId => "whatsappbusiness";
+
+    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
 }
 
 public sealed class TelegramAdapter : BasePlatformAdapter
@@ -589,6 +664,8 @@ public sealed class MetaBusinessAdapter : BasePlatformAdapter
     protected override bool SupportsInboundAutoDraft => true;
 
     public override string PlatformId => "metabusiness";
+
+    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
 
     protected override bool HandleCustomMessage(
         string? type,
@@ -636,6 +713,8 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
     protected override bool SupportsInboundAutoDraft => true;
 
     public override string PlatformId => "googlebusiness";
+
+    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
 
     protected override bool HandleCustomMessage(
         string? type,

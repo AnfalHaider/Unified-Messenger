@@ -37,6 +37,42 @@
     return null;
   }
 
+  function dispatchFieldInput(field, data) {
+    try {
+      field.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: data }));
+    } catch (error) {
+      // older hosts
+    }
+
+    field.dispatchEvent(new InputEvent('input', { bubbles: true, data: data }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function insertIntoContentEditable(field, value) {
+    field.focus();
+
+    try {
+      if (document.execCommand('selectAll', false, null)) {
+        document.execCommand('insertText', false, value);
+        dispatchFieldInput(field, value);
+        return true;
+      }
+    } catch (error) {
+      console.warn('[UnifiedMessenger] selectAll/insertText failed', error);
+    }
+
+    try {
+      if (document.execCommand('insertText', false, value)) {
+        dispatchFieldInput(field, value);
+        return true;
+      }
+    } catch (error2) {
+      console.warn('[UnifiedMessenger] insertText failed', error2);
+    }
+
+    return false;
+  }
+
   function setFieldValue(field, text) {
     if (!field) {
       return false;
@@ -52,13 +88,29 @@
 
     if (typeof field.value === 'string') {
       field.value = value;
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-      field.dispatchEvent(new Event('change', { bubbles: true }));
+      dispatchFieldInput(field, value);
       return true;
     }
 
-    field.textContent = value;
-    field.dispatchEvent(new InputEvent('input', { bubbles: true, data: value }));
+    var applied = false;
+
+    function applyInsert() {
+      applied = insertIntoContentEditable(field, value);
+      if (!applied) {
+        field.textContent = value;
+        dispatchFieldInput(field, value);
+        applied = true;
+      }
+    }
+
+    applyInsert();
+
+    if (!applied) {
+      requestAnimationFrame(function () {
+        applyInsert();
+      });
+    }
+
     return true;
   }
 
@@ -93,16 +145,35 @@
 
   window.__umDraftStreamActive = false;
   window.__umDraftStreamBuffer = '';
+  var pendingStreamChunks = '';
+  var streamFlushScheduled = false;
 
-  function dispatchFieldInput(field, data) {
-    try {
-      field.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: data }));
-    } catch (error) {
-      // older hosts
+  function flushPendingStreamChunks() {
+    streamFlushScheduled = false;
+    if (!pendingStreamChunks) {
+      return { ok: true, reason: 'empty-flush' };
     }
 
-    field.dispatchEvent(new InputEvent('input', { bubbles: true, data: data }));
-    field.dispatchEvent(new Event('change', { bubbles: true }));
+    var field = findComposeField();
+    if (!field) {
+      return { ok: false, reason: 'compose-not-found' };
+    }
+
+    var text = pendingStreamChunks;
+    pendingStreamChunks = '';
+    window.__umDraftStreamBuffer += text;
+    return { ok: appendToField(field, text), reason: 'chunk-appended' };
+  }
+
+  function scheduleStreamFlush() {
+    if (streamFlushScheduled) {
+      return;
+    }
+
+    streamFlushScheduled = true;
+    requestAnimationFrame(function () {
+      flushPendingStreamChunks();
+    });
   }
 
   function appendToField(field, chunk) {
@@ -151,6 +222,8 @@
   window.__umResetDraftStream = function () {
     window.__umDraftStreamActive = true;
     window.__umDraftStreamBuffer = '';
+    pendingStreamChunks = '';
+    streamFlushScheduled = false;
     return window.__umClearDraftReply();
   };
 
@@ -160,28 +233,29 @@
       window.__umDraftStreamBuffer = '';
     }
 
-    var field = findComposeField();
-    if (!field) {
-      return { ok: false, reason: 'compose-not-found' };
-    }
-
     var text = String(chunk || '');
     if (!text) {
       return { ok: true, reason: 'empty-chunk' };
     }
 
-    window.__umDraftStreamBuffer += text;
-    return { ok: appendToField(field, text), reason: 'chunk-appended' };
+    pendingStreamChunks += text;
+    scheduleStreamFlush();
+    return { ok: true, reason: 'chunk-queued' };
   };
 
   window.__umFinalizeDraftStream = function () {
     window.__umDraftStreamActive = false;
+    var flushResult = flushPendingStreamChunks();
     var field = findComposeField();
     if (!field) {
       return { ok: false, reason: 'compose-not-found' };
     }
 
     dispatchFieldInput(field, '');
-    return { ok: true, reason: 'finalized', length: window.__umDraftStreamBuffer.length };
+    return {
+      ok: flushResult.ok,
+      reason: 'finalized',
+      length: window.__umDraftStreamBuffer.length
+    };
   };
 })();

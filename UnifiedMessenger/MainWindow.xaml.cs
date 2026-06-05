@@ -150,14 +150,7 @@ public sealed partial class MainWindow : Window
         _forceShutdown = true;
         GlobalHotkeyService.Instance.Dispose();
 
-        try
-        {
-            await RichTriageStoreService.Instance.FlushAsync().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Triage flush on quit failed: {ex.Message}");
-        }
+        await ApplicationLifecycleService.FlushPersistentStateAsync().ConfigureAwait(true);
 
         SystemTrayService.Instance.Dispose();
         Close();
@@ -165,12 +158,15 @@ public sealed partial class MainWindow : Window
 
     private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (_forceShutdown || !AppSettingsService.Instance.Settings.RunInBackgroundOnClose)
+        if (!ApplicationLifecycleService.ShouldHideOnClose(
+                _forceShutdown,
+                AppSettingsService.Instance.Settings.RunInBackgroundOnClose))
         {
             return;
         }
 
         args.Cancel = true;
+        ApplicationLifecycleService.FlushPersistentStateFireAndForget();
         sender.Hide();
         _isWindowVisible = false;
     }

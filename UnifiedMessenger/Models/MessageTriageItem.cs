@@ -28,6 +28,24 @@ public sealed class MessageTriageItem
 
     public RichTriageExtractedEntities ExtractedEntities { get; init; } = new();
 
+    public string ThreadId { get; init; } = string.Empty;
+
+    public string ConversationKey { get; init; } = string.Empty;
+
+    public string BranchName { get; init; } = string.Empty;
+
+    public int OperationalUrgency { get; init; } = 1;
+
+    public string AiIntentCategory { get; init; } = UnifiedMessengerIntentCategory.Inquiry;
+
+    public string ClientSentiment { get; init; } = ClientSentimentLabel.Neutral;
+
+    public string NextActionSummary { get; init; } = string.Empty;
+
+    public double EstimatedValue { get; init; }
+
+    public bool IsRevenueLeakageRisk { get; init; }
+
     public string UrgencyLabel => UrgencyScore switch
     {
         >= 80 => "Critical",

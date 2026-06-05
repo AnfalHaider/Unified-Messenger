@@ -23,6 +23,17 @@ public class AutoDraftScriptTests
         Assert.Contains("__umStartInboundMessageMonitor", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AiDraftInjectScript_SupportsRafStreamChunks()
+    {
+        var script = ReadScript("ai-draft-inject.js");
+
+        Assert.Contains("__umAppendDraftChunk", script, StringComparison.Ordinal);
+        Assert.Contains("__umFinalizeDraftStream", script, StringComparison.Ordinal);
+        Assert.Contains("requestAnimationFrame", script, StringComparison.Ordinal);
+        Assert.Contains("insertText", script, StringComparison.Ordinal);
+    }
+
     private static string ReadScript(string fileName)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Assets", "Scripts", fileName);

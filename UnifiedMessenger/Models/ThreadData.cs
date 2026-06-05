@@ -1,0 +1,80 @@
+namespace UnifiedMessenger.Models;
+
+/// <summary>
+/// Operational thread rollup for the Unified Messenger control-center dashboard.
+/// Persisted in <c>triage_v2.json</c> alongside message-level triage items.
+/// </summary>
+public sealed class ThreadData
+{
+    public required string ThreadId { get; set; }
+
+    public required string Platform { get; set; }
+
+    public required string InstanceId { get; set; }
+
+    public string BranchName { get; set; } = string.Empty;
+
+    public string CustomerName { get; set; } = "Customer";
+
+    public bool IsReplied { get; set; }
+
+    public DateTimeOffset LastMessageTime { get; set; } = DateTimeOffset.UtcNow;
+
+    public double LatencyMinutes { get; set; }
+
+    public string AiIntentCategory { get; set; } = UnifiedMessengerIntentCategory.Inquiry;
+
+    public string ClientSentiment { get; set; } = ClientSentimentLabel.Neutral;
+
+    /// <summary>Operational urgency on a 1–5 scale for manager queues.</summary>
+    public int UrgencyScore { get; set; } = 1;
+
+    public double EstimatedValue { get; set; }
+
+    public string NextActionSummary { get; set; } = string.Empty;
+
+    public bool IsRevenueLeakageRisk { get; set; }
+
+    public string ConversationKey { get; set; } = string.Empty;
+
+    public string? LastTriageItemId { get; set; }
+
+    public string InstanceDisplayName { get; set; } = string.Empty;
+
+    public bool IsSlaBreached => !IsReplied && LatencyMinutes > 15;
+
+    public bool IsImmediateAction =>
+        UrgencyScore >= 4 ||
+        ClientSentiment.Equals(ClientSentimentLabel.Critical, StringComparison.OrdinalIgnoreCase);
+
+    public UnifiedMessengerKanbanColumn KanbanColumn =>
+        IsReplied
+            ? UnifiedMessengerKanbanColumn.Resolved
+            : IsRevenueLeakageRisk
+                ? UnifiedMessengerKanbanColumn.HangingLeads
+                : UnifiedMessengerKanbanColumn.NewInquiries;
+}
+
+public enum UnifiedMessengerKanbanColumn
+{
+    NewInquiries,
+    HangingLeads,
+    Resolved
+}
+
+public static class UnifiedMessengerIntentCategory
+{
+    public const string Booking = "Booking";
+    public const string Complaint = "Complaint";
+    public const string PriceInquiry = "Price_Inquiry";
+    public const string Lead = "Lead";
+    public const string Inquiry = "Inquiry";
+}
+
+public static class ClientSentimentLabel
+{
+    public const string Positive = "Positive";
+    public const string Neutral = "Neutral";
+    public const string Frustrated = "Frustrated";
+    public const string Critical = "Critical";
+}

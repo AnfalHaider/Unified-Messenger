@@ -25,6 +25,14 @@ public sealed class PlatformDefinition
         },
         new PlatformDefinition
         {
+            Id = "whatsappbusiness",
+            DisplayName = "WhatsApp Business",
+            DefaultUrl = "https://web.whatsapp.com/",
+            IconGlyph = "\uE8BD",
+            AccentColor = "#128C7E"
+        },
+        new PlatformDefinition
+        {
             Id = "telegram",
             DisplayName = "Telegram",
             DefaultUrl = "https://web.telegram.org/",

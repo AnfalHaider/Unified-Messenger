@@ -35,6 +35,7 @@ public sealed class RichTriageStoreService
     {
         _storePath = Path.Combine(ApplicationPaths.UserDataRoot, FileName);
         MessageTriageService.Instance.Changed += OnTriageChanged;
+        ThreadRegistryService.Instance.Changed += OnThreadsChanged;
     }
 
     internal RichTriageStoreService(string storePath, bool subscribeToTriageChanges = false)
@@ -43,6 +44,7 @@ public sealed class RichTriageStoreService
         if (subscribeToTriageChanges)
         {
             MessageTriageService.Instance.Changed += OnTriageChanged;
+            ThreadRegistryService.Instance.Changed += OnThreadsChanged;
         }
     }
 
@@ -80,11 +82,14 @@ public sealed class RichTriageStoreService
                 return;
             }
 
-            var items = PruneItems(store?.Items ?? []);
+            var migrated = RichTriageStoreMigrator.Migrate(store);
+            var items = PruneItems(migrated.Items);
+            var threads = PruneThreads(migrated.Threads);
             _suppressPersist = true;
             try
             {
                 MessageTriageService.Instance.RestoreItems(items);
+                ThreadRegistryService.Instance.RestoreThreads(threads);
             }
             finally
             {
@@ -102,7 +107,10 @@ public sealed class RichTriageStoreService
     public async Task FlushAsync(CancellationToken cancellationToken = default)
     {
         CancelScheduledSave();
-        await SaveAsync(MessageTriageService.Instance.GetAllItems(), cancellationToken).ConfigureAwait(false);
+        await SaveAsync(
+            MessageTriageService.Instance.GetAllItems(),
+            ThreadRegistryService.Instance.GetAllThreads(),
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task ClearAsync(CancellationToken cancellationToken = default)
@@ -113,6 +121,7 @@ public sealed class RichTriageStoreService
         try
         {
             MessageTriageService.Instance.RestoreItems([]);
+            ThreadRegistryService.Instance.RestoreThreads([]);
             if (File.Exists(_storePath))
             {
                 File.Delete(_storePath);
@@ -126,8 +135,28 @@ public sealed class RichTriageStoreService
 
     internal void SetLoadedForTests() => _isLoaded = true;
 
-    internal Task SaveSnapshotForTestsAsync(IEnumerable<MessageTriageItem> items, CancellationToken cancellationToken = default) =>
-        SaveAsync(PruneItems(items), cancellationToken);
+    internal Task SaveSnapshotForTestsAsync(
+        IEnumerable<MessageTriageItem> items,
+        IEnumerable<ThreadData>? threads = null,
+        CancellationToken cancellationToken = default) =>
+        SaveAsync(PruneItems(items), threads?.ToList() ?? [], cancellationToken);
+
+    internal static async Task<RichTriageStoreFile?> ReadStoreForTestsAsync(
+        string storePath,
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(storePath))
+        {
+            return null;
+        }
+
+        await using var stream = File.OpenRead(storePath);
+        var store = await JsonSerializer
+            .DeserializeAsync<RichTriageStoreFile>(stream, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+
+        return store is null ? null : RichTriageStoreMigrator.Migrate(store);
+    }
 
     internal static async Task<IReadOnlyList<MessageTriageItem>> ReadFileForTestsAsync(
         string storePath,
@@ -163,10 +192,26 @@ public sealed class RichTriageStoreService
             return;
         }
 
-        SchedulePersist(MessageTriageService.Instance.GetAllItems());
+        SchedulePersist(
+            MessageTriageService.Instance.GetAllItems(),
+            ThreadRegistryService.Instance.GetAllThreads());
     }
 
-    private void SchedulePersist(IReadOnlyList<MessageTriageItem> items)
+    private void OnThreadsChanged(object? sender, EventArgs e)
+    {
+        if (_suppressPersist)
+        {
+            return;
+        }
+
+        SchedulePersist(
+            MessageTriageService.Instance.GetAllItems(),
+            ThreadRegistryService.Instance.GetAllThreads());
+    }
+
+    private void SchedulePersist(
+        IReadOnlyList<MessageTriageItem> items,
+        IReadOnlyList<ThreadData> threads)
     {
         if (!_isLoaded)
         {
@@ -176,6 +221,7 @@ public sealed class RichTriageStoreService
         CancellationToken token;
         int generation;
         IReadOnlyList<MessageTriageItem> snapshot = items;
+        IReadOnlyList<ThreadData> threadSnapshot = threads;
 
         lock (_debounceLock)
         {
@@ -196,7 +242,7 @@ public sealed class RichTriageStoreService
                     return;
                 }
 
-                await SaveAsync(snapshot, token).ConfigureAwait(false);
+                await SaveAsync(snapshot, threadSnapshot, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -220,16 +266,20 @@ public sealed class RichTriageStoreService
         }
     }
 
-    private async Task SaveAsync(IReadOnlyList<MessageTriageItem> items, CancellationToken cancellationToken)
+    private async Task SaveAsync(
+        IReadOnlyList<MessageTriageItem> items,
+        IReadOnlyList<ThreadData> threads,
+        CancellationToken cancellationToken)
     {
         await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var store = new RichTriageStoreFile
+            var store = RichTriageStoreMigrator.Migrate(new RichTriageStoreFile
             {
                 Version = RichTriageStoreFile.CurrentVersion,
-                Items = PruneItems(items)
-            };
+                Items = PruneItems(items),
+                Threads = PruneThreads(threads)
+            });
 
             Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
 
@@ -254,6 +304,16 @@ public sealed class RichTriageStoreService
         {
             _writeGate.Release();
         }
+    }
+
+    internal static List<ThreadData> PruneThreads(IEnumerable<ThreadData> threads)
+    {
+        var cutoff = DateTimeOffset.UtcNow - RetentionWindow;
+        return threads
+            .Where(thread => thread.LastMessageTime >= cutoff)
+            .OrderByDescending(thread => thread.LastMessageTime)
+            .Take(MaxStoredItems)
+            .ToList();
     }
 
     private void BackupCorruptFile()

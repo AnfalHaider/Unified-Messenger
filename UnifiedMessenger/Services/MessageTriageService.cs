@@ -107,6 +107,13 @@ public sealed class MessageTriageService
             .ThenByDescending(item => item.TimestampUtc)
             .ToList();
 
+    internal void ReplaceItemForInsights(MessageTriageItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        _items[item.Id] = item;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     internal void RestoreItems(IEnumerable<MessageTriageItem> items)
     {
         _items.Clear();
@@ -211,7 +218,15 @@ public sealed class MessageTriageService
             {
                 try
                 {
+                    await TriageInferencePriorityBroker
+                        .WaitForBackgroundSlotAsync(_cts.Token)
+                        .ConfigureAwait(false);
+
                     await ProcessInferenceJobAsync(job, _cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (_cts.Token.IsCancellationRequested)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
@@ -232,6 +247,11 @@ public sealed class MessageTriageService
         var preview = request.MessageText.Length <= 220
             ? request.MessageText
             : request.MessageText[..217] + "...";
+        var branchName = BranchNameResolver.Resolve(request.InstanceDisplayName);
+        var conversationKey = string.IsNullOrWhiteSpace(request.ConversationHint)
+            ? request.CustomerName
+            : request.ConversationHint;
+        var threadId = ThreadRegistryService.BuildThreadId(request.InstanceId, conversationKey);
 
         var itemId = $"{request.InstanceId}|{Guid.NewGuid():N}";
         var item = new MessageTriageItem
@@ -245,14 +265,28 @@ public sealed class MessageTriageService
             UrgencyScore = urgency,
             Sentiment = sentiment,
             TimestampUtc = request.TimestampUtc,
-            InferenceSource = TriageInferenceSource.Heuristic
+            InferenceSource = TriageInferenceSource.Heuristic,
+            ThreadId = threadId,
+            ConversationKey = conversationKey,
+            BranchName = branchName,
+            OperationalUrgency = ThreadRegistryService.MapOperationalUrgency(urgency),
+            AiIntentCategory = UnifiedMessengerIntentCategory.Inquiry,
+            ClientSentiment = sentiment == MessageSentiment.Negative
+                ? ClientSentimentLabel.Frustrated
+                : sentiment == MessageSentiment.Positive
+                    ? ClientSentimentLabel.Positive
+                    : ClientSentimentLabel.Neutral,
+            NextActionSummary = preview
         };
 
-        _items[item.Id] = item;
+        var heuristicItem = UnifiedMessengerInsightsAnalyzer.ApplyOperationalInsights(item);
+        _items[item.Id] = heuristicItem;
+        ThreadRegistryService.Instance.UpsertFromTriageItem(heuristicItem, conversationKey, branchName);
         PruneExpiredItems();
         Changed?.Invoke(this, EventArgs.Empty);
 
         QueueInferenceJob(request, itemId, urgency, sentiment);
+        UnifiedMessengerInsightsEngine.Instance.EnqueueMessageAnalysis(request.InstanceId, itemId);
     }
 
     private void QueueInferenceJob(
@@ -289,12 +323,24 @@ public sealed class MessageTriageService
         }
 
         var response = await _inferenceRunner.TryInferAsync(job, cancellationToken).ConfigureAwait(false);
-        if (response is null)
-        {
-            return;
-        }
+        var updated = response is null
+            ? UnifiedMessengerInsightsAnalyzer.ApplyOperationalInsights(baseline)
+            : MessageTriageInferenceRunner.ApplyInference(
+                baseline,
+                UnifiedMessengerInsightsAnalyzer.Enrich(response, job));
 
-        _items[job.TriageItemId] = MessageTriageInferenceRunner.ApplyInference(baseline, response);
+        _items[job.TriageItemId] = updated;
+        ThreadRegistryService.Instance.UpsertFromTriageItem(
+            updated,
+            job.ConversationHint,
+            BranchNameResolver.Resolve(job.InstanceDisplayName),
+            updated.NextActionSummary,
+            updated.AiIntentCategory,
+            updated.ClientSentiment,
+            updated.OperationalUrgency,
+            updated.EstimatedValue,
+            updated.IsRevenueLeakageRisk);
+        UnifiedMessengerDashboardService.Instance.NotifyChanged();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

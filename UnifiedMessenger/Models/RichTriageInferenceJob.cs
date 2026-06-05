@@ -21,4 +21,7 @@ public sealed class RichTriageInferenceJob
     public int HeuristicUrgencyScore { get; init; }
 
     public MessageSentiment HeuristicSentiment { get; init; }
+
+    /// <summary>Recent thread lines from conversation-context-scraper.js, when available.</summary>
+    public string ConversationTranscript { get; init; } = string.Empty;
 }

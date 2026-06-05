@@ -34,6 +34,7 @@ public sealed partial class DashboardPage : Page
         RefreshResources();
         ApplyProfessionalTelemetryToView();
         ApplyEnterpriseTelemetryToView();
+        _ = RefreshUnifiedMessengerControlCenterAsync();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -187,6 +188,19 @@ public sealed partial class DashboardPage : Page
         ApplyEnterpriseTelemetryToView();
         UpdateSearchSuggestions(GlobalSearchBox.Text);
         UpdateProfessionalEmptyState();
+        _ = RefreshUnifiedMessengerControlCenterAsync();
+    }
+
+    private async Task RefreshUnifiedMessengerControlCenterAsync()
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        await UnifiedMessengerControlCenterPanel.RefreshAsync(
+            ProfessionalInstances,
+            _selectedBranchInstanceId).ConfigureAwait(true);
     }
 
     private async void RefreshDashboardDataButton_Click(object sender, RoutedEventArgs e) =>
@@ -447,6 +461,7 @@ public sealed partial class DashboardPage : Page
 
         BindProfessionalTelemetryToView(telemetry);
         UpdateProfessionalEmptyState();
+        _ = RefreshUnifiedMessengerControlCenterAsync();
     }
 
     private void BindProfessionalTelemetryToView(ProfessionalDashboardTelemetry telemetry)

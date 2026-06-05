@@ -68,7 +68,13 @@ public sealed class AutoDraftOrchestrator
                 selection.CustomerName,
                 selection.ConversationHint);
 
-            var draftBuilder = new StringBuilder();
+            await WebViewDraftInjector.ResetDraftStreamAsync(selection.InstanceId, cancellationToken)
+                .ConfigureAwait(false);
+
+            var pending = new StringBuilder();
+            var totalChars = 0;
+            var lastFlush = Environment.TickCount64;
+
             await foreach (var token in OllamaOrchestrationService.Instance
                                .StreamGenerateAsync(
                                    prompt.UserPrompt,
@@ -77,22 +83,36 @@ public sealed class AutoDraftOrchestrator
                                    cancellationToken: cancellationToken)
                                .ConfigureAwait(false))
             {
-                if (draftBuilder.Length + token.Length > WebViewDraftInjector.MaxDraftLength)
+                if (totalChars + token.Length > WebViewDraftInjector.MaxDraftLength)
                 {
                     break;
                 }
 
-                draftBuilder.Append(token);
+                pending.Append(token);
+                totalChars += token.Length;
+                var now = Environment.TickCount64;
+                if (now - lastFlush < DraftStreamFlushHelper.DefaultFlushIntervalMs)
+                {
+                    continue;
+                }
+
+                await DraftStreamFlushHelper
+                    .FlushPendingAsync(selection.InstanceId, pending, cancellationToken)
+                    .ConfigureAwait(false);
+                lastFlush = now;
             }
 
-            var draft = draftBuilder.ToString().Trim();
-            if (draft.Length < 4)
+            await DraftStreamFlushHelper
+                .FlushPendingAsync(selection.InstanceId, pending, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (totalChars < 4)
             {
                 return;
             }
 
             var injected = await WebViewDraftInjector
-                .InjectDraftAsync(selection.InstanceId, draft, cancellationToken)
+                .FinalizeDraftStreamAsync(selection.InstanceId, cancellationToken)
                 .ConfigureAwait(false);
 
             if (!injected)
@@ -105,7 +125,7 @@ public sealed class AutoDraftOrchestrator
 
             DraftCompleted?.Invoke(
                 this,
-                new AutoDraftCompletedEventArgs(selection.InstanceId, selection.Platform, draft.Length));
+                new AutoDraftCompletedEventArgs(selection.InstanceId, selection.Platform, totalChars));
         }
         catch (Exception ex)
         {
