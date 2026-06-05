@@ -7,7 +7,8 @@
     PrimaryButtonText="Add"
     SecondaryButtonText="Cancel"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
-    Title="Add messaging instance">
+    Title="Add messaging instance"
+    AutomationProperties.Name="Add messaging instance">
 
     <StackPanel MinWidth="360" Spacing="12">
         <ComboBox

@@ -8,7 +8,9 @@ internal sealed class TrayActionCommand : ICommand
 
     public TrayActionCommand(Action action) => _action = action;
 
+#pragma warning disable CS0067 // ICommand requires CanExecuteChanged; tray actions are always executable.
     public event EventHandler? CanExecuteChanged;
+#pragma warning restore CS0067
 
     public bool CanExecute(object? parameter) => true;
 

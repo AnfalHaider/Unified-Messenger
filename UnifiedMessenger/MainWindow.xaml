@@ -38,6 +38,7 @@
                     </Button>
                     <Button
                         x:Name="NotificationToggleButton"
+                        AutomationProperties.Name="Toggle notification panel"
                         Click="NotificationToggleButton_Click"
                         ToolTipService.ToolTip="Toggle notification panel">
                         <FontIcon Glyph="&#xEA8F;" />

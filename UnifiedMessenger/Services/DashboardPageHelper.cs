@@ -181,7 +181,7 @@ public static class DashboardPageHelper
         !string.IsNullOrWhiteSpace(entities.ServiceType) ||
         !string.IsNullOrWhiteSpace(entities.ActionRequired);
 
-    private static ExecutiveInsightCardDisplay BuildExecutiveInsightCard(
+    internal static ExecutiveInsightCardDisplay BuildExecutiveInsightCard(
         MessageTriageItem item,
         string sourceLabel)
     {

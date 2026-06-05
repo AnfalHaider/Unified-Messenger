@@ -135,6 +135,7 @@
                 <TextBlock
                     Grid.Column="1"
                     VerticalAlignment="Center"
+                    AutomationProperties.Name="Notifications"
                     FontWeight="SemiBold"
                     Text="Notifications" />
                 <Button

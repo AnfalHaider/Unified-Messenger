@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -248,6 +249,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private Border CreateDashboardRow()
     {
         var row = CreateSelectableRow(WorkspaceSidebarHelper.DashboardSelectionKey, null, "Dashboard", "Overview", null);
+        AutomationProperties.SetName(row, "Sidebar Dashboard");
         row.PointerPressed += DashboardRow_PointerPressed;
         return row;
     }

@@ -50,6 +50,7 @@
         BorderThickness="0,1,0,0">
         <Button
             x:Name="AddInstanceButton"
+            AutomationProperties.Name="Add Instance"
             HorizontalAlignment="Stretch"
             Click="AddInstanceButton_Click"
             Style="{StaticResource AccentButtonStyle}"
@@ -62,6 +63,7 @@
 
         <Button
             x:Name="NotificationsButton"
+            AutomationProperties.Name="Notification Hub"
             HorizontalAlignment="Stretch"
             Click="NotificationsButton_Click"
             Style="{StaticResource SubtleButtonStyle}"
@@ -94,6 +96,7 @@
 
         <Button
             x:Name="SettingsButton"
+            AutomationProperties.Name="Settings"
             HorizontalAlignment="Stretch"
             Click="SettingsButton_Click"
             Style="{StaticResource SubtleButtonStyle}"

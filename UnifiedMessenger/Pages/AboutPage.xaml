@@ -12,11 +12,12 @@
         <StackPanel Padding="24,16,24,24" Spacing="16" MaxWidth="720">
             <HyperlinkButton
                 x:Name="BackLink"
+                AutomationProperties.Name="Back to Settings"
                 Click="BackLink_Click"
                 Content="Back to Settings"
                 Visibility="Collapsed" />
 
-            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="About" />
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.Name="About" Text="About" />
 
             <Border
                 Padding="20"

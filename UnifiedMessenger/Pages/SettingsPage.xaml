@@ -10,7 +10,7 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Padding="24,16,24,24" Spacing="20" MaxWidth="720">
-            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.Name="Settings" Text="Settings" />
 
             <StackPanel Spacing="8">
                 <TextBlock
@@ -534,7 +534,7 @@
                             Opacity="0.65"
                             Text="Configure Ollama, download models, and choose the default drafting model."
                             TextWrapping="WrapWholeWords" />
-                        <HyperlinkButton Click="LocalAiSettingsLink_Click" Content="Open local AI settings" />
+                        <HyperlinkButton AutomationProperties.Name="Open local AI settings" Click="LocalAiSettingsLink_Click" Content="Open local AI settings" />
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -554,7 +554,7 @@
                         <TextBlock
                             x:Name="VersionText"
                             Opacity="0.8" />
-                        <HyperlinkButton Click="AboutLink_Click" Content="View app details" />
+                        <HyperlinkButton AutomationProperties.Name="View app details" Click="AboutLink_Click" Content="View app details" />
                     </StackPanel>
                 </Border>
             </StackPanel>

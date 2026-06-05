@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -15,7 +14,6 @@ public sealed partial class DashboardPage : Page
     private InstanceRegistryService? _registry;
     private readonly List<DashboardActivityItem> _allActivity = [];
     private DispatcherTimer? _resourceTimer;
-    private GoogleReviewAlertView? _selectedReviewAlert;
     private string? _selectedBranchInstanceId;
     private bool _suppressBranchSelectionChanged;
     private readonly ObservableCollection<DashboardBranchFilterEntry> _branchFilterEntries = new();
@@ -32,9 +30,7 @@ public sealed partial class DashboardPage : Page
     private void OnResourceTimerTick(object? sender, object e)
     {
         RefreshResources();
-        ApplyProfessionalTelemetryToView();
-        ApplyEnterpriseTelemetryToView();
-        _ = RefreshUnifiedMessengerControlCenterAsync();
+        _ = RefreshOperationsCommandCenterAsync();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -87,7 +83,7 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             RefreshActivity();
-            ApplyProfessionalTelemetryToView();
+            _ = RefreshOperationsCommandCenterAsync();
         });
     }
 
@@ -96,83 +92,20 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(RefreshResources);
     }
 
-    private void OnAnalyticsChanged(object? sender, EventArgs e)
-    {
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            ApplyProfessionalTelemetryToView();
-            ApplyEnterpriseTelemetryToView();
-        });
-    }
+    private void OnAnalyticsChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
 
     private void OnTriageChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => ApplyTriageTelemetryToView());
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
 
-    private void OnProfessionalWorkspaceChanged(object? sender, EventArgs e)
-    {
-        DispatcherQueue.TryEnqueue(ApplyEnterpriseTelemetryToView);
-    }
-
-    private async void ExportAnalyticsButton_Click(object sender, RoutedEventArgs e)
-    {
-        var picker = new Windows.Storage.Pickers.FileSavePicker();
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow!);
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-        picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
-        picker.SuggestedFileName = $"unified-messenger-analytics-{DateTime.Now:yyyyMMdd}";
-        picker.FileTypeChoices.Add("JSON", [".json"]);
-        picker.FileTypeChoices.Add("CSV", [".csv"]);
-
-        var file = await picker.PickSaveFileAsync();
-        if (file is null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (file.FileType.Equals(".csv", StringComparison.OrdinalIgnoreCase))
-            {
-                if (_registry is null)
-                {
-                    return;
-                }
-
-                await MessageAnalyticsService.Instance.ExportCsvAsync(_registry.Instances, file.Path);
-            }
-            else
-            {
-                await MessageAnalyticsService.Instance.ExportToFileAsync(file.Path);
-            }
-
-            var dialog = new ContentDialog
-            {
-                Title = "Export complete",
-                Content = $"Analytics saved to {file.Name}.",
-                CloseButtonText = "OK",
-                XamlRoot = XamlRoot
-            };
-            await dialog.ShowAsync();
-        }
-        catch (Exception ex)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = "Export failed",
-                Content = ex.Message,
-                CloseButtonText = "OK",
-                XamlRoot = XamlRoot
-            };
-            await dialog.ShowAsync();
-        }
-    }
+    private void OnProfessionalWorkspaceChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
 
     public void RefreshAll()
     {
         if (_registry is null)
         {
             WelcomeSubtitle.Text = "Add an account to start receiving unified notifications.";
-            UpdateProfessionalEmptyState();
             return;
         }
 
@@ -184,30 +117,25 @@ public sealed partial class DashboardPage : Page
         RefreshBranchFilter();
         RefreshActivity();
         RefreshResources();
-        ApplyProfessionalTelemetryToView();
-        ApplyEnterpriseTelemetryToView();
         UpdateSearchSuggestions(GlobalSearchBox.Text);
-        UpdateProfessionalEmptyState();
-        _ = RefreshUnifiedMessengerControlCenterAsync();
+        _ = RefreshOperationsCommandCenterAsync();
     }
 
-    private async Task RefreshUnifiedMessengerControlCenterAsync()
+    private async Task RefreshOperationsCommandCenterAsync()
     {
         if (_registry is null)
         {
             return;
         }
 
-        await UnifiedMessengerControlCenterPanel.RefreshAsync(
+        await OperationsCommandCenterPanel.RefreshAsync(
             ProfessionalInstances,
-            _selectedBranchInstanceId).ConfigureAwait(true);
+            _selectedBranchInstanceId,
+            _registry).ConfigureAwait(true);
     }
 
     private async void RefreshDashboardDataButton_Click(object sender, RoutedEventArgs e) =>
         await RequestProfessionalTelemetryRefreshAsync();
-
-    private async void RefreshAllProfessionalDataButton_Click(object sender, RoutedEventArgs e) =>
-        await RequestProfessionalTelemetryRefreshAsync(refreshAllInstances: true);
 
     private async Task RequestProfessionalTelemetryRefreshAsync(bool refreshAllInstances = false)
     {
@@ -217,25 +145,16 @@ public sealed partial class DashboardPage : Page
         }
 
         RefreshDashboardDataButton.IsEnabled = false;
-        RefreshAllProfessionalDataButton.IsEnabled = false;
         try
         {
-            ApplyProfessionalTelemetryToView();
-            ApplyEnterpriseTelemetryToView();
             ScheduleBackfillRetryIfNeeded();
-            if (refreshAllInstances)
-            {
-                await RequestAllProfessionalScrapeRefreshAsync().ConfigureAwait(true);
-            }
-            else
-            {
-                await RequestBranchScrapeRefreshAsync().ConfigureAwait(true);
-            }
+            await OperationsCommandCenterPanel
+                .RequestPlatformDataRefreshAsync(refreshAllInstances)
+                .ConfigureAwait(true);
         }
         finally
         {
             RefreshDashboardDataButton.IsEnabled = true;
-            RefreshAllProfessionalDataButton.IsEnabled = true;
         }
     }
 
@@ -256,146 +175,8 @@ public sealed partial class DashboardPage : Page
         }
     }
 
-    /// <summary>
-    /// Google/Meta scrapers require active WebView sessions and visible inbox DOM for reliable telemetry.
-    /// </summary>
-    private async Task RequestAllProfessionalScrapeRefreshAsync()
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        var scrapeTargets = ProfessionalInstances
-            .Where(DashboardScrapeOrchestrator.IsDashboardScrapeCapable)
-            .ToList();
-
-        if (scrapeTargets.Count == 0)
-        {
-            return;
-        }
-
-        try
-        {
-            await DashboardScrapeOrchestrator.Instance
-                .RefreshProfessionalInstancesAsync(scrapeTargets)
-                .ConfigureAwait(true);
-
-            MessageAnalyticsService.Instance.NotifyDashboardRefresh();
-            ApplyProfessionalTelemetryToView();
-            ApplyEnterpriseTelemetryToView();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"All-instance scrape refresh failed: {ex.Message}");
-        }
-    }
-
-    private void UpdateProfessionalEmptyState()
-    {
-        var hasProfessional = ProfessionalInstances.Any();
-        ProfessionalEmptyPanel.Visibility = hasProfessional
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-        ProfessionalContentGrid.Visibility = hasProfessional
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private IEnumerable<MessengerInstance> PersonalInstances =>
-        _registry?.Instances.Where(i => !i.IsProfessional) ?? [];
-
     private IEnumerable<MessengerInstance> ProfessionalInstances =>
         _registry?.Instances.Where(i => i.IsProfessional) ?? [];
-
-    private IEnumerable<MessengerInstance> FilteredProfessionalInstances =>
-        DashboardPageHelper.FilterProfessionalInstances(ProfessionalInstances, _selectedBranchInstanceId);
-
-    private IEnumerable<MessengerInstance> GoogleBusinessInstances =>
-        ProfessionalInstances.Where(i =>
-            i.Platform.Equals("googlebusiness", StringComparison.OrdinalIgnoreCase));
-
-    private IEnumerable<MessengerInstance> MetaBusinessInstances =>
-        ProfessionalInstances.Where(i =>
-            i.Platform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase));
-
-    private void ApplyEnterpriseTelemetryToView()
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        var trust = ProfessionalWorkspaceService.Instance.CaptureCustomerTrust(
-            FilteredGoogleBusinessInstances);
-        var trustDisplay = DashboardPageHelper.BuildCustomerTrustDisplay(trust);
-        AggregateRatingValue.Text = trustDisplay.AggregateRating;
-        UnrepliedReviewsValue.Text = trustDisplay.UnrepliedReviews;
-
-        var reviewItems = trustDisplay.PendingReviews
-            .Select(review => new GoogleReviewAlertView(review))
-            .ToList();
-        GoogleReviewAlertsList.ItemsSource = reviewItems;
-        var hasReviews = reviewItems.Count > 0;
-        var hasGoogleInstances = FilteredGoogleBusinessInstances.Any();
-        var googleEmptyReason = DashboardCardEmptyStateHelper.ResolveGoogleTrustEmptyReason(
-            hasGoogleInstances,
-            trust);
-        GoogleReviewAlertsEmptyText.Text =
-            DashboardCardEmptyStateHelper.FormatGoogleTrustEmptyMessage(googleEmptyReason);
-        var showGoogleEmpty = !hasReviews && googleEmptyReason != DashboardCardEmptyReason.HasData;
-        GoogleReviewAlertsEmptyText.Visibility = showGoogleEmpty
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        GoogleReviewAlertsList.Visibility = hasReviews
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        var googleIds = FilteredGoogleBusinessInstances.Select(i => i.Id).ToList();
-        var scrapeFooter = DashboardScrapeStatusService.Instance.BuildGoogleTrustScrapeFooter(googleIds);
-        GoogleTrustScrapeStatusText.Text = scrapeFooter;
-        GoogleTrustScrapeStatusText.Visibility = hasGoogleInstances && !string.IsNullOrWhiteSpace(scrapeFooter)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        if (_selectedReviewAlert is not null &&
-            reviewItems.All(item => item.AlertId != _selectedReviewAlert.AlertId))
-        {
-            _selectedReviewAlert = null;
-        }
-
-        var meta = ProfessionalWorkspaceService.Instance.CaptureMetaResponseEfficiency(
-            FilteredMetaBusinessInstances);
-        var metaDisplay = DashboardPageHelper.BuildMetaResponseDisplay(meta);
-        MetaAverageResponseValue.Text = metaDisplay.AverageResponse;
-        MetaEfficiencyRatingValue.Text = metaDisplay.EfficiencyRating;
-        MetaSampleCountValue.Text = metaDisplay.SampleCount;
-        MetaLastInboundValue.Text = metaDisplay.LastInbound;
-        MetaLastReplyValue.Text = metaDisplay.LastReply;
-
-        var hasMetaInstances = FilteredMetaBusinessInstances.Any();
-        var metaEmptyReason = DashboardCardEmptyStateHelper.ResolveMetaResponseEmptyReason(
-            hasMetaInstances,
-            meta);
-        MetaResponseEmptyText.Text =
-            DashboardCardEmptyStateHelper.FormatMetaResponseEmptyMessage(metaEmptyReason);
-        MetaResponseEmptyText.Visibility = metaEmptyReason == DashboardCardEmptyReason.HasData
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-
-        MetaPendingResponseText.Text = metaDisplay.PendingResponseLabel;
-        MetaPendingResponseText.Visibility = string.IsNullOrWhiteSpace(metaDisplay.PendingResponseLabel)
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-    }
-
-    private IEnumerable<MessengerInstance> FilteredGoogleBusinessInstances =>
-        FilteredProfessionalInstances.Where(i =>
-            i.Platform.Equals("googlebusiness", StringComparison.OrdinalIgnoreCase));
-
-    private IEnumerable<MessengerInstance> FilteredMetaBusinessInstances =>
-        FilteredProfessionalInstances.Where(i =>
-            i.Platform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase));
 
     private void RefreshBranchFilter()
     {
@@ -441,187 +222,12 @@ public sealed partial class DashboardPage : Page
 
         _selectedBranchInstanceId = DashboardPageHelper.ResolveBranchInstanceId(entry);
 
-        ApplyProfessionalTelemetryToView();
-        ApplyEnterpriseTelemetryToView();
-
-        _ = RequestBranchScrapeRefreshAsync();
+        _ = RefreshOperationsCommandCenterAsync();
+        _ = OperationsCommandCenterPanel.RequestPlatformDataRefreshAsync();
     }
 
-    private void ApplyProfessionalTelemetryToView()
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
-            ProfessionalInstances,
-            NotificationHub.Instance,
-            _selectedBranchInstanceId);
-
-        BindProfessionalTelemetryToView(telemetry);
-        UpdateProfessionalEmptyState();
-        _ = RefreshUnifiedMessengerControlCenterAsync();
-    }
-
-    private void BindProfessionalTelemetryToView(ProfessionalDashboardTelemetry telemetry)
-    {
-        var display = telemetry.Display;
-
-        if (_registry is not null)
-        {
-            ProfessionalBranchScopeText.Text = DashboardCardEmptyStateHelper.BuildBranchScopeSubtitle(
-                ProfessionalInstances,
-                _selectedBranchInstanceId);
-        }
-
-        AvgReplyTimeValue.Text = display.AverageReplyTime;
-        ApplySubtext(AvgReplyTimeSubtext, display.AverageReplyTimeSubtext);
-        SlaBreachesValue.Text = display.SlaBreaches;
-        ApplySubtext(SlaThresholdSubtext, display.SlaThresholdSubtext);
-        ResponseRateValue.Text = display.ResponseRate;
-        PeakHourValue.Text = display.PeakHour;
-        DailyTrendValue.Text = display.DailyTrend;
-        SentCountValue.Text = display.SentCount;
-        ReceivedCountValue.Text = display.ReceivedCount;
-        WeeklyChart.SetSeries(display.WeeklyActivity);
-
-        var highlights = display.Highlights
-            .Select(h => new OperationalHighlightItemView(h))
-            .ToList();
-
-        OperationalHighlightsList.ItemsSource = highlights;
-        var hasHighlights = highlights.Count > 0;
-        OperationalHighlightsEmptyText.Visibility = hasHighlights
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-        OperationalHighlightsList.Visibility = hasHighlights
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        ApplyProfessionalHealthChips();
-        ApplyTriageTelemetryToView(display.Triage);
-    }
-
-    private static void ApplySubtext(TextBlock target, string text)
-    {
-        var visible = !string.IsNullOrWhiteSpace(text);
-        target.Text = text;
-        target.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void ApplyProfessionalHealthChips()
-    {
-        if (_registry is null)
-        {
-            ProfessionalHealthChipsItems.ItemsSource = null;
-            return;
-        }
-
-        var chips = DashboardDataHealthHelper
-            .BuildProfessionalHealthChips(ProfessionalInstances)
-            .Select(chip => new ProfessionalHealthChipView(chip))
-            .ToList();
-
-        ProfessionalHealthChipsItems.ItemsSource = chips;
-    }
-
-    private void ApplyTriageTelemetryToView(MessageTriageDashboardSnapshot? triage = null)
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        triage ??= DashboardPageHelper.BuildFilteredTriageSnapshot(
-            ProfessionalInstances,
-            _selectedBranchInstanceId);
-
-        var urgentItems = triage.UrgentQueue
-            .Select(item => new MessageTriageItemView(item))
-            .ToList();
-
-        UrgencyTriageList.ItemsSource = urgentItems;
-        var hasUrgent = urgentItems.Count > 0;
-        var urgencyEmptyReason = DashboardCardEmptyStateHelper.ResolveUrgencyEmptyReason(triage);
-        UrgencyTriageEmptyText.Text =
-            DashboardCardEmptyStateHelper.FormatUrgencyEmptyMessage(urgencyEmptyReason);
-        UrgencyTriageEmptyText.Visibility = hasUrgent ? Visibility.Collapsed : Visibility.Visible;
-        UrgencyTriageList.Visibility = hasUrgent ? Visibility.Visible : Visibility.Collapsed;
-
-        var recentItems = triage.RecentInbound
-            .Select(item => new MessageTriageItemView(item))
-            .ToList();
-        RecentInboundTriageList.ItemsSource = recentItems;
-        var hasRecent = recentItems.Count > 0;
-        RecentInboundHeaderText.Visibility = hasRecent ? Visibility.Visible : Visibility.Collapsed;
-        RecentInboundTriageList.Visibility = hasRecent ? Visibility.Visible : Visibility.Collapsed;
-        RecentInboundEmptyText.Visibility = triage.TotalTriageCount > 0 && !hasRecent && !hasUrgent
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        SentimentChart.SetSeries(triage);
-        ApplyExecutiveInsightsToView();
-    }
-
-    private void ApplyExecutiveInsightsToView()
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        var cards = DashboardPageHelper
-            .BuildExecutiveInsights(ProfessionalInstances, _selectedBranchInstanceId)
-            .Select(card => new ExecutiveInsightCardView(card))
-            .ToList();
-
-        ExecutiveInsightsList.ItemsSource = cards;
-        var hasInsights = cards.Count > 0;
-        var triageSnapshot = DashboardPageHelper.BuildFilteredTriageSnapshot(
-            ProfessionalInstances,
-            _selectedBranchInstanceId);
-        var insightsEmptyReason = DashboardCardEmptyStateHelper.ResolveExecutiveInsightsEmptyReason(
-            AppSettingsService.Instance.Settings.EnableLocalAi,
-            triageSnapshot.TotalTriageCount,
-            cards.Count);
-        ExecutiveInsightsEmptyText.Text =
-            DashboardCardEmptyStateHelper.FormatExecutiveInsightsEmptyMessage(insightsEmptyReason);
-        ExecutiveInsightsEmptyText.Visibility = hasInsights ? Visibility.Collapsed : Visibility.Visible;
-        ExecutiveInsightsList.Visibility = hasInsights ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private async Task RequestBranchScrapeRefreshAsync()
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        var scrapeTargets = FilteredProfessionalInstances
-            .Where(DashboardScrapeOrchestrator.IsDashboardScrapeCapable)
-            .ToList();
-
-        if (scrapeTargets.Count == 0)
-        {
-            return;
-        }
-
-        try
-        {
-            await DashboardScrapeOrchestrator.Instance
-                .RefreshProfessionalInstancesAsync(scrapeTargets)
-                .ConfigureAwait(true);
-
-            MessageAnalyticsService.Instance.NotifyDashboardRefresh();
-            ApplyProfessionalTelemetryToView();
-            ApplyEnterpriseTelemetryToView();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Branch scrape refresh failed: {ex.Message}");
-        }
-    }
+    private IEnumerable<MessengerInstance> PersonalInstances =>
+        _registry?.Instances.Where(i => !i.IsProfessional) ?? [];
 
     private void RefreshActivity()
     {
@@ -797,68 +403,6 @@ public sealed partial class DashboardPage : Page
         }
     }
 
-    private void OperationalHighlightsList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is OperationalHighlightItemView highlight &&
-            !string.IsNullOrWhiteSpace(highlight.InstanceId))
-        {
-            ShellNavigationService.Instance.RequestInstance(highlight.InstanceId);
-        }
-    }
-
-    private void UrgencyTriageList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is MessageTriageItemView item &&
-            !string.IsNullOrWhiteSpace(item.InstanceId))
-        {
-            ShellNavigationService.Instance.RequestInstance(item.InstanceId);
-        }
-    }
-
-    private void GoogleReviewAlertsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        _selectedReviewAlert = GoogleReviewAlertsList.SelectedItem as GoogleReviewAlertView;
-        if (_selectedReviewAlert is not null && string.IsNullOrWhiteSpace(ReviewReplyBox.Text))
-        {
-            ReviewReplyBox.Text = $"Hi {_selectedReviewAlert.ReviewerName}, thank you for your feedback. ";
-        }
-    }
-
-    private async void SubmitReviewReplyButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_selectedReviewAlert is null)
-        {
-            return;
-        }
-
-        var replyText = ReviewReplyBox.Text?.Trim();
-        if (string.IsNullOrWhiteSpace(replyText))
-        {
-            return;
-        }
-
-        ShellNavigationService.Instance.RequestInstance(_selectedReviewAlert.InstanceId);
-
-        var reviewId = JsonSerializer.Serialize(_selectedReviewAlert.ReviewId);
-        var reply = JsonSerializer.Serialize(replyText);
-        var script = $"window.__umSubmitReviewReply({reviewId}, {reply});";
-
-        await InstanceSessionManager.Instance.ExecuteScriptOnInstanceAsync(
-            _selectedReviewAlert.InstanceId,
-            script);
-    }
-
-    private void OpenSelectedReviewInstanceButton_Click(object sender, RoutedEventArgs e)
-    {
-        var instanceId = _selectedReviewAlert?.InstanceId ??
-            GoogleBusinessInstances.FirstOrDefault()?.Id;
-
-        if (!string.IsNullOrWhiteSpace(instanceId))
-        {
-            ShellNavigationService.Instance.RequestInstance(instanceId);
-        }
-    }
-
     private sealed class DashboardActivityItem
     {
         public required NotificationAlert Alert { get; init; }
@@ -905,135 +449,5 @@ public sealed partial class DashboardPage : Page
         public SolidColorBrush? AccentBrush { get; init; }
 
         public override string ToString() => $"{Label} ({SubLabel})";
-    }
-
-    private sealed class OperationalHighlightItemView
-    {
-        public OperationalHighlightItemView(OperationalHighlightItem item)
-        {
-            Title = item.Title;
-            Subtitle = item.Subtitle;
-            InstanceDisplayName = item.InstanceDisplayName;
-            InstanceId = item.InstanceId;
-        }
-
-        public string Title { get; }
-
-        public string Subtitle { get; }
-
-        public string InstanceDisplayName { get; }
-
-        public string? InstanceId { get; }
-    }
-
-    private sealed class ExecutiveInsightCardView
-    {
-        public ExecutiveInsightCardView(ExecutiveInsightCardDisplay card)
-        {
-            CustomerName = card.CustomerName;
-            BranchName = card.BranchName;
-            CoreSummary = card.CoreSummary;
-            IntentLabel = card.IntentLabel;
-            UrgencyLabel = card.UrgencyLabel;
-            SourceLabel = card.SourceLabel;
-            Fields = card.Fields.Select(field => new ExecutiveInsightFieldView(field)).ToList();
-        }
-
-        public string CustomerName { get; }
-
-        public string BranchName { get; }
-
-        public string CoreSummary { get; }
-
-        public string IntentLabel { get; }
-
-        public string UrgencyLabel { get; }
-
-        public string SourceLabel { get; }
-
-        public IReadOnlyList<ExecutiveInsightFieldView> Fields { get; }
-    }
-
-    private sealed class ProfessionalHealthChipView
-    {
-        public ProfessionalHealthChipView(DashboardInstanceHealthChip chip)
-        {
-            Summary =
-                $"{chip.DisplayName}: backfill {chip.BackfillState}, {chip.AdapterHealth}, {chip.TriageItemCount} triage";
-        }
-
-        public string Summary { get; }
-    }
-
-    private sealed class ExecutiveInsightFieldView
-    {
-        public ExecutiveInsightFieldView(ExecutiveInsightFieldDisplay field)
-        {
-            Label = field.Label;
-            Value = field.Value;
-            IconGlyph = field.IconGlyph;
-            IsEmphasized = field.Emphasize;
-        }
-
-        public string Label { get; }
-
-        public string Value { get; }
-
-        public string IconGlyph { get; }
-
-        public bool IsEmphasized { get; }
-    }
-
-    private sealed class MessageTriageItemView
-    {
-        public MessageTriageItemView(MessageTriageItem item)
-        {
-            InstanceId = item.InstanceId;
-            InstanceDisplayName = item.InstanceDisplayName;
-            CustomerName = item.CustomerName;
-            MessagePreview = item.MessagePreview;
-            UrgencyLabel = $"{item.UrgencyLabel} · {item.UrgencyScore}";
-        }
-
-        public string InstanceId { get; }
-
-        public string InstanceDisplayName { get; }
-
-        public string CustomerName { get; }
-
-        public string MessagePreview { get; }
-
-        public string UrgencyLabel { get; }
-    }
-
-    private sealed class GoogleReviewAlertView
-    {
-        public GoogleReviewAlertView(GoogleReviewAlert alert)
-        {
-            AlertId = alert.Id;
-            InstanceId = alert.InstanceId;
-            ReviewId = alert.ReviewId;
-            ReviewerName = alert.ReviewerName;
-            Snippet = alert.Snippet;
-            LocationLabel = $"{alert.InstanceDisplayName} · {alert.LocationLabel}";
-            RelativeTimeText = alert.RelativeTimeText;
-            RatingDisplay = alert.Rating > 0 ? $"{alert.Rating}★" : "★";
-        }
-
-        public string AlertId { get; }
-
-        public string InstanceId { get; }
-
-        public string ReviewId { get; }
-
-        public string ReviewerName { get; }
-
-        public string Snippet { get; }
-
-        public string LocationLabel { get; }
-
-        public string RelativeTimeText { get; }
-
-        public string RatingDisplay { get; }
     }
 }

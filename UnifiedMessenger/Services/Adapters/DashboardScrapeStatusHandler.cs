@@ -60,14 +60,14 @@ public static class DashboardScrapeStatusHandler
             return;
         }
 
-        if (viewState.Equals(ViewStateLocationsDirectory, StringComparison.OrdinalIgnoreCase) ||
+        if (string.Equals(viewState, ViewStateLocationsDirectory, StringComparison.OrdinalIgnoreCase) ||
             (detail?.Contains("awaiting view context", StringComparison.OrdinalIgnoreCase) ?? false))
         {
             connection.SetConnected(
                 instance.Id,
                 string.IsNullOrWhiteSpace(detail) ? AwaitingViewContextDetail : detail.Trim());
         }
-        else if (viewState.Equals(ViewStateDeepData, StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(viewState, ViewStateDeepData, StringComparison.OrdinalIgnoreCase))
         {
             connection.SetConnected(instance.Id, null);
         }

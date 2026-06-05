@@ -158,7 +158,7 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 {
                     candidates.Add(new WhatsAppBackfillCandidate
                     {
-                        ChatKey = ReadString(entry, "chatKey"),
+                        ChatKey = ReadString(entry, "chatKey") ?? string.Empty,
                         Title = ReadString(entry, "title") ?? "Customer",
                         LastMessageBody = ReadString(entry, "lastMessageBody") ?? string.Empty,
                         LastMessageTimestamp = ReadString(entry, "lastMessageTimestamp"),

@@ -26,6 +26,7 @@
             <StackPanel Spacing="0">
                 <AutoSuggestBox
                     x:Name="SearchBox"
+                    AutomationProperties.Name="Command Palette Search"
                     Margin="12,12,12,8"
                     PlaceholderText="Search instances, alerts, and actions..."
                     QueryIcon="Find"
