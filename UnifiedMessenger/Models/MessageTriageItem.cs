@@ -42,6 +42,10 @@ public sealed class MessageTriageItem
 
     public string NextActionSummary { get; init; } = string.Empty;
 
+    public string SuggestedAction { get; init; } = string.Empty;
+
+    public bool IsSpamOrPromo { get; init; }
+
     public double EstimatedValue { get; init; }
 
     public bool IsRevenueLeakageRisk { get; init; }

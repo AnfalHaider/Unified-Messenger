@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.15](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.15)
+**Current release:** [v1.0.16](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.16)
 
 ## Download (Windows)
 
@@ -14,6 +14,13 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
+
+### What’s in v1.0.16
+
+- **AI pipeline overhaul:** Aggressive DOM noise filtering before LLM triage; strict camelCase JSON schema (`isSpamOrPromo`, `intentCategory`, `urgencyScore`, `actionableSummary`, `suggestedAction`) with parse retry.
+- **Dashboard intelligence routing:** Spam/promo threads excluded from Immediate Action Lane, SLA, and branch latency averages; urgency ≥4 routes to immediate queue with actionable summaries (not raw message text).
+- **SLA math fix:** Reply latency locks from first inbound to manager reply; branch metrics no longer inflate from unreplied stale threads.
+- **551** unit tests (x64).
 
 ### What’s in v1.0.15
 

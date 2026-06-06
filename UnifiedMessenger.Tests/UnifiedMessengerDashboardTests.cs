@@ -33,12 +33,12 @@ public class ThreadRegistryServiceTests
             estimatedValue: 25000,
             isRevenueLeakageRisk: true);
 
-        registry.MarkThreadResolved("inst-1", "Sara", "Sara");
+        registry.MarkThreadResolved("inst-1", "Sara", "Sara", DateTimeOffset.UtcNow);
 
         var thread = Assert.Single(registry.GetAllThreads());
         Assert.True(thread.IsReplied);
         Assert.False(thread.IsRevenueLeakageRisk);
-        Assert.Equal(0, thread.LatencyMinutes);
+        Assert.True(thread.LatencyMinutes >= 0);
     }
 
     [Fact]
@@ -147,6 +147,36 @@ public class UnifiedMessengerDashboardServiceTests : IDisposable
 
         Assert.Equal(1, snapshot.HangingLeadCount);
         Assert.Equal(45000, snapshot.TotalRevenueAtRisk);
+    }
+
+    [Fact]
+    public void BuildSnapshot_ExcludesSpamFromImmediateQueueAndBranchMetrics()
+    {
+        ThreadRegistryService.Instance.UpsertFromTriageItem(
+            CreateItem("f11", "Vendor", "Custom foldable promo cards for brands."),
+            "Vendor",
+            "F-11",
+            isSpamOrPromo: true,
+            operationalUrgency: 1,
+            nextActionSummary: "Promotional message — no action required");
+
+        var instances = new[]
+        {
+            new MessengerInstance
+            {
+                Id = "f11",
+                DisplayName = "Depilex F-11",
+                Platform = "whatsappbusiness",
+                Category = WorkspaceCategory.Professional
+            }
+        };
+
+        var snapshot = UnifiedMessengerDashboardService.Instance.BuildSnapshot(instances);
+
+        Assert.Empty(snapshot.ImmediateActionQueue);
+        Assert.Equal(0, snapshot.OpenThreadCount);
+        Assert.Equal(0, snapshot.BranchMetrics[0].UnresolvedCount);
+        Assert.Equal(0, snapshot.BranchMetrics[0].AverageLatencyMinutes);
     }
 
     [Fact]

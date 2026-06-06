@@ -247,7 +247,7 @@ public sealed class UnifiedMessengerInsightsEngine
     private static RichTriageLlmResponse ToLlmResponse(MessageTriageItem item) =>
         new()
         {
-            UrgencyScore = item.UrgencyScore,
+            LegacyUrgencyScore = item.UrgencyScore,
             Sentiment = item.Sentiment.ToString(),
             CustomerIntent = item.CustomerIntent.ToString(),
             ExtractedEntities = item.ExtractedEntities,

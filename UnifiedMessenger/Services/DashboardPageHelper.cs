@@ -205,10 +205,8 @@ public static class DashboardPageHelper
         {
             CustomerName = string.IsNullOrWhiteSpace(item.CustomerName) ? "Customer" : item.CustomerName.Trim(),
             BranchName = item.InstanceDisplayName,
-            CoreSummary = string.IsNullOrWhiteSpace(item.CoreSummary)
-                ? item.MessagePreview
-                : item.CoreSummary.Trim(),
-            IntentLabel = FormatCustomerIntent(item.CustomerIntent),
+            CoreSummary = ResolveInsightSummary(item),
+            IntentLabel = FormatIntentLabel(item.AiIntentCategory),
             UrgencyLabel = item.UrgencyLabel,
             SourceLabel = sourceLabel,
             Fields = fields
@@ -235,6 +233,29 @@ public static class DashboardPageHelper
             Emphasize = emphasize
         });
     }
+
+    private static string ResolveInsightSummary(MessageTriageItem item)
+    {
+        if (item.IsSpamOrPromo)
+        {
+            return "Promotional message — no action required";
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.NextActionSummary))
+        {
+            return item.NextActionSummary.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.CoreSummary))
+        {
+            return item.CoreSummary.Trim();
+        }
+
+        return "Awaiting AI classification";
+    }
+
+    private static string FormatIntentLabel(string? intentCategory) =>
+        UnifiedMessengerDashboardPresentationHelper.FormatIntentLabel(intentCategory);
 
     private static string FormatCustomerIntent(CustomerIntent intent) =>
         intent switch

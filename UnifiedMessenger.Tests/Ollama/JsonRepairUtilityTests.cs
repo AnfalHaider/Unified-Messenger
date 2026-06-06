@@ -14,7 +14,7 @@ public class JsonRepairUtilityTests
             """;
 
         Assert.True(JsonRepairUtility.TryDeserialize<RichTriageLlmResponse>(raw, out var parsed));
-        Assert.Equal(72, parsed!.UrgencyScore);
+        Assert.Equal(72, parsed!.LegacyUrgencyScore);
         Assert.Equal("Complaint", parsed.CustomerIntent);
         Assert.Equal("Sara", parsed.ExtractedEntities.CustomerName);
     }
@@ -30,7 +30,7 @@ public class JsonRepairUtilityTests
             """;
 
         Assert.True(JsonRepairUtility.TryDeserialize<RichTriageLlmResponse>(raw, out var parsed));
-        Assert.Equal(40, parsed!.UrgencyScore);
+        Assert.Equal(40, parsed!.LegacyUrgencyScore);
         Assert.Equal("Inquiry", parsed.CustomerIntent);
     }
 
@@ -44,7 +44,7 @@ public class JsonRepairUtilityTests
             """;
 
         Assert.True(JsonRepairUtility.TryDeserialize<RichTriageLlmResponse>(raw, out var parsed));
-        Assert.Equal(88, parsed!.UrgencyScore);
+        Assert.Equal(88, parsed!.LegacyUrgencyScore);
         Assert.Equal("+92 300 1234567", parsed.ExtractedEntities.ContactNumber);
     }
 
@@ -56,7 +56,7 @@ public class JsonRepairUtilityTests
             """;
 
         Assert.True(JsonRepairUtility.TryDeserialize<RichTriageLlmResponse>(raw, out var parsed));
-        Assert.Equal(65, parsed!.UrgencyScore);
+        Assert.Equal(65, parsed!.LegacyUrgencyScore);
         Assert.Equal("Booking", parsed.CustomerIntent);
         Assert.Equal("Saturday", parsed.ExtractedEntities.RequestedDate);
     }

@@ -16,7 +16,7 @@ public class UnifiedMessengerInsightsAnalyzerTests
         var job = CreateJob("Thanks, I'll think about it.");
         var response = new RichTriageLlmResponse
         {
-            UrgencyScore = 20,
+            LegacyUrgencyScore = 20,
             Sentiment = "Neutral",
             CustomerIntent = "Inquiry",
             AiIntentCategory = UnifiedMessengerIntentCategory.Inquiry,

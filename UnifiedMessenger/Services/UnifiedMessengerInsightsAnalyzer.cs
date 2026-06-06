@@ -46,29 +46,39 @@ public static partial class UnifiedMessengerInsightsAnalyzer
             combinedText);
         var operationalUrgency = response.OperationalUrgency > 0
             ? Math.Clamp(response.OperationalUrgency, 1, 5)
-            : MessageTriageInferenceRunner.MapOperationalUrgency(response.UrgencyScore);
+            : response.LegacyOperationalUrgency > 0
+                ? Math.Clamp(response.LegacyOperationalUrgency, 1, 5)
+                : MessageTriageInferenceRunner.MapOperationalUrgency(response.LegacyUrgencyScore);
         var estimatedValue = response.EstimatedValue > 0
             ? response.EstimatedValue
             : EstimateValue(combinedText, intent);
         var nextAction = string.IsNullOrWhiteSpace(response.NextActionSummary)
             ? BuildHeuristicNextAction(intent, sentiment, job.CustomerName, combinedText)
             : response.NextActionSummary.Trim();
-        var hangingLead = response.IsRevenueLeakageRisk ||
-                          DetectHangingLead(combinedText, conversationTranscript);
+        var isSpam = response.IsSpamOrPromo ||
+                     ConversationNoiseFilter.IsPromoSpam(combinedText) ||
+                     intent.Equals(UnifiedMessengerIntentCategory.Spam, StringComparison.OrdinalIgnoreCase);
+        var hangingLead = !isSpam &&
+                          (response.IsRevenueLeakageRisk ||
+                           DetectHangingLead(combinedText, conversationTranscript));
 
         return new RichTriageLlmResponse
         {
-            UrgencyScore = Math.Clamp(response.UrgencyScore, 0, 100),
+            LegacyUrgencyScore = Math.Clamp(response.LegacyUrgencyScore, 0, 100),
             Sentiment = response.Sentiment,
-            CustomerIntent = response.CustomerIntent,
+            CustomerIntent = isSpam ? "Spam" : response.CustomerIntent,
             ExtractedEntities = response.ExtractedEntities,
             CoreSummary = response.CoreSummary,
-            AiIntentCategory = intent,
+            AiIntentCategory = isSpam ? UnifiedMessengerIntentCategory.Spam : intent,
             ClientSentiment = sentiment,
-            OperationalUrgency = BoostUrgencyForCriticalSentiment(operationalUrgency, sentiment),
-            EstimatedValue = estimatedValue,
-            NextActionSummary = nextAction,
-            IsRevenueLeakageRisk = hangingLead
+            OperationalUrgency = operationalUrgency,
+            EstimatedValue = isSpam ? 0 : estimatedValue,
+            NextActionSummary = isSpam ? "Promotional message — no action required" : nextAction,
+            ActionableSummary = isSpam ? "Promotional message — no action required" : nextAction,
+            IsRevenueLeakageRisk = hangingLead,
+            IsSpamOrPromo = isSpam,
+            IntentCategory = isSpam ? UnifiedMessengerIntentCategory.Spam : response.IntentCategory,
+            SuggestedAction = isSpam ? "Ignore" : response.SuggestedAction
         };
     }
 
@@ -79,6 +89,11 @@ public static partial class UnifiedMessengerInsightsAnalyzer
         ArgumentNullException.ThrowIfNull(item);
 
         var corpus = item.MessagePreview;
+        if (item.IsSpamOrPromo)
+        {
+            return item;
+        }
+
         var intent = NormalizeIntent(item.AiIntentCategory, item.CustomerIntent.ToString(), corpus);
         var sentiment = NormalizeClientSentiment(
             item.ClientSentiment,
@@ -113,6 +128,8 @@ public static partial class UnifiedMessengerInsightsAnalyzer
             AiIntentCategory = intent,
             ClientSentiment = sentiment,
             NextActionSummary = nextAction,
+            SuggestedAction = item.SuggestedAction,
+            IsSpamOrPromo = item.IsSpamOrPromo,
             EstimatedValue = estimatedValue,
             IsRevenueLeakageRisk = leakage
         };

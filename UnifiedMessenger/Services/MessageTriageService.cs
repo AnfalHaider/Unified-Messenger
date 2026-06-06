@@ -73,7 +73,8 @@ public sealed class MessageTriageService
         bool skipDedupeCheck = false)
     {
         ArgumentNullException.ThrowIfNull(selection);
-        if (string.IsNullOrWhiteSpace(selection.MessageText))
+        var cleanedMessage = ConversationNoiseFilter.CleanForInference(selection.MessageText);
+        if (string.IsNullOrWhiteSpace(cleanedMessage))
         {
             return;
         }
@@ -93,7 +94,7 @@ public sealed class MessageTriageService
             InstanceId = selection.InstanceId,
             InstanceDisplayName = instanceDisplayName ?? selection.InstanceId,
             Platform = selection.Platform,
-            MessageText = selection.MessageText.Trim(),
+            MessageText = cleanedMessage,
             CustomerName = selection.CustomerName,
             ConversationHint = selection.ConversationHint,
             TimestampUtc = selection.TimestampUtc,
@@ -242,16 +243,34 @@ public sealed class MessageTriageService
 
     private void ProcessRequest(MessageTriageRequest request)
     {
-        var urgency = MessageTriageScorer.ScoreUrgency(request.MessageText, request.ConversationHint);
-        var sentiment = MessageTriageScorer.ClassifySentiment(request.MessageText);
-        var preview = request.MessageText.Length <= 220
-            ? request.MessageText
-            : request.MessageText[..217] + "...";
+        var messageText = ConversationNoiseFilter.CleanForInference(request.MessageText);
+        if (string.IsNullOrWhiteSpace(messageText))
+        {
+            return;
+        }
+
+        var isSpam = ConversationNoiseFilter.IsPromoSpam(messageText);
+        var urgency = isSpam
+            ? 5
+            : MessageTriageScorer.ScoreUrgency(messageText, request.ConversationHint);
+        var sentiment = MessageTriageScorer.ClassifySentiment(messageText);
+        var preview = messageText.Length <= 220
+            ? messageText
+            : messageText[..217] + "...";
         var branchName = BranchNameResolver.Resolve(request.InstanceDisplayName);
         var conversationKey = string.IsNullOrWhiteSpace(request.ConversationHint)
             ? request.CustomerName
             : request.ConversationHint;
         var threadId = ThreadRegistryService.BuildThreadId(request.InstanceId, conversationKey);
+        var operationalUrgency = isSpam
+            ? 1
+            : ThreadRegistryService.MapOperationalUrgency(urgency);
+        var aiIntent = isSpam
+            ? UnifiedMessengerIntentCategory.Spam
+            : UnifiedMessengerIntentCategory.Inquiry;
+        var nextAction = isSpam
+            ? "Promotional message — no action required"
+            : string.Empty;
 
         var itemId = $"{request.InstanceId}|{Guid.NewGuid():N}";
         var item = new MessageTriageItem
@@ -269,14 +288,17 @@ public sealed class MessageTriageService
             ThreadId = threadId,
             ConversationKey = conversationKey,
             BranchName = branchName,
-            OperationalUrgency = ThreadRegistryService.MapOperationalUrgency(urgency),
-            AiIntentCategory = UnifiedMessengerIntentCategory.Inquiry,
+            OperationalUrgency = operationalUrgency,
+            AiIntentCategory = aiIntent,
             ClientSentiment = sentiment == MessageSentiment.Negative
                 ? ClientSentimentLabel.Frustrated
                 : sentiment == MessageSentiment.Positive
                     ? ClientSentimentLabel.Positive
                     : ClientSentimentLabel.Neutral,
-            NextActionSummary = preview
+            NextActionSummary = nextAction,
+            SuggestedAction = isSpam ? "Ignore" : string.Empty,
+            IsSpamOrPromo = isSpam,
+            CustomerIntent = isSpam ? CustomerIntent.Spam : CustomerIntent.Inquiry
         };
 
         var heuristicItem = UnifiedMessengerInsightsAnalyzer.ApplyOperationalInsights(item);
@@ -285,7 +307,25 @@ public sealed class MessageTriageService
         PruneExpiredItems();
         Changed?.Invoke(this, EventArgs.Empty);
 
-        QueueInferenceJob(request, itemId, urgency, sentiment);
+        if (!isSpam)
+        {
+            QueueInferenceJob(
+                new MessageTriageRequest
+                {
+                    InstanceId = request.InstanceId,
+                    InstanceDisplayName = request.InstanceDisplayName,
+                    Platform = request.Platform,
+                    MessageText = messageText,
+                    CustomerName = request.CustomerName,
+                    ConversationHint = request.ConversationHint,
+                    TimestampUtc = request.TimestampUtc,
+                    AllowLlmInference = request.AllowLlmInference
+                },
+                itemId,
+                urgency,
+                sentiment);
+        }
+
         UnifiedMessengerInsightsEngine.Instance.EnqueueMessageAnalysis(request.InstanceId, itemId);
     }
 
@@ -339,7 +379,9 @@ public sealed class MessageTriageService
             updated.ClientSentiment,
             updated.OperationalUrgency,
             updated.EstimatedValue,
-            updated.IsRevenueLeakageRisk);
+            updated.IsRevenueLeakageRisk,
+            updated.IsSpamOrPromo,
+            updated.SuggestedAction);
         UnifiedMessengerDashboardService.Instance.NotifyChanged();
         Changed?.Invoke(this, EventArgs.Empty);
     }

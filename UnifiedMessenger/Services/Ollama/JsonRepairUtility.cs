@@ -12,7 +12,7 @@ public static partial class JsonRepairUtility
 {
     private static readonly JsonSerializerOptions DeserializeOptions = new()
     {
-        PropertyNameCaseInsensitive = true,
+        PropertyNameCaseInsensitive = false,
         AllowTrailingCommas = true,
         ReadCommentHandling = JsonCommentHandling.Skip
     };

@@ -46,7 +46,7 @@ public class MessageTriageInferenceRunnerTests
         var result = await runner.TryInferAsync(CreateJob("clip"));
 
         Assert.NotNull(result);
-        Assert.Equal(91, result!.UrgencyScore);
+        Assert.Equal(91, result!.LegacyUrgencyScore);
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class MessageTriageInferenceRunnerTests
             baseline,
             new RichTriageLlmResponse
             {
-                UrgencyScore = 92,
+                LegacyUrgencyScore = 92,
                 Sentiment = "Negative",
                 CustomerIntent = "Complaint",
                 CoreSummary = "Customer demands immediate refund today please",
@@ -103,7 +103,8 @@ public class MessageTriageInferenceRunnerTests
     {
         public Task<string?> GenerateTriageJsonAsync(
             RichTriageInferenceJob job,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            bool strictJsonRetry = false) =>
             Task.FromResult<string?>(payload);
     }
 
@@ -118,7 +119,8 @@ public class MessageTriageInferenceRunnerTests
 
         public async Task<string?> GenerateTriageJsonAsync(
             RichTriageInferenceJob job,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool strictJsonRetry = false)
         {
             lock (_gate)
             {

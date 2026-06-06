@@ -6,7 +6,10 @@ namespace UnifiedMessenger.Services;
 
 public interface ITriageLlmClient
 {
-    Task<string?> GenerateTriageJsonAsync(RichTriageInferenceJob job, CancellationToken cancellationToken);
+    Task<string?> GenerateTriageJsonAsync(
+        RichTriageInferenceJob job,
+        CancellationToken cancellationToken,
+        bool strictJsonRetry = false);
 }
 
 public sealed class OllamaTriageLlmClient : ITriageLlmClient
@@ -15,7 +18,8 @@ public sealed class OllamaTriageLlmClient : ITriageLlmClient
 
     public async Task<string?> GenerateTriageJsonAsync(
         RichTriageInferenceJob job,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool strictJsonRetry = false)
     {
         if (!AppSettingsService.Instance.Settings.EnableLocalAi)
         {
@@ -28,7 +32,8 @@ public sealed class OllamaTriageLlmClient : ITriageLlmClient
             job.MessageText,
             job.CustomerName,
             job.ConversationHint,
-            job.ConversationTranscript);
+            job.ConversationTranscript,
+            strictJsonRetry);
 
         var builder = new StringBuilder();
         await foreach (var token in OllamaOrchestrationService.Instance
@@ -50,6 +55,7 @@ public sealed class OllamaTriageLlmClient : ITriageLlmClient
 public sealed class MessageTriageInferenceRunner
 {
     public static readonly TimeSpan InferenceTimeout = TimeSpan.FromSeconds(90);
+    private const int MaxActionableSummaryWords = 15;
 
     private readonly ITriageLlmClient _llmClient;
 
@@ -71,14 +77,16 @@ public sealed class MessageTriageInferenceRunner
                 .GenerateTriageJsonAsync(job, timeoutCts.Token)
                 .ConfigureAwait(false);
 
-            if (string.IsNullOrWhiteSpace(raw))
+            if (TryParseResponse(raw, out var parsed))
             {
-                return null;
+                return parsed;
             }
 
-            return JsonRepairUtility.TryDeserialize<RichTriageLlmResponse>(raw, out var parsed)
-                ? parsed
-                : null;
+            raw = await _llmClient
+                .GenerateTriageJsonAsync(job, timeoutCts.Token, strictJsonRetry: true)
+                .ConfigureAwait(false);
+
+            return TryParseResponse(raw, out parsed) ? parsed : null;
         }
         catch (OperationCanceledException)
         {
@@ -91,6 +99,58 @@ public sealed class MessageTriageInferenceRunner
         }
     }
 
+    internal static bool TryParseResponse(string? raw, out RichTriageLlmResponse? response)
+    {
+        response = null;
+        if (string.IsNullOrWhiteSpace(raw) ||
+            !JsonRepairUtility.TryDeserialize<RichTriageLlmResponse>(raw, out var parsed) ||
+            parsed is null)
+        {
+            return false;
+        }
+
+        response = NormalizeSchema(parsed);
+        return HasActionableContent(response);
+    }
+
+    internal static RichTriageLlmResponse NormalizeSchema(RichTriageLlmResponse response)
+    {
+        var operationalUrgency = ResolveOperationalUrgency(response);
+        var intentCategory = ResolveIntentCategory(response);
+        var isSpam = response.IsSpamOrPromo ||
+                     intentCategory.Equals(UnifiedMessengerIntentCategory.Spam, StringComparison.OrdinalIgnoreCase) ||
+                     ConversationNoiseFilter.IsPromoSpam(response.ActionableSummary) ||
+                     ConversationNoiseFilter.IsPromoSpam(response.NextActionSummary);
+        var actionableSummary = TrimActionableSummary(
+            CoalesceSummary(response.ActionableSummary, response.NextActionSummary, response.CoreSummary));
+        var suggestedAction = string.IsNullOrWhiteSpace(response.SuggestedAction)
+            ? isSpam ? "Ignore" : string.Empty
+            : response.SuggestedAction.Trim();
+        var legacyUrgencyScore = response.LegacyUrgencyScore > 0
+            ? response.LegacyUrgencyScore
+            : operationalUrgency * 20;
+
+        return new RichTriageLlmResponse
+        {
+            LegacyUrgencyScore = Math.Clamp(legacyUrgencyScore, 0, 100),
+            Sentiment = response.Sentiment,
+            CustomerIntent = isSpam ? "Spam" : MapCustomerIntent(intentCategory, response.CustomerIntent),
+            ExtractedEntities = response.ExtractedEntities ?? new RichTriageExtractedEntities(),
+            CoreSummary = TrimCoreSummary(
+                CoalesceSummary(response.CoreSummary, actionableSummary, null)),
+            AiIntentCategory = intentCategory,
+            ClientSentiment = response.ClientSentiment,
+            OperationalUrgency = operationalUrgency,
+            EstimatedValue = Math.Max(0, response.EstimatedValue),
+            NextActionSummary = actionableSummary,
+            ActionableSummary = actionableSummary,
+            IsRevenueLeakageRisk = !isSpam && response.IsRevenueLeakageRisk,
+            IsSpamOrPromo = isSpam,
+            IntentCategory = intentCategory,
+            SuggestedAction = suggestedAction
+        };
+    }
+
     public static MessageTriageItem ApplyInference(
         MessageTriageItem baseline,
         RichTriageLlmResponse response)
@@ -98,10 +158,14 @@ public sealed class MessageTriageInferenceRunner
         ArgumentNullException.ThrowIfNull(baseline);
         ArgumentNullException.ThrowIfNull(response);
 
-        var entities = response.ExtractedEntities ?? new RichTriageExtractedEntities();
+        var normalized = NormalizeSchema(response);
+        var entities = normalized.ExtractedEntities ?? new RichTriageExtractedEntities();
         var customerName = string.IsNullOrWhiteSpace(entities.CustomerName)
             ? baseline.CustomerName
             : entities.CustomerName.Trim();
+        var operationalUrgency = normalized.OperationalUrgency;
+        var nextAction = TrimActionableSummary(
+            CoalesceSummary(normalized.ActionableSummary, normalized.NextActionSummary, normalized.CoreSummary));
 
         return new MessageTriageItem
         {
@@ -111,27 +175,27 @@ public sealed class MessageTriageInferenceRunner
             Platform = baseline.Platform,
             MessagePreview = baseline.MessagePreview,
             CustomerName = customerName,
-            UrgencyScore = Math.Clamp(response.UrgencyScore, 0, 100),
-            Sentiment = ParseSentiment(response.Sentiment, baseline.Sentiment),
+            UrgencyScore = Math.Clamp(normalized.LegacyUrgencyScore > 0
+                ? normalized.LegacyUrgencyScore
+                : operationalUrgency * 20, 0, 100),
+            Sentiment = ParseSentiment(normalized.Sentiment, baseline.Sentiment),
             TimestampUtc = baseline.TimestampUtc,
             InferenceSource = TriageInferenceSource.LocalAi,
-            CustomerIntent = ParseCustomerIntent(response.CustomerIntent),
-            CoreSummary = TrimCoreSummary(response.CoreSummary),
+            CustomerIntent = ParseCustomerIntent(normalized.CustomerIntent),
+            CoreSummary = TrimCoreSummary(
+                CoalesceSummary(normalized.CoreSummary, nextAction, null)),
             ExtractedEntities = entities,
             ThreadId = baseline.ThreadId,
             ConversationKey = baseline.ConversationKey,
             BranchName = baseline.BranchName,
-            OperationalUrgency = Math.Clamp(
-                response.OperationalUrgency > 0
-                    ? response.OperationalUrgency
-                    : MapOperationalUrgency(response.UrgencyScore),
-                1,
-                5),
-            AiIntentCategory = ParseAiIntentCategory(response.AiIntentCategory, response.CustomerIntent),
-            ClientSentiment = ParseClientSentiment(response.ClientSentiment, response.Sentiment),
-            NextActionSummary = TrimNextActionSummary(response.NextActionSummary, response.CoreSummary),
-            EstimatedValue = Math.Max(0, response.EstimatedValue),
-            IsRevenueLeakageRisk = response.IsRevenueLeakageRisk
+            OperationalUrgency = operationalUrgency,
+            AiIntentCategory = normalized.AiIntentCategory,
+            ClientSentiment = ParseClientSentiment(normalized.ClientSentiment, normalized.Sentiment),
+            NextActionSummary = nextAction,
+            SuggestedAction = normalized.SuggestedAction,
+            IsSpamOrPromo = normalized.IsSpamOrPromo,
+            EstimatedValue = Math.Max(0, normalized.EstimatedValue),
+            IsRevenueLeakageRisk = normalized.IsRevenueLeakageRisk
         };
     }
 
@@ -149,13 +213,14 @@ public sealed class MessageTriageInferenceRunner
     {
         if (!string.IsNullOrWhiteSpace(raw))
         {
-            return raw.Trim();
+            return MapIntentCategory(raw);
         }
 
         return ParseCustomerIntent(customerIntentFallback) switch
         {
             CustomerIntent.Booking => UnifiedMessengerIntentCategory.Booking,
             CustomerIntent.Complaint => UnifiedMessengerIntentCategory.Complaint,
+            CustomerIntent.Spam => UnifiedMessengerIntentCategory.Spam,
             _ => UnifiedMessengerIntentCategory.Inquiry
         };
     }
@@ -182,15 +247,8 @@ public sealed class MessageTriageInferenceRunner
         };
     }
 
-    internal static string TrimNextActionSummary(string? nextAction, string? coreSummary)
-    {
-        if (!string.IsNullOrWhiteSpace(nextAction))
-        {
-            return nextAction.Trim();
-        }
-
-        return TrimCoreSummary(coreSummary);
-    }
+    internal static string TrimNextActionSummary(string? nextAction, string? coreSummary) =>
+        TrimActionableSummary(CoalesceSummary(nextAction, coreSummary, null));
 
     internal static MessageSentiment ParseSentiment(string? raw, MessageSentiment fallback) =>
         raw?.Trim().ToLowerInvariant() switch
@@ -210,7 +268,95 @@ public sealed class MessageTriageInferenceRunner
             _ => CustomerIntent.Inquiry
         };
 
-    internal static string TrimCoreSummary(string? summary)
+    internal static string TrimCoreSummary(string? summary) => TrimActionableSummary(summary);
+
+    private static bool HasActionableContent(RichTriageLlmResponse response)
+    {
+        if (response.IsSpamOrPromo)
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(
+            CoalesceSummary(response.ActionableSummary, response.NextActionSummary, response.CoreSummary));
+    }
+
+    private static int ResolveOperationalUrgency(RichTriageLlmResponse response)
+    {
+        if (response.OperationalUrgency is >= 1 and <= 5)
+        {
+            return response.OperationalUrgency;
+        }
+
+        if (response.LegacyOperationalUrgency is >= 1 and <= 5)
+        {
+            return response.LegacyOperationalUrgency;
+        }
+
+        if (response.LegacyUrgencyScore is >= 1 and <= 5)
+        {
+            return response.LegacyUrgencyScore;
+        }
+
+        return response.LegacyUrgencyScore > 0
+            ? MapOperationalUrgency(response.LegacyUrgencyScore)
+            : 1;
+    }
+
+    private static string ResolveIntentCategory(RichTriageLlmResponse response)
+    {
+        if (!string.IsNullOrWhiteSpace(response.IntentCategory))
+        {
+            return MapIntentCategory(response.IntentCategory);
+        }
+
+        if (!string.IsNullOrWhiteSpace(response.AiIntentCategory))
+        {
+            return MapIntentCategory(response.AiIntentCategory);
+        }
+
+        return MapIntentCategory(response.CustomerIntent);
+    }
+
+    private static string MapIntentCategory(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return UnifiedMessengerIntentCategory.Inquiry;
+        }
+
+        return raw.Trim().ToLowerInvariant() switch
+        {
+            "booking" => UnifiedMessengerIntentCategory.Booking,
+            "complaint" => UnifiedMessengerIntentCategory.Complaint,
+            "pricing" or "price_inquiry" or "price inquiry" => UnifiedMessengerIntentCategory.PriceInquiry,
+            "lead" => UnifiedMessengerIntentCategory.Lead,
+            "spam" => UnifiedMessengerIntentCategory.Spam,
+            _ => UnifiedMessengerIntentCategory.Inquiry
+        };
+    }
+
+    private static string MapCustomerIntent(string intentCategory, string? fallback) =>
+        intentCategory.Equals(UnifiedMessengerIntentCategory.Spam, StringComparison.OrdinalIgnoreCase)
+            ? "Spam"
+            : fallback ?? "Inquiry";
+
+    private static string CoalesceSummary(string? primary, string? secondary, string? tertiary)
+    {
+        if (!string.IsNullOrWhiteSpace(primary))
+        {
+            return primary.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(secondary))
+        {
+            return secondary.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(tertiary) ? string.Empty : tertiary.Trim();
+    }
+
+    private static string TrimActionableSummary(string? summary)
     {
         if (string.IsNullOrWhiteSpace(summary))
         {
@@ -218,8 +364,8 @@ public sealed class MessageTriageInferenceRunner
         }
 
         var words = summary.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        return words.Length <= 10
+        return words.Length <= MaxActionableSummaryWords
             ? summary.Trim()
-            : string.Join(' ', words.Take(10));
+            : string.Join(' ', words.Take(MaxActionableSummaryWords));
     }
 }

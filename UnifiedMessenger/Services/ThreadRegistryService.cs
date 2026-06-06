@@ -46,7 +46,9 @@ public sealed class ThreadRegistryService
         string? clientSentiment = null,
         int? operationalUrgency = null,
         double? estimatedValue = null,
-        bool? isRevenueLeakageRisk = null)
+        bool? isRevenueLeakageRisk = null,
+        bool? isSpamOrPromo = null,
+        string? suggestedAction = null)
     {
         ArgumentNullException.ThrowIfNull(item);
 
@@ -56,6 +58,7 @@ public sealed class ThreadRegistryService
         var branch = string.IsNullOrWhiteSpace(branchName)
             ? item.BranchName
             : branchName.Trim();
+        var spam = isSpamOrPromo ?? item.IsSpamOrPromo;
 
         var thread = _threads.GetOrAdd(threadId, _ => new ThreadData
         {
@@ -67,6 +70,7 @@ public sealed class ThreadRegistryService
             CustomerName = item.CustomerName,
             ConversationKey = key,
             LastMessageTime = item.TimestampUtc,
+            FirstInboundAtUtc = item.TimestampUtc,
             LastTriageItemId = item.Id
         });
 
@@ -77,9 +81,14 @@ public sealed class ThreadRegistryService
         thread.CustomerName = item.CustomerName;
         thread.ConversationKey = key;
         thread.LastMessageTime = item.TimestampUtc;
+        thread.FirstInboundAtUtc = item.TimestampUtc;
         thread.LastTriageItemId = item.Id;
         thread.IsReplied = false;
-        thread.LatencyMinutes = Math.Max(0, (now - item.TimestampUtc).TotalMinutes);
+        thread.IsSpamOrPromo = spam;
+        thread.ReplyLatencyMinutes = 0;
+        thread.LatencyMinutes = spam
+            ? 0
+            : Math.Max(0, (now - thread.FirstInboundAtUtc).TotalMinutes);
 
         thread.AiIntentCategory = aiIntentCategory
                                   ?? item.AiIntentCategory
@@ -87,17 +96,20 @@ public sealed class ThreadRegistryService
         thread.ClientSentiment = clientSentiment
                                  ?? item.ClientSentiment
                                  ?? MapSentiment(item.Sentiment);
-        thread.UrgencyScore = operationalUrgency
-                              ?? (item.OperationalUrgency > 0
-                                  ? item.OperationalUrgency
-                                  : MapOperationalUrgency(item.UrgencyScore));
-        thread.NextActionSummary = string.IsNullOrWhiteSpace(nextActionSummary)
-            ? string.IsNullOrWhiteSpace(item.NextActionSummary)
-                ? item.CoreSummary
-                : item.NextActionSummary
-            : nextActionSummary.Trim();
-        thread.EstimatedValue = estimatedValue ?? item.EstimatedValue;
-        thread.IsRevenueLeakageRisk = isRevenueLeakageRisk ?? EvaluateRevenueLeakage(thread);
+        thread.UrgencyScore = spam
+            ? 1
+            : operationalUrgency
+              ?? (item.OperationalUrgency > 0
+                  ? item.OperationalUrgency
+                  : MapOperationalUrgency(item.UrgencyScore));
+        thread.NextActionSummary = ResolveNextActionSummary(nextActionSummary, item, spam);
+        thread.SuggestedAction = string.IsNullOrWhiteSpace(suggestedAction)
+            ? item.SuggestedAction
+            : suggestedAction.Trim();
+        thread.EstimatedValue = spam ? 0 : estimatedValue ?? item.EstimatedValue;
+        thread.IsRevenueLeakageRisk = spam
+            ? false
+            : isRevenueLeakageRisk ?? EvaluateRevenueLeakage(thread);
 
         NotifyChanged();
     }
@@ -113,6 +125,7 @@ public sealed class ThreadRegistryService
             return;
         }
 
+        var resolvedAt = resolvedAtUtc ?? DateTimeOffset.UtcNow;
         var key = NormalizeConversationKey(conversationKey, customerName, null);
         var threadId = BuildThreadId(instanceId, key);
         if (!_threads.TryGetValue(threadId, out var thread))
@@ -125,15 +138,22 @@ public sealed class ThreadRegistryService
                 ConversationKey = key,
                 CustomerName = string.IsNullOrWhiteSpace(customerName) ? "Customer" : customerName.Trim(),
                 BranchName = string.Empty,
-                LastMessageTime = resolvedAtUtc ?? DateTimeOffset.UtcNow
+                LastMessageTime = resolvedAt,
+                FirstInboundAtUtc = resolvedAt
             };
             _threads[threadId] = thread;
         }
 
+        var inboundAt = thread.FirstInboundAtUtc == default
+            ? thread.LastMessageTime
+            : thread.FirstInboundAtUtc;
+        var replyLatency = Math.Max(0, (resolvedAt - inboundAt).TotalMinutes);
+
         thread.IsReplied = true;
         thread.IsRevenueLeakageRisk = false;
-        thread.LatencyMinutes = 0;
-        thread.LastMessageTime = resolvedAtUtc ?? DateTimeOffset.UtcNow;
+        thread.ReplyLatencyMinutes = replyLatency;
+        thread.LatencyMinutes = replyLatency;
+        thread.LastMessageTime = resolvedAt;
         NotifyChanged();
     }
 
@@ -144,12 +164,15 @@ public sealed class ThreadRegistryService
 
         foreach (var thread in _threads.Values)
         {
-            if (thread.IsReplied)
+            if (thread.IsReplied || thread.IsSpamOrPromo)
             {
                 continue;
             }
 
-            var latency = Math.Max(0, (now - thread.LastMessageTime).TotalMinutes);
+            var inboundAt = thread.FirstInboundAtUtc == default
+                ? thread.LastMessageTime
+                : thread.FirstInboundAtUtc;
+            var latency = Math.Max(0, (now - inboundAt).TotalMinutes);
             if (Math.Abs(thread.LatencyMinutes - latency) > 0.5)
             {
                 thread.LatencyMinutes = latency;
@@ -185,7 +208,7 @@ public sealed class ThreadRegistryService
 
     internal static bool EvaluateRevenueLeakage(ThreadData thread)
     {
-        if (thread.IsReplied)
+        if (thread.IsReplied || thread.IsSpamOrPromo)
         {
             return false;
         }
@@ -199,12 +222,35 @@ public sealed class ThreadRegistryService
         return isCommercialIntent && thread.LatencyMinutes >= 30;
     }
 
+    private static string ResolveNextActionSummary(
+        string? nextActionSummary,
+        MessageTriageItem item,
+        bool isSpam)
+    {
+        if (isSpam)
+        {
+            return "Promotional message — no action required";
+        }
+
+        if (!string.IsNullOrWhiteSpace(nextActionSummary))
+        {
+            return nextActionSummary.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.NextActionSummary))
+        {
+            return item.NextActionSummary.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(item.CoreSummary) ? string.Empty : item.CoreSummary.Trim();
+    }
+
     private static string MapIntent(CustomerIntent intent) =>
         intent switch
         {
             CustomerIntent.Booking => UnifiedMessengerIntentCategory.Booking,
             CustomerIntent.Complaint => UnifiedMessengerIntentCategory.Complaint,
-            CustomerIntent.Spam => UnifiedMessengerIntentCategory.Inquiry,
+            CustomerIntent.Spam => UnifiedMessengerIntentCategory.Spam,
             _ => UnifiedMessengerIntentCategory.Inquiry
         };
 
@@ -257,8 +303,15 @@ internal static class ThreadDataExtensions
             ? ClientSentimentLabel.Neutral
             : thread.ClientSentiment.Trim();
         thread.NextActionSummary = thread.NextActionSummary?.Trim() ?? string.Empty;
+        thread.SuggestedAction = thread.SuggestedAction?.Trim() ?? string.Empty;
         thread.UrgencyScore = Math.Clamp(thread.UrgencyScore, 1, 5);
         thread.LatencyMinutes = Math.Max(0, thread.LatencyMinutes);
+        thread.ReplyLatencyMinutes = Math.Max(0, thread.ReplyLatencyMinutes);
         thread.EstimatedValue = Math.Max(0, thread.EstimatedValue);
+
+        if (thread.FirstInboundAtUtc == default)
+        {
+            thread.FirstInboundAtUtc = thread.LastMessageTime;
+        }
     }
 }

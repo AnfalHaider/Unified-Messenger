@@ -90,7 +90,8 @@ public class UnifiedMessengerInsightsEngineTests : IDisposable
     {
         public Task<string?> GenerateTriageJsonAsync(
             RichTriageInferenceJob job,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            bool strictJsonRetry = false) =>
             Task.FromResult(payload);
     }
 }

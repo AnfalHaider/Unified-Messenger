@@ -53,19 +53,21 @@ public sealed class UnifiedMessengerDashboardService
             .Select(branch => BuildBranchMetrics(branch, threads))
             .ToList();
 
-        var revenueAtRisk = threads
+        var actionableThreads = threads.Where(thread => !thread.IsSpamOrPromo).ToList();
+
+        var revenueAtRisk = actionableThreads
             .Where(thread => thread.IsRevenueLeakageRisk)
             .Sum(thread => thread.EstimatedValue);
 
-        var immediateQueue = threads
+        var immediateQueue = actionableThreads
             .Where(thread => thread.IsImmediateAction && !thread.IsReplied)
             .OrderByDescending(thread => thread.UrgencyScore)
             .ThenByDescending(thread => thread.LatencyMinutes)
             .Take(24)
             .ToList();
 
-        var openThreads = threads.Count(thread => !thread.IsReplied);
-        var hangingLeads = threads.Count(thread =>
+        var openThreads = actionableThreads.Count(thread => !thread.IsReplied);
+        var hangingLeads = actionableThreads.Count(thread =>
             !thread.IsReplied && thread.KanbanColumn == UnifiedMessengerKanbanColumn.HangingLeads);
 
         return new UnifiedMessengerDashboardSnapshot
@@ -90,7 +92,9 @@ public sealed class UnifiedMessengerDashboardService
             .Where(thread => thread.BranchName.Equals(branchName, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        var unresolved = branchThreads.Where(thread => !thread.IsReplied).ToList();
+        var unresolved = branchThreads
+            .Where(thread => !thread.IsReplied && !thread.IsSpamOrPromo)
+            .ToList();
         var averageLatency = unresolved.Count == 0
             ? 0
             : unresolved.Average(thread => thread.LatencyMinutes);

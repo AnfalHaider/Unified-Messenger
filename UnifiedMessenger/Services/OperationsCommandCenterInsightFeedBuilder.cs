@@ -30,6 +30,7 @@ public static class OperationsCommandCenterInsightFeedBuilder
         foreach (var thread in threadOperations.AllThreads)
         {
             if (thread.IsReplied ||
+                thread.IsSpamOrPromo ||
                 thread.KanbanColumn != UnifiedMessengerKanbanColumn.HangingLeads)
             {
                 continue;
@@ -57,7 +58,8 @@ public static class OperationsCommandCenterInsightFeedBuilder
 
         foreach (var triageItem in orderedTriage.Where(DashboardPageHelper.HasExecutiveInsightContent))
         {
-            if (ShouldSkipExecutiveInsight(triageItem, threadOperations, coveredConversationKeys))
+            if (triageItem.IsSpamOrPromo ||
+                ShouldSkipExecutiveInsight(triageItem, threadOperations, coveredConversationKeys))
             {
                 continue;
             }
@@ -92,7 +94,8 @@ public static class OperationsCommandCenterInsightFeedBuilder
         {
             foreach (var triageItem in orderedTriage.Where(item => !DashboardPageHelper.HasExecutiveInsightContent(item)))
             {
-                if (ShouldSkipExecutiveInsight(triageItem, threadOperations, coveredConversationKeys))
+                if (triageItem.IsSpamOrPromo ||
+                    ShouldSkipExecutiveInsight(triageItem, threadOperations, coveredConversationKeys))
                 {
                     continue;
                 }

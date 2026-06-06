@@ -20,7 +20,11 @@ public sealed class ThreadData
 
     public DateTimeOffset LastMessageTime { get; set; } = DateTimeOffset.UtcNow;
 
+    public DateTimeOffset FirstInboundAtUtc { get; set; } = DateTimeOffset.UtcNow;
+
     public double LatencyMinutes { get; set; }
+
+    public double ReplyLatencyMinutes { get; set; }
 
     public string AiIntentCategory { get; set; } = UnifiedMessengerIntentCategory.Inquiry;
 
@@ -33,6 +37,10 @@ public sealed class ThreadData
 
     public string NextActionSummary { get; set; } = string.Empty;
 
+    public string SuggestedAction { get; set; } = string.Empty;
+
+    public bool IsSpamOrPromo { get; set; }
+
     public bool IsRevenueLeakageRisk { get; set; }
 
     public string ConversationKey { get; set; } = string.Empty;
@@ -41,14 +49,17 @@ public sealed class ThreadData
 
     public string InstanceDisplayName { get; set; } = string.Empty;
 
-    public bool IsSlaBreached => !IsReplied && LatencyMinutes > 15;
+    public bool IsSlaBreached =>
+        !IsSpamOrPromo && !IsReplied && LatencyMinutes > 15;
 
     public bool IsImmediateAction =>
-        UrgencyScore >= 4 ||
-        ClientSentiment.Equals(ClientSentimentLabel.Critical, StringComparison.OrdinalIgnoreCase);
+        !IsSpamOrPromo &&
+        !IsReplied &&
+        (UrgencyScore >= 4 ||
+         ClientSentiment.Equals(ClientSentimentLabel.Critical, StringComparison.OrdinalIgnoreCase));
 
     public UnifiedMessengerKanbanColumn KanbanColumn =>
-        IsReplied
+        IsReplied || IsSpamOrPromo
             ? UnifiedMessengerKanbanColumn.Resolved
             : IsRevenueLeakageRisk
                 ? UnifiedMessengerKanbanColumn.HangingLeads
@@ -69,6 +80,7 @@ public static class UnifiedMessengerIntentCategory
     public const string PriceInquiry = "Price_Inquiry";
     public const string Lead = "Lead";
     public const string Inquiry = "Inquiry";
+    public const string Spam = "Spam";
 }
 
 public static class ClientSentimentLabel
