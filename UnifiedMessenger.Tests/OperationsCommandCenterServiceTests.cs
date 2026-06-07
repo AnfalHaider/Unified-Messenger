@@ -108,6 +108,30 @@ public class OperationsCommandCenterServiceTests : IDisposable
         Assert.Single(filtered.PlatformIntelligence.GoogleInstanceIds);
         Assert.Empty(filtered.PlatformIntelligence.MetaInstanceIds);
     }
+
+    [Fact]
+    public void BuildSnapshot_openThreads_UsesActiveSlaSubtext()
+    {
+        AppSettingsService.Instance.Settings.SlaThresholdMinutes = 15;
+
+        var item = CreateTriageItem("dha", "Aisha", "Need quote");
+        ThreadRegistryService.Instance.UpsertFromTriageItem(
+            item,
+            "Aisha",
+            "DHA-2");
+
+        var thread = Assert.Single(ThreadRegistryService.Instance.GetAllThreads());
+        thread.FirstInboundAtUtc = DateTimeOffset.UtcNow.AddMinutes(-30);
+        thread.LatencyMinutes = 30;
+        ThreadRegistryService.Instance.RefreshOperationalFlags();
+
+        var snapshot = OperationsCommandCenterService.Instance.BuildSnapshot(
+            CreateProfessionalInstances("dha", "Depilex DHA-2"),
+            triageService: MessageTriageService.Instance);
+
+        Assert.Contains("Active waiting threads", snapshot.Status.SlaThresholdSubtext, StringComparison.Ordinal);
+    }
+
     private static MessageTriageItem CreateTriageItem(string instanceId, string customer, string preview) =>
         new()
         {

@@ -282,7 +282,22 @@ public sealed partial class SettingsPage : Page
 
     private async void RefreshAllWebViewsButton_Click(object sender, RoutedEventArgs e)
     {
-        await InstanceSessionManager.Instance.ReloadAllSessionsAsync();
+        RefreshAllWebViewsButton.IsEnabled = false;
+        var originalContent = RefreshAllWebViewsButton.Content;
+        RefreshAllWebViewsButton.Content = "Refreshing…";
+        try
+        {
+            await InstanceSessionManager.Instance.ReloadAllSessionsAsync();
+        }
+        catch (Exception ex)
+        {
+            await ShowMessageDialogAsync("WebView refresh failed", ex.Message);
+        }
+        finally
+        {
+            RefreshAllWebViewsButton.IsEnabled = true;
+            RefreshAllWebViewsButton.Content = originalContent;
+        }
     }
 
     private async void EnableLazyWebViewLoadingToggle_Toggled(object sender, RoutedEventArgs e)
@@ -466,8 +481,8 @@ public sealed partial class SettingsPage : Page
     {
         var confirm = new ContentDialog
         {
-            Title = "Clear analytics data?",
-            Content = "This permanently removes message analytics used by the dashboard.",
+            Title = "Clear operational data?",
+            Content = "This permanently removes message analytics and saved thread/triage state used by the Operations Command Center.",
             PrimaryButtonText = "Clear",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
@@ -479,7 +494,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await MessageAnalyticsService.Instance.ClearAllDataAsync();
+        await OperationalDataService.ClearAllAsync();
         ShellNavigationService.Instance.RequestDashboardRefresh();
     }
 
@@ -623,8 +638,23 @@ public sealed partial class SettingsPage : Page
         ShellNavigationService.Instance.RequestDashboardRefresh();
     }
 
-    private void ClearNotificationsButton_Click(object sender, RoutedEventArgs e)
+    private async void ClearNotificationsButton_Click(object sender, RoutedEventArgs e)
     {
+        var confirm = new ContentDialog
+        {
+            Title = "Clear notification history?",
+            Content = "This removes all stored notification alerts. Unread badges on sidebar icons will reset.",
+            PrimaryButtonText = "Clear",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
         NotificationHub.Instance.ClearAlerts();
     }
 

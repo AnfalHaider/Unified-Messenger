@@ -11,24 +11,42 @@ public class ShellNavigationServiceTests
     public void RequestInstance_IgnoresInvalidInstanceIds(string? instanceId)
     {
         var service = ShellNavigationService.CreateForTests();
-        string? launchedId = null;
-        service.InstanceLaunchRequested += (_, id) => launchedId = id;
+        InstanceNavigationRequest? request = null;
+        service.InstanceNavigationRequested += (_, navigation) => request = navigation;
 
         service.RequestInstance(instanceId!);
 
-        Assert.Null(launchedId);
+        Assert.Null(request);
     }
 
     [Fact]
     public void RequestInstance_TrimsAndRaisesEvent()
     {
         var service = ShellNavigationService.CreateForTests();
-        string? launchedId = null;
-        service.InstanceLaunchRequested += (_, id) => launchedId = id;
+        InstanceNavigationRequest? request = null;
+        service.InstanceNavigationRequested += (_, navigation) => request = navigation;
 
         service.RequestInstance("  inst-whatsapp  ");
 
-        Assert.Equal("inst-whatsapp", launchedId);
+        Assert.NotNull(request);
+        Assert.Equal("inst-whatsapp", request!.InstanceId);
+        Assert.False(request.HasConversationTarget);
+    }
+
+    [Fact]
+    public void RequestInstance_WithConversationTarget_IncludesConversationFields()
+    {
+        var service = ShellNavigationService.CreateForTests();
+        InstanceNavigationRequest? request = null;
+        service.InstanceNavigationRequested += (_, navigation) => request = navigation;
+
+        service.RequestInstance("inst-meta", "Sara Khan", "Sara Khan");
+
+        Assert.NotNull(request);
+        Assert.Equal("inst-meta", request!.InstanceId);
+        Assert.Equal("Sara Khan", request.ConversationKey);
+        Assert.Equal("Sara Khan", request.CustomerName);
+        Assert.True(request.HasConversationTarget);
     }
 
     [Fact]
@@ -53,6 +71,18 @@ public class ShellNavigationServiceTests
         service.RequestDashboardRefresh();
 
         Assert.Equal(1, refreshCount);
+    }
+
+    [Fact]
+    public void RequestAddInstance_RaisesEvent()
+    {
+        var service = ShellNavigationService.CreateForTests();
+        var requestCount = 0;
+        service.AddInstanceRequested += (_, _) => requestCount++;
+
+        service.RequestAddInstance();
+
+        Assert.Equal(1, requestCount);
     }
 
     [Theory]

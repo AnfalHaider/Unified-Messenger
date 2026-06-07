@@ -46,7 +46,8 @@ public static class OperationalMetricsHelper
                 InstanceDisplayName = instanceNames.TryGetValue(thread.InstanceId, out var name)
                     ? name
                     : thread.InstanceDisplayName,
-                InstanceId = thread.InstanceId
+                InstanceId = thread.InstanceId,
+                BranchName = branch
             });
         }
 

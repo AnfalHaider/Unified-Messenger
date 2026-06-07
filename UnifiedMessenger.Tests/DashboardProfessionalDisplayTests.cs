@@ -18,7 +18,7 @@ public class DashboardProfessionalDisplayTests
 
         var display = DashboardPageHelper.BuildProfessionalDisplay(snapshot);
 
-        Assert.Contains("Inbound: 5", display.ResponseRate, StringComparison.Ordinal);
+        Assert.Contains("Inbound events: 5", display.ResponseRate, StringComparison.Ordinal);
         Assert.Contains("Replied: 0", display.ResponseRate, StringComparison.Ordinal);
         Assert.Equal("No replies logged yet", display.AverageReplyTime);
     }

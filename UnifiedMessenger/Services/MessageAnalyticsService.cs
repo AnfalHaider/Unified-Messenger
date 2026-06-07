@@ -59,6 +59,8 @@ public sealed class OperationalHighlightItem
     public required string InstanceDisplayName { get; init; }
 
     public string? InstanceId { get; init; }
+
+    public string? BranchName { get; init; }
 }
 
 public sealed class MessageAnalyticsService

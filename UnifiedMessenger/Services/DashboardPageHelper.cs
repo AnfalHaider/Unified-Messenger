@@ -260,7 +260,7 @@ public static class DashboardPageHelper
             ? 0
             : (int)Math.Round(replyPairCount * 100.0 / receivedCount, MidpointRounding.AwayFromZero);
 
-        return $"Inbound: {receivedCount} · Replied: {replyPairCount} ({percent}%)";
+        return $"Inbound events: {receivedCount} · Replied: {replyPairCount} ({percent}%)";
     }
 
     public static ProfessionalDashboardDisplay BuildProfessionalDisplay(ProfessionalAnalyticsSnapshot snapshot)

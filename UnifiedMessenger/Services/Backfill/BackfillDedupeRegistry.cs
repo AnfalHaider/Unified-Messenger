@@ -50,7 +50,9 @@ public static class BackfillDedupeRegistry
         return true;
     }
 
-    internal static void ClearForTests() => Seen.Clear();
+    public static void Clear() => Seen.Clear();
+
+    internal static void ClearForTests() => Clear();
 
     private static void PruneStaleEntries(DateTimeOffset now)
     {

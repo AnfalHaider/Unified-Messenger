@@ -65,8 +65,36 @@ public sealed partial class NotificationFeedPanel : UserControl
     private void MarkAllReadButton_Click(object sender, RoutedEventArgs e) =>
         _hub.MarkAllAlertsRead();
 
-    private void ClearAllButton_Click(object sender, RoutedEventArgs e) =>
+    private async void ClearAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_hub.Alerts.Count == 0)
+        {
+            return;
+        }
+
+        if (XamlRoot is null)
+        {
+            _hub.ClearAlerts();
+            return;
+        }
+
+        var confirm = new ContentDialog
+        {
+            Title = "Clear all notifications?",
+            Content = "This removes every alert from the notification panel.",
+            PrimaryButtonText = "Clear all",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
         _hub.ClearAlerts();
+    }
 
     private void DismissAlertButton_Click(object sender, RoutedEventArgs e)
     {

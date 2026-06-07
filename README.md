@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.20](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.20)
+**Current release:** [v1.0.21](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.21)
 
 ## Download (Windows)
 
@@ -14,6 +14,17 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
+
+### What’s in v1.0.21
+
+- **Meta conversation identity:** Generic inbox labels blocked; Meta Business row scraping resolves stable thread keys for triage and navigation.
+- **Thread registry fixes:** Revenue-leakage flags no longer downgrade on refresh; upsert honors triage leakage signals.
+- **OCC navigation:** Thread cards and AI insight feed deep-link to the correct conversation; immediate cards show inbox label + branch.
+- **Branch-scoped kanban:** Immediate lane, counts, and highlights filter consistently when a branch tab is selected.
+- **Metrics clarity:** KPI labels distinguish open conversations vs inbound events; SLA subtext shows active waiting threads.
+- **Operational data reset:** Settings clears analytics, triage store, thread registry, and backfill dedupe together.
+- **UI/UX polish:** Loading states on refresh actions, confirmation dialogs for destructive clears, empty-state add-instance CTA, review-draft validation, pinned-sidebar hamburger toggle.
+- **624** unit tests (x64, Release).
 
 ### What’s in v1.0.20
 
@@ -94,7 +105,7 @@ cd "d:\Projects\Unified Messenger"
 dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -c Release -p:Platform=x64
 ```
 
-609 unit tests cover services, adapters (including HTML fixture selector checks), backfill orchestration, dashboard card helpers, and dialog helpers.
+624 unit tests cover services, adapters (including HTML fixture selector checks), backfill orchestration, dashboard card helpers, and dialog helpers.
 
 ## Connect Google Business Profile
 

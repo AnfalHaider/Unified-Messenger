@@ -33,6 +33,38 @@ public class ConversationKeyResolverTests
     {
         Assert.Equal("inst-1|review:rev-9", ConversationKeyResolver.BuildThreadId("inst-1", "review:rev-9"));
     }
+
+    [Fact]
+    public void IsGenericConversationLabel_TreatsMetaInboxChromeAsGeneric()
+    {
+        Assert.True(ConversationKeyResolver.IsGenericConversationLabel("Inbox", "metabusiness"));
+        Assert.True(ConversationKeyResolver.IsGenericConversationLabel("Meta Business Suite", "metabusiness"));
+        Assert.False(ConversationKeyResolver.IsGenericConversationLabel("Sara Khan", "metabusiness"));
+    }
+
+    [Fact]
+    public void Resolve_MetaBusiness_RejectsGenericHeaderAndUsesMessageFingerprint()
+    {
+        var key = ConversationKeyResolver.Resolve(
+            "metabusiness",
+            conversationKey: "Inbox",
+            customerName: "Inbox",
+            messagePreview: "Need bridal makeup pricing for Saturday");
+
+        Assert.StartsWith(ConversationKeyResolver.MetaMessageKeyPrefix, key, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Resolve_MetaBusiness_UsesParticipantNameWhenProvided()
+    {
+        var key = ConversationKeyResolver.Resolve(
+            "metabusiness",
+            conversationKey: "Sara Khan",
+            customerName: "Sara Khan",
+            messagePreview: "Need bridal makeup pricing for Saturday");
+
+        Assert.Equal("Sara Khan", key);
+    }
 }
 
 public class ThreadRegistryPhase1Tests
@@ -117,12 +149,48 @@ public class ThreadRegistryPhase1Tests
         Assert.Equal(reviewKey, thread.ConversationKey);
     }
 
+    [Fact]
+    public void UpsertFromTriageItem_PreservesHeuristicRevenueLeakageRisk()
+    {
+        var registry = ThreadRegistryService.CreateForTests();
+        var item = CreateItem(
+            "inst",
+            "Sara",
+            DateTimeOffset.UtcNow.AddMinutes(-5),
+            "triage-leak",
+            isRevenueLeakageRisk: true);
+
+        registry.UpsertFromTriageItem(item, "Sara", "F-11");
+
+        var thread = Assert.Single(registry.GetAllThreads());
+        Assert.True(thread.IsRevenueLeakageRisk);
+    }
+
+    [Fact]
+    public void RefreshOperationalFlags_PreservesExistingRevenueLeakageRisk()
+    {
+        var registry = ThreadRegistryService.CreateForTests();
+        var item = CreateItem(
+            "inst",
+            "Sara",
+            DateTimeOffset.UtcNow.AddMinutes(-5),
+            "triage-leak-2",
+            isRevenueLeakageRisk: true);
+
+        registry.UpsertFromTriageItem(item, "Sara", "F-11");
+        registry.RefreshOperationalFlags();
+
+        var thread = Assert.Single(registry.GetAllThreads());
+        Assert.True(thread.IsRevenueLeakageRisk);
+    }
+
     private static UnifiedMessenger.Models.MessageTriageItem CreateItem(
         string instanceId,
         string customer,
         DateTimeOffset timestampUtc,
         string id,
-        string? conversationKey = null) =>
+        string? conversationKey = null,
+        bool isRevenueLeakageRisk = false) =>
         new()
         {
             Id = id,
@@ -134,6 +202,8 @@ public class ThreadRegistryPhase1Tests
             ConversationKey = conversationKey ?? customer,
             UrgencyScore = 30,
             Sentiment = UnifiedMessenger.Models.MessageSentiment.Neutral,
-            TimestampUtc = timestampUtc
+            TimestampUtc = timestampUtc,
+            IsRevenueLeakageRisk = isRevenueLeakageRisk,
+            AiIntentCategory = UnifiedMessenger.Models.UnifiedMessengerIntentCategory.Inquiry
         };
 }

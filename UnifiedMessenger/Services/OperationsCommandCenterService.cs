@@ -108,6 +108,10 @@ public sealed class OperationsCommandCenterService
         var slaDisplay = hasOpenThreads
             ? activeSlaBreaches.ToString()
             : display.SlaBreaches;
+        var slaThreshold = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+        var slaSubtext = hasOpenThreads
+            ? $"Active waiting threads · threshold: {slaThreshold} min"
+            : display.SlaThresholdSubtext;
 
         return new OperationsStatusSnapshot
         {
@@ -119,7 +123,7 @@ public sealed class OperationsCommandCenterService
             AverageReplyTimeSubtext = display.AverageReplyTimeSubtext,
             SlaBreaches = slaDisplay,
             SlaBreachesNumeric = hasOpenThreads ? activeSlaBreaches : analytics.SlaBreaches,
-            SlaThresholdSubtext = display.SlaThresholdSubtext,
+            SlaThresholdSubtext = slaSubtext,
             ResponseRate = display.ResponseRate,
             PeakHour = display.PeakHour,
             DailyTrend = display.DailyTrend,

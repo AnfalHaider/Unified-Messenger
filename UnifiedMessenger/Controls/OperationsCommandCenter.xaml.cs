@@ -36,6 +36,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     private bool _suppressTabSelection;
     private bool _isRefreshing;
     private GoogleReviewAlertView? _selectedReviewAlert;
+    private IReadOnlyList<OperationalHighlightItem> _operationalHighlights = [];
 
     public OperationsCommandCenter()
     {
@@ -102,7 +103,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
     }
 
-    public async Task RequestPlatformDataRefreshAsync(bool refreshAllInstances = false)
+    public async Task<bool> RequestPlatformDataRefreshAsync(bool refreshAllInstances = false)
     {
         var targets = refreshAllInstances
             ? _professionalInstances.Where(DashboardScrapeOrchestrator.IsDashboardScrapeCapable).ToList()
@@ -112,7 +113,13 @@ public sealed partial class OperationsCommandCenter : UserControl
 
         if (targets.Count == 0)
         {
-            return;
+            await ShowSimpleDialogAsync(
+                "Nothing to refresh",
+                refreshAllInstances
+                    ? "No professional accounts are configured for platform data scraping."
+                    : "No accounts in the current branch filter support platform data scraping.")
+                .ConfigureAwait(true);
+            return false;
         }
 
         try
@@ -123,10 +130,12 @@ public sealed partial class OperationsCommandCenter : UserControl
 
             MessageAnalyticsService.Instance.NotifyDashboardRefresh();
             await RefreshAsync(_professionalInstances, _selectedBranchKey, _registry).ConfigureAwait(true);
+            return true;
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Platform data refresh failed: {ex.Message}");
+            await ShowSimpleDialogAsync("Platform refresh failed", ex.Message).ConfigureAwait(true);
+            return false;
         }
     }
 
@@ -175,7 +184,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
 
         _selectedKanbanBranchName = ResolveSelectedKanbanBranchName();
-        ApplyKanbanForSelectedBranch();
+        ApplyBranchScopedWorkspace();
         RefreshBranchMetricSelection();
     }
 
@@ -212,17 +221,12 @@ public sealed partial class OperationsCommandCenter : UserControl
             ? Visibility.Visible
             : Visibility.Collapsed;
         ReplaceCollection(_platformHealth, status.PlatformHealth.Select(indicator => new PlatformHealthViewModel(indicator)));
-        ReplaceCollection(_immediateQueue, threadOps.ImmediateActionQueue.Select(thread => new OperationsThreadCardViewModel(thread)));
 
-        ImmediateQueueEmptyText.Visibility = _immediateQueue.Count == 0
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
+        _operationalHighlights = snapshot.AnalyticsTrends.Highlights;
         RebuildBranchTabs(threadOps.BranchNames);
-        ApplyKanbanForSelectedBranch();
+        ApplyBranchScopedWorkspace();
         ApplyPlatformIntelligence(snapshot.PlatformIntelligence);
         ApplyAnalyticsTrends(snapshot.AnalyticsTrends, status);
-        ApplyOperationalHighlights(snapshot.AnalyticsTrends.Highlights);
         ApplyAiInsightFeed(snapshot);
         ReplaceCollection(
             _healthChips,
@@ -432,6 +436,55 @@ public sealed partial class OperationsCommandCenter : UserControl
             : null;
     }
 
+    private void ApplyBranchScopedWorkspace()
+    {
+        var branchName = ResolveActiveKanbanBranchName();
+        ApplyKanbanForSelectedBranch();
+        ApplyImmediateQueueForBranch(branchName);
+        ApplyOperationalHighlightsForBranch(branchName);
+        RefreshBranchMetricSelection();
+    }
+
+    private string? ResolveActiveKanbanBranchName()
+    {
+        var branchName = _selectedKanbanBranchName ?? ResolveSelectedKanbanBranchName();
+        return string.IsNullOrWhiteSpace(branchName) ||
+               branchName.Equals("General", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : branchName;
+    }
+
+    private void ApplyImmediateQueueForBranch(string? branchName)
+    {
+        var immediateThreads = string.IsNullOrWhiteSpace(branchName)
+            ? _snapshot.ThreadOperations.ImmediateActionQueue
+            : _snapshot.ThreadOperations.ImmediateActionQueue
+                .Where(thread => thread.BranchName.Equals(branchName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+        ReplaceCollection(
+            _immediateQueue,
+            immediateThreads.Select(thread => new OperationsThreadCardViewModel(thread)));
+
+        ImmediateActionCountText.Text = immediateThreads.Count.ToString();
+        ImmediateQueueEmptyText.Visibility = _immediateQueue.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void ApplyOperationalHighlightsForBranch(string? branchName)
+    {
+        var highlights = string.IsNullOrWhiteSpace(branchName)
+            ? _operationalHighlights
+            : _operationalHighlights
+                .Where(item =>
+                    string.IsNullOrWhiteSpace(item.BranchName) ||
+                    item.BranchName.Equals(branchName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+        ApplyOperationalHighlights(highlights);
+    }
+
     private void ApplyKanbanForSelectedBranch()
     {
         var branchName = _selectedKanbanBranchName ?? ResolveSelectedKanbanBranchName();
@@ -476,8 +529,7 @@ public sealed partial class OperationsCommandCenter : UserControl
 
         _selectedKanbanBranchName = metric.BranchName;
         SelectKanbanTabForBranch(metric.BranchName);
-        ApplyKanbanForSelectedBranch();
-        RefreshBranchMetricSelection();
+        ApplyBranchScopedWorkspace();
     }
 
     private void SelectKanbanTabForBranch(string branchName)
@@ -517,7 +569,10 @@ public sealed partial class OperationsCommandCenter : UserControl
         if (e.ClickedItem is OperationsThreadCardViewModel card &&
             !string.IsNullOrWhiteSpace(card.InstanceId))
         {
-            ShellNavigationService.Instance.RequestInstance(card.InstanceId);
+            ShellNavigationService.Instance.RequestInstance(
+                card.InstanceId,
+                card.ConversationKey,
+                card.CustomerName);
         }
     }
 
@@ -530,7 +585,10 @@ public sealed partial class OperationsCommandCenter : UserControl
 
         if (!string.IsNullOrWhiteSpace(item.InstanceId))
         {
-            ShellNavigationService.Instance.RequestInstance(item.InstanceId);
+            ShellNavigationService.Instance.RequestInstance(
+                item.InstanceId,
+                item.ConversationKey,
+                item.CustomerName);
         }
     }
 
@@ -556,12 +614,20 @@ public sealed partial class OperationsCommandCenter : UserControl
     {
         if (_selectedReviewAlert is null)
         {
+            await ShowSimpleDialogAsync(
+                "Select a review",
+                "Choose a Google review alert from the list before inserting a draft reply.")
+                .ConfigureAwait(true);
             return;
         }
 
         var replyText = ReviewReplyBox.Text?.Trim();
         if (string.IsNullOrWhiteSpace(replyText))
         {
+            await ShowSimpleDialogAsync(
+                "Draft reply is empty",
+                "Type a reply in the text box, then choose Insert draft.")
+                .ConfigureAwait(true);
             return;
         }
 
@@ -571,29 +637,62 @@ public sealed partial class OperationsCommandCenter : UserControl
         var reply = JsonSerializer.Serialize(replyText);
         var script = $"window.__umSubmitReviewReply({reviewId}, {reply});";
 
-        await InstanceSessionManager.Instance.ExecuteScriptOnInstanceAsync(
-            _selectedReviewAlert.InstanceId,
-            script);
+        try
+        {
+            await InstanceSessionManager.Instance.ExecuteScriptOnInstanceAsync(
+                _selectedReviewAlert.InstanceId,
+                script);
+        }
+        catch (Exception ex)
+        {
+            await ShowSimpleDialogAsync("Could not insert draft", ex.Message).ConfigureAwait(true);
+        }
     }
 
-    private void OpenSelectedReviewInstanceButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenSelectedReviewInstanceButton_Click(object sender, RoutedEventArgs e)
     {
         var instanceId = _selectedReviewAlert?.InstanceId ??
             _snapshot.PlatformIntelligence.GoogleInstanceIds.FirstOrDefault();
 
-        if (!string.IsNullOrWhiteSpace(instanceId))
+        if (string.IsNullOrWhiteSpace(instanceId))
         {
-            ShellNavigationService.Instance.RequestInstance(instanceId);
+            await ShowSimpleDialogAsync(
+                "No Google instance",
+                "Add a Google Business professional account to respond to reviews.")
+                .ConfigureAwait(true);
+            return;
         }
+
+        ShellNavigationService.Instance.RequestInstance(instanceId);
     }
 
-    private async void RefreshPlatformDataButton_Click(object sender, RoutedEventArgs e) =>
-        await RequestPlatformDataRefreshAsync().ConfigureAwait(true);
+    private void AddProfessionalInstanceButton_Click(object sender, RoutedEventArgs e) =>
+        ShellNavigationService.Instance.RequestAddInstance();
+
+    private async void RefreshPlatformDataButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshPlatformDataButton.IsEnabled = false;
+        var originalContent = RefreshPlatformDataButton.Content;
+        RefreshPlatformDataButton.Content = "Refreshing…";
+        try
+        {
+            await RequestPlatformDataRefreshAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            RefreshPlatformDataButton.IsEnabled = true;
+            RefreshPlatformDataButton.Content = originalContent;
+        }
+    }
 
     private async void ExportAnalyticsButton_Click(object sender, RoutedEventArgs e)
     {
         if (_registry is null)
         {
+            await ShowSimpleDialogAsync(
+                "Export unavailable",
+                "Instance registry is not loaded yet. Try again after the dashboard finishes loading.")
+                .ConfigureAwait(true);
             return;
         }
 
@@ -659,6 +758,10 @@ public sealed partial class OperationsCommandCenter : UserControl
         public string UrgencyLabel { get; } = item.UrgencyLabel;
 
         public string? InstanceId { get; } = item.InstanceId;
+
+        public string? ConversationKey { get; } = string.IsNullOrWhiteSpace(item.Thread?.ConversationKey)
+            ? null
+            : item.Thread!.ConversationKey;
 
         public Visibility IntentLabelVisibility { get; } = string.IsNullOrWhiteSpace(item.IntentLabel)
             ? Visibility.Collapsed
@@ -804,5 +907,23 @@ public sealed partial class OperationsCommandCenter : UserControl
             Convert.ToByte(hex[..2], 16),
             Convert.ToByte(hex[2..4], 16),
             Convert.ToByte(hex[4..6], 16));
+    }
+
+    private async Task ShowSimpleDialogAsync(string title, string message)
+    {
+        if (XamlRoot is null)
+        {
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = message,
+            CloseButtonText = "OK",
+            XamlRoot = XamlRoot
+        };
+
+        await dialog.ShowAsync();
     }
 }

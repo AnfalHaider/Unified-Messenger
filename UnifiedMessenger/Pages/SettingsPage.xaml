@@ -178,6 +178,7 @@
                             ValueChanged="MaxConcurrentWebViewsBox_ValueChanged" />
 
                         <Button
+                            x:Name="RefreshAllWebViewsButton"
                             HorizontalAlignment="Left"
                             Click="RefreshAllWebViewsButton_Click"
                             Content="Refresh all WebViews" />
@@ -399,7 +400,7 @@
                         <Button
                             HorizontalAlignment="Left"
                             Click="ClearAnalyticsButton_Click"
-                            Content="Clear analytics data" />
+                            Content="Clear operational data" />
                     </StackPanel>
                 </Border>
             </StackPanel>

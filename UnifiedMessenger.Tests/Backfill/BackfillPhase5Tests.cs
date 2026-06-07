@@ -76,7 +76,8 @@ public class BackfillPhase5Tests : IDisposable
         Assert.Equal(3, result.TriageEnqueued);
         Assert.Equal(3, BackfillSyncManager.Instance.GetLastResult(instance.Id)?.TriageEnqueued);
         Assert.NotNull(progress);
-        Assert.Equal(BackfillSyncState.Completed, progress!.State);
+        Assert.Equal(instance.Id, progress!.InstanceId);
+        Assert.Equal(BackfillSyncState.Completed, BackfillSyncManager.Instance.GetState(instance.Id));
         Assert.Equal(3, progress.Result?.TriageEnqueued);
     }
 

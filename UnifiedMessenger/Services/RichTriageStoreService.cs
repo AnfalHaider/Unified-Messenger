@@ -201,6 +201,8 @@ public sealed class RichTriageStoreService
         await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            _suppressPersist = true;
+            MessageTriageService.Instance.DrainPendingQueue();
             MessageTriageService.Instance.RestoreItems([]);
             ThreadRegistryService.Instance.RestoreThreads([]);
             if (File.Exists(_storePath))
@@ -210,6 +212,7 @@ public sealed class RichTriageStoreService
         }
         finally
         {
+            _suppressPersist = false;
             _writeGate.Release();
         }
     }

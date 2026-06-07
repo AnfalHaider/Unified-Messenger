@@ -14,6 +14,7 @@ public sealed class OperationsThreadCardViewModel
         InstanceId = thread.InstanceId;
         ThreadId = thread.ThreadId;
         CustomerName = thread.CustomerName;
+        ConversationKey = thread.ConversationKey;
         BranchName = thread.BranchName;
         InstanceDisplayName = thread.InstanceDisplayName;
         InboxLabel = BuildInboxLabel(thread);
@@ -50,6 +51,8 @@ public sealed class OperationsThreadCardViewModel
     public string ThreadId { get; }
 
     public string CustomerName { get; }
+
+    public string ConversationKey { get; }
 
     public string BranchName { get; }
 

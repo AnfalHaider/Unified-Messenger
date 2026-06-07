@@ -31,15 +31,169 @@
   };
 
   /**
+   * Labels that Meta (and other platforms) use for chrome — not customer names.
+   * Must stay aligned with ConversationKeyResolver.IsGenericConversationLabel in C#.
+   */
+  window.__umGenericConversationLabels = {
+    inbox: true,
+    messages: true,
+    'message requests': true,
+    messenger: true,
+    'meta business inbox': true,
+    'meta business suite': true,
+    'all messages': true,
+    unread: true,
+    archived: true,
+    spam: true
+  };
+
+  window.__umIsGenericConversationLabel = function (value) {
+    var normalized = window.__umCollapseWhitespace(value).toLowerCase();
+    if (!normalized) {
+      return true;
+    }
+
+    if (window.__umGenericConversationLabels[normalized]) {
+      return true;
+    }
+
+    return /^(meta business( suite)? inbox|business inbox|customer messages)$/i.test(normalized);
+  };
+
+  window.__umHashConversationFingerprint = function (text) {
+    var value = String(text || '');
+    var hash = 0;
+    for (var i = 0; i < value.length; i++) {
+      hash = ((hash << 5) - hash) + value.charCodeAt(i);
+      hash |= 0;
+    }
+
+    return 'meta:msg:' + Math.abs(hash).toString(16);
+  };
+
+  window.__umResolveMetaSelectedThread = function () {
+    var selectors = [
+      '[data-pagelet="BizInbox"] [aria-selected="true"]',
+      '[data-pagelet*="inbox" i] [aria-selected="true"]',
+      '[data-pagelet="BizInbox"] [role="row"][tabindex="0"]',
+      '[role="gridcell"][aria-selected="true"]',
+      '[role="row"][aria-selected="true"]'
+    ];
+
+    for (var s = 0; s < selectors.length; s++) {
+      try {
+        var node = document.querySelector(selectors[s]);
+        if (!node) {
+          continue;
+        }
+
+        var raw = window.__umCollapseWhitespace(node.textContent || node.innerText || '');
+        if (raw.length < 2) {
+          continue;
+        }
+
+        var firstLine = raw.split(/\n/)[0].trim();
+        var candidate = firstLine.split(/[·•|-]/)[0].trim();
+        if (candidate && !window.__umIsGenericConversationLabel(candidate)) {
+          return candidate;
+        }
+      } catch (error) {
+        console.warn('[UnifiedMessenger] meta selected-thread selector failed', selectors[s], error);
+      }
+    }
+
+    return '';
+  };
+
+  window.__umResolvePlatformConversationIdentity = function (platform, options) {
+    options = options || {};
+    var platformKey = String(platform || 'generic').toLowerCase();
+    var headerTitle = window.__umCollapseWhitespace(options.headerTitle || options.conversationHint || '');
+    var messagePreview = window.__umCollapseWhitespace(options.messagePreview || options.messageText || '');
+    var explicitKey = window.__umCollapseWhitespace(options.conversationKey || '');
+
+    if (platformKey === 'metabusiness') {
+      if (explicitKey && !window.__umIsGenericConversationLabel(explicitKey)) {
+        var explicitCustomer = window.__umCollapseWhitespace(options.customerName || '') ||
+          explicitKey.split(/[·•|-]/)[0].trim();
+        return {
+          customerName: explicitCustomer || 'Customer',
+          conversationKey: explicitKey,
+          conversationHint: explicitKey
+        };
+      }
+
+      var selected = window.__umResolveMetaSelectedThread();
+      var customerName = selected;
+
+      if (!customerName && !window.__umIsGenericConversationLabel(headerTitle)) {
+        customerName = headerTitle.split(/[·•|-]/)[0].trim();
+      }
+
+      var hintedCustomer = window.__umCollapseWhitespace(options.customerName || '');
+      if (!customerName && hintedCustomer && !window.__umIsGenericConversationLabel(hintedCustomer)) {
+        customerName = hintedCustomer.split(/[·•|-]/)[0].trim();
+      }
+
+      if (!customerName || window.__umIsGenericConversationLabel(customerName)) {
+        customerName = messagePreview.length >= 8
+          ? messagePreview.slice(0, 48).trim()
+          : 'Customer';
+      }
+
+      var conversationKey = customerName;
+      if (window.__umIsGenericConversationLabel(conversationKey) ||
+          conversationKey === 'Customer' ||
+          (messagePreview.length >= 8 && conversationKey === messagePreview.slice(0, 48).trim())) {
+        conversationKey = messagePreview.length >= 8
+          ? window.__umHashConversationFingerprint(messagePreview)
+          : 'unknown';
+      }
+
+      return {
+        customerName: customerName,
+        conversationKey: conversationKey,
+        conversationHint: conversationKey
+      };
+    }
+
+    var conversationKey = window.__umResolveConversationKey(platformKey, options);
+    var customer = window.__umCollapseWhitespace(options.customerName || '');
+    if (!customer && headerTitle && !window.__umIsGenericConversationLabel(headerTitle)) {
+      customer = headerTitle.split(/[·•|-]/)[0].trim();
+    }
+
+    if (!customer) {
+      customer = conversationKey.replace(/^review:/, '') || 'Customer';
+    }
+
+    return {
+      customerName: customer,
+      conversationKey: conversationKey,
+      conversationHint: conversationKey
+    };
+  };
+
+  /**
    * Canonical conversation key — must stay aligned with ConversationKeyResolver.cs.
-   * WhatsApp: JID; Google: review:{id}; Meta: header title; fallback: customer name.
+   * WhatsApp: JID; Google: review:{id}; Meta: participant or message fingerprint; fallback: customer name.
    */
   window.__umResolveConversationKey = function (platform, options) {
     options = options || {};
+    var platformKey = String(platform || 'generic').toLowerCase();
+
+    if (platformKey === 'metabusiness') {
+      return window.__umResolvePlatformConversationIdentity(platformKey, options).conversationKey;
+    }
+
     var explicit = window.__umCollapseWhitespace(options.conversationKey || '');
     if (explicit) {
       if (/^review:/i.test(explicit)) {
         return 'review:' + explicit.replace(/^review:/i, '').trim();
+      }
+
+      if (/^meta:msg:/i.test(explicit)) {
+        return explicit.toLowerCase();
       }
 
       return explicit;
@@ -57,12 +211,76 @@
     }
 
     var headerTitle = window.__umCollapseWhitespace(options.headerTitle || options.conversationHint || '');
-    if (headerTitle) {
+    if (headerTitle && !window.__umIsGenericConversationLabel(headerTitle)) {
       return headerTitle;
     }
 
     var customer = window.__umCollapseWhitespace(options.customerName || '');
-    return customer || 'unknown';
+    if (customer && !window.__umIsGenericConversationLabel(customer)) {
+      return customer;
+    }
+
+    var messagePreview = window.__umCollapseWhitespace(options.messagePreview || options.messageText || '');
+    if (messagePreview.length >= 8) {
+      return messagePreview.length <= 48 ? messagePreview : messagePreview.slice(0, 48).trim();
+    }
+
+    return 'unknown';
+  };
+
+  window.__umFocusConversation = function (platform, conversationKey, customerName) {
+    var platformKey = String(platform || '').toLowerCase();
+    var key = window.__umCollapseWhitespace(conversationKey || '');
+    var name = window.__umCollapseWhitespace(customerName || '');
+
+    if (platformKey === 'metabusiness') {
+      var searchTerm = name;
+      if (!searchTerm || window.__umIsGenericConversationLabel(searchTerm)) {
+        searchTerm = key.indexOf('meta:msg:') === 0 ? '' : key.split(/[·•|-]/)[0].trim();
+      }
+
+      if (!searchTerm || window.__umIsGenericConversationLabel(searchTerm)) {
+        return false;
+      }
+
+      var rows = document.querySelectorAll(
+        '[data-pagelet="BizInbox"] [role="row"], [data-pagelet*="inbox" i] [role="row"], [role="gridcell"]'
+      );
+      var needle = searchTerm.toLowerCase();
+      for (var i = 0; i < rows.length; i++) {
+        var rowText = window.__umCollapseWhitespace(rows[i].textContent || rows[i].innerText || '').toLowerCase();
+        if (rowText.indexOf(needle) >= 0) {
+          rows[i].click();
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    if (platformKey === 'googlebusiness' && /^review:/i.test(key)) {
+      var reviewId = key.replace(/^review:/i, '').trim();
+      var reviewNode = document.querySelector('[data-review-id="' + reviewId + '"]');
+      if (reviewNode) {
+        reviewNode.click();
+        return true;
+      }
+    }
+
+    if (platformKey === 'whatsapp' || platformKey === 'whatsappbusiness') {
+      var jidNeedle = key.toLowerCase();
+      var titles = document.querySelectorAll('#pane-side span[title], #side span[title], header span[title]');
+      for (var t = 0; t < titles.length; t++) {
+        var title = window.__umCollapseWhitespace(titles[t].getAttribute('title') || titles[t].textContent || '');
+        if (title.toLowerCase().indexOf(jidNeedle) >= 0 ||
+            (name && title.toLowerCase().indexOf(name.toLowerCase()) >= 0)) {
+          titles[t].click();
+          return true;
+        }
+      }
+    }
+
+    return false;
   };
 
   window.__umShouldIncludeMutedBadges = function () {
@@ -467,12 +685,22 @@
 
       lastOutgoingSignature = signature;
       var chatHint = resolveChatHint();
-      var conversationKey = window.__umResolveConversationKey(platform, {
-        headerTitle: chatHint,
-        conversationHint: chatHint,
-        customerName: chatHint
-      });
-      window.__umEmitMessageSent(instanceId, platform, 'dom-outgoing', chatHint, conversationKey);
+      var identity = typeof window.__umResolvePlatformConversationIdentity === 'function'
+        ? window.__umResolvePlatformConversationIdentity(platform, {
+            headerTitle: chatHint,
+            customerName: chatHint,
+            messagePreview: signature
+          })
+        : null;
+      var conversationKey = identity
+        ? identity.conversationKey
+        : window.__umResolveConversationKey(platform, {
+            headerTitle: chatHint,
+            conversationHint: chatHint,
+            customerName: chatHint
+          });
+      var resolvedHint = identity ? identity.customerName : chatHint;
+      window.__umEmitMessageSent(instanceId, platform, 'dom-outgoing', resolvedHint, conversationKey);
     }
 
     function scheduleDomCheck() {

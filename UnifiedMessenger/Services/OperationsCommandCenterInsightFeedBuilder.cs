@@ -153,9 +153,12 @@ public static class OperationsCommandCenterInsightFeedBuilder
             return false;
         }
 
+        var threadId = BuildConversationKey(
+            triageItem.InstanceId,
+            triageItem.ConversationKey,
+            ResolveCustomerName(triageItem));
         var thread = threadOperations.AllThreads.FirstOrDefault(candidate =>
-            candidate.InstanceId.Equals(triageItem.InstanceId, StringComparison.OrdinalIgnoreCase) &&
-            candidate.CustomerName.Equals(ResolveCustomerName(triageItem), StringComparison.OrdinalIgnoreCase));
+            candidate.ThreadId.Equals(threadId, StringComparison.OrdinalIgnoreCase));
 
         return thread is not null && !string.IsNullOrWhiteSpace(thread.NextActionSummary);
     }

@@ -339,15 +339,30 @@
       return;
     }
 
-    var conversationKey = resolveConversationKey(profile, platformKey);
+    var headerTitle = resolveHeaderTitle(profile);
+    var identity = typeof window.__umResolvePlatformConversationIdentity === 'function'
+      ? window.__umResolvePlatformConversationIdentity(PLATFORM, {
+          headerTitle: headerTitle,
+          messagePreview: cleanedText,
+          reviewId: platformKey === 'googlebusiness' ? resolveGoogleReviewId() : '',
+          chatJid: (platformKey === 'whatsapp' || platformKey === 'whatsappbusiness')
+            ? resolveWhatsAppJid(profile)
+            : ''
+        })
+      : null;
+
+    var conversationKey = identity
+      ? identity.conversationKey
+      : resolveConversationKey(profile, platformKey);
     if (platformKey === 'googlebusiness' && conversationKey.indexOf('review:') !== 0) {
       return;
     }
 
-    var headerTitle = resolveHeaderTitle(profile);
-    var customerName = headerTitle.split(/[·•|-]/)[0].trim() ||
-      conversationKey.replace(/^review:/, '') ||
-      'Customer';
+    var customerName = identity
+      ? identity.customerName
+      : headerTitle.split(/[·•|-]/)[0].trim() ||
+        conversationKey.replace(/^review:/, '') ||
+        'Customer';
     var signature = cleanedText + '|' + conversationKey;
     var now = Date.now();
 

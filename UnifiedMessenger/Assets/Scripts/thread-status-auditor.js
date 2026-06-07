@@ -183,8 +183,16 @@
       reviewId = reviewNode.getAttribute('data-review-id') || '';
     }
 
+    var platformId = snapshotPlatform(profile);
+    if (typeof window.__umResolvePlatformConversationIdentity === 'function') {
+      return window.__umResolvePlatformConversationIdentity(platformId, {
+        reviewId: reviewId,
+        headerTitle: headerTitle
+      }).conversationKey;
+    }
+
     if (typeof window.__umResolveConversationKey === 'function') {
-      return window.__umResolveConversationKey(snapshotPlatform(profile), {
+      return window.__umResolveConversationKey(platformId, {
         reviewId: reviewId,
         headerTitle: headerTitle
       });
@@ -296,7 +304,7 @@
     return queryFirst(profile.conversationRootSelectors);
   }
 
-  function inspectActiveThread(profile) {
+  function inspectActiveThread(profile, platformKey) {
     var root = findConversationRoot(profile);
     if (!root) {
       return null;
@@ -313,9 +321,20 @@
       return null;
     }
 
+    var customerName = conversationKey.replace(/^review:/, '') || 'Customer';
+    if (typeof window.__umResolvePlatformConversationIdentity === 'function' && platformKey) {
+      var identity = window.__umResolvePlatformConversationIdentity(platformKey, {
+        headerTitle: conversationKey,
+        conversationKey: conversationKey
+      });
+      if (identity.customerName) {
+        customerName = identity.customerName;
+      }
+    }
+
     return {
       conversationKey: conversationKey,
-      customerName: conversationKey.replace(/^review:/, '') || 'Customer',
+      customerName: customerName,
       isOutgoing: profile.isOutgoingMessage(newest),
       signature: conversationKey + '|' + (profile.isOutgoingMessage(newest) ? 'out' : 'in')
     };
@@ -366,7 +385,7 @@
       rafScheduled = false;
 
       try {
-        var snapshot = inspectActiveThread(profile);
+        var snapshot = inspectActiveThread(profile, platform);
         if (!snapshot || !snapshot.conversationKey) {
           return;
         }

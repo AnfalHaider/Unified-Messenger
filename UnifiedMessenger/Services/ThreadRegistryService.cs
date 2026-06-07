@@ -131,7 +131,7 @@ public sealed class ThreadRegistryService
         thread.EstimatedValue = spam ? 0 : estimatedValue ?? item.EstimatedValue;
         thread.IsRevenueLeakageRisk = spam
             ? false
-            : isRevenueLeakageRisk ?? EvaluateRevenueLeakage(thread);
+            : isRevenueLeakageRisk ?? (item.IsRevenueLeakageRisk || EvaluateRevenueLeakage(thread));
 
         NotifyChanged();
     }
@@ -208,7 +208,7 @@ public sealed class ThreadRegistryService
                 changed = true;
             }
 
-            var leakage = EvaluateRevenueLeakage(thread);
+            var leakage = thread.IsRevenueLeakageRisk || EvaluateRevenueLeakage(thread);
             if (thread.IsRevenueLeakageRisk != leakage)
             {
                 thread.IsRevenueLeakageRisk = leakage;

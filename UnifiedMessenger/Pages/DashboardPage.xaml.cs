@@ -155,6 +155,8 @@ public sealed partial class DashboardPage : Page
         }
 
         RefreshDashboardDataButton.IsEnabled = false;
+        var originalContent = RefreshDashboardDataButton.Content;
+        RefreshDashboardDataButton.Content = "Refreshing…";
         try
         {
             ScheduleBackfillRetryIfNeeded();
@@ -165,6 +167,7 @@ public sealed partial class DashboardPage : Page
         finally
         {
             RefreshDashboardDataButton.IsEnabled = true;
+            RefreshDashboardDataButton.Content = originalContent;
         }
     }
 

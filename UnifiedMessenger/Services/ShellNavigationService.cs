@@ -9,7 +9,7 @@ public sealed class ShellNavigationService
 
     public static ShellNavigationService Instance => LazyInstance.Value;
 
-    public event EventHandler<string>? InstanceLaunchRequested;
+    public event EventHandler<InstanceNavigationRequest>? InstanceNavigationRequested;
 
     public event EventHandler? DashboardRefreshRequested;
 
@@ -19,19 +19,29 @@ public sealed class ShellNavigationService
 
     public event EventHandler? InstanceRegistryRefreshRequested;
 
+    public event EventHandler? AddInstanceRequested;
+
     internal static ShellNavigationService CreateForTests() => new();
 
     internal static bool IsValidInstanceId(string? instanceId) =>
         !string.IsNullOrWhiteSpace(instanceId);
 
-    public void RequestInstance(string instanceId)
+    public void RequestInstance(string instanceId) =>
+        RequestInstance(instanceId, conversationKey: null, customerName: null);
+
+    public void RequestInstance(string instanceId, string? conversationKey, string? customerName = null)
     {
         if (!IsValidInstanceId(instanceId))
         {
             return;
         }
 
-        InstanceLaunchRequested?.Invoke(this, instanceId.Trim());
+        InstanceNavigationRequested?.Invoke(this, new InstanceNavigationRequest
+        {
+            InstanceId = instanceId.Trim(),
+            ConversationKey = string.IsNullOrWhiteSpace(conversationKey) ? null : conversationKey.Trim(),
+            CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim()
+        });
     }
 
     public void RequestDashboardRefresh()
@@ -57,5 +67,10 @@ public sealed class ShellNavigationService
     public void RequestInstanceRegistryRefresh()
     {
         InstanceRegistryRefreshRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void RequestAddInstance()
+    {
+        AddInstanceRequested?.Invoke(this, EventArgs.Empty);
     }
 }

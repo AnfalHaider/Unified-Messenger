@@ -141,11 +141,15 @@ public sealed class MessageTriageService
 
     internal void ResetForTests(IEnumerable<MessageTriageItem> items)
     {
+        DrainPendingQueue();
+        RestoreItems(items);
+    }
+
+    internal void DrainPendingQueue()
+    {
         while (_channel.Reader.TryRead(out _))
         {
         }
-
-        RestoreItems(items);
     }
 
     public MessageTriageDashboardSnapshot BuildSnapshot(IEnumerable<MessengerInstance> professionalInstances)
@@ -333,7 +337,7 @@ public sealed class MessageTriageService
         ThreadRegistryService.Instance.UpsertFromTriageItem(
             updated,
             job.ConversationHint,
-            BranchNameResolver.Resolve(job.InstanceDisplayName),
+            string.IsNullOrWhiteSpace(updated.BranchName) ? baseline.BranchName : updated.BranchName,
             updated.NextActionSummary,
             updated.AiIntentCategory,
             updated.ClientSentiment,

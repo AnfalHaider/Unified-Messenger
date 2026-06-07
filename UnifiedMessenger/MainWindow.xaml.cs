@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -100,22 +101,27 @@ public sealed partial class MainWindow : Window
     private void AttachShellNavigationHandlers()
     {
         var shell = ShellNavigationService.Instance;
-        shell.InstanceLaunchRequested += OnShellInstanceLaunchRequested;
+        shell.InstanceNavigationRequested += OnShellInstanceNavigationRequested;
         shell.DashboardRefreshRequested += OnShellDashboardRefreshRequested;
         shell.ArchivedInstanceRestoreRequested += OnArchivedInstanceRestoreRequested;
         shell.LayoutRefreshRequested += OnShellLayoutRefreshRequested;
         shell.InstanceRegistryRefreshRequested += OnShellInstanceRegistryRefreshRequested;
+        shell.AddInstanceRequested += OnShellAddInstanceRequested;
     }
 
     private void DetachShellNavigationHandlers()
     {
         var shell = ShellNavigationService.Instance;
-        shell.InstanceLaunchRequested -= OnShellInstanceLaunchRequested;
+        shell.InstanceNavigationRequested -= OnShellInstanceNavigationRequested;
         shell.DashboardRefreshRequested -= OnShellDashboardRefreshRequested;
         shell.ArchivedInstanceRestoreRequested -= OnArchivedInstanceRestoreRequested;
         shell.LayoutRefreshRequested -= OnShellLayoutRefreshRequested;
         shell.InstanceRegistryRefreshRequested -= OnShellInstanceRegistryRefreshRequested;
+        shell.AddInstanceRequested -= OnShellAddInstanceRequested;
     }
+
+    private void OnShellAddInstanceRequested(object? sender, EventArgs e) =>
+        _ = ShowAddInstanceDialogAsync();
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
     {
@@ -590,9 +596,35 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnShellInstanceLaunchRequested(object? sender, string instanceId)
+    private void OnShellInstanceNavigationRequested(object? sender, InstanceNavigationRequest request)
     {
-        DispatcherQueue.TryEnqueue(() => _ = SelectInstanceAsync(instanceId));
+        DispatcherQueue.TryEnqueue(() => _ = NavigateToInstanceAsync(request));
+    }
+
+    private async Task NavigateToInstanceAsync(InstanceNavigationRequest request)
+    {
+        await SelectInstanceAsync(request.InstanceId).ConfigureAwait(true);
+
+        if (!request.HasConversationTarget)
+        {
+            return;
+        }
+
+        await Task.Delay(900).ConfigureAwait(true);
+
+        var instance = _registry.FindById(request.InstanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        var platform = JsonSerializer.Serialize(PlatformDefinition.NormalizePlatformId(instance.Platform));
+        var conversationKey = JsonSerializer.Serialize(request.ConversationKey ?? string.Empty);
+        var customerName = JsonSerializer.Serialize(request.CustomerName ?? string.Empty);
+        var script =
+            $"window.__umFocusConversation && window.__umFocusConversation({platform}, {conversationKey}, {customerName});";
+
+        await _sessionManager.ExecuteScriptOnInstanceAsync(request.InstanceId, script).ConfigureAwait(true);
     }
 
     private async Task ShowDashboardAsync()
@@ -1035,18 +1067,13 @@ public sealed partial class MainWindow : Window
 
     private void TitleBar_PaneToggleRequested(TitleBar sender, object args)
     {
-        if (_panePinned)
-        {
-            return;
-        }
-
         if (SidebarColumn.Width.Value > 0)
         {
             SidebarColumn.Width = new GridLength(0);
         }
         else
         {
-            _sidebarHoverExpanded = false;
+            _sidebarHoverExpanded = _panePinned;
             ApplySidebarLayout(forceVisible: true);
         }
     }
