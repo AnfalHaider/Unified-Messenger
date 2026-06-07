@@ -14,6 +14,7 @@ public sealed class UnifiedMessengerSerialGate
     public UnifiedMessengerSerialGate()
     {
         ThreadRegistryService.Instance.RestoreThreads([]);
+        MessageTriageService.Instance.ResetForTests([]);
         OllamaInferenceCoordinator.Instance.SetActivityForTests(OllamaInferenceActivity.Idle);
     }
 }

@@ -137,6 +137,15 @@ public sealed class MessageTriageService
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    internal void ResetForTests(IEnumerable<MessageTriageItem> items)
+    {
+        while (_channel.Reader.TryRead(out _))
+        {
+        }
+
+        RestoreItems(items);
+    }
+
     public MessageTriageDashboardSnapshot BuildSnapshot(IEnumerable<MessengerInstance> professionalInstances)
     {
         var allowedIds = professionalInstances

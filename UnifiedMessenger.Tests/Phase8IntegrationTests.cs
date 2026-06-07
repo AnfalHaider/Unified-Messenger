@@ -119,7 +119,7 @@ public class Phase8PipelineIntegrationTests : IDisposable
     {
         BackfillDedupeRegistry.ClearForTests();
         RichTriageStoreService.Instance.SetLoadedForTests();
-        MessageTriageService.Instance.RestoreItems([]);
+        MessageTriageService.Instance.ResetForTests([]);
 
         var instanceId = "phase8-dedupe-" + Guid.NewGuid().ToString("N");
         var selection = new InboundMessageSelection
@@ -134,6 +134,17 @@ public class Phase8PipelineIntegrationTests : IDisposable
 
         MessageTriageService.Instance.Enqueue(selection, "Branch");
         await WaitForItemsAsync(instanceId, 1);
+
+        Assert.False(BackfillDedupeRegistry.TryAccept(
+            instanceId,
+            selection.Platform,
+            ConversationKeyResolver.Resolve(
+                selection.Platform,
+                selection.ConversationKey,
+                selection.ConversationHint,
+                selection.CustomerName,
+                selection.MessageText),
+            selection.MessageText));
 
         MessageTriageService.Instance.Enqueue(selection, "Branch");
         await Task.Delay(200);

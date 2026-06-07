@@ -2,6 +2,7 @@ using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Tests.Backfill;
 
+[Collection(UnifiedMessengerSerialCollection.Name)]
 public class BackfillDedupeRegistryTests
 {
     [Fact]

@@ -6,6 +6,7 @@ using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Tests;
 
+[Collection(UnifiedMessengerSerialCollection.Name)]
 public class WhatsAppInboundTriageTests
 {
     [Fact]
