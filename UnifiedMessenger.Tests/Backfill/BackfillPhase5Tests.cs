@@ -4,6 +4,7 @@ using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Tests.Backfill;
 
+[Collection(UnifiedMessengerSerialCollection.Name)]
 public class WhatsAppBackfillProviderTests
 {
     [Theory]
@@ -27,6 +28,7 @@ public class WhatsAppBackfillProviderTests
     }
 }
 
+[Collection(UnifiedMessengerSerialCollection.Name)]
 public class BackfillPhase5Tests : IDisposable
 {
     public BackfillPhase5Tests()
@@ -164,8 +166,28 @@ public class BackfillPhase5Tests : IDisposable
 
         BackfillSyncManager.Instance.Schedule(instance, force: true);
 
-        await Task.Delay(100);
+        await WaitForStateAsync(instance.Id, BackfillSyncState.Running, TimeSpan.FromSeconds(2));
         Assert.Equal(BackfillSyncState.Running, BackfillSyncManager.Instance.GetState(instance.Id));
+    }
+
+    private static async Task WaitForStateAsync(
+        string instanceId,
+        BackfillSyncState expected,
+        TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (BackfillSyncManager.Instance.GetState(instanceId) == expected)
+            {
+                return;
+            }
+
+            await Task.Delay(25);
+        }
+
+        throw new TimeoutException(
+            $"Expected backfill state {expected} for {instanceId}, got {BackfillSyncManager.Instance.GetState(instanceId)}.");
     }
 
     public void Dispose()

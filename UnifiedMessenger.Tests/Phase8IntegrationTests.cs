@@ -121,9 +121,10 @@ public class Phase8PipelineIntegrationTests : IDisposable
         RichTriageStoreService.Instance.SetLoadedForTests();
         MessageTriageService.Instance.RestoreItems([]);
 
+        var instanceId = "phase8-dedupe-" + Guid.NewGuid().ToString("N");
         var selection = new InboundMessageSelection
         {
-            InstanceId = "phase8-dedupe-" + Guid.NewGuid().ToString("N"),
+            InstanceId = instanceId,
             Platform = "whatsappbusiness",
             MessageText = "Duplicate preview body for ingress dedupe validation.",
             CustomerName = "Alex",
@@ -132,11 +133,15 @@ public class Phase8PipelineIntegrationTests : IDisposable
         };
 
         MessageTriageService.Instance.Enqueue(selection, "Branch");
-        await WaitForItemsAsync(1);
+        await WaitForItemsAsync(instanceId, 1);
 
         MessageTriageService.Instance.Enqueue(selection, "Branch");
-        await Task.Delay(150);
-        Assert.Single(MessageTriageService.Instance.GetAllItems());
+        await Task.Delay(200);
+
+        var scopedItems = MessageTriageService.Instance.GetAllItems()
+            .Where(item => item.InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        Assert.Single(scopedItems);
     }
 
     [Fact]
@@ -230,12 +235,14 @@ public class Phase8PipelineIntegrationTests : IDisposable
             Category = WorkspaceCategory.Professional
         };
 
-    private static async Task WaitForItemsAsync(int expectedCount)
+    private static async Task WaitForItemsAsync(string instanceId, int expectedCount)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(2);
+        var deadline = DateTime.UtcNow.AddSeconds(3);
         while (DateTime.UtcNow < deadline)
         {
-            if (MessageTriageService.Instance.GetAllItems().Count >= expectedCount)
+            var count = MessageTriageService.Instance.GetAllItems()
+                .Count(item => item.InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+            if (count >= expectedCount)
             {
                 return;
             }
@@ -243,7 +250,8 @@ public class Phase8PipelineIntegrationTests : IDisposable
             await Task.Delay(25);
         }
 
-        throw new TimeoutException($"Expected at least {expectedCount} triage item(s).");
+        throw new TimeoutException(
+            $"Expected at least {expectedCount} triage item(s) for {instanceId}.");
     }
 
     private sealed class CountingTriageLlmClient : ITriageLlmClient

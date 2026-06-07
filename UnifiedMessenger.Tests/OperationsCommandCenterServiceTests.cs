@@ -51,6 +51,9 @@ public class OperationsCommandCenterServiceTests : IDisposable
     [Fact]
     public void BuildSnapshot_branchFilter_matchesThreadDashboardParity()
     {
+        ThreadRegistryService.Instance.RestoreThreads([]);
+        MessageTriageService.Instance.RestoreItems([]);
+
         ThreadRegistryService.Instance.UpsertFromTriageItem(
             CreateTriageItem("f11", "Sara", "Facial booking"),
             "Sara",
@@ -78,6 +81,8 @@ public class OperationsCommandCenterServiceTests : IDisposable
 
         Assert.Single(facadeSnapshot.FilteredInstances);
         Assert.Equal("f11", facadeSnapshot.FilteredInstances[0].Id);
+        Assert.Equal(1, threadSnapshot.OpenThreadCount);
+        Assert.Equal(1, facadeSnapshot.Status.OpenThreadCount);
         Assert.Equal(threadSnapshot.OpenThreadCount, facadeSnapshot.Status.OpenThreadCount);
         Assert.Equal(threadSnapshot.ImmediateActionCount, facadeSnapshot.Status.ImmediateActionCount);
         Assert.Contains("F-11", facadeSnapshot.ScopeLabel, StringComparison.OrdinalIgnoreCase);

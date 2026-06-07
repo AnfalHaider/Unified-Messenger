@@ -4,6 +4,7 @@ using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Tests.Backfill;
 
+[Collection(UnifiedMessengerSerialCollection.Name)]
 public class BackfillSyncManagerTests : IDisposable
 {
     private readonly bool _originalEnableBackfill;
