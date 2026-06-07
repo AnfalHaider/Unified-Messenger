@@ -157,30 +157,60 @@
 
   function resolveConversationKey(profile, root) {
     var header = queryFirst(profile.headerSelectors, root);
+    var headerTitle = '';
     if (header) {
       var title = header.getAttribute && header.getAttribute('title');
       if (title) {
-        var fromTitle = normalize(title);
-        if (fromTitle && !looksLikeIconLigature(fromTitle)) {
-          return fromTitle;
+        headerTitle = normalize(title);
+        if (headerTitle && !looksLikeIconLigature(headerTitle)) {
+          // fall through to unified resolver below
+        } else {
+          headerTitle = '';
         }
       }
 
-      var text = normalize(header.textContent || header.innerText || '');
-      if (text && !looksLikeIconLigature(text)) {
-        return text;
+      if (!headerTitle) {
+        var text = normalize(header.textContent || header.innerText || '');
+        if (text && !looksLikeIconLigature(text)) {
+          headerTitle = text;
+        }
       }
     }
 
+    var reviewId = '';
     var reviewNode = queryFirst(['[data-review-id]'], root);
     if (reviewNode) {
-      var reviewId = reviewNode.getAttribute('data-review-id');
-      if (reviewId) {
-        return 'review:' + reviewId;
-      }
+      reviewId = reviewNode.getAttribute('data-review-id') || '';
     }
 
-    return '';
+    if (typeof window.__umResolveConversationKey === 'function') {
+      return window.__umResolveConversationKey(snapshotPlatform(profile), {
+        reviewId: reviewId,
+        headerTitle: headerTitle
+      });
+    }
+
+    if (reviewId) {
+      return 'review:' + reviewId;
+    }
+
+    return headerTitle || '';
+  }
+
+  function snapshotPlatform(profile) {
+    if (profile === PLATFORM_PROFILES.metabusiness) {
+      return 'metabusiness';
+    }
+
+    if (profile === PLATFORM_PROFILES.googlebusiness) {
+      return 'googlebusiness';
+    }
+
+    if (profile === PLATFORM_PROFILES.whatsappbusiness) {
+      return 'whatsappbusiness';
+    }
+
+    return 'whatsapp';
   }
 
   function isWhatsAppOutgoing(container) {
@@ -301,14 +331,6 @@
       source: 'thread-status-auditor',
       timestamp: new Date().toISOString()
     });
-
-    if (typeof window.__umEmitMessageSent === 'function') {
-      window.__umEmitMessageSent(
-        instanceId,
-        snapshot.platform || '',
-        'thread-status-auditor',
-        snapshot.conversationKey);
-    }
   }
 
   function resolveProfile(platform, overrideProfile) {

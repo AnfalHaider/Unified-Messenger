@@ -8,7 +8,6 @@ namespace UnifiedMessenger.Services;
 public sealed class MessageTriageService
 {
     private const int MaxQueueCapacity = 64;
-    private const int MaxInferenceQueueCapacity = 32;
     private const int MaxStoredItems = 200;
     private static readonly TimeSpan RetentionWindow = TimeSpan.FromHours(48);
 
@@ -24,17 +23,8 @@ public sealed class MessageTriageService
             SingleWriter = false
         });
 
-    private readonly Channel<RichTriageInferenceJob> _inferenceChannel =
-        Channel.CreateBounded<RichTriageInferenceJob>(new BoundedChannelOptions(MaxInferenceQueueCapacity)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
-            SingleWriter = false
-        });
-
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _worker;
-    private readonly Task _inferenceWorker;
     private readonly MessageTriageInferenceRunner _inferenceRunner;
 
     private MessageTriageService(bool startBackgroundWorker, MessageTriageInferenceRunner? inferenceRunner = null)
@@ -43,12 +33,10 @@ public sealed class MessageTriageService
         if (startBackgroundWorker)
         {
             _worker = Task.Run(ProcessQueueAsync);
-            _inferenceWorker = Task.Run(ProcessInferenceQueueAsync);
         }
         else
         {
             _worker = Task.CompletedTask;
-            _inferenceWorker = Task.CompletedTask;
         }
     }
 
@@ -73,6 +61,11 @@ public sealed class MessageTriageService
         bool skipDedupeCheck = false)
     {
         ArgumentNullException.ThrowIfNull(selection);
+        if (!RichTriageStoreService.Instance.IsLoaded)
+        {
+            return;
+        }
+
         var cleanedMessage = ConversationNoiseFilter.CleanForInference(selection.MessageText);
         if (string.IsNullOrWhiteSpace(cleanedMessage))
         {
@@ -83,24 +76,36 @@ public sealed class MessageTriageService
             !BackfillDedupeRegistry.TryAccept(
                 selection.InstanceId,
                 selection.Platform,
-                selection.ConversationHint,
+                ResolveDedupeKey(selection),
                 selection.MessageText))
         {
             return;
         }
 
-        _ = _channel.Writer.TryWrite(new MessageTriageRequest
+        _ = ChannelWriteHelper.TryWriteWithDropLog(
+            _channel.Writer,
+            new MessageTriageRequest
         {
             InstanceId = selection.InstanceId,
             InstanceDisplayName = instanceDisplayName ?? selection.InstanceId,
             Platform = selection.Platform,
             MessageText = cleanedMessage,
             CustomerName = selection.CustomerName,
+            ConversationKey = selection.ConversationKey,
             ConversationHint = selection.ConversationHint,
             TimestampUtc = selection.TimestampUtc,
             AllowLlmInference = allowLlmInference
-        });
+        },
+            "MessageTriage");
     }
+
+    private static string ResolveDedupeKey(InboundMessageSelection selection) =>
+        ConversationKeyResolver.Resolve(
+            selection.Platform,
+            selection.ConversationKey,
+            selection.ConversationHint,
+            selection.CustomerName,
+            selection.MessageText);
 
     public IReadOnlyList<MessageTriageItem> GetAllItems() =>
         _items.Values
@@ -145,11 +150,9 @@ public sealed class MessageTriageService
             .ThenByDescending(item => item.TimestampUtc)
             .ToList();
 
-        var positive = items.Count(item => item.Sentiment == MessageSentiment.Positive);
-        var neutral = items.Count(item => item.Sentiment == MessageSentiment.Neutral);
-        var negative = items.Count(item => item.Sentiment == MessageSentiment.Negative);
-
-        var urgentThreshold = DashboardCardEmptyStateHelper.GetUrgentScoreThreshold();
+        var positive = items.Count(IsPositiveSentiment);
+        var neutral = items.Count(IsNeutralSentiment);
+        var negative = items.Count(IsNegativeSentiment);
 
         return new MessageTriageDashboardSnapshot
         {
@@ -157,11 +160,11 @@ public sealed class MessageTriageService
             NeutralCount = neutral,
             NegativeCount = negative,
             UrgentQueue = items
-                .Where(item => item.UrgencyScore >= urgentThreshold)
+                .Where(DashboardCardEmptyStateHelper.IsUrgentQueueItem)
                 .Take(12)
                 .ToList(),
             RecentInbound = items
-                .Where(item => item.UrgencyScore < urgentThreshold)
+                .Where(item => !DashboardCardEmptyStateHelper.IsUrgentQueueItem(item))
                 .OrderByDescending(item => item.TimestampUtc)
                 .Take(DashboardCardEmptyStateHelper.RecentInboundMaxItems)
                 .ToList(),
@@ -178,6 +181,7 @@ public sealed class MessageTriageService
             Platform = selection.Platform,
             MessageText = selection.MessageText.Trim(),
             CustomerName = selection.CustomerName,
+            ConversationKey = selection.ConversationKey,
             ConversationHint = selection.ConversationHint,
             TimestampUtc = selection.TimestampUtc,
             AllowLlmInference = true
@@ -211,35 +215,14 @@ public sealed class MessageTriageService
         }
     }
 
-    internal async Task ProcessInferenceQueueAsync()
+    public void Shutdown()
     {
-        try
-        {
-            await foreach (var job in _inferenceChannel.Reader.ReadAllAsync(_cts.Token).ConfigureAwait(false))
-            {
-                try
-                {
-                    await TriageInferencePriorityBroker
-                        .WaitForBackgroundSlotAsync(_cts.Token)
-                        .ConfigureAwait(false);
-
-                    await ProcessInferenceJobAsync(job, _cts.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (_cts.Token.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Message triage inference failed: {ex.Message}");
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // shutdown
-        }
+        _channel.Writer.TryComplete();
+        _cts.Cancel();
     }
+
+    internal Task WaitForShutdownAsync(TimeSpan timeout) =>
+        _worker.WaitAsync(timeout);
 
     private void ProcessRequest(MessageTriageRequest request)
     {
@@ -257,11 +240,18 @@ public sealed class MessageTriageService
         var preview = messageText.Length <= 220
             ? messageText
             : messageText[..217] + "...";
+        if (ConversationNoiseFilter.IsDomChromePollution(preview))
+        {
+            return;
+        }
         var branchName = BranchNameResolver.Resolve(request.InstanceDisplayName);
-        var conversationKey = string.IsNullOrWhiteSpace(request.ConversationHint)
-            ? request.CustomerName
-            : request.ConversationHint;
-        var threadId = ThreadRegistryService.BuildThreadId(request.InstanceId, conversationKey);
+        var conversationKey = ConversationKeyResolver.Resolve(
+            request.Platform,
+            request.ConversationKey,
+            request.ConversationHint,
+            request.CustomerName,
+            messageText);
+        var threadId = ConversationKeyResolver.BuildThreadId(request.InstanceId, conversationKey);
         var operationalUrgency = isSpam
             ? 1
             : ThreadRegistryService.MapOperationalUrgency(urgency);
@@ -280,6 +270,7 @@ public sealed class MessageTriageService
             InstanceDisplayName = request.InstanceDisplayName,
             Platform = request.Platform,
             MessagePreview = preview,
+            MessageFullText = messageText,
             CustomerName = request.CustomerName,
             UrgencyScore = urgency,
             Sentiment = sentiment,
@@ -307,55 +298,13 @@ public sealed class MessageTriageService
         PruneExpiredItems();
         Changed?.Invoke(this, EventArgs.Empty);
 
-        if (!isSpam)
+        if (!isSpam && request.AllowLlmInference)
         {
-            QueueInferenceJob(
-                new MessageTriageRequest
-                {
-                    InstanceId = request.InstanceId,
-                    InstanceDisplayName = request.InstanceDisplayName,
-                    Platform = request.Platform,
-                    MessageText = messageText,
-                    CustomerName = request.CustomerName,
-                    ConversationHint = request.ConversationHint,
-                    TimestampUtc = request.TimestampUtc,
-                    AllowLlmInference = request.AllowLlmInference
-                },
-                itemId,
-                urgency,
-                sentiment);
+            UnifiedMessengerInsightsEngine.Instance.EnqueueMessageAnalysis(request.InstanceId, itemId);
         }
-
-        UnifiedMessengerInsightsEngine.Instance.EnqueueMessageAnalysis(request.InstanceId, itemId);
     }
 
-    private void QueueInferenceJob(
-        MessageTriageRequest request,
-        string triageItemId,
-        int heuristicUrgency,
-        MessageSentiment heuristicSentiment)
-    {
-        if (!request.AllowLlmInference || !AppSettingsService.Instance.Settings.EnableLocalAi)
-        {
-            return;
-        }
-
-        _ = _inferenceChannel.Writer.TryWrite(new RichTriageInferenceJob
-        {
-            TriageItemId = triageItemId,
-            InstanceId = request.InstanceId,
-            InstanceDisplayName = request.InstanceDisplayName,
-            Platform = request.Platform,
-            MessageText = request.MessageText,
-            CustomerName = request.CustomerName,
-            ConversationHint = request.ConversationHint,
-            TimestampUtc = request.TimestampUtc,
-            HeuristicUrgencyScore = heuristicUrgency,
-            HeuristicSentiment = heuristicSentiment
-        });
-    }
-
-    private async Task ProcessInferenceJobAsync(RichTriageInferenceJob job, CancellationToken cancellationToken)
+    internal async Task ProcessInferenceJobAsync(RichTriageInferenceJob job, CancellationToken cancellationToken)
     {
         if (!_items.TryGetValue(job.TriageItemId, out var baseline))
         {
@@ -425,14 +374,26 @@ public sealed class MessageTriageService
             points.Add(new DailySentimentPoint
             {
                 Label = label,
-                Positive = dayItems.Count(item => item.Sentiment == MessageSentiment.Positive),
-                Neutral = dayItems.Count(item => item.Sentiment == MessageSentiment.Neutral),
-                Negative = dayItems.Count(item => item.Sentiment == MessageSentiment.Negative)
+                Positive = dayItems.Count(IsPositiveSentiment),
+                Neutral = dayItems.Count(IsNeutralSentiment),
+                Negative = dayItems.Count(IsNegativeSentiment)
             });
         }
 
         return points;
     }
+
+    private static bool IsNegativeSentiment(MessageTriageItem item) =>
+        item.Sentiment == MessageSentiment.Negative ||
+        item.ClientSentiment.Equals(ClientSentimentLabel.Critical, StringComparison.OrdinalIgnoreCase) ||
+        item.ClientSentiment.Equals(ClientSentimentLabel.Frustrated, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPositiveSentiment(MessageTriageItem item) =>
+        item.Sentiment == MessageSentiment.Positive ||
+        item.ClientSentiment.Equals(ClientSentimentLabel.Positive, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsNeutralSentiment(MessageTriageItem item) =>
+        !IsNegativeSentiment(item) && !IsPositiveSentiment(item);
 
     private sealed class MessageTriageRequest
     {
@@ -445,6 +406,8 @@ public sealed class MessageTriageService
         public required string MessageText { get; init; }
 
         public string CustomerName { get; init; } = "Customer";
+
+        public string ConversationKey { get; init; } = string.Empty;
 
         public string ConversationHint { get; init; } = string.Empty;
 

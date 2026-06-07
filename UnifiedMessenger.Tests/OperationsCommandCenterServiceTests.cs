@@ -231,8 +231,8 @@ public class OperationsCommandCenterInsightFeedBuilderTests
     [Fact]
     public void BuildConversationKey_isCaseInsensitive()
     {
-        var left = OperationsCommandCenterInsightFeedBuilder.BuildConversationKey("Inst-A", "Sara");
-        var right = OperationsCommandCenterInsightFeedBuilder.BuildConversationKey("inst-a", "sara");
+        var left = OperationsCommandCenterInsightFeedBuilder.BuildConversationKey("Inst-A", "Sara", "Sara");
+        var right = OperationsCommandCenterInsightFeedBuilder.BuildConversationKey("inst-a", "Sara", "sara");
         Assert.Equal(left, right, StringComparer.OrdinalIgnoreCase);
     }
 }

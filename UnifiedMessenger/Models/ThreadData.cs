@@ -1,3 +1,5 @@
+using UnifiedMessenger.Services;
+
 namespace UnifiedMessenger.Models;
 
 /// <summary>
@@ -50,12 +52,15 @@ public sealed class ThreadData
     public string InstanceDisplayName { get; set; } = string.Empty;
 
     public bool IsSlaBreached =>
-        !IsSpamOrPromo && !IsReplied && LatencyMinutes > 15;
+        !IsSpamOrPromo &&
+        !IsReplied &&
+        LatencyMinutes > OperationalThresholds.GetSlaThresholdMinutes();
 
     public bool IsImmediateAction =>
         !IsSpamOrPromo &&
         !IsReplied &&
-        (UrgencyScore >= 4 ||
+        (IsSlaBreached ||
+         UrgencyScore >= 4 ||
          ClientSentiment.Equals(ClientSentimentLabel.Critical, StringComparison.OrdinalIgnoreCase));
 
     public UnifiedMessengerKanbanColumn KanbanColumn =>

@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Backfill;
 using Windows.UI;
 
 namespace UnifiedMessenger.Controls;
@@ -122,6 +123,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         UnifiedMessengerDashboardService.Instance.Changed += OnOperationalDataChanged;
         MessageAnalyticsService.Instance.Changed += OnOperationalDataChanged;
         ProfessionalWorkspaceService.Instance.Changed += OnOperationalDataChanged;
+        BackfillSyncManager.Instance.ProgressChanged += OnOperationalDataChanged;
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -131,6 +133,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         UnifiedMessengerDashboardService.Instance.Changed -= OnOperationalDataChanged;
         MessageAnalyticsService.Instance.Changed -= OnOperationalDataChanged;
         ProfessionalWorkspaceService.Instance.Changed -= OnOperationalDataChanged;
+        BackfillSyncManager.Instance.ProgressChanged -= OnOperationalDataChanged;
         _refreshDebounceTimer.Stop();
     }
 
@@ -177,6 +180,9 @@ public sealed partial class OperationsCommandCenter : UserControl
         AvgReplyTimeValue.Text = status.AverageReplyTime;
         SlaBreachesValue.Text = status.SlaBreaches;
         ResponseRateValue.Text = status.ResponseRate;
+        ImmediateActionCountText.Text = status.ImmediateActionCount.ToString();
+        PeakHourValue.Text = status.PeakHour;
+        DailyTrendValue.Text = status.DailyTrend;
         ApplySubtext(AvgReplyTimeSubtext, status.AverageReplyTimeSubtext);
         ApplySubtext(SlaThresholdSubtext, status.SlaThresholdSubtext);
 
@@ -243,6 +249,10 @@ public sealed partial class OperationsCommandCenter : UserControl
         var metaDisplay = platform.MetaResponseDisplay;
         MetaAverageResponseValue.Text = metaDisplay.AverageResponse;
         MetaEfficiencyRatingValue.Text = metaDisplay.EfficiencyRating;
+        MetaSampleCountValue.Text = $"Samples: {metaDisplay.SampleCount}";
+        MetaLastInboundValue.Text = $"Last inbound: {metaDisplay.LastInbound}";
+        MetaLastReplyValue.Text = $"Last reply: {metaDisplay.LastReply}";
+        ApplySubtext(MetaPendingResponseText, metaDisplay.PendingResponseLabel);
 
         var metaEmptyReason = DashboardCardEmptyStateHelper.ResolveMetaResponseEmptyReason(
             platform.HasMetaInstances,
@@ -285,8 +295,8 @@ public sealed partial class OperationsCommandCenter : UserControl
     {
         WeeklyChart.SetSeries(analytics.WeeklyActivity);
         SentimentChart.SetSeries(analytics.Triage);
-        SentCountValue.Text = analytics.SentCount.ToString();
-        ReceivedCountValue.Text = analytics.ReceivedCount.ToString();
+        SentCountValue.Text = status.HasMessageVolume ? analytics.SentCount.ToString() : "—";
+        ReceivedCountValue.Text = status.HasMessageVolume ? analytics.ReceivedCount.ToString() : "—";
 
         var hasVolume = analytics.HasMessageVolume || status.HasMessageVolume;
         AnalyticsVolumeEmptyText.Visibility = hasVolume ? Visibility.Collapsed : Visibility.Visible;
@@ -316,7 +326,9 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private void ApplyAiInsightFeed(OperationsCommandCenterSnapshot snapshot)
     {
-        var items = snapshot.AiInsightFeed;
+        var items = snapshot.AiInsightFeed
+            .Select(item => new OperationsInsightFeedViewModel(item))
+            .ToList();
         AiInsightFeedList.ItemsSource = items;
         var hasItems = items.Count > 0;
         if (hasItems)
@@ -329,7 +341,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         var emptyReason = DashboardCardEmptyStateHelper.ResolveExecutiveInsightsEmptyReason(
             AppSettingsService.Instance.Settings.EnableLocalAi,
             triage.TotalTriageCount,
-            items.Count);
+            snapshot.AiInsightFeed.Count);
         AiInsightFeedEmptyText.Text =
             DashboardCardEmptyStateHelper.FormatExecutiveInsightsEmptyMessage(emptyReason);
         AiInsightFeedEmptyText.Visibility = Visibility.Visible;
@@ -443,7 +455,7 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private void InsightFeedList_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not OperationsInsightFeedItem item)
+        if (e.ClickedItem is not OperationsInsightFeedViewModel item)
         {
             return;
         }
@@ -564,6 +576,31 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
     }
 
+    private sealed class OperationsInsightFeedViewModel(OperationsInsightFeedItem item)
+    {
+        public string CustomerName { get; } = item.CustomerName;
+
+        public string BranchName { get; } = item.BranchName;
+
+        public string Summary { get; } = item.Summary;
+
+        public string SourceLabel { get; } = item.SourceLabel;
+
+        public string IntentLabel { get; } = item.IntentLabel;
+
+        public string UrgencyLabel { get; } = item.UrgencyLabel;
+
+        public string? InstanceId { get; } = item.InstanceId;
+
+        public Visibility IntentLabelVisibility { get; } = string.IsNullOrWhiteSpace(item.IntentLabel)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        public Visibility UrgencyLabelVisibility { get; } = string.IsNullOrWhiteSpace(item.UrgencyLabel)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
     private sealed class BranchMetricViewModel(UnifiedMessengerBranchMetrics metric)
     {
         public string BranchName { get; } = metric.BranchName;
@@ -591,8 +628,9 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private sealed class HealthChipViewModel(DashboardInstanceHealthChip chip)
     {
-        public string Summary { get; } =
-            $"{chip.DisplayName}: backfill {chip.BackfillState}, {chip.AdapterHealth}, {chip.TriageItemCount} triage";
+        public string Summary { get; } = string.IsNullOrWhiteSpace(chip.BackfillSummary)
+            ? $"{chip.DisplayName}: backfill {chip.BackfillState}, {chip.AdapterHealth}, {chip.TriageItemCount} triage"
+            : $"{chip.DisplayName}: backfill {chip.BackfillState}, {chip.AdapterHealth}, {chip.TriageItemCount} triage · {chip.BackfillSummary}";
     }
 
     private sealed class OperationalHighlightViewModel(OperationalHighlightItem item)

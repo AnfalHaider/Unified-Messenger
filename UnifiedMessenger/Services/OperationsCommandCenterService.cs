@@ -70,6 +70,12 @@ public sealed class OperationsCommandCenterService
             triageItems,
             showHeuristic);
 
+        var activeSlaBreaches = OperationalMetricsHelper.CountActiveSlaBreaches(threadOperations.AllThreads);
+        var mergedHighlights = OperationalMetricsHelper.BuildHighlights(
+            filteredInstances,
+            threadOperations.AllThreads,
+            analytics.Highlights);
+
         return new OperationsCommandCenterSnapshot
         {
             ScopeLabel = DashboardCardEmptyStateHelper.BuildBranchScopeSubtitle(
@@ -78,13 +84,13 @@ public sealed class OperationsCommandCenterService
             BranchInstanceId = normalizedBranchId,
             FilteredInstances = filteredInstances,
             ThreadOperations = threadOperations,
-            Status = BuildStatusSnapshot(threadOperations, analytics, display),
+            Status = BuildStatusSnapshot(threadOperations, analytics, display, activeSlaBreaches),
             PlatformIntelligence = BuildPlatformIntelligenceSnapshot(
                 googleInstances,
                 metaInstances,
                 customerTrust,
                 metaResponse),
-            AnalyticsTrends = BuildAnalyticsTrendSnapshot(analytics),
+            AnalyticsTrends = BuildAnalyticsTrendSnapshot(analytics, mergedHighlights),
             AiInsightFeed = insightFeed,
             InstanceHealthChips = DashboardDataHealthHelper.BuildProfessionalHealthChips(
                 filteredInstances,
@@ -95,8 +101,15 @@ public sealed class OperationsCommandCenterService
     private static OperationsStatusSnapshot BuildStatusSnapshot(
         UnifiedMessengerDashboardSnapshot threadOperations,
         ProfessionalAnalyticsSnapshot analytics,
-        ProfessionalDashboardDisplay display) =>
-        new()
+        ProfessionalDashboardDisplay display,
+        int activeSlaBreaches)
+    {
+        var hasOpenThreads = threadOperations.OpenThreadCount > 0;
+        var slaDisplay = hasOpenThreads
+            ? activeSlaBreaches.ToString()
+            : display.SlaBreaches;
+
+        return new OperationsStatusSnapshot
         {
             OpenThreadCount = threadOperations.OpenThreadCount,
             HangingLeadCount = threadOperations.HangingLeadCount,
@@ -104,8 +117,8 @@ public sealed class OperationsCommandCenterService
             TotalRevenueAtRisk = threadOperations.TotalRevenueAtRisk,
             AverageReplyTime = display.AverageReplyTime,
             AverageReplyTimeSubtext = display.AverageReplyTimeSubtext,
-            SlaBreaches = display.SlaBreaches,
-            SlaBreachesNumeric = analytics.SlaBreaches,
+            SlaBreaches = slaDisplay,
+            SlaBreachesNumeric = hasOpenThreads ? activeSlaBreaches : analytics.SlaBreaches,
             SlaThresholdSubtext = display.SlaThresholdSubtext,
             ResponseRate = display.ResponseRate,
             PeakHour = display.PeakHour,
@@ -116,6 +129,7 @@ public sealed class OperationsCommandCenterService
             HasReplyMetrics = display.HasReplyMetrics,
             PlatformHealth = threadOperations.PlatformHealth
         };
+    }
 
     private static OperationsPlatformIntelligenceSnapshot BuildPlatformIntelligenceSnapshot(
         IReadOnlyList<MessengerInstance> googleInstances,
@@ -135,12 +149,13 @@ public sealed class OperationsCommandCenterService
         };
 
     private static OperationsAnalyticsTrendSnapshot BuildAnalyticsTrendSnapshot(
-        ProfessionalAnalyticsSnapshot analytics) =>
+        ProfessionalAnalyticsSnapshot analytics,
+        IReadOnlyList<OperationalHighlightItem> highlights) =>
         new()
         {
             WeeklyActivity = analytics.WeeklyActivity,
             Triage = analytics.Triage,
-            Highlights = analytics.Highlights,
+            Highlights = highlights,
             SentCount = analytics.SentCount,
             ReceivedCount = analytics.ReceivedCount,
             HasMessageVolume = analytics.HasMessageVolume,

@@ -52,13 +52,14 @@ public sealed class ThreadRegistryService
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        var key = NormalizeConversationKey(conversationKey, item.CustomerName, item.MessagePreview);
-        var threadId = BuildThreadId(item.InstanceId, key);
+        var key = ResolveKey(item.Platform, conversationKey, item.ConversationKey, item.CustomerName, item.MessagePreview);
+        var threadId = ConversationKeyResolver.BuildThreadId(item.InstanceId, key);
         var now = DateTimeOffset.UtcNow;
         var branch = string.IsNullOrWhiteSpace(branchName)
             ? item.BranchName
             : branchName.Trim();
         var spam = isSpamOrPromo ?? item.IsSpamOrPromo;
+        var threadExisted = _threads.ContainsKey(threadId);
 
         var thread = _threads.GetOrAdd(threadId, _ => new ThreadData
         {
@@ -74,6 +75,9 @@ public sealed class ThreadRegistryService
             LastTriageItemId = item.Id
         });
 
+        var enrichmentOnResolved = thread.IsReplied && item.TimestampUtc <= thread.LastMessageTime;
+        var reopenAfterReply = thread.IsReplied && item.TimestampUtc > thread.LastMessageTime;
+
         thread.Platform = item.Platform;
         thread.InstanceId = item.InstanceId;
         thread.InstanceDisplayName = item.InstanceDisplayName;
@@ -81,14 +85,32 @@ public sealed class ThreadRegistryService
         thread.CustomerName = item.CustomerName;
         thread.ConversationKey = key;
         thread.LastMessageTime = item.TimestampUtc;
-        thread.FirstInboundAtUtc = item.TimestampUtc;
         thread.LastTriageItemId = item.Id;
-        thread.IsReplied = false;
         thread.IsSpamOrPromo = spam;
-        thread.ReplyLatencyMinutes = 0;
-        thread.LatencyMinutes = spam
-            ? 0
-            : Math.Max(0, (now - thread.FirstInboundAtUtc).TotalMinutes);
+
+        if (reopenAfterReply)
+        {
+            thread.FirstInboundAtUtc = item.TimestampUtc;
+            thread.IsReplied = false;
+            thread.ReplyLatencyMinutes = 0;
+        }
+        else if (!threadExisted && thread.FirstInboundAtUtc == default)
+        {
+            thread.FirstInboundAtUtc = item.TimestampUtc;
+        }
+        else if (!enrichmentOnResolved && thread.FirstInboundAtUtc == default)
+        {
+            thread.FirstInboundAtUtc = item.TimestampUtc;
+        }
+
+        if (!enrichmentOnResolved)
+        {
+            thread.IsReplied = false;
+            thread.ReplyLatencyMinutes = 0;
+            thread.LatencyMinutes = spam
+                ? 0
+                : Math.Max(0, (now - thread.FirstInboundAtUtc).TotalMinutes);
+        }
 
         thread.AiIntentCategory = aiIntentCategory
                                   ?? item.AiIntentCategory
@@ -118,7 +140,8 @@ public sealed class ThreadRegistryService
         string instanceId,
         string? conversationKey,
         string? customerName,
-        DateTimeOffset? resolvedAtUtc = null)
+        DateTimeOffset? resolvedAtUtc = null,
+        string? platform = null)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
@@ -126,14 +149,14 @@ public sealed class ThreadRegistryService
         }
 
         var resolvedAt = resolvedAtUtc ?? DateTimeOffset.UtcNow;
-        var key = NormalizeConversationKey(conversationKey, customerName, null);
-        var threadId = BuildThreadId(instanceId, key);
+        var key = ResolveKey(platform ?? string.Empty, conversationKey, null, customerName, null);
+        var threadId = ConversationKeyResolver.BuildThreadId(instanceId, key);
         if (!_threads.TryGetValue(threadId, out var thread))
         {
             thread = new ThreadData
             {
                 ThreadId = threadId,
-                Platform = "whatsapp",
+                Platform = string.IsNullOrWhiteSpace(platform) ? "unknown" : platform.Trim(),
                 InstanceId = instanceId,
                 ConversationKey = key,
                 CustomerName = string.IsNullOrWhiteSpace(customerName) ? "Customer" : customerName.Trim(),
@@ -154,6 +177,12 @@ public sealed class ThreadRegistryService
         thread.ReplyLatencyMinutes = replyLatency;
         thread.LatencyMinutes = replyLatency;
         thread.LastMessageTime = resolvedAt;
+        MessageAnalyticsService.Instance.RecordThreadReply(
+            instanceId,
+            key,
+            inboundAt,
+            resolvedAt,
+            customerName);
         NotifyChanged();
     }
 
@@ -193,8 +222,9 @@ public sealed class ThreadRegistryService
         }
     }
 
+    [Obsolete("Use ConversationKeyResolver.BuildThreadId")]
     internal static string BuildThreadId(string instanceId, string conversationKey) =>
-        $"{instanceId}|{conversationKey}";
+        ConversationKeyResolver.BuildThreadId(instanceId, conversationKey);
 
     internal static int MapOperationalUrgency(int urgencyScore) =>
         urgencyScore switch
@@ -219,7 +249,40 @@ public sealed class ThreadRegistryService
             intent.Equals(UnifiedMessengerIntentCategory.Booking, StringComparison.OrdinalIgnoreCase) ||
             intent.Equals(UnifiedMessengerIntentCategory.Lead, StringComparison.OrdinalIgnoreCase);
 
-        return isCommercialIntent && thread.LatencyMinutes >= 30;
+        return isCommercialIntent && thread.LatencyMinutes >= OperationalThresholds.GetRevenueLeakageMinutes();
+    }
+
+    private static string ResolveKey(
+        string platform,
+        string? conversationKey,
+        string? itemConversationKey,
+        string? customerName,
+        string? messagePreview)
+    {
+        if (!string.IsNullOrWhiteSpace(conversationKey))
+        {
+            return ConversationKeyResolver.Resolve(
+                platform,
+                conversationKey,
+                itemConversationKey,
+                customerName,
+                messagePreview);
+        }
+
+        if (!string.IsNullOrWhiteSpace(itemConversationKey))
+        {
+            return ConversationKeyResolver.Resolve(
+                platform,
+                itemConversationKey,
+                conversationHint: itemConversationKey,
+                customerName,
+                messagePreview);
+        }
+
+        return ConversationKeyResolver.Resolve(
+            platform,
+            customerName: customerName,
+            messagePreview: messagePreview);
     }
 
     private static string ResolveNextActionSummary(
@@ -234,15 +297,23 @@ public sealed class ThreadRegistryService
 
         if (!string.IsNullOrWhiteSpace(nextActionSummary))
         {
-            return nextActionSummary.Trim();
+            var sanitized = ConversationNoiseFilter.SanitizeSummary(nextActionSummary);
+            if (!string.IsNullOrWhiteSpace(sanitized))
+            {
+                return sanitized;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(item.NextActionSummary))
         {
-            return item.NextActionSummary.Trim();
+            var sanitized = ConversationNoiseFilter.SanitizeSummary(item.NextActionSummary);
+            if (!string.IsNullOrWhiteSpace(sanitized))
+            {
+                return sanitized;
+            }
         }
 
-        return string.IsNullOrWhiteSpace(item.CoreSummary) ? string.Empty : item.CoreSummary.Trim();
+        return ConversationNoiseFilter.SanitizeSummary(item.CoreSummary);
     }
 
     private static string MapIntent(CustomerIntent intent) =>
@@ -261,31 +332,6 @@ public sealed class ThreadRegistryService
             MessageSentiment.Negative => ClientSentimentLabel.Frustrated,
             _ => ClientSentimentLabel.Neutral
         };
-
-    private static string NormalizeConversationKey(
-        string? conversationKey,
-        string? customerName,
-        string? messagePreview)
-    {
-        if (!string.IsNullOrWhiteSpace(conversationKey))
-        {
-            return conversationKey.Trim();
-        }
-
-        if (!string.IsNullOrWhiteSpace(customerName))
-        {
-            return customerName.Trim();
-        }
-
-        if (!string.IsNullOrWhiteSpace(messagePreview))
-        {
-            return messagePreview.Length <= 48
-                ? messagePreview.Trim()
-                : messagePreview[..48].Trim();
-        }
-
-        return "unknown";
-    }
 
     private void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
 }
@@ -312,6 +358,15 @@ internal static class ThreadDataExtensions
         if (thread.FirstInboundAtUtc == default)
         {
             thread.FirstInboundAtUtc = thread.LastMessageTime;
+        }
+
+        if (string.IsNullOrWhiteSpace(thread.ConversationKey) && !string.IsNullOrWhiteSpace(thread.ThreadId))
+        {
+            var separator = thread.ThreadId.IndexOf('|', StringComparison.Ordinal);
+            if (separator >= 0 && separator < thread.ThreadId.Length - 1)
+            {
+                thread.ConversationKey = thread.ThreadId[(separator + 1)..];
+            }
         }
     }
 }

@@ -26,6 +26,45 @@
     }
   };
 
+  window.__umCollapseWhitespace = function (value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  };
+
+  /**
+   * Canonical conversation key — must stay aligned with ConversationKeyResolver.cs.
+   * WhatsApp: JID; Google: review:{id}; Meta: header title; fallback: customer name.
+   */
+  window.__umResolveConversationKey = function (platform, options) {
+    options = options || {};
+    var explicit = window.__umCollapseWhitespace(options.conversationKey || '');
+    if (explicit) {
+      if (/^review:/i.test(explicit)) {
+        return 'review:' + explicit.replace(/^review:/i, '').trim();
+      }
+
+      return explicit;
+    }
+
+    if (options.reviewId) {
+      return 'review:' + String(options.reviewId).trim();
+    }
+
+    if (options.chatJid) {
+      var jid = window.__umCollapseWhitespace(options.chatJid);
+      if (jid) {
+        return jid;
+      }
+    }
+
+    var headerTitle = window.__umCollapseWhitespace(options.headerTitle || options.conversationHint || '');
+    if (headerTitle) {
+      return headerTitle;
+    }
+
+    var customer = window.__umCollapseWhitespace(options.customerName || '');
+    return customer || 'unknown';
+  };
+
   window.__umShouldIncludeMutedBadges = function () {
     return window.__umIncludeMutedBadges === true;
   };
@@ -305,7 +344,7 @@
     return match ? parseInt(match[1], 10) : 0;
   };
 
-  window.__umEmitMessageSent = function (instanceId, platform, source, chatHint) {
+  window.__umEmitMessageSent = function (instanceId, platform, source, chatHint, conversationKey) {
     var debounceMs = 500;
     var now = Date.now();
     if (window.__umLastMessageSentAt && now - window.__umLastMessageSentAt < debounceMs) {
@@ -313,12 +352,18 @@
     }
 
     window.__umLastMessageSentAt = now;
+    var resolvedKey = window.__umResolveConversationKey(platform, {
+      conversationKey: conversationKey,
+      conversationHint: chatHint,
+      customerName: chatHint
+    });
     window.__umPostMessage({
       type: 'message-sent',
       instanceId: instanceId,
       platform: platform,
       source: source || 'unknown',
       chatHint: chatHint || '',
+      conversationKey: resolvedKey,
       timestampUtc: new Date().toISOString()
     });
   };
@@ -421,7 +466,13 @@
       }
 
       lastOutgoingSignature = signature;
-      window.__umEmitMessageSent(instanceId, platform, 'dom-outgoing', resolveChatHint());
+      var chatHint = resolveChatHint();
+      var conversationKey = window.__umResolveConversationKey(platform, {
+        headerTitle: chatHint,
+        conversationHint: chatHint,
+        customerName: chatHint
+      });
+      window.__umEmitMessageSent(instanceId, platform, 'dom-outgoing', chatHint, conversationKey);
     }
 
     function scheduleDomCheck() {

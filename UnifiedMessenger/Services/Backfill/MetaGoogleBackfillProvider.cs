@@ -4,6 +4,9 @@ namespace UnifiedMessenger.Services.Backfill;
 
 public sealed class MetaGoogleBackfillProvider : IBackfillSyncProvider
 {
+    public const string ScrapeOnlyReasonMessage =
+        "Dashboard scrape refresh only — open a conversation in the instance for AI triage and analytics.";
+
     public string PlatformId => "metabusiness";
 
     public bool CanBackfill(MessengerInstance instance) =>
@@ -21,7 +24,9 @@ public sealed class MetaGoogleBackfillProvider : IBackfillSyncProvider
         {
             TriageEnqueued = 0,
             AnalyticsInboundRecorded = 0,
-            SlaCandidatesRecorded = 0
+            SlaCandidatesRecorded = 0,
+            IsScrapeOnly = true,
+            ScrapeOnlyReason = ScrapeOnlyReasonMessage
         };
     }
 }

@@ -9,8 +9,12 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
 
     public string PlatformId => "whatsapp";
 
-    public bool CanBackfill(MessengerInstance instance) =>
-        instance.Platform.Equals(PlatformId, StringComparison.OrdinalIgnoreCase);
+    public bool CanBackfill(MessengerInstance instance)
+    {
+        var platform = PlatformDefinition.NormalizePlatformId(instance.Platform);
+        return platform.Equals("whatsapp", StringComparison.OrdinalIgnoreCase) ||
+               platform.Equals("whatsappbusiness", StringComparison.OrdinalIgnoreCase);
+    }
 
     public async Task<BackfillResult> RunAsync(BackfillContext context, CancellationToken cancellationToken)
     {
@@ -48,15 +52,19 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 continue;
             }
 
-            var conversationKey = string.IsNullOrWhiteSpace(candidate.ChatKey)
-                ? candidate.Title
-                : candidate.ChatKey;
+            var body = candidate.LastMessageBody.Trim();
+            var conversationKey = ConversationKeyResolver.Resolve(
+                instance.Platform,
+                candidate.ChatKey,
+                candidate.ChatKey,
+                candidate.Title,
+                body);
 
             if (!BackfillDedupeRegistry.TryAccept(
                     instance.Id,
                     instance.Platform,
                     conversationKey,
-                    candidate.LastMessageBody))
+                    body))
             {
                 result.TriageSkippedDuplicate++;
                 continue;
@@ -73,9 +81,10 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 {
                     InstanceId = instance.Id,
                     Platform = instance.Platform,
-                    MessageText = candidate.LastMessageBody.Trim(),
+                    MessageText = body,
                     CustomerName = string.IsNullOrWhiteSpace(candidate.Title) ? "Customer" : candidate.Title.Trim(),
-                    ConversationHint = string.IsNullOrWhiteSpace(candidate.Title) ? string.Empty : candidate.Title.Trim(),
+                    ConversationKey = conversationKey,
+                    ConversationHint = conversationKey,
                     TimestampUtc = timestamp
                 },
                 instance.DisplayName,

@@ -83,6 +83,11 @@ public class WhatsAppInboundTriageTests
         };
 
         triage.Enqueue(selection, instance.DisplayName, skipDedupeCheck: true);
+        triage.ProcessInboundForTests(selection, instance.DisplayName);
+
+        Assert.Single(triage.GetAllItems());
+
         triage.Enqueue(selection, instance.DisplayName);
+        Assert.Single(triage.GetAllItems());
     }
 }

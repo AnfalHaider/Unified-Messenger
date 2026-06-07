@@ -112,8 +112,8 @@ public sealed class UnifiedMessengerDashboardService
     internal static string ResolveLatencyColor(double averageLatencyMinutes) =>
         averageLatencyMinutes switch
         {
-            <= 15 => "Green",
-            <= 30 => "Amber",
+            _ when averageLatencyMinutes <= OperationalThresholds.GetBranchLatencyGreenMaxMinutes() => "Green",
+            _ when averageLatencyMinutes <= OperationalThresholds.GetBranchLatencyAmberMaxMinutes() => "Amber",
             _ => "Red"
         };
 

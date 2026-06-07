@@ -88,12 +88,15 @@ public sealed class UnifiedMessengerInsightsEngine
             return;
         }
 
-        _ = _channel.Writer.TryWrite(new UnifiedMessengerInsightsJob
-        {
-            Kind = UnifiedMessengerInsightsJobKind.MessageAnalysis,
-            InstanceId = instanceId.Trim(),
-            TriageItemId = triageItemId.Trim()
-        });
+        _ = ChannelWriteHelper.TryWriteWithDropLog(
+            _channel.Writer,
+            new UnifiedMessengerInsightsJob
+            {
+                Kind = UnifiedMessengerInsightsJobKind.MessageAnalysis,
+                InstanceId = instanceId.Trim(),
+                TriageItemId = triageItemId.Trim()
+            },
+            "UnifiedMessengerInsights");
     }
 
     public void EnqueueThreadRefresh(string threadId)
@@ -103,12 +106,15 @@ public sealed class UnifiedMessengerInsightsEngine
             return;
         }
 
-        _ = _channel.Writer.TryWrite(new UnifiedMessengerInsightsJob
-        {
-            Kind = UnifiedMessengerInsightsJobKind.ThreadRefresh,
-            InstanceId = threadId.Split('|')[0],
-            ThreadId = threadId.Trim()
-        });
+        _ = ChannelWriteHelper.TryWriteWithDropLog(
+            _channel.Writer,
+            new UnifiedMessengerInsightsJob
+            {
+                Kind = UnifiedMessengerInsightsJobKind.ThreadRefresh,
+                InstanceId = threadId.Split('|')[0],
+                ThreadId = threadId.Trim()
+            },
+            "UnifiedMessengerInsights");
     }
 
     internal async Task ProcessJobForTestsAsync(UnifiedMessengerInsightsJob job) =>
@@ -135,6 +141,15 @@ public sealed class UnifiedMessengerInsightsEngine
             // shutdown
         }
     }
+
+    public void Shutdown()
+    {
+        _channel.Writer.TryComplete();
+        _cts.Cancel();
+    }
+
+    internal Task WaitForShutdownAsync(TimeSpan timeout) =>
+        Task.WhenAll(_worker.WaitAsync(timeout), _refreshLoop.WaitAsync(timeout));
 
     private async Task RunThreadRefreshLoopAsync()
     {
@@ -178,6 +193,13 @@ public sealed class UnifiedMessengerInsightsEngine
             return;
         }
 
+        if (item.IsSpamOrPromo)
+        {
+            var spamOnly = UnifiedMessengerInsightsAnalyzer.ApplyOperationalInsights(item);
+            _triageService.ReplaceItemForInsights(spamOnly);
+            return;
+        }
+
         var transcript = await TryBuildTranscriptAsync(job.InstanceId, cancellationToken).ConfigureAwait(false);
         RichTriageInferenceJob inferenceJob = new()
         {
@@ -185,7 +207,9 @@ public sealed class UnifiedMessengerInsightsEngine
             InstanceId = item.InstanceId,
             InstanceDisplayName = item.InstanceDisplayName,
             Platform = item.Platform,
-            MessageText = item.MessagePreview,
+            MessageText = string.IsNullOrWhiteSpace(item.MessageFullText)
+                ? item.MessagePreview
+                : item.MessageFullText,
             CustomerName = item.CustomerName,
             ConversationHint = item.ConversationKey,
             TimestampUtc = item.TimestampUtc,

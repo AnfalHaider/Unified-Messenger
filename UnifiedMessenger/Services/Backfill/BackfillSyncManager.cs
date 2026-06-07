@@ -17,6 +17,11 @@ public sealed class BackfillSyncManager
     private readonly ConcurrentDictionary<string, BackfillSyncState> _states =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly ConcurrentDictionary<string, BackfillResult> _lastResults =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly CancellationTokenSource _shutdownCts = new();
+
     private readonly IReadOnlyList<IBackfillSyncProvider> _providers;
 
     private BackfillSyncManager()
@@ -44,10 +49,22 @@ public sealed class BackfillSyncManager
             : BackfillSyncState.NotStarted;
     }
 
+    public BackfillResult? GetLastResult(string instanceId)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return null;
+        }
+
+        return _lastResults.TryGetValue(instanceId.Trim(), out var result) ? result : null;
+    }
+
+    public void Shutdown() => _shutdownCts.Cancel();
+
     /// <summary>
     /// Schedules startup backfill after adapter scripts are injected (see BasePlatformAdapter.OnNavigationCompletedAsync).
     /// </summary>
-    public void Schedule(MessengerInstance instance)
+    public void Schedule(MessengerInstance instance, bool force = false)
     {
         ArgumentNullException.ThrowIfNull(instance);
 
@@ -70,7 +87,8 @@ public sealed class BackfillSyncManager
             return;
         }
 
-        if (_states.TryGetValue(instance.Id, out var existing) &&
+        if (!force &&
+            _states.TryGetValue(instance.Id, out var existing) &&
             existing is BackfillSyncState.Running or BackfillSyncState.Completed)
         {
             return;
@@ -93,6 +111,7 @@ public sealed class BackfillSyncManager
     internal void ResetStateForTests()
     {
         _states.Clear();
+        _lastResults.Clear();
         BackfillDedupeRegistry.ClearForTests();
     }
 
@@ -103,7 +122,7 @@ public sealed class BackfillSyncManager
     {
         try
         {
-            await RunBackfillCoreAsync(instance, provider, CancellationToken.None).ConfigureAwait(false);
+            await RunBackfillCoreAsync(instance, provider, _shutdownCts.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -149,7 +168,8 @@ public sealed class BackfillSyncManager
         }
 
         SetState(instance.Id, result.IsSuccess ? BackfillSyncState.Completed : BackfillSyncState.Failed);
-        RaiseProgress(instance.Id, GetState(instance.Id));
+        StoreResult(instance.Id, result);
+        RaiseProgress(instance.Id, GetState(instance.Id), result);
         return result;
     }
 
@@ -176,13 +196,27 @@ public sealed class BackfillSyncManager
     private void SetState(string instanceId, BackfillSyncState state) =>
         _states[instanceId.Trim()] = state;
 
-    private void RaiseProgress(string instanceId, BackfillSyncState state) =>
-        ProgressChanged?.Invoke(this, new BackfillProgressEventArgs(instanceId, state));
+    private void StoreResult(string instanceId, BackfillResult result) =>
+        _lastResults[instanceId.Trim()] = result;
+
+    private void RaiseProgress(string instanceId, BackfillSyncState state, BackfillResult? result = null) =>
+        ProgressChanged?.Invoke(
+            this,
+            new BackfillProgressEventArgs(instanceId, state, result ?? GetLastResult(instanceId)));
 }
 
-public sealed class BackfillProgressEventArgs(string instanceId, BackfillSyncState state) : EventArgs
+public sealed class BackfillProgressEventArgs : EventArgs
 {
-    public string InstanceId { get; } = instanceId;
+    public BackfillProgressEventArgs(string instanceId, BackfillSyncState state, BackfillResult? result = null)
+    {
+        InstanceId = instanceId;
+        State = state;
+        Result = result;
+    }
 
-    public BackfillSyncState State { get; } = state;
+    public string InstanceId { get; }
+
+    public BackfillSyncState State { get; }
+
+    public BackfillResult? Result { get; }
 }

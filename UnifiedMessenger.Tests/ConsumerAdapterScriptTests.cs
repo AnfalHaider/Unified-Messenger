@@ -53,11 +53,12 @@ public class ConsumerAdapterScriptTests
     }
 
     [Fact]
-    public void WhatsAppAdapter_PostsInboundTriageFromUnreadPreviews()
+    public void WhatsAppAdapter_PostsNotificationPreviewFromUnreadPreviews()
     {
         var script = ReadScript("whatsapp-adapter.js");
 
-        Assert.Contains("inbound-message-selected", script, StringComparison.Ordinal);
+        Assert.Contains("notification-preview", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("type: 'inbound-message-selected'", script, StringComparison.Ordinal);
         Assert.Contains("scanForNewPreviews", script, StringComparison.Ordinal);
     }
 
@@ -76,7 +77,10 @@ public class ConsumerAdapterScriptTests
         var script = ReadScript("inbound-message-monitor.js");
 
         Assert.Contains("whatsapp:", script, StringComparison.Ordinal);
+        Assert.Contains("whatsappbusiness:", script, StringComparison.Ordinal);
         Assert.Contains("message-in", script, StringComparison.Ordinal);
+        Assert.Contains("cleanForInference", script, StringComparison.Ordinal);
+        Assert.Contains("NOTIFICATIONS_MUTED", script, StringComparison.Ordinal);
         Assert.Contains("__umStartInboundMessageMonitor", script, StringComparison.Ordinal);
     }
 

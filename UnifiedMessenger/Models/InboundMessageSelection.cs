@@ -12,5 +12,8 @@ public sealed class InboundMessageSelection
 
     public string ConversationHint { get; init; } = string.Empty;
 
+    /// <summary>Canonical thread key (JID, review:id, header title). Preferred over <see cref="ConversationHint"/>.</summary>
+    public string ConversationKey { get; init; } = string.Empty;
+
     public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
 }

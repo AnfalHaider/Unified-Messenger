@@ -60,7 +60,7 @@ public class MessageTriageServiceTests
             {
                 InstanceId = "branch-a",
                 Platform = "metabusiness",
-                MessageText = "Please confirm my appointment."
+                MessageText = "I need to cancel my booking immediately, this is urgent."
             },
             "Branch A");
 

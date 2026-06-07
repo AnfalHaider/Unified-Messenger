@@ -192,9 +192,10 @@
       var ratingMatch = text.match(/(\d)\s*(?:star|★|out of)/i);
       var reviewerMatch = text.match(/^([A-Za-z0-9 .'-]{2,40})/);
       var snippet = text.length > 160 ? text.slice(0, 157) + '...' : text;
-      var reviewId = node.getAttribute('data-review-id') ||
-        node.getAttribute('id') ||
-        (reviewerMatch ? reviewerMatch[1] : 'review') + '|' + snippet.slice(0, 40);
+      var reviewId = node.getAttribute('data-review-id');
+      if (!reviewId) {
+        continue;
+      }
 
       alerts.push({
         reviewId: reviewId,

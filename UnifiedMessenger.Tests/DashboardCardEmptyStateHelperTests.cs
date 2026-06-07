@@ -70,7 +70,7 @@ public class DashboardCardEmptyStateHelperTests
 
         Assert.Equal(DashboardCardEmptyReason.InboundOnlyAwaitingReply, reason);
         Assert.Contains(
-            "Reply in Meta",
+            "Open a conversation",
             DashboardCardEmptyStateHelper.FormatMetaResponseEmptyMessage(reason),
             StringComparison.Ordinal);
     }

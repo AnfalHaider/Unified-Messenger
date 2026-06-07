@@ -20,7 +20,7 @@ public class MessageTriageServiceInferenceTests
             },
             "Branch A");
 
-        var baseline = service.BuildSnapshot(instances).UrgentQueue[0];
+        var baseline = service.GetAllItems()[0];
         var job = new RichTriageInferenceJob
         {
             TriageItemId = baseline.Id,
@@ -34,7 +34,7 @@ public class MessageTriageServiceInferenceTests
 
         await service.ProcessInferenceForTestsAsync(job);
 
-        var after = service.BuildSnapshot(instances).UrgentQueue[0];
+        var after = service.GetAllItems()[0];
         Assert.Equal(TriageInferenceSource.Heuristic, after.InferenceSource);
         Assert.Equal(baseline.UrgencyScore, after.UrgencyScore);
         Assert.Equal(UnifiedMessengerIntentCategory.Booking, after.AiIntentCategory);
@@ -60,7 +60,7 @@ public class MessageTriageServiceInferenceTests
             },
             "Branch A");
 
-        var baseline = service.BuildSnapshot(instances).UrgentQueue[0];
+        var baseline = service.GetAllItems()[0];
         Assert.Equal(TriageInferenceSource.Heuristic, baseline.InferenceSource);
 
         var job = new RichTriageInferenceJob
@@ -77,7 +77,7 @@ public class MessageTriageServiceInferenceTests
 
         await service.ProcessInferenceForTestsAsync(job);
 
-        var after = service.BuildSnapshot(instances).UrgentQueue[0];
+        var after = service.GetAllItems()[0];
         Assert.Equal(TriageInferenceSource.LocalAi, after.InferenceSource);
         Assert.Equal(95, after.UrgencyScore);
         Assert.Equal("Critical", after.UrgencyLabel);

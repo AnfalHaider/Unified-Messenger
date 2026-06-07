@@ -33,6 +33,14 @@ public class ConversationNoiseFilterTests
 
         Assert.False(ConversationNoiseFilter.IsPromoSpam(booking));
     }
+
+    [Theory]
+    [InlineData("more_vert Flag as inappropriate", true)]
+    [InlineData("Need bridal makeup pricing", false)]
+    public void IsDomChromePollution_FlagsGoogleMenuChrome(string text, bool expected)
+    {
+        Assert.Equal(expected, ConversationNoiseFilter.IsDomChromePollution(text));
+    }
 }
 
 public class AiPipelineRoutingTests
@@ -142,6 +150,24 @@ public class AiPipelineRoutingTests
         Assert.False(parsed!.IsSpamOrPromo);
         Assert.Equal(5, parsed.OperationalUrgency);
         Assert.Contains("bridal makeup", parsed.ActionableSummary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryParseResponse_AcceptsGeneralIntentCategory()
+    {
+        const string json = """
+            {
+              "isSpamOrPromo": false,
+              "intentCategory": "General",
+              "urgencyScore": 2,
+              "actionableSummary": "Asks about salon hours.",
+              "suggestedAction": "Reply with Pricing"
+            }
+            """;
+
+        Assert.True(MessageTriageInferenceRunner.TryParseResponse(json, out var parsed));
+        Assert.NotNull(parsed);
+        Assert.Equal(UnifiedMessenger.Models.UnifiedMessengerIntentCategory.Inquiry, parsed!.AiIntentCategory);
     }
 
     [Fact]

@@ -20,7 +20,7 @@ internal static class OllamaJsonStreamReader
             }
             catch (OperationCanceledException)
             {
-                yield break;
+                throw;
             }
 
             if (line is null)

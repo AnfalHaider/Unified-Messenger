@@ -20,9 +20,15 @@ public static class RichTriageStoreMigrator
         store.Threads ??= [];
         store.Metadata ??= new UnifiedMessengerStoreMetadata();
 
-        if (store.Version < RichTriageStoreFile.CurrentVersion)
+        if (store.Version < 2)
         {
             BackfillThreadsFromItems(store);
+            store.Version = 2;
+        }
+
+        if (store.Version < RichTriageStoreFile.CurrentVersion)
+        {
+            RepairFirstInboundAtUtc(store);
             store.Version = RichTriageStoreFile.CurrentVersion;
         }
 
@@ -38,42 +44,90 @@ public static class RichTriageStoreMigrator
             return;
         }
 
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var item in store.Items.OrderByDescending(i => i.TimestampUtc))
+        var threadMap = new Dictionary<string, ThreadData>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in store.Items)
         {
             var conversationKey = string.IsNullOrWhiteSpace(item.ConversationKey)
                 ? item.CustomerName
                 : item.ConversationKey;
-            var threadId = ThreadRegistryService.BuildThreadId(item.InstanceId, conversationKey);
-            if (!seen.Add(threadId))
+            var threadId = ConversationKeyResolver.BuildThreadId(item.InstanceId, conversationKey);
+            if (!threadMap.TryGetValue(threadId, out var thread))
             {
+                threadMap[threadId] = new ThreadData
+                {
+                    ThreadId = threadId,
+                    Platform = PlatformDefinition.NormalizePlatformId(item.Platform),
+                    InstanceId = item.InstanceId,
+                    InstanceDisplayName = item.InstanceDisplayName,
+                    BranchName = string.IsNullOrWhiteSpace(item.BranchName)
+                        ? BranchNameResolver.Resolve(item.InstanceDisplayName)
+                        : item.BranchName,
+                    CustomerName = item.CustomerName,
+                    ConversationKey = conversationKey,
+                    FirstInboundAtUtc = item.TimestampUtc,
+                    LastMessageTime = item.TimestampUtc,
+                    LastTriageItemId = item.Id,
+                    AiIntentCategory = item.AiIntentCategory,
+                    ClientSentiment = item.ClientSentiment,
+                    UrgencyScore = item.OperationalUrgency > 0
+                        ? item.OperationalUrgency
+                        : ThreadRegistryService.MapOperationalUrgency(item.UrgencyScore),
+                    NextActionSummary = string.IsNullOrWhiteSpace(item.NextActionSummary)
+                        ? item.CoreSummary
+                        : item.NextActionSummary,
+                    EstimatedValue = item.EstimatedValue,
+                    IsRevenueLeakageRisk = item.IsRevenueLeakageRisk
+                };
+
                 continue;
             }
 
-            store.Threads.Add(new ThreadData
+            if (item.TimestampUtc < thread.FirstInboundAtUtc)
             {
-                ThreadId = threadId,
-                Platform = PlatformDefinition.NormalizePlatformId(item.Platform),
-                InstanceId = item.InstanceId,
-                InstanceDisplayName = item.InstanceDisplayName,
-                BranchName = string.IsNullOrWhiteSpace(item.BranchName)
-                    ? BranchNameResolver.Resolve(item.InstanceDisplayName)
-                    : item.BranchName,
-                CustomerName = item.CustomerName,
-                ConversationKey = conversationKey,
-                LastMessageTime = item.TimestampUtc,
-                LastTriageItemId = item.Id,
-                AiIntentCategory = item.AiIntentCategory,
-                ClientSentiment = item.ClientSentiment,
-                UrgencyScore = item.OperationalUrgency > 0
+                thread.FirstInboundAtUtc = item.TimestampUtc;
+            }
+
+            if (item.TimestampUtc >= thread.LastMessageTime)
+            {
+                thread.LastMessageTime = item.TimestampUtc;
+                thread.LastTriageItemId = item.Id;
+                thread.AiIntentCategory = item.AiIntentCategory;
+                thread.ClientSentiment = item.ClientSentiment;
+                thread.UrgencyScore = item.OperationalUrgency > 0
                     ? item.OperationalUrgency
-                    : ThreadRegistryService.MapOperationalUrgency(item.UrgencyScore),
-                NextActionSummary = string.IsNullOrWhiteSpace(item.NextActionSummary)
+                    : ThreadRegistryService.MapOperationalUrgency(item.UrgencyScore);
+                thread.NextActionSummary = string.IsNullOrWhiteSpace(item.NextActionSummary)
                     ? item.CoreSummary
-                    : item.NextActionSummary,
-                EstimatedValue = item.EstimatedValue,
-                IsRevenueLeakageRisk = item.IsRevenueLeakageRisk
-            });
+                    : item.NextActionSummary;
+            }
+        }
+
+        store.Threads.AddRange(threadMap.Values);
+    }
+
+    internal static void RepairFirstInboundAtUtc(RichTriageStoreFile store)
+    {
+        var firstByThread = store.Items
+            .Where(item => !string.IsNullOrWhiteSpace(item.ThreadId))
+            .GroupBy(item => item.ThreadId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Min(item => item.TimestampUtc),
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (var thread in store.Threads)
+        {
+            if (firstByThread.TryGetValue(thread.ThreadId, out var firstAt))
+            {
+                thread.FirstInboundAtUtc = firstAt;
+                continue;
+            }
+
+            if (thread.FirstInboundAtUtc == default ||
+                thread.FirstInboundAtUtc > thread.LastMessageTime)
+            {
+                thread.FirstInboundAtUtc = thread.LastMessageTime;
+            }
         }
     }
 

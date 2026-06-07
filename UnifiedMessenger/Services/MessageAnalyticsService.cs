@@ -221,33 +221,20 @@ public sealed class MessageAnalyticsService
         await File.WriteAllLinesAsync(destinationPath, lines, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
     }
 
-    public void RecordMessageSent(string instanceId, string? chatHint = null)
+    public void RecordMessageSent(string instanceId, string? chatHint = null, string? conversationKey = null)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
             return;
         }
 
+        _ = conversationKey;
+
         lock (_debounceLock)
         {
             var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
             stats.SentCount++;
             IncrementDaily(stats.DailySent, 1);
-
-            if (stats.LastReceivedUtc is { } receivedAt)
-            {
-                var replyAt = DateTimeOffset.UtcNow;
-                var deltaMinutes = (replyAt - receivedAt).TotalMinutes;
-                if (deltaMinutes >= 0)
-                {
-                    stats.TotalReplyMinutes += deltaMinutes;
-                    stats.ReplyCount++;
-                    stats.ReplyLatenciesMinutes.Add(deltaMinutes);
-                    TrimReplyLatencies(stats);
-                    stats.SlaBreachCount = CountSlaBreaches(stats);
-                }
-            }
-
             stats.LastSentUtc = DateTimeOffset.UtcNow;
 
             if (!string.IsNullOrWhiteSpace(chatHint))
@@ -259,16 +246,62 @@ public sealed class MessageAnalyticsService
         NotifyChanged();
     }
 
-    public void RecordMessageReceived(string instanceId)
+    public void RecordThreadReply(
+        string instanceId,
+        string conversationKey,
+        DateTimeOffset firstInboundAtUtc,
+        DateTimeOffset resolvedAtUtc,
+        string? chatHint = null)
     {
-        if (string.IsNullOrWhiteSpace(instanceId))
+        if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(conversationKey))
         {
             return;
         }
 
         lock (_debounceLock)
         {
-            ApplyReceivedIncrement(_stats.GetOrAdd(instanceId, _ => new InstanceMessageStats()), DateTimeOffset.UtcNow);
+            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
+            var normalizedKey = NormalizeAnalyticsConversationKey(conversationKey);
+            if (IsDuplicateThreadReply(stats, normalizedKey, resolvedAtUtc))
+            {
+                return;
+            }
+
+            stats.PendingInboundUtc.Remove(normalizedKey);
+
+            var deltaMinutes = Math.Max(0, (resolvedAtUtc - firstInboundAtUtc).TotalMinutes);
+            AddReplyLatency(stats, deltaMinutes);
+            stats.LastSentUtc = resolvedAtUtc;
+            stats.LastPairedConversationKey = normalizedKey;
+            stats.LastPairedAtUtc = resolvedAtUtc;
+
+            if (!string.IsNullOrWhiteSpace(chatHint))
+            {
+                stats.LastChatHint = chatHint.Trim();
+            }
+        }
+
+        NotifyChanged();
+    }
+
+    public void RecordMessageReceived(string instanceId, string? conversationKey = null, DateTimeOffset? receivedAtUtc = null)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        var receivedAt = receivedAtUtc ?? DateTimeOffset.UtcNow;
+
+        lock (_debounceLock)
+        {
+            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
+            ApplyReceivedIncrement(stats, receivedAt);
+
+            if (!string.IsNullOrWhiteSpace(conversationKey))
+            {
+                stats.PendingInboundUtc[NormalizeAnalyticsConversationKey(conversationKey)] = receivedAt;
+            }
         }
 
         NotifyChanged();
@@ -276,7 +309,7 @@ public sealed class MessageAnalyticsService
 
     /// <summary>
     /// Records inbound activity discovered during startup backfill (one row per conversation).
-    /// May add an SLA latency candidate when the message age exceeds the configured threshold.
+    /// Counts received only; active SLA breaches come from the thread registry, not aged backfill rows.
     /// </summary>
     public void RecordBackfillInbound(
         string instanceId,
@@ -292,14 +325,6 @@ public sealed class MessageAnalyticsService
         {
             var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
             ApplyReceivedIncrement(stats, receivedAtUtc);
-
-            var ageMinutes = (DateTimeOffset.UtcNow - receivedAtUtc).TotalMinutes;
-            if (ageMinutes > slaThresholdMinutes)
-            {
-                stats.ReplyLatenciesMinutes.Add(ageMinutes);
-                TrimReplyLatencies(stats);
-                stats.SlaBreachCount = CountSlaBreaches(stats);
-            }
         }
 
         NotifyChanged();
@@ -362,6 +387,8 @@ public sealed class MessageAnalyticsService
     public int GetSlaBreachCount(string instanceId) =>
         _stats.TryGetValue(instanceId, out var stats) ? CountSlaBreaches(stats) : 0;
 
+    public int GetHistoricalSlaBreachCount(string instanceId) => GetSlaBreachCount(instanceId);
+
     public (double TotalReplyMinutes, int ReplyCount, DateTimeOffset? LastReceivedUtc, DateTimeOffset? LastSentUtc)
         GetReplyStats(string instanceId)
     {
@@ -378,12 +405,10 @@ public sealed class MessageAnalyticsService
         NotificationHub notificationHub,
         string? branchInstanceId = null)
     {
+        _ = notificationHub;
         var instances = DashboardPageHelper
             .FilterProfessionalInstances(professionalInstances, branchInstanceId)
             .ToList();
-        var alertsByInstance = notificationHub.GetAlertsSortedByInstance()
-            .GroupBy(a => a.InstanceId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
         var sent = 0;
         var received = 0;
@@ -395,16 +420,8 @@ public sealed class MessageAnalyticsService
         foreach (var instance in instances)
         {
             sent += GetSentCount(instance.Id);
-
-            var instanceReceived = GetReceivedCount(instance.Id);
-            if (instanceReceived == 0 &&
-                alertsByInstance.TryGetValue(instance.Id, out var alertCount))
-            {
-                instanceReceived = alertCount;
-            }
-
-            received += instanceReceived;
-            slaBreaches += GetSlaBreachCount(instance.Id);
+            received += GetReceivedCount(instance.Id);
+            slaBreaches += GetHistoricalSlaBreachCount(instance.Id);
 
             if (_stats.TryGetValue(instance.Id, out var stats))
             {
@@ -454,15 +471,42 @@ public sealed class MessageAnalyticsService
         NotifyChanged();
     }
 
-    private static double GetSlaThresholdMinutes()
+    private static double GetSlaThresholdMinutes() => OperationalThresholds.GetSlaThresholdMinutes();
+
+    private static string NormalizeAnalyticsConversationKey(string conversationKey) =>
+        ConversationKeyResolver.NormalizeExplicitKey(conversationKey);
+
+    private static bool IsDuplicateThreadReply(
+        InstanceMessageStats stats,
+        string conversationKey,
+        DateTimeOffset resolvedAtUtc)
     {
-        return Math.Clamp(
-            AppSettingsService.Instance.Settings.SlaThresholdMinutes,
-            AppSettings.MinSlaThresholdMinutes,
-            AppSettings.MaxSlaThresholdMinutes);
+        if (string.IsNullOrWhiteSpace(stats.LastPairedConversationKey))
+        {
+            return false;
+        }
+
+        if (!stats.LastPairedConversationKey.Equals(conversationKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return stats.LastPairedAtUtc is { } lastPaired &&
+               Math.Abs((resolvedAtUtc - lastPaired).TotalSeconds) < 60;
     }
 
-    private int CountSlaBreaches(InstanceMessageStats stats)
+    private static void AddReplyLatency(InstanceMessageStats stats, double deltaMinutes)
+    {
+        stats.TotalReplyMinutes += deltaMinutes;
+        stats.ReplyCount++;
+        stats.ReplyLatenciesMinutes.Add(deltaMinutes);
+        TrimReplyLatencies(stats);
+        stats.SlaBreachCount = CountSlaBreachesStatic(stats);
+    }
+
+    private int CountSlaBreaches(InstanceMessageStats stats) => CountSlaBreachesStatic(stats);
+
+    private static int CountSlaBreachesStatic(InstanceMessageStats stats)
     {
         if (stats.ReplyLatenciesMinutes.Count > 0)
         {
@@ -789,7 +833,10 @@ public sealed class MessageAnalyticsService
             DailySent = dto.DailySent ?? new Dictionary<string, int>(StringComparer.Ordinal),
             DailyReceived = dto.DailyReceived ?? new Dictionary<string, int>(StringComparer.Ordinal),
             HourlyReceived = dto.HourlyReceived ?? new int[24],
-            ReplyLatenciesMinutes = dto.ReplyLatenciesMinutes ?? []
+            ReplyLatenciesMinutes = dto.ReplyLatenciesMinutes ?? [],
+            PendingInboundUtc = dto.PendingInboundUtc ?? new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase),
+            LastPairedConversationKey = dto.LastPairedConversationKey,
+            LastPairedAtUtc = dto.LastPairedAtUtc
         };
     }
 
@@ -810,7 +857,10 @@ public sealed class MessageAnalyticsService
             DailySent = stats.DailySent,
             DailyReceived = stats.DailyReceived,
             HourlyReceived = stats.HourlyReceived,
-            ReplyLatenciesMinutes = stats.ReplyLatenciesMinutes
+            ReplyLatenciesMinutes = stats.ReplyLatenciesMinutes,
+            PendingInboundUtc = stats.PendingInboundUtc,
+            LastPairedConversationKey = stats.LastPairedConversationKey,
+            LastPairedAtUtc = stats.LastPairedAtUtc
         };
     }
 
@@ -867,6 +917,13 @@ public sealed class MessageAnalyticsService
         public int[] HourlyReceived { get; set; } = new int[24];
 
         public List<double> ReplyLatenciesMinutes { get; set; } = [];
+
+        public Dictionary<string, DateTimeOffset> PendingInboundUtc { get; set; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public string? LastPairedConversationKey { get; set; }
+
+        public DateTimeOffset? LastPairedAtUtc { get; set; }
     }
 
     private sealed class AnalyticsStore
@@ -904,5 +961,11 @@ public sealed class MessageAnalyticsService
         public int[]? HourlyReceived { get; set; }
 
         public List<double>? ReplyLatenciesMinutes { get; set; }
+
+        public Dictionary<string, DateTimeOffset>? PendingInboundUtc { get; set; }
+
+        public string? LastPairedConversationKey { get; set; }
+
+        public DateTimeOffset? LastPairedAtUtc { get; set; }
     }
 }

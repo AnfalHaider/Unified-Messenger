@@ -1,4 +1,3 @@
-using System.Text;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services.Ollama;
 
@@ -35,26 +34,21 @@ public sealed class OllamaTriageLlmClient : ITriageLlmClient
             job.ConversationTranscript,
             strictJsonRetry);
 
-        var builder = new StringBuilder();
-        await foreach (var token in OllamaOrchestrationService.Instance
-                           .StreamGenerateAsync(
-                               userPrompt,
-                               AiTriagePromptService.SystemPrompt,
-                               responseFormat: "json",
-                               priority: InferencePriority.Background,
-                               cancellationToken: cancellationToken)
-                           .ConfigureAwait(false))
-        {
-            builder.Append(token);
-        }
-
-        return builder.Length == 0 ? null : builder.ToString();
+        return await OllamaInferenceCoordinator.Instance
+            .CollectGenerateAsync(
+                InferencePriority.Background,
+                userPrompt,
+                AiTriagePromptService.SystemPrompt,
+                responseFormat: "json",
+                cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
     }
 }
 
 public sealed class MessageTriageInferenceRunner
 {
     public static readonly TimeSpan InferenceTimeout = TimeSpan.FromSeconds(90);
+    public static readonly TimeSpan StrictRetryTimeout = TimeSpan.FromSeconds(45);
     private const int MaxActionableSummaryWords = 15;
 
     private readonly ITriageLlmClient _llmClient;
@@ -70,11 +64,11 @@ public sealed class MessageTriageInferenceRunner
     {
         try
         {
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(InferenceTimeout);
+            using var firstCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            firstCts.CancelAfter(InferenceTimeout);
 
             var raw = await _llmClient
-                .GenerateTriageJsonAsync(job, timeoutCts.Token)
+                .GenerateTriageJsonAsync(job, firstCts.Token)
                 .ConfigureAwait(false);
 
             if (TryParseResponse(raw, out var parsed))
@@ -82,8 +76,11 @@ public sealed class MessageTriageInferenceRunner
                 return parsed;
             }
 
+            using var retryCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            retryCts.CancelAfter(StrictRetryTimeout);
+
             raw = await _llmClient
-                .GenerateTriageJsonAsync(job, timeoutCts.Token, strictJsonRetry: true)
+                .GenerateTriageJsonAsync(job, retryCts.Token, strictJsonRetry: true)
                 .ConfigureAwait(false);
 
             return TryParseResponse(raw, out parsed) ? parsed : null;
@@ -163,6 +160,10 @@ public sealed class MessageTriageInferenceRunner
         var customerName = string.IsNullOrWhiteSpace(entities.CustomerName)
             ? baseline.CustomerName
             : entities.CustomerName.Trim();
+        var conversationKey = string.IsNullOrWhiteSpace(baseline.ConversationKey)
+            ? customerName
+            : baseline.ConversationKey;
+        var threadId = ConversationKeyResolver.BuildThreadId(baseline.InstanceId, conversationKey);
         var operationalUrgency = normalized.OperationalUrgency;
         var nextAction = TrimActionableSummary(
             CoalesceSummary(normalized.ActionableSummary, normalized.NextActionSummary, normalized.CoreSummary));
@@ -174,6 +175,7 @@ public sealed class MessageTriageInferenceRunner
             InstanceDisplayName = baseline.InstanceDisplayName,
             Platform = baseline.Platform,
             MessagePreview = baseline.MessagePreview,
+            MessageFullText = baseline.MessageFullText,
             CustomerName = customerName,
             UrgencyScore = Math.Clamp(normalized.LegacyUrgencyScore > 0
                 ? normalized.LegacyUrgencyScore
@@ -185,8 +187,8 @@ public sealed class MessageTriageInferenceRunner
             CoreSummary = TrimCoreSummary(
                 CoalesceSummary(normalized.CoreSummary, nextAction, null)),
             ExtractedEntities = entities,
-            ThreadId = baseline.ThreadId,
-            ConversationKey = baseline.ConversationKey,
+            ThreadId = threadId,
+            ConversationKey = conversationKey,
             BranchName = baseline.BranchName,
             OperationalUrgency = operationalUrgency,
             AiIntentCategory = normalized.AiIntentCategory,
@@ -332,6 +334,7 @@ public sealed class MessageTriageInferenceRunner
             "pricing" or "price_inquiry" or "price inquiry" => UnifiedMessengerIntentCategory.PriceInquiry,
             "lead" => UnifiedMessengerIntentCategory.Lead,
             "spam" => UnifiedMessengerIntentCategory.Spam,
+            "general" or "inquiry" => UnifiedMessengerIntentCategory.Inquiry,
             _ => UnifiedMessengerIntentCategory.Inquiry
         };
     }

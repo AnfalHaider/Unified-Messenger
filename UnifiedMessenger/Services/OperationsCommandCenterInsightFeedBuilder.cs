@@ -24,7 +24,7 @@ public static class OperationsCommandCenterInsightFeedBuilder
         foreach (var thread in threadOperations.ImmediateActionQueue)
         {
             items.Add(CreateThreadItem(thread, basePriority: 1000));
-            coveredConversationKeys.Add(BuildConversationKey(thread.InstanceId, thread.CustomerName));
+            coveredConversationKeys.Add(BuildConversationKey(thread.InstanceId, thread.ConversationKey, thread.CustomerName));
         }
 
         foreach (var thread in threadOperations.AllThreads)
@@ -36,7 +36,7 @@ public static class OperationsCommandCenterInsightFeedBuilder
                 continue;
             }
 
-            var conversationKey = BuildConversationKey(thread.InstanceId, thread.CustomerName);
+            var conversationKey = BuildConversationKey(thread.InstanceId, thread.ConversationKey, thread.CustomerName);
             if (coveredConversationKeys.Contains(conversationKey))
             {
                 continue;
@@ -127,15 +127,27 @@ public static class OperationsCommandCenterInsightFeedBuilder
         return SortAndTrim(items);
     }
 
-    internal static string BuildConversationKey(string instanceId, string customerName) =>
-        $"{instanceId.Trim()}|{customerName.Trim()}";
+    internal static string BuildConversationKey(
+        string instanceId,
+        string? conversationKey,
+        string? customerName = null) =>
+        ConversationKeyResolver.BuildThreadId(
+            instanceId.Trim(),
+            ConversationKeyResolver.Resolve(
+                platform: string.Empty,
+                conversationKey,
+                conversationHint: conversationKey,
+                customerName));
 
     private static bool ShouldSkipExecutiveInsight(
         MessageTriageItem triageItem,
         UnifiedMessengerDashboardSnapshot threadOperations,
         IReadOnlySet<string> coveredConversationKeys)
     {
-        var conversationKey = BuildConversationKey(triageItem.InstanceId, ResolveCustomerName(triageItem));
+        var conversationKey = BuildConversationKey(
+            triageItem.InstanceId,
+            triageItem.ConversationKey,
+            ResolveCustomerName(triageItem));
         if (!coveredConversationKeys.Contains(conversationKey))
         {
             return false;

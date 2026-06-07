@@ -113,6 +113,7 @@ public static partial class UnifiedMessengerInsightsAnalyzer
             InstanceDisplayName = item.InstanceDisplayName,
             Platform = item.Platform,
             MessagePreview = item.MessagePreview,
+            MessageFullText = item.MessageFullText,
             CustomerName = item.CustomerName,
             UrgencyScore = item.UrgencyScore,
             Sentiment = item.Sentiment,
@@ -150,7 +151,7 @@ public static partial class UnifiedMessengerInsightsAnalyzer
             intent.Equals(UnifiedMessengerIntentCategory.Booking, StringComparison.OrdinalIgnoreCase) ||
             intent.Equals(UnifiedMessengerIntentCategory.Lead, StringComparison.OrdinalIgnoreCase);
 
-        return isCommercial && latencyMinutes >= 30;
+        return isCommercial && latencyMinutes >= OperationalThresholds.GetRevenueLeakageMinutes();
     }
 
     internal static bool DetectHangingLead(string corpus, string? transcript)

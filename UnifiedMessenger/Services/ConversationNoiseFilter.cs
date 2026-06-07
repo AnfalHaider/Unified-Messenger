@@ -145,4 +145,31 @@ public static partial class ConversationNoiseFilter
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespacePattern();
+
+    [GeneratedRegex(
+        @"more_vert|flag as inappropriate|report review|share review|copy link|"
+        + @"write a reply|reply publicly|sort by|filter reviews",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DomChromePattern();
+
+    public static bool IsDomChromePollution(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var normalized = WhitespacePattern().Replace(text.Trim(), " ");
+        return normalized.Length >= 4 && DomChromePattern().IsMatch(normalized);
+    }
+
+    public static string SanitizeSummary(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || IsDomChromePollution(text))
+        {
+            return string.Empty;
+        }
+
+        return text.Trim();
+    }
 }

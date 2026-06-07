@@ -30,6 +30,7 @@ public sealed class RichTriageStoreService
     private int _saveGeneration;
     private bool _isLoaded;
     private bool _suppressPersist;
+    private RichTriageStoreLoadResult _lastLoadResult = new() { Status = RichTriageStoreLoadStatus.CreatedEmpty };
 
     private RichTriageStoreService()
     {
@@ -50,20 +51,28 @@ public sealed class RichTriageStoreService
 
     public static RichTriageStoreService Instance => LazyInstance.Value;
 
-    public async Task LoadAsync(CancellationToken cancellationToken = default)
+    public bool IsLoaded => _isLoaded;
+
+    public RichTriageStoreLoadResult LastLoadResult => _lastLoadResult;
+
+    public async Task<RichTriageStoreLoadResult> LoadAsync(CancellationToken cancellationToken = default)
     {
         await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_isLoaded)
             {
-                return;
+                return _lastLoadResult;
             }
 
             if (!File.Exists(_storePath))
             {
                 _isLoaded = true;
-                return;
+                _lastLoadResult = new RichTriageStoreLoadResult
+                {
+                    Status = RichTriageStoreLoadStatus.CreatedEmpty
+                };
+                return _lastLoadResult;
             }
 
             RichTriageStoreFile? store;
@@ -74,22 +83,44 @@ public sealed class RichTriageStoreService
                     .DeserializeAsync<RichTriageStoreFile>(stream, JsonOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (JsonException ex)
+            catch (Exception ex) when (ex is JsonException or IOException)
             {
                 Debug.WriteLine($"Triage store is corrupt; resetting to empty: {ex.Message}");
-                BackupCorruptFile();
+                var backupPath = BackupCorruptFile();
                 _isLoaded = true;
-                return;
+                _lastLoadResult = new RichTriageStoreLoadResult
+                {
+                    Status = RichTriageStoreLoadStatus.CorruptRecovered,
+                    BackupPath = backupPath,
+                    UserMessage = string.IsNullOrWhiteSpace(backupPath)
+                        ? "Saved triage data was damaged and has been reset to an empty dashboard."
+                        : $"Saved triage data was damaged and has been reset. A backup was saved to {backupPath}."
+                };
+                return _lastLoadResult;
+            }
+
+            if (store is null)
+            {
+                var backupPath = BackupCorruptFile();
+                _isLoaded = true;
+                _lastLoadResult = new RichTriageStoreLoadResult
+                {
+                    Status = RichTriageStoreLoadStatus.CorruptRecovered,
+                    BackupPath = backupPath,
+                    UserMessage = "Saved triage data could not be read and has been reset."
+                };
+                return _lastLoadResult;
             }
 
             var migrated = RichTriageStoreMigrator.Migrate(store);
-            var items = PruneItems(migrated.Items);
-            var threads = PruneThreads(migrated.Threads);
+            var (items, threads) = PruneStoreSnapshot(migrated.Items, migrated.Threads);
             _suppressPersist = true;
             try
             {
                 MessageTriageService.Instance.RestoreItems(items);
                 ThreadRegistryService.Instance.RestoreThreads(threads);
+                ThreadRegistryService.Instance.RefreshOperationalFlags();
+                QueueStaleHeuristicRescore(items);
             }
             finally
             {
@@ -97,10 +128,60 @@ public sealed class RichTriageStoreService
             }
 
             _isLoaded = true;
+            _lastLoadResult = new RichTriageStoreLoadResult
+            {
+                Status = RichTriageStoreLoadStatus.Loaded
+            };
+            return _lastLoadResult;
         }
         finally
         {
             _writeGate.Release();
+        }
+    }
+
+    internal static (List<MessageTriageItem> Items, List<ThreadData> Threads) PruneStoreSnapshot(
+        IEnumerable<MessageTriageItem> items,
+        IEnumerable<ThreadData> threads)
+    {
+        var prunedThreads = PruneThreads(threads);
+        var threadIds = prunedThreads
+            .Select(thread => thread.ThreadId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var prunedItems = PruneItems(items)
+            .Where(item => string.IsNullOrWhiteSpace(item.ThreadId) || threadIds.Contains(item.ThreadId))
+            .ToList();
+
+        return (prunedItems, prunedThreads);
+    }
+
+    private void QueueStaleHeuristicRescore(IReadOnlyList<MessageTriageItem> items)
+    {
+        if (!AppSettingsService.Instance.Settings.EnableLocalAi)
+        {
+            return;
+        }
+
+        const int maxJobs = 5;
+        var staleCutoff = DateTimeOffset.UtcNow.AddHours(-24);
+        var queued = 0;
+
+        foreach (var item in items
+                     .Where(item => item.InferenceSource == TriageInferenceSource.Heuristic && !item.IsSpamOrPromo)
+                     .OrderByDescending(item => item.TimestampUtc))
+        {
+            if (item.TimestampUtc > staleCutoff)
+            {
+                continue;
+            }
+
+            UnifiedMessengerInsightsEngine.Instance.EnqueueMessageAnalysis(item.InstanceId, item.Id);
+            queued++;
+            if (queued >= maxJobs)
+            {
+                break;
+            }
         }
     }
 
@@ -274,11 +355,12 @@ public sealed class RichTriageStoreService
         await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            var pruned = PruneStoreSnapshot(items, threads);
             var store = RichTriageStoreMigrator.Migrate(new RichTriageStoreFile
             {
                 Version = RichTriageStoreFile.CurrentVersion,
-                Items = PruneItems(items),
-                Threads = PruneThreads(threads)
+                Items = pruned.Items,
+                Threads = pruned.Threads
             });
 
             Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
@@ -316,16 +398,18 @@ public sealed class RichTriageStoreService
             .ToList();
     }
 
-    private void BackupCorruptFile()
+    private string? BackupCorruptFile()
     {
         try
         {
             var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
             File.Move(_storePath, backupPath, overwrite: false);
+            return backupPath;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Failed to backup corrupt triage store: {ex.Message}");
+            return null;
         }
     }
 }

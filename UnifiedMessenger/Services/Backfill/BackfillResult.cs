@@ -12,5 +12,9 @@ public sealed class BackfillResult
 
     public string? ErrorMessage { get; init; }
 
+    public bool IsScrapeOnly { get; init; }
+
+    public string? ScrapeOnlyReason { get; init; }
+
     public bool IsSuccess => string.IsNullOrWhiteSpace(ErrorMessage);
 }

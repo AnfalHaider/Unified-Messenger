@@ -88,7 +88,7 @@ public sealed class AppSettings
     /// <summary>
     /// When true, Executive Insights includes heuristic triage cards when Local AI extraction is unavailable.
     /// </summary>
-    public bool ShowHeuristicExecutiveInsights { get; set; } = true;
+    public bool ShowHeuristicExecutiveInsights { get; set; } = false;
 
     /// <summary>
     /// Clamps numeric settings and resets unknown enum values after load or manual edits.

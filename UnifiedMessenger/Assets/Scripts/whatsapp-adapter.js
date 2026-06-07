@@ -152,18 +152,6 @@
         title: normalized.title,
         body: normalized.body
       });
-
-      if (normalized.body && normalized.body.length >= 8) {
-        postMessage({
-          type: 'inbound-message-selected',
-          instanceId: INSTANCE_ID,
-          platform: PLATFORM,
-          messageText: normalized.body,
-          customerName: normalized.title,
-          conversationHint: normalized.title,
-          timestampUtc: new Date().toISOString()
-        });
-      }
     }
 
     snapshotsInitialized = true;

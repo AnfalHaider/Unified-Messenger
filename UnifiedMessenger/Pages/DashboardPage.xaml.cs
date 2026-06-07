@@ -51,6 +51,8 @@ public sealed partial class DashboardPage : Page
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
         MessageTriageService.Instance.Changed += OnTriageChanged;
         ProfessionalWorkspaceService.Instance.Changed += OnProfessionalWorkspaceChanged;
+        ThreadRegistryService.Instance.Changed += OnThreadRegistryChanged;
+        BackfillSyncManager.Instance.ProgressChanged += OnBackfillProgressChanged;
 
         _resourceTimer = new DispatcherTimer
         {
@@ -69,6 +71,8 @@ public sealed partial class DashboardPage : Page
         MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
         MessageTriageService.Instance.Changed -= OnTriageChanged;
         ProfessionalWorkspaceService.Instance.Changed -= OnProfessionalWorkspaceChanged;
+        ThreadRegistryService.Instance.Changed -= OnThreadRegistryChanged;
+        BackfillSyncManager.Instance.ProgressChanged -= OnBackfillProgressChanged;
 
         if (_resourceTimer is not null)
         {
@@ -99,6 +103,12 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
 
     private void OnProfessionalWorkspaceChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+
+    private void OnThreadRegistryChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+
+    private void OnBackfillProgressChanged(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
 
     public void RefreshAll()

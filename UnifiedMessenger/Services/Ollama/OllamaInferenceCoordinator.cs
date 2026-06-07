@@ -174,11 +174,13 @@ public sealed class OllamaInferenceCoordinator : IDisposable
                 catch (OperationCanceledException)
                 {
                     item.CompleteCancelled();
+                    item.TokenWriter?.TryComplete();
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Ollama inference work failed: {ex.Message}");
                     item.CompleteError();
+                    item.TokenWriter?.TryComplete();
                 }
                 finally
                 {
@@ -228,37 +230,46 @@ public sealed class OllamaInferenceCoordinator : IDisposable
 
     private static async Task ExecuteWorkItemAsync(InferenceWorkItem item, CancellationToken cancellationToken)
     {
-        var orchestration = OllamaOrchestrationService.Instance;
-        if (!await orchestration.EnsureEngineRunningAsync(cancellationToken).ConfigureAwait(false))
+        try
         {
-            item.CompleteEmpty();
-            return;
-        }
-
-        var model = OllamaOrchestrationService.ResolveModelName(item.ModelOverride);
-        var builder = new System.Text.StringBuilder();
-
-        await foreach (var token in orchestration
-                           .StreamGenerateDirectAsync(
-                               model,
-                               item.Prompt,
-                               item.SystemPrompt,
-                               item.ResponseFormat,
-                               cancellationToken)
-                           .ConfigureAwait(false))
-        {
-            builder.Append(token);
-            if (item.TokenWriter is not null)
+            var orchestration = OllamaOrchestrationService.Instance;
+            if (!await orchestration.EnsureEngineRunningAsync(cancellationToken).ConfigureAwait(false))
             {
-                await item.TokenWriter.WriteAsync(token, cancellationToken).ConfigureAwait(false);
+                item.CompleteEmpty();
+                return;
+            }
+
+            var model = OllamaOrchestrationService.ResolveModelName(item.ModelOverride);
+            var builder = new System.Text.StringBuilder();
+
+            await foreach (var token in orchestration
+                               .StreamGenerateDirectAsync(
+                                   model,
+                                   item.Prompt,
+                                   item.SystemPrompt,
+                                   item.ResponseFormat,
+                                   cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                builder.Append(token);
+                if (item.TokenWriter is not null)
+                {
+                    await item.TokenWriter.WriteAsync(token, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            if (item.Completion is not null)
+            {
+                item.CompleteSuccess(builder.Length == 0 ? null : builder.ToString());
             }
         }
-
-        item.TokenWriter?.TryComplete();
-
-        if (item.Completion is not null)
+        catch (OperationCanceledException)
         {
-            item.CompleteSuccess(builder.Length == 0 ? null : builder.ToString());
+            item.CompleteCancelled();
+        }
+        finally
+        {
+            item.TokenWriter?.TryComplete();
         }
     }
 

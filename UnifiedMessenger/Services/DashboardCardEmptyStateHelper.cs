@@ -11,6 +11,11 @@ public static class DashboardCardEmptyStateHelper
     public static int GetUrgentScoreThreshold() =>
         Math.Clamp(AppSettingsService.Instance.Settings.DashboardUrgencyThreshold, 15, 50);
 
+    public static bool IsUrgentQueueItem(MessageTriageItem item) =>
+        !item.IsSpamOrPromo &&
+        (item.OperationalUrgency >= 4 ||
+         item.ClientSentiment.Equals(ClientSentimentLabel.Critical, StringComparison.OrdinalIgnoreCase));
+
     public static DashboardCardEmptyReason ResolveGoogleTrustEmptyReason(
         bool hasGoogleInstances,
         CustomerTrustSnapshot trust)
@@ -73,9 +78,9 @@ public static class DashboardCardEmptyStateHelper
             DashboardCardEmptyReason.NoPlatformInstance =>
                 "Add a Meta Business Suite professional instance to begin measuring response efficiency.",
             DashboardCardEmptyReason.InboundOnlyAwaitingReply =>
-                "Inbound detected. Reply in Meta Business Suite to log response time and efficiency samples.",
+                "Inbound detected in Meta Business Suite. Open a conversation in the instance for AI triage; reply there to log response time samples.",
             DashboardCardEmptyReason.ConnectedAwaitingScrape =>
-                "Open the Meta inbox in the instance, then press Refresh to load response telemetry.",
+                "Open a Meta conversation in the instance for AI triage, then press Refresh to load response telemetry.",
             DashboardCardEmptyReason.ConnectedNoData =>
                 "No Meta response samples yet. Activity will appear after inbox traffic and replies.",
             _ => string.Empty

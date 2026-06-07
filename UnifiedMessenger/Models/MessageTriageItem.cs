@@ -12,6 +12,11 @@ public sealed class MessageTriageItem
 
     public required string MessagePreview { get; init; }
 
+    /// <summary>
+    /// Full cleaned inbound text for LLM inference (may exceed preview length).
+    /// </summary>
+    public string MessageFullText { get; init; } = string.Empty;
+
     public string CustomerName { get; init; } = "Customer";
 
     public int UrgencyScore { get; init; }

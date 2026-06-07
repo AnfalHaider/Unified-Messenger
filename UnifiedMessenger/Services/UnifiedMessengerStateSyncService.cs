@@ -20,6 +20,8 @@ public sealed class UnifiedMessengerSyncEvent
 
     public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
 
+    public string? Platform { get; init; }
+
     public string Source { get; init; } = "webview";
 }
 
@@ -62,22 +64,27 @@ public sealed class UnifiedMessengerStateSyncService
         string? conversationKey,
         string? customerName,
         DateTimeOffset? resolvedAtUtc = null,
-        string source = "webview")
+        string source = "webview",
+        string? platform = null)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
             return;
         }
 
-        _ = _channel.Writer.TryWrite(new UnifiedMessengerSyncEvent
-        {
-            Kind = UnifiedMessengerSyncEventKind.ThreadResolved,
-            InstanceId = instanceId.Trim(),
-            ConversationKey = conversationKey,
-            CustomerName = customerName,
-            TimestampUtc = resolvedAtUtc ?? DateTimeOffset.UtcNow,
-            Source = source
-        });
+        _ = ChannelWriteHelper.TryWriteWithDropLog(
+            _channel.Writer,
+            new UnifiedMessengerSyncEvent
+            {
+                Kind = UnifiedMessengerSyncEventKind.ThreadResolved,
+                InstanceId = instanceId.Trim(),
+                ConversationKey = conversationKey,
+                CustomerName = customerName,
+                TimestampUtc = resolvedAtUtc ?? DateTimeOffset.UtcNow,
+                Source = source,
+                Platform = platform
+            },
+            "UnifiedMessengerStateSync");
     }
 
     internal async Task ProcessEventForTestsAsync(UnifiedMessengerSyncEvent syncEvent)
@@ -107,6 +114,15 @@ public sealed class UnifiedMessengerStateSyncService
         }
     }
 
+    public void Shutdown()
+    {
+        _channel.Writer.TryComplete();
+        _cts.Cancel();
+    }
+
+    internal Task WaitForShutdownAsync(TimeSpan timeout) =>
+        _worker.WaitAsync(timeout);
+
     private static Task ProcessEventAsync(UnifiedMessengerSyncEvent syncEvent)
     {
         switch (syncEvent.Kind)
@@ -116,7 +132,8 @@ public sealed class UnifiedMessengerStateSyncService
                     syncEvent.InstanceId,
                     syncEvent.ConversationKey,
                     syncEvent.CustomerName,
-                    syncEvent.TimestampUtc);
+                    syncEvent.TimestampUtc,
+                    syncEvent.Platform);
                 UnifiedMessengerDashboardService.Instance.NotifyChanged();
                 break;
         }

@@ -123,6 +123,30 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             var adapterScript = PrepareScript(
                 await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
                 instance);
+            var conversationContextScript = PrepareScript(
+                await LoadScriptTemplateAsync("conversation-context-scraper.js", cancellationToken).ConfigureAwait(false),
+                instance);
+            string? draftInjectScript = null;
+            string? inboundMonitorScript = null;
+
+            if (SupportsInboundAutoDraft)
+            {
+                draftInjectScript = PrepareScript(
+                    await LoadScriptTemplateAsync("ai-draft-inject.js", cancellationToken).ConfigureAwait(false),
+                    instance);
+                inboundMonitorScript = PrepareScript(
+                    await LoadScriptTemplateAsync("inbound-message-monitor.js", cancellationToken).ConfigureAwait(false),
+                    instance);
+            }
+
+            var additionalScripts = new List<string>();
+            foreach (var additionalScript in AdditionalScriptFileNames)
+            {
+                additionalScripts.Add(PrepareScript(
+                    await LoadScriptTemplateAsync(additionalScript, cancellationToken).ConfigureAwait(false),
+                    instance));
+            }
+
             var settingsScript = BuildAdapterSettingsScript();
 
             await UiThreadRunner.RunAsync(async () =>
@@ -134,7 +158,44 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     .ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
+                await ExecuteScriptSafeAsync(coreWebView, conversationContextScript, cancellationToken)
+                    .ConfigureAwait(true);
+
+                if (draftInjectScript is not null)
+                {
+                    await ExecuteScriptSafeAsync(coreWebView, draftInjectScript, cancellationToken)
+                        .ConfigureAwait(true);
+                }
+
+                if (inboundMonitorScript is not null)
+                {
+                    await ExecuteScriptSafeAsync(coreWebView, inboundMonitorScript, cancellationToken)
+                        .ConfigureAwait(true);
+                }
+
+                foreach (var additionalScript in additionalScripts)
+                {
+                    await ExecuteScriptSafeAsync(coreWebView, additionalScript, cancellationToken)
+                        .ConfigureAwait(true);
+                }
+
                 await ExecuteScriptSafeAsync(coreWebView, settingsScript, cancellationToken).ConfigureAwait(true);
+                await ExecuteScriptSafeAsync(
+                        coreWebView,
+                        BuildConnectionHandshakeScript(instance),
+                        cancellationToken)
+                    .ConfigureAwait(true);
+
+                if (SupportsInboundAutoDraft)
+                {
+                    await ExecuteScriptSafeAsync(
+                            coreWebView,
+                            "if (window.__umStartInboundMessageMonitor) { window.__umStartInboundMessageMonitor(); }",
+                            cancellationToken)
+                        .ConfigureAwait(true);
+                }
+
+                await ExecutePublishBadgeAsync(coreWebView).ConfigureAwait(true);
             }).ConfigureAwait(true);
 
             await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
@@ -308,7 +369,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 conversationKey,
                 customerName,
                 ParseMessageTimestamp(root),
-                source);
+                source,
+                instance.Platform);
         }
         catch (Exception ex)
         {
@@ -330,6 +392,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             return false;
         }
 
+        if (instance.NotificationsMuted)
+        {
+            return true;
+        }
+
         var messageText = root.TryGetProperty("messageText", out var messageElement)
             ? messageElement.GetString()
             : null;
@@ -343,7 +410,18 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             ? hintElement.GetString() ?? string.Empty
             : string.Empty;
 
-        if (!BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, conversationHint, messageText))
+        var conversationKeyRaw = root.TryGetProperty("conversationKey", out var keyElement)
+            ? keyElement.GetString() ?? string.Empty
+            : string.Empty;
+
+        var resolvedKey = ConversationKeyResolver.Resolve(
+            instance.Platform,
+            conversationKeyRaw,
+            conversationHint,
+            root.TryGetProperty("customerName", out var nameProbe) ? nameProbe.GetString() : null,
+            messageText);
+
+        if (!BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, resolvedKey, messageText))
         {
             return true;
         }
@@ -351,7 +429,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         var customerName = root.TryGetProperty("customerName", out var customerElement)
             ? customerElement.GetString() ?? "Customer"
             : "Customer";
-        MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id);
+        var timestamp = ParseMessageTimestamp(root);
+        MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id, resolvedKey, timestamp);
 
         var selection = new InboundMessageSelection
         {
@@ -359,8 +438,9 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             Platform = instance.Platform,
             MessageText = messageText,
             CustomerName = customerName,
+            ConversationKey = resolvedKey,
             ConversationHint = conversationHint,
-            TimestampUtc = ParseMessageTimestamp(root)
+            TimestampUtc = timestamp
         };
 
         MessageTriageService.Instance.Enqueue(selection, instance.DisplayName, skipDedupeCheck: true);
@@ -435,7 +515,10 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     ? bodyElement.GetString() ?? string.Empty
                     : string.Empty;
 
-                MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id);
+                if (ShouldRecordPreviewForAnalytics(instance.Platform, title, body))
+                {
+                    MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id);
+                }
 
                 hub.AddAlert(NotificationAlert.Create(
                     instance.Id,
@@ -472,6 +555,15 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 var chatHint = root.TryGetProperty("chatHint", out var chatHintElement)
                     ? chatHintElement.GetString()
                     : null;
+                var sentConversationKeyRaw = root.TryGetProperty("conversationKey", out var sentKeyElement)
+                    ? sentKeyElement.GetString()
+                    : null;
+                var resolvedSentKey = ConversationKeyResolver.Resolve(
+                    instance.Platform,
+                    sentConversationKeyRaw,
+                    chatHint,
+                    chatHint,
+                    null);
                 MessageAnalyticsService.Instance.RecordMessageSent(instance.Id, chatHint);
                 if (IsMetaBusinessPlatform(instance.Platform))
                 {
@@ -482,10 +574,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
                 UnifiedMessengerStateSyncService.Instance.EnqueueThreadResolved(
                     instance.Id,
-                    chatHint,
+                    resolvedSentKey,
                     chatHint,
                     DateTimeOffset.UtcNow,
-                    source: "message-sent");
+                    source: "message-sent",
+                    platform: instance.Platform);
 
                 return true;
 
@@ -496,6 +589,31 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
     private static bool IsMetaBusinessPlatform(string platformId) =>
         platformId.Equals("metabusiness", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ShouldRecordPreviewForAnalytics(string platform, string title, string body)
+    {
+        var normalizedPlatform = PlatformDefinition.NormalizePlatformId(platform);
+        if (normalizedPlatform.Equals("whatsapp", StringComparison.OrdinalIgnoreCase) ||
+            normalizedPlatform.Equals("whatsappbusiness", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (normalizedPlatform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase) &&
+            IsSyntheticMetaUnreadPreview(title, body))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool IsSyntheticMetaUnreadPreview(string title, string body)
+    {
+        var combined = $"{title} {body}".Trim();
+        return combined.Contains("unread customer message", StringComparison.OrdinalIgnoreCase) ||
+               combined.Contains("unread messages", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static bool TryMarkRegistered(CoreWebView2 coreWebView)
     {
@@ -526,7 +644,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         return script
             .Replace("__INSTANCE_ID__", instance.Id, StringComparison.Ordinal)
             .Replace("__PLATFORM__", PlatformDefinition.NormalizePlatformId(instance.Platform), StringComparison.Ordinal)
-            .Replace("__INCLUDE_MUTED_BADGES__", includeMutedBadges ? "true" : "false", StringComparison.Ordinal);
+            .Replace("__INCLUDE_MUTED_BADGES__", includeMutedBadges ? "true" : "false", StringComparison.Ordinal)
+            .Replace("__NOTIFICATIONS_MUTED__", instance.NotificationsMuted ? "true" : "false", StringComparison.Ordinal);
     }
 
     private static async Task<string> LoadScriptTemplateAsync(
@@ -701,6 +820,7 @@ public sealed class MetaBusinessAdapter : BasePlatformAdapter
             return false;
         }
 
+        // Meta badge/unread telemetry only — AI triage runs when a conversation is opened via inbound-message-monitor.
         ProfessionalWorkspaceService.Instance.HandleMetaInboundMessage(
             instance.Id,
             ParseMessageTimestamp(root),
@@ -790,13 +910,29 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
 
                 if (!string.IsNullOrWhiteSpace(snippet))
                 {
+                    var reviewConversationKey = ConversationKeyResolver.BuildReviewKey(reviewId);
+                    if (!BackfillDedupeRegistry.TryAccept(
+                            instance.Id,
+                            instance.Platform,
+                            reviewConversationKey,
+                            snippet))
+                    {
+                        return true;
+                    }
+
+                    MessageAnalyticsService.Instance.RecordMessageReceived(
+                        instance.Id,
+                        reviewConversationKey,
+                        detectedAt);
+
                     var selection = new InboundMessageSelection
                     {
                         InstanceId = instance.Id,
                         Platform = instance.Platform,
                         MessageText = snippet,
                         CustomerName = reviewer,
-                        ConversationHint = location,
+                        ConversationKey = reviewConversationKey,
+                        ConversationHint = reviewConversationKey,
                         TimestampUtc = detectedAt
                     };
 

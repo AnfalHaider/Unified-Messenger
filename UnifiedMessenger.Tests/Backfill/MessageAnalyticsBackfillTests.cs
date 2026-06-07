@@ -31,7 +31,7 @@ public class MessageAnalyticsBackfillTests : IDisposable
     }
 
     [Fact]
-    public void RecordBackfillInbound_AddsSlaCandidateWhenMessageIsAged()
+    public void RecordBackfillInbound_DoesNotAddSlaCandidateWhenMessageIsAged()
     {
         var service = new MessageAnalyticsService(_storePath);
 
@@ -40,7 +40,8 @@ public class MessageAnalyticsBackfillTests : IDisposable
             DateTimeOffset.UtcNow.AddHours(-2),
             AppSettingsService.Instance.Settings.SlaThresholdMinutes);
 
-        Assert.Equal(1, service.GetSlaBreachCount("inst-1"));
+        Assert.Equal(1, service.GetReceivedCount("inst-1"));
+        Assert.Equal(0, service.GetSlaBreachCount("inst-1"));
     }
 
     [Fact]
@@ -50,12 +51,12 @@ public class MessageAnalyticsBackfillTests : IDisposable
         var receivedAt = DateTimeOffset.UtcNow.AddHours(-2);
 
         service.RecordBackfillInbound("inst-1", receivedAt, 15);
-        var breachesAfterBackfill = service.GetSlaBreachCount("inst-1");
+        Assert.Equal(0, service.GetSlaBreachCount("inst-1"));
 
         service.RecordMessageReceived("inst-1");
         service.RecordMessageSent("inst-1");
 
-        Assert.Equal(breachesAfterBackfill, service.GetSlaBreachCount("inst-1"));
+        Assert.Equal(0, service.GetSlaBreachCount("inst-1"));
     }
 
     public void Dispose()

@@ -2,7 +2,7 @@ namespace UnifiedMessenger.Models;
 
 public sealed class RichTriageStoreFile
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public int Version { get; set; } = CurrentVersion;
 

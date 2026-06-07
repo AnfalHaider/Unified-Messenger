@@ -150,7 +150,7 @@ public sealed partial class MainWindow : Window
         _forceShutdown = true;
         GlobalHotkeyService.Instance.Dispose();
 
-        await ApplicationLifecycleService.FlushPersistentStateAsync().ConfigureAwait(true);
+        await ApplicationLifecycleService.ShutdownAsync().ConfigureAwait(true);
 
         SystemTrayService.Instance.Dispose();
         Close();
@@ -456,7 +456,12 @@ public sealed partial class MainWindow : Window
         await AppSettingsService.Instance.LoadAsync().ConfigureAwait(true);
         await _registry.LoadAsync().ConfigureAwait(true);
         await MessageAnalyticsService.Instance.LoadAsync().ConfigureAwait(true);
-        await RichTriageStoreService.Instance.LoadAsync().ConfigureAwait(true);
+        var loadResult = await RichTriageStoreService.Instance.LoadAsync().ConfigureAwait(true);
+        if (loadResult.Status == RichTriageStoreLoadStatus.CorruptRecovered &&
+            !string.IsNullOrWhiteSpace(loadResult.UserMessage))
+        {
+            await ShowErrorDialogAsync("Triage data recovered", loadResult.UserMessage);
+        }
 
         _panePinned = AppSettingsService.Instance.Settings.SidebarPinnedExpanded;
         UpdatePanePinUi();
