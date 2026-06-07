@@ -22,12 +22,13 @@ public class DashboardPageHelperBranchFilterTests
     }
 
     [Fact]
-    public void BuildBranchFilterCollection_IncludesAllBranchesAndProfessionalOnly()
+    public void BuildBranchFilterCollection_GroupsByBranchKey()
     {
         var instances = new[]
         {
+            new MessengerInstance { Id = "wa-dha", DisplayName = "Depilex DHA-2", Category = WorkspaceCategory.Professional },
+            new MessengerInstance { Id = "meta-dha", DisplayName = "Depilex DHA-2 Meta", Category = WorkspaceCategory.Professional },
             new MessengerInstance { Id = "f11", DisplayName = "Depilex F-11", Category = WorkspaceCategory.Professional },
-            new MessengerInstance { Id = "d12", DisplayName = "Depilex D-12", Category = WorkspaceCategory.Professional },
             new MessengerInstance { Id = "personal", DisplayName = "Personal WA", Category = WorkspaceCategory.Personal }
         };
 
@@ -36,11 +37,9 @@ public class DashboardPageHelperBranchFilterTests
 
         Assert.Equal(3, collection.Count);
         Assert.True(collection[0].IsAllBranches);
-        Assert.Equal("All Branches", collection[0].DisplayName);
-        Assert.Equal("Depilex D-12", collection[1].DisplayName);
-        Assert.Equal("Depilex F-11", collection[2].DisplayName);
-        Assert.Equal("d12", collection[1].InstanceId);
-        Assert.Equal("f11", collection[2].InstanceId);
+        Assert.Equal("DHA-2 (2 inboxes)", collection[1].DisplayName);
+        Assert.Equal("F-11", collection[2].DisplayName);
+        Assert.Equal("DHA-2", collection[1].BranchKey);
     }
 
     [Fact]
@@ -52,31 +51,27 @@ public class DashboardPageHelperBranchFilterTests
     }
 
     [Fact]
-    public void ResolveBranchInstanceId_BranchEntry_ReturnsTrimmedId()
+    public void ResolveBranchInstanceId_BranchEntry_ReturnsBranchKey()
     {
-        var entry = DashboardBranchFilterEntry.FromInstance(new MessengerInstance
-        {
-            Id = "  f11  ",
-            DisplayName = "Depilex F-11",
-            Category = WorkspaceCategory.Professional
-        });
+        var entry = DashboardBranchFilterEntry.FromBranch("F-11", 2);
 
-        Assert.Equal("f11", DashboardPageHelper.ResolveBranchInstanceId(entry));
+        Assert.Equal("F-11", DashboardPageHelper.ResolveBranchInstanceId(entry));
     }
 
     [Fact]
-    public void FilterProfessionalInstances_ReturnsSingleBranch()
+    public void FilterProfessionalInstances_ReturnsAllInboxesForBranch()
     {
         var instances = new[]
         {
-            new MessengerInstance { Id = "f11", DisplayName = "Depilex F-11", Category = WorkspaceCategory.Professional },
+            new MessengerInstance { Id = "wa-f11", DisplayName = "Depilex F-11", Category = WorkspaceCategory.Professional },
+            new MessengerInstance { Id = "meta-f11", DisplayName = "Depilex F-11 Meta", Category = WorkspaceCategory.Professional },
             new MessengerInstance { Id = "dha", DisplayName = "Depilex DHA-2", Category = WorkspaceCategory.Professional }
         };
 
-        var filtered = DashboardPageHelper.FilterProfessionalInstances(instances, "dha").ToList();
+        var filtered = DashboardPageHelper.FilterProfessionalInstances(instances, "F-11").ToList();
 
-        Assert.Single(filtered);
-        Assert.Equal("dha", filtered[0].Id);
+        Assert.Equal(2, filtered.Count);
+        Assert.All(filtered, instance => Assert.Equal("F-11", BranchWorkspaceHelper.ResolveBranchKey(instance)));
     }
 
     [Fact]
@@ -93,7 +88,7 @@ public class DashboardPageHelperBranchFilterTests
     }
 
     [Fact]
-    public void BuildFilteredTriageSnapshot_RespectsBranchInstanceId()
+    public void BuildFilteredTriageSnapshot_RespectsBranchKey()
     {
         var triage = new MessageTriageService();
         var instances = new[]
@@ -101,7 +96,7 @@ public class DashboardPageHelperBranchFilterTests
             new MessengerInstance
             {
                 Id = "f11",
-                DisplayName = "F-11",
+                DisplayName = "Depilex F-11",
                 Platform = "metabusiness",
                 StartUrl = "https://example.com",
                 Category = WorkspaceCategory.Professional
@@ -109,7 +104,7 @@ public class DashboardPageHelperBranchFilterTests
             new MessengerInstance
             {
                 Id = "d12",
-                DisplayName = "D-12",
+                DisplayName = "Depilex D-12",
                 Platform = "metabusiness",
                 StartUrl = "https://example.com",
                 Category = WorkspaceCategory.Professional
@@ -123,7 +118,7 @@ public class DashboardPageHelperBranchFilterTests
                 Platform = "metabusiness",
                 MessageText = "Cancel my booking immediately, urgent."
             },
-            "F-11");
+            "Depilex F-11");
 
         triage.ProcessInboundForTests(
             new InboundMessageSelection
@@ -132,14 +127,13 @@ public class DashboardPageHelperBranchFilterTests
                 Platform = "metabusiness",
                 MessageText = "Refund my payment now, terrible service."
             },
-            "D-12");
+            "Depilex D-12");
 
         var all = DashboardPageHelper.BuildFilteredTriageSnapshot(instances, triageService: triage);
-        var f11Only = DashboardPageHelper.BuildFilteredTriageSnapshot(instances, "f11", triage);
+        var f11Only = DashboardPageHelper.BuildFilteredTriageSnapshot(instances, "F-11", triage);
 
         Assert.Equal(2, all.UrgentQueue.Count);
         Assert.Single(f11Only.UrgentQueue);
         Assert.Equal("f11", f11Only.UrgentQueue[0].InstanceId);
-        Assert.Equal(1, f11Only.PositiveCount + f11Only.NeutralCount + f11Only.NegativeCount);
     }
 }

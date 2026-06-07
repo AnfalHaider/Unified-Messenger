@@ -30,7 +30,8 @@ public sealed partial class OperationsCommandCenter : UserControl
     private IEnumerable<MessengerInstance> _professionalInstances = [];
     private OperationsCommandCenterSnapshot _snapshot = OperationsCommandCenterSnapshot.Empty;
     private InstanceRegistryService? _registry;
-    private string? _branchInstanceId;
+    private string? _selectedBranchKey;
+    private string? _selectedKanbanBranchName;
     private int _refreshGeneration;
     private bool _suppressTabSelection;
     private bool _isRefreshing;
@@ -40,7 +41,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     {
         InitializeComponent();
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
-        BranchMetricsItems.ItemsSource = _branchMetrics;
+        BranchMetricsList.ItemsSource = _branchMetrics;
         PlatformHealthItems.ItemsSource = _platformHealth;
         ImmediateQueueList.ItemsSource = _immediateQueue;
         NewInquiriesList.ItemsSource = _newInquiries;
@@ -52,18 +53,31 @@ public sealed partial class OperationsCommandCenter : UserControl
         _refreshDebounceTimer.Interval = TimeSpan.FromMilliseconds(RefreshDebounceMilliseconds);
         _refreshDebounceTimer.Tick += OnRefreshDebounceTick;
 
+        BranchWorkspaceTabs.RegisterPropertyChangedCallback(
+            TabView.SelectedIndexProperty,
+            OnBranchWorkspaceSelectedIndexChanged);
+
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
 
     public async Task RefreshAsync(
         IEnumerable<MessengerInstance> professionalInstances,
-        string? branchInstanceId = null,
+        string? selectedBranchKey = null,
         InstanceRegistryService? registry = null)
     {
         _professionalInstances = professionalInstances;
-        _branchInstanceId = branchInstanceId;
+        var branchFilterChanged = !string.Equals(
+            _selectedBranchKey,
+            selectedBranchKey,
+            StringComparison.OrdinalIgnoreCase);
+        _selectedBranchKey = selectedBranchKey;
         _registry = registry;
+
+        if (branchFilterChanged && !string.IsNullOrWhiteSpace(selectedBranchKey))
+        {
+            _selectedKanbanBranchName = selectedBranchKey.Trim();
+        }
 
         if (_isRefreshing)
         {
@@ -77,7 +91,7 @@ public sealed partial class OperationsCommandCenter : UserControl
             var snapshot = await Task.Run(() =>
                     OperationsCommandCenterService.Instance.BuildSnapshot(
                         professionalInstances,
-                        branchInstanceId))
+                        selectedBranchKey))
                 .ConfigureAwait(true);
 
             ApplySnapshot(snapshot);
@@ -108,7 +122,7 @@ public sealed partial class OperationsCommandCenter : UserControl
                 .ConfigureAwait(true);
 
             MessageAnalyticsService.Instance.NotifyDashboardRefresh();
-            await RefreshAsync(_professionalInstances, _branchInstanceId, _registry).ConfigureAwait(true);
+            await RefreshAsync(_professionalInstances, _selectedBranchKey, _registry).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -150,17 +164,19 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void OnRefreshDebounceTick(DispatcherQueueTimer sender, object args)
     {
         sender.Stop();
-        _ = RefreshAsync(_professionalInstances, _branchInstanceId, _registry);
+        _ = RefreshAsync(_professionalInstances, _selectedBranchKey, _registry);
     }
 
-    private void BranchWorkspaceTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnBranchWorkspaceSelectedIndexChanged(DependencyObject sender, DependencyProperty property)
     {
         if (_suppressTabSelection)
         {
             return;
         }
 
+        _selectedKanbanBranchName = ResolveSelectedKanbanBranchName();
         ApplyKanbanForSelectedBranch();
+        RefreshBranchMetricSelection();
     }
 
     private void ApplySnapshot(OperationsCommandCenterSnapshot snapshot)
@@ -186,7 +202,12 @@ public sealed partial class OperationsCommandCenter : UserControl
         ApplySubtext(AvgReplyTimeSubtext, status.AverageReplyTimeSubtext);
         ApplySubtext(SlaThresholdSubtext, status.SlaThresholdSubtext);
 
-        ReplaceCollection(_branchMetrics, threadOps.BranchMetrics.Select(metric => new BranchMetricViewModel(metric)));
+        ReplaceCollection(
+            _branchMetrics,
+            threadOps.BranchMetrics.Select(metric =>
+                new BranchMetricViewModel(metric, metric.BranchName.Equals(
+                    _selectedKanbanBranchName,
+                    StringComparison.OrdinalIgnoreCase))));
         BranchMetricsEmptyText.Visibility = _branchMetrics.Count == 0
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -374,7 +395,7 @@ public sealed partial class OperationsCommandCenter : UserControl
             }
         }
 
-        var selectedBranch = ResolveFilteredBranchName();
+        var selectedBranch = _selectedKanbanBranchName ?? ResolveFilteredBranchName();
         var selectedIndex = 0;
         if (!string.IsNullOrWhiteSpace(selectedBranch))
         {
@@ -391,27 +412,29 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
 
         BranchWorkspaceTabs.SelectedIndex = selectedIndex;
+        _selectedKanbanBranchName = ResolveSelectedKanbanBranchName();
         _suppressTabSelection = false;
     }
 
-    private string? ResolveFilteredBranchName()
+    private string? ResolveFilteredBranchName() =>
+        string.IsNullOrWhiteSpace(_selectedBranchKey) ? null : _selectedBranchKey.Trim();
+
+    private string? ResolveSelectedKanbanBranchName()
     {
-        if (string.IsNullOrWhiteSpace(_branchInstanceId))
+        var index = BranchWorkspaceTabs.SelectedIndex;
+        if (index < 0 || index >= BranchWorkspaceTabs.TabItems.Count)
         {
             return null;
         }
 
-        var instance = _professionalInstances.FirstOrDefault(item =>
-            item.Id.Equals(_branchInstanceId, StringComparison.OrdinalIgnoreCase));
-
-        return instance is null ? null : BranchNameResolver.Resolve(instance);
+        return BranchWorkspaceTabs.TabItems[index] is TabViewItem tab
+            ? tab.Tag as string
+            : null;
     }
 
     private void ApplyKanbanForSelectedBranch()
     {
-        var branchName = BranchWorkspaceTabs.SelectedItem is TabViewItem tab
-            ? tab.Tag as string
-            : null;
+        var branchName = _selectedKanbanBranchName ?? ResolveSelectedKanbanBranchName();
 
         var threads = UnifiedMessengerDashboardPresentationHelper.FilterThreadsForBranch(
             _snapshot.ThreadOperations.AllThreads,
@@ -441,6 +464,51 @@ public sealed partial class OperationsCommandCenter : UserControl
         foreach (var item in items)
         {
             target.Add(item);
+        }
+    }
+
+    private void BranchMetricsList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not BranchMetricViewModel metric)
+        {
+            return;
+        }
+
+        _selectedKanbanBranchName = metric.BranchName;
+        SelectKanbanTabForBranch(metric.BranchName);
+        ApplyKanbanForSelectedBranch();
+        RefreshBranchMetricSelection();
+    }
+
+    private void SelectKanbanTabForBranch(string branchName)
+    {
+        _suppressTabSelection = true;
+        for (var index = 0; index < BranchWorkspaceTabs.TabItems.Count; index++)
+        {
+            if (BranchWorkspaceTabs.TabItems[index] is TabViewItem tab &&
+                tab.Tag is string branch &&
+                branch.Equals(branchName, StringComparison.OrdinalIgnoreCase))
+            {
+                BranchWorkspaceTabs.SelectedIndex = index;
+                break;
+            }
+        }
+
+        _suppressTabSelection = false;
+    }
+
+    private void RefreshBranchMetricSelection()
+    {
+        var selected = _selectedKanbanBranchName;
+        for (var index = 0; index < _branchMetrics.Count; index++)
+        {
+            var metric = _branchMetrics[index];
+            var isSelected = !string.IsNullOrWhiteSpace(selected) &&
+                             metric.BranchName.Equals(selected, StringComparison.OrdinalIgnoreCase);
+            if (metric.IsSelected != isSelected)
+            {
+                _branchMetrics[index] = new BranchMetricViewModel(metric.Source, isSelected);
+            }
         }
     }
 
@@ -601,20 +669,74 @@ public sealed partial class OperationsCommandCenter : UserControl
             : Visibility.Visible;
     }
 
-    private sealed class BranchMetricViewModel(UnifiedMessengerBranchMetrics metric)
+    private sealed class BranchMetricViewModel
     {
-        public string BranchName { get; } = metric.BranchName;
+        public BranchMetricViewModel(UnifiedMessengerBranchMetrics metric, bool isSelected)
+        {
+            Source = metric;
+            BranchName = metric.BranchName;
+            LatencyDisplay = UnifiedMessengerDashboardPresentationHelper.FormatLatency(metric.AverageLatencyMinutes);
+            UnresolvedDisplay = metric.UnresolvedCount == 1
+                ? "1 open"
+                : $"{metric.UnresolvedCount} open";
+            InboxDisplay = metric.InboxCount <= 1
+                ? "1 inbox"
+                : $"{metric.InboxCount} inboxes";
+            PlatformBreakdown = metric.PlatformBreakdown;
+            DetailDisplay = BuildDetailDisplay(metric);
+            IsSelected = isSelected;
+            LatencyBrush = CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex(metric.LatencyColor));
+            LatencyBorderBrush = CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex(metric.LatencyColor));
+            CardBackgroundBrush = isSelected
+                ? new SolidColorBrush(Color.FromArgb(255, 239, 246, 255))
+                : new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+        }
 
-        public string LatencyDisplay { get; } =
-            UnifiedMessengerDashboardPresentationHelper.FormatLatency(metric.AverageLatencyMinutes);
+        public UnifiedMessengerBranchMetrics Source { get; }
 
-        public string UnresolvedDisplay { get; } = $"{metric.UnresolvedCount} open";
+        public string BranchName { get; }
 
-        public SolidColorBrush LatencyBrush { get; } =
-            CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex(metric.LatencyColor));
+        public string LatencyDisplay { get; }
 
-        public SolidColorBrush LatencyBorderBrush { get; } =
-            CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex(metric.LatencyColor));
+        public string UnresolvedDisplay { get; }
+
+        public string InboxDisplay { get; }
+
+        public string PlatformBreakdown { get; }
+
+        public string DetailDisplay { get; }
+
+        public bool IsSelected { get; }
+
+        public SolidColorBrush LatencyBrush { get; }
+
+        public SolidColorBrush LatencyBorderBrush { get; }
+
+        public SolidColorBrush CardBackgroundBrush { get; }
+
+        public Visibility PlatformBreakdownVisibility =>
+            string.IsNullOrWhiteSpace(PlatformBreakdown) ? Visibility.Collapsed : Visibility.Visible;
+
+        private static string BuildDetailDisplay(UnifiedMessengerBranchMetrics metric)
+        {
+            var parts = new List<string> { metric.UnresolvedCount == 1 ? "1 open" : $"{metric.UnresolvedCount} open" };
+            if (metric.InboxCount > 0)
+            {
+                parts.Add(metric.InboxCount == 1 ? "1 inbox" : $"{metric.InboxCount} inboxes");
+            }
+
+            if (metric.SlaBreachCount > 0)
+            {
+                parts.Add($"{metric.SlaBreachCount} SLA");
+            }
+
+            if (metric.RevenueAtRisk > 0)
+            {
+                parts.Add(UnifiedMessengerDashboardPresentationHelper.FormatRevenue(metric.RevenueAtRisk));
+            }
+
+            return string.Join(" · ", parts);
+        }
     }
 
     private sealed class PlatformHealthViewModel(UnifiedMessengerPlatformHealthIndicator indicator)

@@ -22,6 +22,29 @@ public class EditInstanceMetadataDialogHelperTests
         Assert.Equal("whatsapp", state.PlatformId);
         Assert.Equal("https://web.whatsapp.com", state.StartUrl);
         Assert.Equal("desk phone", state.Notes);
+        Assert.Equal(string.Empty, state.BranchKey);
+    }
+
+    [Fact]
+    public void ValidatePrimaryAction_PersistsExplicitBranchKey()
+    {
+        var initial = EditInstanceMetadataDialogHelper.CreateInitialFormState(new MessengerInstance
+        {
+            DisplayName = "Inbox",
+            Platform = "metabusiness",
+            StartUrl = "https://business.facebook.com"
+        });
+
+        var submission = EditInstanceMetadataDialogHelper.ValidatePrimaryAction(
+            initial,
+            displayName: "Inbox",
+            PlatformDefinition.FindById("metabusiness"),
+            customUrlText: "https://business.facebook.com",
+            notesText: null,
+            branchKeyText: "DHA-2");
+
+        Assert.True(submission.IsValid);
+        Assert.Equal("DHA-2", submission.BranchKey);
     }
 
     [Fact]

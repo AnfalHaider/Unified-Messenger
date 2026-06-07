@@ -74,10 +74,10 @@ public class OperationsCommandCenterServiceTests : IDisposable
 
         var facadeSnapshot = OperationsCommandCenterService.Instance.BuildSnapshot(
             instances,
-            branchInstanceId: "f11",
+            selectedBranchKey: "F-11",
             triageService: MessageTriageService.Instance);
 
-        var threadSnapshot = UnifiedMessengerDashboardService.Instance.BuildSnapshot(instances, "f11");
+        var threadSnapshot = UnifiedMessengerDashboardService.Instance.BuildSnapshot(instances, "F-11");
 
         Assert.Single(facadeSnapshot.FilteredInstances);
         Assert.Equal("f11", facadeSnapshot.FilteredInstances[0].Id);
@@ -102,7 +102,7 @@ public class OperationsCommandCenterServiceTests : IDisposable
         Assert.True(allBranches.PlatformIntelligence.HasMetaInstances);
         Assert.Equal(2, allBranches.PlatformIntelligence.GoogleInstanceIds.Count + allBranches.PlatformIntelligence.MetaInstanceIds.Count);
 
-        var filtered = OperationsCommandCenterService.Instance.BuildSnapshot(instances, branchInstanceId: "google-f11");
+        var filtered = OperationsCommandCenterService.Instance.BuildSnapshot(instances, selectedBranchKey: "F-11");
         Assert.True(filtered.PlatformIntelligence.HasGoogleInstances);
         Assert.False(filtered.PlatformIntelligence.HasMetaInstances);
         Assert.Single(filtered.PlatformIntelligence.GoogleInstanceIds);

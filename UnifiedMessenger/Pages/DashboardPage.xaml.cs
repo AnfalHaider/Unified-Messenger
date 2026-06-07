@@ -14,7 +14,7 @@ public sealed partial class DashboardPage : Page
     private InstanceRegistryService? _registry;
     private readonly List<DashboardActivityItem> _allActivity = [];
     private DispatcherTimer? _resourceTimer;
-    private string? _selectedBranchInstanceId;
+    private string? _selectedBranchKey;
     private bool _suppressBranchSelectionChanged;
     private readonly ObservableCollection<DashboardBranchFilterEntry> _branchFilterEntries = new();
 
@@ -140,7 +140,7 @@ public sealed partial class DashboardPage : Page
 
         await OperationsCommandCenterPanel.RefreshAsync(
             ProfessionalInstances,
-            _selectedBranchInstanceId,
+            _selectedBranchKey,
             _registry).ConfigureAwait(true);
     }
 
@@ -198,25 +198,20 @@ public sealed partial class DashboardPage : Page
 
         _suppressBranchSelectionChanged = true;
         _branchFilterEntries.Clear();
-        _branchFilterEntries.Add(DashboardBranchFilterEntry.CreateAllBranches());
-
-        foreach (var instance in ProfessionalInstances
-                     .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
-                     .OrderBy(instance => instance.DisplayName, StringComparer.OrdinalIgnoreCase))
+        foreach (var entry in BranchWorkspaceHelper.BuildBranchFilterEntries(ProfessionalInstances))
         {
-            _branchFilterEntries.Add(DashboardBranchFilterEntry.FromInstance(instance));
+            _branchFilterEntries.Add(entry);
         }
 
-        var selectedId = _selectedBranchInstanceId ?? DashboardPageHelper.AllBranchesOptionId;
         BranchFilterBox.SelectedItem = _branchFilterEntries.FirstOrDefault(entry =>
-            (entry.IsAllBranches && string.IsNullOrWhiteSpace(selectedId)) ||
-            (!entry.IsAllBranches &&
-             entry.InstanceId.Equals(selectedId, StringComparison.OrdinalIgnoreCase)));
+            entry.IsAllBranches && string.IsNullOrWhiteSpace(_selectedBranchKey) ||
+            !entry.IsAllBranches &&
+            entry.BranchKey.Equals(_selectedBranchKey ?? string.Empty, StringComparison.OrdinalIgnoreCase));
 
         if (BranchFilterBox.SelectedItem is null && _branchFilterEntries.Count > 0)
         {
             BranchFilterBox.SelectedIndex = 0;
-            _selectedBranchInstanceId = null;
+            _selectedBranchKey = null;
         }
 
         _suppressBranchSelectionChanged = false;
@@ -230,7 +225,7 @@ public sealed partial class DashboardPage : Page
             return;
         }
 
-        _selectedBranchInstanceId = DashboardPageHelper.ResolveBranchInstanceId(entry);
+        _selectedBranchKey = DashboardPageHelper.ResolveBranchInstanceId(entry);
 
         _ = RefreshOperationsCommandCenterAsync();
         _ = OperationsCommandCenterPanel.RequestPlatformDataRefreshAsync();

@@ -13,7 +13,7 @@ public sealed class OperationsCommandCenterSnapshot
 
     public string ScopeLabel { get; init; } = "Showing: All Branches";
 
-    public string? BranchInstanceId { get; init; }
+    public string? SelectedBranchKey { get; init; }
 
     public IReadOnlyList<MessengerInstance> FilteredInstances { get; init; } = [];
 

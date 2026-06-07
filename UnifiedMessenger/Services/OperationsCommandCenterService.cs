@@ -15,7 +15,7 @@ public sealed class OperationsCommandCenterService
 
     public OperationsCommandCenterSnapshot BuildSnapshot(
         IEnumerable<MessengerInstance> professionalInstances,
-        string? branchInstanceId = null,
+        string? selectedBranchKey = null,
         NotificationHub? notificationHub = null,
         MessageTriageService? triageService = null,
         UnifiedMessengerDashboardService? threadDashboardService = null,
@@ -30,16 +30,16 @@ public sealed class OperationsCommandCenterService
         var workspace = professionalWorkspaceService ?? ProfessionalWorkspaceService.Instance;
 
         var filteredInstances = DashboardPageHelper
-            .FilterProfessionalInstances(professionalInstances, branchInstanceId)
+            .FilterProfessionalInstances(professionalInstances, selectedBranchKey)
             .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
             .ToList();
 
-        var normalizedBranchId = DashboardPageHelper.NormalizeBranchInstanceId(branchInstanceId);
-        var threadOperations = threadService.BuildSnapshot(filteredInstances, normalizedBranchId);
+        var normalizedBranchKey = DashboardPageHelper.NormalizeBranchInstanceId(selectedBranchKey);
+        var threadOperations = threadService.BuildSnapshot(filteredInstances, normalizedBranchKey);
         var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
             professionalInstances,
             hub,
-            normalizedBranchId);
+            normalizedBranchKey);
 
         var analytics = telemetry.Snapshot;
         var display = telemetry.Display;
@@ -80,8 +80,8 @@ public sealed class OperationsCommandCenterService
         {
             ScopeLabel = DashboardCardEmptyStateHelper.BuildBranchScopeSubtitle(
                 professionalInstances.Where(instance => instance.IsProfessional),
-                normalizedBranchId),
-            BranchInstanceId = normalizedBranchId,
+                normalizedBranchKey),
+            SelectedBranchKey = normalizedBranchKey,
             FilteredInstances = filteredInstances,
             ThreadOperations = threadOperations,
             Status = BuildStatusSnapshot(threadOperations, analytics, display, activeSlaBreaches),

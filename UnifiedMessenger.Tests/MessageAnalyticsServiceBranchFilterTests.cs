@@ -29,7 +29,7 @@ public class MessageAnalyticsServiceBranchFilterTests : IDisposable
 
         var snapshot = service.CaptureProfessionalSnapshot(instances, hub);
 
-        Assert.Null(snapshot.FilteredBranchInstanceId);
+        Assert.Null(snapshot.FilteredBranchKey);
         Assert.Equal(2, snapshot.IncludedInstanceIds.Count);
         Assert.Equal(3, snapshot.ReceivedCount);
         Assert.Equal(1, snapshot.SentCount);
@@ -47,9 +47,9 @@ public class MessageAnalyticsServiceBranchFilterTests : IDisposable
         var instances = CreateProfessionalBranches();
         var hub = NotificationHub.CreateForTests();
 
-        var snapshot = service.CaptureProfessionalSnapshot(instances, hub, "f11");
+        var snapshot = service.CaptureProfessionalSnapshot(instances, hub, "F-11");
 
-        Assert.Equal("f11", snapshot.FilteredBranchInstanceId);
+        Assert.Equal("F-11", snapshot.FilteredBranchKey);
         Assert.Single(snapshot.IncludedInstanceIds);
         Assert.Equal("f11", snapshot.IncludedInstanceIds[0]);
         Assert.Equal(2, snapshot.ReceivedCount);
@@ -68,7 +68,7 @@ public class MessageAnalyticsServiceBranchFilterTests : IDisposable
         var hub = NotificationHub.CreateForTests();
 
         var all = service.CaptureProfessionalSnapshot(instances, hub);
-        var d12Only = service.CaptureProfessionalSnapshot(instances, hub, "d12");
+        var d12Only = service.CaptureProfessionalSnapshot(instances, hub, "Depilex D-12");
 
         var allReceived = all.WeeklyActivity.Sum(point => point.Received);
         var d12Received = d12Only.WeeklyActivity.Sum(point => point.Received);
@@ -87,13 +87,13 @@ public class MessageAnalyticsServiceBranchFilterTests : IDisposable
 
         var instances = CreateProfessionalBranches();
         var hub = NotificationHub.CreateForTests();
-        var snapshot = service.CaptureProfessionalSnapshot(instances, hub, "d12");
+        var snapshot = service.CaptureProfessionalSnapshot(instances, hub, "Depilex D-12");
         var telemetry = new ProfessionalDashboardTelemetry
         {
             Snapshot = snapshot,
             Display = DashboardPageHelper.BuildProfessionalDisplay(snapshot),
             FilteredInstances = DashboardPageHelper
-                .FilterProfessionalInstances(instances, "d12")
+                .FilterProfessionalInstances(instances, "Depilex D-12")
                 .ToList()
         };
 
@@ -101,7 +101,7 @@ public class MessageAnalyticsServiceBranchFilterTests : IDisposable
         Assert.Equal("d12", telemetry.FilteredInstances[0].Id);
         Assert.Equal(1, telemetry.Snapshot.ReceivedCount);
         Assert.Equal("1", telemetry.Display.ReceivedCount);
-        Assert.Equal("d12", telemetry.Snapshot.FilteredBranchInstanceId);
+        Assert.Equal("Depilex D-12", telemetry.Snapshot.FilteredBranchKey);
     }
 
     private static MessengerInstance[] CreateProfessionalBranches() =>

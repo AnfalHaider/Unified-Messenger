@@ -61,6 +61,26 @@ public class InstanceRegistryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateInstanceMetadataAsync_PersistsBranchKey()
+    {
+        var registry = new InstanceRegistryService(_storePath);
+        var instance = await registry.AddInstanceAsync("Inbox", "metabusiness", null);
+
+        await registry.UpdateInstanceMetadataAsync(
+            instance.Id,
+            "Meta Inbox",
+            "https://business.facebook.com",
+            "metabusiness",
+            notes: null,
+            branchKey: "DHA-2");
+
+        var updated = registry.FindById(instance.Id);
+        Assert.NotNull(updated);
+        Assert.Equal("DHA-2", updated!.BranchKey);
+        Assert.Equal("DHA-2", BranchWorkspaceHelper.ResolveBranchKey(updated));
+    }
+
+    [Fact]
     public async Task LoadAsync_RecoversFromCorruptJson()
     {
         await File.WriteAllTextAsync(_storePath, "{ not valid json");

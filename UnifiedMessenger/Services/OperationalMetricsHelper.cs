@@ -32,6 +32,7 @@ public static class OperationalMetricsHelper
             var branch = string.IsNullOrWhiteSpace(thread.BranchName)
                 ? thread.InstanceDisplayName
                 : thread.BranchName;
+            var platformLabel = PlatformDefinition.FindById(thread.Platform)?.DisplayName ?? thread.Platform;
             var waitLabel = thread.LatencyMinutes < 1
                 ? "< 1 min"
                 : $"{Math.Round(thread.LatencyMinutes, 0)} min";
@@ -40,8 +41,8 @@ public static class OperationalMetricsHelper
             {
                 Title = thread.CustomerName,
                 Subtitle = thread.IsSlaBreached
-                    ? $"SLA breached · waiting {waitLabel} · {branch}"
-                    : $"Waiting {waitLabel} · {branch}",
+                    ? $"SLA breached · waiting {waitLabel} · {branch} · {platformLabel}"
+                    : $"Waiting {waitLabel} · {branch} · {platformLabel}",
                 InstanceDisplayName = instanceNames.TryGetValue(thread.InstanceId, out var name)
                     ? name
                     : thread.InstanceDisplayName,

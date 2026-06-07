@@ -88,6 +88,7 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                     TimestampUtc = timestamp
                 },
                 instance.DisplayName,
+                BranchWorkspaceHelper.ResolveBranchKey(instance),
                 allowLlmInference: allowAi,
                 skipDedupeCheck: true);
 

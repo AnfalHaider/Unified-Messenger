@@ -443,7 +443,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             TimestampUtc = timestamp
         };
 
-        MessageTriageService.Instance.Enqueue(selection, instance.DisplayName, skipDedupeCheck: true);
+        MessageTriageService.Instance.Enqueue(
+            selection,
+            instance.DisplayName,
+            BranchWorkspaceHelper.ResolveBranchKey(instance),
+            skipDedupeCheck: true);
         AutoDraftOrchestrator.Instance.HandleInboundMessage(selection);
 
         return true;
@@ -936,7 +940,10 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
                         TimestampUtc = detectedAt
                     };
 
-                    MessageTriageService.Instance.Enqueue(selection, instance.DisplayName);
+                    MessageTriageService.Instance.Enqueue(
+                        selection,
+                        instance.DisplayName,
+                        BranchWorkspaceHelper.ResolveBranchKey(instance));
                     AutoDraftOrchestrator.Instance.HandleInboundMessage(selection);
                 }
 

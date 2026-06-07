@@ -45,6 +45,11 @@ public sealed class MessengerInstance
 
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// Optional canonical branch location key (e.g. DHA-2). When empty, inferred from <see cref="DisplayName"/>.
+    /// </summary>
+    public string? BranchKey { get; set; }
+
     public void ApplyPlatformBranding()
     {
         var platform = PlatformDefinition.FindById(Platform);
@@ -68,6 +73,7 @@ public sealed class MessengerInstance
         StartUrl = StartUrl?.Trim() ?? string.Empty;
         Platform = PlatformDefinition.NormalizePlatformId(Platform);
         Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes.Trim();
+        BranchKey = string.IsNullOrWhiteSpace(BranchKey) ? null : BranchKey.Trim();
 
         if (string.IsNullOrWhiteSpace(DisplayName))
         {

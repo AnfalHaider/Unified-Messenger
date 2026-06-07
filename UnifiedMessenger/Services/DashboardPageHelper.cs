@@ -31,53 +31,22 @@ public static class DashboardPageHelper
 
     public static IEnumerable<MessengerInstance> FilterProfessionalInstances(
         IEnumerable<MessengerInstance> professionalInstances,
-        string? selectedBranchInstanceId)
-    {
-        ArgumentNullException.ThrowIfNull(professionalInstances);
+        string? selectedBranchKey) =>
+        BranchWorkspaceHelper.FilterByBranchKey(professionalInstances, selectedBranchKey);
 
-        var normalizedId = NormalizeBranchInstanceId(selectedBranchInstanceId);
-        if (normalizedId is null)
-        {
-            return professionalInstances;
-        }
+    public static string? NormalizeBranchInstanceId(string? selectedBranchKey) =>
+        BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey);
 
-        return professionalInstances.Where(instance =>
-            instance.Id.Equals(normalizedId, StringComparison.OrdinalIgnoreCase));
-    }
-
-    public static string? NormalizeBranchInstanceId(string? selectedBranchInstanceId)
-    {
-        if (string.IsNullOrWhiteSpace(selectedBranchInstanceId))
-        {
-            return null;
-        }
-
-        return selectedBranchInstanceId.Trim();
-    }
-
-    public static string? ResolveBranchInstanceId(DashboardBranchFilterEntry? entry)
-    {
-        if (entry is null || entry.IsAllBranches)
-        {
-            return null;
-        }
-
-        return NormalizeBranchInstanceId(entry.InstanceId);
-    }
+    public static string? ResolveBranchInstanceId(DashboardBranchFilterEntry? entry) =>
+        BranchWorkspaceHelper.ResolveBranchKeyFromEntry(entry);
 
     public static ObservableCollection<DashboardBranchFilterEntry> BuildBranchFilterCollection(
         IEnumerable<MessengerInstance> professionalInstances)
     {
-        var collection = new ObservableCollection<DashboardBranchFilterEntry>
+        var collection = new ObservableCollection<DashboardBranchFilterEntry>();
+        foreach (var entry in BranchWorkspaceHelper.BuildBranchFilterEntries(professionalInstances))
         {
-            DashboardBranchFilterEntry.CreateAllBranches()
-        };
-
-        foreach (var instance in professionalInstances
-                     .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
-                     .OrderBy(instance => instance.DisplayName, StringComparer.OrdinalIgnoreCase))
-        {
-            collection.Add(DashboardBranchFilterEntry.FromInstance(instance));
+            collection.Add(entry);
         }
 
         return collection;
@@ -204,7 +173,9 @@ public static class DashboardPageHelper
         return new ExecutiveInsightCardDisplay
         {
             CustomerName = string.IsNullOrWhiteSpace(item.CustomerName) ? "Customer" : item.CustomerName.Trim(),
-            BranchName = item.InstanceDisplayName,
+            BranchName = string.IsNullOrWhiteSpace(item.BranchName)
+                ? BranchNameResolver.Resolve(item.InstanceDisplayName)
+                : item.BranchName.Trim(),
             CoreSummary = ResolveInsightSummary(item),
             IntentLabel = FormatIntentLabel(item.AiIntentCategory),
             UrgencyLabel = item.UrgencyLabel,

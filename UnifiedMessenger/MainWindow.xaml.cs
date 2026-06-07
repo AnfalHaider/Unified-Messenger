@@ -897,7 +897,8 @@ public sealed partial class MainWindow : Window
                 dialog.ResultDisplayName,
                 dialog.ResultStartUrl,
                 dialog.ResultPlatformId,
-                dialog.ResultNotes);
+                dialog.ResultNotes,
+                dialog.ResultBranchKey);
 
             await _sessionManager.ReloadSessionAsync(instanceId);
             RebuildInstanceNavigation();

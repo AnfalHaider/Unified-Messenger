@@ -1,33 +1,36 @@
 namespace UnifiedMessenger.Models;
 
 /// <summary>
-/// ComboBox item for dashboard branch filtering. "All Branches" uses <see cref="IsAllBranches"/> with no instance.
+/// ComboBox item for dashboard branch filtering. "All Branches" aggregates every professional inbox.
 /// </summary>
 public sealed class DashboardBranchFilterEntry
 {
     public bool IsAllBranches { get; set; }
 
-    public MessengerInstance? Instance { get; set; }
+    public string BranchKey { get; set; } = string.Empty;
 
-    public string InstanceId =>
-        IsAllBranches ? string.Empty : Instance?.Id?.Trim() ?? string.Empty;
+    public int InboxCount { get; set; }
 
     public string DisplayName { get; set; } = string.Empty;
 
-    public static DashboardBranchFilterEntry CreateAllBranches() =>
-        new() { IsAllBranches = true, DisplayName = "All Branches" };
+    public static DashboardBranchFilterEntry CreateAllBranches(int inboxCount = 0) =>
+        new()
+        {
+            IsAllBranches = true,
+            InboxCount = inboxCount,
+            DisplayName = inboxCount <= 0
+                ? "All Branches"
+                : $"All Branches ({inboxCount} inbox{(inboxCount == 1 ? "" : "es")})"
+        };
 
-    public static DashboardBranchFilterEntry FromInstance(MessengerInstance instance)
-    {
-        ArgumentNullException.ThrowIfNull(instance);
-
-        return new DashboardBranchFilterEntry
+    public static DashboardBranchFilterEntry FromBranch(string branchKey, int inboxCount) =>
+        new()
         {
             IsAllBranches = false,
-            Instance = instance,
-            DisplayName = string.IsNullOrWhiteSpace(instance.DisplayName)
-                ? instance.Id
-                : instance.DisplayName.Trim()
+            BranchKey = branchKey.Trim(),
+            InboxCount = inboxCount,
+            DisplayName = inboxCount <= 1
+                ? branchKey.Trim()
+                : $"{branchKey.Trim()} ({inboxCount} inboxes)"
         };
-    }
 }

@@ -16,7 +16,7 @@ public sealed class UnifiedMessengerDashboardService
 
     public UnifiedMessengerDashboardSnapshot BuildSnapshot(
         IEnumerable<MessengerInstance> professionalInstances,
-        string? branchInstanceId = null)
+        string? selectedBranchKey = null)
     {
         ThreadRegistryService.Instance.RefreshOperationalFlags();
 
@@ -24,7 +24,11 @@ public sealed class UnifiedMessengerDashboardService
             .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
             .ToList();
 
-        var allowedIds = DashboardPageHelper.FilterProfessionalInstances(instances, branchInstanceId)
+        var scopedInstances = DashboardPageHelper
+            .FilterProfessionalInstances(instances, selectedBranchKey)
+            .ToList();
+
+        var allowedIds = scopedInstances
             .Select(instance => instance.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -33,24 +37,10 @@ public sealed class UnifiedMessengerDashboardService
             .OrderByDescending(thread => thread.LastMessageTime)
             .ToList();
 
-        var branchNames = threads
-            .Select(thread => thread.BranchName)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (branchNames.Count == 0)
-        {
-            branchNames = instances
-                .Select(BranchNameResolver.Resolve)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
+        var branchNames = BranchWorkspaceHelper.CollectBranchKeys(scopedInstances, threads);
 
         var branchMetrics = branchNames
-            .Select(branch => BuildBranchMetrics(branch, threads))
+            .Select(branch => BranchWorkspaceHelper.BuildBranchMetrics(branch, threads, scopedInstances))
             .ToList();
 
         var actionableThreads = threads.Where(thread => !thread.IsSpamOrPromo).ToList();
@@ -74,7 +64,7 @@ public sealed class UnifiedMessengerDashboardService
         {
             BranchMetrics = branchMetrics,
             TotalRevenueAtRisk = revenueAtRisk,
-            PlatformHealth = BuildPlatformHealth(instances),
+            PlatformHealth = BuildPlatformHealth(scopedInstances),
             ImmediateActionQueue = immediateQueue,
             AllThreads = threads,
             BranchNames = branchNames,
@@ -86,28 +76,11 @@ public sealed class UnifiedMessengerDashboardService
 
     public void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
-    internal static UnifiedMessengerBranchMetrics BuildBranchMetrics(string branchName, IReadOnlyList<ThreadData> threads)
-    {
-        var branchThreads = threads
-            .Where(thread => thread.BranchName.Equals(branchName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        var unresolved = branchThreads
-            .Where(thread => !thread.IsReplied && !thread.IsSpamOrPromo)
-            .ToList();
-        var averageLatency = unresolved.Count == 0
-            ? 0
-            : unresolved.Average(thread => thread.LatencyMinutes);
-
-        return new UnifiedMessengerBranchMetrics
-        {
-            BranchName = branchName,
-            AverageLatencyMinutes = averageLatency,
-            UnresolvedCount = unresolved.Count,
-            RevenueAtRisk = unresolved.Where(thread => thread.IsRevenueLeakageRisk).Sum(thread => thread.EstimatedValue),
-            LatencyColor = ResolveLatencyColor(averageLatency)
-        };
-    }
+    internal static UnifiedMessengerBranchMetrics BuildBranchMetrics(
+        string branchName,
+        IReadOnlyList<ThreadData> threads,
+        IReadOnlyList<MessengerInstance> instances) =>
+        BranchWorkspaceHelper.BuildBranchMetrics(branchName, threads, instances);
 
     internal static string ResolveLatencyColor(double averageLatencyMinutes) =>
         averageLatencyMinutes switch

@@ -34,6 +34,12 @@ public sealed class UnifiedMessengerBranchMetrics
     public double RevenueAtRisk { get; init; }
 
     public string LatencyColor { get; init; } = "Green";
+
+    public int InboxCount { get; init; }
+
+    public int SlaBreachCount { get; init; }
+
+    public string PlatformBreakdown { get; init; } = string.Empty;
 }
 
 public sealed class UnifiedMessengerPlatformHealthIndicator

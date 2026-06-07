@@ -15,6 +15,8 @@ public sealed class OperationsThreadCardViewModel
         ThreadId = thread.ThreadId;
         CustomerName = thread.CustomerName;
         BranchName = thread.BranchName;
+        InstanceDisplayName = thread.InstanceDisplayName;
+        InboxLabel = BuildInboxLabel(thread);
         PlatformGlyph = ResolvePlatformGlyph(thread.Platform);
         IntentLabel = UnifiedMessengerDashboardPresentationHelper.FormatIntentLabel(thread.AiIntentCategory);
         SentimentLabel = thread.ClientSentiment;
@@ -51,6 +53,10 @@ public sealed class OperationsThreadCardViewModel
 
     public string BranchName { get; }
 
+    public string InstanceDisplayName { get; }
+
+    public string InboxLabel { get; }
+
     public string PlatformGlyph { get; }
 
     public string IntentLabel { get; }
@@ -78,6 +84,17 @@ public sealed class OperationsThreadCardViewModel
     public SolidColorBrush SlaBrush { get; }
 
     public Visibility SlaVisibility { get; }
+
+    private static string BuildInboxLabel(ThreadData thread)
+    {
+        var platform = PlatformDefinition.FindById(thread.Platform)?.DisplayName ?? thread.Platform;
+        if (string.IsNullOrWhiteSpace(thread.InstanceDisplayName))
+        {
+            return platform;
+        }
+
+        return $"{platform} · {thread.InstanceDisplayName}";
+    }
 
     private static string ResolvePlatformGlyph(string platformId) =>
         PlatformDefinition.NormalizePlatformId(platformId) switch

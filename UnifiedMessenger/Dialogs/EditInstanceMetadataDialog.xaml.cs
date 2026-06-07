@@ -25,12 +25,16 @@ public sealed partial class EditInstanceMetadataDialog : ContentDialog
 
     public string? ResultNotes { get; private set; }
 
+    public string? ResultBranchKey { get; private set; }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         PlatformBox.ItemsSource = PlatformDefinition.All;
         PlatformBox.DisplayMemberPath = nameof(PlatformDefinition.DisplayName);
 
         DisplayNameBox.Text = _initialState.DisplayName;
+        BranchKeyBox.Text = _initialState.BranchKey;
+        BranchKeyBox.PlaceholderText = $"Auto: {BranchNameResolver.Resolve(_initialState.DisplayName)}";
         CustomUrlBox.Text = _initialState.StartUrl;
         NotesBox.Text = _initialState.Notes;
         NotesBox.Visibility = EditInstanceMetadataDialogHelper.ShouldShowNotesField(
@@ -81,7 +85,8 @@ public sealed partial class EditInstanceMetadataDialog : ContentDialog
             DisplayNameBox.Text,
             PlatformBox.SelectedItem as PlatformDefinition,
             CustomUrlBox.Text,
-            NotesBox.Text);
+            NotesBox.Text,
+            BranchKeyBox.Text);
 
         if (!submission.IsValid)
         {
@@ -94,6 +99,7 @@ public sealed partial class EditInstanceMetadataDialog : ContentDialog
         ResultPlatformId = submission.PlatformId;
         ResultStartUrl = submission.StartUrl;
         ResultNotes = submission.Notes;
+        ResultBranchKey = submission.BranchKey;
     }
 
     private void ShowValidation(string message)

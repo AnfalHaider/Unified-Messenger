@@ -45,7 +45,7 @@ public sealed class ProfessionalAnalyticsSnapshot
     public MessageTriageDashboardSnapshot Triage { get; init; } = MessageTriageDashboardSnapshot.Empty;
 
     /// <summary>Empty when all professional branches are included.</summary>
-    public string? FilteredBranchInstanceId { get; init; }
+    public string? FilteredBranchKey { get; init; }
 
     public IReadOnlyList<string> IncludedInstanceIds { get; init; } = [];
 }
@@ -403,11 +403,11 @@ public sealed class MessageAnalyticsService
     public ProfessionalAnalyticsSnapshot CaptureProfessionalSnapshot(
         IEnumerable<MessengerInstance> professionalInstances,
         NotificationHub notificationHub,
-        string? branchInstanceId = null)
+        string? selectedBranchKey = null)
     {
         _ = notificationHub;
         var instances = DashboardPageHelper
-            .FilterProfessionalInstances(professionalInstances, branchInstanceId)
+            .FilterProfessionalInstances(professionalInstances, selectedBranchKey)
             .ToList();
 
         var sent = 0;
@@ -459,9 +459,7 @@ public sealed class MessageAnalyticsService
             WeeklyActivity = weeklyActivity,
             Highlights = BuildOperationalHighlights(instances),
             Triage = MessageTriageService.Instance.BuildSnapshot(instances),
-            FilteredBranchInstanceId = string.IsNullOrWhiteSpace(branchInstanceId)
-                ? null
-                : branchInstanceId.Trim(),
+            FilteredBranchKey = BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey),
             IncludedInstanceIds = instances.Select(instance => instance.Id).ToList()
         };
     }

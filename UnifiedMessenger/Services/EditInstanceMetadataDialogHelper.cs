@@ -11,6 +11,8 @@ public sealed class EditInstanceMetadataFormState
     public string Notes { get; init; } = string.Empty;
 
     public string PlatformId { get; init; } = string.Empty;
+
+    public string BranchKey { get; init; } = string.Empty;
 }
 
 public sealed class EditInstanceMetadataDialogSubmission
@@ -26,6 +28,8 @@ public sealed class EditInstanceMetadataDialogSubmission
     public string? StartUrl { get; init; }
 
     public string? Notes { get; init; }
+
+    public string? BranchKey { get; init; }
 
     public bool IsUnchanged { get; init; }
 }
@@ -49,7 +53,8 @@ public static class EditInstanceMetadataDialogHelper
             DisplayName = RenameInstanceDialogHelper.NormalizeInitialDisplayName(instance.DisplayName),
             StartUrl = string.IsNullOrWhiteSpace(instance.StartUrl) ? string.Empty : instance.StartUrl.Trim(),
             Notes = string.IsNullOrWhiteSpace(instance.Notes) ? string.Empty : instance.Notes.Trim(),
-            PlatformId = platform.Id
+            PlatformId = platform.Id,
+            BranchKey = string.IsNullOrWhiteSpace(instance.BranchKey) ? string.Empty : instance.BranchKey.Trim()
         };
     }
 
@@ -82,7 +87,8 @@ public static class EditInstanceMetadataDialogHelper
         string? displayName,
         PlatformDefinition? platform,
         string? customUrlText,
-        string? notesText)
+        string? notesText,
+        string? branchKeyText = null)
     {
         if (string.IsNullOrWhiteSpace(displayName))
         {
@@ -111,6 +117,7 @@ public static class EditInstanceMetadataDialogHelper
 
         var normalizedDisplayName = displayName.Trim();
         var normalizedNotes = NormalizeNotes(notesText);
+        var normalizedBranchKey = NormalizeBranchKey(branchKeyText);
 
         return new EditInstanceMetadataDialogSubmission
         {
@@ -119,14 +126,19 @@ public static class EditInstanceMetadataDialogHelper
             PlatformId = platformId,
             StartUrl = normalizedStartUrl,
             Notes = string.IsNullOrEmpty(normalizedNotes) ? null : normalizedNotes,
+            BranchKey = normalizedBranchKey,
             IsUnchanged = IsSubmissionUnchanged(
                 initialState,
                 normalizedDisplayName,
                 platformId,
                 normalizedStartUrl!,
-                normalizedNotes)
+                normalizedNotes,
+                normalizedBranchKey)
         };
     }
+
+    private static string? NormalizeBranchKey(string? branchKey) =>
+        string.IsNullOrWhiteSpace(branchKey) ? null : branchKey.Trim();
 
     private static string NormalizeNotes(string? notes) =>
         string.IsNullOrWhiteSpace(notes) ? string.Empty : notes.Trim();
@@ -136,11 +148,16 @@ public static class EditInstanceMetadataDialogHelper
         string displayName,
         string platformId,
         string startUrl,
-        string notes) =>
+        string notes,
+        string? branchKey) =>
         initial.DisplayName.Equals(displayName, StringComparison.Ordinal)
         && initial.PlatformId.Equals(platformId, StringComparison.OrdinalIgnoreCase)
         && initial.StartUrl.Equals(startUrl, StringComparison.OrdinalIgnoreCase)
-        && initial.Notes.Equals(notes, StringComparison.Ordinal);
+        && initial.Notes.Equals(notes, StringComparison.Ordinal)
+        && string.Equals(
+            string.IsNullOrWhiteSpace(initial.BranchKey) ? null : initial.BranchKey.Trim(),
+            branchKey,
+            StringComparison.OrdinalIgnoreCase);
 
     private static EditInstanceMetadataDialogSubmission Invalid(string message) =>
         new() { IsValid = false, ValidationMessage = message };

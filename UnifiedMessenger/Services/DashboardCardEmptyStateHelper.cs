@@ -152,25 +152,12 @@ public static class DashboardCardEmptyStateHelper
 
     public static string BuildBranchScopeSubtitle(
         IEnumerable<MessengerInstance> professionalInstances,
-        string? branchInstanceId)
-    {
-        var list = professionalInstances.ToList();
-        var normalizedId = DashboardPageHelper.NormalizeBranchInstanceId(branchInstanceId);
-        if (normalizedId is null)
-        {
-            var count = list.Count;
-            return count == 0
-                ? "Showing: no professional accounts"
-                : $"Showing: All Branches ({count})";
-        }
-
-        var branch = list.FirstOrDefault(instance =>
-            instance.Id.Equals(normalizedId, StringComparison.OrdinalIgnoreCase));
-
-        return branch is null
-            ? "Showing: selected branch"
-            : $"Showing: {branch.DisplayName.Trim()}";
-    }
+        string? selectedBranchKey) =>
+        BranchWorkspaceHelper.BuildScopeLabel(
+            professionalInstances
+                .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
+                .ToList(),
+            selectedBranchKey);
 
     private static bool HasRecentInbound(MetaResponseEfficiencySnapshot snapshot) =>
         !string.IsNullOrWhiteSpace(snapshot.LastInboundDisplay) &&

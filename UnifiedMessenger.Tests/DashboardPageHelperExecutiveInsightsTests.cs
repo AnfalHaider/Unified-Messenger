@@ -21,11 +21,11 @@ public class DashboardPageHelperExecutiveInsightsTests
             new MessengerInstance { Id = "d12", DisplayName = "Depilex D-12", Category = WorkspaceCategory.Professional }
         };
 
-        var insights = DashboardPageHelper.BuildExecutiveInsights(instances, "f11", triage);
+        var insights = DashboardPageHelper.BuildExecutiveInsights(instances, "F-11", triage);
 
         Assert.Single(insights);
         Assert.Equal("Sara", insights[0].CustomerName);
-        Assert.Equal("Depilex F-11", insights[0].BranchName);
+        Assert.Equal("F-11", insights[0].BranchName);
         Assert.Contains(insights[0].Fields, field => field.Label == "Service" && field.Value == "Facial");
     }
 

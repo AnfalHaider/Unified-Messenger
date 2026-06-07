@@ -57,6 +57,7 @@ public sealed class MessageTriageService
     public void Enqueue(
         InboundMessageSelection selection,
         string? instanceDisplayName = null,
+        string? branchKey = null,
         bool allowLlmInference = true,
         bool skipDedupeCheck = false)
     {
@@ -88,6 +89,7 @@ public sealed class MessageTriageService
         {
             InstanceId = selection.InstanceId,
             InstanceDisplayName = instanceDisplayName ?? selection.InstanceId,
+            BranchKey = branchKey ?? string.Empty,
             Platform = selection.Platform,
             MessageText = cleanedMessage,
             CustomerName = selection.CustomerName,
@@ -253,7 +255,7 @@ public sealed class MessageTriageService
         {
             return;
         }
-        var branchName = BranchNameResolver.Resolve(request.InstanceDisplayName);
+        var branchName = BranchWorkspaceHelper.ResolveBranchKey(request.BranchKey, request.InstanceDisplayName);
         var conversationKey = ConversationKeyResolver.Resolve(
             request.Platform,
             request.ConversationKey,
@@ -409,6 +411,8 @@ public sealed class MessageTriageService
         public required string InstanceId { get; init; }
 
         public required string InstanceDisplayName { get; init; }
+
+        public string BranchKey { get; init; } = string.Empty;
 
         public required string Platform { get; init; }
 

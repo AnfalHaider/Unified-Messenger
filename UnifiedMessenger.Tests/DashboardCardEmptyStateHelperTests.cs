@@ -150,8 +150,8 @@ public class DashboardCardEmptyStateHelperTests
                 new MessengerInstance { Id = "a", DisplayName = "A", Platform = "whatsapp", Category = WorkspaceCategory.Professional },
                 new MessengerInstance { Id = "b", DisplayName = "B", Platform = "whatsapp", Category = WorkspaceCategory.Professional }
             ],
-            branchInstanceId: null);
+            selectedBranchKey: null);
 
-        Assert.Equal("Showing: All Branches (2)", subtitle);
+        Assert.Equal("Showing: All Branches (2 inboxes · 2 branch locations)", subtitle);
     }
 }

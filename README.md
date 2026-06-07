@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.19](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.19)
+**Current release:** [v1.0.20](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.20)
 
 ## Download (Windows)
 
@@ -14,6 +14,14 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
+
+### What’s in v1.0.20
+
+- **Branch workspace aggregation:** Operations Command Center groups all professional inboxes (WhatsApp, Meta, Google) by branch key; branch filter, KPI strip, platform intelligence, and kanban share one branch scope.
+- **Branch metric cards:** Per-branch open count, inbox count, SLA/revenue summary, and platform breakdown (WA · Meta · Google); click a card to jump to that branch’s kanban tab.
+- **Kanban fixes:** Branch tab switching works reliably; cards show platform icon and source inbox.
+- **Optional branch key:** Set an explicit branch key on any instance in Edit metadata (e.g. map an “Inbox” account to `DHA-2`).
+- **615** unit tests (x64, Release).
 
 ### What’s in v1.0.19
 

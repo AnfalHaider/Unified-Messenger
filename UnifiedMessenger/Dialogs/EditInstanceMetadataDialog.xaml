@@ -15,6 +15,11 @@
             Header="Display name"
             PlaceholderText="e.g. WhatsApp Work" />
 
+        <TextBox
+            x:Name="BranchKeyBox"
+            Header="Branch key (optional)"
+            PlaceholderText="e.g. DHA-2 — leave blank to infer from display name" />
+
         <ComboBox
             x:Name="PlatformBox"
             Header="Platform"

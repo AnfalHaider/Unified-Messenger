@@ -420,6 +420,7 @@ public sealed partial class InstanceRegistryService
         string startUrl,
         string platformId,
         string? notes,
+        string? branchKey = null,
         CancellationToken cancellationToken = default)
     {
         var platform = PlatformDefinition.FindById(platformId)
@@ -435,6 +436,7 @@ public sealed partial class InstanceRegistryService
             instance.StartUrl = ResolveStartUrl(platform, startUrl);
             instance.Platform = platform.Id;
             instance.Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+            instance.BranchKey = string.IsNullOrWhiteSpace(branchKey) ? null : branchKey.Trim();
             instance.Normalize();
             await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
         }
