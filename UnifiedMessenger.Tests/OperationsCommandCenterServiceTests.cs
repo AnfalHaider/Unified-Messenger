@@ -85,6 +85,8 @@ public class OperationsCommandCenterServiceTests : IDisposable
         Assert.Equal(1, facadeSnapshot.Status.OpenThreadCount);
         Assert.Equal(threadSnapshot.OpenThreadCount, facadeSnapshot.Status.OpenThreadCount);
         Assert.Equal(threadSnapshot.ImmediateActionCount, facadeSnapshot.Status.ImmediateActionCount);
+        Assert.Equal(threadSnapshot.ImmediateActionQueueCount, facadeSnapshot.Status.ImmediateActionQueueCount);
+        Assert.Equal(threadSnapshot.ImmediateActionTotal, facadeSnapshot.Status.ImmediateActionTotal);
         Assert.Contains("F-11", facadeSnapshot.ScopeLabel, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -260,8 +262,8 @@ public class OperationsCommandCenterInsightFeedBuilderTests
     [Fact]
     public void BuildConversationKey_isCaseInsensitive()
     {
-        var left = OperationsCommandCenterInsightFeedBuilder.BuildConversationKey("Inst-A", "Sara", "Sara");
-        var right = OperationsCommandCenterInsightFeedBuilder.BuildConversationKey("inst-a", "Sara", "sara");
+        var left = OperationsCommandCenterInsightFeedBuilder.BuildConversationKey("Inst-A", "metabusiness", "Sara", "Sara");
+        var right = OperationsCommandCenterInsightFeedBuilder.BuildConversationKey("inst-a", "metabusiness", "Sara", "sara");
         Assert.Equal(left, right, StringComparer.OrdinalIgnoreCase);
     }
 }

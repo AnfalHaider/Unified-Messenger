@@ -16,46 +16,18 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <StackPanel Spacing="8">
-                <TextBlock
-                    x:Name="WelcomeTitle"
-                    AutomationProperties.Name="Welcome back"
-                    Style="{StaticResource TitleTextBlockStyle}"
-                    Text="Welcome back" />
-                <TextBlock
-                    x:Name="WelcomeSubtitle"
-                    Opacity="0.7"
-                    Text="Your unified messaging workspace"
-                    TextWrapping="WrapWholeWords" />
-            </StackPanel>
-
-            <StackPanel
-                Grid.Column="1"
-                Orientation="Horizontal"
-                Spacing="8"
-                VerticalAlignment="Center">
-                <ComboBox
-                    x:Name="BranchFilterBox"
-                    AutomationProperties.Name="Branch filter"
-                    MinWidth="220"
-                    Header="Branch"
-                    PlaceholderText="All Branches"
-                    DisplayMemberPath="DisplayName"
-                    ItemsSource="{x:Bind BranchFilterEntries, Mode=OneWay}"
-                    SelectionChanged="BranchFilterBox_SelectionChanged" />
-                <Button
-                    x:Name="RefreshDashboardDataButton"
-                    VerticalAlignment="Bottom"
-                    Click="RefreshDashboardDataButton_Click"
-                    Content="Refresh" />
-            </StackPanel>
-        </Grid>
+        <StackPanel Spacing="8">
+            <TextBlock
+                x:Name="WelcomeTitle"
+                AutomationProperties.Name="Welcome back"
+                Style="{StaticResource TitleTextBlockStyle}"
+                Text="Welcome back" />
+            <TextBlock
+                x:Name="WelcomeSubtitle"
+                Opacity="0.7"
+                Text="Your unified messaging workspace"
+                TextWrapping="WrapWholeWords" />
+        </StackPanel>
 
         <TabView
             x:Name="DashboardTabs"
@@ -65,286 +37,35 @@
             CanReorderTabs="False"
             IsAddTabButtonVisible="False">
             <TabViewItem Header="Operations Command Center" AutomationProperties.Name="Operations Command Center Tab" IsClosable="False">
-                <controls:OperationsCommandCenter x:Name="OperationsCommandCenterPanel" />
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Opacity="0.65"
+                            Text="Refresh platform data after opening Google or Meta instances."
+                            TextWrapping="WrapWholeWords"
+                            VerticalAlignment="Center" />
+                        <Button
+                            x:Name="RefreshDashboardDataButton"
+                            Grid.Column="1"
+                            Click="RefreshDashboardDataButton_Click"
+                            Content="Refresh platform data" />
+                    </Grid>
+
+                    <controls:OperationsCommandCenter x:Name="OperationsCommandCenterPanel" Grid.Row="1" />
+                </Grid>
             </TabViewItem>
 
             <TabViewItem Header="Personal Overview" AutomationProperties.Name="Personal Overview Tab" IsClosable="False">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Grid RowSpacing="16">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <AutoSuggestBox
-                            x:Name="GlobalSearchBox"
-                            AutomationProperties.Name="Search personal accounts"
-                            PlaceholderText="Search personal accounts, senders, or messages..."
-                            QueryIcon="Find"
-                            QuerySubmitted="GlobalSearchBox_QuerySubmitted"
-                            SuggestionChosen="GlobalSearchBox_SuggestionChosen"
-                            TextChanged="GlobalSearchBox_TextChanged" />
-
-                        <Grid
-                            x:Name="ContentGrid"
-                            Grid.Row="1"
-                            ColumnSpacing="16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="LeftColumn" Width="*" MinWidth="280" />
-                                <ColumnDefinition x:Name="RightColumn" Width="*" MinWidth="260" />
-                            </Grid.ColumnDefinitions>
-
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup>
-                                    <VisualState x:Name="WideLayout">
-                                        <VisualState.StateTriggers>
-                                            <AdaptiveTrigger MinWindowWidth="860" />
-                                        </VisualState.StateTriggers>
-                                        <VisualState.Setters>
-                                            <Setter Target="LeftColumn.(Grid.Column)" Value="0" />
-                                            <Setter Target="LeftColumn.(Grid.Row)" Value="0" />
-                                            <Setter Target="RightColumn.(Grid.Column)" Value="1" />
-                                            <Setter Target="RightColumn.(Grid.Row)" Value="0" />
-                                            <Setter Target="LeftColumn.(Grid.ColumnSpan)" Value="1" />
-                                            <Setter Target="RightColumn.(Grid.ColumnSpan)" Value="1" />
-                                            <Setter Target="ContentGrid.RowDefinitions[0].Height" Value="Auto" />
-                                            <Setter Target="ContentGrid.RowDefinitions[1].Height" Value="0" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                    <VisualState x:Name="NarrowLayout">
-                                        <VisualState.Setters>
-                                            <Setter Target="LeftColumn.(Grid.Column)" Value="0" />
-                                            <Setter Target="LeftColumn.(Grid.Row)" Value="0" />
-                                            <Setter Target="RightColumn.(Grid.Column)" Value="0" />
-                                            <Setter Target="RightColumn.(Grid.Row)" Value="1" />
-                                            <Setter Target="LeftColumn.(Grid.ColumnSpan)" Value="2" />
-                                            <Setter Target="RightColumn.(Grid.ColumnSpan)" Value="2" />
-                                            <Setter Target="ContentGrid.RowDefinitions[0].Height" Value="Auto" />
-                                            <Setter Target="ContentGrid.RowSpacing" Value="16" />
-                                        </VisualState.Setters>
-                                    </VisualState>
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
-
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <Border
-                                MinHeight="200"
-                                Padding="16"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                                <Grid RowSpacing="12">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="*" MinHeight="120" />
-                                    </Grid.RowDefinitions>
-                                    <TextBlock FontWeight="SemiBold" Text="Recent Activity" />
-                                    <ListView
-                                        x:Name="RecentActivityList"
-                                        Grid.Row="1"
-                                        IsItemClickEnabled="True"
-                                        ItemClick="RecentActivityList_ItemClick"
-                                        MaxHeight="420"
-                                        SelectionMode="None">
-                                        <ListView.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Padding="8,10" ColumnSpacing="10">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <FontIcon
-                                                        VerticalAlignment="Top"
-                                                        FontSize="14"
-                                                        Foreground="{Binding AccentBrush}"
-                                                        Glyph="{Binding IconGlyph}" />
-                                                    <StackPanel Grid.Column="1" Spacing="2">
-                                                        <Grid ColumnSpacing="8">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock
-                                                                FontWeight="SemiBold"
-                                                                Text="{Binding Title}"
-                                                                TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock
-                                                                Grid.Column="1"
-                                                                FontSize="11"
-                                                                Opacity="0.55"
-                                                                Text="{Binding RelativeTimeText}" />
-                                                        </Grid>
-                                                        <TextBlock
-                                                            FontSize="12"
-                                                            Opacity="0.75"
-                                                            Text="{Binding Body}"
-                                                            TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock
-                                                            FontSize="11"
-                                                            Opacity="0.55"
-                                                            Text="{Binding InstanceDisplayName}" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ListView.ItemTemplate>
-                                    </ListView>
-                                    <TextBlock
-                                        x:Name="RecentActivityEmptyText"
-                                        Grid.Row="1"
-                                        Opacity="0.6"
-                                        Text="No recent notifications from personal accounts."
-                                        TextWrapping="WrapWholeWords"
-                                        Visibility="Collapsed" />
-                                </Grid>
-                            </Border>
-
-                            <Border
-                                Grid.Column="1"
-                                Padding="16"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                                <StackPanel Spacing="12">
-                                    <TextBlock FontWeight="SemiBold" Text="Performance &amp; Resources" />
-
-                                    <Grid ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border
-                                            Padding="12"
-                                            Background="{ThemeResource LayerFillColorDefaultBrush}"
-                                            CornerRadius="6">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock
-                                                    FontSize="11"
-                                                    Opacity="0.6"
-                                                    Text="Personal accounts" />
-                                                <TextBlock
-                                                    x:Name="ActiveAccountsValue"
-                                                    FontSize="22"
-                                                    FontWeight="SemiBold"
-                                                    Text="0" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border
-                                            Grid.Column="1"
-                                            Padding="12"
-                                            Background="{ThemeResource LayerFillColorDefaultBrush}"
-                                            CornerRadius="6">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock
-                                                    FontSize="11"
-                                                    Opacity="0.6"
-                                                    Text="Memory (working set)" />
-                                                <TextBlock
-                                                    x:Name="MemoryValue"
-                                                    FontSize="22"
-                                                    FontWeight="SemiBold"
-                                                    Text="0 MB" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-
-                                    <Grid ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border
-                                            Padding="12"
-                                            Background="{ThemeResource LayerFillColorDefaultBrush}"
-                                            CornerRadius="6">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock
-                                                    FontSize="11"
-                                                    Opacity="0.6"
-                                                    Text="Personal unread" />
-                                                <TextBlock
-                                                    x:Name="UnreadValue"
-                                                    FontSize="22"
-                                                    FontWeight="SemiBold"
-                                                    Text="0" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border
-                                            Grid.Column="1"
-                                            Padding="12"
-                                            Background="{ThemeResource LayerFillColorDefaultBrush}"
-                                            CornerRadius="6">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock
-                                                    FontSize="11"
-                                                    Opacity="0.6"
-                                                    Text="Visible account" />
-                                                <TextBlock
-                                                    x:Name="VisibleAccountValue"
-                                                    FontSize="14"
-                                                    FontWeight="SemiBold"
-                                                    Text="None"
-                                                    TextTrimming="CharacterEllipsis" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-
-                                    <TextBlock
-                                        FontSize="12"
-                                        Opacity="0.65"
-                                        Text="Personal account status"
-                                        TextWrapping="WrapWholeWords" />
-                                    <ListView
-                                        x:Name="InstanceTilesList"
-                                        IsItemClickEnabled="True"
-                                        ItemClick="InstanceTilesList_ItemClick"
-                                        SelectionMode="None">
-                                        <ListView.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <ItemsWrapGrid MaximumRowsOrColumns="2" Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ListView.ItemsPanel>
-                                        <ListView.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border
-                                                    Width="148"
-                                                    Margin="0,0,8,8"
-                                                    Padding="10"
-                                                    Background="{ThemeResource LayerFillColorDefaultBrush}"
-                                                    BorderBrush="{Binding AccentBrush}"
-                                                    BorderThickness="2,0,0,0"
-                                                    CornerRadius="6">
-                                                    <StackPanel Spacing="4">
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                                            <FontIcon
-                                                                FontSize="12"
-                                                                Foreground="{Binding AccentBrush}"
-                                                                Glyph="{Binding IconGlyph}" />
-                                                            <TextBlock
-                                                                FontWeight="SemiBold"
-                                                                Text="{Binding DisplayName}"
-                                                                TextTrimming="CharacterEllipsis" />
-                                                        </StackPanel>
-                                                        <TextBlock
-                                                            FontSize="11"
-                                                            Opacity="0.6"
-                                                            Text="{Binding PlatformLabel}" />
-                                                        <TextBlock FontSize="11" Text="{Binding StatusLine}" />
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ListView.ItemTemplate>
-                                    </ListView>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </Grid>
-                </ScrollViewer>
+                <controls:PersonalOverviewPanel x:Name="PersonalOverviewPanel" />
             </TabViewItem>
         </TabView>
     </Grid>

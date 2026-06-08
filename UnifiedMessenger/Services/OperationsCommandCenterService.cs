@@ -34,7 +34,7 @@ public sealed class OperationsCommandCenterService
             .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
             .ToList();
 
-        var normalizedBranchKey = DashboardPageHelper.NormalizeBranchInstanceId(selectedBranchKey);
+        var normalizedBranchKey = BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey);
         var threadOperations = threadService.BuildSnapshot(filteredInstances, normalizedBranchKey);
         var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
             professionalInstances,
@@ -118,6 +118,7 @@ public sealed class OperationsCommandCenterService
             OpenThreadCount = threadOperations.OpenThreadCount,
             HangingLeadCount = threadOperations.HangingLeadCount,
             ImmediateActionCount = threadOperations.ImmediateActionCount,
+            ImmediateActionQueueCount = threadOperations.ImmediateActionQueueCount,
             TotalRevenueAtRisk = threadOperations.TotalRevenueAtRisk,
             AverageReplyTime = display.AverageReplyTime,
             AverageReplyTimeSubtext = display.AverageReplyTimeSubtext,

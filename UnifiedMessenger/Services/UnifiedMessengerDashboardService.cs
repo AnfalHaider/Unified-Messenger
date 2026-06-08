@@ -10,6 +10,8 @@ public sealed class UnifiedMessengerDashboardService
 
     private static readonly string[] MonitoredPlatformIds = ["metabusiness", "googlebusiness", "whatsapp", "whatsappbusiness"];
 
+    public const int ImmediateActionQueueDisplayLimit = 24;
+
     public static UnifiedMessengerDashboardService Instance => LazyInstance.Value;
 
     public event EventHandler? Changed;
@@ -53,7 +55,7 @@ public sealed class UnifiedMessengerDashboardService
             .Where(thread => thread.IsImmediateAction && !thread.IsReplied)
             .OrderByDescending(thread => thread.UrgencyScore)
             .ThenByDescending(thread => thread.LatencyMinutes)
-            .Take(24)
+            .Take(ImmediateActionQueueDisplayLimit)
             .ToList();
 
         var openThreads = actionableThreads.Count(thread => !thread.IsReplied);
@@ -70,7 +72,8 @@ public sealed class UnifiedMessengerDashboardService
             BranchNames = branchNames,
             OpenThreadCount = openThreads,
             HangingLeadCount = hangingLeads,
-            ImmediateActionCount = immediateQueue.Count
+            ImmediateActionCount = actionableThreads.Count(thread => thread.IsImmediateAction && !thread.IsReplied),
+            ImmediateActionQueueCount = immediateQueue.Count
         };
     }
 

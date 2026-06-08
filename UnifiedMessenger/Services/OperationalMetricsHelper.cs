@@ -47,13 +47,47 @@ public static class OperationalMetricsHelper
                     ? name
                     : thread.InstanceDisplayName,
                 InstanceId = thread.InstanceId,
-                BranchName = branch
+                BranchName = branch,
+                ConversationKey = string.IsNullOrWhiteSpace(thread.ConversationKey)
+                    ? null
+                    : thread.ConversationKey
             });
         }
 
-        merged.AddRange(outboundHighlights);
+        merged.AddRange(EnrichOutboundHighlights(outboundHighlights, instances));
         return merged
             .Take(8)
             .ToList();
+    }
+
+    private static IEnumerable<OperationalHighlightItem> EnrichOutboundHighlights(
+        IEnumerable<OperationalHighlightItem> outboundHighlights,
+        IReadOnlyList<MessengerInstance> instances)
+    {
+        var branchByInstance = instances.ToDictionary(
+            instance => instance.Id,
+            instance => BranchWorkspaceHelper.ResolveBranchKey(instance),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in outboundHighlights)
+        {
+            if (!string.IsNullOrWhiteSpace(item.BranchName) ||
+                string.IsNullOrWhiteSpace(item.InstanceId) ||
+                !branchByInstance.TryGetValue(item.InstanceId, out var branchName))
+            {
+                yield return item;
+                continue;
+            }
+
+            yield return new OperationalHighlightItem
+            {
+                Title = item.Title,
+                Subtitle = item.Subtitle,
+                InstanceDisplayName = item.InstanceDisplayName,
+                InstanceId = item.InstanceId,
+                BranchName = branchName,
+                ConversationKey = item.ConversationKey
+            };
+        }
     }
 }

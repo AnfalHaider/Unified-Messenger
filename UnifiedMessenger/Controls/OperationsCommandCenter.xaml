@@ -28,7 +28,7 @@
                         <StackPanel Grid.Column="1" Spacing="2">
                             <TextBlock FontWeight="SemiBold" Text="{Binding CustomerName}" TextTrimming="CharacterEllipsis" />
                             <TextBlock FontSize="11" Opacity="0.65" Text="{Binding InboxLabel}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock FontSize="10" Opacity="0.5" Text="{Binding BranchName}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock FontSize="10" Opacity="0.5" Text="{Binding BranchName}" TextTrimming="CharacterEllipsis" Visibility="{Binding BranchNameVisibility}" />
                         </StackPanel>
                         <Border Grid.Column="2" Padding="6,2" Background="{Binding UrgencyBrush}" CornerRadius="4">
                             <TextBlock FontSize="11" Foreground="White" Text="{Binding UrgencyLabel}" />
@@ -61,12 +61,19 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <FontIcon FontSize="12" Glyph="{Binding PlatformGlyph}" Opacity="0.75" />
                         <TextBlock Grid.Column="1" FontSize="12" FontWeight="SemiBold" Text="{Binding CustomerName}" TextTrimming="CharacterEllipsis" />
+                        <Border Grid.Column="2" Padding="4,1" Background="{Binding UrgencyBrush}" CornerRadius="4">
+                            <TextBlock FontSize="10" Foreground="White" Text="{Binding UrgencyLabel}" />
+                        </Border>
                     </Grid>
                     <TextBlock FontSize="10" Opacity="0.55" Text="{Binding InboxLabel}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock FontSize="10" Opacity="0.45" Text="{Binding BranchName}" TextTrimming="CharacterEllipsis" Visibility="{Binding BranchNameVisibility}" />
                     <TextBlock FontSize="11" Opacity="0.85" Text="{Binding NextActionSummary}" TextWrapping="WrapWholeWords" MaxLines="3" />
+                    <TextBlock FontSize="10" Foreground="{Binding SlaBrush}" Text="{Binding SlaText}" Visibility="{Binding SlaVisibility}" />
+                    <TextBlock FontSize="10" Opacity="0.65" Text="{Binding RevenueDisplay}" Visibility="{Binding RevenueVisibility}" />
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -78,13 +85,16 @@
                 Padding="12"
                 Background="{Binding CardBackgroundBrush}"
                 BorderBrush="{Binding LatencyBorderBrush}"
-                BorderThickness="2"
-                CornerRadius="8">
+                BorderThickness="{Binding CardBorderThickness}"
+                CornerRadius="8"
+                Opacity="{Binding CardOpacity}"
+                ToolTipService.ToolTip="{Binding ToolTipText}">
                 <StackPanel Spacing="4">
                     <TextBlock FontSize="12" FontWeight="SemiBold" Text="{Binding BranchName}" TextTrimming="CharacterEllipsis" />
                     <TextBlock FontSize="18" FontWeight="Bold" Foreground="{Binding LatencyBrush}" Text="{Binding LatencyDisplay}" />
                     <TextBlock FontSize="10" Opacity="0.75" Text="{Binding DetailDisplay}" TextWrapping="WrapWholeWords" />
                     <TextBlock FontSize="10" Opacity="0.55" Text="{Binding PlatformBreakdown}" Visibility="{Binding PlatformBreakdownVisibility}" TextWrapping="WrapWholeWords" />
+                    <TextBlock FontSize="10" Opacity="0.45" Text="{Binding ScopeHintText}" Visibility="{Binding ScopeHintVisibility}" />
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -128,13 +138,19 @@
                     <RowDefinition Height="*" MinHeight="360" />
                 </Grid.RowDefinitions>
 
-                <StackPanel Spacing="4">
-                    <TextBlock FontSize="20" FontWeight="SemiBold" AutomationProperties.Name="Operations Command Center" Text="Operations Command Center" />
-                    <TextBlock x:Name="ScopeText" FontSize="12" Opacity="0.65" Text="Showing: All Branches" />
-                </StackPanel>
+                <TextBlock
+                    x:Name="ScopeText"
+                    AutomationProperties.Name="Operations Command Center scope"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Opacity="0.85"
+                    Text="Showing: All Branches" />
 
                 <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                    <StackPanel Spacing="10">
+                        <StackPanel Spacing="6">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="0.7" Text="Operations (live threads)" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
                         <Border MinWidth="100" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                             <StackPanel Spacing="2">
                                 <TextBlock FontSize="10" Opacity="0.65" Text="Open conversations" />
@@ -153,30 +169,35 @@
                                 <TextBlock x:Name="RevenueAtRiskText" FontSize="22" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Text="PKR 0" />
                             </StackPanel>
                         </Border>
-                        <Border MinWidth="110" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                        <Border x:Name="ImmediateActionKpiCard" MinWidth="90" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" ToolTipService.ToolTip="All urgent threads in scope. The action lane shows the top 24 by urgency.">
                             <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Avg reply" />
-                                <TextBlock x:Name="AvgReplyTimeValue" FontSize="16" FontWeight="SemiBold" Text="—" />
-                                <TextBlock x:Name="AvgReplyTimeSubtext" FontSize="10" Opacity="0.55" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
+                                <TextBlock FontSize="10" Opacity="0.65" Text="Immediate" />
+                                <TextBlock x:Name="ImmediateActionCountText" FontSize="18" FontWeight="SemiBold" Text="0" />
                             </StackPanel>
                         </Border>
-                        <Border MinWidth="90" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                        <Border x:Name="SlaBreachesKpiCard" MinWidth="90" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" ToolTipService.ToolTip="Active threads exceeding the SLA threshold. Based on live thread latency, not historical analytics.">
                             <StackPanel Spacing="2">
                                 <TextBlock FontSize="10" Opacity="0.65" Text="SLA breaches" />
                                 <TextBlock x:Name="SlaBreachesValue" FontSize="18" FontWeight="SemiBold" Text="—" />
                                 <TextBlock x:Name="SlaThresholdSubtext" FontSize="10" Opacity="0.55" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
                             </StackPanel>
                         </Border>
-                        <Border MinWidth="110" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Spacing="6">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="0.7" Text="Analytics (events)" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border x:Name="AvgReplyKpiCard" MinWidth="110" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" ToolTipService.ToolTip="Average time to reply across recorded analytics events in this scope.">
+                            <StackPanel Spacing="2">
+                                <TextBlock FontSize="10" Opacity="0.65" Text="Avg reply" />
+                                <TextBlock x:Name="AvgReplyTimeValue" FontSize="16" FontWeight="SemiBold" Text="—" />
+                                <TextBlock x:Name="AvgReplyTimeSubtext" FontSize="10" Opacity="0.55" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="ResponseRateKpiCard" MinWidth="110" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" ToolTipService.ToolTip="Share of inbound messages that received a reply. Based on recorded analytics events, not live thread state.">
                             <StackPanel Spacing="2">
                                 <TextBlock FontSize="10" Opacity="0.65" Text="Response rate (events)" />
                                 <TextBlock x:Name="ResponseRateValue" FontSize="12" FontWeight="SemiBold" Text="—" TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-                        <Border MinWidth="90" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Immediate" />
-                                <TextBlock x:Name="ImmediateActionCountText" FontSize="18" FontWeight="SemiBold" Text="0" />
                             </StackPanel>
                         </Border>
                         <Border MinWidth="90" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
@@ -191,6 +212,8 @@
                                 <TextBlock x:Name="DailyTrendValue" FontSize="12" FontWeight="SemiBold" Text="—" TextWrapping="WrapWholeWords" />
                             </StackPanel>
                         </Border>
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -256,6 +279,15 @@
                                     Opacity="0.6"
                                     Text="No urgent threads right now."
                                     Visibility="Collapsed" />
+                                <TextBlock
+                                    x:Name="ImmediateQueueFooterText"
+                                    Grid.Row="1"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,0,4"
+                                    FontSize="10"
+                                    Opacity="0.55"
+                                    TextWrapping="WrapWholeWords"
+                                    Visibility="Collapsed" />
                             </Grid>
                         </Border>
 
@@ -267,6 +299,7 @@
                                     <RowDefinition Height="*" MinHeight="200" />
                                 </Grid.RowDefinitions>
                                 <TextBlock FontWeight="SemiBold" Text="Branch workspace kanban" />
+                                <TextBlock FontSize="11" Opacity="0.6" Text="Tabs scope KPIs, kanban, analytics, and insights to one branch." TextWrapping="WrapWholeWords" />
                                 <TabView
                                     x:Name="BranchWorkspaceTabs"
                                     Grid.Row="1"
@@ -317,25 +350,60 @@
                         </ScrollViewer>
                         <TextBlock x:Name="BranchMetricsEmptyText" FontSize="11" Opacity="0.55" Text="Branch metrics appear when threads are tracked." Visibility="Collapsed" />
 
-                        <ItemsControl x:Name="PlatformHealthItems">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" Spacing="8" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Padding="8,4" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" />
-                                            <TextBlock FontSize="11" Text="{Binding Label}" />
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <StackPanel x:Name="PlatformHealthSection" Spacing="6" Visibility="Collapsed">
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="0.7" Text="Adapter sync status" />
+                            <ItemsControl x:Name="PlatformHealthItems">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="8,4" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" />
+                                                <TextBlock FontSize="11" Text="{Binding Label}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
 
-                        <Expander x:Name="PlatformIntelligenceExpander" Header="Platform intelligence" IsExpanded="False">
+                        <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                            <StackPanel Spacing="8">
+                                <TextBlock FontWeight="SemiBold" Text="Operational highlights" />
+                                <ListView x:Name="OperationalHighlightsList" IsItemClickEnabled="True" ItemClick="OperationalHighlightsList_ItemClick" MaxHeight="160" SelectionMode="None">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Spacing="2" Padding="0,4">
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock FontSize="11" Opacity="0.75" Text="{Binding Subtitle}" TextWrapping="WrapWholeWords" />
+                                                <TextBlock FontSize="10" Opacity="0.45" Text="{Binding InstanceDisplayName}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <TextBlock x:Name="OperationalHighlightsEmptyText" Opacity="0.6" Text="Activity highlights appear after message traffic is recorded." Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
+                            <StackPanel Spacing="8">
+                                <TextBlock FontWeight="SemiBold" Text="AI insight feed" />
+                                <ListView x:Name="AiInsightFeedList" IsItemClickEnabled="True" ItemClick="InsightFeedList_ItemClick" ItemTemplate="{StaticResource OperationsInsightFeedTemplate}" MaxHeight="280" SelectionMode="None" />
+                                <TextBlock x:Name="AiInsightFeedEmptyText" Opacity="0.6" Text="Insights appear as messages are classified." Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+
+                        <Expander x:Name="PlatformIntelligenceExpander" IsExpanded="False">
+                            <Expander.Header>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock x:Name="PlatformIntelligenceHeaderText" FontWeight="SemiBold" Text="Platform intelligence &amp; refresh" />
+                                    <InfoBadge x:Name="PlatformIntelligenceReviewBadge" VerticalAlignment="Center" Visibility="Collapsed" />
+                                </StackPanel>
+                            </Expander.Header>
                             <StackPanel Spacing="12">
                                 <StackPanel x:Name="GoogleIntelligenceSection" Spacing="8">
                                     <TextBlock FontWeight="SemiBold" Text="Google Business · Customer trust" />
@@ -372,24 +440,6 @@
                             </StackPanel>
                         </Expander>
 
-                        <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-                            <StackPanel Spacing="8">
-                                <TextBlock FontWeight="SemiBold" Text="Operational highlights" />
-                                <ListView x:Name="OperationalHighlightsList" IsItemClickEnabled="True" ItemClick="OperationalHighlightsList_ItemClick" MaxHeight="160" SelectionMode="None">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Spacing="2" Padding="0,4">
-                                                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock FontSize="11" Opacity="0.75" Text="{Binding Subtitle}" TextWrapping="WrapWholeWords" />
-                                                <TextBlock FontSize="10" Opacity="0.45" Text="{Binding InstanceDisplayName}" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
-                                <TextBlock x:Name="OperationalHighlightsEmptyText" Opacity="0.6" Text="Activity highlights appear after message traffic is recorded." Visibility="Collapsed" />
-                            </StackPanel>
-                        </Border>
-
                         <Expander x:Name="AnalyticsTrendsExpander" Header="Analytics &amp; trends" IsExpanded="False">
                             <StackPanel Spacing="12">
                                 <Border Padding="12" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8">
@@ -421,14 +471,6 @@
                                 </Border>
                             </StackPanel>
                         </Expander>
-
-                        <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-                            <StackPanel Spacing="8">
-                                <TextBlock FontWeight="SemiBold" Text="AI insight feed" />
-                                <ListView x:Name="AiInsightFeedList" IsItemClickEnabled="True" ItemClick="InsightFeedList_ItemClick" ItemTemplate="{StaticResource OperationsInsightFeedTemplate}" MaxHeight="280" SelectionMode="None" />
-                                <TextBlock x:Name="AiInsightFeedEmptyText" Opacity="0.6" Text="Insights appear as messages are classified." Visibility="Collapsed" />
-                            </StackPanel>
-                        </Border>
 
                         <Border x:Name="HealthChipsSection" Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Visibility="Collapsed">
                             <StackPanel Spacing="8">
@@ -465,6 +507,17 @@
                 <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Text="No professional accounts yet" TextAlignment="Center" />
                 <TextBlock HorizontalAlignment="Center" Opacity="0.7" Text="Add a Professional workspace instance to use the Operations Command Center." TextAlignment="Center" TextWrapping="WrapWholeWords" />
                 <Button HorizontalAlignment="Center" Click="AddProfessionalInstanceButton_Click" Content="Add professional instance" />
+            </StackPanel>
+        </Border>
+
+        <Border
+            x:Name="WorkspaceLoadingOverlay"
+            Background="{ThemeResource LayerFillColorDefaultBrush}"
+            Opacity="0.85"
+            Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                <ProgressRing IsActive="True" Width="40" Height="40" />
+                <TextBlock Opacity="0.7" Text="Updating workspace…" />
             </StackPanel>
         </Border>
     </Grid>

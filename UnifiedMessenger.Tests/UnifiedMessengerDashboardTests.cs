@@ -119,6 +119,37 @@ public class UnifiedMessengerDashboardServiceTests : IDisposable
         Assert.Equal(1, snapshot.OpenThreadCount);
         Assert.Equal(0, snapshot.HangingLeadCount);
         Assert.Equal(1, snapshot.ImmediateActionCount);
+        Assert.Equal(1, snapshot.ImmediateActionTotal);
+        Assert.Equal(1, snapshot.ImmediateActionQueueCount);
+    }
+
+    [Fact]
+    public void BuildSnapshot_ImmediateActionQueueCount_CappedAtDisplayLimit()
+    {
+        var instance = new MessengerInstance
+        {
+            Id = "dha",
+            DisplayName = "Depilex DHA-2",
+            Platform = "whatsappbusiness",
+            Category = WorkspaceCategory.Professional
+        };
+
+        for (var index = 0; index < 30; index++)
+        {
+            ThreadRegistryService.Instance.UpsertFromTriageItem(
+                CreateItem("dha", $"Customer {index}", $"Message {index}"),
+                $"Customer {index}",
+                "DHA-2",
+                operationalUrgency: 5,
+                nextActionSummary: $"Action {index}");
+        }
+
+        var snapshot = UnifiedMessengerDashboardService.Instance.BuildSnapshot([instance]);
+
+        Assert.Equal(30, snapshot.ImmediateActionTotal);
+        Assert.Equal(30, snapshot.ImmediateActionCount);
+        Assert.Equal(UnifiedMessengerDashboardService.ImmediateActionQueueDisplayLimit, snapshot.ImmediateActionQueueCount);
+        Assert.Equal(UnifiedMessengerDashboardService.ImmediateActionQueueDisplayLimit, snapshot.ImmediateActionQueue.Count);
     }
 
     [Fact]

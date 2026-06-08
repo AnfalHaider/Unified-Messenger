@@ -1,7 +1,5 @@
-using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
@@ -12,13 +10,8 @@ namespace UnifiedMessenger.Pages;
 public sealed partial class DashboardPage : Page
 {
     private InstanceRegistryService? _registry;
-    private readonly List<DashboardActivityItem> _allActivity = [];
     private DispatcherTimer? _resourceTimer;
-    private string? _selectedBranchKey;
-    private bool _suppressBranchSelectionChanged;
-    private readonly ObservableCollection<DashboardBranchFilterEntry> _branchFilterEntries = new();
-
-    public ObservableCollection<DashboardBranchFilterEntry> BranchFilterEntries => _branchFilterEntries;
+    private long _dashboardTabSelectionCallbackToken;
 
     public DashboardPage()
     {
@@ -27,10 +20,15 @@ public sealed partial class DashboardPage : Page
         Unloaded += OnUnloaded;
     }
 
+    private bool IsOperationsCommandCenterTabSelected => DashboardTabs.SelectedIndex == 0;
+
     private void OnResourceTimerTick(object? sender, object e)
     {
-        RefreshResources();
-        _ = RefreshOperationsCommandCenterAsync();
+        PersonalOverviewPanel.ScheduleRefresh(PersonalInstances);
+        if (IsOperationsCommandCenterTabSelected)
+        {
+            _ = RefreshOperationsCommandCenterAsync();
+        }
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -47,12 +45,17 @@ public sealed partial class DashboardPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         NotificationHub.Instance.Changed += OnHubChanged;
-        AdapterHealthMonitor.Instance.Changed += OnAdapterHealthChanged;
+        AdapterHealthMonitor.Instance.Changed += OnPersonalDataChanged;
+        InstanceConnectionStatusService.Instance.Changed += OnPersonalDataChanged;
         MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
         MessageTriageService.Instance.Changed += OnTriageChanged;
         ProfessionalWorkspaceService.Instance.Changed += OnProfessionalWorkspaceChanged;
         ThreadRegistryService.Instance.Changed += OnThreadRegistryChanged;
         BackfillSyncManager.Instance.ProgressChanged += OnBackfillProgressChanged;
+
+        _dashboardTabSelectionCallbackToken = DashboardTabs.RegisterPropertyChangedCallback(
+            TabView.SelectedIndexProperty,
+            OnDashboardTabSelectionChanged);
 
         _resourceTimer = new DispatcherTimer
         {
@@ -67,12 +70,17 @@ public sealed partial class DashboardPage : Page
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
         NotificationHub.Instance.Changed -= OnHubChanged;
-        AdapterHealthMonitor.Instance.Changed -= OnAdapterHealthChanged;
+        AdapterHealthMonitor.Instance.Changed -= OnPersonalDataChanged;
+        InstanceConnectionStatusService.Instance.Changed -= OnPersonalDataChanged;
         MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
         MessageTriageService.Instance.Changed -= OnTriageChanged;
         ProfessionalWorkspaceService.Instance.Changed -= OnProfessionalWorkspaceChanged;
         ThreadRegistryService.Instance.Changed -= OnThreadRegistryChanged;
         BackfillSyncManager.Instance.ProgressChanged -= OnBackfillProgressChanged;
+
+        DashboardTabs.UnregisterPropertyChangedCallback(
+            TabView.SelectedIndexProperty,
+            _dashboardTabSelectionCallbackToken);
 
         if (_resourceTimer is not null)
         {
@@ -82,34 +90,42 @@ public sealed partial class DashboardPage : Page
         }
     }
 
+    private void OnDashboardTabSelectionChanged(DependencyObject sender, DependencyProperty args)
+    {
+        if (!IsOperationsCommandCenterTabSelected || _registry is null)
+        {
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+    }
+
     private void OnHubChanged(object? sender, NotificationHubChangedEventArgs e)
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            RefreshActivity();
-            _ = RefreshOperationsCommandCenterAsync();
+            PersonalOverviewPanel.ScheduleRefresh(PersonalInstances);
+            _ = RefreshOperationsCommandCenterIfVisibleAsync();
         });
     }
 
-    private void OnAdapterHealthChanged(object? sender, EventArgs e)
-    {
-        DispatcherQueue.TryEnqueue(RefreshResources);
-    }
+    private void OnPersonalDataChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => PersonalOverviewPanel.ScheduleRefresh(PersonalInstances));
 
     private void OnAnalyticsChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
 
     private void OnTriageChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
 
     private void OnProfessionalWorkspaceChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
 
     private void OnThreadRegistryChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
 
     private void OnBackfillProgressChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
 
     public void RefreshAll()
     {
@@ -124,11 +140,18 @@ public sealed partial class DashboardPage : Page
 
         WelcomeSubtitle.Text = DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
 
-        RefreshBranchFilter();
-        RefreshActivity();
-        RefreshResources();
-        UpdateSearchSuggestions(GlobalSearchBox.Text);
+        PersonalOverviewPanel.Refresh(PersonalInstances);
         _ = RefreshOperationsCommandCenterAsync();
+    }
+
+    private async Task RefreshOperationsCommandCenterIfVisibleAsync()
+    {
+        if (!IsOperationsCommandCenterTabSelected)
+        {
+            return;
+        }
+
+        await RefreshOperationsCommandCenterAsync().ConfigureAwait(true);
     }
 
     private async Task RefreshOperationsCommandCenterAsync()
@@ -140,7 +163,6 @@ public sealed partial class DashboardPage : Page
 
         await OperationsCommandCenterPanel.RefreshAsync(
             ProfessionalInstances,
-            _selectedBranchKey,
             _registry).ConfigureAwait(true);
     }
 
@@ -191,271 +213,6 @@ public sealed partial class DashboardPage : Page
     private IEnumerable<MessengerInstance> ProfessionalInstances =>
         _registry?.Instances.Where(i => i.IsProfessional) ?? [];
 
-    private void RefreshBranchFilter()
-    {
-        if (_registry is null)
-        {
-            _branchFilterEntries.Clear();
-            return;
-        }
-
-        _suppressBranchSelectionChanged = true;
-        _branchFilterEntries.Clear();
-        foreach (var entry in BranchWorkspaceHelper.BuildBranchFilterEntries(ProfessionalInstances))
-        {
-            _branchFilterEntries.Add(entry);
-        }
-
-        BranchFilterBox.SelectedItem = _branchFilterEntries.FirstOrDefault(entry =>
-            entry.IsAllBranches && string.IsNullOrWhiteSpace(_selectedBranchKey) ||
-            !entry.IsAllBranches &&
-            entry.BranchKey.Equals(_selectedBranchKey ?? string.Empty, StringComparison.OrdinalIgnoreCase));
-
-        if (BranchFilterBox.SelectedItem is null && _branchFilterEntries.Count > 0)
-        {
-            BranchFilterBox.SelectedIndex = 0;
-            _selectedBranchKey = null;
-        }
-
-        _suppressBranchSelectionChanged = false;
-    }
-
-    private void BranchFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_suppressBranchSelectionChanged ||
-            BranchFilterBox.SelectedItem is not DashboardBranchFilterEntry entry)
-        {
-            return;
-        }
-
-        _selectedBranchKey = DashboardPageHelper.ResolveBranchInstanceId(entry);
-
-        _ = RefreshOperationsCommandCenterAsync();
-        _ = OperationsCommandCenterPanel.RequestPlatformDataRefreshAsync();
-    }
-
     private IEnumerable<MessengerInstance> PersonalInstances =>
         _registry?.Instances.Where(i => !i.IsProfessional) ?? [];
-
-    private void RefreshActivity()
-    {
-        _allActivity.Clear();
-        var personalIds = PersonalInstances.Select(i => i.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var alert in NotificationHub.Instance.GetAlertsSortedByInstance())
-        {
-            if (!personalIds.Contains(alert.InstanceId))
-            {
-                continue;
-            }
-
-            var instance = _registry?.FindById(alert.InstanceId);
-            _allActivity.Add(new DashboardActivityItem
-            {
-                Alert = alert,
-                Title = alert.Title,
-                Body = alert.Body,
-                InstanceDisplayName = alert.InstanceDisplayName,
-                RelativeTimeText = alert.RelativeTimeText,
-                IconGlyph = instance?.IconGlyph ?? alert.IconGlyph,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(
-                    instance?.AccentColor ?? PlatformBrandingHelper.DefaultAccentHex)
-            });
-        }
-
-        ApplyActivityFilter(GlobalSearchBox.Text);
-    }
-
-    private void RefreshResources()
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        var personalList = PersonalInstances.ToList();
-        var snapshot = ResourceMonitorService.Instance.Capture(
-            personalList,
-            InstanceSessionManager.Instance,
-            NotificationHub.Instance,
-            AdapterHealthMonitor.Instance);
-
-        ActiveAccountsValue.Text = snapshot.ActiveAccountCount.ToString();
-        MemoryValue.Text = $"{snapshot.WorkingSetMegabytes} MB";
-        UnreadValue.Text = snapshot.TotalUnreadCount.ToString();
-        VisibleAccountValue.Text = snapshot.VisibleInstanceName;
-
-        InstanceTilesList.ItemsSource = snapshot.InstanceTiles
-            .Select(tile => new DashboardInstanceTileItem
-            {
-                InstanceId = tile.InstanceId,
-                DisplayName = tile.DisplayName,
-                PlatformLabel = tile.Platform,
-                StatusLine = DashboardPageHelper.BuildInstanceStatusLine(tile),
-                IconGlyph = tile.IconGlyph,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(tile.AccentColor)
-            })
-            .ToList();
-    }
-
-    private void GlobalSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
-    {
-        if (args.Reason == AutoSuggestionBoxTextChangeReason.ProgrammaticChange)
-        {
-            return;
-        }
-
-        ApplyActivityFilter(sender.Text);
-        UpdateSearchSuggestions(sender.Text);
-    }
-
-    private void GlobalSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
-    {
-        if (args.ChosenSuggestion is DashboardSearchSuggestion suggestion)
-        {
-            NavigateFromSearchSuggestion(suggestion);
-            return;
-        }
-
-        var query = args.QueryText?.Trim();
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return;
-        }
-
-        var suggestions = BuildSearchSuggestions(query);
-        if (suggestions.Count > 0)
-        {
-            NavigateFromSearchSuggestion(suggestions[0]);
-        }
-    }
-
-    private void GlobalSearchBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
-    {
-        if (args.SelectedItem is DashboardSearchSuggestion suggestion)
-        {
-            NavigateFromSearchSuggestion(suggestion);
-        }
-    }
-
-    private void UpdateSearchSuggestions(string? query)
-    {
-        GlobalSearchBox.ItemsSource = BuildSearchSuggestions(query);
-    }
-
-    private List<DashboardSearchSuggestion> BuildSearchSuggestions(string? query)
-    {
-        if (_registry is null)
-        {
-            return [];
-        }
-
-        return DashboardPageHelper
-            .FilterPersonalSearchMatches(PersonalInstances, query)
-            .Select(match => new DashboardSearchSuggestion
-            {
-                Label = match.Label,
-                SubLabel = match.SubLabel,
-                InstanceId = match.InstanceId,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(match.AccentColorHex)
-            })
-            .ToList();
-    }
-
-    private static void NavigateFromSearchSuggestion(DashboardSearchSuggestion suggestion)
-    {
-        if (!string.IsNullOrWhiteSpace(suggestion.InstanceId))
-        {
-            ShellNavigationService.Instance.RequestInstance(suggestion.InstanceId);
-        }
-    }
-
-    private void ApplyActivityFilter(string? query)
-    {
-        IEnumerable<DashboardActivityItem> filtered = _allActivity;
-        var hasQuery = !string.IsNullOrWhiteSpace(query);
-        if (hasQuery)
-        {
-            filtered = _allActivity.Where(item => item.Matches(query!));
-        }
-
-        var list = filtered.ToList();
-        RecentActivityList.ItemsSource = list;
-
-        if (list.Count == 0)
-        {
-            RecentActivityEmptyText.Text = DashboardPageHelper.ResolveEmptyActivityMessage(hasQuery);
-            RecentActivityEmptyText.Visibility = Visibility.Visible;
-            RecentActivityList.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            RecentActivityEmptyText.Visibility = Visibility.Collapsed;
-            RecentActivityList.Visibility = Visibility.Visible;
-        }
-    }
-
-    private void RecentActivityList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is DashboardActivityItem item)
-        {
-            ShellNavigationService.Instance.RequestInstance(item.Alert.InstanceId);
-        }
-    }
-
-    private void InstanceTilesList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is DashboardInstanceTileItem tile)
-        {
-            ShellNavigationService.Instance.RequestInstance(tile.InstanceId);
-        }
-    }
-
-    private sealed class DashboardActivityItem
-    {
-        public required NotificationAlert Alert { get; init; }
-
-        public required string Title { get; init; }
-
-        public required string Body { get; init; }
-
-        public required string InstanceDisplayName { get; init; }
-
-        public required string RelativeTimeText { get; init; }
-
-        public required string IconGlyph { get; init; }
-
-        public required SolidColorBrush AccentBrush { get; init; }
-
-        public bool Matches(string query) =>
-            DashboardPageHelper.ActivityMatches(Title, Body, InstanceDisplayName, query);
-    }
-
-    private sealed class DashboardInstanceTileItem
-    {
-        public required string InstanceId { get; init; }
-
-        public required string DisplayName { get; init; }
-
-        public required string PlatformLabel { get; init; }
-
-        public required string StatusLine { get; init; }
-
-        public required string IconGlyph { get; init; }
-
-        public required SolidColorBrush AccentBrush { get; init; }
-    }
-
-    private sealed class DashboardSearchSuggestion
-    {
-        public required string Label { get; init; }
-
-        public required string SubLabel { get; init; }
-
-        public string? InstanceId { get; init; }
-
-        public SolidColorBrush? AccentBrush { get; init; }
-
-        public override string ToString() => $"{Label} ({SubLabel})";
-    }
 }

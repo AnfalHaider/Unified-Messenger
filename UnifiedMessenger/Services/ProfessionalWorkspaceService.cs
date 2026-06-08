@@ -117,6 +117,11 @@ public sealed class ProfessionalWorkspaceService
         }
 
         alert.IsReplied = true;
+        if (_unrepliedByInstance.TryGetValue(alert.InstanceId, out var unrepliedCount) && unrepliedCount > 0)
+        {
+            _unrepliedByInstance[alert.InstanceId] = unrepliedCount - 1;
+        }
+
         NotifyChanged();
     }
 

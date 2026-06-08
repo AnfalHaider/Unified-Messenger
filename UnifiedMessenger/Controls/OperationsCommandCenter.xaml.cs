@@ -30,13 +30,15 @@ public sealed partial class OperationsCommandCenter : UserControl
     private IEnumerable<MessengerInstance> _professionalInstances = [];
     private OperationsCommandCenterSnapshot _snapshot = OperationsCommandCenterSnapshot.Empty;
     private InstanceRegistryService? _registry;
-    private string? _selectedBranchKey;
-    private string? _selectedKanbanBranchName;
-    private int _refreshGeneration;
+    /// <summary>Single workspace scope for the entire OCC dashboard (null = all branches).</summary>
+    private string? _workspaceBranchKey;
+    private IReadOnlyList<string> _availableBranchKeys = [];
     private bool _suppressTabSelection;
     private bool _isRefreshing;
+    private bool _showWorkspaceLoading;
     private GoogleReviewAlertView? _selectedReviewAlert;
-    private IReadOnlyList<OperationalHighlightItem> _operationalHighlights = [];
+    private IReadOnlyDictionary<string, BranchWorkspaceHelper.BranchTabCounts> _branchTabCounts =
+        new Dictionary<string, BranchWorkspaceHelper.BranchTabCounts>(StringComparer.OrdinalIgnoreCase);
 
     public OperationsCommandCenter()
     {
@@ -64,21 +66,10 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     public async Task RefreshAsync(
         IEnumerable<MessengerInstance> professionalInstances,
-        string? selectedBranchKey = null,
         InstanceRegistryService? registry = null)
     {
         _professionalInstances = professionalInstances;
-        var branchFilterChanged = !string.Equals(
-            _selectedBranchKey,
-            selectedBranchKey,
-            StringComparison.OrdinalIgnoreCase);
-        _selectedBranchKey = selectedBranchKey;
         _registry = registry;
-
-        if (branchFilterChanged && !string.IsNullOrWhiteSpace(selectedBranchKey))
-        {
-            _selectedKanbanBranchName = selectedBranchKey.Trim();
-        }
 
         if (_isRefreshing)
         {
@@ -87,20 +78,57 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
 
         _isRefreshing = true;
+        if (_showWorkspaceLoading)
+        {
+            SetWorkspaceLoadingVisible(true);
+        }
+
         try
         {
+            var instanceList = professionalInstances.ToList();
+            var allowedIds = instanceList
+                .Select(instance => instance.Id)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            _availableBranchKeys = BranchWorkspaceHelper.CollectBranchKeys(
+                instanceList,
+                ThreadRegistryService.Instance.GetAllThreads()
+                    .Where(thread => allowedIds.Contains(thread.InstanceId)));
+
+            if (!string.IsNullOrWhiteSpace(_workspaceBranchKey) &&
+                _availableBranchKeys.All(branch =>
+                    !branch.Equals(_workspaceBranchKey, StringComparison.OrdinalIgnoreCase)))
+            {
+                _workspaceBranchKey = null;
+            }
+
+            var scopedThreads = ThreadRegistryService.Instance.GetAllThreads()
+                .Where(thread => allowedIds.Contains(thread.InstanceId))
+                .ToList();
+            _branchTabCounts = BranchWorkspaceHelper.ComputeBranchTabCounts(scopedThreads);
+
             var snapshot = await Task.Run(() =>
                     OperationsCommandCenterService.Instance.BuildSnapshot(
-                        professionalInstances,
-                        selectedBranchKey))
+                        instanceList,
+                        _workspaceBranchKey))
                 .ConfigureAwait(true);
 
+            RebuildBranchTabs(_availableBranchKeys);
             ApplySnapshot(snapshot);
         }
         finally
         {
+            SetWorkspaceLoadingVisible(false);
+            _showWorkspaceLoading = false;
             _isRefreshing = false;
         }
+    }
+
+    private void SetWorkspaceLoadingVisible(bool visible)
+    {
+        WorkspaceLoadingOverlay.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        BranchWorkspaceTabs.IsEnabled = !visible;
     }
 
     public async Task<bool> RequestPlatformDataRefreshAsync(bool refreshAllInstances = false)
@@ -117,7 +145,7 @@ public sealed partial class OperationsCommandCenter : UserControl
                 "Nothing to refresh",
                 refreshAllInstances
                     ? "No professional accounts are configured for platform data scraping."
-                    : "No accounts in the current branch filter support platform data scraping.")
+                    : "No accounts in the current workspace scope support platform data scraping.")
                 .ConfigureAwait(true);
             return false;
         }
@@ -129,7 +157,7 @@ public sealed partial class OperationsCommandCenter : UserControl
                 .ConfigureAwait(true);
 
             MessageAnalyticsService.Instance.NotifyDashboardRefresh();
-            await RefreshAsync(_professionalInstances, _selectedBranchKey, _registry).ConfigureAwait(true);
+            await RefreshAsync(_professionalInstances, _registry).ConfigureAwait(true);
             return true;
         }
         catch (Exception ex)
@@ -165,7 +193,6 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private void ScheduleDebouncedRefresh()
     {
-        Interlocked.Increment(ref _refreshGeneration);
         _refreshDebounceTimer.Stop();
         _refreshDebounceTimer.Start();
     }
@@ -173,7 +200,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void OnRefreshDebounceTick(DispatcherQueueTimer sender, object args)
     {
         sender.Stop();
-        _ = RefreshAsync(_professionalInstances, _selectedBranchKey, _registry);
+        _ = RefreshAsync(_professionalInstances, _registry);
     }
 
     private void OnBranchWorkspaceSelectedIndexChanged(DependencyObject sender, DependencyProperty property)
@@ -183,9 +210,16 @@ public sealed partial class OperationsCommandCenter : UserControl
             return;
         }
 
-        _selectedKanbanBranchName = ResolveSelectedKanbanBranchName();
-        ApplyBranchScopedWorkspace();
-        RefreshBranchMetricSelection();
+        var branchKey = ResolveWorkspaceBranchKeyFromSelectedTab();
+        if (string.Equals(_workspaceBranchKey, branchKey, StringComparison.OrdinalIgnoreCase))
+        {
+            RefreshBranchMetricSelection();
+            return;
+        }
+
+        _workspaceBranchKey = branchKey;
+        _showWorkspaceLoading = true;
+        _ = RefreshAsync(_professionalInstances, _registry);
     }
 
     private void ApplySnapshot(OperationsCommandCenterSnapshot snapshot)
@@ -199,35 +233,29 @@ public sealed partial class OperationsCommandCenter : UserControl
         MainContentScrollViewer.Visibility = hasProfessional ? Visibility.Visible : Visibility.Collapsed;
 
         ScopeText.Text = snapshot.ScopeLabel;
-        OpenThreadCountText.Text = status.OpenThreadCount.ToString();
-        HangingLeadCountText.Text = status.HangingLeadCount.ToString();
-        RevenueAtRiskText.Text = UnifiedMessengerDashboardPresentationHelper.FormatRevenue(status.TotalRevenueAtRisk);
-        AvgReplyTimeValue.Text = status.AverageReplyTime;
-        SlaBreachesValue.Text = status.SlaBreaches;
-        ResponseRateValue.Text = status.ResponseRate;
-        ImmediateActionCountText.Text = status.ImmediateActionCount.ToString();
-        PeakHourValue.Text = status.PeakHour;
-        DailyTrendValue.Text = status.DailyTrend;
-        ApplySubtext(AvgReplyTimeSubtext, status.AverageReplyTimeSubtext);
-        ApplySubtext(SlaThresholdSubtext, status.SlaThresholdSubtext);
+        ApplyStatusKpis(status);
+        ApplyKanbanFromSnapshot(threadOps);
+        ApplyImmediateQueueFromSnapshot(threadOps);
 
         ReplaceCollection(
             _branchMetrics,
             threadOps.BranchMetrics.Select(metric =>
-                new BranchMetricViewModel(metric, metric.BranchName.Equals(
-                    _selectedKanbanBranchName,
-                    StringComparison.OrdinalIgnoreCase))));
+                new BranchMetricViewModel(
+                    metric,
+                    IsWorkspaceBranchSelected(metric.BranchName),
+                    IsWorkspaceBranchScoped())));
         BranchMetricsEmptyText.Visibility = _branchMetrics.Count == 0
             ? Visibility.Visible
             : Visibility.Collapsed;
         ReplaceCollection(_platformHealth, status.PlatformHealth.Select(indicator => new PlatformHealthViewModel(indicator)));
+        PlatformHealthSection.Visibility = _platformHealth.Count > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
-        _operationalHighlights = snapshot.AnalyticsTrends.Highlights;
-        RebuildBranchTabs(threadOps.BranchNames);
-        ApplyBranchScopedWorkspace();
+        ApplyOperationalHighlights(snapshot.AnalyticsTrends.Highlights);
         ApplyPlatformIntelligence(snapshot.PlatformIntelligence);
         ApplyAnalyticsTrends(snapshot.AnalyticsTrends, status);
-        ApplyAiInsightFeed(snapshot);
+        ApplyAiInsightFeed(snapshot.AiInsightFeed);
         ReplaceCollection(
             _healthChips,
             snapshot.InstanceHealthChips.Select(chip => new HealthChipViewModel(chip)));
@@ -235,6 +263,67 @@ public sealed partial class OperationsCommandCenter : UserControl
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
+
+    private bool IsWorkspaceBranchSelected(string branchName) =>
+        !string.IsNullOrWhiteSpace(_workspaceBranchKey) &&
+        branchName.Equals(_workspaceBranchKey, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsWorkspaceBranchScoped() =>
+        !string.IsNullOrWhiteSpace(_workspaceBranchKey);
+
+    private void ApplyKanbanFromSnapshot(UnifiedMessengerDashboardSnapshot threadOps)
+    {
+        var hideBranch = ShouldHideBranchOnCards();
+
+        ReplaceCollection(
+            _newInquiries,
+            threadOps.AllThreads
+                .Where(thread => thread.KanbanColumn == UnifiedMessengerKanbanColumn.NewInquiries)
+                .Select(thread => new OperationsThreadCardViewModel(thread, hideBranch)));
+        ReplaceCollection(
+            _hangingLeads,
+            threadOps.AllThreads
+                .Where(thread => thread.KanbanColumn == UnifiedMessengerKanbanColumn.HangingLeads)
+                .Select(thread => new OperationsThreadCardViewModel(thread, hideBranch)));
+        ReplaceCollection(
+            _resolved,
+            threadOps.AllThreads
+                .Where(thread => thread.KanbanColumn == UnifiedMessengerKanbanColumn.Resolved)
+                .Select(thread => new OperationsThreadCardViewModel(thread, hideBranch)));
+
+        NewInquiriesEmptyText.Visibility = _newInquiries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        HangingLeadsEmptyText.Visibility = _hangingLeads.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ResolvedEmptyText.Visibility = _resolved.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ApplyImmediateQueueFromSnapshot(UnifiedMessengerDashboardSnapshot threadOps)
+    {
+        var hideBranch = ShouldHideBranchOnCards();
+
+        ReplaceCollection(
+            _immediateQueue,
+            threadOps.ImmediateActionQueue.Select(thread => new OperationsThreadCardViewModel(thread, hideBranch)));
+
+        ImmediateQueueEmptyText.Visibility = _immediateQueue.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        var shownCount = threadOps.ImmediateActionQueueCount;
+        var totalCount = threadOps.ImmediateActionTotal;
+        if (totalCount > shownCount && shownCount > 0)
+        {
+            ImmediateQueueFooterText.Text =
+                $"Showing top {shownCount} of {totalCount} urgent threads";
+            ImmediateQueueFooterText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ImmediateQueueFooterText.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private bool ShouldHideBranchOnCards() =>
+        !string.IsNullOrWhiteSpace(_workspaceBranchKey);
 
     private static void ApplySubtext(TextBlock target, string text)
     {
@@ -298,20 +387,17 @@ public sealed partial class OperationsCommandCenter : UserControl
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        var summaryParts = new List<string>();
+        PlatformIntelligenceHeaderText.Text = "Platform intelligence & refresh";
+
         if (platform.HasGoogleInstances && platform.CustomerTrust.TotalUnrepliedReviews > 0)
         {
-            summaryParts.Add($"{platform.CustomerTrust.TotalUnrepliedReviews} unreplied review(s)");
+            PlatformIntelligenceReviewBadge.Value = platform.CustomerTrust.TotalUnrepliedReviews;
+            PlatformIntelligenceReviewBadge.Visibility = Visibility.Visible;
         }
-
-        if (platform.HasMetaInstances && platform.MetaResponse.SampleCount > 0)
+        else
         {
-            summaryParts.Add("Meta samples loaded");
+            PlatformIntelligenceReviewBadge.Visibility = Visibility.Collapsed;
         }
-
-        PlatformIntelligenceExpander.Header = summaryParts.Count == 0
-            ? "Platform intelligence"
-            : $"Platform intelligence · {string.Join(" · ", summaryParts)}";
     }
 
     private void ApplyAnalyticsTrends(
@@ -349,9 +435,9 @@ public sealed partial class OperationsCommandCenter : UserControl
             : Visibility.Collapsed;
     }
 
-    private void ApplyAiInsightFeed(OperationsCommandCenterSnapshot snapshot)
+    private void ApplyAiInsightFeed(IReadOnlyList<OperationsInsightFeedItem> feed)
     {
-        var items = snapshot.AiInsightFeed
+        var items = feed
             .Select(item => new OperationsInsightFeedViewModel(item))
             .ToList();
         AiInsightFeedList.ItemsSource = items;
@@ -362,11 +448,11 @@ public sealed partial class OperationsCommandCenter : UserControl
             return;
         }
 
-        var triage = snapshot.AnalyticsTrends.Triage;
+        var triage = _snapshot.AnalyticsTrends.Triage;
         var emptyReason = DashboardCardEmptyStateHelper.ResolveExecutiveInsightsEmptyReason(
             AppSettingsService.Instance.Settings.EnableLocalAi,
             triage.TotalTriageCount,
-            snapshot.AiInsightFeed.Count);
+            _snapshot.AiInsightFeed.Count);
         AiInsightFeedEmptyText.Text =
             DashboardCardEmptyStateHelper.FormatExecutiveInsightsEmptyMessage(emptyReason);
         AiInsightFeedEmptyText.Visibility = Visibility.Visible;
@@ -377,53 +463,50 @@ public sealed partial class OperationsCommandCenter : UserControl
         _suppressTabSelection = true;
         BranchWorkspaceTabs.TabItems.Clear();
 
-        if (branchNames.Count == 0)
+        var allBranchesCounts = BranchWorkspaceHelper.SumBranchTabCounts(_branchTabCounts);
+        BranchWorkspaceTabs.TabItems.Add(new TabViewItem
         {
+            Header = BranchWorkspaceHelper.FormatBranchTabHeader("All branches", allBranchesCounts),
+            IsClosable = false,
+            Tag = BranchWorkspaceHelper.AllBranchesWorkspaceTag
+        });
+
+        foreach (var branch in branchNames)
+        {
+            var counts = _branchTabCounts.GetValueOrDefault(branch, new BranchWorkspaceHelper.BranchTabCounts(0, 0));
             BranchWorkspaceTabs.TabItems.Add(new TabViewItem
             {
-                Header = "General",
+                Header = BranchWorkspaceHelper.FormatBranchTabHeader(branch, counts),
                 IsClosable = false,
-                Tag = "General"
+                Tag = branch
             });
         }
-        else
-        {
-            foreach (var branch in branchNames)
-            {
-                BranchWorkspaceTabs.TabItems.Add(new TabViewItem
-                {
-                    Header = branch,
-                    IsClosable = false,
-                    Tag = branch
-                });
-            }
-        }
 
-        var selectedBranch = _selectedKanbanBranchName ?? ResolveFilteredBranchName();
-        var selectedIndex = 0;
-        if (!string.IsNullOrWhiteSpace(selectedBranch))
-        {
-            for (var index = 0; index < BranchWorkspaceTabs.TabItems.Count; index++)
-            {
-                if (BranchWorkspaceTabs.TabItems[index] is TabViewItem tab &&
-                    tab.Tag is string branch &&
-                    branch.Equals(selectedBranch, StringComparison.OrdinalIgnoreCase))
-                {
-                    selectedIndex = index;
-                    break;
-                }
-            }
-        }
-
-        BranchWorkspaceTabs.SelectedIndex = selectedIndex;
-        _selectedKanbanBranchName = ResolveSelectedKanbanBranchName();
+        BranchWorkspaceTabs.SelectedIndex = ResolveWorkspaceTabIndex(_workspaceBranchKey);
         _suppressTabSelection = false;
     }
 
-    private string? ResolveFilteredBranchName() =>
-        string.IsNullOrWhiteSpace(_selectedBranchKey) ? null : _selectedBranchKey.Trim();
+    private int ResolveWorkspaceTabIndex(string? workspaceBranchKey)
+    {
+        if (string.IsNullOrWhiteSpace(workspaceBranchKey))
+        {
+            return 0;
+        }
 
-    private string? ResolveSelectedKanbanBranchName()
+        for (var index = 0; index < BranchWorkspaceTabs.TabItems.Count; index++)
+        {
+            if (BranchWorkspaceTabs.TabItems[index] is TabViewItem tab &&
+                tab.Tag is string branch &&
+                branch.Equals(workspaceBranchKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+
+        return 0;
+    }
+
+    private string? ResolveWorkspaceBranchKeyFromSelectedTab()
     {
         var index = BranchWorkspaceTabs.SelectedIndex;
         if (index < 0 || index >= BranchWorkspaceTabs.TabItems.Count)
@@ -432,83 +515,36 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
 
         return BranchWorkspaceTabs.TabItems[index] is TabViewItem tab
-            ? tab.Tag as string
+            ? BranchWorkspaceHelper.ResolveWorkspaceBranchKeyFromTabTag(tab.Tag)
             : null;
     }
 
-    private void ApplyBranchScopedWorkspace()
+    private void ApplyStatusKpis(OperationsStatusSnapshot status)
     {
-        var branchName = ResolveActiveKanbanBranchName();
-        ApplyKanbanForSelectedBranch();
-        ApplyImmediateQueueForBranch(branchName);
-        ApplyOperationalHighlightsForBranch(branchName);
-        RefreshBranchMetricSelection();
-    }
-
-    private string? ResolveActiveKanbanBranchName()
-    {
-        var branchName = _selectedKanbanBranchName ?? ResolveSelectedKanbanBranchName();
-        return string.IsNullOrWhiteSpace(branchName) ||
-               branchName.Equals("General", StringComparison.OrdinalIgnoreCase)
-            ? null
-            : branchName;
-    }
-
-    private void ApplyImmediateQueueForBranch(string? branchName)
-    {
-        var immediateThreads = string.IsNullOrWhiteSpace(branchName)
-            ? _snapshot.ThreadOperations.ImmediateActionQueue
-            : _snapshot.ThreadOperations.ImmediateActionQueue
-                .Where(thread => thread.BranchName.Equals(branchName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-        ReplaceCollection(
-            _immediateQueue,
-            immediateThreads.Select(thread => new OperationsThreadCardViewModel(thread)));
-
-        ImmediateActionCountText.Text = immediateThreads.Count.ToString();
-        ImmediateQueueEmptyText.Visibility = _immediateQueue.Count == 0
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private void ApplyOperationalHighlightsForBranch(string? branchName)
-    {
-        var highlights = string.IsNullOrWhiteSpace(branchName)
-            ? _operationalHighlights
-            : _operationalHighlights
-                .Where(item =>
-                    string.IsNullOrWhiteSpace(item.BranchName) ||
-                    item.BranchName.Equals(branchName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-        ApplyOperationalHighlights(highlights);
-    }
-
-    private void ApplyKanbanForSelectedBranch()
-    {
-        var branchName = _selectedKanbanBranchName ?? ResolveSelectedKanbanBranchName();
-
-        var threads = UnifiedMessengerDashboardPresentationHelper.FilterThreadsForBranch(
-            _snapshot.ThreadOperations.AllThreads,
-            branchName);
-
-        ReplaceCollection(
-            _newInquiries,
-            threads.Where(thread => thread.KanbanColumn == UnifiedMessengerKanbanColumn.NewInquiries)
-                .Select(thread => new OperationsThreadCardViewModel(thread)));
-        ReplaceCollection(
-            _hangingLeads,
-            threads.Where(thread => thread.KanbanColumn == UnifiedMessengerKanbanColumn.HangingLeads)
-                .Select(thread => new OperationsThreadCardViewModel(thread)));
-        ReplaceCollection(
-            _resolved,
-            threads.Where(thread => thread.KanbanColumn == UnifiedMessengerKanbanColumn.Resolved)
-                .Select(thread => new OperationsThreadCardViewModel(thread)));
-
-        NewInquiriesEmptyText.Visibility = _newInquiries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        HangingLeadsEmptyText.Visibility = _hangingLeads.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        ResolvedEmptyText.Visibility = _resolved.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        OpenThreadCountText.Text = status.OpenThreadCount.ToString();
+        HangingLeadCountText.Text = status.HangingLeadCount.ToString();
+        RevenueAtRiskText.Text = UnifiedMessengerDashboardPresentationHelper.FormatRevenue(status.TotalRevenueAtRisk);
+        AvgReplyTimeValue.Text = status.AverageReplyTime;
+        SlaBreachesValue.Text = status.SlaBreaches;
+        ResponseRateValue.Text = status.ResponseRate;
+        ImmediateActionCountText.Text = status.ImmediateActionTotal.ToString();
+        if (status.ImmediateActionTotal > status.ImmediateActionQueueCount &&
+            status.ImmediateActionQueueCount > 0)
+        {
+            ToolTipService.SetToolTip(
+                ImmediateActionKpiCard,
+                $"{status.ImmediateActionTotal} urgent threads in scope. The action lane shows the top {status.ImmediateActionQueueCount}.");
+        }
+        else
+        {
+            ToolTipService.SetToolTip(
+                ImmediateActionKpiCard,
+                "All urgent threads in scope. The action lane shows the top 24 by urgency.");
+        }
+        PeakHourValue.Text = status.PeakHour;
+        DailyTrendValue.Text = status.DailyTrend;
+        ApplySubtext(AvgReplyTimeSubtext, status.AverageReplyTimeSubtext);
+        ApplySubtext(SlaThresholdSubtext, status.SlaThresholdSubtext);
     }
 
     private static void ReplaceCollection<T>(ObservableCollection<T> target, IEnumerable<T> items)
@@ -527,39 +563,31 @@ public sealed partial class OperationsCommandCenter : UserControl
             return;
         }
 
-        _selectedKanbanBranchName = metric.BranchName;
-        SelectKanbanTabForBranch(metric.BranchName);
-        ApplyBranchScopedWorkspace();
+        _workspaceBranchKey = metric.BranchName;
+        _showWorkspaceLoading = true;
+        SelectWorkspaceTab(metric.BranchName);
+        _ = RefreshAsync(_professionalInstances, _registry);
     }
 
-    private void SelectKanbanTabForBranch(string branchName)
+    private void SelectWorkspaceTab(string branchName)
     {
         _suppressTabSelection = true;
-        for (var index = 0; index < BranchWorkspaceTabs.TabItems.Count; index++)
-        {
-            if (BranchWorkspaceTabs.TabItems[index] is TabViewItem tab &&
-                tab.Tag is string branch &&
-                branch.Equals(branchName, StringComparison.OrdinalIgnoreCase))
-            {
-                BranchWorkspaceTabs.SelectedIndex = index;
-                break;
-            }
-        }
-
+        BranchWorkspaceTabs.SelectedIndex = ResolveWorkspaceTabIndex(branchName);
         _suppressTabSelection = false;
     }
 
     private void RefreshBranchMetricSelection()
     {
-        var selected = _selectedKanbanBranchName;
+        var selected = _workspaceBranchKey;
+        var isScoped = IsWorkspaceBranchScoped();
         for (var index = 0; index < _branchMetrics.Count; index++)
         {
             var metric = _branchMetrics[index];
             var isSelected = !string.IsNullOrWhiteSpace(selected) &&
                              metric.BranchName.Equals(selected, StringComparison.OrdinalIgnoreCase);
-            if (metric.IsSelected != isSelected)
+            if (metric.IsSelected != isSelected || metric.IsWorkspaceScoped != isScoped)
             {
-                _branchMetrics[index] = new BranchMetricViewModel(metric.Source, isSelected);
+                _branchMetrics[index] = new BranchMetricViewModel(metric.Source, isSelected, isScoped);
             }
         }
     }
@@ -597,7 +625,10 @@ public sealed partial class OperationsCommandCenter : UserControl
         if (e.ClickedItem is OperationalHighlightViewModel highlight &&
             !string.IsNullOrWhiteSpace(highlight.InstanceId))
         {
-            ShellNavigationService.Instance.RequestInstance(highlight.InstanceId);
+            ShellNavigationService.Instance.RequestInstance(
+                highlight.InstanceId,
+                highlight.ConversationKey,
+                highlight.Title);
         }
     }
 
@@ -714,7 +745,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         {
             if (file.FileType.Equals(".csv", StringComparison.OrdinalIgnoreCase))
             {
-                await MessageAnalyticsService.Instance.ExportCsvAsync(_registry.Instances, file.Path);
+                await MessageAnalyticsService.Instance.ExportCsvAsync(_snapshot.FilteredInstances, file.Path);
             }
             else
             {
@@ -774,7 +805,9 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private sealed class BranchMetricViewModel
     {
-        public BranchMetricViewModel(UnifiedMessengerBranchMetrics metric, bool isSelected)
+        private const double DimmedCardOpacity = 0.55;
+
+        public BranchMetricViewModel(UnifiedMessengerBranchMetrics metric, bool isSelected, bool isWorkspaceScoped)
         {
             Source = metric;
             BranchName = metric.BranchName;
@@ -788,11 +821,17 @@ public sealed partial class OperationsCommandCenter : UserControl
             PlatformBreakdown = metric.PlatformBreakdown;
             DetailDisplay = BuildDetailDisplay(metric);
             IsSelected = isSelected;
+            IsWorkspaceScoped = isWorkspaceScoped;
             LatencyBrush = CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex(metric.LatencyColor));
             LatencyBorderBrush = CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex(metric.LatencyColor));
             CardBackgroundBrush = isSelected
                 ? new SolidColorBrush(Color.FromArgb(255, 239, 246, 255))
                 : new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+            CardOpacity = isWorkspaceScoped && !isSelected ? DimmedCardOpacity : 1.0;
+            CardBorderThickness = isSelected ? new Thickness(2) : new Thickness(1);
+            ToolTipText = isSelected ? "Currently scoped to this branch" : "Select branch tab";
+            ScopeHintText = isSelected ? "Scoped workspace" : "Select branch tab";
+            ScopeHintVisibility = Visibility.Visible;
         }
 
         public UnifiedMessengerBranchMetrics Source { get; }
@@ -811,11 +850,23 @@ public sealed partial class OperationsCommandCenter : UserControl
 
         public bool IsSelected { get; }
 
+        public bool IsWorkspaceScoped { get; }
+
         public SolidColorBrush LatencyBrush { get; }
 
         public SolidColorBrush LatencyBorderBrush { get; }
 
         public SolidColorBrush CardBackgroundBrush { get; }
+
+        public double CardOpacity { get; }
+
+        public Thickness CardBorderThickness { get; }
+
+        public string ToolTipText { get; }
+
+        public string ScopeHintText { get; }
+
+        public Visibility ScopeHintVisibility { get; }
 
         public Visibility PlatformBreakdownVisibility =>
             string.IsNullOrWhiteSpace(PlatformBreakdown) ? Visibility.Collapsed : Visibility.Visible;
@@ -867,6 +918,10 @@ public sealed partial class OperationsCommandCenter : UserControl
         public string InstanceDisplayName { get; } = item.InstanceDisplayName;
 
         public string? InstanceId { get; } = item.InstanceId;
+
+        public string? ConversationKey { get; } = string.IsNullOrWhiteSpace(item.ConversationKey)
+            ? null
+            : item.ConversationKey;
     }
 
     private sealed class GoogleReviewAlertView

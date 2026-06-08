@@ -155,6 +155,42 @@ public class OperationalMetricsPhase2Tests : IDisposable
         Assert.Equal(1, OperationalMetricsHelper.CountActiveSlaBreaches(threads));
     }
 
+    [Fact]
+    public void OperationalMetricsHelper_BuildHighlights_IncludesConversationKeyForWaitingThreads()
+    {
+        var instances = new[]
+        {
+            new MessengerInstance
+            {
+                Id = "dha",
+                DisplayName = "Depilex DHA-2",
+                Platform = "whatsappbusiness",
+                Category = WorkspaceCategory.Professional
+            }
+        };
+
+        var threads = new[]
+        {
+            new ThreadData
+            {
+                ThreadId = "dha|sara",
+                Platform = "whatsappbusiness",
+                InstanceId = "dha",
+                BranchName = "DHA-2",
+                CustomerName = "Sara",
+                ConversationKey = "sara@lid",
+                LatencyMinutes = 12
+            }
+        };
+
+        var highlights = OperationalMetricsHelper.BuildHighlights(instances, threads, []);
+
+        var highlight = Assert.Single(highlights);
+        Assert.Equal("Sara", highlight.Title);
+        Assert.Equal("sara@lid", highlight.ConversationKey);
+        Assert.Equal("dha", highlight.InstanceId);
+    }
+
     public void Dispose()
     {
         AppSettingsService.Instance.Settings.SlaThresholdMinutes = _originalSlaThreshold;

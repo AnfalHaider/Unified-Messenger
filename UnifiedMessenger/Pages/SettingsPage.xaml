@@ -472,7 +472,7 @@
                                             Click="RestoreAccountButton_Click"
                                             Content="Restore"
                                             Tag="{x:Bind InstanceId}" />
-                                    </Grid>
+    </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
                         </ListView>

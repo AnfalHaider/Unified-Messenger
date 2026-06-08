@@ -11,31 +11,10 @@ public static class DashboardPageHelper
 
     public const string AllBranchesOptionId = "";
 
-    public static IReadOnlyList<DashboardBranchOption> BuildBranchOptions(
-        IEnumerable<MessengerInstance> professionalInstances)
-    {
-        var options = new List<DashboardBranchOption>
-        {
-            new(AllBranchesOptionId, "All Branches")
-        };
-
-        foreach (var instance in professionalInstances
-                     .Where(instance => !string.IsNullOrWhiteSpace(instance.Id))
-                     .OrderBy(instance => instance.DisplayName, StringComparer.OrdinalIgnoreCase))
-        {
-            options.Add(new DashboardBranchOption(instance.Id.Trim(), instance.DisplayName.Trim()));
-        }
-
-        return options;
-    }
-
     public static IEnumerable<MessengerInstance> FilterProfessionalInstances(
         IEnumerable<MessengerInstance> professionalInstances,
         string? selectedBranchKey) =>
         BranchWorkspaceHelper.FilterByBranchKey(professionalInstances, selectedBranchKey);
-
-    public static string? NormalizeBranchInstanceId(string? selectedBranchKey) =>
-        BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey);
 
     public static string? ResolveBranchInstanceId(DashboardBranchFilterEntry? entry) =>
         BranchWorkspaceHelper.ResolveBranchKeyFromEntry(entry);
@@ -369,6 +348,110 @@ public static class DashboardPageHelper
 
     private const string Placeholder = "—";
 
+    public static string FormatConnectionPillLabel(InstanceConnectionStatus connectionStatus) =>
+        connectionStatus switch
+        {
+            InstanceConnectionStatus.Connected => "Connected",
+            InstanceConnectionStatus.LoggedOut => "Logged out",
+            InstanceConnectionStatus.Error => "Error",
+            InstanceConnectionStatus.Initializing => "Connecting",
+            _ => "Connecting"
+        };
+
+    public static string FormatConnectionColorHex(
+        InstanceConnectionStatus connectionStatus,
+        AdapterHealthState adapterState)
+    {
+        var color = WorkspaceSidebarHelper.ResolveConnectionIndicatorColor(connectionStatus, adapterState);
+        return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+    }
+
+    public static string BuildPersonalTileDetailLine(
+        InstanceResourceTile tile,
+        InstanceConnectionStatus connectionStatus,
+        bool notificationsMuted,
+        string? connectionDetail = null)
+    {
+        ArgumentNullException.ThrowIfNull(tile);
+
+        if (notificationsMuted)
+        {
+            return "Notifications muted";
+        }
+
+        var healthLine = AdapterHealthStatus.GetDescription(tile.HealthState);
+        var parts = new List<string>();
+
+        if (tile.IsVisible)
+        {
+            parts.Add("Visible");
+        }
+
+        if (tile.UnreadCount > 0)
+        {
+            parts.Add($"{tile.UnreadCount} unread");
+        }
+
+        parts.Add(healthLine);
+
+        if (!string.IsNullOrWhiteSpace(connectionDetail) &&
+            connectionStatus is InstanceConnectionStatus.Connected
+                or InstanceConnectionStatus.LoggedOut
+                or InstanceConnectionStatus.Error)
+        {
+            parts.Add(connectionDetail.Trim());
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    public static string FormatPersonalQuickActionLabel(string displayName, int unreadCount) =>
+        unreadCount == 1
+            ? $"Open {displayName} (1 unread)"
+            : $"Open {displayName} ({unreadCount} unread)";
+
+    public static string FormatPersonalLastUpdated(DateTimeOffset capturedAtUtc)
+    {
+        var elapsed = DateTimeOffset.UtcNow - capturedAtUtc;
+        if (elapsed.TotalSeconds < 45)
+        {
+            return "Updated just now";
+        }
+
+        if (elapsed.TotalMinutes < 2)
+        {
+            return "Updated 1 min ago";
+        }
+
+        if (elapsed.TotalHours < 1)
+        {
+            return $"Updated {(int)elapsed.TotalMinutes} min ago";
+        }
+
+        return $"Updated at {capturedAtUtc.ToLocalTime():t}";
+    }
+
+    public static string ResolvePersonalEmptyTitle(PersonalDashboardEmptyReason emptyReason) =>
+        emptyReason switch
+        {
+            PersonalDashboardEmptyReason.NoPersonalAccounts => "No personal accounts yet",
+            PersonalDashboardEmptyReason.AllAccountsMuted => "Notifications are muted",
+            PersonalDashboardEmptyReason.NoRecentActivity => "No recent activity",
+            _ => "No activity to show"
+        };
+
+    public static string ResolvePersonalEmptyHint(PersonalDashboardEmptyReason emptyReason) =>
+        emptyReason switch
+        {
+            PersonalDashboardEmptyReason.NoPersonalAccounts =>
+                "Add a personal messenger account from Settings to start tracking activity here.",
+            PersonalDashboardEmptyReason.AllAccountsMuted =>
+                "Unmute an account in Settings or the sidebar to see notifications again.",
+            PersonalDashboardEmptyReason.NoRecentActivity =>
+                "New messages from personal accounts will appear here as they arrive.",
+            _ => string.Empty
+        };
+
     public static string BuildInstanceStatusLine(InstanceResourceTile tile)
     {
         ArgumentNullException.ThrowIfNull(tile);
@@ -411,9 +494,26 @@ public static class DashboardPageHelper
             ? "No personal activity matches your search."
             : "No recent notifications from personal accounts.";
 
+    public static string ResolvePersonalActivityEmptyMessage(
+        PersonalDashboardEmptyReason emptyReason,
+        bool hasSearchQuery) =>
+        hasSearchQuery
+            ? ResolveEmptyActivityMessage(true)
+            : emptyReason switch
+            {
+                PersonalDashboardEmptyReason.NoPersonalAccounts =>
+                    "Add a personal account to see activity here.",
+                PersonalDashboardEmptyReason.AllAccountsMuted =>
+                    "Personal notifications are muted for all accounts.",
+                PersonalDashboardEmptyReason.NoRecentActivity =>
+                    ResolveEmptyActivityMessage(false),
+                _ => ResolveEmptyActivityMessage(false)
+            };
+
     public static IReadOnlyList<DashboardSearchMatch> FilterPersonalSearchMatches(
         IEnumerable<MessengerInstance> personalInstances,
         string? query,
+        IEnumerable<NotificationAlert>? personalAlerts = null,
         int maxResults = MaxSearchSuggestions)
     {
         ArgumentNullException.ThrowIfNull(personalInstances);
@@ -424,14 +524,20 @@ public static class DashboardPageHelper
             return [];
         }
 
-        var matches = new List<DashboardSearchMatch>();
-        foreach (var instance in personalInstances)
-        {
-            if (string.IsNullOrWhiteSpace(instance.Id))
-            {
-                continue;
-            }
+        var instanceList = personalInstances
+            .Where(instance => !string.IsNullOrWhiteSpace(instance.Id))
+            .ToList();
 
+        var instanceLookup = instanceList.ToDictionary(
+            instance => instance.Id.Trim(),
+            instance => instance,
+            StringComparer.OrdinalIgnoreCase);
+
+        var matches = new List<DashboardSearchMatch>();
+        var matchedInstanceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var instance in instanceList)
+        {
             var platform = PlatformDefinition.FindById(instance.Platform);
             var platformLabel = platform?.DisplayName ?? instance.Platform;
             if (!instance.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
@@ -440,11 +546,52 @@ public static class DashboardPageHelper
                 continue;
             }
 
+            var instanceId = instance.Id.Trim();
             matches.Add(new DashboardSearchMatch(
-                instance.Id.Trim(),
+                instanceId,
                 instance.DisplayName,
                 platformLabel,
                 instance.AccentColor));
+            matchedInstanceIds.Add(instanceId);
+
+            if (matches.Count >= maxResults)
+            {
+                return matches;
+            }
+        }
+
+        if (personalAlerts is null)
+        {
+            return matches;
+        }
+
+        foreach (var alert in personalAlerts.OrderByDescending(alert => alert.ReceivedAt))
+        {
+            if (!instanceLookup.ContainsKey(alert.InstanceId))
+            {
+                continue;
+            }
+
+            if (!ActivityMatches(alert.Title, alert.Body, alert.InstanceDisplayName, query))
+            {
+                continue;
+            }
+
+            if (matchedInstanceIds.Contains(alert.InstanceId)
+                && matches.Any(match =>
+                    match.InstanceId.Equals(alert.InstanceId, StringComparison.OrdinalIgnoreCase)
+                    && match.Label.Equals(alert.InstanceDisplayName, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            var accentColor = instanceLookup[alert.InstanceId].AccentColor;
+            matches.Add(new DashboardSearchMatch(
+                alert.InstanceId,
+                alert.Title,
+                alert.InstanceDisplayName,
+                accentColor));
+            matchedInstanceIds.Add(alert.InstanceId);
 
             if (matches.Count >= maxResults)
             {
@@ -461,8 +608,6 @@ public readonly record struct DashboardSearchMatch(
     string Label,
     string SubLabel,
     string AccentColorHex);
-
-public readonly record struct DashboardBranchOption(string InstanceId, string DisplayName);
 
 public sealed class ProfessionalDashboardDisplay
 {

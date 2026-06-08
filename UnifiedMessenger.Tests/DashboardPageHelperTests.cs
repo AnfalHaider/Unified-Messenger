@@ -59,6 +59,82 @@ public class DashboardPageHelperTests
         Assert.Equal("inst-1", matches[0].InstanceId);
     }
 
+    [Fact]
+    public void FilterPersonalSearchMatches_IncludesAlertTitleAndBodyMatches()
+    {
+        var instances = new List<MessengerInstance>
+        {
+            new() { Id = "inst-1", DisplayName = "Family WhatsApp", Platform = "whatsapp", AccentColor = "#25D366" }
+        };
+
+        var alerts = new[]
+        {
+            NotificationAlert.Create("inst-1", "Family WhatsApp", "whatsapp", "Invoice due", "Please pay by Friday")
+        };
+
+        var matches = DashboardPageHelper.FilterPersonalSearchMatches(instances, "invoice", alerts);
+
+        Assert.Single(matches);
+        Assert.Equal("inst-1", matches[0].InstanceId);
+        Assert.Equal("Invoice due", matches[0].Label);
+    }
+
+    [Theory]
+    [InlineData(PersonalDashboardEmptyReason.NoPersonalAccounts, false, "Add a personal account")]
+    [InlineData(PersonalDashboardEmptyReason.AllAccountsMuted, false, "muted for all accounts")]
+    [InlineData(PersonalDashboardEmptyReason.NoRecentActivity, true, "matches your search")]
+    public void ResolvePersonalActivityEmptyMessage_UsesContextualCopy(
+        PersonalDashboardEmptyReason emptyReason,
+        bool hasSearchQuery,
+        string expectedFragment)
+    {
+        var message = DashboardPageHelper.ResolvePersonalActivityEmptyMessage(emptyReason, hasSearchQuery);
+        Assert.Contains(expectedFragment, message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(InstanceConnectionStatus.Connected, "Connected")]
+    [InlineData(InstanceConnectionStatus.LoggedOut, "Logged out")]
+    [InlineData(InstanceConnectionStatus.Error, "Error")]
+    [InlineData(InstanceConnectionStatus.Initializing, "Connecting")]
+    public void FormatConnectionPillLabel_UsesFriendlyLabels(
+        InstanceConnectionStatus status,
+        string expected)
+    {
+        Assert.Equal(expected, DashboardPageHelper.FormatConnectionPillLabel(status));
+    }
+
+    [Fact]
+    public void BuildPersonalTileDetailLine_IncludesConnectionDetailWhenConnected()
+    {
+        var line = DashboardPageHelper.BuildPersonalTileDetailLine(
+            new InstanceResourceTile
+            {
+                InstanceId = "inst-1",
+                DisplayName = "Personal",
+                Platform = "whatsapp",
+                AccentColor = "#25D366",
+                IconGlyph = "\uE8BD",
+                UnreadCount = 2,
+                HealthState = AdapterHealthState.Healthy
+            },
+            InstanceConnectionStatus.Connected,
+            notificationsMuted: false,
+            connectionDetail: "WhatsApp Web");
+
+        Assert.Contains("2 unread", line);
+        Assert.Contains("Monitoring active", line);
+        Assert.Contains("WhatsApp Web", line);
+    }
+
+    [Fact]
+    public void FormatPersonalQuickActionLabel_PluralizesUnreadCount()
+    {
+        Assert.Equal(
+            "Open Family WhatsApp (3 unread)",
+            DashboardPageHelper.FormatPersonalQuickActionLabel("Family WhatsApp", 3));
+    }
+
     [Theory]
     [InlineData(1, "1 unreplied review")]
     [InlineData(4, "4 unreplied reviews")]

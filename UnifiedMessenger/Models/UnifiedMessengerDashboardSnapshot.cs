@@ -21,6 +21,12 @@ public sealed class UnifiedMessengerDashboardSnapshot
     public int HangingLeadCount { get; init; }
 
     public int ImmediateActionCount { get; init; }
+
+    /// <summary>Total urgent threads in scope (same value as <see cref="ImmediateActionCount"/>).</summary>
+    public int ImmediateActionTotal => ImmediateActionCount;
+
+    /// <summary>Threads shown in the immediate action lane (capped at display limit).</summary>
+    public int ImmediateActionQueueCount { get; init; }
 }
 
 public sealed class UnifiedMessengerBranchMetrics

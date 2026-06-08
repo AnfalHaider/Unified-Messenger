@@ -61,6 +61,8 @@ public sealed class OperationalHighlightItem
     public string? InstanceId { get; init; }
 
     public string? BranchName { get; init; }
+
+    public string? ConversationKey { get; init; }
 }
 
 public sealed class MessageAnalyticsService
@@ -705,7 +707,10 @@ public sealed class MessageAnalyticsService
                 Title = stats.LastChatHint,
                 Subtitle = "Recent outbound thread",
                 InstanceDisplayName = instance.DisplayName,
-                InstanceId = instance.Id
+                InstanceId = instance.Id,
+                ConversationKey = string.IsNullOrWhiteSpace(stats.LastPairedConversationKey)
+                    ? null
+                    : stats.LastPairedConversationKey
             }));
         }
 

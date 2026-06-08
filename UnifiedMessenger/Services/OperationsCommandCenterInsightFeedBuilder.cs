@@ -24,7 +24,11 @@ public static class OperationsCommandCenterInsightFeedBuilder
         foreach (var thread in threadOperations.ImmediateActionQueue)
         {
             items.Add(CreateThreadItem(thread, basePriority: 1000));
-            coveredConversationKeys.Add(BuildConversationKey(thread.InstanceId, thread.ConversationKey, thread.CustomerName));
+            coveredConversationKeys.Add(BuildConversationKey(
+                thread.InstanceId,
+                thread.Platform,
+                thread.ConversationKey,
+                thread.CustomerName));
         }
 
         foreach (var thread in threadOperations.AllThreads)
@@ -36,7 +40,11 @@ public static class OperationsCommandCenterInsightFeedBuilder
                 continue;
             }
 
-            var conversationKey = BuildConversationKey(thread.InstanceId, thread.ConversationKey, thread.CustomerName);
+            var conversationKey = BuildConversationKey(
+                thread.InstanceId,
+                thread.Platform,
+                thread.ConversationKey,
+                thread.CustomerName);
             if (coveredConversationKeys.Contains(conversationKey))
             {
                 continue;
@@ -129,12 +137,13 @@ public static class OperationsCommandCenterInsightFeedBuilder
 
     internal static string BuildConversationKey(
         string instanceId,
+        string platform,
         string? conversationKey,
         string? customerName = null) =>
         ConversationKeyResolver.BuildThreadId(
             instanceId.Trim(),
             ConversationKeyResolver.Resolve(
-                platform: string.Empty,
+                platform,
                 conversationKey,
                 conversationHint: conversationKey,
                 customerName));
@@ -146,6 +155,7 @@ public static class OperationsCommandCenterInsightFeedBuilder
     {
         var conversationKey = BuildConversationKey(
             triageItem.InstanceId,
+            triageItem.Platform,
             triageItem.ConversationKey,
             ResolveCustomerName(triageItem));
         if (!coveredConversationKeys.Contains(conversationKey))
@@ -155,6 +165,7 @@ public static class OperationsCommandCenterInsightFeedBuilder
 
         var threadId = BuildConversationKey(
             triageItem.InstanceId,
+            triageItem.Platform,
             triageItem.ConversationKey,
             ResolveCustomerName(triageItem));
         var thread = threadOperations.AllThreads.FirstOrDefault(candidate =>

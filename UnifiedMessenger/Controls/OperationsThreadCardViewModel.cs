@@ -9,7 +9,7 @@ namespace UnifiedMessenger.Controls;
 
 public sealed class OperationsThreadCardViewModel
 {
-    public OperationsThreadCardViewModel(ThreadData thread)
+    public OperationsThreadCardViewModel(ThreadData thread, bool hideBranchName = false)
     {
         InstanceId = thread.InstanceId;
         ThreadId = thread.ThreadId;
@@ -44,6 +44,7 @@ public sealed class OperationsThreadCardViewModel
             : string.Empty;
         SlaBrush = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
         SlaVisibility = thread.IsSlaBreached ? Visibility.Visible : Visibility.Collapsed;
+        BranchNameVisibility = hideBranchName ? Visibility.Collapsed : Visibility.Visible;
     }
 
     public string InstanceId { get; }
@@ -55,6 +56,8 @@ public sealed class OperationsThreadCardViewModel
     public string ConversationKey { get; }
 
     public string BranchName { get; }
+
+    public Visibility BranchNameVisibility { get; }
 
     public string InstanceDisplayName { get; }
 

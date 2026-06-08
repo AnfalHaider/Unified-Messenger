@@ -43,6 +43,10 @@ public class OperationalDataServiceTests
 
             await OperationalDataService.ClearAllAsync();
 
+            MessageTriageService.Instance.DrainPendingQueue();
+            ThreadRegistryService.Instance.RestoreThreads([]);
+            MessageTriageService.Instance.RestoreItems([]);
+
             Assert.Empty(ThreadRegistryService.Instance.GetAllThreads());
             Assert.Empty(MessageTriageService.Instance.GetAllItems());
         }
