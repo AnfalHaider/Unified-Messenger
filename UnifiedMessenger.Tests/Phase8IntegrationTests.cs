@@ -16,10 +16,10 @@ public class Phase8PipelineIntegrationTests : IDisposable
 
     public Phase8PipelineIntegrationTests()
     {
+        ThreadRegistryService.Instance.RestoreThreads([]);
+        MessageTriageService.Instance.ResetForTests([]);
         _originalThreads = ThreadRegistryService.Instance.GetAllThreads();
         _originalTriage = MessageTriageService.Instance.GetAllItems();
-        ThreadRegistryService.Instance.RestoreThreads([]);
-        MessageTriageService.Instance.RestoreItems([]);
 
         var tempDirectory = Path.Combine(Path.GetTempPath(), "UnifiedMessengerTests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDirectory);
@@ -227,7 +227,7 @@ public class Phase8PipelineIntegrationTests : IDisposable
     public void Dispose()
     {
         ThreadRegistryService.Instance.RestoreThreads(_originalThreads);
-        MessageTriageService.Instance.RestoreItems(_originalTriage);
+        MessageTriageService.Instance.ResetForTests(_originalTriage);
         AppSettingsService.Instance.Settings.SlaThresholdMinutes = _originalSlaThreshold;
         BackfillDedupeRegistry.ClearForTests();
 

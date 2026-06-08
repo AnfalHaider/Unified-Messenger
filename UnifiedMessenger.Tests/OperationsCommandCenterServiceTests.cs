@@ -11,16 +11,16 @@ public class OperationsCommandCenterServiceTests : IDisposable
 
     public OperationsCommandCenterServiceTests()
     {
+        ThreadRegistryService.Instance.RestoreThreads([]);
+        MessageTriageService.Instance.ResetForTests([]);
         _originalThreads = ThreadRegistryService.Instance.GetAllThreads();
         _originalTriage = MessageTriageService.Instance.GetAllItems();
-        ThreadRegistryService.Instance.RestoreThreads([]);
-        MessageTriageService.Instance.RestoreItems([]);
     }
 
     public void Dispose()
     {
         ThreadRegistryService.Instance.RestoreThreads(_originalThreads);
-        MessageTriageService.Instance.RestoreItems(_originalTriage);
+        MessageTriageService.Instance.ResetForTests(_originalTriage);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class OperationsCommandCenterServiceTests : IDisposable
     public void BuildSnapshot_branchFilter_matchesThreadDashboardParity()
     {
         ThreadRegistryService.Instance.RestoreThreads([]);
-        MessageTriageService.Instance.RestoreItems([]);
+        MessageTriageService.Instance.ResetForTests([]);
 
         ThreadRegistryService.Instance.UpsertFromTriageItem(
             CreateTriageItem("f11", "Sara", "Facial booking"),
@@ -114,6 +114,8 @@ public class OperationsCommandCenterServiceTests : IDisposable
     [Fact]
     public void BuildSnapshot_openThreads_UsesActiveSlaSubtext()
     {
+        ThreadRegistryService.Instance.RestoreThreads([]);
+        MessageTriageService.Instance.ResetForTests([]);
         AppSettingsService.Instance.Settings.SlaThresholdMinutes = 15;
 
         var item = CreateTriageItem("dha", "Aisha", "Need quote");
@@ -122,7 +124,8 @@ public class OperationsCommandCenterServiceTests : IDisposable
             "Aisha",
             "DHA-2");
 
-        var thread = Assert.Single(ThreadRegistryService.Instance.GetAllThreads());
+        var thread = ThreadRegistryService.Instance.GetAllThreads()
+            .Single(t => t.CustomerName.Equals("Aisha", StringComparison.OrdinalIgnoreCase));
         thread.FirstInboundAtUtc = DateTimeOffset.UtcNow.AddMinutes(-30);
         thread.LatencyMinutes = 30;
         ThreadRegistryService.Instance.RefreshOperationalFlags();

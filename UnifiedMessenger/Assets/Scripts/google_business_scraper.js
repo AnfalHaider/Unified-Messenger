@@ -63,38 +63,37 @@
     }
   }
 
+  function getScrapeRoot() {
+    return document.querySelector('[role="main"]') || null;
+  }
+
+  function isExcludedAriaLabel(label) {
+    if (!label) {
+      return true;
+    }
+
+    return /(?:total\s+reviews?|all\s+reviews?|\d\s*stars?|star\s+rating|aggregate|average\s+rating|replied|your\s+reply|see\s+(?:all\s+)?reviews?)/i.test(label);
+  }
+
+  function parseUnrepliedFromText(value, parentText) {
+    var combined = (String(value || '') + ' ' + String(parentText || '')).trim();
+    var match = combined.match(/(\d+)\s+(?:unreplied|pending(?:\s+review)?)/i) ||
+      combined.match(/(?:unreplied|pending(?:\s+review)?)[:\s]+(\d+)/i) ||
+      combined.match(/(\d+)\s+(?:reviews?\s+)?(?:need(?:s)?\s+(?:a\s+)?reply|awaiting\s+(?:your\s+)?response)/i);
+    return match ? window.__umSafeParseInt(match[1]) : 0;
+  }
+
   function findAdjacentCount(textNode) {
     var parent = textNode.parentElement;
     if (!parent) {
       return 0;
     }
 
-    var container = parent.parentElement || parent;
-    var siblings = container.children || [];
-    for (var i = 0; i < siblings.length; i++) {
-      var sibling = siblings[i];
-      var text = (sibling.textContent || '').trim();
-      if (/^\d+$/.test(text)) {
-        return window.__umSafeParseInt(text);
-      }
-
-      var badge = sibling.querySelector &&
-        sibling.querySelector('[aria-label*="unreplied" i], [aria-label*="review" i]');
-      if (badge) {
-        var badgeText = (badge.textContent || badge.getAttribute('aria-label') || '').trim();
-        var match = badgeText.match(/(\d+)/);
-        if (match) {
-          return window.__umSafeParseInt(match[1]);
-        }
-      }
-    }
-
-    var inline = (parent.textContent || '').match(/(\d+)\s*(?:unreplied|pending|new)/i);
-    return inline ? window.__umSafeParseInt(inline[1]) : 0;
+    return parseUnrepliedFromText(textNode.textContent || '', parent.textContent || '');
   }
 
   function parseCountFromAriaLabel(label) {
-    if (!label) {
+    if (!label || isExcludedAriaLabel(label)) {
       return 0;
     }
 
@@ -103,17 +102,25 @@
       return window.__umSafeParseInt(unreplied[1]);
     }
 
-    var generic = label.match(/(\d+)/);
-    return generic ? window.__umSafeParseInt(generic[1]) : 0;
+    var reverse = label.match(/(?:unreplied|pending|need(?:s)?\s+(?:a\s+)?reply)[:\s]+(\d+)/i);
+    return reverse ? window.__umSafeParseInt(reverse[1]) : 0;
   }
 
   function scanUnrepliedCounts() {
     var totalUnreplied = 0;
     var locationBreakdown = [];
     var seenLabels = Object.create(null);
+    var root = getScrapeRoot();
 
-    var ariaNodes = document.querySelectorAll(
-      '[aria-label*="review" i], [aria-label*="unreplied" i], [aria-label*="reply" i], [data-review-id]'
+    if (!root) {
+      return {
+        totalUnreplied: 0,
+        locations: locationBreakdown
+      };
+    }
+
+    var ariaNodes = root.querySelectorAll(
+      '[aria-label*="unreplied" i], [aria-label*="need" i][aria-label*="reply" i], [data-review-id]'
     );
     for (var a = 0; a < ariaNodes.length; a++) {
       var ariaLabel = ariaNodes[a].getAttribute('aria-label') || '';
@@ -123,44 +130,30 @@
       }
     }
 
-    walkTextNodes(document.body, function (textNode) {
+    walkTextNodes(root, function (textNode) {
       var value = (textNode.textContent || '').trim();
       if (!value) {
         return;
       }
 
-      if (/unreplied/i.test(value) || /needs reply/i.test(value) || /awaiting response/i.test(value)) {
-        var count = findAdjacentCount(textNode);
-        if (count > 0) {
-          totalUnreplied = Math.max(totalUnreplied, count);
-          var label = value.replace(/\d+/g, '').trim() || 'Location';
-          if (!seenLabels[label]) {
-            seenLabels[label] = true;
-            locationBreakdown.push({ label: label, count: count });
-          }
-        }
+      if (!/unreplied/i.test(value) &&
+          !/needs?\s+reply/i.test(value) &&
+          !/awaiting\s+(?:your\s+)?response/i.test(value)) {
+        return;
       }
 
-      if (/^reviews?$/i.test(value) || /manage reviews?/i.test(value)) {
-        var reviewCount = findAdjacentCount(textNode);
-        if (reviewCount > 0) {
-          totalUnreplied = Math.max(totalUnreplied, reviewCount);
-          if (!seenLabels.Reviews) {
-            seenLabels.Reviews = true;
-            locationBreakdown.push({ label: 'Reviews', count: reviewCount });
-          }
-        }
+      var count = findAdjacentCount(textNode);
+      if (count <= 0) {
+        return;
+      }
+
+      totalUnreplied = Math.max(totalUnreplied, count);
+      var label = value.replace(/\d+/g, '').trim() || 'Location';
+      if (!seenLabels[label]) {
+        seenLabels[label] = true;
+        locationBreakdown.push({ label: label, count: count });
       }
     });
-
-    var ratingMatch = window.__umFindTextMatch &&
-      window.__umFindTextMatch(/(\d+(?:\.\d+)?)\s*(?:stars?|★)\s*(?:average|overall)?/i);
-    if (ratingMatch) {
-      locationBreakdown.push({
-        label: 'Aggregate rating',
-        count: window.__umSafeParseInt(ratingMatch[1])
-      });
-    }
 
     return {
       totalUnreplied: totalUnreplied,
@@ -168,11 +161,28 @@
     };
   }
 
+  function isUnrepliedReviewNode(node, text) {
+    if (/replied|responded|your\s+reply/i.test(text) &&
+        !/unreplied|needs?\s+reply|awaiting/i.test(text)) {
+      return false;
+    }
+
+    if (/unreplied|needs?\s+reply|awaiting\s+(?:your\s+)?response/i.test(text)) {
+      return true;
+    }
+
+    var aria = node.getAttribute('aria-label') || '';
+    return /unreplied|needs?\s+reply|awaiting/i.test(aria) && !isExcludedAriaLabel(aria);
+  }
+
   function scanReviewAlerts() {
     var alerts = [];
-    var reviewNodes = document.querySelectorAll(
-      '[aria-label*="review" i], [role="listitem"], [role="article"], [data-review-id], [data-rating]'
-    );
+    var root = getScrapeRoot();
+    if (!root) {
+      return alerts;
+    }
+
+    var reviewNodes = root.querySelectorAll('[data-review-id], [role="listitem"][data-review-id], [role="article"][data-review-id]');
 
     for (var i = 0; i < reviewNodes.length; i++) {
       var node = reviewNodes[i];
@@ -181,11 +191,7 @@
         continue;
       }
 
-      if (!/star|rating|review|replied|unreplied|customer/i.test(text)) {
-        continue;
-      }
-
-      if (/replied|responded|your reply/i.test(text) && !/unreplied|needs reply|awaiting/i.test(text)) {
+      if (!isUnrepliedReviewNode(node, text)) {
         continue;
       }
 
@@ -278,12 +284,16 @@
         return true;
       }
 
-      var unrepliedScan = scanUnrepliedCounts();
-      if (unrepliedScan && ((unrepliedScan.totalUnreplied || 0) > 0 || (unrepliedScan.locations || []).length > 0)) {
+      var root = getScrapeRoot();
+      if (!root) {
+        return false;
+      }
+
+      if (root.querySelectorAll('[data-review-id]').length > 0) {
         return true;
       }
 
-      return scanReviewAlerts().length > 0;
+      return root.querySelector('[aria-label*="unreplied" i][aria-label*="review" i]') !== null;
     } catch (error) {
       console.warn('[UnifiedMessenger] deep data detection failed', error);
       return false;

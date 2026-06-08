@@ -2,7 +2,7 @@ namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -91,6 +91,18 @@ public sealed class AppSettings
     public bool ShowHeuristicExecutiveInsights { get; set; } = false;
 
     /// <summary>
+    /// Last platform-intelligence alert signal the user dismissed by collapsing the OCC expander.
+    /// Auto-expand resumes when the live signal exceeds this value.
+    /// </summary>
+    public int OccPlatformIntelligenceDismissedSignal { get; set; }
+
+    /// <summary>
+    /// Last analytics-trends alert signal the user dismissed by collapsing the OCC expander.
+    /// Auto-expand resumes when the live signal exceeds this value.
+    /// </summary>
+    public int OccAnalyticsTrendsDismissedSignal { get; set; }
+
+    /// <summary>
     /// Clamps numeric settings and resets unknown enum values after load or manual edits.
     /// </summary>
     public void Normalize()
@@ -103,6 +115,8 @@ public sealed class AppSettings
         SlaThresholdMinutes = Math.Clamp(SlaThresholdMinutes, MinSlaThresholdMinutes, MaxSlaThresholdMinutes);
         DashboardUrgencyThreshold = Math.Clamp(DashboardUrgencyThreshold, 15, 50);
         MaxConcurrentWebViews = Math.Clamp(MaxConcurrentWebViews, 0, MaxConcurrentWebViewsCap);
+        OccPlatformIntelligenceDismissedSignal = Math.Max(0, OccPlatformIntelligenceDismissedSignal);
+        OccAnalyticsTrendsDismissedSignal = Math.Max(0, OccAnalyticsTrendsDismissedSignal);
 
         if (!Enum.IsDefined(ThemePreference))
         {

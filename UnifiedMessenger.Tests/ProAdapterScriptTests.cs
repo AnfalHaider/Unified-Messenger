@@ -43,6 +43,8 @@ public class ProAdapterScriptTests
         Assert.Contains("__umForceDashboardScrape", script, StringComparison.Ordinal);
         Assert.Contains("__umShouldEmitPreview", script, StringComparison.Ordinal);
         Assert.Contains("disconnectObservers", script, StringComparison.Ordinal);
+        Assert.Contains("resolveUnreadCountResult", script, StringComparison.Ordinal);
+        Assert.Contains("lastInboundSignalAt", script, StringComparison.Ordinal);
     }
 
     [Fact]

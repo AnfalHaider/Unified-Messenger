@@ -9,6 +9,8 @@ public class OperationalDataServiceTests
     [Fact]
     public async Task ClearAllAsync_RemovesAnalyticsAndThreadRegistry()
     {
+        ThreadRegistryService.Instance.RestoreThreads([]);
+        MessageTriageService.Instance.ResetForTests([]);
         var originalThreads = ThreadRegistryService.Instance.GetAllThreads();
         var originalTriage = MessageTriageService.Instance.GetAllItems();
 
@@ -53,7 +55,7 @@ public class OperationalDataServiceTests
         finally
         {
             ThreadRegistryService.Instance.RestoreThreads(originalThreads);
-            MessageTriageService.Instance.RestoreItems(originalTriage);
+            MessageTriageService.Instance.ResetForTests(originalTriage);
         }
     }
 }

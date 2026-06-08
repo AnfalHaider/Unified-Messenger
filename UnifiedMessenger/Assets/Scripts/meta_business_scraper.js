@@ -12,6 +12,8 @@
   var ADAPTER_ID = 'metabusiness';
   var lastPostedCount = -1;
   var lastTitleCount = -1;
+  var lastInboundSignalAt = 0;
+  var INBOUND_SIGNAL_COOLDOWN_MS = 30000;
   var pollTimer = null;
   var publishScheduled = false;
   var activeObservers = [];
@@ -42,113 +44,181 @@
     return window.__umCountFromTitle();
   }
 
-  function walkTextNodes(root, visitor) {
-    if (!root) {
-      return;
+  function isInboxContext() {
+    var href = (location.href || '').toLowerCase();
+    if (/business\.facebook\.com.*\/inbox|facebook\.com\/latest\/inbox/.test(href)) {
+      return true;
     }
 
-    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
-    var node;
-    while ((node = walker.nextNode())) {
-      visitor(node);
-    }
+    return !!document.querySelector('[data-pagelet="BizInbox"]');
   }
 
-  function extractNumericBadge(element) {
+  function extractInboxBadge(element) {
     if (!element) {
       return 0;
     }
 
     var aria = element.getAttribute && element.getAttribute('aria-label');
     if (aria) {
-      var ariaMatch = aria.match(/(\d+)\s*(?:unread|new|message|notification)/i);
+      if (/(?:notification\s+settings|ad\s+preferences|help\s+center)/i.test(aria)) {
+        return 0;
+      }
+
+      var ariaMatch = aria.match(/(\d+)\s*(?:unread|new)\s*(?:customer\s+)?(?:message|conversation)/i);
       if (ariaMatch) {
         return window.__umSafeParseInt(ariaMatch[1]);
       }
     }
 
     var text = (element.textContent || '').trim();
-    if (/^\d+$/.test(text)) {
-      return window.__umSafeParseInt(text);
+    if (/^\d{1,3}$/.test(text)) {
+      var parentLabel = element.parentElement && element.parentElement.getAttribute('aria-label');
+      if (parentLabel && /unread|inbox/i.test(parentLabel)) {
+        return window.__umSafeParseInt(text);
+      }
     }
 
-    var childMatch = text.match(/\b(\d+)\b/);
-    return childMatch ? window.__umSafeParseInt(childMatch[1]) : 0;
+    return 0;
   }
 
-  function countFromNavigation() {
-    var navRoots = document.querySelectorAll(
-      '[role="navigation"], nav, [aria-label*="navigation" i], [data-pagelet*="BizInbox"]'
-    );
+  function countFromBizInbox() {
+    var roots = document.querySelectorAll('[data-pagelet="BizInbox"]');
     var maxCount = 0;
 
-    for (var n = 0; n < navRoots.length; n++) {
-      var nav = navRoots[n];
-      var inboxNodes = nav.querySelectorAll(
-        '[aria-label*="Inbox" i], [href*="inbox" i], a, button, [role="link"], [role="button"]'
+    for (var r = 0; r < roots.length; r++) {
+      var root = roots[r];
+      var badges = root.querySelectorAll(
+        '[aria-label*="unread" i], [aria-label*="new message" i], [data-testid*="unread" i]'
       );
 
-      for (var i = 0; i < inboxNodes.length; i++) {
-        var node = inboxNodes[i];
-        var label = (node.getAttribute && node.getAttribute('aria-label')) || node.textContent || '';
-        if (!/inbox|messages|messenger/i.test(label)) {
-          continue;
-        }
-
-        var badge = extractNumericBadge(node);
+      for (var b = 0; b < badges.length; b++) {
+        var badge = extractInboxBadge(badges[b]);
         if (badge > maxCount) {
           maxCount = badge;
         }
-
-        if (node.parentElement) {
-          badge = extractNumericBadge(node.parentElement);
-          if (badge > maxCount) {
-            maxCount = badge;
-          }
-        }
-
-        var sibling = node.nextElementSibling;
-        if (sibling) {
-          badge = extractNumericBadge(sibling);
-          if (badge > maxCount) {
-            maxCount = badge;
-          }
-        }
       }
-
-      walkTextNodes(nav, function (textNode) {
-        var value = (textNode.textContent || '').trim();
-        if (/^inbox$/i.test(value) || /unread/i.test(value)) {
-          var parent = textNode.parentElement;
-          if (!parent) {
-            return;
-          }
-
-          var siblings = parent.parentElement ? parent.parentElement.children : [];
-          for (var s = 0; s < siblings.length; s++) {
-            var siblingBadge = extractNumericBadge(siblings[s]);
-            if (siblingBadge > maxCount) {
-              maxCount = siblingBadge;
-            }
-          }
-        }
-      });
     }
 
     return maxCount;
   }
 
+  function countFromInboxNav() {
+    var inboxLinks = document.querySelectorAll(
+      'a[href*="inbox" i], [role="navigation"] a[href*="inbox" i]'
+    );
+    var maxCount = 0;
+
+    for (var i = 0; i < inboxLinks.length; i++) {
+      var node = inboxLinks[i];
+      var label = (node.getAttribute && node.getAttribute('aria-label')) || node.textContent || '';
+      if (!/inbox/i.test(label) && !/inbox/i.test(node.getAttribute('href') || '')) {
+        continue;
+      }
+
+      if (/messenger|notification|settings|ads/i.test(label) && !/inbox/i.test(label)) {
+        continue;
+      }
+
+      var badge = extractInboxBadge(node);
+      if (badge > maxCount) {
+        maxCount = badge;
+      }
+
+      if (node.parentElement) {
+        badge = extractInboxBadge(node.parentElement);
+        if (badge > maxCount) {
+          maxCount = badge;
+        }
+      }
+
+      var sibling = node.nextElementSibling;
+      if (sibling) {
+        badge = extractInboxBadge(sibling);
+        if (badge > maxCount) {
+          maxCount = badge;
+        }
+      }
+    }
+
+    return maxCount;
+  }
+
+  function getTelemetryRoot() {
+    return document.querySelector('[data-pagelet="BizInbox"]') ||
+      document.querySelector('[role="main"]') ||
+      null;
+  }
+
+  function isTelemetryNoise(text) {
+    return /(?:help\s+center|learn\s+more|notification\s+settings|ad\s+preferences|privacy\s+policy)/i.test(text);
+  }
+
+  function resolveUnreadCountResult() {
+    var inboxCount = countFromBizInbox();
+    var navCount = countFromInboxNav();
+    var titleCount = isInboxContext() ? countFromTitle() : 0;
+    var source = 'none';
+    var trusted = false;
+    var count = 0;
+
+    if (inboxCount > 0) {
+      count = inboxCount;
+      source = 'biz-inbox';
+      trusted = true;
+    } else if (navCount > 0 && titleCount > 0 && Math.abs(navCount - titleCount) <= 1) {
+      count = Math.min(navCount, titleCount);
+      source = 'nav-title-consensus';
+      trusted = true;
+    } else if (navCount > 0) {
+      count = navCount;
+      source = 'inbox-nav';
+      trusted = true;
+    } else if (titleCount > 0) {
+      count = titleCount;
+      source = 'title';
+      trusted = isInboxContext();
+    } else if (isInboxContext()) {
+      var main = getTelemetryRoot();
+      if (main) {
+        var scopedText = main.innerText || '';
+        if (!isTelemetryNoise(scopedText)) {
+          var match = scopedText.match(
+            /(\d+)\s*(?:unread|new)\s*(?:customer\s+)?(?:message|conversation)/i
+          );
+          if (match) {
+            count = window.__umSafeParseInt(match[1]);
+            source = 'scoped-main';
+          }
+        }
+      }
+    }
+
+    return { count: count, source: source, trusted: trusted };
+  }
+
   function resolveUnreadCount() {
-    var titleCount = countFromTitle();
-    var navCount = countFromNavigation();
-    var bodyMatch = window.__umFindTextMatch &&
-      window.__umFindTextMatch(/(\d+)\s*(?:unread|new)\s*(?:message|conversation)/i);
-    var bodyCount = bodyMatch ? window.__umSafeParseInt(bodyMatch[1]) : 0;
-    return Math.max(titleCount, navCount, bodyCount, 0);
+    return resolveUnreadCountResult().count;
   }
 
   function scanTelemetrySnapshot(unreadCount) {
-    var bodyText = (document.body && document.body.innerText) || '';
+    var root = getTelemetryRoot();
+    if (!root) {
+      return {
+        averageResponseMinutes: null,
+        slaBreachHints: 0,
+        unreadCount: unreadCount
+      };
+    }
+
+    var bodyText = root.innerText || '';
+    if (isTelemetryNoise(bodyText)) {
+      return {
+        averageResponseMinutes: null,
+        slaBreachHints: 0,
+        unreadCount: unreadCount
+      };
+    }
+
     var avgMatch = bodyText.match(
       /(?:avg|average)\s*(?:response|reply)\s*(?:time)?\s*[:.]?\s*(\d+(?:\.\d+)?)\s*(min|minute|hr|hour)/i
     );
@@ -160,10 +230,13 @@
     }
 
     var slaBreachHints = 0;
-    if (/(?:sla|response time)\s*(?:breach|missed|overdue)/i.test(bodyText)) {
+    if (/(?:\d+\s+)?(?:customer\s+)?(?:message|conversation).{0,40}(?:sla|response\s+time)\s*(?:breach|missed|overdue)/i.test(bodyText)) {
       slaBreachHints++;
     }
-    var breachMatch = bodyText.match(/(\d+)\s*(?:sla\s*)?(?:breach|overdue|late)\s*(?:response|reply)/i);
+
+    var breachMatch = bodyText.match(
+      /(\d+)\s*(?:customer\s+)?(?:message|conversation).{0,20}(?:sla\s*)?(?:breach|overdue|late)\s*(?:response|reply)/i
+    );
     if (breachMatch) {
       slaBreachHints = Math.max(slaBreachHints, window.__umSafeParseInt(breachMatch[1]));
     }
@@ -221,11 +294,18 @@
     publishScheduled = false;
 
     window.__umRunSafeScrape(INSTANCE_ID, PLATFORM, 'meta-dashboard', function () {
-      var count = resolveUnreadCount();
+      var resolved = resolveUnreadCountResult();
+      var count = resolved.count;
 
       if (count !== lastPostedCount) {
-        if (count > lastPostedCount && lastPostedCount >= 0) {
-          emitInboundSignal(count, 'badge-increase');
+        if (count > lastPostedCount &&
+            lastPostedCount >= 0 &&
+            resolved.trusted) {
+          var now = Date.now();
+          if (!lastInboundSignalAt || now - lastInboundSignalAt >= INBOUND_SIGNAL_COOLDOWN_MS) {
+            emitInboundSignal(count, resolved.source);
+            lastInboundSignalAt = now;
+          }
         }
 
         lastPostedCount = count;
@@ -341,6 +421,7 @@
         lastUrl = location.href;
         lastPostedCount = -1;
         lastTitleCount = -1;
+        lastInboundSignalAt = 0;
       }
 
       schedulePublish();
@@ -414,6 +495,7 @@
     publishScheduled = false;
     lastPostedCount = -1;
     lastTitleCount = -1;
+    lastInboundSignalAt = 0;
   }
 
   window.__umAdapterDispose = disposeAdapter;

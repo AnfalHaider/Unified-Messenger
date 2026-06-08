@@ -159,6 +159,102 @@ public static class DashboardCardEmptyStateHelper
                 .ToList(),
             selectedBranchKey);
 
+    /// <summary>
+    /// True when Meta/Google platform intelligence has actionable alerts worth surfacing in OCC.
+    /// </summary>
+    public static bool ShouldAutoExpandPlatformIntelligence(OperationsPlatformIntelligenceSnapshot platform)
+    {
+        if (!platform.HasGoogleInstances && !platform.HasMetaInstances)
+        {
+            return false;
+        }
+
+        if (platform.HasGoogleInstances &&
+            (platform.CustomerTrust.TotalUnrepliedReviews > 0 || platform.CustomerTrust.PendingReviews.Count > 0))
+        {
+            return true;
+        }
+
+        if (!platform.HasMetaInstances)
+        {
+            return false;
+        }
+
+        return ResolveMetaResponseEmptyReason(platform.HasMetaInstances, platform.MetaResponse) ==
+               DashboardCardEmptyReason.InboundOnlyAwaitingReply;
+    }
+
+    /// <summary>
+    /// Monotonic signal used to detect new platform alerts after the user collapses the expander.
+    /// </summary>
+    public static int ComputePlatformIntelligenceAlertSignal(OperationsPlatformIntelligenceSnapshot platform)
+    {
+        var signal = 0;
+
+        if (platform.HasGoogleInstances)
+        {
+            signal += platform.CustomerTrust.TotalUnrepliedReviews;
+            signal += platform.CustomerTrust.PendingReviews.Count;
+        }
+
+        if (platform.HasMetaInstances)
+        {
+            signal += platform.MetaResponse.ActiveUnreadCount;
+            if (HasRecentInbound(platform.MetaResponse))
+            {
+                signal += 1;
+            }
+        }
+
+        return signal;
+    }
+
+    /// <summary>
+    /// True when analytics trends have actionable SLA, urgency, or sentiment signals worth surfacing.
+    /// </summary>
+    public static bool ShouldAutoExpandAnalyticsTrends(
+        OperationsStatusSnapshot status,
+        OperationsAnalyticsTrendSnapshot analytics)
+    {
+        if (status.ImmediateActionCount > 0)
+        {
+            return true;
+        }
+
+        if (status.OpenThreadCount > 0 && status.SlaBreachesNumeric > 0)
+        {
+            return true;
+        }
+
+        if (analytics.Highlights.Count > 0)
+        {
+            return true;
+        }
+
+        var triage = analytics.Triage;
+        return triage.NegativeCount > 0 && triage.TotalTriageCount >= 2;
+    }
+
+    /// <summary>
+    /// Monotonic signal used to detect new analytics alerts after the user collapses the expander.
+    /// </summary>
+    public static int ComputeAnalyticsTrendsAlertSignal(
+        OperationsStatusSnapshot status,
+        OperationsAnalyticsTrendSnapshot analytics)
+    {
+        var signal = status.ImmediateActionCount;
+        signal += status.SlaBreachesNumeric * 10;
+        signal += analytics.Highlights.Count;
+        signal += analytics.Triage.NegativeCount;
+        return signal;
+    }
+
+    /// <summary>
+    /// True when the live alert signal exceeds the persisted dismissed signal.
+    /// </summary>
+    public static bool ShouldExpandOccSection(int alertSignal, int dismissedSignal) =>
+        alertSignal > 0 && alertSignal > dismissedSignal;
+
     private static bool HasRecentInbound(MetaResponseEfficiencySnapshot snapshot) =>
         !string.IsNullOrWhiteSpace(snapshot.LastInboundDisplay) &&
         !snapshot.LastInboundDisplay.Equals("—", StringComparison.Ordinal);

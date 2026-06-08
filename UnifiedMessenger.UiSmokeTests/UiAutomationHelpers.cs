@@ -26,6 +26,22 @@ internal static class UiAutomationHelpers
     public static AutomationElement? FindByName(AutomationElement root, string name) =>
         root.FindFirstDescendant(root.ConditionFactory.ByName(name));
 
+    public static AutomationElement? FindByNameContains(AutomationElement root, string fragment)
+    {
+        foreach (var controlType in new[] { ControlType.TabItem, ControlType.Button, ControlType.Text, ControlType.Pane })
+        {
+            foreach (var candidate in root.FindAllDescendants(root.ConditionFactory.ByControlType(controlType)))
+            {
+                if (NameContains(candidate, fragment))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public static bool ClickByName(AutomationElement root, string name)
     {
         var target = FindByName(root, name);
@@ -105,6 +121,32 @@ internal static class UiAutomationHelpers
         }
 
         return null;
+    }
+
+    public static bool ClickByNameContains(AutomationElement root, string fragment)
+    {
+        var target = FindByNameContains(root, fragment);
+        if (target is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            target.Focus();
+            if (target.Patterns.Invoke.IsSupported)
+            {
+                target.Patterns.Invoke.Pattern.Invoke();
+                return true;
+            }
+
+            target.Click();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool NameContains(AutomationElement element, string fragment)

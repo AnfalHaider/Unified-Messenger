@@ -1,0 +1,597 @@
+---
+description: 
+alwaysApply: true
+---
+
+# MANDATORY EXECUTION FRAMEWORK (PROJECT RULE)
+
+## PURPOSE
+
+This framework is mandatory for all work performed within this project.
+
+The objective is not to maximize coding speed.
+
+The objective is to maximize:
+
+* Correctness
+* Maintainability
+* Security
+* Reliability
+* Scalability
+* Performance
+* Extensibility
+* Long-term sustainability
+
+All significant tasks, features, bug fixes, refactors, integrations, migrations, and architectural changes must follow this framework.
+
+No phase may be skipped unless explicitly authorized.
+
+---
+
+# OPERATING PRINCIPLES
+
+Before taking action:
+
+* Verify assumptions.
+* Investigate existing implementations.
+* Understand the broader system.
+* Consider long-term consequences.
+* Optimize for maintainability over short-term convenience.
+
+Always assume:
+
+* Existing code may contain technical debt.
+* Existing architecture may be flawed.
+* Better alternatives may exist.
+* Future scale requirements may exceed current requirements.
+* Security and performance requirements will become more important over time.
+
+Never optimize for speed of implementation at the expense of quality.
+
+---
+
+# PHASE 0 — PROJECT UNDERSTANDING (MANDATORY)
+
+Before making changes:
+
+Understand:
+
+* Business objectives
+* User requirements
+* Functional requirements
+* Non-functional requirements
+* Existing architecture
+* Existing dependencies
+* Existing workflows
+* Existing integrations
+* Existing deployment model
+
+Review all relevant files.
+
+Trace:
+
+* Call chains
+* Dependencies
+* Side effects
+* Data flow
+* Error flow
+
+Do not modify code until sufficient understanding exists.
+
+If information is missing:
+
+Investigate before proceeding.
+
+---
+
+# PHASE 1 — DISCOVERY & RESEARCH
+
+Research before implementation.
+
+Investigate:
+
+## Internal Analysis
+
+* Existing codebase
+* Existing architecture
+* Existing implementation patterns
+* Existing technical debt
+* Existing bottlenecks
+
+## External Analysis
+
+* Industry best practices
+* Enterprise approaches
+* Open-source alternatives
+* Modern architecture patterns
+* Proven implementations
+* Security standards
+* Performance optimization techniques
+
+Identify:
+
+* Alternative solutions
+* Competing approaches
+* Known failure patterns
+* Maintenance concerns
+
+Produce:
+
+* Findings
+* Alternatives
+* Tradeoffs
+* Recommendations
+
+Do not implement during this phase.
+
+---
+
+# PHASE 2 — ASSUMPTION CHALLENGE
+
+Actively challenge the proposed solution.
+
+Ask:
+
+* Is this actually the best solution?
+* Is there a simpler solution?
+* Is there a lower-maintenance solution?
+* Is there a more scalable solution?
+* Is there a more secure solution?
+* Is there a lower-cost solution?
+* Is there a more performant solution?
+
+Evaluate:
+
+* Short-term impact
+* Long-term impact
+* Operational impact
+* Business impact
+* Technical impact
+
+Document:
+
+* Alternatives considered
+* Risks identified
+* Tradeoffs accepted
+
+Select the most appropriate solution.
+
+---
+
+# PHASE 3 — SYSTEM AUDIT
+
+Audit the affected areas.
+
+Identify:
+
+## Code Quality
+
+* Dead code
+* Unused code
+* Duplicate code
+* Legacy code
+* Obsolete code
+* Code smells
+
+## Architecture
+
+* Architecture violations
+* Tight coupling
+* Poor abstractions
+* Dependency issues
+
+## Security
+
+* Vulnerabilities
+* Excessive permissions
+* Secrets exposure
+* Unsafe patterns
+
+## Performance
+
+* Bottlenecks
+* Resource waste
+* Excessive allocations
+* Expensive operations
+
+Document findings.
+
+Recommend improvements where justified.
+
+---
+
+# PHASE 4 — ARCHITECTURE & DESIGN
+
+Before coding:
+
+Produce a design.
+
+Include:
+
+## Architecture
+
+* Components
+* Services
+* Modules
+* Boundaries
+* Responsibilities
+
+## Data Flow
+
+* Inputs
+* Outputs
+* Transformations
+* Storage
+
+## Dependency Analysis
+
+* New dependencies
+* Dependency risks
+* Dependency alternatives
+
+## Security Design
+
+* Authentication
+* Authorization
+* Validation
+* Secrets handling
+
+## Scalability
+
+* Future growth considerations
+* Resource limits
+* Performance expectations
+
+Identify:
+
+* Risks
+* Bottlenecks
+* Future technical debt risks
+
+---
+
+# PHASE 5 — IMPLEMENTATION PLAN
+
+Create an implementation plan.
+
+Include:
+
+* Tasks
+* Dependencies
+* Milestones
+* Validation points
+* Rollback strategy
+* Migration strategy (if applicable)
+
+Implementation plans should minimize:
+
+* Risk
+* Downtime
+* Regression potential
+
+No coding should occur until a clear plan exists.
+
+---
+
+# PHASE 6 — APPROVAL GATE
+
+For significant work:
+
+STOP.
+
+Present:
+
+* Findings
+* Architecture decisions
+* Risks
+* Tradeoffs
+* Implementation plan
+
+Wait for approval before continuing.
+
+Do not assume approval.
+
+---
+
+# PHASE 7 — IMPLEMENTATION
+
+Implement only after analysis and planning.
+
+Requirements:
+
+* Production-quality code
+* Modular design
+* Testable design
+* Clear abstractions
+* Strong error handling
+* Consistent architecture
+
+Prefer:
+
+* Separation of concerns
+* Dependency injection
+* Reusable components
+* Explicit behavior
+
+Avoid:
+
+* Temporary fixes
+* Hidden dependencies
+* Hardcoded values
+* Unexplained logic
+* Architectural shortcuts
+
+When modifying existing systems:
+
+Improve surrounding code where reasonable.
+
+Leave the codebase better than it was found.
+
+---
+
+# PHASE 8 — TESTING
+
+Testing is mandatory.
+
+Create and execute:
+
+## Functional Tests
+
+* Unit tests
+* Integration tests
+* End-to-end tests
+
+## Reliability Tests
+
+* Edge cases
+* Invalid inputs
+* Failure scenarios
+* Recovery scenarios
+
+## Performance Tests
+
+* Load testing
+* Stress testing
+* Concurrency testing
+
+## Security Tests
+
+* Permission validation
+* Input validation
+* Abuse scenarios
+
+Verify:
+
+* Correctness
+* Stability
+* Reliability
+
+Document results.
+
+---
+
+# PHASE 9 — DEBUGGING & FAILURE ANALYSIS
+
+Perform systematic analysis.
+
+Inspect:
+
+* Runtime errors
+* Logic errors
+* Data corruption risks
+* Race conditions
+* Deadlocks
+* Memory leaks
+* Resource leaks
+* Concurrency issues
+
+Identify root causes.
+
+Do not merely patch symptoms.
+
+Document findings.
+
+---
+
+# PHASE 10 — PERFORMANCE AUDIT
+
+Measure and evaluate:
+
+* Startup performance
+* Memory consumption
+* CPU usage
+* Disk I/O
+* Network usage
+* Database performance
+* Build performance
+* Response times
+
+Identify:
+
+* Bottlenecks
+* Resource waste
+* Optimization opportunities
+
+Only optimize when supported by evidence.
+
+Avoid premature optimization.
+
+---
+
+# PHASE 11 — SECURITY AUDIT
+
+Review:
+
+## Authentication
+
+* Identity validation
+* Session management
+
+## Authorization
+
+* Access control
+* Permission boundaries
+
+## Data Protection
+
+* Encryption
+* Secrets management
+* Sensitive data handling
+
+## Application Security
+
+* Injection attacks
+* Prompt injection
+* Tool abuse
+* File access risks
+* Remote execution risks
+
+## Supply Chain Security
+
+* Dependency risks
+* Package vulnerabilities
+
+Document:
+
+* Findings
+* Severity
+* Mitigations
+
+Security concerns must be addressed before completion.
+
+---
+
+# PHASE 12 — MAINTAINABILITY REVIEW
+
+Evaluate:
+
+* Readability
+* Modularity
+* Complexity
+* Documentation quality
+* Test coverage
+* Upgradeability
+
+Estimate:
+
+* Maintenance burden
+* Future refactoring requirements
+* Technical debt trends
+
+Simplify where possible.
+
+---
+
+# PHASE 13 — DOCUMENTATION
+
+Update documentation whenever changes occur.
+
+Document:
+
+* Architecture decisions
+* Design rationale
+* Tradeoffs
+* Risks
+* Operational requirements
+* Configuration requirements
+* Migration requirements
+
+Documentation must remain current.
+
+---
+
+# PHASE 14 — REVALIDATION
+
+Before completion:
+
+Re-evaluate the solution.
+
+Ask:
+
+* Is this still the best approach?
+* Has a better solution emerged?
+* Can complexity be reduced?
+* Can maintenance costs be reduced?
+* Can security be improved?
+* Can performance be improved?
+
+If a superior approach exists:
+
+Document it.
+
+Compare it.
+
+Recommend it.
+
+---
+
+# PHASE 15 — FINAL REVIEW
+
+Conduct a comprehensive review.
+
+Verify:
+
+* Requirements are satisfied.
+* Architecture remains coherent.
+* Security requirements are met.
+* Performance requirements are met.
+* Documentation is updated.
+* Tests pass.
+* Risks are documented.
+
+Produce:
+
+## Final Summary
+
+* Work completed
+* Files modified
+* Architecture impact
+* Security impact
+* Performance impact
+
+## Remaining Risks
+
+* Known limitations
+* Future concerns
+* Suggested improvements
+
+Only then consider the task complete.
+
+---
+
+# ENFORCEMENT RULES
+
+For all future tasks:
+
+Never jump directly into coding.
+
+Always:
+
+1. Understand.
+2. Research.
+3. Challenge assumptions.
+4. Audit.
+5. Design.
+6. Plan.
+7. Obtain approval when appropriate.
+8. Implement.
+9. Test.
+10. Audit.
+11. Document.
+12. Revalidate.
+
+If insufficient information exists:
+
+STOP and investigate.
+
+If significant uncertainty exists:
+
+STOP and present alternatives.
+
+If architectural concerns exist:
+
+STOP and raise them before implementation.
+
+The quality of the solution is more important than the speed of delivery.
+
+This framework is mandatory and applies to all project work.

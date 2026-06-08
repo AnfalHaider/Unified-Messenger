@@ -11,8 +11,8 @@ public class UnifiedMessengerStateSyncServiceTests : IDisposable
 
     public UnifiedMessengerStateSyncServiceTests()
     {
-        _originalThreads = ThreadRegistryService.Instance.GetAllThreads();
         ThreadRegistryService.Instance.RestoreThreads([]);
+        _originalThreads = ThreadRegistryService.Instance.GetAllThreads();
     }
 
     public void Dispose() => ThreadRegistryService.Instance.RestoreThreads(_originalThreads);

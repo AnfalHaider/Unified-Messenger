@@ -12,8 +12,8 @@ public class ThreadStatusAuditorHandlerTests : IDisposable
 
     public ThreadStatusAuditorHandlerTests()
     {
-        _originalThreads = ThreadRegistryService.Instance.GetAllThreads();
         ThreadRegistryService.Instance.RestoreThreads([]);
+        _originalThreads = ThreadRegistryService.Instance.GetAllThreads();
     }
 
     public void Dispose() => ThreadRegistryService.Instance.RestoreThreads(_originalThreads);

@@ -23,6 +23,16 @@ public class AdapterBadgeFixtureTests
             "google_business_scraper.js",
             "google-business-reviews.html",
             ["review", "unreplied", "aria-label"]
+        },
+        {
+            "meta_business_scraper.js",
+            "meta-business-inbox-decoys.html",
+            ["BizInbox", "unread", "aria-label"]
+        },
+        {
+            "google_business_scraper.js",
+            "google-business-false-positive-decoys.html",
+            ["role=\"main\"", "unreplied", "data-review-id"]
         }
     };
 

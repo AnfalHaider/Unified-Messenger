@@ -94,6 +94,44 @@ public class AppSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateAsync_PersistsOccExpanderDismissedSignals()
+    {
+        var service = new AppSettingsService(_storePath);
+        await service.LoadAsync();
+
+        await service.UpdateAsync(settings =>
+        {
+            settings.OccPlatformIntelligenceDismissedSignal = 5;
+            settings.OccAnalyticsTrendsDismissedSignal = 12;
+        });
+
+        var reloaded = new AppSettingsService(_storePath);
+        await reloaded.LoadAsync();
+
+        Assert.Equal(5, reloaded.Settings.OccPlatformIntelligenceDismissedSignal);
+        Assert.Equal(12, reloaded.Settings.OccAnalyticsTrendsDismissedSignal);
+
+        var json = await File.ReadAllTextAsync(_storePath);
+        Assert.Contains("\"occPlatformIntelligenceDismissedSignal\": 5", json, StringComparison.Ordinal);
+        Assert.Contains("\"occAnalyticsTrendsDismissedSignal\": 12", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Normalize_ClampsNegativeOccDismissedSignals()
+    {
+        var settings = new AppSettings
+        {
+            OccPlatformIntelligenceDismissedSignal = -3,
+            OccAnalyticsTrendsDismissedSignal = -1
+        };
+
+        settings.Normalize();
+
+        Assert.Equal(0, settings.OccPlatformIntelligenceDismissedSignal);
+        Assert.Equal(0, settings.OccAnalyticsTrendsDismissedSignal);
+    }
+
+    [Fact]
     public async Task LoadAsync_IsIdempotent()
     {
         var service = new AppSettingsService(_storePath);

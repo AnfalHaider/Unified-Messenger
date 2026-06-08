@@ -39,10 +39,11 @@ public sealed partial class OperationsCommandCenter : UserControl
     private GoogleReviewAlertView? _selectedReviewAlert;
     private IReadOnlyDictionary<string, BranchWorkspaceHelper.BranchTabCounts> _branchTabCounts =
         new Dictionary<string, BranchWorkspaceHelper.BranchTabCounts>(StringComparer.OrdinalIgnoreCase);
-
     public OperationsCommandCenter()
     {
         InitializeComponent();
+        PlatformIntelligenceExpander.Collapsed += OnPlatformIntelligenceCollapsed;
+        AnalyticsTrendsExpander.Collapsed += OnAnalyticsTrendsCollapsed;
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         BranchMetricsList.ItemsSource = _branchMetrics;
         PlatformHealthItems.ItemsSource = _platformHealth;
@@ -398,6 +399,98 @@ public sealed partial class OperationsCommandCenter : UserControl
         {
             PlatformIntelligenceReviewBadge.Visibility = Visibility.Collapsed;
         }
+
+        ApplyPlatformIntelligenceExpansion(platform);
+    }
+
+    private void OnPlatformIntelligenceCollapsed(Expander sender, ExpanderCollapsedEventArgs args)
+    {
+        var signal = DashboardCardEmptyStateHelper.ComputePlatformIntelligenceAlertSignal(
+            _snapshot.PlatformIntelligence);
+        if (signal > 0)
+        {
+            PersistOccDismissedSignal(
+                signal,
+                static (settings, value) =>
+                    settings.OccPlatformIntelligenceDismissedSignal =
+                        Math.Max(settings.OccPlatformIntelligenceDismissedSignal, value));
+        }
+    }
+
+    private void OnAnalyticsTrendsCollapsed(Expander sender, ExpanderCollapsedEventArgs args)
+    {
+        var signal = DashboardCardEmptyStateHelper.ComputeAnalyticsTrendsAlertSignal(
+            _snapshot.Status,
+            _snapshot.AnalyticsTrends);
+        if (signal > 0)
+        {
+            PersistOccDismissedSignal(
+                signal,
+                static (settings, value) =>
+                    settings.OccAnalyticsTrendsDismissedSignal =
+                        Math.Max(settings.OccAnalyticsTrendsDismissedSignal, value));
+        }
+    }
+
+    private void ApplyPlatformIntelligenceExpansion(OperationsPlatformIntelligenceSnapshot platform)
+    {
+        var signal = DashboardCardEmptyStateHelper.ComputePlatformIntelligenceAlertSignal(platform);
+        if (signal == 0)
+        {
+            ResetOccDismissedSignalIfNeeded(
+                static settings => settings.OccPlatformIntelligenceDismissedSignal,
+                static (settings, value) => settings.OccPlatformIntelligenceDismissedSignal = value);
+            return;
+        }
+
+        var dismissed = AppSettingsService.Instance.Settings.OccPlatformIntelligenceDismissedSignal;
+
+        if (DashboardCardEmptyStateHelper.ShouldAutoExpandPlatformIntelligence(platform) &&
+            DashboardCardEmptyStateHelper.ShouldExpandOccSection(signal, dismissed))
+        {
+            PlatformIntelligenceExpander.IsExpanded = true;
+        }
+    }
+
+    private void ApplyAnalyticsTrendsExpansion(
+        OperationsAnalyticsTrendSnapshot analytics,
+        OperationsStatusSnapshot status)
+    {
+        var signal = DashboardCardEmptyStateHelper.ComputeAnalyticsTrendsAlertSignal(status, analytics);
+        if (signal == 0)
+        {
+            ResetOccDismissedSignalIfNeeded(
+                static settings => settings.OccAnalyticsTrendsDismissedSignal,
+                static (settings, value) => settings.OccAnalyticsTrendsDismissedSignal = value);
+            return;
+        }
+
+        var dismissed = AppSettingsService.Instance.Settings.OccAnalyticsTrendsDismissedSignal;
+
+        if (DashboardCardEmptyStateHelper.ShouldAutoExpandAnalyticsTrends(status, analytics) &&
+            DashboardCardEmptyStateHelper.ShouldExpandOccSection(signal, dismissed))
+        {
+            AnalyticsTrendsExpander.IsExpanded = true;
+        }
+    }
+
+    private static void PersistOccDismissedSignal(
+        int signal,
+        Action<AppSettings, int> assignDismissedSignal)
+    {
+        _ = AppSettingsService.Instance.UpdateAsync(settings => assignDismissedSignal(settings, signal));
+    }
+
+    private static void ResetOccDismissedSignalIfNeeded(
+        Func<AppSettings, int> readDismissedSignal,
+        Action<AppSettings, int> assignDismissedSignal)
+    {
+        if (readDismissedSignal(AppSettingsService.Instance.Settings) <= 0)
+        {
+            return;
+        }
+
+        _ = AppSettingsService.Instance.UpdateAsync(settings => assignDismissedSignal(settings, 0));
     }
 
     private void ApplyAnalyticsTrends(
@@ -418,6 +511,8 @@ public sealed partial class OperationsCommandCenter : UserControl
                           analytics.Triage.NegativeCount;
         SentimentEmptyText.Visibility = triageTotal > 0 ? Visibility.Collapsed : Visibility.Visible;
         SentimentChart.Visibility = triageTotal > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        ApplyAnalyticsTrendsExpansion(analytics, status);
     }
 
     private void ApplyOperationalHighlights(IReadOnlyList<OperationalHighlightItem> highlights)
@@ -825,8 +920,8 @@ public sealed partial class OperationsCommandCenter : UserControl
             LatencyBrush = CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex(metric.LatencyColor));
             LatencyBorderBrush = CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex(metric.LatencyColor));
             CardBackgroundBrush = isSelected
-                ? new SolidColorBrush(Color.FromArgb(255, 239, 246, 255))
-                : new SolidColorBrush(Color.FromArgb(255, 255, 255, 255));
+                ? ResolveThemeBrush("LayerFillColorAltBrush", Color.FromArgb(255, 239, 246, 255))
+                : ResolveThemeBrush("CardBackgroundFillColorDefaultBrush", Colors.Transparent);
             CardOpacity = isWorkspaceScoped && !isSelected ? DimmedCardOpacity : 1.0;
             CardBorderThickness = isSelected ? new Thickness(2) : new Thickness(1);
             ToolTipText = isSelected ? "Currently scoped to this branch" : "Select branch tab";
@@ -945,6 +1040,11 @@ public sealed partial class OperationsCommandCenter : UserControl
 
         public string Snippet { get; }
     }
+
+    private static SolidColorBrush ResolveThemeBrush(string resourceKey, Color fallback) =>
+        Application.Current.Resources.TryGetValue(resourceKey, out var resource) && resource is SolidColorBrush brush
+            ? brush
+            : new SolidColorBrush(fallback);
 
     private static SolidColorBrush CreateBrush(string hex) =>
         new(ColorFromHex(hex));

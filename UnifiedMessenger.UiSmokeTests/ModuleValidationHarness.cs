@@ -17,6 +17,8 @@ internal static class ModuleValidationHarness
         [
             ValidateMainShell(window),
             ValidateDashboardOperations(window),
+            ValidateOccBranchWorkspaceTabs(window),
+            ValidateOccPlatformIntelligenceExpander(window),
             ValidateBranchWorkspace(window),
             ValidatePersonalOverview(window),
             ValidateSettingsPage(window),
@@ -41,6 +43,8 @@ internal static class ModuleValidationHarness
             RunFilteredTests(repoRoot, "WebViewDraftInjectorTests", "Platform.DraftInjection"),
             RunFilteredTests(repoRoot, "ApplicationLifecycleServiceTests", "Lifecycle.TrayAndFlush"),
             RunFilteredTests(repoRoot, "OperationsCommandCenterServiceTests", "Analytics.OperationsCommandCenter"),
+            RunFilteredTests(repoRoot, "OperationsCommandCenterPlatformIntelligenceTests", "Analytics.OccExpanders"),
+            RunFilteredTests(repoRoot, "OperationsCommandCenterAnalyticsExpanderTests", "Analytics.OccExpanders"),
             RunFilteredTests(repoRoot, "UnifiedMessengerDashboardServiceTests", "Analytics.SlaAndRevenue")
         ];
     }
@@ -70,6 +74,113 @@ internal static class ModuleValidationHarness
         return process.ExitCode == 0 && output.Contains("Passed!", StringComparison.Ordinal)
             ? ModuleValidationResult.Pass(module, "DomainTests", filter)
             : ModuleValidationResult.Fail(module, "DomainTests", output.Length > 200 ? output[^200..] : output);
+    }
+
+    private static ModuleValidationResult ValidateOccBranchWorkspaceTabs(AutomationElement window)
+    {
+        UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
+        Thread.Sleep(900);
+
+        if (UiAutomationHelpers.FindByName(window, "Branch workspace kanban") is null &&
+            UiAutomationHelpers.FindByName(window, "Branch workspace tabs") is null)
+        {
+            return ModuleValidationResult.Warn(
+                "Dashboard.OccBranchTabs",
+                "Page",
+                "Branch workspace kanban section not exposed via UIA");
+        }
+
+        var kanbanMarkers = new[] { "New", "Hanging", "Resolved" };
+        var visibleColumns = kanbanMarkers
+            .Count(marker => UiAutomationHelpers.FindByName(window, marker) is not null);
+        if (visibleColumns < 2)
+        {
+            return ModuleValidationResult.Warn(
+                "Dashboard.OccBranchTabs",
+                "Page",
+                $"Kanban columns partially visible ({visibleColumns}/3)");
+        }
+
+        if (UiAutomationHelpers.ClickByNameContains(window, "All branches"))
+        {
+            Thread.Sleep(400);
+        }
+
+        var tabItems = window.FindAllDescendants(window.ConditionFactory.ByControlType(ControlType.TabItem));
+        if (tabItems.Length > 1)
+        {
+            try
+            {
+                tabItems[1].Focus();
+                tabItems[1].Click();
+                Thread.Sleep(500);
+            }
+            catch
+            {
+                // Best effort — single-branch installs only expose one tab.
+            }
+        }
+
+        return ModuleValidationResult.Pass(
+            "Dashboard.OccBranchTabs",
+            "Page",
+            $"Branch workspace kanban reachable; {tabItems.Length} tab(s) in UIA tree");
+    }
+
+    private static ModuleValidationResult ValidateOccPlatformIntelligenceExpander(AutomationElement window)
+    {
+        UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
+        Thread.Sleep(900);
+
+        var expanderClicked =
+            UiAutomationHelpers.ClickByName(window, "Platform intelligence expander") ||
+            UiAutomationHelpers.ClickByNameContains(window, "Platform intelligence");
+
+        if (!expanderClicked)
+        {
+            return ModuleValidationResult.Warn(
+                "Dashboard.OccPlatformIntelligence",
+                "Page",
+                "Platform intelligence expander not exposed via UIA");
+        }
+
+        Thread.Sleep(600);
+
+        var expandedMarkers = new[]
+        {
+            "Refresh platform data",
+            "Google Business · Customer trust",
+            "Meta Business · Response analytics",
+            "Analytics trends expander"
+        };
+        var visibleMarker = expandedMarkers.FirstOrDefault(
+            marker => UiAutomationHelpers.FindByName(window, marker) is not null);
+
+        if (visibleMarker is not null)
+        {
+            return ModuleValidationResult.Pass(
+                "Dashboard.OccPlatformIntelligence",
+                "Page",
+                $"Platform intelligence section reachable ('{visibleMarker}')");
+        }
+
+        if (UiAutomationHelpers.ClickByName(window, "Analytics trends expander") ||
+            UiAutomationHelpers.ClickByNameContains(window, "Analytics & trends"))
+        {
+            Thread.Sleep(400);
+            if (UiAutomationHelpers.FindByName(window, "Message volume (7 days)") is not null)
+            {
+                return ModuleValidationResult.Pass(
+                    "Dashboard.OccPlatformIntelligence",
+                    "Page",
+                    "Analytics trends expander reachable");
+            }
+        }
+
+        return ModuleValidationResult.Warn(
+            "Dashboard.OccPlatformIntelligence",
+            "Page",
+            "Expander header clicked but child content not confirmed in UIA tree");
     }
 
     private static ModuleValidationResult ValidateBranchWorkspace(AutomationElement window)
