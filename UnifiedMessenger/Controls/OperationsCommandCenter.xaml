@@ -51,30 +51,41 @@
         <DataTemplate x:Key="OperationsKanbanCardTemplate">
             <Border
                 Margin="0,0,0,6"
-                Padding="8"
+                Padding="10,8,8,8"
                 Background="{ThemeResource LayerFillColorDefaultBrush}"
-                BorderBrush="{Binding CardBorderBrush}"
-                BorderThickness="{Binding CardBorderThickness}"
-                CornerRadius="6">
-                <StackPanel Spacing="4">
-                    <Grid ColumnSpacing="6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <FontIcon FontSize="12" Glyph="{Binding PlatformGlyph}" Opacity="0.75" />
-                        <TextBlock Grid.Column="1" FontSize="12" FontWeight="SemiBold" Text="{Binding CustomerName}" TextTrimming="CharacterEllipsis" />
-                        <Border Grid.Column="2" Padding="4,1" Background="{Binding UrgencyBrush}" CornerRadius="4">
-                            <TextBlock FontSize="10" Foreground="White" Text="{Binding UrgencyLabel}" />
-                        </Border>
-                    </Grid>
-                    <TextBlock FontSize="10" Opacity="0.55" Text="{Binding InboxLabel}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock FontSize="10" Opacity="0.45" Text="{Binding BranchName}" TextTrimming="CharacterEllipsis" Visibility="{Binding BranchNameVisibility}" />
-                    <TextBlock FontSize="11" Opacity="0.85" Text="{Binding NextActionSummary}" TextWrapping="WrapWholeWords" MaxLines="3" />
-                    <TextBlock FontSize="10" Foreground="{Binding SlaBrush}" Text="{Binding SlaText}" Visibility="{Binding SlaVisibility}" />
-                    <TextBlock FontSize="10" Opacity="0.65" Text="{Binding RevenueDisplay}" Visibility="{Binding RevenueVisibility}" />
-                </StackPanel>
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                ToolTipService.ToolTip="{Binding NextActionSummary}">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="4" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Background="{Binding CardBorderBrush}"
+                        CornerRadius="2"
+                        Visibility="{Binding SlaVisibility}" />
+                    <StackPanel Grid.Column="1" Spacing="4">
+                        <Grid ColumnSpacing="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon FontSize="12" Glyph="{Binding PlatformGlyph}" Opacity="0.75" />
+                            <TextBlock Grid.Column="1" FontSize="12" FontWeight="SemiBold" Text="{Binding CustomerName}" TextTrimming="CharacterEllipsis" />
+                            <Border Grid.Column="2" Padding="4,1" Background="{Binding UrgencyBrush}" CornerRadius="4">
+                                <TextBlock FontSize="10" Foreground="White" Text="{Binding UrgencyLabel}" />
+                            </Border>
+                        </Grid>
+                        <TextBlock FontSize="10" Opacity="0.55" Text="{Binding InboxLabel}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock FontSize="10" Opacity="0.45" Text="{Binding BranchName}" TextTrimming="CharacterEllipsis" Visibility="{Binding BranchNameVisibility}" />
+                        <TextBlock FontSize="11" Opacity="0.85" Text="{Binding NextActionSummary}" TextTrimming="CharacterEllipsis" MaxLines="2" />
+                        <TextBlock FontSize="10" FontWeight="SemiBold" Foreground="{Binding SlaBrush}" Text="{Binding SlaText}" Visibility="{Binding SlaVisibility}" />
+                        <TextBlock FontSize="10" Opacity="0.65" Text="{Binding RevenueDisplay}" Visibility="{Binding RevenueVisibility}" />
+                    </StackPanel>
+                </Grid>
             </Border>
         </DataTemplate>
 
@@ -138,84 +149,105 @@
                     <RowDefinition Height="*" MinHeight="360" />
                 </Grid.RowDefinitions>
 
-                <TextBlock
-                    x:Name="ScopeText"
-                    AutomationProperties.Name="Operations Command Center scope"
-                    FontSize="14"
-                    FontWeight="SemiBold"
-                    Opacity="0.85"
-                    Text="Showing: All Branches" />
-
-                <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                    <StackPanel Spacing="10">
-                        <StackPanel Spacing="6">
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="0.7" Text="Operations (live threads)" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Border MinWidth="100" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Open conversations" />
-                                <TextBlock x:Name="OpenThreadCountText" FontSize="18" FontWeight="SemiBold" Text="0" />
-                            </StackPanel>
-                        </Border>
-                        <Border MinWidth="100" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Hanging leads" />
-                                <TextBlock x:Name="HangingLeadCountText" FontSize="18" FontWeight="SemiBold" Text="0" />
-                            </StackPanel>
-                        </Border>
-                        <Border MinWidth="120" Padding="12,8" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="8">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Opacity="0.85" Text="Revenue at risk" />
-                                <TextBlock x:Name="RevenueAtRiskText" FontSize="22" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Text="PKR 0" />
-                            </StackPanel>
-                        </Border>
-                        <Border x:Name="ImmediateActionKpiCard" MinWidth="90" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" ToolTipService.ToolTip="All urgent threads in scope. The action lane shows the top 24 by urgency.">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Immediate" />
-                                <TextBlock x:Name="ImmediateActionCountText" FontSize="18" FontWeight="SemiBold" Text="0" />
-                            </StackPanel>
-                        </Border>
-                        <Border x:Name="SlaBreachesKpiCard" MinWidth="90" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" ToolTipService.ToolTip="Active threads exceeding the SLA threshold. Based on live thread latency, not historical analytics.">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="SLA breaches" />
-                                <TextBlock x:Name="SlaBreachesValue" FontSize="18" FontWeight="SemiBold" Text="—" />
-                                <TextBlock x:Name="SlaThresholdSubtext" FontSize="10" Opacity="0.55" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
-                            </StackPanel>
-                        </Border>
-                            </StackPanel>
-                        </StackPanel>
-                        <StackPanel Spacing="6">
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="0.7" Text="Analytics (events)" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Border x:Name="AvgReplyKpiCard" MinWidth="110" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" ToolTipService.ToolTip="Average time to reply across recorded analytics events in this scope.">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Avg reply" />
-                                <TextBlock x:Name="AvgReplyTimeValue" FontSize="16" FontWeight="SemiBold" Text="—" />
-                                <TextBlock x:Name="AvgReplyTimeSubtext" FontSize="10" Opacity="0.55" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
-                            </StackPanel>
-                        </Border>
-                        <Border x:Name="ResponseRateKpiCard" MinWidth="110" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" ToolTipService.ToolTip="Share of inbound messages that received a reply. Based on recorded analytics events, not live thread state.">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Response rate (events)" />
-                                <TextBlock x:Name="ResponseRateValue" FontSize="12" FontWeight="SemiBold" Text="—" TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-                        <Border MinWidth="90" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Peak hour" />
-                                <TextBlock x:Name="PeakHourValue" FontSize="14" FontWeight="SemiBold" Text="—" />
-                            </StackPanel>
-                        </Border>
-                        <Border MinWidth="110" Padding="12,8" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
-                            <StackPanel Spacing="2">
-                                <TextBlock FontSize="10" Opacity="0.65" Text="Daily trend" />
-                                <TextBlock x:Name="DailyTrendValue" FontSize="12" FontWeight="SemiBold" Text="—" TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-                            </StackPanel>
-                        </StackPanel>
+                <Grid Grid.Row="0" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            x:Name="ScopeText"
+                            AutomationProperties.Name="Operations Command Center scope"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Opacity="0.85"
+                            Text="Showing: All Branches" />
+                        <TextBlock
+                            x:Name="LastRefreshedText"
+                            FontSize="11"
+                            Opacity="0.55"
+                            Text="Updated just now" />
                     </StackPanel>
-                </ScrollViewer>
+                    <Button
+                        x:Name="RefreshCommandButton"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Click="RefreshCommandButton_Click"
+                        Content="Refresh platform data" />
+                </Grid>
+
+                <Grid x:Name="OperationsKpiGrid" Grid.Row="1" ColumnSpacing="8" RowSpacing="8">
+                    <VisualStateManager.VisualStateGroups>
+                        <VisualStateGroup>
+                            <VisualState x:Name="WideKpiLayout">
+                                <VisualState.StateTriggers>
+                                    <AdaptiveTrigger MinWindowWidth="960" />
+                                </VisualState.StateTriggers>
+                            </VisualState>
+                            <VisualState x:Name="NarrowKpiLayout">
+                                <VisualState.Setters>
+                                    <Setter Target="OperationsKpiHeader.(Grid.ColumnSpan)" Value="2" />
+                                    <Setter Target="RevenueKpiCard.(Grid.Column)" Value="0" />
+                                    <Setter Target="RevenueKpiCard.(Grid.ColumnSpan)" Value="2" />
+                                    <Setter Target="RevenueKpiCard.(Grid.Row)" Value="2" />
+                                    <Setter Target="ImmediateActionKpiCard.(Grid.Column)" Value="0" />
+                                    <Setter Target="ImmediateActionKpiCard.(Grid.Row)" Value="3" />
+                                    <Setter Target="SlaBreachesKpiCard.(Grid.Column)" Value="1" />
+                                    <Setter Target="SlaBreachesKpiCard.(Grid.Row)" Value="3" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateManager.VisualStateGroups>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        x:Name="OperationsKpiHeader"
+                        Grid.ColumnSpan="5"
+                        Style="{StaticResource DashboardSectionHeaderStyle}"
+                        Text="Operations (live threads)" />
+                    <Border x:Name="OpenKpiCard" Grid.Row="1" MinWidth="100" Padding="12,8" Style="{StaticResource DashboardMetricCardStyle}">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="10" Opacity="0.65" Text="Open conversations" />
+                            <TextBlock x:Name="OpenThreadCountText" FontSize="18" FontWeight="SemiBold" Text="0" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="HangingKpiCard" Grid.Row="1" Grid.Column="1" MinWidth="100" Padding="12,8" Style="{StaticResource DashboardMetricCardStyle}">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="10" Opacity="0.65" Text="Hanging leads" />
+                            <TextBlock x:Name="HangingLeadCountText" FontSize="18" FontWeight="SemiBold" Text="0" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="RevenueKpiCard" Grid.Row="1" Grid.Column="2" MinWidth="120" Padding="12,8" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="8">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="10" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Opacity="0.85" Text="Revenue at risk" />
+                            <TextBlock x:Name="RevenueAtRiskText" FontSize="22" FontWeight="Bold" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Text="PKR 0" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="ImmediateActionKpiCard" Grid.Row="1" Grid.Column="3" MinWidth="90" Padding="12,8" Style="{StaticResource DashboardMetricCardStyle}" ToolTipService.ToolTip="All urgent threads in scope. The action lane shows the top 24 by urgency.">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="10" Opacity="0.65" Text="Immediate" />
+                            <TextBlock x:Name="ImmediateActionCountText" FontSize="18" FontWeight="SemiBold" Text="0" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="SlaBreachesKpiCard" Grid.Row="1" Grid.Column="4" MinWidth="90" Padding="12,8" Style="{StaticResource DashboardMetricCardStyle}" ToolTipService.ToolTip="Active threads exceeding the SLA threshold. Based on live thread latency, not historical analytics.">
+                        <StackPanel Spacing="2">
+                            <TextBlock FontSize="10" Opacity="0.65" Text="SLA breaches" />
+                            <TextBlock x:Name="SlaBreachesValue" FontSize="18" FontWeight="SemiBold" Text="—" />
+                            <TextBlock x:Name="SlaThresholdSubtext" FontSize="10" Opacity="0.55" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
                 <Grid x:Name="MainSplitGrid" Grid.Row="2" ColumnSpacing="16" RowSpacing="16">
                     <Grid.ColumnDefinitions>
@@ -270,6 +302,8 @@
                                     IsItemClickEnabled="True"
                                     ItemClick="ThreadCardList_ItemClick"
                                     ItemTemplate="{StaticResource OperationsImmediateCardTemplate}"
+                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                    ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                     SelectionMode="None" />
                                 <TextBlock
                                     x:Name="ImmediateQueueEmptyText"
@@ -296,19 +330,17 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" MinHeight="200" />
                                 </Grid.RowDefinitions>
-                                <TextBlock FontWeight="SemiBold" Text="Branch workspace kanban" />
-                                <TextBlock FontSize="11" Opacity="0.6" Text="Tabs scope KPIs, kanban, analytics, and insights to one branch." TextWrapping="WrapWholeWords" />
-                                <TabView
-                                    x:Name="BranchWorkspaceTabs"
-                                    Grid.Row="1"
-                                    AutomationProperties.Name="Branch workspace tabs"
-                                    TabWidthMode="SizeToContent"
-                                    CanDragTabs="False"
-                                    CanReorderTabs="False"
-                                    IsAddTabButtonVisible="False" />
-                                <Grid Grid.Row="2" ColumnSpacing="6">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Style="{StaticResource DashboardSectionHeaderStyle}" Text="Branch workspace kanban" />
+                                    <TextBlock FontSize="11" Opacity="0.6" Text="Pills scope KPIs, kanban, analytics, and insights to one branch." TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                                <controls:BranchWorkspacePillBar
+                                    x:Name="BranchWorkspacePillBar"
+                                    Grid.Row="1" />
+                                <Grid Grid.Row="3" ColumnSpacing="6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
@@ -316,17 +348,17 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Spacing="4">
                                         <TextBlock FontSize="11" FontWeight="SemiBold" Text="New" />
-                                        <ListView x:Name="NewInquiriesList" IsItemClickEnabled="True" ItemClick="ThreadCardList_ItemClick" ItemTemplate="{StaticResource OperationsKanbanCardTemplate}" MaxHeight="320" SelectionMode="None" />
+                                        <ListView x:Name="NewInquiriesList" IsItemClickEnabled="True" ItemClick="ThreadCardList_ItemClick" ItemTemplate="{StaticResource OperationsKanbanCardTemplate}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None" />
                                         <TextBlock x:Name="NewInquiriesEmptyText" FontSize="10" Opacity="0.55" Text="No new inquiries." Visibility="Collapsed" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="4">
                                         <TextBlock FontSize="11" FontWeight="SemiBold" Text="Hanging" />
-                                        <ListView x:Name="HangingLeadsList" IsItemClickEnabled="True" ItemClick="ThreadCardList_ItemClick" ItemTemplate="{StaticResource OperationsKanbanCardTemplate}" MaxHeight="320" SelectionMode="None" />
+                                        <ListView x:Name="HangingLeadsList" IsItemClickEnabled="True" ItemClick="ThreadCardList_ItemClick" ItemTemplate="{StaticResource OperationsKanbanCardTemplate}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None" />
                                         <TextBlock x:Name="HangingLeadsEmptyText" FontSize="10" Opacity="0.55" Text="No hanging leads." Visibility="Collapsed" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Spacing="4">
                                         <TextBlock FontSize="11" FontWeight="SemiBold" Text="Resolved" />
-                                        <ListView x:Name="ResolvedList" IsItemClickEnabled="True" ItemClick="ThreadCardList_ItemClick" ItemTemplate="{StaticResource OperationsKanbanCardTemplate}" MaxHeight="320" SelectionMode="None" />
+                                        <ListView x:Name="ResolvedList" IsItemClickEnabled="True" ItemClick="ThreadCardList_ItemClick" ItemTemplate="{StaticResource OperationsKanbanCardTemplate}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None" />
                                         <TextBlock x:Name="ResolvedEmptyText" FontSize="10" Opacity="0.55" Text="Nothing resolved yet." Visibility="Collapsed" />
                                     </StackPanel>
                                 </Grid>
@@ -335,7 +367,7 @@
                     </StackPanel>
 
                     <StackPanel x:Name="ContextPanel" Grid.Column="1" Spacing="12">
-                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <ScrollViewer x:Name="BranchMetricsScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                             <ListView
                                 x:Name="BranchMetricsList"
                                 IsItemClickEnabled="True"
@@ -375,7 +407,7 @@
                         <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                             <StackPanel Spacing="8">
                                 <TextBlock FontWeight="SemiBold" Text="Operational highlights" />
-                                <ListView x:Name="OperationalHighlightsList" IsItemClickEnabled="True" ItemClick="OperationalHighlightsList_ItemClick" MaxHeight="160" SelectionMode="None">
+                                <ListView x:Name="OperationalHighlightsList" IsItemClickEnabled="True" ItemClick="OperationalHighlightsList_ItemClick" MaxHeight="160" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Spacing="2" Padding="0,4">
@@ -393,7 +425,7 @@
                         <Border Padding="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8">
                             <StackPanel Spacing="8">
                                 <TextBlock FontWeight="SemiBold" Text="AI insight feed" />
-                                <ListView x:Name="AiInsightFeedList" IsItemClickEnabled="True" ItemClick="InsightFeedList_ItemClick" ItemTemplate="{StaticResource OperationsInsightFeedTemplate}" MaxHeight="280" SelectionMode="None" />
+                                <ListView x:Name="AiInsightFeedList" IsItemClickEnabled="True" ItemClick="InsightFeedList_ItemClick" ItemTemplate="{StaticResource OperationsInsightFeedTemplate}" MaxHeight="280" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None" />
                                 <TextBlock x:Name="AiInsightFeedEmptyText" Opacity="0.6" Text="Insights appear as messages are classified." Visibility="Collapsed" />
                             </StackPanel>
                         </Border>
@@ -441,8 +473,46 @@
                             </StackPanel>
                         </Expander>
 
-                        <Expander x:Name="AnalyticsTrendsExpander" AutomationProperties.Name="Analytics trends expander" Header="Analytics &amp; trends" IsExpanded="False">
+                        <Expander x:Name="AnalyticsTrendsExpander" AutomationProperties.Name="Analytics trends expander" IsExpanded="False">
+                            <Expander.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock FontWeight="SemiBold" Text="Analytics &amp; trends" />
+                                    <TextBlock x:Name="AnalyticsTrendsSummaryText" FontSize="11" Opacity="0.65" TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </Expander.Header>
                             <StackPanel Spacing="12">
+                                <Border Padding="12" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock FontWeight="SemiBold" Text="Event analytics" />
+                                        <Grid ColumnSpacing="12" RowSpacing="8">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock FontSize="10" Opacity="0.65" Text="Avg reply" />
+                                                <TextBlock x:Name="AvgReplyTimeValue" FontSize="16" FontWeight="SemiBold" Text="—" />
+                                                <TextBlock x:Name="AvgReplyTimeSubtext" FontSize="10" Opacity="0.55" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock FontSize="10" Opacity="0.65" Text="Response rate (events)" />
+                                                <TextBlock x:Name="ResponseRateValue" FontSize="12" FontWeight="SemiBold" Text="—" TextWrapping="WrapWholeWords" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Spacing="2">
+                                                <TextBlock FontSize="10" Opacity="0.65" Text="Peak hour" />
+                                                <TextBlock x:Name="PeakHourValue" FontSize="14" FontWeight="SemiBold" Text="—" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                                <TextBlock FontSize="10" Opacity="0.65" Text="Daily trend" />
+                                                <TextBlock x:Name="DailyTrendValue" FontSize="12" FontWeight="SemiBold" Text="—" TextWrapping="WrapWholeWords" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
                                 <Border Padding="12" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8">
                                     <StackPanel Spacing="8">
                                         <TextBlock FontWeight="SemiBold" Text="Message volume (7 days)" />

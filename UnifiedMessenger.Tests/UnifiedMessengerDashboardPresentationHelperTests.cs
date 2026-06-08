@@ -13,6 +13,15 @@ public class UnifiedMessengerDashboardPresentationHelperTests
     }
 
     [Fact]
+    public void FormatWaitingDuration_UsesReadableUnits()
+    {
+        Assert.Equal("45m", UnifiedMessengerDashboardPresentationHelper.FormatWaitingDuration(45));
+        Assert.Equal("2h", UnifiedMessengerDashboardPresentationHelper.FormatWaitingDuration(120));
+        Assert.Equal("2d 3h", UnifiedMessengerDashboardPresentationHelper.FormatWaitingDuration((2 * 24 * 60) + 180));
+        Assert.Equal("—", UnifiedMessengerDashboardPresentationHelper.FormatWaitingDuration(0));
+    }
+
+    [Fact]
     public void ResolveLatencyHex_UsesTrafficLightBands()
     {
         Assert.Equal("#22C55E", UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex("Green"));

@@ -166,33 +166,6 @@ public sealed partial class DashboardPage : Page
             _registry).ConfigureAwait(true);
     }
 
-    private async void RefreshDashboardDataButton_Click(object sender, RoutedEventArgs e) =>
-        await RequestProfessionalTelemetryRefreshAsync();
-
-    private async Task RequestProfessionalTelemetryRefreshAsync(bool refreshAllInstances = false)
-    {
-        if (_registry is null)
-        {
-            return;
-        }
-
-        RefreshDashboardDataButton.IsEnabled = false;
-        var originalContent = RefreshDashboardDataButton.Content;
-        RefreshDashboardDataButton.Content = "Refreshing…";
-        try
-        {
-            ScheduleBackfillRetryIfNeeded();
-            await OperationsCommandCenterPanel
-                .RequestPlatformDataRefreshAsync(refreshAllInstances)
-                .ConfigureAwait(true);
-        }
-        finally
-        {
-            RefreshDashboardDataButton.IsEnabled = true;
-            RefreshDashboardDataButton.Content = originalContent;
-        }
-    }
-
     private void ScheduleBackfillRetryIfNeeded()
     {
         if (!AppSettingsService.Instance.Settings.EnableStartupBackfill)

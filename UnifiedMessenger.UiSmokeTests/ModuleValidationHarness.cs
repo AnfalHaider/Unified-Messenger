@@ -17,7 +17,7 @@ internal static class ModuleValidationHarness
         [
             ValidateMainShell(window),
             ValidateDashboardOperations(window),
-            ValidateOccBranchWorkspaceTabs(window),
+            ValidateOccBranchWorkspacePills(window),
             ValidateOccPlatformIntelligenceExpander(window),
             ValidateBranchWorkspace(window),
             ValidatePersonalOverview(window),
@@ -76,16 +76,16 @@ internal static class ModuleValidationHarness
             : ModuleValidationResult.Fail(module, "DomainTests", output.Length > 200 ? output[^200..] : output);
     }
 
-    private static ModuleValidationResult ValidateOccBranchWorkspaceTabs(AutomationElement window)
+    private static ModuleValidationResult ValidateOccBranchWorkspacePills(AutomationElement window)
     {
         UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
         Thread.Sleep(900);
 
         if (UiAutomationHelpers.FindByName(window, "Branch workspace kanban") is null &&
-            UiAutomationHelpers.FindByName(window, "Branch workspace tabs") is null)
+            UiAutomationHelpers.FindByName(window, "Branch workspace pills") is null)
         {
             return ModuleValidationResult.Warn(
-                "Dashboard.OccBranchTabs",
+                "Dashboard.OccBranchPills",
                 "Page",
                 "Branch workspace kanban section not exposed via UIA");
         }
@@ -96,35 +96,37 @@ internal static class ModuleValidationHarness
         if (visibleColumns < 2)
         {
             return ModuleValidationResult.Warn(
-                "Dashboard.OccBranchTabs",
+                "Dashboard.OccBranchPills",
                 "Page",
                 $"Kanban columns partially visible ({visibleColumns}/3)");
         }
 
-        if (UiAutomationHelpers.ClickByNameContains(window, "All branches"))
+        var pillClicked = UiAutomationHelpers.ClickByName(window, "All branches") ||
+                          UiAutomationHelpers.ClickByNameContains(window, "All branches");
+        if (pillClicked)
         {
             Thread.Sleep(400);
         }
 
-        var tabItems = window.FindAllDescendants(window.ConditionFactory.ByControlType(ControlType.TabItem));
-        if (tabItems.Length > 1)
+        var branchPills = window.FindAllDescendants(window.ConditionFactory.ByControlType(ControlType.Button))
+            .Select(element => element.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name) &&
+                           (name.Contains("branches", StringComparison.OrdinalIgnoreCase) ||
+                            name.Contains("DHA", StringComparison.OrdinalIgnoreCase) ||
+                            name.Contains("F-11", StringComparison.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (branchPills.Count > 1)
         {
-            try
-            {
-                tabItems[1].Focus();
-                tabItems[1].Click();
-                Thread.Sleep(500);
-            }
-            catch
-            {
-                // Best effort — single-branch installs only expose one tab.
-            }
+            UiAutomationHelpers.ClickByName(window, branchPills[1]);
+            Thread.Sleep(500);
         }
 
         return ModuleValidationResult.Pass(
-            "Dashboard.OccBranchTabs",
+            "Dashboard.OccBranchPills",
             "Page",
-            $"Branch workspace kanban reachable; {tabItems.Length} tab(s) in UIA tree");
+            $"Branch workspace kanban reachable; {Math.Max(branchPills.Count, 1)} pill(s) in UIA tree");
     }
 
     private static ModuleValidationResult ValidateOccPlatformIntelligenceExpander(AutomationElement window)

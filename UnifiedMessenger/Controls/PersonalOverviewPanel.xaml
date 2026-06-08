@@ -64,10 +64,7 @@
                 <Border
                     x:Name="SummaryCardAccounts"
                     Padding="14"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                    Style="{StaticResource DashboardCardStyle}">
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE77B;" Opacity="0.7" />
@@ -85,10 +82,7 @@
                     x:Name="SummaryCardUnread"
                     Grid.Column="1"
                     Padding="14"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                    Style="{StaticResource DashboardCardStyle}">
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE715;" Opacity="0.7" />
@@ -106,10 +100,7 @@
                     x:Name="SummaryCardMemory"
                     Grid.Row="1"
                     Padding="14"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                    Style="{StaticResource DashboardCardStyle}">
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE9F5;" Opacity="0.7" />
@@ -128,10 +119,7 @@
                     Grid.Row="1"
                     Grid.Column="1"
                     Padding="14"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                    Style="{StaticResource DashboardCardStyle}">
                     <StackPanel Spacing="8">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontSize="14" Glyph="&#xE7B3;" Opacity="0.7" />

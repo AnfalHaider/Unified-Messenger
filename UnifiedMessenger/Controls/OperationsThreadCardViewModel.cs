@@ -40,7 +40,7 @@ public sealed class OperationsThreadCardViewModel
             ? new Thickness(thread.IsSlaBreached ? 4 : 2, 1, 1, 1)
             : new Thickness(1);
         SlaText = thread.IsSlaBreached
-            ? $"Waiting {thread.LatencyMinutes:0.#}m · SLA breach"
+            ? $"Waiting {UnifiedMessengerDashboardPresentationHelper.FormatWaitingDuration(thread.LatencyMinutes)} · SLA breach"
             : string.Empty;
         SlaBrush = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
         SlaVisibility = thread.IsSlaBreached ? Visibility.Visible : Visibility.Collapsed;

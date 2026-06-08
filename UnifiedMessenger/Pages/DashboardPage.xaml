@@ -37,31 +37,7 @@
             CanReorderTabs="False"
             IsAddTabButtonVisible="False">
             <TabViewItem Header="Operations Command Center" AutomationProperties.Name="Operations Command Center Tab" IsClosable="False">
-                <Grid RowSpacing="12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            Opacity="0.65"
-                            Text="Refresh platform data after opening Google or Meta instances."
-                            TextWrapping="WrapWholeWords"
-                            VerticalAlignment="Center" />
-                        <Button
-                            x:Name="RefreshDashboardDataButton"
-                            Grid.Column="1"
-                            Click="RefreshDashboardDataButton_Click"
-                            Content="Refresh platform data" />
-                    </Grid>
-
-                    <controls:OperationsCommandCenter x:Name="OperationsCommandCenterPanel" Grid.Row="1" />
-                </Grid>
+                <controls:OperationsCommandCenter x:Name="OperationsCommandCenterPanel" />
             </TabViewItem>
 
             <TabViewItem Header="Personal Overview" AutomationProperties.Name="Personal Overview Tab" IsClosable="False">

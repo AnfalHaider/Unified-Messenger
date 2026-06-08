@@ -33,7 +33,8 @@ public sealed partial class OperationsCommandCenter : UserControl
     /// <summary>Single workspace scope for the entire OCC dashboard (null = all branches).</summary>
     private string? _workspaceBranchKey;
     private IReadOnlyList<string> _availableBranchKeys = [];
-    private bool _suppressTabSelection;
+    private bool _suppressPillSelection;
+    private string? _lastPillBarSignature;
     private bool _isRefreshing;
     private bool _showWorkspaceLoading;
     private GoogleReviewAlertView? _selectedReviewAlert;
@@ -57,9 +58,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         _refreshDebounceTimer.Interval = TimeSpan.FromMilliseconds(RefreshDebounceMilliseconds);
         _refreshDebounceTimer.Tick += OnRefreshDebounceTick;
 
-        BranchWorkspaceTabs.RegisterPropertyChangedCallback(
-            TabView.SelectedIndexProperty,
-            OnBranchWorkspaceSelectedIndexChanged);
+        BranchWorkspacePillBar.SelectionChanged += OnBranchWorkspacePillSelectionChanged;
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -115,7 +114,7 @@ public sealed partial class OperationsCommandCenter : UserControl
                         _workspaceBranchKey))
                 .ConfigureAwait(true);
 
-            RebuildBranchTabs(_availableBranchKeys);
+            RebuildBranchPills(_availableBranchKeys);
             ApplySnapshot(snapshot);
         }
         finally
@@ -129,7 +128,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void SetWorkspaceLoadingVisible(bool visible)
     {
         WorkspaceLoadingOverlay.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        BranchWorkspaceTabs.IsEnabled = !visible;
+        BranchWorkspacePillBar.IsInteractionEnabled = !visible;
     }
 
     public async Task<bool> RequestPlatformDataRefreshAsync(bool refreshAllInstances = false)
@@ -170,6 +169,7 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        WireScrollBubbling();
         MessageTriageService.Instance.Changed += OnOperationalDataChanged;
         ThreadRegistryService.Instance.Changed += OnOperationalDataChanged;
         UnifiedMessengerDashboardService.Instance.Changed += OnOperationalDataChanged;
@@ -204,14 +204,13 @@ public sealed partial class OperationsCommandCenter : UserControl
         _ = RefreshAsync(_professionalInstances, _registry);
     }
 
-    private void OnBranchWorkspaceSelectedIndexChanged(DependencyObject sender, DependencyProperty property)
+    private void OnBranchWorkspacePillSelectionChanged(object? sender, string? branchKey)
     {
-        if (_suppressTabSelection)
+        if (_suppressPillSelection)
         {
             return;
         }
 
-        var branchKey = ResolveWorkspaceBranchKeyFromSelectedTab();
         if (string.Equals(_workspaceBranchKey, branchKey, StringComparison.OrdinalIgnoreCase))
         {
             RefreshBranchMetricSelection();
@@ -234,6 +233,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         MainContentScrollViewer.Visibility = hasProfessional ? Visibility.Visible : Visibility.Collapsed;
 
         ScopeText.Text = snapshot.ScopeLabel;
+        LastRefreshedText.Text = $"Updated {DateTime.Now:t}";
         ApplyStatusKpis(status);
         ApplyKanbanFromSnapshot(threadOps);
         ApplyImmediateQueueFromSnapshot(threadOps);
@@ -512,7 +512,48 @@ public sealed partial class OperationsCommandCenter : UserControl
         SentimentEmptyText.Visibility = triageTotal > 0 ? Visibility.Collapsed : Visibility.Visible;
         SentimentChart.Visibility = triageTotal > 0 ? Visibility.Visible : Visibility.Collapsed;
 
+        AnalyticsTrendsSummaryText.Text = BuildAnalyticsTrendsSummary(status);
         ApplyAnalyticsTrendsExpansion(analytics, status);
+    }
+
+    private static string BuildAnalyticsTrendsSummary(OperationsStatusSnapshot status)
+    {
+        var parts = new List<string>();
+        if (!string.Equals(status.AverageReplyTime, "—", StringComparison.Ordinal))
+        {
+            parts.Add($"Avg reply {status.AverageReplyTime}");
+        }
+
+        if (!string.Equals(status.ResponseRate, "—", StringComparison.Ordinal))
+        {
+            parts.Add($"Response {status.ResponseRate}");
+        }
+
+        if (!string.Equals(status.PeakHour, "—", StringComparison.Ordinal))
+        {
+            parts.Add($"Peak {status.PeakHour}");
+        }
+
+        if (!string.Equals(status.DailyTrend, "—", StringComparison.Ordinal))
+        {
+            parts.Add(status.DailyTrend);
+        }
+
+        return parts.Count == 0
+            ? "Event analytics appear after message traffic is recorded."
+            : string.Join(" · ", parts);
+    }
+
+    private void WireScrollBubbling()
+    {
+        ScrollInputHelper.EnableVerticalScrollBubbling(ImmediateQueueList, MainContentScrollViewer);
+        ScrollInputHelper.EnableVerticalScrollBubbling(NewInquiriesList, MainContentScrollViewer);
+        ScrollInputHelper.EnableVerticalScrollBubbling(HangingLeadsList, MainContentScrollViewer);
+        ScrollInputHelper.EnableVerticalScrollBubbling(ResolvedList, MainContentScrollViewer);
+        ScrollInputHelper.EnableVerticalScrollBubbling(OperationalHighlightsList, MainContentScrollViewer);
+        ScrollInputHelper.EnableVerticalScrollBubbling(AiInsightFeedList, MainContentScrollViewer);
+        ScrollInputHelper.EnableVerticalScrollBubbling(BranchMetricsScrollViewer, MainContentScrollViewer);
+        ScrollInputHelper.EnableVerticalScrollBubbling(BranchWorkspacePillBar, MainContentScrollViewer);
     }
 
     private void ApplyOperationalHighlights(IReadOnlyList<OperationalHighlightItem> highlights)
@@ -553,66 +594,70 @@ public sealed partial class OperationsCommandCenter : UserControl
         AiInsightFeedEmptyText.Visibility = Visibility.Visible;
     }
 
-    private void RebuildBranchTabs(IReadOnlyList<string> branchNames)
+    private void RebuildBranchPills(IReadOnlyList<string> branchNames)
     {
-        _suppressTabSelection = true;
-        BranchWorkspaceTabs.TabItems.Clear();
+        var signature = BuildPillBarSignature(branchNames);
+        var pills = BuildBranchPillItems(branchNames);
 
-        var allBranchesCounts = BranchWorkspaceHelper.SumBranchTabCounts(_branchTabCounts);
-        BranchWorkspaceTabs.TabItems.Add(new TabViewItem
+        if (!string.Equals(signature, _lastPillBarSignature, StringComparison.Ordinal))
         {
-            Header = BranchWorkspaceHelper.FormatBranchTabHeader("All branches", allBranchesCounts),
-            IsClosable = false,
-            Tag = BranchWorkspaceHelper.AllBranchesWorkspaceTag
-        });
+            _lastPillBarSignature = signature;
+            _suppressPillSelection = true;
+            BranchWorkspacePillBar.SetItems(pills, _workspaceBranchKey);
+            _suppressPillSelection = false;
+            return;
+        }
+
+        _suppressPillSelection = true;
+        BranchWorkspacePillBar.SelectBranchKey(_workspaceBranchKey);
+        _suppressPillSelection = false;
+    }
+
+    private string BuildPillBarSignature(IReadOnlyList<string> branchNames)
+    {
+        var allBranchesCounts = BranchWorkspaceHelper.SumBranchTabCounts(_branchTabCounts);
+        var parts = new List<string>
+        {
+            $"all:{allBranchesCounts.OpenCount}:{allBranchesCounts.ImmediateCount}"
+        };
 
         foreach (var branch in branchNames)
         {
             var counts = _branchTabCounts.GetValueOrDefault(branch, new BranchWorkspaceHelper.BranchTabCounts(0, 0));
-            BranchWorkspaceTabs.TabItems.Add(new TabViewItem
-            {
-                Header = BranchWorkspaceHelper.FormatBranchTabHeader(branch, counts),
-                IsClosable = false,
-                Tag = branch
-            });
+            parts.Add($"{branch}:{counts.OpenCount}:{counts.ImmediateCount}");
         }
 
-        BranchWorkspaceTabs.SelectedIndex = ResolveWorkspaceTabIndex(_workspaceBranchKey);
-        _suppressTabSelection = false;
+        return string.Join("|", parts);
     }
 
-    private int ResolveWorkspaceTabIndex(string? workspaceBranchKey)
+    private IReadOnlyList<BranchWorkspacePillItem> BuildBranchPillItems(IReadOnlyList<string> branchNames)
     {
-        if (string.IsNullOrWhiteSpace(workspaceBranchKey))
+        var items = new List<BranchWorkspacePillItem>();
+        var allBranchesCounts = BranchWorkspaceHelper.SumBranchTabCounts(_branchTabCounts);
+        items.Add(CreateBranchPillItem("All branches", null, allBranchesCounts));
+
+        foreach (var branch in branchNames)
         {
-            return 0;
+            var counts = _branchTabCounts.GetValueOrDefault(branch, new BranchWorkspaceHelper.BranchTabCounts(0, 0));
+            items.Add(CreateBranchPillItem(branch, branch, counts));
         }
 
-        for (var index = 0; index < BranchWorkspaceTabs.TabItems.Count; index++)
-        {
-            if (BranchWorkspaceTabs.TabItems[index] is TabViewItem tab &&
-                tab.Tag is string branch &&
-                branch.Equals(workspaceBranchKey, StringComparison.OrdinalIgnoreCase))
-            {
-                return index;
-            }
-        }
-
-        return 0;
+        return items;
     }
 
-    private string? ResolveWorkspaceBranchKeyFromSelectedTab()
-    {
-        var index = BranchWorkspaceTabs.SelectedIndex;
-        if (index < 0 || index >= BranchWorkspaceTabs.TabItems.Count)
+    private static BranchWorkspacePillItem CreateBranchPillItem(
+        string label,
+        string? branchKey,
+        BranchWorkspaceHelper.BranchTabCounts counts) =>
+        new()
         {
-            return null;
-        }
-
-        return BranchWorkspaceTabs.TabItems[index] is TabViewItem tab
-            ? BranchWorkspaceHelper.ResolveWorkspaceBranchKeyFromTabTag(tab.Tag)
-            : null;
-    }
+            BranchLabel = BranchWorkspaceHelper.FormatBranchPillLabel(label),
+            BranchKey = branchKey,
+            OpenCount = counts.OpenCount,
+            UrgentCount = counts.ImmediateCount,
+            BadgeText = BranchWorkspaceHelper.FormatBranchPillBadge(counts),
+            TooltipText = BranchWorkspaceHelper.FormatBranchPillTooltip(label, counts)
+        };
 
     private void ApplyStatusKpis(OperationsStatusSnapshot status)
     {
@@ -660,15 +705,15 @@ public sealed partial class OperationsCommandCenter : UserControl
 
         _workspaceBranchKey = metric.BranchName;
         _showWorkspaceLoading = true;
-        SelectWorkspaceTab(metric.BranchName);
+        SelectWorkspacePill(metric.BranchName);
         _ = RefreshAsync(_professionalInstances, _registry);
     }
 
-    private void SelectWorkspaceTab(string branchName)
+    private void SelectWorkspacePill(string branchName)
     {
-        _suppressTabSelection = true;
-        BranchWorkspaceTabs.SelectedIndex = ResolveWorkspaceTabIndex(branchName);
-        _suppressTabSelection = false;
+        _suppressPillSelection = true;
+        BranchWorkspacePillBar.SelectBranchKey(branchName);
+        _suppressPillSelection = false;
     }
 
     private void RefreshBranchMetricSelection()
@@ -795,19 +840,25 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void AddProfessionalInstanceButton_Click(object sender, RoutedEventArgs e) =>
         ShellNavigationService.Instance.RequestAddInstance();
 
-    private async void RefreshPlatformDataButton_Click(object sender, RoutedEventArgs e)
+    private async void RefreshCommandButton_Click(object sender, RoutedEventArgs e) =>
+        await RunRefreshCommandAsync(RefreshCommandButton).ConfigureAwait(true);
+
+    private async void RefreshPlatformDataButton_Click(object sender, RoutedEventArgs e) =>
+        await RunRefreshCommandAsync(RefreshPlatformDataButton).ConfigureAwait(true);
+
+    private async Task RunRefreshCommandAsync(Button button)
     {
-        RefreshPlatformDataButton.IsEnabled = false;
-        var originalContent = RefreshPlatformDataButton.Content;
-        RefreshPlatformDataButton.Content = "Refreshing…";
+        button.IsEnabled = false;
+        var originalContent = button.Content;
+        button.Content = "Refreshing…";
         try
         {
             await RequestPlatformDataRefreshAsync().ConfigureAwait(true);
         }
         finally
         {
-            RefreshPlatformDataButton.IsEnabled = true;
-            RefreshPlatformDataButton.Content = originalContent;
+            button.IsEnabled = true;
+            button.Content = originalContent;
         }
     }
 

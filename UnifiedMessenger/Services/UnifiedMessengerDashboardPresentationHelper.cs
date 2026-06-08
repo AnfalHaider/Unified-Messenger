@@ -13,6 +13,32 @@ public static class UnifiedMessengerDashboardPresentationHelper
     public static string FormatLatency(double minutes) =>
         minutes <= 0 ? "—" : $"{minutes:0.#}m";
 
+    /// <summary>
+    /// Human-readable waiting duration for SLA and thread cards (e.g. 90m, 24h, 3d 2h).
+    /// </summary>
+    public static string FormatWaitingDuration(double minutes)
+    {
+        if (minutes <= 0)
+        {
+            return "—";
+        }
+
+        if (minutes < 60)
+        {
+            return $"{minutes:0.#}m";
+        }
+
+        if (minutes < 24 * 60)
+        {
+            var hours = minutes / 60d;
+            return hours < 10 ? $"{hours:0.#}h" : $"{Math.Round(hours)}h";
+        }
+
+        var days = (int)(minutes / (24 * 60));
+        var remainingHours = (int)Math.Round((minutes % (24 * 60)) / 60d);
+        return remainingHours > 0 ? $"{days}d {remainingHours}h" : $"{days}d";
+    }
+
     public static string FormatIntentLabel(string? intent) =>
         intent?.Trim() switch
         {

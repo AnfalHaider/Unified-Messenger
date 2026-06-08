@@ -18,7 +18,16 @@ public sealed partial class PersonalOverviewPanel : UserControl
     public PersonalOverviewPanel()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (Content is ScrollViewer rootScrollViewer)
+        {
+            ScrollInputHelper.EnableVerticalScrollBubbling(SummaryCardsGrid, rootScrollViewer);
+        }
     }
 
     public void Refresh(IEnumerable<MessengerInstance> personalInstances)

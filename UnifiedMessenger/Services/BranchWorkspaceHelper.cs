@@ -222,6 +222,15 @@ public static class BranchWorkspaceHelper
             counts.Values.Sum(count => count.ImmediateCount));
     }
 
+    public static string FormatBranchPillLabel(string branchLabel) =>
+        string.IsNullOrWhiteSpace(branchLabel) ? string.Empty : branchLabel.Trim();
+
+    public static string FormatBranchPillBadge(BranchTabCounts counts) =>
+        counts.OpenCount > 0 ? counts.OpenCount.ToString() : string.Empty;
+
+    public static string FormatBranchPillTooltip(string branchLabel, BranchTabCounts counts) =>
+        FormatBranchTabHeader(branchLabel, counts);
+
     public static string FormatBranchTabHeader(string branchLabel, BranchTabCounts counts)
     {
         if (string.IsNullOrWhiteSpace(branchLabel))
