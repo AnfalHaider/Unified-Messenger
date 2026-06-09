@@ -11,7 +11,7 @@
   window.__umWhatsAppAuditorInstalled = true;
 
   if (typeof window.__umInstallThreadStatusAuditor === 'function') {
-    window.__umInstallThreadStatusAuditor('__INSTANCE_ID__', '__PLATFORM__');
+    window.__umInstallThreadStatusAuditor(__INSTANCE_ID__, __PLATFORM__);
     return;
   }
 

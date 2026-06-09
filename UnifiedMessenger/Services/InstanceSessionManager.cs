@@ -14,7 +14,7 @@ namespace UnifiedMessenger.Services;
 /// All sessions share the persistent user data folder from <see cref="WebViewProfileManager.UserDataFolder"/>.
 /// WhatsApp Business instances target <c>https://web.whatsapp.com</c> with auditor scripts for reply verification.
 /// </summary>
-public sealed class InstanceSessionManager
+public sealed class InstanceSessionManager : IInstanceSessionManager
 {
     private static readonly Lazy<InstanceSessionManager> LazyInstance = new(() => new InstanceSessionManager());
 

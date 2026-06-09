@@ -2,7 +2,7 @@ namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -102,6 +102,22 @@ public sealed class AppSettings
     /// </summary>
     public int OccAnalyticsTrendsDismissedSignal { get; set; }
 
+    public List<string> OccActionPanelOrder { get; set; } = OccLayoutDefaults.ActionPanelOrder.ToList();
+
+    public List<string> OccContextPanelOrder { get; set; } = OccLayoutDefaults.ContextPanelOrder.ToList();
+
+    public List<string> OccKpiMetricOrder { get; set; } = OccLayoutDefaults.KpiMetricOrder.ToList();
+
+    public List<string> OccHiddenPanels { get; set; } = [];
+
+    public bool OccBranchPillTeachingDismissed { get; set; }
+
+    public bool OccKanbanColumnTeachingDismissed { get; set; }
+
+    public bool OccLayoutTeachingDismissed { get; set; }
+
+    public bool OccThreadClickTeachingDismissed { get; set; }
+
     /// <summary>
     /// Clamps numeric settings and resets unknown enum values after load or manual edits.
     /// </summary>
@@ -146,5 +162,6 @@ public sealed class AppSettings
         LocalAiModelName = string.IsNullOrWhiteSpace(LocalAiModelName)
             ? "phi3:mini"
             : LocalAiModelName.Trim();
+
     }
 }

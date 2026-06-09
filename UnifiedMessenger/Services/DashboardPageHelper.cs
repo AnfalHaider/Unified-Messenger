@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
@@ -15,21 +14,6 @@ public static class DashboardPageHelper
         IEnumerable<MessengerInstance> professionalInstances,
         string? selectedBranchKey) =>
         BranchWorkspaceHelper.FilterByBranchKey(professionalInstances, selectedBranchKey);
-
-    public static string? ResolveBranchInstanceId(DashboardBranchFilterEntry? entry) =>
-        BranchWorkspaceHelper.ResolveBranchKeyFromEntry(entry);
-
-    public static ObservableCollection<DashboardBranchFilterEntry> BuildBranchFilterCollection(
-        IEnumerable<MessengerInstance> professionalInstances)
-    {
-        var collection = new ObservableCollection<DashboardBranchFilterEntry>();
-        foreach (var entry in BranchWorkspaceHelper.BuildBranchFilterEntries(professionalInstances))
-        {
-            collection.Add(entry);
-        }
-
-        return collection;
-    }
 
     public static ProfessionalDashboardTelemetry CaptureProfessionalDashboardTelemetry(
         IEnumerable<MessengerInstance> professionalInstances,
@@ -206,15 +190,6 @@ public static class DashboardPageHelper
 
     private static string FormatIntentLabel(string? intentCategory) =>
         UnifiedMessengerDashboardPresentationHelper.FormatIntentLabel(intentCategory);
-
-    private static string FormatCustomerIntent(CustomerIntent intent) =>
-        intent switch
-        {
-            CustomerIntent.Booking => "Booking",
-            CustomerIntent.Complaint => "Complaint",
-            CustomerIntent.Spam => "Spam",
-            _ => "Inquiry"
-        };
 
     public static string BuildWelcomeSubtitle(int professionalCount, int personalCount) =>
         (professionalCount, personalCount) switch
@@ -444,7 +419,7 @@ public static class DashboardPageHelper
         emptyReason switch
         {
             PersonalDashboardEmptyReason.NoPersonalAccounts =>
-                "Add a personal messenger account from Settings to start tracking activity here.",
+                "Use Add Instance in the sidebar to connect WhatsApp, Telegram, or another personal messenger.",
             PersonalDashboardEmptyReason.AllAccountsMuted =>
                 "Unmute an account in Settings or the sidebar to see notifications again.",
             PersonalDashboardEmptyReason.NoRecentActivity =>
@@ -509,6 +484,23 @@ public static class DashboardPageHelper
                     ResolveEmptyActivityMessage(false),
                 _ => ResolveEmptyActivityMessage(false)
             };
+
+    public static bool PersonalTileMatches(
+        string displayName,
+        string platformLabel,
+        string detailLine,
+        string? query)
+    {
+        query = CommandPaletteHelper.NormalizeQuery(query);
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        return displayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || platformLabel.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || detailLine.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
 
     public static IReadOnlyList<DashboardSearchMatch> FilterPersonalSearchMatches(
         IEnumerable<MessengerInstance> personalInstances,

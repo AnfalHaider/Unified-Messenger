@@ -114,6 +114,9 @@ public sealed class RichTriageStoreService
 
             var migrated = RichTriageStoreMigrator.Migrate(store);
             var (items, threads) = PruneStoreSnapshot(migrated.Items, migrated.Threads);
+            ThreadDisplayOrderService.Instance.Load(migrated.DisplayOrders);
+            ThreadDisplayOrderService.Instance.PruneOrphans(
+                threads.Select(thread => thread.ThreadId).ToList());
             _suppressPersist = true;
             try
             {
@@ -194,6 +197,18 @@ public sealed class RichTriageStoreService
             cancellationToken).ConfigureAwait(false);
     }
 
+    public void ScheduleDisplayOrderSave()
+    {
+        if (!_isLoaded)
+        {
+            return;
+        }
+
+        SchedulePersist(
+            MessageTriageService.Instance.GetAllItems(),
+            ThreadRegistryService.Instance.GetAllThreads());
+    }
+
     public async Task ClearAsync(CancellationToken cancellationToken = default)
     {
         CancelScheduledSave();
@@ -205,6 +220,7 @@ public sealed class RichTriageStoreService
             MessageTriageService.Instance.DrainPendingQueue();
             MessageTriageService.Instance.RestoreItems([]);
             ThreadRegistryService.Instance.RestoreThreads([]);
+            ThreadDisplayOrderService.Instance.Load([]);
             if (File.Exists(_storePath))
             {
                 File.Delete(_storePath);
@@ -359,11 +375,14 @@ public sealed class RichTriageStoreService
         try
         {
             var pruned = PruneStoreSnapshot(items, threads);
+            ThreadDisplayOrderService.Instance.PruneOrphans(
+                pruned.Threads.Select(thread => thread.ThreadId).ToList());
             var store = RichTriageStoreMigrator.Migrate(new RichTriageStoreFile
             {
                 Version = RichTriageStoreFile.CurrentVersion,
                 Items = pruned.Items,
-                Threads = pruned.Threads
+                Threads = pruned.Threads,
+                DisplayOrders = ThreadDisplayOrderService.Instance.Export()
             });
 
             Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);

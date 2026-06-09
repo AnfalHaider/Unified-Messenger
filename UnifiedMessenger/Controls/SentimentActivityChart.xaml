@@ -13,7 +13,7 @@
             FontSize="12"
             Opacity="0.7"
             Text="Awaiting classified messages" />
-        <Grid x:Name="ChartHost" MinHeight="110" />
+        <Grid x:Name="ChartHost" MinHeight="110" ColumnSpacing="6" />
         <TextBlock
             x:Name="EmptyHint"
             FontSize="12"

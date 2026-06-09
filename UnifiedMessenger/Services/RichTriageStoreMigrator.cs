@@ -26,12 +26,19 @@ public static class RichTriageStoreMigrator
             store.Version = 2;
         }
 
-        if (store.Version < RichTriageStoreFile.CurrentVersion)
+        if (store.Version < 3)
         {
             RepairFirstInboundAtUtc(store);
+            store.Version = 3;
+        }
+
+        if (store.Version < RichTriageStoreFile.CurrentVersion)
+        {
+            store.DisplayOrders ??= [];
             store.Version = RichTriageStoreFile.CurrentVersion;
         }
 
+        store.DisplayOrders ??= [];
         store.Metadata.Branches = BuildBranchCatalog(store.Items, store.Threads);
         store.Metadata.SavedAtUtc = DateTimeOffset.UtcNow;
         return store;

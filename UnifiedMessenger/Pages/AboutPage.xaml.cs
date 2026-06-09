@@ -15,7 +15,9 @@ public sealed partial class AboutPage : Page
         RefreshContent();
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e) => RefreshNavigationChrome();
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+    }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
@@ -26,7 +28,6 @@ public sealed partial class AboutPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        RefreshNavigationChrome();
     }
 
     private void RefreshContent()
@@ -34,18 +35,14 @@ public sealed partial class AboutPage : Page
         VersionText.Text = AboutPageHelper.BuildAboutVersionLabel(typeof(App).Assembly.GetName().Version);
     }
 
-    private void RefreshNavigationChrome()
-    {
-        BackLink.Visibility = AboutPageHelper.ShouldShowBackLink(Frame?.CanGoBack == true)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private void BackLink_Click(object sender, RoutedEventArgs e)
+    private void SettingsBreadcrumb_Click(object sender, RoutedEventArgs e)
     {
         if (Frame?.CanGoBack == true)
         {
             Frame.GoBack();
         }
     }
+
+    private void BackLink_Click(object sender, RoutedEventArgs e) =>
+        SettingsBreadcrumb_Click(sender, e);
 }

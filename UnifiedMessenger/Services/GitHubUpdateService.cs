@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Models;
@@ -11,13 +12,15 @@ namespace UnifiedMessenger.Services;
 /// <summary>
 /// Checks GitHub Releases for a newer installer and applies it silently via Inno Setup.
 /// </summary>
-public sealed class GitHubUpdateService
+public sealed class GitHubUpdateService : IGitHubUpdateService
 {
     internal const string DefaultGitHubOwner = "AnfalHaider";
 
     internal const string DefaultGitHubRepo = "Unified-Messenger";
 
     internal const string SetupAssetName = "UnifiedMessengerSetup.exe";
+
+    internal const string SetupAssetNameArm64 = "UnifiedMessengerSetup-arm64.exe";
 
     internal const string UserAgent = "UnifiedMessenger-Updater/1.0";
 
@@ -28,6 +31,8 @@ public sealed class GitHubUpdateService
     private static readonly HttpClient HttpClient = CreateHttpClient();
 
     public static GitHubUpdateService Instance => LazyInstance.Value;
+
+    public Func<UpdateCheckResult, CancellationToken, Task<bool>>? PromptForUpdateApplicationAsync { get; set; }
 
     public async Task CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
@@ -46,10 +51,24 @@ public sealed class GitHubUpdateService
 
         if (AppSettingsService.Instance.Settings.PromptBeforeAutoUpdate)
         {
-            return;
+            if (PromptForUpdateApplicationAsync is null)
+            {
+                return;
+            }
+
+            var confirmed = await PromptForUpdateApplicationAsync(result, cancellationToken).ConfigureAwait(false);
+            if (!confirmed)
+            {
+                return;
+            }
         }
 
-        await ApplyUpdateAsync(result.DownloadUrl, result.LatestVersion, cancellationToken).ConfigureAwait(false);
+        await ApplyUpdateAsync(
+                result.DownloadUrl,
+                result.LatestVersion,
+                result.ExpectedSha256,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<UpdateCheckResult> CheckForUpdatesManualAsync(CancellationToken cancellationToken = default)
@@ -62,6 +81,7 @@ public sealed class GitHubUpdateService
         var currentVersion = GetCurrentVersion();
         var owner = DefaultGitHubOwner;
         var repo = DefaultGitHubRepo;
+        var setupAssetName = SelectSetupAssetName();
 
         try
         {
@@ -98,7 +118,7 @@ public sealed class GitHubUpdateService
                     UpdateCheckStatus.Failed,
                     currentVersion,
                     latestVersion,
-                    ErrorMessage: $"Release {release.TagName} is missing installer asset '{SetupAssetName}'.");
+                    ErrorMessage: $"Release {release.TagName} is missing installer asset '{setupAssetName}'.");
             }
 
             if (!IsValidDownloadUrl(release.DownloadUrl))
@@ -110,11 +130,16 @@ public sealed class GitHubUpdateService
                     ErrorMessage: "The update download URL is invalid.");
             }
 
+            var sidecarText = await TryFetchSha256SidecarAsync(release.Sha256SidecarUrl, timeoutCts.Token)
+                .ConfigureAwait(false);
+            var expectedSha256 = ResolveExpectedSha256(sidecarText);
+
             return new UpdateCheckResult(
                 UpdateCheckStatus.UpdateAvailable,
                 currentVersion,
                 latestVersion,
-                DownloadUrl: release.DownloadUrl);
+                DownloadUrl: release.DownloadUrl,
+                ExpectedSha256: expectedSha256);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or IOException)
         {
@@ -193,6 +218,11 @@ public sealed class GitHubUpdateService
     internal static string BuildRepositoryUrl(string owner, string repo) =>
         $"https://api.github.com/repos/{owner}/{repo}";
 
+    internal static string SelectSetupAssetName() =>
+        RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+            ? SetupAssetNameArm64
+            : SetupAssetName;
+
     internal static GitHubReleaseInfo? SelectFirstPublishedRelease(JsonElement releasesElement)
     {
         if (releasesElement.ValueKind != JsonValueKind.Array)
@@ -231,7 +261,12 @@ public sealed class GitHubUpdateService
             return null;
         }
 
+        var setupAssetName = SelectSetupAssetName();
+        var shaSidecarName = setupAssetName + ".sha256";
+
         string? downloadUrl = null;
+        string? shaSidecarUrl = null;
+
         if (root.TryGetProperty("assets", out var assetsElement) &&
             assetsElement.ValueKind == JsonValueKind.Array)
         {
@@ -242,21 +277,64 @@ public sealed class GitHubUpdateService
                     continue;
                 }
 
-                if (!SetupAssetName.Equals(nameElement.GetString(), StringComparison.OrdinalIgnoreCase))
+                var assetName = nameElement.GetString();
+                if (string.IsNullOrWhiteSpace(assetName))
                 {
                     continue;
                 }
 
-                if (asset.TryGetProperty("browser_download_url", out var urlElement))
+                if (setupAssetName.Equals(assetName, StringComparison.OrdinalIgnoreCase) &&
+                    asset.TryGetProperty("browser_download_url", out var urlElement))
                 {
                     downloadUrl = urlElement.GetString();
+                    continue;
                 }
 
-                break;
+                if (shaSidecarName.Equals(assetName, StringComparison.OrdinalIgnoreCase) &&
+                    asset.TryGetProperty("browser_download_url", out var shaUrlElement))
+                {
+                    shaSidecarUrl = shaUrlElement.GetString();
+                }
             }
         }
 
-        return new GitHubReleaseInfo(tagName.Trim(), downloadUrl);
+        return new GitHubReleaseInfo(tagName.Trim(), downloadUrl, shaSidecarUrl);
+    }
+
+    internal static async Task<string?> TryFetchSha256SidecarAsync(
+        string? sidecarUrl,
+        CancellationToken cancellationToken)
+    {
+        if (!IsValidDownloadUrl(sidecarUrl))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var response = await HttpClient
+                .GetAsync(sidecarUrl, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
+        {
+            Debug.WriteLine($"SHA-256 sidecar fetch failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    internal static string? ResolveExpectedSha256(string? sidecarText)
+    {
+        return InstallerIntegrityVerifier.TryParseSha256Sidecar(sidecarText, out var sha256Hex)
+            ? sha256Hex
+            : null;
     }
 
     internal static string DescribeUnavailableReleaseSource(
@@ -267,17 +345,18 @@ public sealed class GitHubUpdateService
         var repoUrl = $"https://github.com/{owner}/{repo}";
         var tokenConfigured = tokenConfiguredOverride
             ?? !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(GitHubTokenEnvironmentVariable));
+        var assetName = SelectSetupAssetName();
 
         if (tokenConfigured)
         {
             return
                 $"No accessible release was found for {owner}/{repo}. " +
-                $"Publish a GitHub release with asset '{SetupAssetName}', or verify the token in {GitHubTokenEnvironmentVariable}.";
+                $"Publish a GitHub release with asset '{assetName}', or verify the token in {GitHubTokenEnvironmentVariable}.";
         }
 
         return
             $"Updates are unavailable because {repoUrl} is not public, does not exist yet, or has no published releases. " +
-            $"Create a release on GitHub and attach '{SetupAssetName}' to enable update checks.";
+            $"Create a release on GitHub and attach '{assetName}' to enable update checks.";
     }
 
     internal static bool IsNewerVersion(Version currentVersion, Version latestVersion) =>
@@ -306,11 +385,15 @@ public sealed class GitHubUpdateService
         return client;
     }
 
-    internal sealed record GitHubReleaseInfo(string TagName, string? DownloadUrl);
+    internal sealed record GitHubReleaseInfo(
+        string TagName,
+        string? DownloadUrl,
+        string? Sha256SidecarUrl = null);
 
-    private static async Task ApplyUpdateAsync(
+    private async Task ApplyUpdateAsync(
         string downloadUrl,
         Version latestVersion,
+        string? expectedSha256,
         CancellationToken cancellationToken)
     {
         if (!IsValidDownloadUrl(downloadUrl))
@@ -323,6 +406,23 @@ public sealed class GitHubUpdateService
             $"UnifiedMessengerSetup_{latestVersion}.exe");
 
         await DownloadFileAsync(downloadUrl, installerPath, cancellationToken).ConfigureAwait(false);
+
+        if (!InstallerIntegrityVerifier.TryVerifyDownloadedInstaller(
+                installerPath,
+                expectedSha256,
+                out var verifyError))
+        {
+            try
+            {
+                File.Delete(installerPath);
+            }
+            catch (IOException ex)
+            {
+                Debug.WriteLine($"Could not delete rejected installer: {ex.Message}");
+            }
+
+            throw new InvalidOperationException(verifyError ?? "Installer verification failed.");
+        }
 
         Process.Start(new ProcessStartInfo
         {

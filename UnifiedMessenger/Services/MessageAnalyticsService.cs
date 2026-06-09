@@ -65,7 +65,7 @@ public sealed class OperationalHighlightItem
     public string? ConversationKey { get; init; }
 }
 
-public sealed class MessageAnalyticsService
+public sealed class MessageAnalyticsService : IMessageAnalyticsService
 {
     private const string FileName = "analytics.json";
     private const int MaxReplyLatencies = 500;
@@ -725,6 +725,12 @@ public sealed class MessageAnalyticsService
     {
         Changed?.Invoke(this, EventArgs.Empty);
         ScheduleSave();
+    }
+
+    public async Task FlushAsync(CancellationToken cancellationToken = default)
+    {
+        CancelScheduledSave();
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void CancelScheduledSave()

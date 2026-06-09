@@ -80,8 +80,8 @@ public sealed class PersonalDashboardService
 
     public PersonalDashboardSnapshot BuildSnapshot(
         IEnumerable<MessengerInstance> personalInstances,
-        NotificationHub notificationHub,
-        InstanceSessionManager sessionManager,
+        INotificationHubService notificationHub,
+        IInstanceSessionManager sessionManager,
         ResourceMonitorService resourceMonitor,
         AdapterHealthMonitor healthMonitor,
         InstanceConnectionStatusService? connectionStatusService = null)
@@ -137,7 +137,7 @@ public sealed class PersonalDashboardService
     }
 
     internal static IReadOnlyList<NotificationAlert> GetPersonalAlertsSortedByRecency(
-        NotificationHub notificationHub,
+        INotificationHubService notificationHub,
         IReadOnlySet<string> personalInstanceIds)
     {
         ArgumentNullException.ThrowIfNull(notificationHub);
@@ -152,7 +152,7 @@ public sealed class PersonalDashboardService
     internal static PersonalDashboardEmptyReason ResolveEmptyReason(
         IReadOnlyList<MessengerInstance> personalInstances,
         IReadOnlySet<string> personalInstanceIds,
-        NotificationHub notificationHub)
+        INotificationHubService notificationHub)
     {
         ArgumentNullException.ThrowIfNull(notificationHub);
 
@@ -176,7 +176,7 @@ public sealed class PersonalDashboardService
 
     private static IReadOnlyList<PersonalActivityItem> BuildRecentActivity(
         IReadOnlyDictionary<string, MessengerInstance> instanceLookup,
-        NotificationHub notificationHub,
+        INotificationHubService notificationHub,
         IReadOnlySet<string> personalInstanceIds)
     {
         var activity = new List<PersonalActivityItem>();

@@ -6,21 +6,28 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.ViewModels;
 using Windows.Foundation;
 
 namespace UnifiedMessenger.Controls;
 
 public sealed partial class WorkspaceSidebar : Grid
 {
+    private readonly WorkspaceSidebarViewModel _viewModel = new();
     private readonly Dictionary<string, Border> _instanceRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, InfoBadge> _instanceBadges = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Ellipse> _instanceStatusDots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBlock> _instanceStatusLabels = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextBlock> _instanceTitleLabels = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, UIElement> _menuElementCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<FrameworkElement> _compactHiddenElements = [];
 
     private Border? _dashboardRow;
+    private SidebarMenuPlan? _currentPlan;
     private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
     private bool _isCompact;
-    private readonly List<FrameworkElement> _compactHiddenElements = [];
+
+    public WorkspaceSidebarViewModel ViewModel => _viewModel;
 
     public WorkspaceSidebar()
     {
@@ -53,48 +60,145 @@ public sealed partial class WorkspaceSidebar : Grid
     {
         ArgumentNullException.ThrowIfNull(instances);
 
-        _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(dashboardSelected, selectedInstanceId);
+        _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
+            dashboardSelected,
+            selectedInstanceId,
+            settingsSelected: false);
+        _viewModel.ApplySelection(dashboardSelected, selectedInstanceId, settingsSelected: false);
+
+        var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instances);
+        if (_currentPlan is not null &&
+            WorkspaceSidebarMenuPlanner.HasSameStructure(_currentPlan, plan))
+        {
+            ApplyInstanceContentUpdates(plan);
+            ApplySelectionVisuals();
+            ApplyCompactDisplay();
+            return;
+        }
+
+        SyncMenuStack(plan);
+        _currentPlan = plan;
+        ApplySelectionVisuals();
+        ApplyCompactDisplay();
+    }
+
+    private void ApplyInstanceContentUpdates(SidebarMenuPlan plan)
+    {
+        foreach (var entry in plan.Entries)
+        {
+            if (entry.Kind != SidebarMenuEntryKind.Instance || entry.Instance is null)
+            {
+                continue;
+            }
+
+            var instanceId = entry.Instance.Id.Trim();
+            if (_instanceRows.TryGetValue(instanceId, out var row))
+            {
+                UpdateInstanceRowContent(row, entry.Instance);
+                UpdateInstanceHealth(instanceId, entry.Instance);
+            }
+        }
+    }
+
+    private void SyncMenuStack(SidebarMenuPlan plan)
+    {
         _instanceRows.Clear();
         _instanceBadges.Clear();
         _instanceStatusDots.Clear();
         _instanceStatusLabels.Clear();
+        _instanceTitleLabels.Clear();
         _compactHiddenElements.Clear();
-        MenuStack.Children.Clear();
+        _dashboardRow = null;
 
-        AddSectionHeader("Overview");
-        _dashboardRow = CreateDashboardRow();
-        MenuStack.Children.Add(_dashboardRow);
+        var desiredElements = new List<UIElement>(plan.Entries.Count);
+        var activeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var (professional, personal) = WorkspaceSidebarHelper.PartitionInstances(instances);
-
-        AddSectionHeader("Pro / Business");
-        if (professional.Count == 0)
+        foreach (var entry in plan.Entries)
         {
-            MenuStack.Children.Add(CreateEmptyHint("No business accounts yet."));
+            activeKeys.Add(entry.Key);
+            var element = GetOrCreateMenuElement(entry);
+            desiredElements.Add(element);
         }
-        else
+
+        for (var index = 0; index < desiredElements.Count; index++)
         {
-            foreach (var instance in professional)
+            if (index < MenuStack.Children.Count &&
+                ReferenceEquals(MenuStack.Children[index], desiredElements[index]))
             {
-                MenuStack.Children.Add(CreateInstanceRow(instance));
+                continue;
             }
-        }
 
-        AddSectionHeader("Personal / Life");
-        if (personal.Count == 0)
-        {
-            MenuStack.Children.Add(CreateEmptyHint("No personal accounts yet."));
-        }
-        else
-        {
-            foreach (var instance in personal)
+            if (index < MenuStack.Children.Count)
             {
-                MenuStack.Children.Add(CreateInstanceRow(instance));
+                MenuStack.Children.RemoveAt(index);
             }
+
+            MenuStack.Children.Insert(index, desiredElements[index]);
         }
 
-        ApplySelectionVisuals();
-        ApplyCompactDisplay();
+        while (MenuStack.Children.Count > desiredElements.Count)
+        {
+            MenuStack.Children.RemoveAt(MenuStack.Children.Count - 1);
+        }
+
+        foreach (var staleKey in _menuElementCache.Keys.Where(key => !activeKeys.Contains(key)).ToList())
+        {
+            _menuElementCache.Remove(staleKey);
+        }
+    }
+
+    private UIElement GetOrCreateMenuElement(SidebarMenuEntry entry)
+    {
+        if (_menuElementCache.TryGetValue(entry.Key, out var cached))
+        {
+            if (entry.Kind == SidebarMenuEntryKind.Dashboard && cached is Border dashboardRow)
+            {
+                _dashboardRow = dashboardRow;
+            }
+
+            if (entry.Kind == SidebarMenuEntryKind.Instance && entry.Instance is not null && cached is Border cachedRow)
+            {
+                UpdateInstanceRowContent(cachedRow, entry.Instance);
+                RegisterInstanceRow(entry.Instance, cachedRow);
+            }
+
+            return cached;
+        }
+
+        UIElement created = entry.Kind switch
+        {
+            SidebarMenuEntryKind.SectionHeader => CreateSectionHeader(entry.SectionTitle ?? string.Empty, entry.Key),
+            SidebarMenuEntryKind.Dashboard => CreateDashboardRow(),
+            SidebarMenuEntryKind.EmptyHint => CreateEmptyHint(entry.HintText ?? string.Empty, entry.Key),
+            SidebarMenuEntryKind.Instance when entry.Instance is not null => CreateInstanceRow(entry.Instance),
+            _ => throw new InvalidOperationException($"Unsupported sidebar entry: {entry.Key}")
+        };
+
+        if (created is FrameworkElement frameworkElement)
+        {
+            frameworkElement.Tag = entry.Key;
+        }
+
+        _menuElementCache[entry.Key] = created;
+        return created;
+    }
+
+    private void RegisterInstanceRow(MessengerInstance instance, Border row)
+    {
+        var instanceId = instance.Id.Trim();
+        _instanceRows[instanceId] = row;
+        UpdateInstanceHealth(instanceId, instance);
+    }
+
+    private void UpdateInstanceRowContent(Border row, MessengerInstance instance)
+    {
+        var instanceId = instance.Id.Trim();
+        if (_instanceTitleLabels.TryGetValue(instanceId, out var titleLabel))
+        {
+            titleLabel.Text = instance.DisplayName;
+        }
+
+        ToolTipService.SetToolTip(row, instance.DisplayName);
     }
 
     public void SetCompactDisplay(bool compact)
@@ -130,9 +234,13 @@ public sealed partial class WorkspaceSidebar : Grid
         }
     }
 
-    public void SetSelection(bool dashboardSelected, string? instanceId)
+    public void SetSelection(bool dashboardSelected, string? instanceId, bool settingsSelected = false)
     {
-        _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(dashboardSelected, instanceId);
+        _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
+            dashboardSelected,
+            instanceId,
+            settingsSelected);
+        _viewModel.ApplySelection(dashboardSelected, instanceId, settingsSelected);
         ApplySelectionVisuals();
     }
 
@@ -162,7 +270,8 @@ public sealed partial class WorkspaceSidebar : Grid
 
     public void UpdateNotificationHubBadge(int total)
     {
-        var clampedTotal = WorkspaceSidebarHelper.ClampBadgeCount(total);
+        _viewModel.ApplyNotificationHubBadge(total);
+        var clampedTotal = _viewModel.NotificationHubBadgeCount;
         if (clampedTotal > 0)
         {
             NotificationHubBadge.Value = clampedTotal;
@@ -217,10 +326,11 @@ public sealed partial class WorkspaceSidebar : Grid
         Unloaded -= OnUnloaded;
     }
 
-    private void AddSectionHeader(string title)
+    private UIElement CreateSectionHeader(string title, string key)
     {
         var header = new TextBlock
         {
+            Tag = key,
             Text = title.ToUpperInvariant(),
             FontSize = 11,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
@@ -228,14 +338,15 @@ public sealed partial class WorkspaceSidebar : Grid
             Margin = new Thickness(4, 14, 4, 6),
             CharacterSpacing = 40
         };
-        MenuStack.Children.Add(header);
         _compactHiddenElements.Add(header);
+        return header;
     }
 
-    private TextBlock CreateEmptyHint(string text)
+    private TextBlock CreateEmptyHint(string text, string key)
     {
         var hint = new TextBlock
         {
+            Tag = key,
             Text = text,
             FontSize = 12,
             Opacity = 0.5,
@@ -251,6 +362,7 @@ public sealed partial class WorkspaceSidebar : Grid
         var row = CreateSelectableRow(WorkspaceSidebarHelper.DashboardSelectionKey, null, "Dashboard", "Overview", null);
         AutomationProperties.SetName(row, "Sidebar Dashboard");
         row.PointerPressed += DashboardRow_PointerPressed;
+        _dashboardRow = row;
         return row;
     }
 
@@ -294,8 +406,7 @@ public sealed partial class WorkspaceSidebar : Grid
         row.CanDrag = true;
         row.DragStarting += (_, e) => InstanceRow_DragStarting(e, instanceId, instance.DisplayName);
 
-        _instanceRows[instanceId] = row;
-        UpdateInstanceHealth(instanceId, instance);
+        RegisterInstanceRow(instance, row);
         return row;
     }
 
@@ -351,12 +462,17 @@ public sealed partial class WorkspaceSidebar : Grid
             : (FrameworkElement)CreateFallbackIcon("\uE9D9", accentBrush, 28);
 
         var textPanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
-        textPanel.Children.Add(new TextBlock
+        var titleLabel = new TextBlock
         {
             Text = title,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis
-        });
+        };
+        textPanel.Children.Add(titleLabel);
+        if (!WorkspaceSidebarHelper.IsSelectionMatch(key, WorkspaceSidebarHelper.DashboardSelectionKey))
+        {
+            _instanceTitleLabels[key] = titleLabel;
+        }
         var statusLabel = new TextBlock
         {
             Text = subtitle,
@@ -422,6 +538,22 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             ApplyRowSelection(row, WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, instanceId));
         }
+
+        ApplyFooterButtonSelection(
+            SettingsButton,
+            WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, WorkspaceSidebarHelper.SettingsSelectionKey));
+    }
+
+    private static void ApplyFooterButtonSelection(Button button, bool selected)
+    {
+        button.Background = selected
+            ? Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush
+              ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 243, 243, 243))
+            : new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+
+        button.BorderThickness = selected
+            ? new Thickness(3, 0, 0, 0)
+            : new Thickness(0);
     }
 
     private static void ApplyRowSelection(Border row, bool selected)

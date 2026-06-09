@@ -6,7 +6,6 @@
     CloseButtonText="Cancel"
     DefaultButton="Close"
     PrimaryButtonText="Remove from sidebar"
-    SecondaryButtonText="Permanent delete"
     Title="Remove instance">
 
     <StackPanel MinWidth="380" Spacing="12">
@@ -17,6 +16,12 @@
             Opacity="0.75"
             Text="Remove from sidebar keeps your login session on disk so you can restore the account later without scanning the QR code again."
             TextWrapping="WrapWholeWords" />
+        <Button
+            x:Name="PermanentDeleteButton"
+            HorizontalAlignment="Left"
+            Click="PermanentDeleteButton_Click"
+            Content="Permanent delete…"
+            Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
         <TextBlock
             Foreground="{ThemeResource SystemFillColorCriticalBrush}"
             Text="Permanent delete wipes all cookies, cache, and profile data from disk. This cannot be undone."

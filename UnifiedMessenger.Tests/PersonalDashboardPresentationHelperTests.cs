@@ -84,7 +84,8 @@ public class PersonalDashboardPresentationHelperTests
         });
 
         Assert.True(viewState.ShowInstanceTilesEmptyState);
-        Assert.Contains("add an account", viewState.InstanceTilesEmptyHint, StringComparison.OrdinalIgnoreCase);
+        Assert.True(viewState.ShowNoAccountsEmptyState);
+        Assert.Contains("sidebar", viewState.InstanceTilesEmptyHint, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

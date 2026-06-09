@@ -48,6 +48,7 @@ public static class ApplicationLifecycleService
     {
         try
         {
+            await MessageAnalyticsService.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
             await RichTriageStoreService.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)

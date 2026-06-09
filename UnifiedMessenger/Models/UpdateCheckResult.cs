@@ -12,4 +12,5 @@ public sealed record UpdateCheckResult(
     Version? CurrentVersion = null,
     Version? LatestVersion = null,
     string? ErrorMessage = null,
-    string? DownloadUrl = null);
+    string? DownloadUrl = null,
+    string? ExpectedSha256 = null);

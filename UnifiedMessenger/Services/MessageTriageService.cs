@@ -5,7 +5,7 @@ using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Services;
 
-public sealed class MessageTriageService
+public sealed class MessageTriageService : IMessageTriageService
 {
     private const int MaxQueueCapacity = 64;
     private const int MaxStoredItems = 200;

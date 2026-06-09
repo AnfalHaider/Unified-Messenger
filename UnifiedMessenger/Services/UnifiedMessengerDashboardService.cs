@@ -20,7 +20,7 @@ public sealed class UnifiedMessengerDashboardService
         IEnumerable<MessengerInstance> professionalInstances,
         string? selectedBranchKey = null)
     {
-        ThreadRegistryService.Instance.RefreshOperationalFlags();
+        ThreadRegistryService.Instance.RefreshOperationalFlags(raiseChanged: false);
 
         var instances = professionalInstances
             .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
@@ -39,6 +39,8 @@ public sealed class UnifiedMessengerDashboardService
             .OrderByDescending(thread => thread.LastMessageTime)
             .ToList();
 
+        var displayOrder = ThreadDisplayOrderService.Instance;
+
         var branchNames = BranchWorkspaceHelper.CollectBranchKeys(scopedInstances, threads);
 
         var branchMetrics = branchNames
@@ -51,11 +53,15 @@ public sealed class UnifiedMessengerDashboardService
             .Where(thread => thread.IsRevenueLeakageRisk)
             .Sum(thread => thread.EstimatedValue);
 
-        var immediateQueue = actionableThreads
-            .Where(thread => thread.IsImmediateAction && !thread.IsReplied)
-            .OrderByDescending(thread => thread.UrgencyScore)
-            .ThenByDescending(thread => thread.LatencyMinutes)
+        var immediateQueue = displayOrder
+            .SortImmediateQueue(
+                actionableThreads.Where(thread => thread.IsImmediateAction && !thread.IsReplied))
             .Take(ImmediateActionQueueDisplayLimit)
+            .ToList();
+
+        threads = threads
+            .GroupBy(thread => thread.KanbanColumn)
+            .SelectMany(group => displayOrder.SortThreadsForKanbanColumn(group, group.Key))
             .ToList();
 
         var openThreads = actionableThreads.Count(thread => !thread.IsReplied);

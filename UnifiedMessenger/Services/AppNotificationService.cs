@@ -11,6 +11,10 @@ public sealed class ToastActivationEventArgs : EventArgs
     public string? AlertId { get; init; }
 
     public string? Action { get; init; }
+
+    public string? ConversationKey { get; init; }
+
+    public string? CustomerName { get; init; }
 }
 
 public sealed class AppNotificationService
@@ -72,6 +76,16 @@ public sealed class AppNotificationService
                 .AddArgument("alertId", alert.Id)
                 .AddArgument("instanceId", alert.InstanceId)
                 .SetTag(ResolveToastTag(settings, alert));
+
+            if (!string.IsNullOrWhiteSpace(alert.ConversationKey))
+            {
+                builder.AddArgument("conversationKey", alert.ConversationKey);
+            }
+
+            if (!string.IsNullOrWhiteSpace(alert.CustomerName))
+            {
+                builder.AddArgument("customerName", alert.CustomerName);
+            }
 
             if (settings.ToastGroupByInstance)
             {
@@ -165,12 +179,16 @@ public sealed class AppNotificationService
 
         arguments.TryGetValue("alertId", out var alertId);
         arguments.TryGetValue("action", out var action);
+        arguments.TryGetValue("conversationKey", out var conversationKey);
+        arguments.TryGetValue("customerName", out var customerName);
 
         activation = new ToastActivationEventArgs
         {
             InstanceId = instanceId,
             AlertId = string.IsNullOrWhiteSpace(alertId) ? null : alertId,
-            Action = string.IsNullOrWhiteSpace(action) ? null : action
+            Action = string.IsNullOrWhiteSpace(action) ? null : action,
+            ConversationKey = string.IsNullOrWhiteSpace(conversationKey) ? null : conversationKey,
+            CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName
         };
 
         return true;

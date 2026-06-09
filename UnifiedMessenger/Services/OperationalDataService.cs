@@ -14,6 +14,8 @@ public static class OperationalDataService
         MessageTriageService.Instance.DrainPendingQueue();
         MessageTriageService.Instance.RestoreItems([]);
         ThreadRegistryService.Instance.RestoreThreads([]);
+        ProfessionalWorkspaceService.Instance.ClearOperationalData();
+        NotificationHub.Instance.ClearAlerts();
         BackfillDedupeRegistry.Clear();
         UnifiedMessengerDashboardService.Instance.NotifyChanged();
     }

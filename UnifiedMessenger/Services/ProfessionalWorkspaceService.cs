@@ -465,6 +465,15 @@ public sealed class ProfessionalWorkspaceService
         }
     }
 
+    public void ClearOperationalData()
+    {
+        _reviewAlerts.Clear();
+        _unrepliedByInstance.Clear();
+        _metaInbound.Clear();
+        _metaTelemetryHints.Clear();
+        NotifyChanged();
+    }
+
     private void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
     private sealed class MetaInboundState

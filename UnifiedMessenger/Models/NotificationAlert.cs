@@ -16,9 +16,17 @@ public sealed class NotificationAlert
 
     public string Body { get; init; } = string.Empty;
 
+    public string? ConversationKey { get; init; }
+
+    public string? CustomerName { get; init; }
+
     public DateTimeOffset ReceivedAt { get; init; } = DateTimeOffset.UtcNow;
 
     public bool IsRead { get; set; }
+
+    public bool HasConversationTarget =>
+        !string.IsNullOrWhiteSpace(ConversationKey) ||
+        !string.IsNullOrWhiteSpace(CustomerName);
 
     public string RelativeTimeText => RelativeTimeFormatter.Format(ReceivedAt);
 
@@ -29,7 +37,9 @@ public sealed class NotificationAlert
         string title,
         string? body = null,
         string? iconGlyph = null,
-        string? id = null)
+        string? id = null,
+        string? conversationKey = null,
+        string? customerName = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
 
@@ -46,7 +56,8 @@ public sealed class NotificationAlert
             IconGlyph = string.IsNullOrWhiteSpace(iconGlyph) ? "\uE8BD" : iconGlyph,
             Title = string.IsNullOrWhiteSpace(title) ? displayName : title.Trim(),
             Body = body?.Trim() ?? string.Empty,
-            ReceivedAt = DateTimeOffset.UtcNow
+            ConversationKey = string.IsNullOrWhiteSpace(conversationKey) ? null : conversationKey.Trim(),
+            CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim()
         };
     }
 }

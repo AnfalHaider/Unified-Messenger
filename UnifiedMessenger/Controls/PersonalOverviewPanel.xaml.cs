@@ -3,7 +3,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Presenters;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.ViewModels;
 
 namespace UnifiedMessenger.Controls;
 
@@ -11,15 +13,27 @@ public sealed partial class PersonalOverviewPanel : UserControl
 {
     private const int RefreshDebounceMilliseconds = 300;
 
+    private const int SearchDebounceMilliseconds = 250;
+
+    private readonly PersonalOverviewViewModel _viewModel = new();
+
+    private ApplicationServices _services = new();
+
     private IEnumerable<MessengerInstance> _personalInstances = [];
-    private string? _quickActionInstanceId;
     private DispatcherQueueTimer? _refreshDebounceTimer;
+    private DispatcherQueueTimer? _searchDebounceTimer;
 
     public PersonalOverviewPanel()
     {
         InitializeComponent();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    public void ConfigureServices(ApplicationServices services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        _services = services;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -33,7 +47,7 @@ public sealed partial class PersonalOverviewPanel : UserControl
     public void Refresh(IEnumerable<MessengerInstance> personalInstances)
     {
         _personalInstances = personalInstances;
-        ApplySnapshot(BuildSnapshot(), GlobalSearchBox.Text);
+        _ = RefreshSnapshotAsync(GlobalSearchBox.Text);
     }
 
     public void ScheduleRefresh(IEnumerable<MessengerInstance> personalInstances)
@@ -57,45 +71,65 @@ public sealed partial class PersonalOverviewPanel : UserControl
             _refreshDebounceTimer.Stop();
             _refreshDebounceTimer = null;
         }
+
+        if (_searchDebounceTimer is not null)
+        {
+            _searchDebounceTimer.Tick -= OnSearchDebounceTick;
+            _searchDebounceTimer.Stop();
+            _searchDebounceTimer = null;
+        }
     }
 
     private void OnRefreshDebounceTick(DispatcherQueueTimer sender, object args)
     {
         sender.Stop();
-        ApplySnapshot(BuildSnapshot(), GlobalSearchBox.Text);
+        _ = RefreshSnapshotAsync(GlobalSearchBox.Text);
     }
 
-    private PersonalDashboardSnapshot BuildSnapshot() =>
-        PersonalDashboardService.Instance.BuildSnapshot(
-            _personalInstances,
-            NotificationHub.Instance,
-            InstanceSessionManager.Instance,
-            ResourceMonitorService.Instance,
-            AdapterHealthMonitor.Instance,
-            InstanceConnectionStatusService.Instance);
+    private void OnSearchDebounceTick(DispatcherQueueTimer sender, object args)
+    {
+        sender.Stop();
+        _ = RefreshSnapshotAsync(GlobalSearchBox.Text);
+    }
+
+    private async Task RefreshSnapshotAsync(string? searchQuery)
+    {
+        var instances = _personalInstances.ToList();
+        var snapshot = await Task.Run(() =>
+                PersonalDashboardService.Instance.BuildSnapshot(
+                    instances,
+                    _services.NotificationHub,
+                    _services.SessionManager,
+                    ResourceMonitorService.Instance,
+                    AdapterHealthMonitor.Instance,
+                    InstanceConnectionStatusService.Instance))
+            .ConfigureAwait(true);
+
+        ApplySnapshot(snapshot, searchQuery);
+    }
 
     private void ApplySnapshot(PersonalDashboardSnapshot snapshot, string? searchQuery)
     {
-        var viewState = PersonalDashboardPresentationHelper.BuildViewState(snapshot, searchQuery);
-        _quickActionInstanceId = viewState.QuickAction.InstanceId;
+        var viewState = PersonalSnapshotPresenter.BuildViewState(snapshot, searchQuery);
+        _viewModel.ApplyViewState(viewState);
+        SyncUiFromViewModel();
+        UpdateSearchSuggestions(searchQuery);
+    }
 
-        ActiveAccountsValue.Text = viewState.PersonalAccountCount.ToString();
-        UnreadValue.Text = viewState.TotalUnreadCount.ToString();
-        MemoryValue.Text = $"{viewState.AppWorkingSetMegabytes} MB";
-        VisibleAccountValue.Text = viewState.VisibleInstanceName;
-        PersonalLastUpdatedText.Text = viewState.LastUpdatedText;
+    private void SyncUiFromViewModel()
+    {
+        ActiveAccountsValue.Text = _viewModel.PersonalAccountCount.ToString();
+        UnreadValue.Text = _viewModel.TotalUnreadCount.ToString();
+        MemoryValue.Text = $"{_viewModel.AppWorkingSetMegabytes} MB";
+        VisibleAccountValue.Text = _viewModel.VisibleInstanceName;
+        PersonalLastUpdatedText.Text = _viewModel.LastUpdatedText;
 
-        if (viewState.QuickAction.IsVisible)
-        {
-            OpenBusiestInboxButton.Content = viewState.QuickAction.Label;
-            OpenBusiestInboxButton.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            OpenBusiestInboxButton.Visibility = Visibility.Collapsed;
-        }
+        OpenBusiestInboxButton.Content = _viewModel.QuickActionLabel;
+        OpenBusiestInboxButton.Visibility = _viewModel.ShowQuickAction
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
-        RecentActivityList.ItemsSource = viewState.FilteredActivity
+        RecentActivityList.ItemsSource = _viewModel.ActivityItems
             .Select(item => new PersonalOverviewActivityViewItem
             {
                 Alert = item.Alert,
@@ -109,17 +143,17 @@ public sealed partial class PersonalOverviewPanel : UserControl
             })
             .ToList();
 
-        RecentActivityEmptyTitle.Text = viewState.ActivityEmptyState.Title;
-        RecentActivityEmptyText.Text = viewState.ActivityEmptyState.Hint;
-        RecentActivityEmptyIcon.Glyph = viewState.ActivityEmptyState.IconGlyph;
-        RecentActivityEmptyPanel.Visibility = viewState.ShowActivityList
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-        RecentActivityList.Visibility = viewState.ShowActivityList
+        RecentActivityEmptyTitle.Text = _viewModel.ActivityEmptyTitle;
+        RecentActivityEmptyText.Text = _viewModel.ActivityEmptyHint;
+        RecentActivityEmptyIcon.Glyph = _viewModel.ActivityEmptyIconGlyph;
+        RecentActivityEmptyPanel.Visibility = _viewModel.ShowActivityEmptyState
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        RecentActivityList.Visibility = _viewModel.ShowActivityList
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        InstanceTilesList.ItemsSource = viewState.InstanceTiles
+        InstanceTilesList.ItemsSource = _viewModel.TileItems
             .Select(tile => new PersonalOverviewTileViewItem
             {
                 InstanceId = tile.InstanceId,
@@ -131,21 +165,30 @@ public sealed partial class PersonalOverviewPanel : UserControl
                 IconGlyph = tile.IconGlyph,
                 AccentBrush = PlatformBrandingHelper.GetAccentBrush(tile.AccentColorHex),
                 MutedIndicatorVisibility = tile.IsMuted ? Visibility.Visible : Visibility.Collapsed,
-                UnreadBadgeVisibility = tile.UnreadCount > 0 ? Visibility.Visible : Visibility.Collapsed,
-                UnreadBadgeText = tile.UnreadCount == 1 ? "1 unread" : $"{tile.UnreadCount} unread"
+                UnreadBadgeVisibility = tile.ShowUnreadBadge ? Visibility.Visible : Visibility.Collapsed,
+                UnreadBadgeText = tile.UnreadBadgeText
             })
             .ToList();
 
-        InstanceTilesEmptyText.Text = viewState.InstanceTilesEmptyHint;
-        InstanceTilesEmptyPanel.Visibility = viewState.ShowInstanceTilesEmptyState
+        InstanceTilesEmptyText.Text = _viewModel.InstanceTilesEmptyHint;
+        InstanceTilesEmptyPanel.Visibility = _viewModel.ShowInstanceTilesEmptyState
             ? Visibility.Visible
             : Visibility.Collapsed;
-        InstanceTilesList.Visibility = viewState.ShowInstanceTilesEmptyState
+        InstanceTilesList.Visibility = _viewModel.ShowInstanceTilesEmptyState
             ? Visibility.Collapsed
             : Visibility.Visible;
 
-        UpdateSearchSuggestions(searchQuery);
+        NoAccountsEmptyPanel.Visibility = _viewModel.ShowNoAccountsEmptyState
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        GlobalSearchBox.Visibility = _viewModel.ShowToolbar ? Visibility.Visible : Visibility.Collapsed;
+        SummaryCardsGrid.Visibility = _viewModel.ShowToolbar ? Visibility.Visible : Visibility.Collapsed;
+        PersonalToolbarGrid.Visibility = _viewModel.ShowToolbar ? Visibility.Visible : Visibility.Collapsed;
+        ContentGrid.Visibility = _viewModel.ShowContent ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private void AddPersonalAccountButton_Click(object sender, RoutedEventArgs e) =>
+        _services.Navigation.RequestAddInstance();
 
     private HashSet<string> PersonalInstanceIds =>
         _personalInstances
@@ -160,14 +203,24 @@ public sealed partial class PersonalOverviewPanel : UserControl
             return;
         }
 
-        ApplySnapshot(BuildSnapshot(), sender.Text);
+        ScheduleSearchRefresh();
+    }
+
+    private void ScheduleSearchRefresh()
+    {
+        _searchDebounceTimer ??= DispatcherQueue.CreateTimer();
+        _searchDebounceTimer.Interval = TimeSpan.FromMilliseconds(SearchDebounceMilliseconds);
+        _searchDebounceTimer.Tick -= OnSearchDebounceTick;
+        _searchDebounceTimer.Tick += OnSearchDebounceTick;
+        _searchDebounceTimer.Stop();
+        _searchDebounceTimer.Start();
     }
 
     private void GlobalSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
         if (args.ChosenSuggestion is PersonalOverviewSearchSuggestion suggestion)
         {
-            NavigateFromSearchSuggestion(suggestion);
+            NavigateFromSearchSuggestion(suggestion.InstanceId);
             return;
         }
 
@@ -180,7 +233,7 @@ public sealed partial class PersonalOverviewPanel : UserControl
         var suggestions = BuildSearchSuggestions(query);
         if (suggestions.Count > 0)
         {
-            NavigateFromSearchSuggestion(suggestions[0]);
+            NavigateFromSearchSuggestion(suggestions[0].InstanceId);
         }
     }
 
@@ -188,43 +241,48 @@ public sealed partial class PersonalOverviewPanel : UserControl
     {
         if (args.SelectedItem is PersonalOverviewSearchSuggestion suggestion)
         {
-            NavigateFromSearchSuggestion(suggestion);
+            NavigateFromSearchSuggestion(suggestion.InstanceId);
         }
     }
 
-    private void UpdateSearchSuggestions(string? query) =>
-        GlobalSearchBox.ItemsSource = BuildSearchSuggestions(query);
-
-    private List<PersonalOverviewSearchSuggestion> BuildSearchSuggestions(string? query)
+    private void UpdateSearchSuggestions(string? query)
     {
-        var personalAlerts = NotificationHub.Instance.Alerts
-            .Where(alert => PersonalInstanceIds.Contains(alert.InstanceId));
-
-        return DashboardPageHelper
-            .FilterPersonalSearchMatches(_personalInstances, query, personalAlerts)
-            .Select(match => new PersonalOverviewSearchSuggestion
+        var suggestions = BuildSearchSuggestions(query);
+        _viewModel.ApplySearchSuggestions(suggestions);
+        GlobalSearchBox.ItemsSource = suggestions
+            .Select(suggestion => new PersonalOverviewSearchSuggestion
             {
-                Label = match.Label,
-                SubLabel = match.SubLabel,
-                InstanceId = match.InstanceId,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(match.AccentColorHex)
+                Label = suggestion.Label,
+                SubLabel = suggestion.SubLabel,
+                InstanceId = suggestion.InstanceId,
+                AccentBrush = PlatformBrandingHelper.GetAccentBrush(suggestion.AccentColorHex)
             })
             .ToList();
     }
 
-    private static void NavigateFromSearchSuggestion(PersonalOverviewSearchSuggestion suggestion)
+    private List<PersonalOverviewSearchSuggestionViewModel> BuildSearchSuggestions(string? query)
     {
-        if (!string.IsNullOrWhiteSpace(suggestion.InstanceId))
+        var personalAlerts = _services.NotificationHub.Alerts
+            .Where(alert => PersonalInstanceIds.Contains(alert.InstanceId));
+
+        return PersonalOverviewSearchPresenter
+            .BuildSuggestions(_personalInstances, personalAlerts, query)
+            .ToList();
+    }
+
+    private void NavigateFromSearchSuggestion(string? instanceId)
+    {
+        if (!string.IsNullOrWhiteSpace(instanceId))
         {
-            ShellNavigationService.Instance.RequestInstance(suggestion.InstanceId);
+            _services.Navigation.OpenInstance(instanceId);
         }
     }
 
     private void OpenBusiestInboxButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!string.IsNullOrWhiteSpace(_quickActionInstanceId))
+        if (!string.IsNullOrWhiteSpace(_viewModel.QuickActionInstanceId))
         {
-            ShellNavigationService.Instance.RequestInstance(_quickActionInstanceId);
+            _services.Navigation.OpenInstance(_viewModel.QuickActionInstanceId);
         }
     }
 
@@ -232,7 +290,7 @@ public sealed partial class PersonalOverviewPanel : UserControl
     {
         if (e.ClickedItem is PersonalOverviewActivityViewItem item)
         {
-            ShellNavigationService.Instance.RequestInstance(item.Alert.InstanceId);
+            NotificationNavigationHelper.OpenAlert(_services.Navigation, item.Alert);
         }
     }
 
@@ -240,7 +298,7 @@ public sealed partial class PersonalOverviewPanel : UserControl
     {
         if (e.ClickedItem is PersonalOverviewTileViewItem tile)
         {
-            ShellNavigationService.Instance.RequestInstance(tile.InstanceId);
+            _services.Navigation.OpenInstance(tile.InstanceId);
         }
     }
 

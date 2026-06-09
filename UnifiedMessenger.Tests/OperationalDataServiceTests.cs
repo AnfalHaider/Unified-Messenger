@@ -58,4 +58,18 @@ public class OperationalDataServiceTests
             MessageTriageService.Instance.ResetForTests(originalTriage);
         }
     }
+
+    [Fact]
+    public async Task ClearAllAsync_ClearsNotificationBadgesAndAlerts()
+    {
+        var hub = NotificationHub.Instance;
+        hub.UpdateBadgeCount("wave11-inst", 4);
+        hub.AddAlert(NotificationAlert.Create("wave11-inst", "Work", "slack", "Ping"));
+
+        await OperationalDataService.ClearAllAsync();
+
+        Assert.Empty(hub.Alerts);
+        Assert.Equal(0, hub.GetBadgeCount("wave11-inst"));
+        Assert.Equal(0, hub.TotalUnreadCount);
+    }
 }

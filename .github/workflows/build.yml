@@ -34,7 +34,7 @@ jobs:
         run: dotnet build UnifiedMessenger.sln --configuration ${{ env.CONFIGURATION }} --no-restore -p:Platform=${{ env.PLATFORM }}
 
       - name: Test
-        run: dotnet test UnifiedMessenger.sln --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal -p:Platform=${{ env.PLATFORM }}
+        run: dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal -p:Platform=${{ env.PLATFORM }}
 
   package:
     runs-on: windows-latest
@@ -102,6 +102,15 @@ jobs:
             throw "Missing installer: $path"
           }
 
+      - name: Write installer SHA-256 sidecar
+        shell: pwsh
+        run: |
+          $installer = "dist/${{ matrix.setup_artifact }}"
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sidecar = "$installer.sha256"
+          Set-Content -Path $sidecar -Value "$hash  ${{ matrix.setup_artifact }}" -Encoding ascii -NoNewline
+          Write-Host "Wrote $sidecar"
+
       - name: Upload publish output
         uses: actions/upload-artifact@v4
         with:
@@ -113,28 +122,73 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.rid }}
-          path: dist/${{ matrix.setup_artifact }}
+          path: |
+            dist/${{ matrix.setup_artifact }}
+            dist/${{ matrix.setup_artifact }}.sha256
           if-no-files-found: error
+
+  ui-smoke:
+    runs-on: windows-latest
+    needs: package
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download x64 publish output
+        uses: actions/download-artifact@v4
+        with:
+          name: publish-win-x64
+          path: publish/win-x64
+
+      - name: Build UI smoke harness
+        run: dotnet build UnifiedMessenger.UiSmokeTests/UnifiedMessenger.UiSmokeTests.csproj -c ${{ env.CONFIGURATION }}
+
+      - name: Run UI smoke validation
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/win-x64/UnifiedMessenger.exe"
+          dotnet run --project UnifiedMessenger.UiSmokeTests/UnifiedMessenger.UiSmokeTests.csproj `
+            -c ${{ env.CONFIGURATION }} `
+            --no-build `
+            -- $exe.Path
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
-    needs: verify
+    needs: package
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify committed installers
+      - name: Download x64 installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-win-x64
+          path: dist
+
+      - name: Download ARM64 installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-win-arm64
+          path: dist
+
+      - name: Verify release artifacts
         shell: pwsh
         run: |
           $files = @(
             "dist/UnifiedMessengerSetup.exe",
-            "dist/UnifiedMessengerSetup-arm64.exe"
+            "dist/UnifiedMessengerSetup.exe.sha256",
+            "dist/UnifiedMessengerSetup-arm64.exe",
+            "dist/UnifiedMessengerSetup-arm64.exe.sha256"
           )
           foreach ($file in $files) {
             if (-not (Test-Path $file)) {
-              throw "Release tag must include $file in the repository. Rebuild installers locally, commit dist/, then re-tag."
+              throw "Release package job did not produce $file"
             }
             Write-Host "Found $file ($((Get-Item $file).Length) bytes)"
           }
@@ -149,11 +203,20 @@ jobs:
           $notes = @"
           ## Unified Messenger $tag
 
-          - x64: ``UnifiedMessengerSetup.exe``
-          - ARM64: ``UnifiedMessengerSetup-arm64.exe``
+          Installers built by GitHub Actions from tag ``$tag``.
+
+          - x64: ``UnifiedMessengerSetup.exe`` (+ ``.sha256`` sidecar)
+          - ARM64: ``UnifiedMessengerSetup-arm64.exe`` (+ ``.sha256`` sidecar)
 
           Requires Windows 10 1809+ and WebView2 Runtime.
           "@
+
+          $assets = @(
+            "dist/UnifiedMessengerSetup.exe",
+            "dist/UnifiedMessengerSetup.exe.sha256",
+            "dist/UnifiedMessengerSetup-arm64.exe",
+            "dist/UnifiedMessengerSetup-arm64.exe.sha256"
+          )
 
           $view = gh release view $tag --repo $repo 2>&1
           if ($LASTEXITCODE -eq 0) {
@@ -162,7 +225,9 @@ jobs:
               --repo $repo `
               --clobber `
               dist/UnifiedMessengerSetup.exe `
-              dist/UnifiedMessengerSetup-arm64.exe
+              dist/UnifiedMessengerSetup.exe.sha256 `
+              dist/UnifiedMessengerSetup-arm64.exe `
+              dist/UnifiedMessengerSetup-arm64.exe.sha256
             exit $LASTEXITCODE
           }
 
@@ -171,4 +236,6 @@ jobs:
             --title "Unified Messenger $tag" `
             --notes $notes `
             dist/UnifiedMessengerSetup.exe `
-            dist/UnifiedMessengerSetup-arm64.exe
+            dist/UnifiedMessengerSetup.exe.sha256 `
+            dist/UnifiedMessengerSetup-arm64.exe `
+            dist/UnifiedMessengerSetup-arm64.exe.sha256

@@ -8,8 +8,18 @@ public static class WorkspaceSidebarHelper
 
     public const string DashboardSelectionKey = "dashboard";
 
-    public static string ResolveSelectionKey(bool dashboardSelected, string? instanceId)
+    public const string SettingsSelectionKey = "settings";
+
+    public static string ResolveSelectionKey(
+        bool dashboardSelected,
+        string? instanceId,
+        bool settingsSelected = false)
     {
+        if (settingsSelected)
+        {
+            return SettingsSelectionKey;
+        }
+
         if (dashboardSelected || string.IsNullOrWhiteSpace(instanceId))
         {
             return DashboardSelectionKey;

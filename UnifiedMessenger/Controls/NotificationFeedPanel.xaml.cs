@@ -1,13 +1,17 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Presenters;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.ViewModels;
 
 namespace UnifiedMessenger.Controls;
 
 public sealed partial class NotificationFeedPanel : UserControl
 {
-    private NotificationHub _hub = NotificationHub.Instance;
+    private INotificationHubService _hub = NotificationHub.Instance;
+
+    public NotificationFeedViewModel ViewModel { get; } = new();
 
     public event EventHandler? CollapseRequested;
 
@@ -18,18 +22,30 @@ public sealed partial class NotificationFeedPanel : UserControl
         InitializeComponent();
     }
 
-    public void Refresh(NotificationHub hub, IEnumerable<MessengerInstance>? instances = null)
+    public void Refresh(INotificationHubService hub, IEnumerable<MessengerInstance>? instances = null)
     {
         ArgumentNullException.ThrowIfNull(hub);
 
         _hub = hub;
-        var instanceLookup = NotificationFeedPanelHelper.BuildInstanceLookup(instances);
+        ApplyPresentation(NotificationFeedPresenter.BuildPresentation(hub, instances));
+    }
 
-        var unreadAlerts = hub.UnreadAlertCount;
-        var headerBadgeValue = NotificationFeedPanelHelper.ResolveHeaderBadgeValue(unreadAlerts);
-        if (headerBadgeValue > 0)
+    private void ApplyPresentation(NotificationFeedPresentation presentation)
+    {
+        ViewModel.ClearAllEnabled = presentation.ClearAllEnabled;
+        ViewModel.MarkAllReadEnabled = presentation.MarkAllReadEnabled;
+        ViewModel.ShowAlertList = presentation.ShowAlertList;
+        ViewModel.HeaderBadgeValue = presentation.HeaderBadgeValue;
+        ViewModel.HeaderBadgeVisibility = presentation.ShowHeaderBadge
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        ClearAllButton.IsEnabled = presentation.ClearAllEnabled;
+        MarkAllReadButton.IsEnabled = presentation.MarkAllReadEnabled;
+
+        if (presentation.ShowHeaderBadge)
         {
-            HeaderBadge.Value = headerBadgeValue;
+            HeaderBadge.Value = presentation.HeaderBadgeValue;
             HeaderBadge.Visibility = Visibility.Visible;
         }
         else
@@ -37,26 +53,15 @@ public sealed partial class NotificationFeedPanel : UserControl
             HeaderBadge.Visibility = Visibility.Collapsed;
         }
 
-        var commandStates = NotificationFeedPanelHelper.ResolveCommandStates(
-            hub.Alerts.Count,
-            unreadAlerts);
-        ClearAllButton.IsEnabled = commandStates.ClearEnabled;
-        MarkAllReadButton.IsEnabled = commandStates.MarkAllReadEnabled;
-
-        AlertsList.ItemsSource = NotificationFeedAlertRow.BuildFeedItems(
-            hub.GetAlertsGroupedByInstance(),
-            instanceLookup);
-
-        if (NotificationFeedPanelHelper.ShouldShowAlertList(hub.Alerts.Count))
+        ViewModel.AlertRows.Clear();
+        foreach (var row in presentation.AlertRows)
         {
-            AlertsList.Visibility = Visibility.Visible;
-            EmptyStatePanel.Visibility = Visibility.Collapsed;
+            ViewModel.AlertRows.Add(row);
         }
-        else
-        {
-            AlertsList.Visibility = Visibility.Collapsed;
-            EmptyStatePanel.Visibility = Visibility.Visible;
-        }
+
+        AlertsList.ItemsSource = ViewModel.AlertRows;
+        AlertsList.Visibility = presentation.ShowAlertList ? Visibility.Visible : Visibility.Collapsed;
+        EmptyStatePanel.Visibility = presentation.ShowAlertList ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void CollapseButton_Click(object sender, RoutedEventArgs e) =>
@@ -65,7 +70,10 @@ public sealed partial class NotificationFeedPanel : UserControl
     private void MarkAllReadButton_Click(object sender, RoutedEventArgs e) =>
         _hub.MarkAllAlertsRead();
 
-    private async void ClearAllButton_Click(object sender, RoutedEventArgs e)
+    private async void ClearAllButton_Click(object sender, RoutedEventArgs e) =>
+        await ClearAllWithConfirmationAsync();
+
+    internal async Task ClearAllWithConfirmationAsync()
     {
         if (_hub.Alerts.Count == 0)
         {
@@ -81,7 +89,7 @@ public sealed partial class NotificationFeedPanel : UserControl
         var confirm = new ContentDialog
         {
             Title = "Clear all notifications?",
-            Content = "This removes every alert from the notification panel.",
+            Content = "This removes every alert from the notification panel and resets unread sidebar badges.",
             PrimaryButtonText = "Clear all",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,

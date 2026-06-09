@@ -8,6 +8,7 @@ using UnifiedMessenger.Dialogs;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Pages;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.ViewModels;
 using Windows.System;
 using Windows.UI.Shell;
 
@@ -15,21 +16,23 @@ namespace UnifiedMessenger;
 
 public sealed partial class MainWindow : Window
 {
-    private readonly InstanceRegistryService _registry = new();
-    private readonly InstanceSessionManager _sessionManager = InstanceSessionManager.Instance;
-    private readonly NotificationHub _notificationHub = NotificationHub.Instance;
+    private readonly ApplicationServices _services = new();
+    private readonly MainWindowViewModel _shellViewModel = new();
     private readonly AdapterHealthMonitor _adapterHealth = AdapterHealthMonitor.Instance;
     private readonly KeyboardShortcutService _keyboardShortcuts;
     private bool _notificationPanelVisible;
     private bool _panePinned;
     private bool _sidebarHoverExpanded;
     private bool _isDashboardSelected = true;
+    private bool _isSettingsSelected;
     private string? _selectedInstanceId;
     private bool _isWindowActivated = true;
     private bool _isWindowVisible = true;
     private bool _pendingPanelReveal;
-    private int _slaThresholdMinutes = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+    private int _slaThresholdMinutes;
     private bool _forceShutdown;
+    private bool _trackingStartupWarm;
+    private int _startupWarmCompleted;
 
     private bool IsAppInForeground =>
         MainWindowShellLayout.IsAppInForeground(_isWindowVisible, _isWindowActivated);
@@ -37,11 +40,13 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _services.ConfigureUi(() => Content.XamlRoot);
+        _slaThresholdMinutes = _services.AppSettings.Settings.SlaThresholdMinutes;
 
         _keyboardShortcuts = new KeyboardShortcutService((UIElement)Content);
         RegisterKeyboardShortcuts();
 
-        _sessionManager.AttachHost(InstanceWebViewHost);
+        _services.SessionManager.AttachHost(InstanceWebViewHost);
 
         WorkspaceSidebar.DashboardRequested += WorkspaceSidebar_DashboardRequested;
         WorkspaceSidebar.InstanceRequested += WorkspaceSidebar_InstanceRequested;
@@ -63,17 +68,17 @@ public sealed partial class MainWindow : Window
 
         NotificationPanel.CollapseRequested += NotificationPanel_CollapseRequested;
         NotificationPanel.AlertClicked += NotificationPanel_AlertClicked;
-        _notificationHub.Changed += OnNotificationHubChanged;
+        _services.NotificationHub.Changed += OnNotificationHubChanged;
         AppNotificationService.Instance.ActivationRequested += OnToastActivationRequested;
         _adapterHealth.Changed += OnAdapterHealthChanged;
         _adapterHealth.AdapterStaleDetected += OnAdapterStaleDetected;
         InstanceConnectionStatusService.Instance.Changed += OnConnectionStatusChanged;
-        _sessionManager.SessionInitializing += OnSessionInitializing;
-        _sessionManager.SessionFailed += OnSessionFailed;
+        _services.SessionManager.SessionInitializing += OnSessionInitializing;
+        _services.SessionManager.SessionFailed += OnSessionFailed;
         AutoDraftOrchestrator.Instance.DraftCompleted += OnAutoDraftCompleted;
         AttachShellNavigationHandlers();
-        MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
-        AppSettingsService.Instance.Changed += OnAppSettingsChanged;
+        _services.MessageAnalytics.Changed += OnAnalyticsChanged;
+        _services.AppSettings.Changed += OnAppSettingsChanged;
 
         WorkspaceSidebar.Loaded += WorkspaceSidebar_Loaded;
     }
@@ -100,7 +105,7 @@ public sealed partial class MainWindow : Window
 
     private void AttachShellNavigationHandlers()
     {
-        var shell = ShellNavigationService.Instance;
+        var shell = _services.Navigation;
         shell.InstanceNavigationRequested += OnShellInstanceNavigationRequested;
         shell.DashboardRefreshRequested += OnShellDashboardRefreshRequested;
         shell.ArchivedInstanceRestoreRequested += OnArchivedInstanceRestoreRequested;
@@ -111,7 +116,7 @@ public sealed partial class MainWindow : Window
 
     private void DetachShellNavigationHandlers()
     {
-        var shell = ShellNavigationService.Instance;
+        var shell = _services.Navigation;
         shell.InstanceNavigationRequested -= OnShellInstanceNavigationRequested;
         shell.DashboardRefreshRequested -= OnShellDashboardRefreshRequested;
         shell.ArchivedInstanceRestoreRequested -= OnArchivedInstanceRestoreRequested;
@@ -194,13 +199,13 @@ public sealed partial class MainWindow : Window
 
         NotificationPanel.CollapseRequested -= NotificationPanel_CollapseRequested;
         NotificationPanel.AlertClicked -= NotificationPanel_AlertClicked;
-        _notificationHub.Changed -= OnNotificationHubChanged;
+        _services.NotificationHub.Changed -= OnNotificationHubChanged;
         AppNotificationService.Instance.ActivationRequested -= OnToastActivationRequested;
         _adapterHealth.Changed -= OnAdapterHealthChanged;
         _adapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;
         InstanceConnectionStatusService.Instance.Changed -= OnConnectionStatusChanged;
-        _sessionManager.SessionInitializing -= OnSessionInitializing;
-        _sessionManager.SessionFailed -= OnSessionFailed;
+        _services.SessionManager.SessionInitializing -= OnSessionInitializing;
+        _services.SessionManager.SessionFailed -= OnSessionFailed;
         AutoDraftOrchestrator.Instance.DraftCompleted -= OnAutoDraftCompleted;
         MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
         AppSettingsService.Instance.Changed -= OnAppSettingsChanged;
@@ -244,8 +249,8 @@ public sealed partial class MainWindow : Window
             }
 
             ApplyNotificationPanelDockLayout();
-            _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_notificationHub.TotalUnreadCount);
-            _ = _sessionManager.BroadcastAdapterSettingsAsync();
+            _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_services.NotificationHub.TotalUnreadCount);
+            _ = _services.SessionManager.BroadcastAdapterSettingsAsync();
         });
     }
 
@@ -295,7 +300,7 @@ public sealed partial class MainWindow : Window
 
     private IReadOnlyList<MessengerInstance> GetSidebarOrderedInstances()
     {
-        return _registry.GetOrderedInstances().ToList();
+        return _services.Registry.GetOrderedInstances().ToList();
     }
 
     private void OpenCommandPalette()
@@ -345,7 +350,7 @@ public sealed partial class MainWindow : Window
             }
         };
 
-        foreach (var instance in _registry.GetOrderedInstances())
+        foreach (var instance in _services.Registry.GetOrderedInstances())
         {
             var platform = PlatformDefinition.FindById(instance.Platform);
             entries.Add(new CommandPaletteEntry
@@ -361,7 +366,7 @@ public sealed partial class MainWindow : Window
             });
         }
 
-        foreach (var alert in _notificationHub.GetAlertsSortedByInstance().Take(20))
+        foreach (var alert in _services.NotificationHub.GetAlertsSortedByInstance().Take(20))
         {
             entries.Add(new CommandPaletteEntry
             {
@@ -380,6 +385,24 @@ public sealed partial class MainWindow : Window
         return entries;
     }
 
+    private async Task ConfirmClearNotificationsAsync()
+    {
+        if (_services.NotificationHub.Alerts.Count == 0)
+        {
+            return;
+        }
+
+        var confirmed = await _services.Dialog.ConfirmAsync(
+            "Clear all notifications?",
+            "This removes every alert from the notification panel and resets unread sidebar badges.",
+            "Clear all");
+
+        if (confirmed)
+        {
+            _services.NotificationHub.ClearAlerts();
+        }
+    }
+
     private void CommandPaletteOverlay_ItemSelected(object? sender, CommandPaletteSelection selection)
     {
         switch (selection.Action)
@@ -394,10 +417,10 @@ public sealed partial class MainWindow : Window
                 SetNotificationPanelVisible(!_notificationPanelVisible);
                 break;
             case CommandPaletteAction.MarkAllRead:
-                _notificationHub.MarkAllAlertsRead();
+                _services.NotificationHub.MarkAllAlertsRead();
                 break;
             case CommandPaletteAction.ClearNotifications:
-                _notificationHub.ClearAlerts();
+                _ = ConfirmClearNotificationsAsync();
                 break;
             case CommandPaletteAction.OpenInstance:
                 if (!string.IsNullOrWhiteSpace(selection.InstanceId))
@@ -409,7 +432,7 @@ public sealed partial class MainWindow : Window
             case CommandPaletteAction.OpenAlert:
                 if (!string.IsNullOrWhiteSpace(selection.AlertId))
                 {
-                    _notificationHub.MarkAlertRead(selection.AlertId);
+                    _services.NotificationHub.MarkAlertRead(selection.AlertId);
                 }
 
                 if (!string.IsNullOrWhiteSpace(selection.InstanceId))
@@ -431,7 +454,7 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                var restored = await _registry.RestoreArchivedInstanceAsync(instanceId);
+                var restored = await _services.Registry.RestoreArchivedInstanceAsync(instanceId);
                 RebuildInstanceNavigation();
                 RefreshDashboardIfVisible();
 
@@ -460,7 +483,7 @@ public sealed partial class MainWindow : Window
     private async Task InitializeAsync()
     {
         await AppSettingsService.Instance.LoadAsync().ConfigureAwait(true);
-        await _registry.LoadAsync().ConfigureAwait(true);
+        await _services.Registry.LoadAsync().ConfigureAwait(true);
         await MessageAnalyticsService.Instance.LoadAsync().ConfigureAwait(true);
         var loadResult = await RichTriageStoreService.Instance.LoadAsync().ConfigureAwait(true);
         if (loadResult.Status == RichTriageStoreLoadStatus.CorruptRecovered &&
@@ -479,13 +502,16 @@ public sealed partial class MainWindow : Window
 
         await WarmUpWebViewEnvironmentAsync().ConfigureAwait(true);
 
-        var instances = _registry.Instances;
+        var instances = _services.Registry.Instances.ToList();
         if (instances.Count > 0)
         {
-            SetInstanceLoading(true, "Starting accounts...");
+            _trackingStartupWarm = true;
+            _startupWarmCompleted = 0;
+            _shellViewModel.BeginStartupWarm(instances.Count);
+            ApplyInstanceLoadingUi();
             try
             {
-                await _sessionManager.WarmAllSessionsAsync(instances, visibleInstanceId: null)
+                await _services.SessionManager.WarmAllSessionsAsync(instances, visibleInstanceId: null)
                     .ConfigureAwait(true);
             }
             catch (Exception ex)
@@ -494,7 +520,9 @@ public sealed partial class MainWindow : Window
             }
             finally
             {
-                SetInstanceLoading(false, null);
+                _trackingStartupWarm = false;
+                _shellViewModel.ResetStartupWarmProgress();
+                ApplyInstanceLoadingUi();
             }
         }
 
@@ -504,6 +532,31 @@ public sealed partial class MainWindow : Window
         SystemTrayService.Instance.Attach(this);
         GlobalHotkeyService.Instance.EnsureRegistered();
         GlobalHotkeyService.Instance.CtrlSpacePressed += OnGlobalCopilotHotkey;
+
+        GitHubUpdateService.Instance.PromptForUpdateApplicationAsync = PromptForAutoUpdateAsync;
+    }
+
+    private async Task<bool> PromptForAutoUpdateAsync(UpdateCheckResult result, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var current = result.CurrentVersion?.ToString() ?? "unknown";
+        var latest = result.LatestVersion?.ToString() ?? "unknown";
+
+        var dialog = new ContentDialog
+        {
+            Title = "Install update?",
+            Content =
+                $"A newer version ({latest}) is available. You are running {current}.\n\n" +
+                "Unified Messenger will download the installer, verify its signature, and restart to apply the update.",
+            PrimaryButtonText = "Install now",
+            CloseButtonText = "Not now",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = Content.XamlRoot
+        };
+
+        var dialogResult = await dialog.ShowAsync();
+        return dialogResult == ContentDialogResult.Primary;
     }
 
     private void OnGlobalCopilotHotkey(object? sender, EventArgs e)
@@ -572,7 +625,7 @@ public sealed partial class MainWindow : Window
         {
             try
             {
-                await _sessionManager.RecoverStaleAdapterAsync(instanceId);
+                await _services.SessionManager.RecoverStaleAdapterAsync(instanceId);
                 RefreshAdapterHealthIndicators();
             }
             finally
@@ -586,7 +639,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            await _registry.ReorderInstanceBeforeAsync(args.SourceInstanceId, args.TargetInstanceId);
+            await _services.Registry.ReorderInstanceBeforeAsync(args.SourceInstanceId, args.TargetInstanceId);
             RebuildInstanceNavigation();
             RestoreSidebarSelection();
         }
@@ -612,41 +665,82 @@ public sealed partial class MainWindow : Window
 
         await Task.Delay(900).ConfigureAwait(true);
 
-        var instance = _registry.FindById(request.InstanceId);
+        var instance = _services.Registry.FindById(request.InstanceId);
         if (instance is null)
         {
             return;
         }
 
-        var platform = JsonSerializer.Serialize(PlatformDefinition.NormalizePlatformId(instance.Platform));
-        var conversationKey = JsonSerializer.Serialize(request.ConversationKey ?? string.Empty);
-        var customerName = JsonSerializer.Serialize(request.CustomerName ?? string.Empty);
-        var script =
-            $"window.__umFocusConversation && window.__umFocusConversation({platform}, {conversationKey}, {customerName});";
+        var focused = await TryFocusConversationAsync(
+                instance,
+                request.ConversationKey,
+                request.CustomerName)
+            .ConfigureAwait(true);
 
-        await _sessionManager.ExecuteScriptOnInstanceAsync(request.InstanceId, script).ConfigureAwait(true);
+        if (!focused)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+                _ = ShowErrorDialogAsync(
+                    "Could not open conversation",
+                    "The account opened, but Unified Messenger could not focus the requested chat. Open it manually in the inbox."));
+        }
+    }
+
+    private async Task<bool> TryFocusConversationAsync(
+        MessengerInstance instance,
+        string? conversationKey,
+        string? customerName)
+    {
+        try
+        {
+            var script = WebViewScriptBuilder.BuildFunctionCall(
+                "__umFocusConversation",
+                [
+                    PlatformDefinition.NormalizePlatformId(instance.Platform),
+                    conversationKey ?? string.Empty,
+                    customerName ?? string.Empty
+                ]);
+
+            var rawResult = await _services.SessionManager
+                .TryExecuteScriptOnInstanceAsync(instance.Id, script)
+                .ConfigureAwait(true);
+
+            return ParseScriptBoolean(rawResult);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Conversation focus failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static bool ParseScriptBoolean(string? scriptResult)
+    {
+        if (string.IsNullOrWhiteSpace(scriptResult))
+        {
+            return false;
+        }
+
+        var normalized = scriptResult.Trim().Trim('"');
+        return normalized.Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task ShowDashboardAsync()
     {
         _isDashboardSelected = true;
+        _isSettingsSelected = false;
         _selectedInstanceId = null;
         WorkspaceSidebar.SetSelection(true, null);
 
-        await _sessionManager.HideVisibleSessionAsync();
+        await _services.SessionManager.HideVisibleSessionAsync();
         InstanceWebViewHost.Visibility = Visibility.Collapsed;
         SetInstanceLoading(false, null);
         ContentFrame.Visibility = Visibility.Visible;
 
-        var navArgs = new RegistryNavigationArgs { Registry = _registry };
+        var navArgs = PageServices.CreateRegistryArgs(_services);
         ContentFrame.Navigate(typeof(DashboardPage), navArgs);
         ActiveWorkspaceContext.SetDashboardVisible();
         AppTitleBar.Subtitle = "Dashboard";
-
-        if (ContentFrame.Content is DashboardPage dashboard)
-        {
-            dashboard.RefreshAll();
-        }
     }
 
     private async Task WarmUpWebViewEnvironmentAsync()
@@ -698,14 +792,14 @@ public sealed partial class MainWindow : Window
 
     private void RebuildInstanceNavigation()
     {
-        _notificationHub.SyncMutedInstances(_registry.Instances);
+        _services.NotificationHub.SyncMutedInstances(_services.Registry.Instances);
 
         WorkspaceSidebar.Refresh(
-            _registry.Instances,
+            _services.Registry.Instances,
             _selectedInstanceId,
             _isDashboardSelected);
 
-        foreach (var instance in _registry.Instances)
+        foreach (var instance in _services.Registry.Instances)
         {
             UpdateInstanceBadge(instance.Id);
             WorkspaceSidebar.UpdateInstanceHealth(instance.Id, instance);
@@ -742,7 +836,7 @@ public sealed partial class MainWindow : Window
         flyout.Items.Add(muteItem);
 
         var refreshItem = new MenuFlyoutItem { Text = "Refresh WebView" };
-        refreshItem.Click += (_, _) => _ = _sessionManager.ReloadSessionAsync(args.InstanceId);
+        refreshItem.Click += (_, _) => _ = _services.SessionManager.ReloadSessionAsync(args.InstanceId);
         flyout.Items.Add(refreshItem);
 
         var memoryFlyout = new MenuFlyoutSubItem { Text = "Memory tier" };
@@ -757,7 +851,7 @@ public sealed partial class MainWindow : Window
             {
                 if (tierItem.Tag is MemoryTierPreference selectedTier)
                 {
-                    await _registry.UpdateInstanceMemoryTierAsync(args.InstanceId, selectedTier);
+                    await _services.Registry.UpdateInstanceMemoryTierAsync(args.InstanceId, selectedTier);
                     RebuildInstanceNavigation();
                 }
             };
@@ -797,7 +891,7 @@ public sealed partial class MainWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            var instance = _registry.FindById(e.InstanceId);
+            var instance = _services.Registry.FindById(e.InstanceId);
             if (instance is not null)
             {
                 instance.Status = e.Status;
@@ -816,6 +910,16 @@ public sealed partial class MainWindow : Window
         e.Instance.Status = InstanceConnectionStatus.Initializing;
         DispatcherQueue.TryEnqueue(() =>
         {
+            if (_trackingStartupWarm)
+            {
+                _startupWarmCompleted++;
+                _shellViewModel.ReportStartupWarmProgress(
+                    _startupWarmCompleted,
+                    _shellViewModel.StartupWarmTotal,
+                    e.Instance.DisplayName);
+                ApplyInstanceLoadingUi();
+            }
+
             WorkspaceSidebar.UpdateInstanceHealth(e.Instance.Id, e.Instance);
             RefreshDashboardIfVisible();
         });
@@ -834,7 +938,7 @@ public sealed partial class MainWindow : Window
 
     private void RefreshAdapterHealthIndicators()
     {
-        foreach (var instance in _registry.Instances)
+        foreach (var instance in _services.Registry.Instances)
         {
             InstanceConnectionStatusService.Instance.MirrorStatusToInstance(instance);
             WorkspaceSidebar.UpdateInstanceHealth(instance.Id, instance);
@@ -845,7 +949,7 @@ public sealed partial class MainWindow : Window
 
     private async Task ToggleInstanceCategoryAsync(string instanceId)
     {
-        var instance = _registry.FindById(instanceId);
+        var instance = _services.Registry.FindById(instanceId);
         if (instance is null)
         {
             return;
@@ -857,7 +961,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            await _registry.UpdateInstanceCategoryAsync(instanceId, newCategory);
+            await _services.Registry.UpdateInstanceCategoryAsync(instanceId, newCategory);
             RebuildInstanceNavigation();
             RefreshDashboardIfVisible();
             RestoreSidebarSelection();
@@ -870,7 +974,7 @@ public sealed partial class MainWindow : Window
 
     private async Task RenameInstanceAsync(string instanceId)
     {
-        var instance = _registry.FindById(instanceId);
+        var instance = _services.Registry.FindById(instanceId);
         if (instance is null)
         {
             return;
@@ -889,7 +993,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            await _registry.UpdateInstanceDisplayNameAsync(instanceId, dialog.ResultDisplayName);
+            await _services.Registry.UpdateInstanceDisplayNameAsync(instanceId, dialog.ResultDisplayName);
             RebuildInstanceNavigation();
             RefreshDashboardIfVisible();
             RestoreSidebarSelection();
@@ -902,7 +1006,7 @@ public sealed partial class MainWindow : Window
 
     private async Task EditInstanceMetadataAsync(string instanceId)
     {
-        var instance = _registry.FindById(instanceId);
+        var instance = _services.Registry.FindById(instanceId);
         if (instance is null)
         {
             return;
@@ -922,9 +1026,30 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        if (!dialog.ResultPlatformId.Equals(instance.Platform, StringComparison.OrdinalIgnoreCase))
+        {
+            var confirm = new ContentDialog
+            {
+                Title = "Change platform?",
+                Content =
+                    $"Switching from {PlatformDefinition.FindById(instance.Platform)?.DisplayName ?? instance.Platform} " +
+                    $"to {PlatformDefinition.FindById(dialog.ResultPlatformId)?.DisplayName ?? dialog.ResultPlatformId} " +
+                    "may require signing in again in the embedded web app.",
+                PrimaryButtonText = "Change platform",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = Content.XamlRoot
+            };
+
+            if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+        }
+
         try
         {
-            await _registry.UpdateInstanceMetadataAsync(
+            await _services.Registry.UpdateInstanceMetadataAsync(
                 instanceId,
                 dialog.ResultDisplayName,
                 dialog.ResultStartUrl,
@@ -932,7 +1057,7 @@ public sealed partial class MainWindow : Window
                 dialog.ResultNotes,
                 dialog.ResultBranchKey);
 
-            await _sessionManager.ReloadSessionAsync(instanceId);
+            await _services.SessionManager.ReloadSessionAsync(instanceId);
             RebuildInstanceNavigation();
             RefreshDashboardIfVisible();
             RestoreSidebarSelection();
@@ -945,7 +1070,7 @@ public sealed partial class MainWindow : Window
 
     private async Task ToggleInstanceMuteAsync(string instanceId)
     {
-        var instance = _registry.FindById(instanceId);
+        var instance = _services.Registry.FindById(instanceId);
         if (instance is null)
         {
             return;
@@ -954,10 +1079,10 @@ public sealed partial class MainWindow : Window
         try
         {
             var muted = !instance.NotificationsMuted;
-            await _registry.UpdateInstanceNotificationsMutedAsync(instanceId, muted);
+            await _services.Registry.UpdateInstanceNotificationsMutedAsync(instanceId, muted);
             if (muted)
             {
-                _notificationHub.UpdateBadgeCount(instanceId, 0);
+                _services.NotificationHub.UpdateBadgeCount(instanceId, 0);
             }
 
             RebuildInstanceNavigation();
@@ -973,7 +1098,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            await _registry.MoveInstanceAsync(instanceId, direction);
+            await _services.Registry.MoveInstanceAsync(instanceId, direction);
             RebuildInstanceNavigation();
             RestoreSidebarSelection();
         }
@@ -985,23 +1110,23 @@ public sealed partial class MainWindow : Window
 
     private void UpdateInstanceBadge(string instanceId)
     {
-        var instance = _registry.FindById(instanceId);
+        var instance = _services.Registry.FindById(instanceId);
         var count = instance?.NotificationsMuted == true
             ? 0
-            : _notificationHub.GetBadgeCount(instanceId);
+            : _services.NotificationHub.GetBadgeCount(instanceId);
         WorkspaceSidebar.UpdateInstanceBadge(instanceId, count, instance);
     }
 
     private void RefreshNotificationUi()
     {
-        foreach (var instance in _registry.Instances)
+        foreach (var instance in _services.Registry.Instances)
         {
             UpdateInstanceBadge(instance.Id);
         }
 
-        WorkspaceSidebar.UpdateNotificationHubBadge(_notificationHub.TotalUnreadCount);
-        NotificationPanel.Refresh(_notificationHub, _registry.Instances);
-        _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_notificationHub.TotalUnreadCount);
+        WorkspaceSidebar.UpdateNotificationHubBadge(_services.NotificationHub.TotalUnreadCount);
+        NotificationPanel.Refresh(_services.NotificationHub, _services.Registry.Instances);
+        _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_services.NotificationHub.TotalUnreadCount);
 
         if (ContentFrame.Content is DashboardPage dashboard)
         {
@@ -1032,7 +1157,7 @@ public sealed partial class MainWindow : Window
                 _pendingPanelReveal = true;
                 if (AppSettingsService.Instance.Settings.EnableBackgroundToasts)
                 {
-                    var instance = _registry.FindById(e.Alert.InstanceId);
+                    var instance = _services.Registry.FindById(e.Alert.InstanceId);
                     AppNotificationService.Instance.ShowAlertToast(e.Alert, instance);
                 }
             }
@@ -1041,19 +1166,22 @@ public sealed partial class MainWindow : Window
 
     private void OnToastActivationRequested(object? sender, ToastActivationEventArgs e)
     {
-        DispatcherQueue.TryEnqueue(async () =>
+        DispatcherQueue.TryEnqueue(() =>
         {
             Activate();
             AppWindow.Show();
 
+            NotificationAlert? alert = null;
             if (!string.IsNullOrWhiteSpace(e.AlertId))
             {
-                _notificationHub.MarkAlertRead(e.AlertId);
+                _services.NotificationHub.MarkAlertRead(e.AlertId);
+                alert = _services.NotificationHub.Alerts
+                    .FirstOrDefault(item => item.Id.Equals(e.AlertId, StringComparison.OrdinalIgnoreCase));
             }
 
-            if (_registry.FindById(e.InstanceId) is not null)
+            if (_services.Registry.FindById(e.InstanceId) is not null)
             {
-                await SelectInstanceAsync(e.InstanceId);
+                NotificationNavigationHelper.OpenToastActivation(_services.Navigation, e, alert);
             }
 
             if (!_notificationPanelVisible)
@@ -1122,16 +1250,17 @@ public sealed partial class MainWindow : Window
     private async Task ShowSettingsAsync()
     {
         _isDashboardSelected = false;
+        _isSettingsSelected = true;
         _selectedInstanceId = null;
-        WorkspaceSidebar.SetSelection(false, null);
+        WorkspaceSidebar.SetSelection(false, null, settingsSelected: true);
 
-        await _sessionManager.HideVisibleSessionAsync();
+        await _services.SessionManager.HideVisibleSessionAsync();
 
         InstanceWebViewHost.Visibility = Visibility.Collapsed;
         SetInstanceLoading(false, null);
         ContentFrame.Visibility = Visibility.Visible;
 
-        var navArgs = new RegistryNavigationArgs { Registry = _registry };
+        var navArgs = PageServices.CreateRegistryArgs(_services);
         ContentFrame.Navigate(typeof(SettingsPage), navArgs);
         ActiveWorkspaceContext.SetSettingsVisible();
         AppTitleBar.Subtitle = "Settings";
@@ -1158,7 +1287,7 @@ public sealed partial class MainWindow : Window
         {
             if (AppTitleBar.Subtitle == "AI draft ready — review before sending" &&
                 !string.IsNullOrWhiteSpace(_selectedInstanceId) &&
-                _registry.FindById(_selectedInstanceId) is { } instance)
+                _services.Registry.FindById(_selectedInstanceId) is { } instance)
             {
                 AppTitleBar.Subtitle = instance.DisplayName;
             }
@@ -1175,10 +1304,8 @@ public sealed partial class MainWindow : Window
         SetNotificationPanelVisible(false);
     }
 
-    private void NotificationPanel_AlertClicked(object? sender, NotificationAlert alert)
-    {
-        _ = SelectInstanceAsync(alert.InstanceId);
-    }
+    private void NotificationPanel_AlertClicked(object? sender, NotificationAlert alert) =>
+        NotificationNavigationHelper.OpenAlert(_services.Navigation, alert);
 
     public void ShowNotificationPanel()
     {
@@ -1224,7 +1351,7 @@ public sealed partial class MainWindow : Window
 
     private async Task ShowAddInstanceDialogAsync()
     {
-        var dialog = new AddInstanceDialog(_registry.ArchivedInstances)
+        var dialog = new AddInstanceDialog(_services.Registry.ArchivedInstances)
         {
             XamlRoot = Content.XamlRoot
         };
@@ -1239,7 +1366,7 @@ public sealed partial class MainWindow : Window
         {
             if (!string.IsNullOrWhiteSpace(dialog.ResultRestoreInstanceId))
             {
-                var restored = await _registry.RestoreArchivedInstanceAsync(dialog.ResultRestoreInstanceId);
+                var restored = await _services.Registry.RestoreArchivedInstanceAsync(dialog.ResultRestoreInstanceId);
                 RebuildInstanceNavigation();
                 RefreshDashboardIfVisible();
                 await SelectInstanceAsync(restored.Id);
@@ -1251,7 +1378,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var instance = await _registry.AddInstanceAsync(
+            var instance = await _services.Registry.AddInstanceAsync(
                 dialog.ResultDisplayName,
                 dialog.ResultPlatformId,
                 dialog.ResultCustomUrl,
@@ -1269,7 +1396,7 @@ public sealed partial class MainWindow : Window
 
     private async Task DeleteInstanceAsync(string instanceId)
     {
-        var instance = _registry.FindById(instanceId);
+        var instance = _services.Registry.FindById(instanceId);
         if (instance is null)
         {
             return;
@@ -1290,35 +1417,35 @@ public sealed partial class MainWindow : Window
         {
             if (_selectedInstanceId == instanceId)
             {
-                await _sessionManager.HideVisibleSessionAsync();
+                await _services.SessionManager.HideVisibleSessionAsync();
                 _selectedInstanceId = null;
             }
             else
             {
-                await _sessionManager.CloseSessionAsync(instanceId);
+                await _services.SessionManager.CloseSessionAsync(instanceId);
             }
 
             if (dialog.Choice == DeleteInstanceChoice.RemoveFromSidebar)
             {
-                await _registry.RemoveFromSidebarAsync(instanceId);
+                await _services.Registry.RemoveFromSidebarAsync(instanceId);
             }
             else
             {
-                var webView = _sessionManager.TryGetWebView(instanceId)
+                var webView = _services.SessionManager.TryGetWebView(instanceId)
                     ?? InstanceWebViewRegistry.Instance.TryGet(instanceId);
                 await WebViewProfileManager.Instance.PermanentlyDeleteProfileAsync(
                     instance.ProfileName,
                     webView);
-                await _registry.RemovePermanentlyAsync(instanceId);
+                await _services.Registry.RemovePermanentlyAsync(instanceId);
             }
 
-            _notificationHub.RemoveAlertsForInstance(instanceId);
+            _services.NotificationHub.RemoveAlertsForInstance(instanceId);
             _adapterHealth.RemoveInstance(instanceId);
             ProfessionalWorkspaceService.Instance.RemoveInstance(instanceId);
             RebuildInstanceNavigation();
             RefreshNotificationUi();
 
-            var nextInstance = _registry.Instances.FirstOrDefault();
+            var nextInstance = _services.Registry.Instances.FirstOrDefault();
             if (nextInstance is not null)
             {
                 await SelectInstanceAsync(nextInstance.Id);
@@ -1364,22 +1491,12 @@ public sealed partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(message) ? ex.GetType().Name : message;
     }
 
-    private async Task ShowErrorDialogAsync(string title, string message)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = title,
-            Content = message,
-            CloseButtonText = "OK",
-            XamlRoot = Content.XamlRoot
-        };
-
-        await dialog.ShowAsync();
-    }
+    private Task ShowErrorDialogAsync(string title, string message) =>
+        _services.Dialog.ShowErrorAsync(title, message);
 
     private void RestoreSidebarSelection()
     {
-        WorkspaceSidebar.SetSelection(_isDashboardSelected, _selectedInstanceId);
+        WorkspaceSidebar.SetSelection(_isDashboardSelected, _selectedInstanceId, _isSettingsSelected);
     }
 
     private async Task SelectInstanceAsync(string instanceId)
@@ -1396,7 +1513,7 @@ public sealed partial class MainWindow : Window
 
     private async Task NavigateToInstanceAsync(string instanceId)
     {
-        var instance = _registry.FindById(instanceId);
+        var instance = _services.Registry.FindById(instanceId);
         if (instance is null)
         {
             return;
@@ -1404,6 +1521,7 @@ public sealed partial class MainWindow : Window
 
         _selectedInstanceId = instanceId;
         _isDashboardSelected = false;
+        _isSettingsSelected = false;
         ActiveWorkspaceContext.SetActiveInstance(instanceId);
         WorkspaceSidebar.SetSelection(false, instanceId);
         ContentFrame.Visibility = Visibility.Collapsed;
@@ -1412,7 +1530,7 @@ public sealed partial class MainWindow : Window
         SetInstanceLoading(true, instance.DisplayName);
         try
         {
-            await _sessionManager.SwitchToAsync(instance);
+            await _services.SessionManager.SwitchToAsync(instance);
             AppTitleBar.Subtitle = instance.DisplayName;
         }
         catch (Exception ex)
@@ -1427,11 +1545,31 @@ public sealed partial class MainWindow : Window
 
     private void SetInstanceLoading(bool isLoading, string? displayName)
     {
-        InstanceLoadingPanel.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
-        if (isLoading && !string.IsNullOrWhiteSpace(displayName))
+        _shellViewModel.SetInstanceLoading(
+            isLoading,
+            isLoading && !string.IsNullOrWhiteSpace(displayName)
+                ? $"Loading {displayName}..."
+                : null);
+        ApplyInstanceLoadingUi();
+    }
+
+    private void ApplyInstanceLoadingUi()
+    {
+        var showLoading = _shellViewModel.IsInstanceLoading || _shellViewModel.ShowStartupWarmProgress;
+        InstanceLoadingPanel.Visibility = showLoading ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_shellViewModel.ShowStartupWarmProgress)
         {
-            InstanceLoadingText.Text = $"Loading {displayName}...";
+            StartupWarmProgressBar.Visibility = Visibility.Visible;
+            StartupWarmProgressBar.Value = _shellViewModel.StartupWarmProgress;
+            InstanceLoadingText.Text = _shellViewModel.StartupWarmStatusText;
+            return;
         }
+
+        StartupWarmProgressBar.Visibility = Visibility.Collapsed;
+        InstanceLoadingText.Text = string.IsNullOrWhiteSpace(_shellViewModel.InstanceLoadingMessage)
+            ? "Loading instance..."
+            : _shellViewModel.InstanceLoadingMessage;
     }
 
     private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
@@ -1464,6 +1602,6 @@ public sealed partial class MainWindow : Window
 
     private void ApplyWindowVisibilityState()
     {
-        _sessionManager.ApplyAppWindowState(IsAppInForeground);
+        _services.SessionManager.ApplyAppWindowState(IsAppInForeground);
     }
 }

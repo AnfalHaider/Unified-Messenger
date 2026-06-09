@@ -260,7 +260,10 @@
 
     if (platformKey === 'googlebusiness' && /^review:/i.test(key)) {
       var reviewId = key.replace(/^review:/i, '').trim();
-      var reviewNode = document.querySelector('[data-review-id="' + reviewId + '"]');
+      var escapedReviewId = typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(reviewId)
+        : reviewId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      var reviewNode = document.querySelector('[data-review-id="' + escapedReviewId + '"]');
       if (reviewNode) {
         reviewNode.click();
         return true;
@@ -402,7 +405,9 @@
       instanceId: instanceId,
       platform: platform,
       title: normalized.title,
-      body: normalized.body
+      body: normalized.body,
+      conversationKey: opts.conversationKey || '',
+      customerName: opts.customerName || normalized.title
     });
   };
 

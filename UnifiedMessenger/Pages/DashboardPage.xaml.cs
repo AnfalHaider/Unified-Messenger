@@ -9,7 +9,8 @@ namespace UnifiedMessenger.Pages;
 
 public sealed partial class DashboardPage : Page
 {
-    private InstanceRegistryService? _registry;
+    private ApplicationServices _services = new();
+    private IInstanceRegistryService? _registry;
     private DispatcherTimer? _resourceTimer;
     private long _dashboardTabSelectionCallbackToken;
 
@@ -24,6 +25,7 @@ public sealed partial class DashboardPage : Page
 
     private void OnResourceTimerTick(object? sender, object e)
     {
+        _services.ThreadRegistry.RefreshOperationalFlags(raiseChanged: false);
         PersonalOverviewPanel.ScheduleRefresh(PersonalInstances);
         if (IsOperationsCommandCenterTabSelected)
         {
@@ -37,6 +39,13 @@ public sealed partial class DashboardPage : Page
         if (e.Parameter is RegistryNavigationArgs args)
         {
             _registry = args.Registry;
+            if (args.Services is not null)
+            {
+                _services = args.Services;
+            }
+
+            OperationsCommandCenterPanel.ConfigureServices(_services);
+            PersonalOverviewPanel.ConfigureServices(_services);
         }
 
         RefreshAll();
@@ -44,14 +53,12 @@ public sealed partial class DashboardPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        NotificationHub.Instance.Changed += OnHubChanged;
+        DashboardRefreshCoordinator.Instance.Attach(DispatcherQueue);
+        DashboardRefreshCoordinator.Instance.Subscribe();
+        DashboardRefreshCoordinator.Instance.RefreshRequested += OnCoordinatorRefreshRequested;
+
         AdapterHealthMonitor.Instance.Changed += OnPersonalDataChanged;
         InstanceConnectionStatusService.Instance.Changed += OnPersonalDataChanged;
-        MessageAnalyticsService.Instance.Changed += OnAnalyticsChanged;
-        MessageTriageService.Instance.Changed += OnTriageChanged;
-        ProfessionalWorkspaceService.Instance.Changed += OnProfessionalWorkspaceChanged;
-        ThreadRegistryService.Instance.Changed += OnThreadRegistryChanged;
-        BackfillSyncManager.Instance.ProgressChanged += OnBackfillProgressChanged;
 
         _dashboardTabSelectionCallbackToken = DashboardTabs.RegisterPropertyChangedCallback(
             TabView.SelectedIndexProperty,
@@ -69,14 +76,12 @@ public sealed partial class DashboardPage : Page
     {
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
-        NotificationHub.Instance.Changed -= OnHubChanged;
+
+        DashboardRefreshCoordinator.Instance.RefreshRequested -= OnCoordinatorRefreshRequested;
+        DashboardRefreshCoordinator.Instance.Unsubscribe();
+
         AdapterHealthMonitor.Instance.Changed -= OnPersonalDataChanged;
         InstanceConnectionStatusService.Instance.Changed -= OnPersonalDataChanged;
-        MessageAnalyticsService.Instance.Changed -= OnAnalyticsChanged;
-        MessageTriageService.Instance.Changed -= OnTriageChanged;
-        ProfessionalWorkspaceService.Instance.Changed -= OnProfessionalWorkspaceChanged;
-        ThreadRegistryService.Instance.Changed -= OnThreadRegistryChanged;
-        BackfillSyncManager.Instance.ProgressChanged -= OnBackfillProgressChanged;
 
         DashboardTabs.UnregisterPropertyChangedCallback(
             TabView.SelectedIndexProperty,
@@ -100,7 +105,7 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
     }
 
-    private void OnHubChanged(object? sender, NotificationHubChangedEventArgs e)
+    private void OnCoordinatorRefreshRequested(object? sender, EventArgs e)
     {
         DispatcherQueue.TryEnqueue(() =>
         {
@@ -111,21 +116,6 @@ public sealed partial class DashboardPage : Page
 
     private void OnPersonalDataChanged(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() => PersonalOverviewPanel.ScheduleRefresh(PersonalInstances));
-
-    private void OnAnalyticsChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
-
-    private void OnTriageChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
-
-    private void OnProfessionalWorkspaceChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
-
-    private void OnThreadRegistryChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
-
-    private void OnBackfillProgressChanged(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterIfVisibleAsync());
 
     public void RefreshAll()
     {
@@ -141,6 +131,7 @@ public sealed partial class DashboardPage : Page
         WelcomeSubtitle.Text = DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
 
         PersonalOverviewPanel.Refresh(PersonalInstances);
+        ScheduleBackfillRetryIfNeeded();
         _ = RefreshOperationsCommandCenterAsync();
     }
 
@@ -168,7 +159,7 @@ public sealed partial class DashboardPage : Page
 
     private void ScheduleBackfillRetryIfNeeded()
     {
-        if (!AppSettingsService.Instance.Settings.EnableStartupBackfill)
+        if (!_services.AppSettings.Settings.EnableStartupBackfill)
         {
             return;
         }

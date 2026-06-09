@@ -7,8 +7,8 @@
 
   window.__unifiedMessengerAdapterInstalled = true;
 
-  var INSTANCE_ID = '__INSTANCE_ID__';
-  var PLATFORM = '__PLATFORM__';
+  var INSTANCE_ID = __INSTANCE_ID__;
+  var PLATFORM = __PLATFORM__;
   var ADAPTER_ID = 'googlebusiness';
   var lastPostedUnreplied = -1;
   var knownReviewKeys = Object.create(null);

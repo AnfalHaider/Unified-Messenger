@@ -62,24 +62,6 @@ public class BranchWorkspaceHelperTests
     }
 
     [Fact]
-    public void BuildBranchFilterEntries_GroupsInboxesByBranch()
-    {
-        var instances = new[]
-        {
-            CreateInstance("wa-dha", "Depilex DHA-2", "whatsappbusiness"),
-            CreateInstance("meta-dha", "Depilex DHA-2 Meta", "metabusiness"),
-            CreateInstance("f11", "Depilex F-11", "googlebusiness")
-        };
-
-        var entries = BranchWorkspaceHelper.BuildBranchFilterEntries(instances);
-
-        Assert.Equal(3, entries.Count);
-        Assert.True(entries[0].IsAllBranches);
-        Assert.Equal("DHA-2 (2 inboxes)", entries[1].DisplayName);
-        Assert.Equal("F-11", entries[2].DisplayName);
-    }
-
-    [Fact]
     public void ResolveWorkspaceBranchKeyFromTabTag_AllBranches_ReturnsNull()
     {
         Assert.Null(BranchWorkspaceHelper.ResolveWorkspaceBranchKeyFromTabTag(BranchWorkspaceHelper.AllBranchesWorkspaceTag));

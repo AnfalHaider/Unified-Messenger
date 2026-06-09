@@ -518,10 +518,24 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 var body = root.TryGetProperty("body", out var bodyElement)
                     ? bodyElement.GetString() ?? string.Empty
                     : string.Empty;
+                var previewConversationKeyRaw = root.TryGetProperty("conversationKey", out var previewKeyElement)
+                    ? previewKeyElement.GetString() ?? string.Empty
+                    : string.Empty;
+                var previewCustomerName = root.TryGetProperty("customerName", out var previewCustomerElement)
+                    ? previewCustomerElement.GetString()
+                    : null;
+                var resolvedPreviewKey = ConversationKeyResolver.Resolve(
+                    instance.Platform,
+                    previewConversationKeyRaw,
+                    previewCustomerName ?? title,
+                    previewCustomerName,
+                    body);
 
                 if (ShouldRecordPreviewForAnalytics(instance.Platform, title, body))
                 {
-                    MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id);
+                    MessageAnalyticsService.Instance.RecordMessageReceived(
+                        instance.Id,
+                        resolvedPreviewKey);
                 }
 
                 hub.AddAlert(NotificationAlert.Create(
@@ -530,7 +544,9 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     instance.Platform,
                     title,
                     body,
-                    instance.IconGlyph));
+                    instance.IconGlyph,
+                    conversationKey: resolvedPreviewKey,
+                    customerName: previewCustomerName ?? title));
 
                 return true;
 
@@ -646,8 +662,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
     {
         var includeMutedBadges = AppSettingsService.Instance.Settings.IncludeMutedChatBadges;
         return script
-            .Replace("__INSTANCE_ID__", instance.Id, StringComparison.Ordinal)
-            .Replace("__PLATFORM__", PlatformDefinition.NormalizePlatformId(instance.Platform), StringComparison.Ordinal)
+            .Replace("__INSTANCE_ID__", JsonSerializer.Serialize(instance.Id), StringComparison.Ordinal)
+            .Replace(
+                "__PLATFORM__",
+                JsonSerializer.Serialize(PlatformDefinition.NormalizePlatformId(instance.Platform)),
+                StringComparison.Ordinal)
             .Replace("__INCLUDE_MUTED_BADGES__", includeMutedBadges ? "true" : "false", StringComparison.Ordinal)
             .Replace("__NOTIFICATIONS_MUTED__", instance.NotificationsMuted ? "true" : "false", StringComparison.Ordinal);
     }
@@ -910,7 +929,9 @@ public sealed class GoogleBusinessAdapter : BasePlatformAdapter
                     instance.Platform,
                     $"{reviewer} · review",
                     snippet,
-                    instance.IconGlyph));
+                    instance.IconGlyph,
+                    conversationKey: ConversationKeyResolver.BuildReviewKey(reviewId),
+                    customerName: reviewer));
 
                 if (!string.IsNullOrWhiteSpace(snippet))
                 {

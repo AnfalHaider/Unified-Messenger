@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Unified Messenger — WinUI 3 unpackaged desktop app (.NET 8).
-    Publish: use Properties/PublishProfiles/win-{x64,arm64,x86}.pubxml or README commands.
+    Publish: see README "Build a release installer" (dotnet publish commands).
     Native AOT / trimming: intentionally disabled (WinUI 3 + WebView2 require full runtime).
     ReadyToRun: disabled — breaks self-contained WinUI publish (0xC0000139).
   -->
@@ -26,10 +26,10 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 
     <!-- Versioning (keep in sync with app.manifest assemblyIdentity and installer.iss). -->
-    <Version>1.0.24</Version>
-    <AssemblyVersion>1.0.24.0</AssemblyVersion>
-    <FileVersion>1.0.24.0</FileVersion>
-    <ApplicationDisplayVersion>1.0.24</ApplicationDisplayVersion>
+    <Version>1.0.25</Version>
+    <AssemblyVersion>1.0.25.0</AssemblyVersion>
+    <FileVersion>1.0.25.0</FileVersion>
+    <ApplicationDisplayVersion>1.0.25</ApplicationDisplayVersion>
 
     <!-- Match host CPU for local `dotnet run`; use README publish commands for shipping. -->
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
@@ -67,6 +67,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.1.3" />

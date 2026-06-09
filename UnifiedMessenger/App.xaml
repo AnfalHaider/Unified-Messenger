@@ -24,6 +24,13 @@
             <Style x:Key="DashboardSectionHeaderStyle" TargetType="TextBlock">
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="{StaticResource UmBrandSlateBrush}" />
+            </Style>
+
+            <Style x:Key="DashboardMetricValueStyle" TargetType="TextBlock">
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontSize" Value="20" />
+                <Setter Property="Foreground" Value="{StaticResource UmBrandBlueBrush}" />
             </Style>
 
             <Style x:Key="DashboardMetricCardStyle" TargetType="Border">

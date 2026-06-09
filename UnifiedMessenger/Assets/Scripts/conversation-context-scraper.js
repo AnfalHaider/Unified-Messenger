@@ -7,7 +7,7 @@
 
   window.__umConversationContextInstalled = true;
 
-  var PLATFORM = '__PLATFORM__';
+  var PLATFORM = __PLATFORM__;
 
   var noisePatterns = [
     /messages and calls are end-to-end encrypted/i,

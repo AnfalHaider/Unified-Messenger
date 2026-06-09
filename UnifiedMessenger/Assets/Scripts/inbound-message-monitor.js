@@ -7,8 +7,8 @@
 
   window.__umInboundMonitorInstalled = true;
 
-  var INSTANCE_ID = '__INSTANCE_ID__';
-  var PLATFORM = '__PLATFORM__';
+  var INSTANCE_ID = __INSTANCE_ID__;
+  var PLATFORM = __PLATFORM__;
   var NOTIFICATIONS_MUTED = __NOTIFICATIONS_MUTED__;
 
   var noisePatterns = [

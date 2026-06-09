@@ -7,15 +7,17 @@ using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Models.Ollama;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Ollama;
+using UnifiedMessenger.ViewModels;
 
 namespace UnifiedMessenger.Pages;
 
 public sealed partial class LocalAISettingsPage : Page
 {
-    private readonly ObservableCollection<LocalAiModelRowViewModel> _modelRows = [];
+    private readonly LocalAISettingsViewModel _viewModel = new();
     private readonly Dictionary<string, LocalAiModelRowViewModel> _rowsByModelId =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private ApplicationServices _services = new();
     private readonly OllamaOrchestrationService _ollama = OllamaOrchestrationService.Instance;
     private DispatcherQueue? _dispatcher;
     private bool _suppressToggleEvents;
@@ -55,12 +57,17 @@ public sealed partial class LocalAISettingsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        BackLink.Visibility = Frame?.CanGoBack == true ? Visibility.Visible : Visibility.Collapsed;
+        if (e.Parameter is ApplicationServices services)
+        {
+            _services = services;
+        }
+
+        _viewModel.BreadcrumbText = SettingsNavigationHelper.BuildBreadcrumb("Local AI");
     }
 
     private void BuildModelRows()
     {
-        _modelRows.Clear();
+        _viewModel.ModelRows.Clear();
         _rowsByModelId.Clear();
 
         foreach (var catalogEntry in LocalAiSettingsPageHelper.LoadCatalog())
@@ -70,28 +77,34 @@ public sealed partial class LocalAISettingsPage : Page
                 catalogEntry.DisplayName,
                 catalogEntry.SizeLabel,
                 catalogEntry.Description);
-            _modelRows.Add(row);
+            _viewModel.ModelRows.Add(row);
             _rowsByModelId[catalogEntry.Id] = row;
         }
 
-        ModelsList.ItemsSource = _modelRows;
+        ModelsList.ItemsSource = _viewModel.ModelRows;
     }
 
     private void RefreshAll()
     {
-        var settings = AppSettingsService.Instance.Settings;
+        var settings = _services.AppSettings.Settings;
 
         _suppressToggleEvents = true;
-        EnableLocalAiToggle.IsOn = settings.EnableLocalAi;
-        OllamaAutoBootstrapToggle.IsOn = settings.OllamaAutoBootstrap;
-        OllamaAutoBootstrapToggle.IsEnabled = settings.EnableLocalAi;
-        EnableAutoDraftToggle.IsOn = settings.EnableAutoDraft;
-        EnableAutoDraftToggle.IsEnabled = settings.EnableLocalAi;
-        AutoDraftOnlyVisibleToggle.IsOn = settings.AutoDraftOnlyWhenVisible;
-        AutoDraftOnlyVisibleToggle.IsEnabled = settings.EnableLocalAi && settings.EnableAutoDraft;
+        _viewModel.EnableLocalAi = settings.EnableLocalAi;
+        _viewModel.OllamaAutoBootstrap = settings.OllamaAutoBootstrap;
+        _viewModel.EnableAutoDraft = settings.EnableAutoDraft;
+        _viewModel.AutoDraftOnlyWhenVisible = settings.AutoDraftOnlyWhenVisible;
+        _viewModel.CanRefreshEngine = settings.EnableLocalAi;
+        _viewModel.DefaultModelId = settings.LocalAiModelName;
+        EnableLocalAiToggle.IsOn = _viewModel.EnableLocalAi;
+        OllamaAutoBootstrapToggle.IsOn = _viewModel.OllamaAutoBootstrap;
+        OllamaAutoBootstrapToggle.IsEnabled = _viewModel.EnableLocalAi;
+        EnableAutoDraftToggle.IsOn = _viewModel.EnableAutoDraft;
+        EnableAutoDraftToggle.IsEnabled = _viewModel.EnableLocalAi;
+        AutoDraftOnlyVisibleToggle.IsOn = _viewModel.AutoDraftOnlyWhenVisible;
+        AutoDraftOnlyVisibleToggle.IsEnabled = _viewModel.EnableLocalAi && _viewModel.EnableAutoDraft;
         _suppressToggleEvents = false;
 
-        UpdateModelManagerVisibility(settings.EnableLocalAi);
+        UpdateModelManagerVisibility(_viewModel.EnableLocalAi);
         RefreshDefaultModelBox();
         ApplyConnectionState(_ollama.ConnectionState);
         _ = RefreshEngineAndModelsAsync();
@@ -104,7 +117,7 @@ public sealed partial class LocalAISettingsPage : Page
         DefaultModelBox.DisplayMemberPath = nameof(OllamaCatalogModel.DisplayName);
         DefaultModelBox.SelectedValuePath = nameof(OllamaCatalogModel.Id);
 
-        var selectedId = AppSettingsService.Instance.Settings.LocalAiModelName;
+        var selectedId = _services.AppSettings.Settings.LocalAiModelName;
         DefaultModelBox.SelectedValue = catalog
             .FirstOrDefault(model => model.Id.Equals(selectedId, StringComparison.OrdinalIgnoreCase))
             ?.Id ?? catalog.FirstOrDefault()?.Id;
@@ -112,7 +125,7 @@ public sealed partial class LocalAISettingsPage : Page
 
     private async Task RefreshEngineAndModelsAsync()
     {
-        if (!AppSettingsService.Instance.Settings.EnableLocalAi)
+        if (!_services.AppSettings.Settings.EnableLocalAi)
         {
             return;
         }
@@ -128,7 +141,7 @@ public sealed partial class LocalAISettingsPage : Page
 
     private void ApplyInstalledModels(IReadOnlyList<string> installed)
     {
-        foreach (var row in _modelRows)
+        foreach (var row in _viewModel.ModelRows)
         {
             var isInstalled = LocalAiSettingsPageHelper.IsModelInstalled(row.ModelId, installed);
             row.IsInstalled = isInstalled;
@@ -143,19 +156,36 @@ public sealed partial class LocalAISettingsPage : Page
 
     private void ApplyConnectionState(OllamaConnectionState state)
     {
-        ConnectionTitleText.Text = LocalAiSettingsPageHelper.DescribeConnectionStateShort(state);
-        ConnectionDetailText.Text = LocalAiSettingsPageHelper.DescribeConnectionState(state);
-        ConnectionIndicator.Fill = state switch
+        _viewModel.ConnectionStatusText = LocalAiSettingsPageHelper.DescribeConnectionStateShort(state);
+        _viewModel.EngineStatusText = LocalAiSettingsPageHelper.DescribeConnectionState(state);
+        _viewModel.ConnectionIndicatorColorHex = state switch
         {
-            OllamaConnectionState.Running => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 16, 124, 16)),
-            OllamaConnectionState.Starting => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 202, 132, 0)),
-            OllamaConnectionState.Error => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 196, 43, 28)),
-            _ => new SolidColorBrush(Windows.UI.Color.FromArgb(255, 120, 120, 120))
+            OllamaConnectionState.Running => "#107C10",
+            OllamaConnectionState.Starting => "#CA8400",
+            OllamaConnectionState.Error => "#C42B1C",
+            _ => "#787878"
         };
+
+        ConnectionTitleText.Text = _viewModel.ConnectionStatusText;
+        ConnectionDetailText.Text = _viewModel.EngineStatusText;
+        ConnectionIndicator.Fill = new SolidColorBrush(ColorFromHex(_viewModel.ConnectionIndicatorColorHex));
     }
 
-    private void UpdateModelManagerVisibility(bool enabled) =>
+    private static Windows.UI.Color ColorFromHex(string hex)
+    {
+        hex = hex.TrimStart('#');
+        return Windows.UI.Color.FromArgb(
+            255,
+            Convert.ToByte(hex[..2], 16),
+            Convert.ToByte(hex[2..4], 16),
+            Convert.ToByte(hex[4..6], 16));
+    }
+
+    private void UpdateModelManagerVisibility(bool enabled)
+    {
+        _viewModel.ShowModelManager = enabled;
         ModelManagerPanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void OnConnectionStateChanged(object? sender, OllamaConnectionState state) =>
         RunOnUiThread(() => ApplyConnectionState(state));
@@ -213,7 +243,7 @@ public sealed partial class LocalAISettingsPage : Page
         }
 
         var enabled = EnableLocalAiToggle.IsOn;
-        await AppSettingsService.Instance.UpdateAsync(settings => settings.EnableLocalAi = enabled);
+        await _services.AppSettings.UpdateAsync(settings => settings.EnableLocalAi = enabled);
         OllamaAutoBootstrapToggle.IsEnabled = enabled;
         EnableAutoDraftToggle.IsEnabled = enabled;
         AutoDraftOnlyVisibleToggle.IsEnabled = enabled && EnableAutoDraftToggle.IsOn;
@@ -237,7 +267,7 @@ public sealed partial class LocalAISettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.OllamaAutoBootstrap = OllamaAutoBootstrapToggle.IsOn);
     }
 
@@ -249,9 +279,9 @@ public sealed partial class LocalAISettingsPage : Page
         }
 
         var enabled = EnableAutoDraftToggle.IsOn;
-        await AppSettingsService.Instance.UpdateAsync(settings => settings.EnableAutoDraft = enabled);
+        await _services.AppSettings.UpdateAsync(settings => settings.EnableAutoDraft = enabled);
         AutoDraftOnlyVisibleToggle.IsEnabled =
-            AppSettingsService.Instance.Settings.EnableLocalAi && enabled;
+            _services.AppSettings.Settings.EnableLocalAi && enabled;
     }
 
     private async void AutoDraftOnlyVisibleToggle_Toggled(object sender, RoutedEventArgs e)
@@ -261,7 +291,7 @@ public sealed partial class LocalAISettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.AutoDraftOnlyWhenVisible = AutoDraftOnlyVisibleToggle.IsOn);
     }
 
@@ -273,7 +303,7 @@ public sealed partial class LocalAISettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.LocalAiModelName = modelId);
     }
 
@@ -289,7 +319,7 @@ public sealed partial class LocalAISettingsPage : Page
             return;
         }
 
-        if (!AppSettingsService.Instance.Settings.EnableLocalAi)
+        if (!_services.AppSettings.Settings.EnableLocalAi)
         {
             return;
         }
@@ -333,13 +363,16 @@ public sealed partial class LocalAISettingsPage : Page
         }
     }
 
-    private void BackLink_Click(object sender, RoutedEventArgs e)
+    private void SettingsBreadcrumb_Click(object sender, RoutedEventArgs e)
     {
         if (Frame?.CanGoBack == true)
         {
             Frame.GoBack();
         }
     }
+
+    private void BackLink_Click(object sender, RoutedEventArgs e) =>
+        SettingsBreadcrumb_Click(sender, e);
 
     private void RunOnUiThread(Action action)
     {

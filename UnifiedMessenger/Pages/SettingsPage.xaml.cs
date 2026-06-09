@@ -2,7 +2,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Presenters;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.ViewModels;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
@@ -11,14 +13,20 @@ namespace UnifiedMessenger.Pages;
 
 public sealed partial class SettingsPage : Page
 {
-    private InstanceRegistryService? _registry;
+    private readonly SettingsViewModel _viewModel = new();
+
+    private ApplicationServices _services = new();
+    private IInstanceRegistryService? _registry;
     private bool _suppressToggleEvents;
+
+    private readonly Dictionary<string, FrameworkElement> _sectionAnchors = new(StringComparer.OrdinalIgnoreCase);
 
     public SettingsPage()
     {
         InitializeComponent();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        InitializeSectionNav();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -30,6 +38,30 @@ public sealed partial class SettingsPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         EnsureComboBoxesInitialized();
+        ImportBackupCheckBox.IsChecked = _viewModel.CreateImportBackup;
+    }
+
+    private void InitializeSectionNav()
+    {
+        _sectionAnchors[SettingsNavigationHelper.NotificationsSectionKey] = NotificationsSection;
+        _sectionAnchors[SettingsNavigationHelper.AppearanceSectionKey] = AppearanceSection;
+        _sectionAnchors[SettingsNavigationHelper.SessionPerformanceSectionKey] = SessionPerformanceSection;
+        _sectionAnchors[SettingsNavigationHelper.ProfessionalMetricsSectionKey] = ProfessionalMetricsSection;
+        _sectionAnchors[SettingsNavigationHelper.DataPrivacySectionKey] = DataPrivacySection;
+        _sectionAnchors[SettingsNavigationHelper.SystemSectionKey] = SystemSection;
+        _sectionAnchors[SettingsNavigationHelper.RemovedAccountsSectionKey] = RemovedAccountsSection;
+        _sectionAnchors[SettingsNavigationHelper.StorageSectionKey] = StorageSection;
+        _sectionAnchors[SettingsNavigationHelper.LocalAiSectionKey] = LocalAiSection;
+        _sectionAnchors[SettingsNavigationHelper.AboutSectionKey] = AboutSection;
+
+        _viewModel.SectionNavItems.Clear();
+        foreach (var item in SettingsNavigationHelper.BuildSectionNavItems())
+        {
+            _viewModel.SectionNavItems.Add(item);
+        }
+
+        SectionNavList.ItemsSource = _viewModel.SectionNavItems;
+        SectionNavList.SelectedIndex = 0;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -39,6 +71,10 @@ public sealed partial class SettingsPage : Page
         if (e.Parameter is RegistryNavigationArgs args)
         {
             _registry = args.Registry;
+            if (args.Services is not null)
+            {
+                _services = args.Services;
+            }
         }
 
         RefreshAll();
@@ -48,7 +84,7 @@ public sealed partial class SettingsPage : Page
     {
         EnsureComboBoxesInitialized();
 
-        var settings = AppSettingsService.Instance.Settings;
+        var settings = _services.AppSettings.Settings;
 
         _suppressToggleEvents = true;
         BackgroundToastsToggle.IsOn = settings.EnableBackgroundToasts;
@@ -92,7 +128,8 @@ public sealed partial class SettingsPage : Page
         UpdateImportExportPanelVisibility(settings.EnableImportExportInstances);
         RefreshArchivedAccounts();
         RefreshStoragePaths();
-        VersionText.Text = SettingsPageHelper.BuildVersionLabel(typeof(App).Assembly.GetName().Version);
+        _viewModel.VersionLabel = SettingsPageHelper.BuildVersionLabel(typeof(App).Assembly.GetName().Version);
+        VersionText.Text = _viewModel.VersionLabel;
     }
 
     private void EnsureComboBoxesInitialized()
@@ -155,30 +192,60 @@ public sealed partial class SettingsPage : Page
 
     private void RefreshStoragePaths()
     {
-        InstancesPathText.Text = SettingsPageHelper.ResolveInstancesStorePath(_registry?.StorePath);
-        ProfilesPathText.Text = WebViewProfileManager.Instance.UserDataFolder;
+        _viewModel.InstancesStorePath = SettingsPageHelper.ResolveInstancesStorePath(_registry?.StorePath);
+        _viewModel.ProfilesPath = WebViewProfileManager.Instance.UserDataFolder;
+        InstancesPathText.Text = _viewModel.InstancesStorePath;
+        ProfilesPathText.Text = _viewModel.ProfilesPath;
     }
 
     private void RefreshArchivedAccounts()
     {
         if (_registry is null)
         {
+            _viewModel.ArchivedAccounts.Clear();
             ArchivedAccountsList.ItemsSource = null;
+            _viewModel.ShowNoArchivedAccounts = true;
             NoArchivedAccountsText.Visibility = Visibility.Visible;
             return;
         }
 
-        var items = SettingsPageHelper.BuildArchivedAccountItems(_registry.ArchivedInstances);
+        var rows = SettingsArchivedAccountsPresenter.BuildRows(_registry.ArchivedInstances);
+        _viewModel.ArchivedAccounts.Clear();
+        foreach (var row in rows)
+        {
+            _viewModel.ArchivedAccounts.Add(row);
+        }
 
-        ArchivedAccountsList.ItemsSource = items;
-        NoArchivedAccountsText.Visibility = items.Count == 0
+        ArchivedAccountsList.ItemsSource = _viewModel.ArchivedAccounts;
+        _viewModel.ShowNoArchivedAccounts = rows.Count == 0;
+        NoArchivedAccountsText.Visibility = _viewModel.ShowNoArchivedAccounts
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
 
     private void UpdateImportExportPanelVisibility(bool isVisible)
     {
+        _viewModel.ShowImportExportPanel = isVisible;
         ImportExportPanel.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void SectionNavList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not SettingsSectionNavItemViewModel item ||
+            !_sectionAnchors.TryGetValue(item.Key, out var anchor))
+        {
+            return;
+        }
+
+        _viewModel.SelectedSectionKey = item.Key;
+        ScrollSectionIntoView(anchor);
+    }
+
+    private void ScrollSectionIntoView(FrameworkElement section)
+    {
+        var transform = section.TransformToVisual(SettingsScrollViewer);
+        var point = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+        SettingsScrollViewer.ChangeView(null, point.Y, null, disableAnimation: false);
     }
 
     private async void BackgroundToastsToggle_Toggled(object sender, RoutedEventArgs e)
@@ -188,7 +255,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableBackgroundToasts = BackgroundToastsToggle.IsOn);
     }
 
@@ -199,10 +266,10 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.ShowTaskbarBadge = TaskbarBadgeToggle.IsOn);
 
-        _ = TaskbarBadgeService.Instance.SyncBadgeAsync(NotificationHub.Instance.TotalUnreadCount);
+        _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_services.NotificationHub.TotalUnreadCount);
     }
 
     private async void ThemePreferenceBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -212,7 +279,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.ThemePreference = option.Preference);
     }
 
@@ -223,7 +290,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.PanelAutoOpen = option.Mode);
     }
 
@@ -234,7 +301,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.ToastSound = option.Preference);
     }
 
@@ -245,10 +312,10 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.PanelDock = option.Dock);
 
-        ShellNavigationService.Instance.RequestLayoutRefresh();
+        _services.Navigation.RequestLayoutRefresh();
     }
 
     private async void StartupWarmModeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -258,7 +325,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.StartupWarmMode = option.Mode);
     }
 
@@ -276,7 +343,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.MaxConcurrentWebViews = value);
     }
 
@@ -287,7 +354,7 @@ public sealed partial class SettingsPage : Page
         RefreshAllWebViewsButton.Content = "Refreshing…";
         try
         {
-            await InstanceSessionManager.Instance.ReloadAllSessionsAsync();
+            await _services.SessionManager.ReloadAllSessionsAsync();
         }
         catch (Exception ex)
         {
@@ -307,7 +374,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableLazyWebViewLoading = EnableLazyWebViewLoadingToggle.IsOn);
     }
 
@@ -318,7 +385,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.EnablePerInstanceSleepUnload = EnablePerInstanceSleepUnloadToggle.IsOn);
     }
 
@@ -329,7 +396,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableEditInstanceMetadata = EnableEditInstanceMetadataToggle.IsOn);
     }
 
@@ -340,7 +407,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableImportExportInstances = EnableImportExportInstancesToggle.IsOn);
 
         UpdateImportExportPanelVisibility(EnableImportExportInstancesToggle.IsOn);
@@ -353,7 +420,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableInstanceNotesTags = EnableInstanceNotesTagsToggle.IsOn);
     }
 
@@ -364,7 +431,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.RunInBackgroundOnClose = RunInBackgroundOnCloseToggle.IsOn);
     }
 
@@ -375,7 +442,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableStartupBackfill = EnableStartupBackfillToggle.IsOn);
     }
 
@@ -387,7 +454,7 @@ public sealed partial class SettingsPage : Page
         }
 
         var value = (int)Math.Round(args.NewValue, MidpointRounding.AwayFromZero);
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.DashboardUrgencyThreshold = value);
     }
 
@@ -398,7 +465,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.ShowHeuristicExecutiveInsights = ShowHeuristicExecutiveInsightsToggle.IsOn);
     }
 
@@ -412,7 +479,7 @@ public sealed partial class SettingsPage : Page
         try
         {
             StartupTaskService.SetRegistered(LaunchAtStartupToggle.IsOn);
-            await AppSettingsService.Instance.UpdateAsync(settings =>
+            await _services.AppSettings.UpdateAsync(settings =>
                 settings.LaunchAtStartup = LaunchAtStartupToggle.IsOn);
         }
         catch (Exception ex)
@@ -431,7 +498,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.PromptPinToTaskbar = PromptPinToTaskbarToggle.IsOn);
     }
 
@@ -442,7 +509,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableAutoUpdate = EnableAutoUpdateToggle.IsOn);
     }
 
@@ -453,13 +520,13 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.PromptBeforeAutoUpdate = PromptBeforeAutoUpdateToggle.IsOn);
     }
 
     private async void CheckForUpdatesButton_Click(object sender, RoutedEventArgs e)
     {
-        var result = await GitHubUpdateService.Instance.CheckForUpdatesManualAsync();
+        var result = await _services.GitHubUpdate.CheckForUpdatesManualAsync();
 
         var dialog = new ContentDialog
         {
@@ -495,12 +562,32 @@ public sealed partial class SettingsPage : Page
         }
 
         await OperationalDataService.ClearAllAsync();
-        ShellNavigationService.Instance.RequestDashboardRefresh();
+        _services.Navigation.RequestDashboardRefresh();
     }
 
     private async void ExportInstancesButton_Click(object sender, RoutedEventArgs e)
     {
         if (_registry is null)
+        {
+            return;
+        }
+
+        var summary = SettingsImportExportPresenter.BuildExportSummary(
+            _registry.Instances,
+            _registry.ArchivedInstances,
+            _registry.StorePath);
+
+        var preExportDialog = new ContentDialog
+        {
+            Title = "Export instances?",
+            Content = SettingsImportExportPresenter.BuildPreExportDialogContent(summary),
+            PrimaryButtonText = "Choose file",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (await preExportDialog.ShowAsync() != ContentDialogResult.Primary)
         {
             return;
         }
@@ -538,21 +625,6 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        var confirm = new ContentDialog
-        {
-            Title = "Import instances?",
-            Content = "This replaces your current instance list with the imported file.",
-            PrimaryButtonText = "Continue",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
-        };
-
-        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return;
-        }
-
         var picker = new FileOpenPicker
         {
             SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
@@ -567,12 +639,53 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
+        SettingsImportSummary importSummary;
         try
         {
+            await using var stream = File.OpenRead(file.Path);
+            var imported = await System.Text.Json.JsonSerializer
+                .DeserializeAsync<InstanceStore>(stream)
+                .ConfigureAwait(true)
+                ?? throw new InvalidDataException("Import file is empty or invalid.");
+
+            importSummary = SettingsImportExportPresenter.BuildImportSummary(file.Path, imported);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or System.Text.Json.JsonException)
+        {
+            await ShowMessageDialogAsync("Import failed", "Import file is not valid JSON.");
+            return;
+        }
+
+        _viewModel.CreateImportBackup = ImportBackupCheckBox.IsChecked == true;
+        var confirm = new ContentDialog
+        {
+            Title = "Import instances?",
+            Content = SettingsImportExportPresenter.BuildImportDialogContent(
+                importSummary,
+                _viewModel.CreateImportBackup),
+            PrimaryButtonText = "Import",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_viewModel.CreateImportBackup && File.Exists(_registry.StorePath))
+            {
+                var backupPath = SettingsPageHelper.BuildImportBackupPath(_registry.StorePath);
+                File.Copy(_registry.StorePath, backupPath, overwrite: true);
+            }
+
             var result = await _registry.ImportInstancesAsync(file.Path);
             RefreshArchivedAccounts();
             RefreshStoragePaths();
-            ShellNavigationService.Instance.RequestInstanceRegistryRefresh();
+            _services.Navigation.RequestInstanceRegistryRefresh();
             await ShowMessageDialogAsync(
                 "Import complete",
                 SettingsPageHelper.BuildImportSuccessMessage(result.ActiveCount, result.ArchivedCount));
@@ -590,10 +703,10 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.IncludeMutedChatBadges = IncludeMutedBadgesToggle.IsOn);
 
-        await InstanceSessionManager.Instance.BroadcastAdapterSettingsAsync();
+        await _services.SessionManager.BroadcastAdapterSettingsAsync();
     }
 
     private async void ToastGroupToggle_Toggled(object sender, RoutedEventArgs e)
@@ -603,7 +716,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.ToastGroupByInstance = ToastGroupToggle.IsOn);
     }
 
@@ -614,7 +727,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.ToastUsePlatformBranding = ToastBrandingToggle.IsOn);
     }
 
@@ -632,10 +745,10 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        await AppSettingsService.Instance.UpdateAsync(settings =>
+        await _services.AppSettings.UpdateAsync(settings =>
             settings.SlaThresholdMinutes = minutes);
 
-        ShellNavigationService.Instance.RequestDashboardRefresh();
+        _services.Navigation.RequestDashboardRefresh();
     }
 
     private async void ClearNotificationsButton_Click(object sender, RoutedEventArgs e)
@@ -655,7 +768,7 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        NotificationHub.Instance.ClearAlerts();
+        _services.NotificationHub.ClearAlerts();
     }
 
     private void RestoreAccountButton_Click(object sender, RoutedEventArgs e)
@@ -663,12 +776,53 @@ public sealed partial class SettingsPage : Page
         if (sender is Button { Tag: string instanceId } &&
             ShellNavigationService.IsValidInstanceId(instanceId))
         {
-            ShellNavigationService.Instance.RequestArchivedInstanceRestore(instanceId);
+            _services.Navigation.RequestArchivedInstanceRestore(instanceId);
+        }
+    }
+
+    private async void PermanentDeleteAccountButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_registry is null ||
+            sender is not Button { Tag: string instanceId } ||
+            !ShellNavigationService.IsValidInstanceId(instanceId))
+        {
+            return;
+        }
+
+        var row = _viewModel.ArchivedAccounts
+            .FirstOrDefault(account =>
+                account.InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+
+        var confirm = new ContentDialog
+        {
+            Title = "Delete account permanently?",
+            Content = SettingsPageHelper.BuildPermanentDeleteConfirmation(row?.DisplayName),
+            PrimaryButtonText = "Delete permanently",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        try
+        {
+            await _registry.RemovePermanentlyAsync(instanceId);
+            RefreshArchivedAccounts();
+            RefreshStoragePaths();
+            _services.Navigation.RequestInstanceRegistryRefresh();
+        }
+        catch (Exception ex)
+        {
+            await ShowMessageDialogAsync("Delete failed", ex.Message);
         }
     }
 
     private void LocalAiSettingsLink_Click(object sender, RoutedEventArgs e) =>
-        Frame?.Navigate(typeof(LocalAISettingsPage));
+        Frame?.Navigate(typeof(LocalAISettingsPage), _services);
 
     private void AboutLink_Click(object sender, RoutedEventArgs e)
     {

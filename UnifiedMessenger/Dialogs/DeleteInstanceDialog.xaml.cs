@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
@@ -12,7 +13,6 @@ public sealed partial class DeleteInstanceDialog : ContentDialog
         DescriptionText.Text = DeleteInstanceDialogHelper.BuildDescription(displayName);
 
         PrimaryButtonClick += OnPrimaryButtonClick;
-        SecondaryButtonClick += OnSecondaryButtonClick;
         CloseButtonClick += OnCloseButtonClick;
         Unloaded += OnUnloaded;
     }
@@ -22,16 +22,34 @@ public sealed partial class DeleteInstanceDialog : ContentDialog
     private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args) =>
         Choice = DeleteInstanceChoice.RemoveFromSidebar;
 
-    private void OnSecondaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args) =>
-        Choice = DeleteInstanceChoice.PermanentDelete;
-
     private void OnCloseButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args) =>
         Choice = DeleteInstanceChoice.Cancelled;
 
-    private void OnUnloaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    private async void PermanentDeleteButton_Click(object sender, RoutedEventArgs e)
+    {
+        var confirm = new ContentDialog
+        {
+            Title = "Permanently delete account?",
+            Content =
+                "This removes the WebView profile, cookies, cache, and saved session for this account. You will need to sign in again if you add it back.",
+            PrimaryButtonText = "Delete permanently",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot
+        };
+
+        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        Choice = DeleteInstanceChoice.PermanentDelete;
+        Hide();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         PrimaryButtonClick -= OnPrimaryButtonClick;
-        SecondaryButtonClick -= OnSecondaryButtonClick;
         CloseButtonClick -= OnCloseButtonClick;
         Unloaded -= OnUnloaded;
     }

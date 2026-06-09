@@ -7,8 +7,8 @@
 
   window.__unifiedMessengerAdapterInstalled = true;
 
-  var INSTANCE_ID = '__INSTANCE_ID__';
-  var PLATFORM = '__PLATFORM__';
+  var INSTANCE_ID = __INSTANCE_ID__;
+  var PLATFORM = __PLATFORM__;
   var ADAPTER_ID = 'generic';
   var lastPostedCount = -1;
   var pollTimer = null;

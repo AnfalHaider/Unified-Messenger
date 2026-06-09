@@ -70,28 +70,6 @@ public static class BranchWorkspaceHelper
             .ToList();
     }
 
-    public static IReadOnlyList<DashboardBranchFilterEntry> BuildBranchFilterEntries(
-        IEnumerable<MessengerInstance> professionalInstances)
-    {
-        var instances = professionalInstances
-            .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
-            .ToList();
-
-        var entries = new List<DashboardBranchFilterEntry>
-        {
-            DashboardBranchFilterEntry.CreateAllBranches(instances.Count)
-        };
-
-        foreach (var group in instances
-                     .GroupBy(ResolveBranchKey, StringComparer.OrdinalIgnoreCase)
-                     .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            entries.Add(DashboardBranchFilterEntry.FromBranch(group.Key, group.Count()));
-        }
-
-        return entries;
-    }
-
     public static string? NormalizeBranchKey(string? selectedBranchKey)
     {
         if (string.IsNullOrWhiteSpace(selectedBranchKey))
@@ -100,16 +78,6 @@ public static class BranchWorkspaceHelper
         }
 
         return selectedBranchKey.Trim();
-    }
-
-    public static string? ResolveBranchKeyFromEntry(DashboardBranchFilterEntry? entry)
-    {
-        if (entry is null || entry.IsAllBranches)
-        {
-            return null;
-        }
-
-        return NormalizeBranchKey(entry.BranchKey);
     }
 
     public static string BuildScopeLabel(

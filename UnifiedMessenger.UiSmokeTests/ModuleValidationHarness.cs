@@ -18,8 +18,8 @@ internal static class ModuleValidationHarness
             ValidateMainShell(window),
             ValidateDashboardOperations(window),
             ValidateOccBranchWorkspacePills(window),
+            ValidateOccLayoutEditMode(window),
             ValidateOccPlatformIntelligenceExpander(window),
-            ValidateBranchWorkspace(window),
             ValidatePersonalOverview(window),
             ValidateSettingsPage(window),
             ValidateLocalAiSettingsPage(window),
@@ -129,6 +129,39 @@ internal static class ModuleValidationHarness
             $"Branch workspace kanban reachable; {Math.Max(branchPills.Count, 1)} pill(s) in UIA tree");
     }
 
+    private static ModuleValidationResult ValidateOccLayoutEditMode(AutomationElement window)
+    {
+        UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
+        Thread.Sleep(900);
+
+        if (!UiAutomationHelpers.ClickByName(window, "Customize layout"))
+        {
+            return ModuleValidationResult.Warn(
+                "Dashboard.OccLayoutEdit",
+                "Page",
+                "Customize layout control not exposed via UIA");
+        }
+
+        Thread.Sleep(500);
+
+        if (UiAutomationHelpers.FindByName(window, "Done") is null &&
+            !UiAutomationHelpers.ClickByName(window, "Done"))
+        {
+            return ModuleValidationResult.Warn(
+                "Dashboard.OccLayoutEdit",
+                "Page",
+                "Layout edit mode did not toggle to Done");
+        }
+
+        UiAutomationHelpers.ClickByName(window, "Done");
+        Thread.Sleep(300);
+
+        return ModuleValidationResult.Pass(
+            "Dashboard.OccLayoutEdit",
+            "Page",
+            "Layout edit mode toggles Customize layout ↔ Done");
+    }
+
     private static ModuleValidationResult ValidateOccPlatformIntelligenceExpander(AutomationElement window)
     {
         UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
@@ -183,34 +216,6 @@ internal static class ModuleValidationHarness
             "Dashboard.OccPlatformIntelligence",
             "Page",
             "Expander header clicked but child content not confirmed in UIA tree");
-    }
-
-    private static ModuleValidationResult ValidateBranchWorkspace(AutomationElement window)
-    {
-        UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
-        Thread.Sleep(800);
-
-        if (UiAutomationHelpers.FindByName(window, "Branch filter") is not null)
-        {
-            return ModuleValidationResult.Pass(
-                "Dashboard.BranchFilter",
-                "Page",
-                "Branch filter control exposed; multi-branch scope available");
-        }
-
-        if (UiAutomationHelpers.FindByName(window, "Operations Command Center") is not null ||
-            UiAutomationHelpers.FindByName(window, "Revenue at risk") is not null)
-        {
-            return ModuleValidationResult.Pass(
-                "Dashboard.BranchFilter",
-                "Page",
-                "Operations Command Center KPI strip visible (branch filter UIA limited)");
-        }
-
-        return ModuleValidationResult.Warn(
-            "Dashboard.BranchFilter",
-            "Page",
-            "Branch filter not in UIA tree; kanban tabs may still be branch-scoped");
     }
 
     private static ModuleValidationResult ValidateCtrlSpaceCopilot(AutomationElement window)

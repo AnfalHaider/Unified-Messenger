@@ -3,7 +3,7 @@ using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
-public sealed class ThreadRegistryService
+public sealed class ThreadRegistryService : IThreadRegistryService
 {
     private static readonly Lazy<ThreadRegistryService> LazyInstance =
         new(() => new ThreadRegistryService());
@@ -11,20 +11,36 @@ public sealed class ThreadRegistryService
     private readonly ConcurrentDictionary<string, ThreadData> _threads =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly object _sortedCacheGate = new();
+    private IReadOnlyList<ThreadData>? _sortedThreadsCache;
+
     public static ThreadRegistryService Instance => LazyInstance.Value;
 
     public event EventHandler? Changed;
 
     internal static ThreadRegistryService CreateForTests() => new();
 
-    public IReadOnlyList<ThreadData> GetAllThreads() =>
-        _threads.Values
-            .OrderByDescending(thread => thread.LastMessageTime)
-            .ToList();
+    public IReadOnlyList<ThreadData> GetAllThreads()
+    {
+        lock (_sortedCacheGate)
+        {
+            if (_sortedThreadsCache is not null)
+            {
+                return _sortedThreadsCache;
+            }
+
+            _sortedThreadsCache = _threads.Values
+                .OrderByDescending(thread => thread.LastMessageTime)
+                .ToList();
+
+            return _sortedThreadsCache;
+        }
+    }
 
     public void RestoreThreads(IEnumerable<ThreadData> threads)
     {
         _threads.Clear();
+        InvalidateSortedCache();
         foreach (var thread in threads)
         {
             if (string.IsNullOrWhiteSpace(thread.ThreadId))
@@ -186,7 +202,10 @@ public sealed class ThreadRegistryService
         NotifyChanged();
     }
 
-    public void RefreshOperationalFlags()
+    public void RefreshOperationalFlags(bool raiseChanged = true) =>
+        RefreshOperationalFlagsCore(raiseChanged);
+
+    private void RefreshOperationalFlagsCore(bool raiseChanged)
     {
         var now = DateTimeOffset.UtcNow;
         var changed = false;
@@ -216,9 +235,15 @@ public sealed class ThreadRegistryService
             }
         }
 
-        if (changed)
+        if (!changed)
         {
-            NotifyChanged();
+            return;
+        }
+
+        InvalidateSortedCache();
+        if (raiseChanged)
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -333,7 +358,19 @@ public sealed class ThreadRegistryService
             _ => ClientSentimentLabel.Neutral
         };
 
-    private void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
+    private void InvalidateSortedCache()
+    {
+        lock (_sortedCacheGate)
+        {
+            _sortedThreadsCache = null;
+        }
+    }
+
+    private void NotifyChanged()
+    {
+        InvalidateSortedCache();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 }
 
 internal static class ThreadDataExtensions

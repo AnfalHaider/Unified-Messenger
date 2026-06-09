@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.24](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.24)
+**Current release:** [v1.0.25](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.25)
 
 ## Download (Windows)
 
@@ -14,6 +14,13 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
+
+### What's in v1.0.25
+
+- **Kanban visual reorder:** Within-column drag-and-drop (edit mode) persists display priority in `triage_v2.json` without changing thread status flags; cross-column drops are rejected with teaching copy.
+- **Dashboard layout edit mode:** Reorder OCC sections, KPI cards, and immediate lane; preferences persist in `settings.json` (AppSettings v4) with restore-default and single-level undo.
+- **UX polish:** Thread card context menu (open, copy summary, move to top), keyboard reorder (Alt+Up/Down), empty-column drop zones, teaching tips.
+- **693** unit tests (x64, Release).
 
 ### What's in v1.0.24
 
@@ -204,12 +211,19 @@ Output:
 - `dist\UnifiedMessengerSetup.exe` (x64)
 - `dist\UnifiedMessengerSetup-arm64.exe` (ARM64)
 
-Commit updated `dist\*.exe` when shipping from a maintainer machine (this repo tracks installers in `dist/` for convenience).
+Optional: commit updated `dist\*.exe` for offline convenience. **Release tags no longer require committed installers** — CI builds them in the **package** job.
 
 ### 3. Run tests
 
 ```powershell
-dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -p:Platform=x64
+dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -p:Platform=x64 -c Release
+```
+
+### 4. UI smoke validation (optional local)
+
+```powershell
+dotnet publish UnifiedMessenger\UnifiedMessenger.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish
+dotnet run --project UnifiedMessenger.UiSmokeTests\UnifiedMessenger.UiSmokeTests.csproj -c Release -- "UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\UnifiedMessenger.exe"
 ```
 
 ## GitHub Releases (how they appear on Git)
@@ -219,17 +233,16 @@ dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -p:Platform=x64
 | Action | Effect on GitHub |
 |--------|------------------|
 | Push to `main` only | Source updates; **Releases** unchanged unless a new tag exists |
-| Push tag `v1.0.7` | Triggers CI **release** job; creates/updates GitHub Release with both installers |
-| Commit `dist/*.exe` without a tag | Installers in repo tree only; **not** attached to Releases |
+| Push tag `v1.0.7` | CI **package** builds installers → **release** attaches them (+ SHA-256 sidecars) to GitHub Releases |
+| Commit `dist/*.exe` without a tag | Optional convenience copy in repo; **not** used for GitHub Releases |
 
 ### Maintainer release checklist
 
 1. Bump version in **csproj**, **app.manifest**, and **installer-shared.iss**.
 2. Implement and merge features on `main`.
-3. `dotnet test` (x64).
-4. `dotnet publish` (x64 + ARM64) and compile Inno Setup → update `dist\`.
-5. Commit (e.g. `release: v1.0.7 with rebuilt x64 and ARM64 installers`).
-6. Create and push the tag (must match semver, with `v` prefix):
+3. `dotnet test` (x64 Release) and optional local UI smoke harness.
+4. Commit version bumps on `main`.
+5. Create and push the tag (must match semver, with `v` prefix):
 
 ```powershell
 git tag v1.0.7
@@ -237,10 +250,10 @@ git push origin main
 git push origin v1.0.7
 ```
 
-7. Wait for [GitHub Actions](https://github.com/AnfalHaider/Unified-Messenger/actions) **build** workflow: **verify** → **package** → **release**.
-8. Confirm [releases/latest](https://github.com/AnfalHaider/Unified-Messenger/releases/latest) serves the new installers.
+6. Wait for [GitHub Actions](https://github.com/AnfalHaider/Unified-Messenger/actions) **build** workflow: **verify** → **package** → **ui-smoke** → **release** (release runs only on tags).
+7. Confirm [releases/latest](https://github.com/AnfalHaider/Unified-Messenger/releases/latest) serves CI-built installers and `.sha256` sidecars.
 
-`GitHubUpdateService` compares the running app version to the newest **GitHub Release** tag; users only auto-update after step 7 succeeds.
+`GitHubUpdateService` compares the running app version to the newest **GitHub Release** tag; users only auto-update after step 6 succeeds.
 
 ### Re-tagging an existing version
 
@@ -250,18 +263,19 @@ Do **not** move `v1.0.6` (or any published tag) to a new commit if users may hav
 
 GitHub Actions (`.github/workflows/build.yml`):
 
-1. **verify** — build + test (Release, x64)
-2. **package** — publish win-x64 and win-arm64, compile Inno Setup, upload artifacts (runs on `main` and on tags)
-3. **release** — runs only when the ref is `refs/tags/v*`; downloads CI-built installers and runs `gh release create` with both `.exe` files
+1. **verify** — build + unit test (Release, x64)
+2. **package** — publish win-x64 and win-arm64, compile Inno Setup, write `.sha256` sidecars, upload publish + installer artifacts
+3. **ui-smoke** — FlaUI harness against CI-built x64 publish output (main, PRs, and tags)
+4. **release** — tag `v*` only; downloads CI installer artifacts and runs `gh release create` with `.exe` + `.sha256` files
 
 Workflow triggers:
 
-- **push** to `main` → verify + package artifacts (no GitHub Release)
-- **push** tag `v*` → verify + package + **GitHub Release**
+- **push** to `main` / **pull_request** → verify + package + ui-smoke (no GitHub Release)
+- **push** tag `v*` → verify + package + ui-smoke + **GitHub Release** (installers from CI artifacts, not committed `dist/`)
 
 ## Auto-update
 
-`GitHubUpdateService` runs on startup (non-blocking). When a newer GitHub release is detected, it downloads `UnifiedMessengerSetup.exe` and runs it with Inno silent flags, then exits so files can be replaced. Disable or prompt before update in **Settings → Updates**.
+`GitHubUpdateService` runs on startup (non-blocking). When a newer GitHub release is detected, it downloads the architecture-appropriate installer (`UnifiedMessengerSetup.exe` or `UnifiedMessengerSetup-arm64.exe`), verifies Authenticode (and SHA-256 when a `.sha256` sidecar is published), and runs Inno silent install. Disable or prompt before update in **Settings → Updates**.
 
 ## Keyboard shortcuts
 

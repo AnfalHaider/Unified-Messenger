@@ -5,7 +5,7 @@ using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
-public sealed class AppSettingsService
+public sealed class AppSettingsService : IAppSettingsService
 {
     private const string FileName = "settings.json";
 
@@ -50,8 +50,9 @@ public sealed class AppSettingsService
 
             if (!File.Exists(_storePath))
             {
-                Settings = new AppSettings();
+                Settings = CreateDefaultSettings();
                 Settings.Normalize();
+                OccLayoutService.Normalize(Settings);
                 await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
                 _isLoaded = true;
                 return;
@@ -73,6 +74,7 @@ public sealed class AppSettingsService
             }
 
             loaded.Normalize();
+            OccLayoutService.Normalize(loaded);
             Settings = loaded;
 
             if (Settings.Version < AppSettings.CurrentVersion)
@@ -111,6 +113,7 @@ public sealed class AppSettingsService
         {
             mutate(Settings);
             Settings.Normalize();
+            OccLayoutService.Normalize(Settings);
             await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
             Changed?.Invoke(this, EventArgs.Empty);
         }
@@ -143,6 +146,14 @@ public sealed class AppSettingsService
 
         File.Move(tempPath, _storePath, overwrite: true);
     }
+
+    private static AppSettings CreateDefaultSettings() =>
+        new()
+        {
+            MaxConcurrentWebViews = 6,
+            StartupWarmMode = StartupWarmMode.VisibleOnly,
+            EnableLazyWebViewLoading = true
+        };
 
     private void BackupCorruptFile()
     {

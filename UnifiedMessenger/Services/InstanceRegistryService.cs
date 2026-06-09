@@ -8,7 +8,7 @@ namespace UnifiedMessenger.Services;
 
 public sealed record ImportInstancesResult(int ActiveCount, int ArchivedCount);
 
-public sealed partial class InstanceRegistryService
+public sealed partial class InstanceRegistryService : IInstanceRegistryService
 {
     private const string FileName = "instances.json";
 
@@ -625,6 +625,8 @@ public sealed partial class InstanceRegistryService
             instance.Normalize();
         }
 
+        ValidateInstanceStartUrls();
+
         RenormalizeSortOrders(_store.Instances.Where(i => i.IsProfessional));
         RenormalizeSortOrders(_store.Instances.Where(i => !i.IsProfessional));
 
@@ -713,6 +715,27 @@ public sealed partial class InstanceRegistryService
         for (var i = 0; i < ordered.Count; i++)
         {
             ordered[i].SortOrder = i + 1;
+        }
+    }
+
+    private void ValidateInstanceStartUrls()
+    {
+        foreach (var instance in AllInstances())
+        {
+            if (string.IsNullOrWhiteSpace(instance.Platform))
+            {
+                throw new InvalidDataException(
+                    $"Instance '{instance.DisplayName}' is missing a platform identifier.");
+            }
+
+            var platform = PlatformDefinition.FindById(instance.Platform);
+            if (platform is null)
+            {
+                throw new InvalidDataException(
+                    $"Instance '{instance.DisplayName}' uses unknown platform '{instance.Platform}'.");
+            }
+
+            instance.StartUrl = ResolveStartUrl(platform, instance.StartUrl);
         }
     }
 

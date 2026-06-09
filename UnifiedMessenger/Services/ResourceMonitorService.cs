@@ -56,8 +56,8 @@ public sealed class ResourceMonitorService
 
     public ResourceSnapshot Capture(
         IEnumerable<MessengerInstance> instances,
-        InstanceSessionManager sessionManager,
-        NotificationHub notificationHub,
+        IInstanceSessionManager sessionManager,
+        INotificationHubService notificationHub,
         AdapterHealthMonitor healthMonitor)
     {
         ArgumentNullException.ThrowIfNull(instances);
@@ -109,7 +109,7 @@ public sealed class ResourceMonitorService
 
     internal static int SumInstanceUnreadCounts(
         IReadOnlyList<MessengerInstance> instances,
-        NotificationHub notificationHub)
+        INotificationHubService notificationHub)
     {
         ArgumentNullException.ThrowIfNull(notificationHub);
 
@@ -119,7 +119,7 @@ public sealed class ResourceMonitorService
     internal static InstanceResourceTile BuildTile(
         MessengerInstance instance,
         string? visibleInstanceId,
-        NotificationHub notificationHub,
+        INotificationHubService notificationHub,
         AdapterHealthMonitor healthMonitor)
     {
         ArgumentNullException.ThrowIfNull(instance);

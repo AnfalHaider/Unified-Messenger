@@ -82,7 +82,17 @@
                     VerticalAlignment="Center"
                     Spacing="12"
                     Visibility="Collapsed">
-                    <ProgressRing IsActive="True" Width="40" Height="40" />
+                    <ProgressRing
+                        x:Name="InstanceLoadingRing"
+                        Width="40"
+                        Height="40"
+                        Foreground="{StaticResource UmBrandBlueBrush}"
+                        IsActive="True" />
+                    <ProgressBar
+                        x:Name="StartupWarmProgressBar"
+                        Width="280"
+                        Maximum="1"
+                        Visibility="Collapsed" />
                     <TextBlock
                         x:Name="InstanceLoadingText"
                         HorizontalAlignment="Center"

@@ -19,7 +19,7 @@ public sealed class NotificationHubChangedEventArgs : EventArgs
     public NotificationAlert? Alert { get; init; }
 }
 
-public sealed class NotificationHub
+public sealed class NotificationHub : INotificationHubService
 {
     internal const int MaxAlerts = 200;
 
@@ -314,12 +314,13 @@ public sealed class NotificationHub
     {
         lock (_gate)
         {
-            if (_alerts.Count == 0)
+            if (_alerts.Count == 0 && _badgeCounts.Count == 0)
             {
                 return;
             }
 
             _alerts.Clear();
+            _badgeCounts.Clear();
             RaiseChanged(NotificationChangeKind.AlertsCleared);
         }
     }

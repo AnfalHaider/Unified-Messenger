@@ -1,4 +1,5 @@
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Presenters;
 
 namespace UnifiedMessenger.Services;
 
@@ -95,128 +96,28 @@ public sealed class PersonalOverviewViewState
     public bool ShowInstanceTilesEmptyState { get; init; }
 
     public string InstanceTilesEmptyHint { get; init; } = string.Empty;
+
+    public bool ShowNoAccountsEmptyState { get; init; }
 }
 
 public static class PersonalDashboardPresentationHelper
 {
     public static PersonalOverviewViewState BuildViewState(
         PersonalDashboardSnapshot snapshot,
-        string? searchQuery = null)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
+        string? searchQuery = null) =>
+        PersonalSnapshotPresenter.BuildViewState(snapshot, searchQuery);
 
-        var activityItems = snapshot.RecentActivity
-            .Select(item => new PersonalOverviewActivityItem
-            {
-                Alert = item.Alert,
-                Title = item.Title,
-                Body = item.Body,
-                InstanceDisplayName = item.InstanceDisplayName,
-                RelativeTimeText = item.RelativeTimeText,
-                IconGlyph = item.IconGlyph,
-                AccentColorHex = item.AccentColorHex,
-                IsUnread = item.IsUnread
-            })
-            .ToList();
-
-        var hasQuery = !string.IsNullOrWhiteSpace(searchQuery);
-        var filteredActivity = hasQuery
-            ? activityItems.Where(item => item.Matches(searchQuery!)).ToList()
-            : activityItems;
-
-        return new PersonalOverviewViewState
-        {
-            PersonalAccountCount = snapshot.PersonalAccountCount,
-            TotalUnreadCount = snapshot.TotalUnreadCount,
-            AppWorkingSetMegabytes = snapshot.AppWorkingSetMegabytes,
-            VisibleInstanceName = snapshot.VisibleInstanceName,
-            LastUpdatedText = DashboardPageHelper.FormatPersonalLastUpdated(snapshot.CapturedAtUtc),
-            QuickAction = BuildQuickAction(snapshot),
-            FilteredActivity = filteredActivity,
-            InstanceTiles = snapshot.InstanceTiles
-                .Select(tile => new PersonalOverviewTileItem
-                {
-                    InstanceId = tile.InstanceId,
-                    DisplayName = tile.DisplayName,
-                    PlatformLabel = tile.PlatformLabel,
-                    DetailLine = tile.DetailLine,
-                    ConnectionStatusLabel = tile.ConnectionStatusLabel,
-                    ConnectionColorHex = tile.ConnectionColorHex,
-                    IconGlyph = tile.IconGlyph,
-                    AccentColorHex = tile.AccentColorHex,
-                    UnreadCount = tile.UnreadCount,
-                    IsMuted = tile.IsMuted
-                })
-                .ToList(),
-            ActivityEmptyState = ResolveActivityEmptyState(snapshot.EmptyReason, hasQuery),
-            ShowActivityList = filteredActivity.Count > 0,
-            ShowInstanceTilesEmptyState = snapshot.PersonalAccountCount == 0,
-            InstanceTilesEmptyHint = ResolveInstanceTilesEmptyHint(snapshot.EmptyReason)
-        };
-    }
-
-    internal static PersonalOverviewQuickAction BuildQuickAction(PersonalDashboardSnapshot snapshot)
-    {
-        if (string.IsNullOrWhiteSpace(snapshot.MostUnreadInstanceId) || snapshot.MostUnreadCount <= 0)
-        {
-            return new PersonalOverviewQuickAction();
-        }
-
-        var busiestName = snapshot.InstanceTiles
-            .FirstOrDefault(tile =>
-                tile.InstanceId.Equals(snapshot.MostUnreadInstanceId, StringComparison.OrdinalIgnoreCase))
-            ?.DisplayName;
-
-        if (string.IsNullOrWhiteSpace(busiestName))
-        {
-            return new PersonalOverviewQuickAction();
-        }
-
-        return new PersonalOverviewQuickAction
-        {
-            IsVisible = true,
-            InstanceId = snapshot.MostUnreadInstanceId,
-            Label = DashboardPageHelper.FormatPersonalQuickActionLabel(busiestName, snapshot.MostUnreadCount)
-        };
-    }
+    internal static PersonalOverviewQuickAction BuildQuickAction(PersonalDashboardSnapshot snapshot) =>
+        PersonalSnapshotPresenter.BuildQuickAction(snapshot);
 
     internal static PersonalOverviewEmptyState ResolveActivityEmptyState(
         PersonalDashboardEmptyReason emptyReason,
-        bool hasSearchQuery)
-    {
-        if (hasSearchQuery)
-        {
-            return new PersonalOverviewEmptyState
-            {
-                Title = "No matches",
-                Hint = DashboardPageHelper.ResolvePersonalActivityEmptyMessage(emptyReason, true),
-                IconGlyph = "\uE721"
-            };
-        }
-
-        return new PersonalOverviewEmptyState
-        {
-            Title = DashboardPageHelper.ResolvePersonalEmptyTitle(emptyReason),
-            Hint = DashboardPageHelper.ResolvePersonalEmptyHint(emptyReason),
-            IconGlyph = ResolveEmptyIconGlyph(emptyReason)
-        };
-    }
+        bool hasSearchQuery) =>
+        PersonalSnapshotPresenter.ResolveActivityEmptyState(emptyReason, hasSearchQuery);
 
     internal static string ResolveEmptyIconGlyph(PersonalDashboardEmptyReason emptyReason) =>
-        emptyReason switch
-        {
-            PersonalDashboardEmptyReason.NoPersonalAccounts => "\uE8FA",
-            PersonalDashboardEmptyReason.AllAccountsMuted => "\uE74F",
-            _ => "\uE7F3"
-        };
+        PersonalSnapshotPresenter.ResolveEmptyIconGlyph(emptyReason);
 
     internal static string ResolveInstanceTilesEmptyHint(PersonalDashboardEmptyReason emptyReason) =>
-        emptyReason switch
-        {
-            PersonalDashboardEmptyReason.NoPersonalAccounts =>
-                "Personal account status will appear here after you add an account.",
-            PersonalDashboardEmptyReason.AllAccountsMuted =>
-                "Accounts remain listed here once added, even when notifications are muted.",
-            _ => "Account connection status and unread counts appear here."
-        };
+        PersonalSnapshotPresenter.ResolveInstanceTilesEmptyHint(emptyReason);
 }

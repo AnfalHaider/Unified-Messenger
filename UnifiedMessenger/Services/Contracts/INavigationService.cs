@@ -1,0 +1,34 @@
+namespace UnifiedMessenger.Services;
+
+public interface INavigationService
+{
+    event EventHandler<InstanceNavigationRequest>? InstanceNavigationRequested;
+
+    event EventHandler? DashboardRefreshRequested;
+
+    event EventHandler<string>? ArchivedInstanceRestoreRequested;
+
+    event EventHandler? LayoutRefreshRequested;
+
+    event EventHandler? InstanceRegistryRefreshRequested;
+
+    event EventHandler? AddInstanceRequested;
+
+    void RequestInstance(string instanceId);
+
+    void RequestInstance(string instanceId, string? conversationKey, string? customerName = null);
+
+    void RequestDashboardRefresh();
+
+    void RequestArchivedInstanceRestore(string instanceId);
+
+    void RequestLayoutRefresh();
+
+    void RequestInstanceRegistryRefresh();
+
+    void RequestAddInstance();
+
+    void OpenInstance(string instanceId);
+
+    void OpenInstance(string instanceId, string? conversationKey, string? customerName = null);
+}
