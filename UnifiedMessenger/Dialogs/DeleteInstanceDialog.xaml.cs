@@ -35,24 +35,8 @@ public sealed partial class DeleteInstanceDialog : ContentDialog
     private void OnCloseButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args) =>
         Choice = DeleteInstanceChoice.Cancelled;
 
-    private async void PermanentDeleteButton_Click(object sender, RoutedEventArgs e)
+    private void PermanentDeleteButton_Click(object sender, RoutedEventArgs e)
     {
-        var confirm = new ContentDialog
-        {
-            Title = "Permanently delete account?",
-            Content =
-                "This removes the WebView profile, cookies, cache, and saved session for this account. You will need to sign in again if you add it back.",
-            PrimaryButtonText = "Delete permanently",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot
-        };
-
-        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return;
-        }
-
         Choice = DeleteInstanceChoice.PermanentDelete;
         Hide();
     }

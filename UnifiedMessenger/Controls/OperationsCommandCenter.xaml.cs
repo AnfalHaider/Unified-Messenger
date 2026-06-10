@@ -56,7 +56,6 @@ public sealed partial class OperationsCommandCenter : UserControl
     {
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
-        _services.ConfigureUi(() => XamlRoot);
     }
 
     public Task RefreshAsync(
@@ -239,8 +238,6 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        _services.ConfigureUi(() => XamlRoot);
-
         WireScrollBubbling();
         ApplyLayoutPreferences();
         ApplyAccessibilityTabOrder();

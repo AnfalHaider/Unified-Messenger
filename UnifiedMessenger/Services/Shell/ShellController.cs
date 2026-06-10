@@ -539,32 +539,16 @@ public sealed class ShellController
             return;
         }
 
+        if (dialog.Choice == DeleteInstanceChoice.PermanentDelete &&
+            !await ConfirmPermanentDeleteAsync(instance.DisplayName))
+        {
+            return;
+        }
+
         try
         {
-            if (_navigation.SelectedInstanceId == instanceId)
-            {
-                await _services.SessionManager.HideVisibleSessionAsync();
-            }
-            else
-            {
-                await _services.SessionManager.CloseSessionAsync(instanceId);
-            }
+            await InstanceDeletionService.DeleteAsync(_services, instance, dialog.Choice);
 
-            if (dialog.Choice == DeleteInstanceChoice.RemoveFromSidebar)
-            {
-                await _services.Registry.RemoveFromSidebarAsync(instanceId);
-            }
-            else
-            {
-                var webView = _services.SessionManager.TryGetWebView(instanceId)
-                    ?? InstanceWebViewRegistry.Instance.TryGet(instanceId);
-                await WebViewProfileManager.Instance.PermanentlyDeleteProfileAsync(instance.ProfileName, webView);
-                await _services.Registry.RemovePermanentlyAsync(instanceId);
-            }
-
-            _services.NotificationHub.RemoveAlertsForInstance(instanceId);
-            _adapterHealth.RemoveInstance(instanceId);
-            ProfessionalWorkspaceService.Instance.RemoveInstance(instanceId);
             _chrome.RebuildInstanceNavigation();
             RefreshNotificationUi();
 
@@ -582,6 +566,21 @@ public sealed class ShellController
         {
             await _services.Dialog.ShowErrorAsync("Could not remove instance", ex.Message);
         }
+    }
+
+    private async Task<bool> ConfirmPermanentDeleteAsync(string? displayName)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "Permanently delete account?",
+            Content = SettingsPageHelper.BuildPermanentDeleteConfirmation(displayName),
+            PrimaryButtonText = "Delete permanently",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = _ui.XamlRoot
+        };
+
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private async Task<bool> PromptForAutoUpdateAsync(UpdateCheckResult result, CancellationToken cancellationToken)

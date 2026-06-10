@@ -870,7 +870,18 @@ public sealed partial class SettingsPage : Page
 
         try
         {
-            await _registry.RemovePermanentlyAsync(instanceId);
+            var instance = InstanceDeletionService.ResolveInstance(_registry, instanceId);
+            if (instance is null)
+            {
+                await ShowMessageDialogAsync("Delete failed", "Account not found.");
+                return;
+            }
+
+            await InstanceDeletionService.DeleteAsync(
+                _services,
+                instance,
+                DeleteInstanceChoice.PermanentDelete);
+
             RefreshArchivedAccounts();
             RefreshStoragePaths();
             _services.Navigation.RequestInstanceRegistryRefresh();

@@ -16,7 +16,7 @@
         Background="{x:Bind ViewModel.CardBackgroundBrush}"
         BorderBrush="{x:Bind ViewModel.LatencyBorderBrush}"
         BorderThickness="{x:Bind ViewModel.CardBorderThickness}"
-        CornerRadius="{StaticResource UmCornerRadiusMd}"
+        CornerRadius="{StaticResource UmCornerRadiusMdValue}"
         Opacity="{x:Bind ViewModel.CardOpacity}"
         ToolTipService.ToolTip="{x:Bind ViewModel.ToolTipText}">
         <StackPanel Spacing="4">

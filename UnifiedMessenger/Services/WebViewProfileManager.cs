@@ -163,44 +163,35 @@ public sealed partial class WebViewProfileManager
         profileName = NormalizeProfileName(profileName);
         ValidateProfileName(profileName);
 
-        if (activeWebView?.CoreWebView2 is not null)
+        if (activeWebView is not null)
         {
-            await WipeProfileAsync(activeWebView.CoreWebView2.Profile, cancellationToken);
-            await UiThreadRunner.RunAsync(() =>
-            {
-                activeWebView.Close();
-                return Task.CompletedTask;
-            }).ConfigureAwait(true);
-            InstanceWebViewRegistry.Instance.ReleaseProfile(profileName);
-            return;
+            await CloseWebViewOnUiThreadAsync(activeWebView).ConfigureAwait(true);
         }
 
-        var ephemeralWebView = await CreateWebViewAsync(profileName, cancellationToken);
+        var ephemeralWebView = await CreateWebViewAsync(profileName, cancellationToken).ConfigureAwait(true);
         try
         {
             if (ephemeralWebView.CoreWebView2 is not null)
             {
-                await WipeProfileAsync(ephemeralWebView.CoreWebView2.Profile, cancellationToken);
+                await WipeProfileOnUiThreadAsync(ephemeralWebView.CoreWebView2.Profile, cancellationToken)
+                    .ConfigureAwait(true);
             }
         }
         finally
         {
-            await UiThreadRunner.RunAsync(() =>
-            {
-                ephemeralWebView.Close();
-                return Task.CompletedTask;
-            }).ConfigureAwait(true);
+            await CloseWebViewOnUiThreadAsync(ephemeralWebView).ConfigureAwait(true);
             InstanceWebViewRegistry.Instance.ReleaseProfile(profileName);
         }
     }
 
-    private static async Task WipeProfileAsync(
+    private static Task WipeProfileOnUiThreadAsync(
         CoreWebView2Profile profile,
-        CancellationToken cancellationToken)
-    {
-        await profile.ClearBrowsingDataAsync().AsTask().WaitAsync(cancellationToken);
-        profile.Delete();
-    }
+        CancellationToken cancellationToken) =>
+        UiThreadRunner.RunAsync(async () =>
+        {
+            await profile.ClearBrowsingDataAsync().AsTask().WaitAsync(cancellationToken).ConfigureAwait(true);
+            profile.Delete();
+        });
 
     /// <summary>
     /// Applies background memory policy across active WebView instances.

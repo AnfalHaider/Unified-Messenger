@@ -7,22 +7,22 @@
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMd}" />
+        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
     </Style>
 
     <Style x:Key="DashboardCardStyle" TargetType="Border">
-        <Setter Property="Padding" Value="{StaticResource UmSpacingMd}" />
+        <Setter Property="Padding" Value="{StaticResource UmPaddingMd}" />
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMd}" />
+        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
     </Style>
 
     <Style x:Key="UmSurfaceCardStyle" TargetType="Border">
-        <Setter Property="Padding" Value="{StaticResource UmSpacingLg}" />
+        <Setter Property="Padding" Value="{StaticResource UmPaddingLg}" />
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMd}" />
+        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
     </Style>
 </ResourceDictionary>

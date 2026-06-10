@@ -122,6 +122,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
                 _shell.Chrome.RebuildInstanceNavigation();
                 _shell.Navigation.RefreshDashboardIfVisible();
             });
+        nav.AddInstanceRequested += OnAddInstanceRequested;
 
         _services.NotificationHub.Changed += OnNotificationHubChanged;
         AppNotificationService.Instance.ActivationRequested += OnToastActivationRequested;
@@ -137,8 +138,12 @@ public sealed partial class MainWindow : Window, IShellUiHost
         GlobalHotkeyService.Instance.CtrlSpacePressed += OnGlobalCopilotHotkey;
     }
 
+    private void OnAddInstanceRequested(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => _ = _shell.ShowAddInstanceDialogAsync());
+
     private void DetachShellHandlers()
     {
+        _services.Navigation.AddInstanceRequested -= OnAddInstanceRequested;
         _services.NotificationHub.Changed -= OnNotificationHubChanged;
         AppNotificationService.Instance.ActivationRequested -= OnToastActivationRequested;
         _adapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;
