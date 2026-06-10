@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Controls.Occ;
@@ -14,6 +15,7 @@ public sealed partial class SentimentActivityChart : UserControl
     public SentimentActivityChart()
     {
         InitializeComponent();
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ChartAccessibilityHost, "Sentiment activity chart");
     }
 
     public void SetSeries(MessageTriageDashboardSnapshot? snapshot)

@@ -51,9 +51,10 @@ public class Wave9PersonalSettingsTests
     {
         var items = SettingsNavigationHelper.BuildSectionNavItems();
 
-        Assert.Equal(11, items.Count);
+        Assert.Equal(12, items.Count);
         Assert.Equal(SettingsNavigationHelper.NotificationsSectionKey, items[0].Key);
         Assert.Equal(SettingsNavigationHelper.PlatformModulesSectionKey, items[3].Key);
+        Assert.Equal(SettingsNavigationHelper.KeyboardShortcutsSectionKey, items[6].Key);
         Assert.Equal(SettingsNavigationHelper.AboutSectionKey, items[^1].Key);
         Assert.Equal("Settings › Local AI", SettingsNavigationHelper.BuildBreadcrumb("Local AI"));
     }

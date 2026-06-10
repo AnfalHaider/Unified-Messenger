@@ -18,6 +18,8 @@ public interface INavigationService
 
     event EventHandler? OccImmediateLaneFocusRequested;
 
+    event EventHandler? OccSnapshotExportRequested;
+
     void RequestInstance(string instanceId);
 
     void RequestInstance(string instanceId, string? conversationKey, string? customerName = null);
@@ -35,6 +37,8 @@ public interface INavigationService
     void RequestOccBranchFilter(string? branchKey);
 
     void RequestOccImmediateLaneFocus();
+
+    void RequestOccSnapshotExport();
 
     void OpenInstance(string instanceId);
 

@@ -7,7 +7,7 @@ namespace UnifiedMessenger.ViewModels;
 
 public partial class NotificationFeedViewModel : ViewModelBase
 {
-    public ObservableCollection<NotificationFeedAlertRow> AlertRows { get; } = [];
+    public ObservableCollection<object> FeedItems { get; } = [];
 
     [ObservableProperty]
     private bool _showAlertList;

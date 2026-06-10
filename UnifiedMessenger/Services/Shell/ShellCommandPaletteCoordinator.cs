@@ -116,6 +116,14 @@ public sealed class ShellCommandPaletteCoordinator
                 Category = "Operations",
                 IconGlyph = "\uE7BA",
                 Selection = new CommandPaletteSelection { Action = CommandPaletteAction.OpenImmediateQueue }
+            },
+            new()
+            {
+                Title = "Export OCC snapshot",
+                Subtitle = "Save KPIs and immediate queue to CSV",
+                Category = "Operations",
+                IconGlyph = "\uE8E5",
+                Selection = new CommandPaletteSelection { Action = CommandPaletteAction.ExportOccSnapshot }
             }
         };
 

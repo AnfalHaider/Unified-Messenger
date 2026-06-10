@@ -173,7 +173,8 @@ public static class CommandPaletteHelper
                 !string.IsNullOrWhiteSpace(selection.BranchKey),
             CommandPaletteAction.OpenSettingsSection =>
                 !string.IsNullOrWhiteSpace(selection.SettingsSectionKey),
-            CommandPaletteAction.RefreshOcc or CommandPaletteAction.OpenImmediateQueue =>
+            CommandPaletteAction.RefreshOcc or CommandPaletteAction.OpenImmediateQueue or
+            CommandPaletteAction.ExportOccSnapshot =>
                 true,
             _ => Enum.IsDefined(selection.Action)
         };

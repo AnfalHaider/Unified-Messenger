@@ -84,7 +84,7 @@ public class Wave7ShellTests
         Assert.False(presentation.ShowAlertList);
         Assert.False(presentation.ClearAllEnabled);
         Assert.False(presentation.MarkAllReadEnabled);
-        Assert.Empty(presentation.AlertRows);
+        Assert.Empty(presentation.FeedItems);
     }
 
     [Fact]

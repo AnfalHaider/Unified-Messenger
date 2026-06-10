@@ -37,6 +37,8 @@ public sealed class ShellController
         _ui = ui;
         _viewModel = viewModel;
         _adapterHealth = adapterHealth;
+        _ui.WorkspaceSidebar.ConfigureServices(services);
+        _ui.NotificationPanel.ConfigureServices(services);
         _navigation = new ShellNavigationCoordinator(services, ui, viewModel);
         _chrome = new ShellChromeCoordinator(
             ui,
@@ -154,6 +156,10 @@ public sealed class ShellController
             case CommandPaletteAction.OpenImmediateQueue:
                 await _navigation.ShowDashboardAsync();
                 _services.Navigation.RequestOccImmediateLaneFocus();
+                break;
+            case CommandPaletteAction.ExportOccSnapshot:
+                await _navigation.ShowDashboardAsync();
+                _services.Navigation.RequestOccSnapshotExport();
                 break;
         }
     }

@@ -407,6 +407,12 @@
                                     Text="Summarize open threads with Local AI."
                                     TextWrapping="WrapWholeWords" />
                                 <TextBlock
+                                    x:Name="BranchPulseStaleText"
+                                    FontSize="11"
+                                    Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                    Text="Summary may be outdated (&gt;24h)"
+                                    Visibility="Collapsed" />
+                                <TextBlock
                                     x:Name="BranchPulseSummaryText"
                                     TextWrapping="WrapWholeWords"
                                     Visibility="Collapsed" />

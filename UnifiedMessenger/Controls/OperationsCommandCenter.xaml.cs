@@ -48,6 +48,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         KanbanBoard.BindCollections(_viewModel.NewInquiries, _viewModel.HangingLeads, _viewModel.Resolved);
 
         BranchWorkspacePillBar.SelectionChanged += OnBranchWorkspacePillSelectionChanged;
+        _services.OccFilter.Changed += OnOccFilterStateChanged;
         KeyDown += OnOccKeyDown;
         Loaded += OnLoaded;
     }
@@ -89,7 +90,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         {
             var instanceList = professionalInstances.ToList();
             var status = await Task.Run(() =>
-                    OperationsCommandCenterService.Instance.BuildStatusOnly(
+                    _services.OperationsCommandCenter.BuildStatusOnly(
                         instanceList,
                         _workspaceBranchKey))
                 .ConfigureAwait(true);
@@ -133,7 +134,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         {
             if (allowLoadingOverlay)
             {
-                DashboardRefreshCoordinator.Instance.ScheduleRefresh();
+                _services.DashboardRefresh.ScheduleRefresh();
             }
 
             return;
@@ -164,6 +165,7 @@ public sealed partial class OperationsCommandCenter : UserControl
                     !branch.Equals(_workspaceBranchKey, StringComparison.OrdinalIgnoreCase)))
             {
                 _workspaceBranchKey = null;
+                _services.OccFilter.Clear();
             }
 
             var scopedThreads = _services.ThreadRegistry.GetAllThreads()
@@ -172,7 +174,7 @@ public sealed partial class OperationsCommandCenter : UserControl
             _branchTabCounts = BranchWorkspaceHelper.ComputeBranchTabCounts(scopedThreads);
 
             var snapshot = await Task.Run(() =>
-                    OperationsCommandCenterService.Instance.BuildSnapshot(
+                    _services.OperationsCommandCenter.BuildSnapshot(
                         instanceList,
                         _workspaceBranchKey))
                 .ConfigureAwait(true);
@@ -222,7 +224,7 @@ public sealed partial class OperationsCommandCenter : UserControl
 
         try
         {
-            await DashboardScrapeOrchestrator.Instance
+            await _services.DashboardScrape
                 .RefreshProfessionalInstancesAsync(targets)
                 .ConfigureAwait(true);
 
@@ -259,7 +261,11 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
 
         _workspaceBranchKey = branchKey;
+        _services.OccFilter.BranchKey = branchKey;
         _showWorkspaceLoading = true;
         _ = RefreshAsync(_professionalInstances, _registry);
     }
+
+    private void OnOccFilterStateChanged(object? sender, EventArgs e) =>
+        _dispatcherQueue.TryEnqueue(ApplyBranchFilterChip);
 }

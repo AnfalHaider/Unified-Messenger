@@ -47,7 +47,7 @@ public class Wave12ReauditTests
         var dashboardPage = File.ReadAllText(Path.Combine(repoRoot, "UnifiedMessenger", "Pages", "DashboardPage.xaml.cs"));
         var occ = File.ReadAllText(Path.Combine(repoRoot, "UnifiedMessenger", "Controls", "OperationsCommandCenter.xaml.cs"));
 
-        Assert.Contains("DashboardRefreshCoordinator", dashboardPage, StringComparison.Ordinal);
+        Assert.Contains("_services.DashboardRefresh", dashboardPage, StringComparison.Ordinal);
         Assert.DoesNotContain("MessageTriageService.Instance.Changed +=", occ, StringComparison.Ordinal);
         Assert.Contains(
             "RefreshOperationalFlags(raiseChanged: false)",

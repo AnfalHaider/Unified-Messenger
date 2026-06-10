@@ -76,6 +76,20 @@
             <Grid Grid.Row="0" Grid.Column="1">
                 <Grid x:Name="InstanceWebViewHost" />
 
+                <HyperlinkButton
+                    x:Name="BackToDashboardButton"
+                    Margin="16,10,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    AutomationProperties.Name="Back to dashboard"
+                    Click="BackToDashboardButton_Click"
+                    Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon FontSize="12" Glyph="&#xE72B;" />
+                        <TextBlock Text="Back to dashboard" />
+                    </StackPanel>
+                </HyperlinkButton>
+
                 <StackPanel
                     x:Name="InstanceLoadingPanel"
                     HorizontalAlignment="Center"

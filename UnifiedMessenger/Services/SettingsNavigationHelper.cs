@@ -17,6 +17,8 @@ public static class SettingsNavigationHelper
 
     public const string DataPrivacySectionKey = "data-privacy";
 
+    public const string KeyboardShortcutsSectionKey = "keyboard-shortcuts";
+
     public const string SystemSectionKey = "system";
 
     public const string RemovedAccountsSectionKey = "removed-accounts";
@@ -35,6 +37,7 @@ public static class SettingsNavigationHelper
         new() { Key = PlatformModulesSectionKey, Label = "Platform modules" },
         new() { Key = ProfessionalMetricsSectionKey, Label = "Professional metrics" },
         new() { Key = DataPrivacySectionKey, Label = "Data & privacy" },
+        new() { Key = KeyboardShortcutsSectionKey, Label = "Keyboard shortcuts" },
         new() { Key = SystemSectionKey, Label = "System" },
         new() { Key = RemovedAccountsSectionKey, Label = "Removed accounts" },
         new() { Key = StorageSectionKey, Label = "Storage" },

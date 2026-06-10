@@ -91,6 +91,7 @@ public sealed partial class SettingsPage : Page
         _sectionAnchors[SettingsNavigationHelper.PlatformModulesSectionKey] = PlatformModulesSection;
         _sectionAnchors[SettingsNavigationHelper.ProfessionalMetricsSectionKey] = ProfessionalMetricsSection;
         _sectionAnchors[SettingsNavigationHelper.DataPrivacySectionKey] = DataPrivacySection;
+        _sectionAnchors[SettingsNavigationHelper.KeyboardShortcutsSectionKey] = KeyboardShortcutsSection;
         _sectionAnchors[SettingsNavigationHelper.SystemSectionKey] = SystemSection;
         _sectionAnchors[SettingsNavigationHelper.RemovedAccountsSectionKey] = RemovedAccountsSection;
         _sectionAnchors[SettingsNavigationHelper.StorageSectionKey] = StorageSection;

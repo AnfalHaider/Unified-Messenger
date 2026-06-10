@@ -14,10 +14,7 @@ public sealed partial class OperationsCommandCenter
             return;
         }
 
-        _workspaceBranchKey = metric.BranchName;
-        _showWorkspaceLoading = true;
-        SelectWorkspacePill(metric.BranchName);
-        _ = RefreshAsync(_professionalInstances, _registry);
+        SelectWorkspaceBranch(metric.BranchName);
     }
 
     private void SelectWorkspacePill(string? branchName)
@@ -35,6 +32,7 @@ public sealed partial class OperationsCommandCenter
         }
 
         _workspaceBranchKey = branchKey;
+        _services.OccFilter.BranchKey = branchKey;
         _showWorkspaceLoading = true;
         SelectWorkspacePill(branchKey);
         ApplyBranchFilterChip();
@@ -190,6 +188,35 @@ public sealed partial class OperationsCommandCenter
         {
             button.IsEnabled = true;
             button.Content = originalContent;
+        }
+    }
+
+    public async Task ExportSnapshotAsync()
+    {
+        var picker = new Windows.Storage.Pickers.FileSavePicker();
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow!);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+        picker.SuggestedFileName = $"unified-messenger-occ-{DateTime.Now:yyyyMMdd}";
+        picker.FileTypeChoices.Add("CSV", [".csv"]);
+
+        var file = await picker.PickSaveFileAsync();
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _services.OccSnapshotExport.ExportCsvAsync(
+                _snapshot,
+                _services.OccFilter.BranchKey,
+                file.Path).ConfigureAwait(true);
+            await ShowSimpleDialogAsync("Export complete", $"OCC snapshot saved to {file.Name}.").ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            await ShowSimpleDialogAsync("Export failed", ex.Message).ConfigureAwait(true);
         }
     }
 

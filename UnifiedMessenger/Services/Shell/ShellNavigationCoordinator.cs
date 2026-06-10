@@ -54,6 +54,7 @@ public sealed class ShellNavigationCoordinator
         NavigateShellFrame(typeof(DashboardPage), navArgs);
         ActiveWorkspaceContext.SetDashboardVisible();
         _ui.AppTitleBar.Subtitle = "Dashboard";
+        UpdateBackToDashboardLink(false);
         _chrome?.UpdateShellChromeSelection();
     }
 
@@ -72,6 +73,7 @@ public sealed class ShellNavigationCoordinator
         NavigateShellFrame(typeof(SettingsPage), navArgs);
         ActiveWorkspaceContext.SetSettingsVisible();
         _ui.AppTitleBar.Subtitle = "Settings";
+        UpdateBackToDashboardLink(false);
         _chrome?.UpdateShellChromeSelection();
     }
 
@@ -139,6 +141,7 @@ public sealed class ShellNavigationCoordinator
         _chrome?.UpdateShellChromeSelection();
         _ui.ContentFrame.Visibility = Visibility.Collapsed;
         _ui.InstanceWebViewHost.Visibility = Visibility.Visible;
+        UpdateBackToDashboardLink(true);
 
         SetInstanceLoading(true, instance.DisplayName);
         try
@@ -192,4 +195,9 @@ public sealed class ShellNavigationCoordinator
 
         _ui.ContentFrame.Navigate(pageType, parameter);
     }
+
+    private void UpdateBackToDashboardLink(bool showInstanceBackLink) =>
+        _ui.BackToDashboardButton.Visibility = showInstanceBackLink
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 }

@@ -9,7 +9,8 @@ namespace UnifiedMessenger.Controls;
 
 public sealed partial class NotificationFeedPanel : UserControl
 {
-    private INotificationHubService _hub = NotificationHub.Instance;
+    private ApplicationServices _services = new();
+    private INotificationHubService _hub;
 
     public NotificationFeedViewModel ViewModel { get; } = new();
 
@@ -19,7 +20,15 @@ public sealed partial class NotificationFeedPanel : UserControl
 
     public NotificationFeedPanel()
     {
+        _hub = _services.NotificationHub;
         InitializeComponent();
+    }
+
+    public void ConfigureServices(ApplicationServices services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        _services = services;
+        _hub = services.NotificationHub;
     }
 
     public void Refresh(INotificationHubService hub, IEnumerable<MessengerInstance>? instances = null)
@@ -53,13 +62,13 @@ public sealed partial class NotificationFeedPanel : UserControl
             HeaderBadge.Visibility = Visibility.Collapsed;
         }
 
-        ViewModel.AlertRows.Clear();
-        foreach (var row in presentation.AlertRows)
+        ViewModel.FeedItems.Clear();
+        foreach (var item in presentation.FeedItems)
         {
-            ViewModel.AlertRows.Add(row);
+            ViewModel.FeedItems.Add(item);
         }
 
-        AlertsList.ItemsSource = ViewModel.AlertRows;
+        AlertsList.ItemsSource = ViewModel.FeedItems;
         AlertsList.Visibility = presentation.ShowAlertList ? Visibility.Visible : Visibility.Collapsed;
         EmptyStatePanel.Visibility = presentation.ShowAlertList ? Visibility.Collapsed : Visibility.Visible;
     }

@@ -40,6 +40,8 @@ public interface IShellUiHost
 
     TextBlock InstanceLoadingText { get; }
 
+    HyperlinkButton BackToDashboardButton { get; }
+
     void ActivateWindow();
 
     void ShowAppWindow();

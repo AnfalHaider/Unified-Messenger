@@ -470,17 +470,40 @@
                 </shared:SurfaceCard>
             </StackPanel>
 
-            <StackPanel x:Name="SystemSection" Tag="system" Spacing="8">
-                <shared:SectionHeaderView Title="SYSTEM" />
+            <StackPanel x:Name="KeyboardShortcutsSection" Tag="keyboard-shortcuts" Spacing="8">
+                <shared:SectionHeaderView Title="KEYBOARD SHORTCUTS" />
                 <shared:SurfaceCard>
                     <shared:SurfaceCard.CardBody>
-                    <StackPanel Spacing="6">
-                        <TextBlock FontWeight="SemiBold" Text="Keyboard shortcuts" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+D Dashboard · Ctrl+, Settings · Ctrl+K Command palette" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+Shift+N Notification panel · Ctrl+1–9 Switch instance · Ctrl+Space AI copilot (when enabled)" />
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Shortcuts work when the main window is focused and no modal overlay is open."
+                            TextWrapping="WrapWholeWords" />
+                        <TextBlock FontWeight="SemiBold" Text="Shell navigation" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+K — Open command palette" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+D — Go to dashboard" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+, — Open settings" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+Shift+N — Toggle notification panel" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+1–9 — Switch to instance by sidebar order" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+Space — AI copilot draft (when Local AI is enabled)" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontWeight="SemiBold"
+                            Text="Operations Command Center layout edit" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+Z — Undo last layout change" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Arrow keys — Move focused panel on the grid" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Shift+Arrow keys — Resize focused panel" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Delete — Hide focused panel" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Alt+Up / Alt+Down — Reorder cards in a kanban column" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Escape — Cancel keyboard panel move" />
                     </StackPanel>
                     </shared:SurfaceCard.CardBody>
                 </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="SystemSection" Tag="system" Spacing="8">
+                <shared:SectionHeaderView Title="SYSTEM" />
                 <shared:SurfaceCard>
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">

@@ -105,13 +105,13 @@ public sealed partial class PersonalOverviewPanel : UserControl
     {
         var instances = _personalInstances.ToList();
         var snapshot = await Task.Run(() =>
-                PersonalDashboardService.Instance.BuildSnapshot(
+                _services.PersonalDashboard.BuildSnapshot(
                     instances,
                     _services.NotificationHub,
                     _services.SessionManager,
-                    ResourceMonitorService.Instance,
-                    AdapterHealthMonitor.Instance,
-                    InstanceConnectionStatusService.Instance))
+                    _services.ResourceMonitor,
+                    _services.AdapterHealth,
+                    _services.ConnectionStatus))
             .ConfigureAwait(true);
 
         ApplySnapshot(snapshot, searchQuery);

@@ -10,8 +10,22 @@ public static class OccLayoutPresets
 
     public const string WhatsAppFocus = "whatsapp-focus";
 
+    public const string FrontDesk = "front-desk";
+
+    public const string Manager = "manager";
+
+    public const string AfterHours = "after-hours";
+
     public static readonly IReadOnlyList<string> All =
-        [OperationsFocus, AnalyticsFocus, Compact, WhatsAppFocus];
+    [
+        OperationsFocus,
+        AnalyticsFocus,
+        Compact,
+        WhatsAppFocus,
+        FrontDesk,
+        Manager,
+        AfterHours
+    ];
 
     public static IReadOnlyList<OccPanelPlacement> Create(string presetId) =>
         presetId switch
@@ -19,6 +33,9 @@ public static class OccLayoutPresets
             AnalyticsFocus => CreateAnalyticsFocus(),
             Compact => CreateCompact(),
             WhatsAppFocus => CreateWhatsAppFocus(),
+            FrontDesk => CreateFrontDesk(),
+            Manager => CreateManager(),
+            AfterHours => CreateAfterHours(),
             _ => CreateOperationsFocus()
         };
 
@@ -78,6 +95,38 @@ public static class OccLayoutPresets
         return placements;
     }
 
+    public static IReadOnlyList<OccPanelPlacement> CreateFrontDesk() =>
+    [
+        Panel(OccLayoutDefaults.KpiStripPanelId, 0, 0, OccLayoutGridConstants.FullWidthSpan, 1, 72),
+        Panel(OccLayoutDefaults.ImmediateLanePanelId, 0, 1, 6, 2, 360),
+        Panel(OccLayoutDefaults.KanbanPanelId, 6, 1, 6, 2, 400),
+        Panel(OccLayoutDefaults.BranchMetricsPanelId, 0, 3, OccLayoutGridConstants.FullWidthSpan, 1, 80)
+    ];
+
+    public static IReadOnlyList<OccPanelPlacement> CreateManager() =>
+    [
+        Panel(OccLayoutDefaults.KpiStripPanelId, 0, 0, OccLayoutGridConstants.FullWidthSpan, 1, 72),
+        Panel(OccLayoutDefaults.BranchMetricsPanelId, 0, 1, OccLayoutGridConstants.FullWidthSpan, 1, 120),
+        Panel(OccLayoutDefaults.BranchPulsePanelId, 0, 2, 6, 1, 200),
+        Panel(OccLayoutDefaults.ImmediateLanePanelId, 0, 3, 4, 1, 220),
+        Panel(OccLayoutDefaults.KanbanPanelId, 4, 3, 8, 1, 300),
+        Panel(OccLayoutDefaults.AiFeedPanelId, 6, 2, 6, 1, 200)
+    ];
+
+    public static IReadOnlyList<OccPanelPlacement> CreateAfterHours() =>
+    [
+        Panel(OccLayoutDefaults.KpiStripPanelId, 0, 0, OccLayoutGridConstants.FullWidthSpan, 1, 72),
+        Panel(OccLayoutDefaults.ImmediateLanePanelId, 0, 1, 5, 1, 320),
+        Panel(OccLayoutDefaults.KanbanPanelId, 5, 1, 7, 1, 360),
+        Panel(OccLayoutDefaults.BranchMetricsPanelId, 0, 2, OccLayoutGridConstants.FullWidthSpan, 1, 80),
+        HiddenPanel(OccLayoutDefaults.AnalyticsPanelId),
+        HiddenPanel(OccLayoutDefaults.PlatformIntelligencePanelId),
+        HiddenPanel(OccLayoutDefaults.HighlightsPanelId),
+        HiddenPanel(OccLayoutDefaults.AiFeedPanelId),
+        HiddenPanel(OccLayoutDefaults.DataHealthPanelId),
+        HiddenPanel(OccLayoutDefaults.BranchPulsePanelId)
+    ];
+
     private static int ResolveDefaultMinHeight(string panelId) => panelId switch
     {
         OccLayoutDefaults.KpiStripPanelId => 72,
@@ -108,5 +157,12 @@ public static class OccLayoutPresets
         RowSpan = rowSpan,
         IsVisible = true,
         MinHeightDp = minHeightDp > 0 ? minHeightDp : ResolveDefaultMinHeight(panelId)
+    };
+
+    private static OccPanelPlacement HiddenPanel(string panelId) => new()
+    {
+        PanelId = panelId,
+        IsVisible = false,
+        MinHeightDp = ResolveDefaultMinHeight(panelId)
     };
 }

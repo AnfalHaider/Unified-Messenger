@@ -25,6 +25,8 @@ public sealed class ShellNavigationService : INavigationService
 
     public event EventHandler? OccImmediateLaneFocusRequested;
 
+    public event EventHandler? OccSnapshotExportRequested;
+
     internal static ShellNavigationService CreateForTests() => new();
 
     internal static bool IsValidInstanceId(string? instanceId) =>
@@ -89,4 +91,7 @@ public sealed class ShellNavigationService : INavigationService
 
     public void RequestOccImmediateLaneFocus() =>
         OccImmediateLaneFocusRequested?.Invoke(this, EventArgs.Empty);
+
+    public void RequestOccSnapshotExport() =>
+        OccSnapshotExportRequested?.Invoke(this, EventArgs.Empty);
 }

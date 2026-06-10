@@ -38,5 +38,6 @@ public enum CommandPaletteAction
     MarkAllRead,
     RefreshOcc,
     FilterBranch,
-    OpenImmediateQueue
+    OpenImmediateQueue,
+    ExportOccSnapshot
 }

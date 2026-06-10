@@ -14,6 +14,7 @@ namespace UnifiedMessenger.Controls;
 public sealed partial class WorkspaceSidebar : Grid
 {
     private readonly WorkspaceSidebarViewModel _viewModel = new();
+    private ApplicationServices _services = new();
     private readonly Dictionary<string, Border> _instanceRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, InfoBadge> _instanceBadges = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Ellipse> _instanceStatusDots = new(StringComparer.OrdinalIgnoreCase);
@@ -28,6 +29,12 @@ public sealed partial class WorkspaceSidebar : Grid
     private bool _isCompact;
 
     public WorkspaceSidebarViewModel ViewModel => _viewModel;
+
+    public void ConfigureServices(ApplicationServices services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        _services = services;
+    }
 
     public WorkspaceSidebar()
     {
@@ -307,9 +314,9 @@ public sealed partial class WorkspaceSidebar : Grid
         }
 
         var normalizedId = instanceId.Trim();
-        var connectionStatus = InstanceConnectionStatusService.Instance.GetStatus(normalizedId);
-        var adapterStatus = AdapterHealthMonitor.Instance.GetStatus(normalizedId);
-        var detail = InstanceConnectionStatusService.Instance.GetDetail(normalizedId);
+        var connectionStatus = _services.ConnectionStatus.GetStatus(normalizedId);
+        var adapterStatus = _services.AdapterHealth.GetStatus(normalizedId);
+        var detail = _services.ConnectionStatus.GetDetail(normalizedId);
 
         if (_instanceStatusDots.TryGetValue(normalizedId, out var dot))
         {
@@ -421,9 +428,9 @@ public sealed partial class WorkspaceSidebar : Grid
     private Border CreateInstanceRow(MessengerInstance instance)
     {
         var instanceId = instance.Id.Trim();
-        var connectionStatus = InstanceConnectionStatusService.Instance.GetStatus(instanceId);
-        var adapterState = AdapterHealthMonitor.Instance.GetStatus(instanceId).State;
-        var connectionDetail = InstanceConnectionStatusService.Instance.GetDetail(instanceId);
+        var connectionStatus = _services.ConnectionStatus.GetStatus(instanceId);
+        var adapterState = _services.AdapterHealth.GetStatus(instanceId).State;
+        var connectionDetail = _services.ConnectionStatus.GetDetail(instanceId);
         var statusSubtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
             connectionStatus,
             adapterState,
@@ -446,7 +453,7 @@ public sealed partial class WorkspaceSidebar : Grid
                 instance.DisplayName,
                 instance.Category,
                 statusSubtitle,
-                AdapterHealthMonitor.Instance.GetStatus(instanceId).Description,
+                _services.AdapterHealth.GetStatus(instanceId).Description,
                 instance.MemoryTier,
                 connectionDetail));
 

@@ -1,4 +1,5 @@
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Backfill;
 using UnifiedMessenger.Services.Ollama;
 
 namespace UnifiedMessenger.Tests;
@@ -76,6 +77,23 @@ public class Wave5InterfaceTests
         var services = new ApplicationServices(registry: registry);
 
         Assert.Same(registry, services.Registry);
+    }
+
+    [Fact]
+    public void ApplicationServices_DefaultsWireDashboardAndMonitoringSingletons()
+    {
+        var services = ApplicationServices.CreateDefault();
+
+        Assert.Same(AdapterHealthMonitor.Instance, services.AdapterHealth);
+        Assert.Same(InstanceConnectionStatusService.Instance, services.ConnectionStatus);
+        Assert.Same(BranchPulseService.Instance, services.BranchPulse);
+        Assert.Same(OperationsCommandCenterService.Instance, services.OperationsCommandCenter);
+        Assert.Same(PersonalDashboardService.Instance, services.PersonalDashboard);
+        Assert.Same(DashboardRefreshCoordinator.Instance, services.DashboardRefresh);
+        Assert.Same(DashboardScrapeOrchestrator.Instance, services.DashboardScrape);
+        Assert.Same(ThreadDisplayOrderService.Instance, services.ThreadDisplayOrder);
+        Assert.Same(ResourceMonitorService.Instance, services.ResourceMonitor);
+        Assert.Same(BackfillSyncManager.Instance, services.Backfill);
     }
 
     [Fact]

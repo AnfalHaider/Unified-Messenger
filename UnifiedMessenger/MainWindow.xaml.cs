@@ -35,6 +35,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
     StackPanel IShellUiHost.InstanceLoadingPanel => InstanceLoadingPanel;
     ProgressBar IShellUiHost.StartupWarmProgressBar => StartupWarmProgressBar;
     TextBlock IShellUiHost.InstanceLoadingText => InstanceLoadingText;
+    HyperlinkButton IShellUiHost.BackToDashboardButton => BackToDashboardButton;
     void IShellUiHost.ActivateWindow() => Activate();
     void IShellUiHost.ShowAppWindow() => AppWindow.Show();
     public MainWindow()
@@ -365,6 +366,9 @@ public sealed partial class MainWindow : Window, IShellUiHost
         });
     }
 
+    private void BackToDashboardButton_Click(object sender, RoutedEventArgs e) =>
+        _ = _shell.Navigation.ShowDashboardAsync();
+
     public void ShowNotificationPanel() => _shell.Chrome.SetNotificationPanelVisible(true);
 
     private void NotificationToggleButton_Click(object sender, RoutedEventArgs e) =>
@@ -400,50 +404,5 @@ public sealed partial class MainWindow : Window, IShellUiHost
         {
             System.Diagnostics.Debug.WriteLine($"Could not persist sidebar pin: {ex.Message}");
         }
-    }
-
-    private void SidebarHost_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        if (_shell.Chrome.PanePinned || SidebarColumn.Width.Value <= 0)
-        {
-            return;
-        }
-
-        _shell.Chrome.SidebarHoverExpanded = true;
-        _shell.Chrome.ApplySidebarLayout(forceVisible: true);
-    }
-
-    private void SidebarHost_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        if (_shell.Chrome.PanePinned || SidebarColumn.Width.Value <= 0)
-        {
-            return;
-        }
-
-        _shell.Chrome.SidebarHoverExpanded = false;
-        _shell.Chrome.ApplySidebarLayout(forceVisible: true);
-    }
-
-    private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
-    {
-        _shell.Chrome.IsAppInForeground = MainWindowShellLayout.IsAppInForeground(
-            AppWindow.IsVisible,
-            args.WindowActivationState != WindowActivationState.Deactivated);
-        _shell.ApplyWindowVisibilityState();
-        _shell.OnForegroundStateChanged();
-    }
-
-    private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
-    {
-        if (!args.DidVisibilityChange)
-        {
-            return;
-        }
-
-        _shell.Chrome.IsAppInForeground = MainWindowShellLayout.IsAppInForeground(
-            sender.IsVisible,
-            _shell.Chrome.IsAppInForeground);
-        _shell.ApplyWindowVisibilityState();
-        _shell.OnForegroundStateChanged();
     }
 }

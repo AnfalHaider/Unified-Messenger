@@ -16,7 +16,7 @@ public sealed partial class OperationsCommandCenter
             return;
         }
 
-        BranchPulseService.Instance.Changed += OnBranchPulseChanged;
+        _services.BranchPulse.Changed += OnBranchPulseChanged;
         _branchPulseSubscribed = true;
     }
 
@@ -61,6 +61,12 @@ public sealed partial class OperationsCommandCenter
         BranchPulseProgressRing.IsActive = isGenerating;
         BranchPulseProgressRing.Visibility = isGenerating ? Visibility.Visible : Visibility.Collapsed;
         BranchPulseRefreshButton.IsEnabled = !isGenerating;
+
+        var isStale = snapshot.GeneratedAtUtc.HasValue &&
+                      DateTimeOffset.UtcNow - snapshot.GeneratedAtUtc.Value > TimeSpan.FromHours(24);
+        BranchPulseStaleText.Visibility = isStale && snapshot.State == BranchPulseState.Ready
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private async Task RefreshBranchPulseAsync()
@@ -76,7 +82,7 @@ public sealed partial class OperationsCommandCenter
             .Where(thread => allowedIds.Contains(thread.InstanceId))
             .ToList();
 
-        var snapshot = await BranchPulseService.Instance.GenerateAsync(
+        var snapshot = await _services.BranchPulse.GenerateAsync(
             _workspaceBranchKey,
             scopedThreads,
             instanceList).ConfigureAwait(true);
@@ -86,7 +92,7 @@ public sealed partial class OperationsCommandCenter
     private async void BranchPulseRefreshButton_Click(object sender, RoutedEventArgs e)
     {
         EnsureBranchPulseSubscription();
-        BranchPulseService.Instance.Invalidate(_workspaceBranchKey);
+        _services.BranchPulse.Invalidate(_workspaceBranchKey);
 
         var instanceList = _professionalInstances.ToList();
         var allowedIds = instanceList
@@ -97,7 +103,7 @@ public sealed partial class OperationsCommandCenter
             .Where(thread => allowedIds.Contains(thread.InstanceId))
             .ToList();
 
-        var snapshot = await BranchPulseService.Instance.GenerateAsync(
+        var snapshot = await _services.BranchPulse.GenerateAsync(
             _workspaceBranchKey,
             scopedThreads,
             instanceList,

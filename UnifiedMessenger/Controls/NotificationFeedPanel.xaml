@@ -142,6 +142,7 @@
                 <Button
                     x:Name="MarkAllReadButton"
                     Grid.Column="2"
+                    AutomationProperties.Name="Mark all notifications as read"
                     Click="MarkAllReadButton_Click"
                     ToolTipService.ToolTip="Mark all as read">
                     <FontIcon FontSize="12" Glyph="&#xE930;" />
@@ -149,6 +150,7 @@
                 <Button
                     x:Name="ClearAllButton"
                     Grid.Column="3"
+                    AutomationProperties.Name="Clear all notifications"
                     Click="ClearAllButton_Click"
                     ToolTipService.ToolTip="Clear all">
                     <FontIcon FontSize="12" Glyph="&#xE894;" />
@@ -166,6 +168,7 @@
             <ListView
                 x:Name="AlertsList"
                 Padding="8,0"
+                AutomationProperties.Name="Notification alerts list"
                 IsItemClickEnabled="True"
                 ItemClick="AlertsList_ItemClick"
                 ItemTemplateSelector="{StaticResource FeedTemplateSelector}"

@@ -18,7 +18,7 @@ public sealed partial class OperationsCommandCenter
     private void KanbanBoard_ColumnOrderChanged(
         object sender,
         (string ColumnKey, IReadOnlyList<string> OrderedThreadIds) e) =>
-        ThreadDisplayOrderService.Instance.UpdateColumnOrder(e.ColumnKey, e.OrderedThreadIds);
+        _services.ThreadDisplayOrder.UpdateColumnOrder(e.ColumnKey, e.OrderedThreadIds);
 
     private void KanbanBoard_ItemClickRequested(object sender, OperationsThreadCardViewModel card)
     {
@@ -59,7 +59,7 @@ public sealed partial class OperationsCommandCenter
         }
 
         var orderedIds = _viewModel.ImmediateQueue.Select(card => card.ThreadId).ToList();
-        ThreadDisplayOrderService.Instance.UpdateColumnOrder(
+        _services.ThreadDisplayOrder.UpdateColumnOrder(
             ThreadDisplayOrderService.ImmediateColumnKey,
             orderedIds);
     }
@@ -115,8 +115,8 @@ public sealed partial class OperationsCommandCenter
                 return;
             }
 
-            ThreadDisplayOrderService.Instance.MoveToTop(columnKey, card.ThreadId);
-            DashboardRefreshCoordinator.Instance.ScheduleRefresh();
+            _services.ThreadDisplayOrder.MoveToTop(columnKey, card.ThreadId);
+            _services.DashboardRefresh.ScheduleRefresh();
         };
         flyout.Items.Add(openItem);
         flyout.Items.Add(copyItem);
@@ -188,7 +188,7 @@ public sealed partial class OperationsCommandCenter
             : ResolveKanbanColumnKey(focusedList);
         if (!string.IsNullOrWhiteSpace(columnKey))
         {
-            ThreadDisplayOrderService.Instance.UpdateColumnOrder(
+            _services.ThreadDisplayOrder.UpdateColumnOrder(
                 columnKey,
                 collection.Select(card => card.ThreadId).ToList());
         }

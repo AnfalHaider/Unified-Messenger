@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v2.0.5](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v2.0.5)
+**Current release:** [v2.0.6](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v2.0.6)
 
 ## Download (Windows)
 
@@ -14,6 +14,13 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
+
+### What's in v2.0.6
+
+- **OCC:** Unified `OccFilterState`, role presets (Front desk / Manager / After hours), branch pulse stale badge, CSV export via command palette.
+- **Shell UX:** Notification hub grouped by platform, conversation “Back to dashboard” link, keyboard shortcuts settings section.
+- **CI:** Dependabot, benchmark regression gate, nightly UiSmoke workflow.
+- **966** unit tests (x64, Release).
 
 ### What's in v2.0.5
 

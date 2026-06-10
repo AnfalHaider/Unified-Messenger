@@ -66,11 +66,12 @@ public sealed partial class OperationsCommandCenter
 
     private void ApplyBranchFilterChip()
     {
-        var hasFilter = !string.IsNullOrWhiteSpace(_workspaceBranchKey);
+        var branchKey = _services.OccFilter.BranchKey;
+        var hasFilter = !string.IsNullOrWhiteSpace(branchKey);
         BranchFilterChipPanel.Visibility = hasFilter ? Visibility.Visible : Visibility.Collapsed;
         if (hasFilter)
         {
-            BranchFilterChipText.Text = $"Branch: {_workspaceBranchKey}";
+            BranchFilterChipText.Text = $"Branch: {branchKey}";
         }
     }
 

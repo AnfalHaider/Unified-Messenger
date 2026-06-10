@@ -54,7 +54,9 @@ public sealed partial class ApplicationServices
         VoiceNotePipelineService? voiceNotePipeline = null,
         WhatsAppBusinessContextService? whatsAppBusinessContext = null,
         OllamaInferenceCoordinator? ollamaInference = null,
-        BackfillSyncManager? backfill = null)
+        BackfillSyncManager? backfill = null,
+        OccFilterState? occFilter = null,
+        OccSnapshotExportService? occSnapshotExport = null)
     {
         Registry = registry ?? new InstanceRegistryService();
         PlatformModules = platformModules ?? PlatformModuleRegistry.Instance;
@@ -96,6 +98,8 @@ public sealed partial class ApplicationServices
         WhatsAppBusinessContext = whatsAppBusinessContext ?? WhatsAppBusinessContextService.Instance;
         OllamaInference = ollamaInference ?? OllamaInferenceCoordinator.Instance;
         Backfill = backfill ?? BackfillSyncManager.Instance;
+        OccFilter = occFilter ?? OccFilterState.Instance;
+        OccSnapshotExport = occSnapshotExport ?? OccSnapshotExportService.Instance;
     }
 
     public IInstanceRegistryService Registry { get; }
@@ -177,6 +181,10 @@ public sealed partial class ApplicationServices
     public OllamaInferenceCoordinator OllamaInference { get; }
 
     public BackfillSyncManager Backfill { get; }
+
+    public OccFilterState OccFilter { get; }
+
+    public OccSnapshotExportService OccSnapshotExport { get; }
 
     public void ConfigureUi(XamlRoot? xamlRoot) =>
         ConfigureUi(() => xamlRoot!);

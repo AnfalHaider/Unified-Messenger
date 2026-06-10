@@ -4,11 +4,13 @@
 
 | Gate | Command / job |
 |------|----------------|
-| Unit tests (750+ target; v2.0.5 baseline **959**) | `dotnet test UnifiedMessenger.Tests -c Release -p:Platform=x64` |
-| Line coverage gate (≥38%) | `verify` job — cobertura threshold in `build.yml` |
-| Benchmarks (informational) | `UnifiedMessenger.Benchmarks --job short` in `verify` job |
-| UI smoke | `ui-smoke` job in `.github/workflows/build.yml` |
+| Unit tests (750+ target; v2.0.6 baseline **966**) | `dotnet test UnifiedMessenger.Tests -c Release -p:Platform=x64` |
+| Line coverage gate (≥38%; measured baseline ~38.0%, aspirational 40%) | `verify` job — `COVERAGE_LINE_THRESHOLD` in `build.yml` |
+| Benchmark regression (`ResolveLayout` mean ≤ 6 μs) | `verify` job — `UnifiedMessenger.Benchmarks --job short` |
+| UI smoke (PR/push) | `ui-smoke` job in `.github/workflows/build.yml` |
+| UI smoke (nightly 06:00 UTC) | `ui-smoke-nightly` job in `.github/workflows/ui-smoke-nightly.yml` |
 | Vulnerable packages | `dotnet list package --vulnerable --include-transitive` |
+| Dependency updates (weekly) | Dependabot — NuGet + GitHub Actions in `.github/dependabot.yml` |
 
 ## Integration scenarios
 

@@ -6,7 +6,7 @@ namespace UnifiedMessenger.Presenters;
 
 public sealed class NotificationFeedPresentation
 {
-    public IReadOnlyList<NotificationFeedAlertRow> AlertRows { get; init; } = [];
+    public IReadOnlyList<object> FeedItems { get; init; } = [];
 
     public bool ShowAlertList { get; init; }
 
@@ -34,13 +34,11 @@ public static class NotificationFeedPresenter
             hub.Alerts.Count,
             unreadAlerts);
 
+        var platformGroups = NotificationFeedPanelHelper.GroupAlertsByPlatform(hub.Alerts, instanceLookup);
+
         return new NotificationFeedPresentation
         {
-            AlertRows = NotificationFeedAlertRow.BuildFeedItems(
-                    hub.GetAlertsGroupedByInstance(),
-                    instanceLookup)
-                .OfType<NotificationFeedAlertRow>()
-                .ToList(),
+            FeedItems = NotificationFeedAlertRow.BuildFeedItems(platformGroups, instanceLookup),
             ShowAlertList = NotificationFeedPanelHelper.ShouldShowAlertList(hub.Alerts.Count),
             ClearAllEnabled = commandStates.ClearEnabled,
             MarkAllReadEnabled = commandStates.MarkAllReadEnabled,

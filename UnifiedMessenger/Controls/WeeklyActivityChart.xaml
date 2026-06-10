@@ -44,7 +44,9 @@
             Opacity="0.65"
             Text="No activity recorded yet." />
 
-        <shared:AccessibleChartHost x:Name="ChartAccessibilityHost">
+        <shared:AccessibleChartHost
+            x:Name="ChartAccessibilityHost"
+            AutomationProperties.Name="7-day activity chart">
             <shared:AccessibleChartHost.ChartContent>
                 <Grid x:Name="ChartHost" MinHeight="120" ColumnSpacing="6" />
             </shared:AccessibleChartHost.ChartContent>

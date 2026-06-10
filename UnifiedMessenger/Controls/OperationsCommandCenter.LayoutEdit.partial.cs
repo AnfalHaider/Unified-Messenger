@@ -79,6 +79,9 @@ public sealed partial class OperationsCommandCenter
         LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "WhatsApp focus", Tag = OccLayoutPresets.WhatsAppFocus });
         LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "Analytics focus", Tag = OccLayoutPresets.AnalyticsFocus });
         LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "Compact", Tag = OccLayoutPresets.Compact });
+        LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "Front desk", Tag = OccLayoutPresets.FrontDesk });
+        LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "Manager", Tag = OccLayoutPresets.Manager });
+        LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "After hours", Tag = OccLayoutPresets.AfterHours });
 
         var currentPreset = OccLayoutService.Resolve(_services.AppSettings.Settings).LayoutPresetId;
         var selectedIndex = 0;

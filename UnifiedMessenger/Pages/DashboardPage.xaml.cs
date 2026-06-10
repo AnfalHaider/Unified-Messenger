@@ -63,16 +63,17 @@ public sealed partial class DashboardPage : Page
         OperationsCommandCenterPanel.ApplyAccessibilityTabOrder();
         PersonalOverviewPanel.ApplyAccessibilityTabOrder();
 
-        DashboardRefreshCoordinator.Instance.Attach(DispatcherQueue);
-        DashboardRefreshCoordinator.Instance.Subscribe();
-        DashboardRefreshCoordinator.Instance.RefreshRequested += OnCoordinatorRefreshRequested;
+        _services.DashboardRefresh.Attach(DispatcherQueue);
+        _services.DashboardRefresh.Subscribe();
+        _services.DashboardRefresh.RefreshRequested += OnCoordinatorRefreshRequested;
 
         var navigation = _services.Navigation;
         navigation.OccBranchFilterRequested += OnOccBranchFilterRequested;
         navigation.OccImmediateLaneFocusRequested += OnOccImmediateLaneFocusRequested;
+        navigation.OccSnapshotExportRequested += OnOccSnapshotExportRequested;
 
-        AdapterHealthMonitor.Instance.Changed += OnPersonalDataChanged;
-        InstanceConnectionStatusService.Instance.Changed += OnPersonalDataChanged;
+        _services.AdapterHealth.Changed += OnPersonalDataChanged;
+        _services.ConnectionStatus.Changed += OnPersonalDataChanged;
 
         _dashboardTabSelectionCallbackToken = DashboardTabs.RegisterPropertyChangedCallback(
             TabView.SelectedIndexProperty,
@@ -91,15 +92,16 @@ public sealed partial class DashboardPage : Page
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
 
-        DashboardRefreshCoordinator.Instance.RefreshRequested -= OnCoordinatorRefreshRequested;
-        DashboardRefreshCoordinator.Instance.Unsubscribe();
+        _services.DashboardRefresh.RefreshRequested -= OnCoordinatorRefreshRequested;
+        _services.DashboardRefresh.Unsubscribe();
 
         var navigation = _services.Navigation;
         navigation.OccBranchFilterRequested -= OnOccBranchFilterRequested;
         navigation.OccImmediateLaneFocusRequested -= OnOccImmediateLaneFocusRequested;
+        navigation.OccSnapshotExportRequested -= OnOccSnapshotExportRequested;
 
-        AdapterHealthMonitor.Instance.Changed -= OnPersonalDataChanged;
-        InstanceConnectionStatusService.Instance.Changed -= OnPersonalDataChanged;
+        _services.AdapterHealth.Changed -= OnPersonalDataChanged;
+        _services.ConnectionStatus.Changed -= OnPersonalDataChanged;
 
         DashboardTabs.UnregisterPropertyChangedCallback(
             TabView.SelectedIndexProperty,
@@ -131,7 +133,17 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             DashboardTabs.SelectedIndex = 0;
+            _services.OccFilter.BranchKey = branchKey;
             OperationsCommandCenterPanel.SelectWorkspaceBranch(branchKey);
+        });
+    }
+
+    private void OnOccSnapshotExportRequested(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            DashboardTabs.SelectedIndex = 0;
+            await OperationsCommandCenterPanel.ExportSnapshotAsync().ConfigureAwait(true);
         });
     }
 
@@ -222,10 +234,10 @@ public sealed partial class DashboardPage : Page
 
         foreach (var instance in ProfessionalInstances)
         {
-            var state = BackfillSyncManager.Instance.GetState(instance.Id);
+            var state = _services.Backfill.GetState(instance.Id);
             if (state is BackfillSyncState.NotStarted or BackfillSyncState.Failed or BackfillSyncState.Skipped)
             {
-                BackfillSyncManager.Instance.Schedule(instance);
+                _services.Backfill.Schedule(instance);
             }
         }
     }

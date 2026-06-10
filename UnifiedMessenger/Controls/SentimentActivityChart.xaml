@@ -14,7 +14,9 @@
             FontSize="12"
             Opacity="0.7"
             Text="Awaiting classified messages" />
-        <shared:AccessibleChartHost x:Name="ChartAccessibilityHost">
+        <shared:AccessibleChartHost
+            x:Name="ChartAccessibilityHost"
+            AutomationProperties.Name="Sentiment activity chart">
             <shared:AccessibleChartHost.ChartContent>
                 <Grid x:Name="ChartHost" MinHeight="110" ColumnSpacing="6" />
             </shared:AccessibleChartHost.ChartContent>
