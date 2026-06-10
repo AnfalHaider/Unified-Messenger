@@ -136,6 +136,11 @@ public sealed partial class WebViewProfileManager
                     $"Profile mismatch. Expected \"{profileName}\" but got \"{actualProfile ?? "null"}\".");
             }
 
+            if (webView.CoreWebView2 is not null)
+            {
+                WebViewNavigationGuard.Attach(webView.CoreWebView2);
+            }
+
             return Task.FromResult(webView);
         });
 

@@ -23,6 +23,8 @@ public sealed partial class DashboardPage : Page
 
     private bool IsOperationsCommandCenterTabSelected => DashboardTabs.SelectedIndex == 0;
 
+    private bool IsPersonalOverviewTabSelected => DashboardTabs.SelectedIndex == 1;
+
     private void OnResourceTimerTick(object? sender, object e)
     {
         _services.ThreadRegistry.RefreshOperationalFlags(raiseChanged: false);
@@ -30,6 +32,10 @@ public sealed partial class DashboardPage : Page
         if (IsOperationsCommandCenterTabSelected)
         {
             _ = RefreshOperationsCommandCenterAsync();
+        }
+        else if (_registry is not null)
+        {
+            _ = OperationsCommandCenterPanel.RefreshLightAsync(ProfessionalInstances, _registry);
         }
     }
 
@@ -53,9 +59,17 @@ public sealed partial class DashboardPage : Page
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        AccessibilityTabOrderHelper.ApplyTabIndex(DashboardTabs, AccessibilityTabOrderHelper.DashboardTabs);
+        OperationsCommandCenterPanel.ApplyAccessibilityTabOrder();
+        PersonalOverviewPanel.ApplyAccessibilityTabOrder();
+
         DashboardRefreshCoordinator.Instance.Attach(DispatcherQueue);
         DashboardRefreshCoordinator.Instance.Subscribe();
         DashboardRefreshCoordinator.Instance.RefreshRequested += OnCoordinatorRefreshRequested;
+
+        var navigation = _services.Navigation;
+        navigation.OccBranchFilterRequested += OnOccBranchFilterRequested;
+        navigation.OccImmediateLaneFocusRequested += OnOccImmediateLaneFocusRequested;
 
         AdapterHealthMonitor.Instance.Changed += OnPersonalDataChanged;
         InstanceConnectionStatusService.Instance.Changed += OnPersonalDataChanged;
@@ -80,6 +94,10 @@ public sealed partial class DashboardPage : Page
         DashboardRefreshCoordinator.Instance.RefreshRequested -= OnCoordinatorRefreshRequested;
         DashboardRefreshCoordinator.Instance.Unsubscribe();
 
+        var navigation = _services.Navigation;
+        navigation.OccBranchFilterRequested -= OnOccBranchFilterRequested;
+        navigation.OccImmediateLaneFocusRequested -= OnOccImmediateLaneFocusRequested;
+
         AdapterHealthMonitor.Instance.Changed -= OnPersonalDataChanged;
         InstanceConnectionStatusService.Instance.Changed -= OnPersonalDataChanged;
 
@@ -97,12 +115,33 @@ public sealed partial class DashboardPage : Page
 
     private void OnDashboardTabSelectionChanged(DependencyObject sender, DependencyProperty args)
     {
-        if (!IsOperationsCommandCenterTabSelected || _registry is null)
+        DispatcherQueue.TryEnqueue(() =>
         {
-            return;
-        }
+            if (!IsOperationsCommandCenterTabSelected || _registry is null)
+            {
+                return;
+            }
 
-        DispatcherQueue.TryEnqueue(() => _ = RefreshOperationsCommandCenterAsync());
+            _ = RefreshOperationsCommandCenterAsync();
+        });
+    }
+
+    private void OnOccBranchFilterRequested(object? sender, string? branchKey)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            DashboardTabs.SelectedIndex = 0;
+            OperationsCommandCenterPanel.SelectWorkspaceBranch(branchKey);
+        });
+    }
+
+    private void OnOccImmediateLaneFocusRequested(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            DashboardTabs.SelectedIndex = 0;
+            OperationsCommandCenterPanel.RequestImmediateLaneFocus();
+        });
     }
 
     private void OnCoordinatorRefreshRequested(object? sender, EventArgs e)
@@ -110,7 +149,14 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             PersonalOverviewPanel.ScheduleRefresh(PersonalInstances);
-            _ = RefreshOperationsCommandCenterIfVisibleAsync();
+            if (IsOperationsCommandCenterTabSelected)
+            {
+                _ = RefreshOperationsCommandCenterAsync();
+            }
+            else if (_registry is not null)
+            {
+                _ = OperationsCommandCenterPanel.RefreshLightAsync(ProfessionalInstances, _registry);
+            }
         });
     }
 

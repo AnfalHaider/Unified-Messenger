@@ -2,7 +2,7 @@ namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -109,6 +109,13 @@ public sealed class AppSettings
     public List<string> OccKpiMetricOrder { get; set; } = OccLayoutDefaults.KpiMetricOrder.ToList();
 
     public List<string> OccHiddenPanels { get; set; } = [];
+
+    public List<OccPanelPlacement> OccPanelPlacements { get; set; } = [];
+
+    public string OccLayoutPresetId { get; set; } = OccLayoutPresets.OperationsFocus;
+
+    public List<string> PersonalOverviewSectionOrder { get; set; } =
+        PersonalOverviewLayoutDefaults.SectionOrder.ToList();
 
     public bool OccBranchPillTeachingDismissed { get; set; }
 

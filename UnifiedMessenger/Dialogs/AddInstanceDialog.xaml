@@ -10,7 +10,7 @@
     Title="Add messaging instance"
     AutomationProperties.Name="Add messaging instance">
 
-    <StackPanel MinWidth="360" Spacing="12">
+    <StackPanel MinWidth="360" Spacing="12" TabFocusNavigation="Cycle">
         <ComboBox
             x:Name="RestoreBox"
             Header="Restore removed account (optional)"

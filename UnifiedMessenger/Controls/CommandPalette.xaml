@@ -13,6 +13,7 @@
         Background="#66000000"
         PointerPressed="Overlay_PointerPressed">
         <Border
+            x:Name="PalettePanel"
             MaxWidth="560"
             Margin="24,72,24,24"
             Padding="0"
@@ -22,7 +23,8 @@
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
             CornerRadius="12"
-            PointerPressed="Panel_PointerPressed">
+            PointerPressed="Panel_PointerPressed"
+            TabFocusNavigation="Cycle">
             <StackPanel Spacing="0">
                 <AutoSuggestBox
                     x:Name="SearchBox"
@@ -49,7 +51,7 @@
                                 <FontIcon
                                     VerticalAlignment="Center"
                                     FontSize="14"
-                                    Glyph="&#xE721;"
+                                    Glyph="{Binding IconGlyph}"
                                     Opacity="0.55" />
                                 <StackPanel Grid.Column="1" Spacing="2">
                                     <TextBlock

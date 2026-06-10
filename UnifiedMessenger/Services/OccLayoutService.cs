@@ -26,12 +26,19 @@ public static class OccLayoutService
     {
         ArgumentNullException.ThrowIfNull(settings);
 
+        var placements = OccLayoutGridEngine.Resolve(settings);
+        SyncLegacyFromPlacements(settings, placements);
+
         return new OccDashboardLayoutPreferences
         {
-            ActionPanelOrder = SanitizePanelOrder(settings.OccActionPanelOrder, AllowedActionPanels, DefaultActionPanelOrder),
-            ContextPanelOrder = SanitizePanelOrder(settings.OccContextPanelOrder, AllowedContextPanels, DefaultContextPanelOrder),
+            ActionPanelOrder = settings.OccActionPanelOrder,
+            ContextPanelOrder = settings.OccContextPanelOrder,
             KpiMetricOrder = SanitizePanelOrder(settings.OccKpiMetricOrder, AllowedKpiMetrics, DefaultKpiMetricOrder),
-            HiddenPanels = SanitizeHiddenPanels(settings.OccHiddenPanels)
+            HiddenPanels = settings.OccHiddenPanels,
+            PanelPlacements = placements,
+            LayoutPresetId = string.IsNullOrWhiteSpace(settings.OccLayoutPresetId)
+                ? OccLayoutPresets.OperationsFocus
+                : settings.OccLayoutPresetId.Trim()
         };
     }
 
@@ -39,21 +46,106 @@ public static class OccLayoutService
     {
         ArgumentNullException.ThrowIfNull(settings);
 
+        settings.OccLayoutPresetId = OccLayoutPresets.OperationsFocus;
+        settings.OccPanelPlacements = OccLayoutPresets.CreateOperationsFocus()
+            .Select(placement => placement.Clone())
+            .ToList();
         settings.OccActionPanelOrder = DefaultActionPanelOrder.ToList();
         settings.OccContextPanelOrder = DefaultContextPanelOrder.ToList();
         settings.OccKpiMetricOrder = DefaultKpiMetricOrder.ToList();
         settings.OccHiddenPanels = [];
     }
 
+    public static void ApplyPreset(AppSettings settings, string presetId)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var normalizedPreset = OccLayoutPresets.All.Contains(presetId, StringComparer.OrdinalIgnoreCase)
+            ? presetId
+            : OccLayoutPresets.OperationsFocus;
+
+        settings.OccLayoutPresetId = normalizedPreset;
+        settings.OccPanelPlacements = OccLayoutPresets.Create(normalizedPreset)
+            .Select(placement => placement.Clone())
+            .ToList();
+        SyncLegacyFromPlacements(settings, settings.OccPanelPlacements);
+    }
+
     public static void Normalize(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        var resolved = Resolve(settings);
-        settings.OccActionPanelOrder = resolved.ActionPanelOrder.ToList();
-        settings.OccContextPanelOrder = resolved.ContextPanelOrder.ToList();
-        settings.OccKpiMetricOrder = resolved.KpiMetricOrder.ToList();
-        settings.OccHiddenPanels = resolved.HiddenPanels.ToList();
+        if (settings.OccPanelPlacements is null || settings.OccPanelPlacements.Count == 0)
+        {
+            settings.OccPanelPlacements = OccLayoutGridEngine
+                .MigrateFromLegacy(
+                    settings.OccActionPanelOrder,
+                    settings.OccContextPanelOrder,
+                    settings.OccHiddenPanels)
+                .Select(placement => placement.Clone())
+                .ToList();
+        }
+
+        var resolved = OccLayoutGridEngine.Resolve(settings);
+        settings.OccPanelPlacements = resolved.Select(placement => placement.Clone()).ToList();
+        SyncLegacyFromPlacements(settings, resolved);
+
+        settings.OccActionPanelOrder = SanitizePanelOrder(
+            settings.OccActionPanelOrder,
+            AllowedActionPanels,
+            DefaultActionPanelOrder).ToList();
+        settings.OccContextPanelOrder = SanitizePanelOrder(
+            settings.OccContextPanelOrder,
+            AllowedContextPanels,
+            DefaultContextPanelOrder).ToList();
+        settings.OccKpiMetricOrder = SanitizePanelOrder(
+            settings.OccKpiMetricOrder,
+            AllowedKpiMetrics,
+            DefaultKpiMetricOrder).ToList();
+        settings.OccHiddenPanels = SanitizeHiddenPanels(settings.OccHiddenPanels).ToList();
+
+        if (string.IsNullOrWhiteSpace(settings.OccLayoutPresetId))
+        {
+            settings.OccLayoutPresetId = OccLayoutPresets.OperationsFocus;
+        }
+    }
+
+    public static void PersistPlacements(AppSettings settings, IReadOnlyList<OccPanelPlacement> placements)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(placements);
+
+        settings.OccPanelPlacements = placements.Select(placement => placement.Clone()).ToList();
+        settings.OccLayoutPresetId = string.Empty;
+    }
+
+    internal static void SyncLegacyFromPlacements(
+        AppSettings settings,
+        IReadOnlyList<OccPanelPlacement> placements)
+    {
+        var action = placements
+            .Where(placement => AllowedActionPanels.Contains(placement.PanelId))
+            .OrderBy(placement => placement.Row)
+            .ThenBy(placement => placement.Column)
+            .Select(placement => placement.PanelId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var context = placements
+            .Where(placement => AllowedContextPanels.Contains(placement.PanelId))
+            .OrderBy(placement => placement.Row)
+            .ThenBy(placement => placement.Column)
+            .Select(placement => placement.PanelId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        settings.OccActionPanelOrder = SanitizePanelOrder(action, AllowedActionPanels, DefaultActionPanelOrder).ToList();
+        settings.OccContextPanelOrder = SanitizePanelOrder(context, AllowedContextPanels, DefaultContextPanelOrder).ToList();
+        settings.OccHiddenPanels = placements
+            .Where(placement => !placement.IsVisible)
+            .Select(placement => placement.PanelId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static IReadOnlyList<string> SanitizePanelOrder(
@@ -118,4 +210,9 @@ public sealed class OccDashboardLayoutPreferences
     public IReadOnlyList<string> KpiMetricOrder { get; init; } = OccLayoutDefaults.KpiMetricOrder;
 
     public IReadOnlyList<string> HiddenPanels { get; init; } = [];
+
+    public IReadOnlyList<OccPanelPlacement> PanelPlacements { get; init; } =
+        OccLayoutPresets.CreateOperationsFocus();
+
+    public string LayoutPresetId { get; init; } = OccLayoutPresets.OperationsFocus;
 }

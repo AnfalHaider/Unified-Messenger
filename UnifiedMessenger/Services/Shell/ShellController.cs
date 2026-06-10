@@ -1,0 +1,655 @@
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using UnifiedMessenger.Controls;
+using UnifiedMessenger.Dialogs;
+using UnifiedMessenger.Models;
+using UnifiedMessenger.Pages;
+using UnifiedMessenger.ViewModels;
+using Windows.System;
+using Windows.UI.Shell;
+
+namespace UnifiedMessenger.Services.Shell;
+
+/// <summary>
+/// Orchestrates shell navigation, chrome, notifications, and instance operations.
+/// </summary>
+public sealed class ShellController
+{
+    private readonly ApplicationServices _services;
+    private readonly IShellUiHost _ui;
+    private readonly MainWindowViewModel _viewModel;
+    private readonly AdapterHealthMonitor _adapterHealth;
+    private readonly ShellNavigationCoordinator _navigation;
+    private readonly ShellChromeCoordinator _chrome;
+    private readonly ShellCommandPaletteCoordinator _commandPalette;
+
+    private bool _pendingPanelReveal;
+    private bool _trackingStartupWarm;
+
+    public ShellController(
+        ApplicationServices services,
+        IShellUiHost ui,
+        MainWindowViewModel viewModel,
+        AdapterHealthMonitor adapterHealth)
+    {
+        _services = services;
+        _ui = ui;
+        _viewModel = viewModel;
+        _adapterHealth = adapterHealth;
+        _navigation = new ShellNavigationCoordinator(services, ui, viewModel);
+        _chrome = new ShellChromeCoordinator(
+            ui,
+            services,
+            () => new ShellSelectionState(
+                _navigation.IsDashboardSelected,
+                _navigation.IsSettingsSelected,
+                _navigation.SelectedInstanceId));
+        _navigation.BindChrome(_chrome);
+        _commandPalette = new ShellCommandPaletteCoordinator(services);
+    }
+
+    public ShellNavigationCoordinator Navigation => _navigation;
+
+    public ShellChromeCoordinator Chrome => _chrome;
+
+    public MainWindowViewModel ViewModel => _viewModel;
+
+    public void RegisterKeyboardShortcuts(
+        KeyboardShortcutService keyboardShortcuts,
+        Func<bool> canUseGlobalShortcuts,
+        Action openCommandPalette)
+    {
+        keyboardShortcuts.Register(
+            VirtualKey.D,
+            VirtualKeyModifiers.Control,
+            () => _ = _navigation.ShowDashboardAsync(),
+            canUseGlobalShortcuts);
+        keyboardShortcuts.Register(
+            VirtualKey.K,
+            VirtualKeyModifiers.Control,
+            openCommandPalette,
+            canUseGlobalShortcuts);
+        keyboardShortcuts.Register(
+            KeyboardShortcutService.SettingsShortcutKey,
+            VirtualKeyModifiers.Control,
+            () => _ = _navigation.ShowSettingsAsync(),
+            canUseGlobalShortcuts);
+        keyboardShortcuts.Register(
+            VirtualKey.N,
+            VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
+            () => _chrome.SetNotificationPanelVisible(!_chrome.NotificationPanelVisible),
+            canUseGlobalShortcuts);
+        keyboardShortcuts.RegisterIndexedShortcuts(
+            VirtualKey.Number1,
+            9,
+            VirtualKeyModifiers.Control,
+            index =>
+            {
+                var instances = _services.Registry.GetOrderedInstances().ToList();
+                if (index >= 0 && index < instances.Count)
+                {
+                    _ = _navigation.SelectInstanceAsync(instances[index].Id);
+                }
+            },
+            canUseGlobalShortcuts);
+    }
+
+    public IReadOnlyList<CommandPaletteEntry> BuildCommandPaletteEntries() =>
+        _commandPalette.BuildEntries();
+
+    public async Task HandleCommandPaletteSelectionAsync(CommandPaletteSelection selection)
+    {
+        switch (selection.Action)
+        {
+            case CommandPaletteAction.OpenDashboard:
+                await _navigation.ShowDashboardAsync();
+                break;
+            case CommandPaletteAction.OpenSettings:
+                await _navigation.ShowSettingsAsync();
+                break;
+            case CommandPaletteAction.ToggleNotifications:
+                _chrome.SetNotificationPanelVisible(!_chrome.NotificationPanelVisible);
+                break;
+            case CommandPaletteAction.MarkAllRead:
+                _services.NotificationHub.MarkAllAlertsRead();
+                break;
+            case CommandPaletteAction.ClearNotifications:
+                await _commandPalette.ConfirmClearNotificationsAsync();
+                break;
+            case CommandPaletteAction.OpenInstance:
+                if (!string.IsNullOrWhiteSpace(selection.InstanceId))
+                {
+                    await _navigation.SelectInstanceAsync(selection.InstanceId);
+                }
+
+                break;
+            case CommandPaletteAction.OpenAlert:
+                if (!string.IsNullOrWhiteSpace(selection.AlertId))
+                {
+                    _services.NotificationHub.MarkAlertRead(selection.AlertId);
+                }
+
+                if (!string.IsNullOrWhiteSpace(selection.InstanceId))
+                {
+                    await _navigation.SelectInstanceAsync(selection.InstanceId);
+                    if (!_chrome.NotificationPanelVisible)
+                    {
+                        _chrome.SetNotificationPanelVisible(true);
+                    }
+                }
+
+                break;
+            case CommandPaletteAction.RefreshOcc:
+                await _navigation.ShowDashboardAsync();
+                _services.Navigation.RequestDashboardRefresh();
+                break;
+            case CommandPaletteAction.FilterBranch:
+                await _navigation.ShowDashboardAsync();
+                _services.Navigation.RequestOccBranchFilter(selection.BranchKey);
+                break;
+            case CommandPaletteAction.OpenImmediateQueue:
+                await _navigation.ShowDashboardAsync();
+                _services.Navigation.RequestOccImmediateLaneFocus();
+                break;
+        }
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _services.AppSettings.LoadAsync().ConfigureAwait(true);
+        await _services.Registry.LoadAsync().ConfigureAwait(true);
+        await _services.MessageAnalytics.LoadAsync().ConfigureAwait(true);
+        var loadResult = await RichTriageStoreService.Instance.LoadAsync().ConfigureAwait(true);
+        if (loadResult.Status == RichTriageStoreLoadStatus.CorruptRecovered &&
+            !string.IsNullOrWhiteSpace(loadResult.UserMessage))
+        {
+            await _services.Dialog.ShowErrorAsync("Triage data recovered", loadResult.UserMessage);
+        }
+
+        _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
+        _chrome.ApplySidebarLayout(forceVisible: true);
+        _chrome.ApplyNotificationPanelDockLayout();
+        _chrome.RebuildInstanceNavigation();
+        RefreshNotificationUi();
+
+        try
+        {
+            await WebViewProfileManager.Instance.EnsureEnvironmentAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"WebView environment warmup failed: {ex}");
+        }
+
+        var instances = _services.Registry.Instances.ToList();
+        if (instances.Count > 0)
+        {
+            _trackingStartupWarm = true;
+            _viewModel.BeginStartupWarm(instances.Count);
+            _navigation.ApplyInstanceLoadingUi();
+            try
+            {
+                await _services.SessionManager.WarmAllSessionsAsync(instances, visibleInstanceId: null)
+                    .ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                await _services.Dialog.ShowErrorAsync("Could not start instances", ShellErrorFormatter.Format(ex));
+            }
+            finally
+            {
+                _trackingStartupWarm = false;
+                _viewModel.ResetStartupWarmProgress();
+                _navigation.ApplyInstanceLoadingUi();
+            }
+        }
+
+        await _navigation.ShowDashboardAsync().ConfigureAwait(true);
+        _ = MaybePromptPinToTaskbarAsync();
+
+        if (_ui is MainWindow mainWindow)
+        {
+            SystemTrayService.Instance.Attach(mainWindow);
+        }
+
+        GlobalHotkeyService.Instance.EnsureRegistered();
+        _services.GitHubUpdate.PromptForUpdateApplicationAsync = PromptForAutoUpdateAsync;
+    }
+
+    public bool IsTrackingStartupWarm => _trackingStartupWarm;
+
+    public void ApplyPanePinUi(Button panePinButton, FontIcon panePinIcon) =>
+        _chrome.UpdatePanePinUi(panePinButton, panePinIcon);
+
+    public void OnNotificationHubChanged(NotificationHubChangedEventArgs e)
+    {
+        RefreshNotificationUi();
+
+        if (e.Kind != NotificationChangeKind.AlertAdded || e.Alert is null)
+        {
+            return;
+        }
+
+        if (_chrome.IsAppInForeground)
+        {
+            if (!_chrome.NotificationPanelVisible &&
+                MainWindowShellLayout.ShouldAutoOpenNotificationPanel(
+                    _services.AppSettings.Settings.PanelAutoOpen,
+                    _chrome.IsAppInForeground))
+            {
+                _chrome.SetNotificationPanelVisible(true);
+            }
+        }
+        else
+        {
+            _pendingPanelReveal = true;
+            if (_services.AppSettings.Settings.EnableBackgroundToasts)
+            {
+                var instance = _services.Registry.FindById(e.Alert.InstanceId);
+                AppNotificationService.Instance.ShowAlertToast(e.Alert, instance);
+            }
+        }
+    }
+
+    public void OnForegroundStateChanged()
+    {
+        if (!_chrome.IsAppInForeground || !_pendingPanelReveal || _chrome.NotificationPanelVisible)
+        {
+            return;
+        }
+
+        _chrome.SetNotificationPanelVisible(true);
+        _pendingPanelReveal = false;
+    }
+
+    public void ApplyWindowVisibilityState() =>
+        _services.SessionManager.ApplyAppWindowState(_chrome.IsAppInForeground);
+
+    public void RefreshNotificationUi()
+    {
+        foreach (var instance in _services.Registry.Instances)
+        {
+            _chrome.UpdateInstanceBadge(instance.Id);
+        }
+
+        _ui.WorkspaceSidebar.UpdateNotificationHubBadge(_services.NotificationHub.TotalUnreadCount);
+        _ui.NotificationPanel.Refresh(_services.NotificationHub, _services.Registry.Instances);
+        _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_services.NotificationHub.TotalUnreadCount);
+        _navigation.RefreshDashboardIfVisible();
+    }
+
+    public async Task ShowAddInstanceDialogAsync()
+    {
+        var previousFocus = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(_ui.XamlRoot) as Control;
+        var dialog = new AddInstanceDialog(_services.Registry.ArchivedInstances) { XamlRoot = _ui.XamlRoot };
+        var result = await dialog.ShowAsync();
+
+        if (previousFocus is { IsEnabled: true, Visibility: Visibility.Visible })
+        {
+            _ = previousFocus.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+        }
+
+        if (result != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(dialog.ResultRestoreInstanceId))
+            {
+                var restored = await _services.Registry.RestoreArchivedInstanceAsync(dialog.ResultRestoreInstanceId);
+                _chrome.RebuildInstanceNavigation();
+                _navigation.RefreshDashboardIfVisible();
+                await _navigation.SelectInstanceAsync(restored.Id);
+                return;
+            }
+
+            if (dialog.ResultDisplayName is null || dialog.ResultPlatformId is null)
+            {
+                return;
+            }
+
+            var instance = await _services.Registry.AddInstanceAsync(
+                dialog.ResultDisplayName,
+                dialog.ResultPlatformId,
+                dialog.ResultCustomUrl,
+                dialog.ResultCategory);
+
+            _chrome.RebuildInstanceNavigation();
+            _navigation.RefreshDashboardIfVisible();
+            await _navigation.SelectInstanceAsync(instance.Id);
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not add instance", ex.Message);
+        }
+    }
+
+    public async Task RestoreArchivedInstanceAsync(string instanceId)
+    {
+        var restored = await _services.Registry.RestoreArchivedInstanceAsync(instanceId);
+        _chrome.RebuildInstanceNavigation();
+        _navigation.RefreshDashboardIfVisible();
+
+        if (_ui.ContentFrame.Content is SettingsPage settingsPage)
+        {
+            settingsPage.RefreshAll();
+        }
+
+        await _navigation.SelectInstanceAsync(restored.Id);
+    }
+
+    public void ShowInstanceContextMenu(
+        (string InstanceId, MessengerInstance Instance, FrameworkElement Anchor) args)
+    {
+        var flyout = new MenuFlyout();
+        var moveItem = new MenuFlyoutItem
+        {
+            Text = args.Instance.IsProfessional
+                ? "Move to Personal workspace"
+                : "Move to Professional workspace"
+        };
+        moveItem.Click += (_, _) => _ = ToggleInstanceCategoryAsync(args.InstanceId);
+        flyout.Items.Add(moveItem);
+
+        var renameItem = new MenuFlyoutItem { Text = "Rename instance..." };
+        renameItem.Click += (_, _) => _ = RenameInstanceAsync(args.InstanceId);
+        flyout.Items.Add(renameItem);
+
+        var muteItem = new MenuFlyoutItem
+        {
+            Text = args.Instance.NotificationsMuted
+                ? "Unmute notifications"
+                : "Mute notifications"
+        };
+        muteItem.Click += (_, _) => _ = ToggleInstanceMuteAsync(args.InstanceId);
+        flyout.Items.Add(muteItem);
+
+        var refreshItem = new MenuFlyoutItem { Text = "Refresh WebView" };
+        refreshItem.Click += (_, _) => _ = _services.SessionManager.ReloadSessionAsync(args.InstanceId);
+        flyout.Items.Add(refreshItem);
+
+        if (_services.AppSettings.Settings.EnableEditInstanceMetadata)
+        {
+            var editItem = new MenuFlyoutItem { Text = "Edit instance metadata..." };
+            editItem.Click += (_, _) => _ = EditInstanceMetadataAsync(args.InstanceId);
+            flyout.Items.Add(editItem);
+        }
+
+        var removeItem = new MenuFlyoutItem { Text = "Remove instance..." };
+        removeItem.Click += (_, _) => _ = DeleteInstanceAsync(args.InstanceId);
+        flyout.Items.Add(removeItem);
+
+        flyout.ShowAt(args.Anchor);
+    }
+
+    private async Task ToggleInstanceCategoryAsync(string instanceId)
+    {
+        var instance = _services.Registry.FindById(instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        var newCategory = instance.IsProfessional
+            ? WorkspaceCategory.Personal
+            : WorkspaceCategory.Professional;
+
+        try
+        {
+            await _services.Registry.UpdateInstanceCategoryAsync(instanceId, newCategory);
+            _chrome.RebuildInstanceNavigation();
+            _navigation.RefreshDashboardIfVisible();
+            _chrome.UpdateShellChromeSelection();
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not update workspace", ex.Message);
+        }
+    }
+
+    private async Task RenameInstanceAsync(string instanceId)
+    {
+        var instance = _services.Registry.FindById(instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        var dialog = new RenameInstanceDialog(instance.DisplayName) { XamlRoot = _ui.XamlRoot };
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary || dialog.ResultDisplayName is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _services.Registry.UpdateInstanceDisplayNameAsync(instanceId, dialog.ResultDisplayName);
+            _chrome.RebuildInstanceNavigation();
+            _navigation.RefreshDashboardIfVisible();
+            _chrome.UpdateShellChromeSelection();
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not rename instance", ex.Message);
+        }
+    }
+
+    private async Task EditInstanceMetadataAsync(string instanceId)
+    {
+        var instance = _services.Registry.FindById(instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        var dialog = new EditInstanceMetadataDialog(instance) { XamlRoot = _ui.XamlRoot };
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary ||
+            dialog.ResultDisplayName is null ||
+            dialog.ResultPlatformId is null ||
+            dialog.ResultStartUrl is null)
+        {
+            return;
+        }
+
+        if (!dialog.ResultPlatformId.Equals(instance.Platform, StringComparison.OrdinalIgnoreCase))
+        {
+            var confirm = new ContentDialog
+            {
+                Title = "Change platform?",
+                Content =
+                    $"Switching from {PlatformDefinition.FindById(instance.Platform)?.DisplayName ?? instance.Platform} " +
+                    $"to {PlatformDefinition.FindById(dialog.ResultPlatformId)?.DisplayName ?? dialog.ResultPlatformId} " +
+                    "may require signing in again in the embedded web app.",
+                PrimaryButtonText = "Change platform",
+                CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = _ui.XamlRoot
+            };
+
+            if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            await _services.Registry.UpdateInstanceMetadataAsync(
+                instanceId,
+                dialog.ResultDisplayName,
+                dialog.ResultStartUrl,
+                dialog.ResultPlatformId,
+                dialog.ResultNotes,
+                dialog.ResultBranchKey);
+
+            await _services.SessionManager.ReloadSessionAsync(instanceId);
+            _chrome.RebuildInstanceNavigation();
+            _navigation.RefreshDashboardIfVisible();
+            _chrome.UpdateShellChromeSelection();
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not update instance metadata", ex.Message);
+        }
+    }
+
+    private async Task ToggleInstanceMuteAsync(string instanceId)
+    {
+        var instance = _services.Registry.FindById(instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var muted = !instance.NotificationsMuted;
+            await _services.Registry.UpdateInstanceNotificationsMutedAsync(instanceId, muted);
+            if (muted)
+            {
+                _services.NotificationHub.UpdateBadgeCount(instanceId, 0);
+            }
+
+            _chrome.RebuildInstanceNavigation();
+            RefreshNotificationUi();
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not update notification mute", ex.Message);
+        }
+    }
+
+    private async Task DeleteInstanceAsync(string instanceId)
+    {
+        var instance = _services.Registry.FindById(instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        var dialog = new DeleteInstanceDialog(instance.DisplayName) { XamlRoot = _ui.XamlRoot };
+        await dialog.ShowAsync();
+        if (dialog.Choice == DeleteInstanceChoice.Cancelled)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_navigation.SelectedInstanceId == instanceId)
+            {
+                await _services.SessionManager.HideVisibleSessionAsync();
+            }
+            else
+            {
+                await _services.SessionManager.CloseSessionAsync(instanceId);
+            }
+
+            if (dialog.Choice == DeleteInstanceChoice.RemoveFromSidebar)
+            {
+                await _services.Registry.RemoveFromSidebarAsync(instanceId);
+            }
+            else
+            {
+                var webView = _services.SessionManager.TryGetWebView(instanceId)
+                    ?? InstanceWebViewRegistry.Instance.TryGet(instanceId);
+                await WebViewProfileManager.Instance.PermanentlyDeleteProfileAsync(instance.ProfileName, webView);
+                await _services.Registry.RemovePermanentlyAsync(instanceId);
+            }
+
+            _services.NotificationHub.RemoveAlertsForInstance(instanceId);
+            _adapterHealth.RemoveInstance(instanceId);
+            ProfessionalWorkspaceService.Instance.RemoveInstance(instanceId);
+            _chrome.RebuildInstanceNavigation();
+            RefreshNotificationUi();
+
+            var nextInstance = _services.Registry.Instances.FirstOrDefault();
+            if (nextInstance is not null)
+            {
+                await _navigation.SelectInstanceAsync(nextInstance.Id);
+            }
+            else
+            {
+                await _navigation.ShowDashboardAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not remove instance", ex.Message);
+        }
+    }
+
+    private async Task<bool> PromptForAutoUpdateAsync(UpdateCheckResult result, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var current = result.CurrentVersion?.ToString() ?? "unknown";
+        var latest = result.LatestVersion?.ToString() ?? "unknown";
+        var dialog = new ContentDialog
+        {
+            Title = "Install update?",
+            Content =
+                $"A newer version ({latest}) is available. You are running {current}.\n\n" +
+                "Unified Messenger will download the installer, verify its signature, and restart to apply the update.",
+            PrimaryButtonText = "Install now",
+            CloseButtonText = "Not now",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = _ui.XamlRoot
+        };
+
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    private async Task MaybePromptPinToTaskbarAsync()
+    {
+        var settings = _services.AppSettings.Settings;
+        if (!settings.PromptPinToTaskbar || settings.HasPromptedPinToTaskbar)
+        {
+            return;
+        }
+
+        var taskbarManager = TaskbarManager.GetDefault();
+        if (!taskbarManager.IsPinningAllowed)
+        {
+            return;
+        }
+
+        if (await taskbarManager.IsCurrentAppPinnedAsync())
+        {
+            await _services.AppSettings.UpdateAsync(s => s.HasPromptedPinToTaskbar = true);
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Pin Unified Messenger?",
+            Content = "Pin this app to your taskbar for quick access to all your messaging accounts.",
+            PrimaryButtonText = "Pin to taskbar",
+            CloseButtonText = "Not now",
+            XamlRoot = _ui.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        await _services.AppSettings.UpdateAsync(s => s.HasPromptedPinToTaskbar = true);
+        if (result != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        try
+        {
+            await taskbarManager.RequestPinCurrentAppAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Taskbar pin request failed: {ex.Message}");
+            await _services.Dialog.ShowErrorAsync(
+                "Could not pin to taskbar",
+                "Right-click the taskbar icon and choose Pin to taskbar.");
+        }
+    }
+}

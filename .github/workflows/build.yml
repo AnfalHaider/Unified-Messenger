@@ -36,6 +36,34 @@ jobs:
       - name: Test
         run: dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj --configuration ${{ env.CONFIGURATION }} --no-build --verbosity normal -p:Platform=${{ env.PLATFORM }}
 
+      - name: Enforce shell DI gate
+        shell: pwsh
+        run: |
+          $forbidden = @(
+            'AppSettingsService.Instance',
+            'MessageAnalyticsService.Instance',
+            'NotificationHub.Instance',
+            'ThreadRegistryService.Instance'
+          )
+          $shellFiles = Get-ChildItem -Path "UnifiedMessenger/Services/Shell" -Filter *.cs -Recurse
+          foreach ($file in $shellFiles) {
+            $text = Get-Content $file.FullName -Raw
+            foreach ($pattern in $forbidden) {
+              if ($text -match [regex]::Escape($pattern)) {
+                throw "Forbidden singleton in shell layer: $($file.Name) uses $pattern"
+              }
+            }
+          }
+
+      - name: Check vulnerable packages
+        shell: pwsh
+        run: |
+          $output = dotnet list UnifiedMessenger.sln package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $output
+          if ($output -match 'has the following vulnerable packages') {
+            throw "Vulnerable packages detected. Resolve before merging."
+          }
+
   package:
     runs-on: windows-latest
     needs: verify

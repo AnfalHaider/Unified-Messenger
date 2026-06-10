@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="UnifiedMessenger.Controls.Shared.AccessibleChartHost"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    AutomationProperties.LiveSetting="Polite"
+    mc:Ignorable="d">
+
+    <Grid>
+        <ContentPresenter x:Name="ChartPresenter" Content="{x:Bind ChartContent, Mode=OneWay}" />
+        <TextBlock
+            x:Name="SummaryTextBlock"
+            Opacity="0"
+            Text="{x:Bind Summary, Mode=OneWay}" />
+    </Grid>
+</UserControl>

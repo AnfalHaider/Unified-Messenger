@@ -5,6 +5,13 @@ namespace UnifiedMessenger.Controls.Shared;
 
 public sealed partial class MetricCardView : UserControl
 {
+    public static readonly DependencyProperty IsAccentProperty =
+        DependencyProperty.Register(
+            nameof(IsAccent),
+            typeof(bool),
+            typeof(MetricCardView),
+            new PropertyMetadata(false, OnIsAccentChanged));
+
     public static readonly DependencyProperty LabelProperty =
         DependencyProperty.Register(
             nameof(Label),
@@ -29,6 +36,13 @@ public sealed partial class MetricCardView : UserControl
     public MetricCardView()
     {
         InitializeComponent();
+        Loaded += (_, _) => UpdateAccentVisualState();
+    }
+
+    public bool IsAccent
+    {
+        get => (bool)GetValue(IsAccentProperty);
+        set => SetValue(IsAccentProperty, value);
     }
 
     public string Label
@@ -70,5 +84,18 @@ public sealed partial class MetricCardView : UserControl
                 ? Visibility.Collapsed
                 : Visibility.Visible;
         }
+    }
+
+    private static void OnIsAccentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is MetricCardView card)
+        {
+            card.UpdateAccentVisualState();
+        }
+    }
+
+    private void UpdateAccentVisualState()
+    {
+        VisualStateManager.GoToState(this, IsAccent ? "Accent" : "Normal", true);
     }
 }

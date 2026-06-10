@@ -1,12 +1,14 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Services;
+using FocusTrapHelper = UnifiedMessenger.Services.FocusTrapHelper;
 
 namespace UnifiedMessenger.Dialogs;
 
 public sealed partial class RenameInstanceDialog : ContentDialog
 {
     private readonly string _currentDisplayName;
+    private FocusTrapHelper? _focusTrap;
 
     public RenameInstanceDialog(string? currentDisplayName)
     {
@@ -21,6 +23,8 @@ public sealed partial class RenameInstanceDialog : ContentDialog
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _focusTrap?.Dispose();
+        _focusTrap = FocusTrapHelper.Activate(this);
         DisplayNameBox.Focus(FocusState.Programmatic);
         DisplayNameBox.SelectAll();
     }
@@ -29,6 +33,8 @@ public sealed partial class RenameInstanceDialog : ContentDialog
     {
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
+        _focusTrap?.Dispose();
+        _focusTrap = null;
     }
 
     private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)

@@ -36,12 +36,21 @@ public sealed partial class PersonalOverviewPanel : UserControl
         _services = services;
     }
 
+    public void ApplyAccessibilityTabOrder() =>
+        AccessibilityTabOrderHelper.ApplyTabIndex(
+            GlobalSearchBox,
+            AccessibilityTabOrderHelper.PersonalSearchBox);
+
+    public void ToggleLayoutEditMode() => SetPersonalLayoutEditMode(!_isLayoutEditMode);
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         if (Content is ScrollViewer rootScrollViewer)
         {
             ScrollInputHelper.EnableVerticalScrollBubbling(SummaryCardsGrid, rootScrollViewer);
         }
+
+        ApplyPersonalLayoutPreferences();
     }
 
     public void Refresh(IEnumerable<MessengerInstance> personalInstances)
@@ -118,10 +127,10 @@ public sealed partial class PersonalOverviewPanel : UserControl
 
     private void SyncUiFromViewModel()
     {
-        ActiveAccountsValue.Text = _viewModel.PersonalAccountCount.ToString();
-        UnreadValue.Text = _viewModel.TotalUnreadCount.ToString();
-        MemoryValue.Text = $"{_viewModel.AppWorkingSetMegabytes} MB";
-        VisibleAccountValue.Text = _viewModel.VisibleInstanceName;
+        SummaryCardAccounts.Value = _viewModel.PersonalAccountCount.ToString();
+        SummaryCardUnread.Value = _viewModel.TotalUnreadCount.ToString();
+        SummaryCardMemory.Value = $"{_viewModel.AppWorkingSetMegabytes} MB";
+        SummaryCardActive.Value = _viewModel.VisibleInstanceName;
         PersonalLastUpdatedText.Text = _viewModel.LastUpdatedText;
 
         OpenBusiestInboxButton.Content = _viewModel.QuickActionLabel;

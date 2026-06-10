@@ -17,5 +17,5 @@ internal sealed class ModuleValidationResult
         new() { Module = module, Layer = layer, Passed = false, Detail = detail };
 
     public static ModuleValidationResult Warn(string module, string layer, string detail) =>
-        new() { Module = module, Layer = layer, Passed = true, Detail = $"WARN: {detail}" };
+        new() { Module = module, Layer = layer, Passed = false, Detail = $"WARN: {detail}" };
 }

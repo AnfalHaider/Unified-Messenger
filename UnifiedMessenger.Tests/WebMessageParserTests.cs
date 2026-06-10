@@ -62,6 +62,15 @@ public class WebMessageParserTests
     }
 
     [Fact]
+    public void MatchesInstance_RejectsMissingInstanceId()
+    {
+        using var document = WebMessageParser.Parse("""{"type":"badge-count","count":1}""");
+        var instance = new MessengerInstance { Id = "inst-1", DisplayName = "Work", ProfileName = "work" };
+
+        Assert.False(WebMessageParser.MatchesInstance(document.RootElement, instance));
+    }
+
+    [Fact]
     public void MatchesInstance_RejectsMismatchedInstanceId()
     {
         using var document = WebMessageParser.Parse("""{"type":"badge-count","instanceId":"other","count":1}""");

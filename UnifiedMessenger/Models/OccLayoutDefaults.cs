@@ -2,6 +2,8 @@ namespace UnifiedMessenger.Models;
 
 public static class OccLayoutDefaults
 {
+    public const string KpiStripPanelId = "KpiStrip";
+
     public const string ImmediateLanePanelId = "ImmediateLane";
 
     public const string KanbanPanelId = "Kanban";

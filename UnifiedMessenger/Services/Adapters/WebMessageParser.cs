@@ -33,11 +33,11 @@ internal static class WebMessageParser
     {
         if (!root.TryGetProperty("instanceId", out var instanceIdElement))
         {
-            return true;
+            return false;
         }
 
         var messageInstanceId = instanceIdElement.GetString();
-        return string.IsNullOrWhiteSpace(messageInstanceId) ||
+        return !string.IsNullOrWhiteSpace(messageInstanceId) &&
                messageInstanceId.Equals(instance.Id, StringComparison.OrdinalIgnoreCase);
     }
 

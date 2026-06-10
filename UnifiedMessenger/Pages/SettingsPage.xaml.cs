@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Models;
@@ -39,6 +40,48 @@ public sealed partial class SettingsPage : Page
     {
         EnsureComboBoxesInitialized();
         ImportBackupCheckBox.IsChecked = _viewModel.CreateImportBackup;
+        ApplySettingsAccessibilityNames();
+        AccessibilityTabOrderHelper.ApplyTabIndex(SectionNavList, AccessibilityTabOrderHelper.SettingsSectionNav);
+        AccessibilityTabOrderHelper.ApplyTabIndex(SettingsScrollViewer, AccessibilityTabOrderHelper.SettingsContent);
+    }
+
+    private void ApplySettingsAccessibilityNames()
+    {
+        AutomationProperties.SetName(SectionNavList, "Settings sections");
+        AutomationProperties.SetName(BackgroundToastsToggle, "Background toast notifications");
+        AutomationProperties.SetName(TaskbarBadgeToggle, "Taskbar badge");
+        AutomationProperties.SetName(PanelAutoOpenBox, "Auto-open notification panel");
+        AutomationProperties.SetName(ToastSoundBox, "Toast sound");
+        AutomationProperties.SetName(IncludeMutedBadgesToggle, "Include muted chats in badge totals");
+        AutomationProperties.SetName(ToastGroupToggle, "Group toasts by instance");
+        AutomationProperties.SetName(ToastBrandingToggle, "Use platform branding on toasts");
+        AutomationProperties.SetName(ClearNotificationsButton, "Clear notification history");
+        AutomationProperties.SetName(ThemePreferenceBox, "Theme preference");
+        AutomationProperties.SetName(PanelDockBox, "Notification panel dock position");
+        AutomationProperties.SetName(StartupWarmModeBox, "Startup warm mode");
+        AutomationProperties.SetName(MaxConcurrentWebViewsBox, "Maximum concurrent WebViews");
+        AutomationProperties.SetName(RefreshAllWebViewsButton, "Refresh all WebViews");
+        AutomationProperties.SetName(ExperimentalExpander, "Experimental session options");
+        AutomationProperties.SetName(EnableLazyWebViewLoadingToggle, "Enable lazy WebView loading");
+        AutomationProperties.SetName(EnablePerInstanceSleepUnloadToggle, "Enable per-instance sleep unload");
+        AutomationProperties.SetName(EnableEditInstanceMetadataToggle, "Enable edit instance metadata");
+        AutomationProperties.SetName(EnableImportExportInstancesToggle, "Enable import export instances");
+        AutomationProperties.SetName(EnableInstanceNotesTagsToggle, "Enable instance notes and tags");
+        AutomationProperties.SetName(SlaThresholdBox, "SLA threshold minutes");
+        AutomationProperties.SetName(DashboardUrgencyThresholdBox, "Dashboard urgency threshold");
+        AutomationProperties.SetName(EnableStartupBackfillToggle, "Enable startup backfill");
+        AutomationProperties.SetName(ShowHeuristicExecutiveInsightsToggle, "Show heuristic executive insights");
+        AutomationProperties.SetName(ClearAnalyticsButton, "Clear operational data");
+        AutomationProperties.SetName(ExportInstancesButton, "Export instances");
+        AutomationProperties.SetName(ImportBackupCheckBox, "Create backup before import");
+        AutomationProperties.SetName(ImportInstancesButton, "Import instances");
+        AutomationProperties.SetName(RunInBackgroundOnCloseToggle, "Run in background on close");
+        AutomationProperties.SetName(LaunchAtStartupToggle, "Launch at startup");
+        AutomationProperties.SetName(PromptPinToTaskbarToggle, "Suggest pin to taskbar");
+        AutomationProperties.SetName(EnableAutoUpdateToggle, "Enable auto update");
+        AutomationProperties.SetName(PromptBeforeAutoUpdateToggle, "Prompt before auto-update installs");
+        AutomationProperties.SetName(CheckForUpdatesButton, "Check for updates");
+        AutomationProperties.SetName(ArchivedAccountsList, "Removed accounts");
     }
 
     private void InitializeSectionNav()
@@ -231,13 +274,30 @@ public sealed partial class SettingsPage : Page
 
     private void SectionNavList_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not SettingsSectionNavItemViewModel item ||
-            !_sectionAnchors.TryGetValue(item.Key, out var anchor))
+        if (e.ClickedItem is not SettingsSectionNavItemViewModel item)
         {
             return;
         }
 
         _viewModel.SelectedSectionKey = item.Key;
+
+        if (item.Key.Equals(SettingsNavigationHelper.LocalAiSectionKey, StringComparison.OrdinalIgnoreCase))
+        {
+            Frame?.Navigate(typeof(LocalAISettingsPage), _services);
+            return;
+        }
+
+        if (item.Key.Equals(SettingsNavigationHelper.AboutSectionKey, StringComparison.OrdinalIgnoreCase))
+        {
+            Frame?.Navigate(typeof(AboutPage));
+            return;
+        }
+
+        if (!_sectionAnchors.TryGetValue(item.Key, out var anchor))
+        {
+            return;
+        }
+
         ScrollSectionIntoView(anchor);
     }
 
@@ -819,14 +879,6 @@ public sealed partial class SettingsPage : Page
         {
             await ShowMessageDialogAsync("Delete failed", ex.Message);
         }
-    }
-
-    private void LocalAiSettingsLink_Click(object sender, RoutedEventArgs e) =>
-        Frame?.Navigate(typeof(LocalAISettingsPage), _services);
-
-    private void AboutLink_Click(object sender, RoutedEventArgs e)
-    {
-        Frame?.Navigate(typeof(AboutPage));
     }
 
     private static void InitializePicker(object picker)

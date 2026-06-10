@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using Windows.System;
 
 namespace UnifiedMessenger.Controls;
 
@@ -21,6 +22,8 @@ public sealed partial class CommandPalette : UserControl
 
     private IReadOnlyList<CommandPaletteEntry> _allEntries = [];
 
+    private FocusTrapHelper? _focusTrap;
+
     public void SetEntries(IReadOnlyList<CommandPaletteEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
@@ -34,6 +37,8 @@ public sealed partial class CommandPalette : UserControl
         IsHitTestVisible = true;
         SearchBox.Text = string.Empty;
         ApplyFilter(string.Empty);
+        _focusTrap?.Dispose();
+        _focusTrap = FocusTrapHelper.Activate(PalettePanel);
         SearchBox.Focus(FocusState.Programmatic);
     }
 
@@ -44,6 +49,8 @@ public sealed partial class CommandPalette : UserControl
             return;
         }
 
+        _focusTrap?.Dispose();
+        _focusTrap = null;
         Visibility = Visibility.Collapsed;
         IsHitTestVisible = false;
         SearchBox.Text = string.Empty;
@@ -100,14 +107,14 @@ public sealed partial class CommandPalette : UserControl
 
     private void Root_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Escape)
+        if (e.Key == VirtualKey.Escape)
         {
             Close();
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Windows.System.VirtualKey.Enter &&
+        if (e.Key == VirtualKey.Enter &&
             ResultsList.ItemsSource is IList<CommandPaletteEntry> items &&
             items.Count > 0)
         {

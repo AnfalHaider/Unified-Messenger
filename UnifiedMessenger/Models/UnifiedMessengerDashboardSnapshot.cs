@@ -48,6 +48,21 @@ public sealed class UnifiedMessengerBranchMetrics
     public string PlatformBreakdown { get; init; } = string.Empty;
 }
 
+public sealed class UnifiedMessengerThreadMetrics
+{
+    public int OpenThreadCount { get; init; }
+
+    public int HangingLeadCount { get; init; }
+
+    public int ImmediateActionCount { get; init; }
+
+    public int ImmediateActionQueueCount { get; init; }
+
+    public double TotalRevenueAtRisk { get; init; }
+
+    public IReadOnlyList<ThreadData> ThreadsForSla { get; init; } = [];
+}
+
 public sealed class UnifiedMessengerPlatformHealthIndicator
 {
     public required string PlatformId { get; init; }

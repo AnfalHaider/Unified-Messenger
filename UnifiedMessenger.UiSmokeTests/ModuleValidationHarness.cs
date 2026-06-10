@@ -15,23 +15,23 @@ internal static class ModuleValidationHarness
 
         return
         [
-            ValidateMainShell(window),
-            ValidateDashboardOperations(window),
-            ValidateOccBranchWorkspacePills(window),
-            ValidateOccLayoutEditMode(window),
-            ValidateOccPlatformIntelligenceExpander(window),
-            ValidatePersonalOverview(window),
-            ValidateSettingsPage(window),
-            ValidateLocalAiSettingsPage(window),
-            ValidateAboutPage(window),
-            ValidateCommandPalette(window),
-            ValidateCtrlSpaceCopilot(window),
-            ValidateNotificationPanel(window),
-            ValidateWorkspaceSidebar(window),
+            SafeValidate(() => ValidateMainShell(window)),
+            SafeValidate(() => ValidateDashboardOperations(window)),
+            SafeValidate(() => ValidateOccBranchWorkspacePills(window)),
+            SafeValidate(() => ValidateOccLayoutEditMode(window)),
+            SafeValidate(() => ValidateOccPlatformIntelligenceExpander(window)),
+            SafeValidate(() => ValidatePersonalOverview(window)),
+            SafeValidate(() => ValidateSettingsPage(window)),
+            SafeValidate(() => ValidateLocalAiSettingsPage(window)),
+            SafeValidate(() => ValidateAboutPage(window)),
+            SafeValidate(() => ValidateCommandPalette(window)),
+            SafeValidate(() => ValidateCtrlSpaceCopilot(window)),
+            SafeValidate(() => ValidateNotificationPanel(window)),
+            SafeValidate(() => ValidateWorkspaceSidebar(window)),
             SafeValidate(() => ValidateAddInstanceDialog(window)),
-            ValidateInstanceSwitch(window),
-            ValidateRapidResize(window),
-            ValidateTrayHideOnClose(window)
+            SafeValidate(() => ValidateInstanceSwitch(window)),
+            SafeValidate(() => ValidateRapidResize(window)),
+            SafeValidate(() => ValidateTrayHideOnClose(window))
         ];
     }
 
@@ -144,6 +144,31 @@ internal static class ModuleValidationHarness
 
         Thread.Sleep(500);
 
+        var presetVisible = UiAutomationHelpers.FindByName(window, "Layout preset") is not null;
+        if (!presetVisible)
+        {
+            return ModuleValidationResult.Warn(
+                "Dashboard.OccLayoutEdit",
+                "Page",
+                "Layout preset picker not exposed via UIA in edit mode");
+        }
+
+        if (UiAutomationHelpers.FindByName(window, "Restore default layout") is null)
+        {
+            return ModuleValidationResult.Warn(
+                "Dashboard.OccLayoutEdit",
+                "Page",
+                "Restore default layout button not exposed via UIA in edit mode");
+        }
+
+        if (UiAutomationHelpers.FindByName(window, "Hidden panels tray") is null)
+        {
+            return ModuleValidationResult.Warn(
+                "Dashboard.OccLayoutEdit",
+                "Page",
+                "Hidden panels tray not exposed via UIA in edit mode");
+        }
+
         if (UiAutomationHelpers.FindByName(window, "Done") is null &&
             !UiAutomationHelpers.ClickByName(window, "Done"))
         {
@@ -159,7 +184,7 @@ internal static class ModuleValidationHarness
         return ModuleValidationResult.Pass(
             "Dashboard.OccLayoutEdit",
             "Page",
-            "Layout edit mode toggles Customize layout ↔ Done");
+            "Layout edit mode exposes preset picker, restore default, and hidden panels tray");
     }
 
     private static ModuleValidationResult ValidateOccPlatformIntelligenceExpander(AutomationElement window)
@@ -299,6 +324,17 @@ internal static class ModuleValidationHarness
         }
     }
 
+    private static void EnsureSettingsVisible(AutomationElement window)
+    {
+        if (UiAutomationHelpers.WaitForMarker(window, "Settings", TimeSpan.FromSeconds(1)))
+        {
+            return;
+        }
+
+        UiAutomationHelpers.ClickByName(window, "Settings");
+        Thread.Sleep(900);
+    }
+
     private static ModuleValidationResult SafeValidate(Func<ModuleValidationResult> validate)
     {
         try
@@ -402,10 +438,13 @@ internal static class ModuleValidationHarness
         if (UiAutomationHelpers.WaitForMarker(window, "Search personal accounts", TimeSpan.FromSeconds(3)) ||
             UiAutomationHelpers.FindByName(window, "Personal Overview Tab") is not null)
         {
+            var customizeVisible = UiAutomationHelpers.FindByName(window, "Customize personal layout") is not null;
             return ModuleValidationResult.Pass(
                 "Dashboard.PersonalOverview",
                 "Page",
-                "Personal Overview tab reachable");
+                customizeVisible
+                    ? "Personal Overview tab and customize layout control reachable"
+                    : "Personal Overview tab reachable");
         }
 
         return ModuleValidationResult.Warn(
@@ -435,10 +474,11 @@ internal static class ModuleValidationHarness
 
     private static ModuleValidationResult ValidateLocalAiSettingsPage(AutomationElement window)
     {
-        ValidateSettingsPage(window);
-        if (!UiAutomationHelpers.ClickByName(window, "Open local AI settings"))
+        UiAutomationHelpers.FocusWindow(window);
+        EnsureSettingsVisible(window);
+        if (!UiAutomationHelpers.ClickByName(window, "Local AI"))
         {
-            return ModuleValidationResult.Fail("LocalAISettingsPage", "Page", "Settings link not found");
+            return ModuleValidationResult.Fail("LocalAISettingsPage", "Page", "Settings section nav item not found");
         }
 
         Thread.Sleep(900);
@@ -454,10 +494,11 @@ internal static class ModuleValidationHarness
 
     private static ModuleValidationResult ValidateAboutPage(AutomationElement window)
     {
-        ValidateSettingsPage(window);
-        if (!UiAutomationHelpers.ClickByName(window, "View app details"))
+        UiAutomationHelpers.FocusWindow(window);
+        EnsureSettingsVisible(window);
+        if (!UiAutomationHelpers.ClickByName(window, "About"))
         {
-            return ModuleValidationResult.Fail("AboutPage", "Page", "About link not found");
+            return ModuleValidationResult.Fail("AboutPage", "Page", "Settings section nav item not found");
         }
 
         Thread.Sleep(900);

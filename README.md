@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v1.0.25](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v1.0.25)
+**Current release:** [v2.0.0](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v2.0.0)
 
 ## Download (Windows)
 
@@ -14,6 +14,31 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
+
+### What's in v2.0.0
+
+- **Shell architecture:** `ShellController` and coordinators extracted from `MainWindow`; DI migration gate for the shell layer; OCC layout interaction service and grid-only persist.
+- **Professional ops UX:** Branch filter chip in KPI strip; SLA countdown on thread cards; conversation-focus loading feedback; OCC command-palette actions (refresh, branch filter, immediate queue).
+- **Security:** WebMessage `instanceId` required; `WebViewNavigationGuard` (http/https only); centralized `WebViewScriptGateway`.
+- **Quality:** Coverlet coverage; BenchmarkDotNet suite (`UnifiedMessenger.Benchmarks`); UiSmoke warnings fail the harness; CI vulnerable-package scan.
+- **Design system:** Personal summary cards on `MetricCardView`; OCC branch/insight list cards as shared views; palette category icons; Settings keyboard shortcut reference.
+- **811** unit tests (x64, Release).
+
+### What's in v1.1.1
+
+- **OCC dashboard builder (complete):** KPI strip in grid; `OccPanelChrome` hide/+/− resize; Ctrl+Z undo; drop-target preview; responsive reflow at 960/600/400px.
+- **Design system adoption:** `MetricCardView`, `SectionHeaderView`, `SurfaceCard`, `AccessibleChartHost` wired across OCC, Settings, and charts.
+- **Accessibility & shell:** Full Settings control names; tab order on Dashboard/OCC/Personal; focus traps on dialogs and command palette; contrast audit doc.
+- **Settings IA:** Local AI / About reached via sidebar section nav only (single canonical path).
+- **799** unit tests (x64, Release).
+
+### What's in v1.1.0
+
+- **OCC dashboard builder:** 12-column grid layout with drag reposition, resize (keyboard Shift+arrow), hide/show panels, layout presets (Operations / Analytics / Compact), and undo.
+- **Shell UX:** Sidebar selection survives registry refresh; notification hub shows active state; adaptive conversation focus; OCC light refresh on Personal tab.
+- **Design system:** Split theme resources (`Themes/`), shared empty/loading components adopted across OCC, Personal, and notifications.
+- **Personal layout:** Customize section order (search, summary, toolbar, content).
+- **Accessibility:** Settings control names, chart summaries for screen readers, extended keyboard paths.
 
 ### What's in v1.0.25
 
@@ -146,13 +171,13 @@ dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -c Release -p:P
 
 ## Version numbers (keep in sync)
 
-Before every public release, align these three sources to the same **semver** (e.g. `1.0.9`):
+Before every public release, align these three sources to the same **semver** (e.g. `2.0.0`):
 
 | File | Field |
 |------|--------|
 | `UnifiedMessenger/UnifiedMessenger.csproj` | `<Version>`, `<AssemblyVersion>`, `<FileVersion>`, `<ApplicationDisplayVersion>` |
-| `UnifiedMessenger/app.manifest` | `<assemblyIdentity version="…">` (four-part: `1.0.9.0`) |
-| `installer-shared.iss` | `#define MyAppVersion "1.0.9"` |
+| `UnifiedMessenger/app.manifest` | `<assemblyIdentity version="…">` (four-part: `2.0.0.0`) |
+| `installer-shared.iss` | `#define MyAppVersion "2.0.0"` |
 
 `installer.iss` and `installer-arm64.iss` include `installer-shared.iss` and do not need a separate version line.
 

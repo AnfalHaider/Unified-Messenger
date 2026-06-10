@@ -53,6 +53,7 @@ public sealed class AppSettingsService : IAppSettingsService
                 Settings = CreateDefaultSettings();
                 Settings.Normalize();
                 OccLayoutService.Normalize(Settings);
+                PersonalOverviewLayoutService.Normalize(Settings);
                 await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
                 _isLoaded = true;
                 return;
@@ -75,6 +76,7 @@ public sealed class AppSettingsService : IAppSettingsService
 
             loaded.Normalize();
             OccLayoutService.Normalize(loaded);
+            PersonalOverviewLayoutService.Normalize(loaded);
             Settings = loaded;
 
             if (Settings.Version < AppSettings.CurrentVersion)
@@ -114,6 +116,7 @@ public sealed class AppSettingsService : IAppSettingsService
             mutate(Settings);
             Settings.Normalize();
             OccLayoutService.Normalize(Settings);
+            PersonalOverviewLayoutService.Normalize(Settings);
             await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
             Changed?.Invoke(this, EventArgs.Empty);
         }

@@ -20,11 +20,33 @@ public sealed partial class OperationsCommandCenter
         _ = RefreshAsync(_professionalInstances, _registry);
     }
 
-    private void SelectWorkspacePill(string branchName)
+    private void SelectWorkspacePill(string? branchName)
     {
         _suppressPillSelection = true;
         BranchWorkspacePillBar.SelectBranchKey(branchName);
         _suppressPillSelection = false;
+    }
+
+    public void SelectWorkspaceBranch(string? branchKey)
+    {
+        if (string.Equals(_workspaceBranchKey, branchKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _workspaceBranchKey = branchKey;
+        _showWorkspaceLoading = true;
+        SelectWorkspacePill(branchKey);
+        ApplyBranchFilterChip();
+        if (_registry is not null)
+        {
+            _ = RefreshAsync(_professionalInstances, _registry);
+        }
+    }
+
+    public void RequestImmediateLaneFocus()
+    {
+        ImmediateLaneSection?.StartBringIntoView();
     }
 
     private void RefreshBranchMetricSelection()

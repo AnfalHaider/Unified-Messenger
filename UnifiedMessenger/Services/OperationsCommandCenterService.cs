@@ -98,6 +98,43 @@ public sealed class OperationsCommandCenterService
         };
     }
 
+    /// <summary>
+    /// Builds KPI status fields without composing kanban cards, insight feeds, or platform intelligence.
+    /// </summary>
+    public OperationsStatusSnapshot BuildStatusOnly(
+        IEnumerable<MessengerInstance> professionalInstances,
+        string? selectedBranchKey = null,
+        NotificationHub? notificationHub = null)
+    {
+        ArgumentNullException.ThrowIfNull(professionalInstances);
+
+        var hub = notificationHub ?? NotificationHub.Instance;
+        var threadService = UnifiedMessengerDashboardService.Instance;
+        var normalizedBranchKey = BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey);
+        var metrics = threadService.BuildThreadMetricsOnly(professionalInstances, selectedBranchKey);
+        var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
+            professionalInstances,
+            hub,
+            normalizedBranchKey);
+
+        var threadOperations = new UnifiedMessengerDashboardSnapshot
+        {
+            OpenThreadCount = metrics.OpenThreadCount,
+            HangingLeadCount = metrics.HangingLeadCount,
+            ImmediateActionCount = metrics.ImmediateActionCount,
+            ImmediateActionQueueCount = metrics.ImmediateActionQueueCount,
+            TotalRevenueAtRisk = metrics.TotalRevenueAtRisk
+        };
+
+        var activeSlaBreaches = OperationalMetricsHelper.CountActiveSlaBreaches(metrics.ThreadsForSla);
+
+        return BuildStatusSnapshot(
+            threadOperations,
+            telemetry.Snapshot,
+            telemetry.Display,
+            activeSlaBreaches);
+    }
+
     private static OperationsStatusSnapshot BuildStatusSnapshot(
         UnifiedMessengerDashboardSnapshot threadOperations,
         ProfessionalAnalyticsSnapshot analytics,

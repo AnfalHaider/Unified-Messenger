@@ -8,45 +8,10 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <ResourceDictionary Source="ms-appx:///Themes/Tokens.xaml" />
+                <ResourceDictionary Source="ms-appx:///Themes/Typography.xaml" />
+                <ResourceDictionary Source="ms-appx:///Themes/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
-
-            <!-- Roadmap brand palette (ENHANCEMENT_ROADMAP.md) -->
-            <Color x:Key="UmBrandSlateColor">#1E293B</Color>
-            <Color x:Key="UmBrandTealColor">#14B8A6</Color>
-            <Color x:Key="UmBrandBlueColor">#3B82F6</Color>
-            <Color x:Key="UmBrandVioletColor">#8B5CF6</Color>
-
-            <SolidColorBrush x:Key="UmBrandSlateBrush" Color="{StaticResource UmBrandSlateColor}" />
-            <SolidColorBrush x:Key="UmBrandTealBrush" Color="{StaticResource UmBrandTealColor}" />
-            <SolidColorBrush x:Key="UmBrandBlueBrush" Color="{StaticResource UmBrandBlueColor}" />
-            <SolidColorBrush x:Key="UmBrandVioletBrush" Color="{StaticResource UmBrandVioletColor}" />
-
-            <Style x:Key="DashboardSectionHeaderStyle" TargetType="TextBlock">
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="Foreground" Value="{StaticResource UmBrandSlateBrush}" />
-            </Style>
-
-            <Style x:Key="DashboardMetricValueStyle" TargetType="TextBlock">
-                <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="FontSize" Value="20" />
-                <Setter Property="Foreground" Value="{StaticResource UmBrandBlueBrush}" />
-            </Style>
-
-            <Style x:Key="DashboardMetricCardStyle" TargetType="Border">
-                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="8" />
-            </Style>
-
-            <Style x:Key="DashboardCardStyle" TargetType="Border">
-                <Setter Property="Padding" Value="12" />
-                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="8" />
-            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -140,6 +140,17 @@ public sealed partial class OperationsCommandCenter
 
     private void OnOccKeyDown(object sender, KeyRoutedEventArgs e)
     {
+        var isControlDown = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        if (_viewModel.IsLayoutEditMode &&
+            IsLayoutUndoShortcut(e.Key, isControlDown) &&
+            _layoutUndoSnapshot is not null)
+        {
+            _ = TryUndoLayoutChangeAsync();
+            e.Handled = true;
+            return;
+        }
+
         var isAltDown = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu)
             .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
         if (!_viewModel.IsLayoutEditMode || !IsKeyboardReorderKey(e.Key, isAltDown))

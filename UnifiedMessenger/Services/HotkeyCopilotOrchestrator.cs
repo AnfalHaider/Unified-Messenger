@@ -157,19 +157,12 @@ public static class ConversationContextScraper
         int maxMessages,
         CancellationToken cancellationToken = default)
     {
-        var webView = InstanceWebViewRegistry.Instance.TryGet(instanceId);
-        var coreWebView = webView?.CoreWebView2;
-        if (coreWebView is null)
-        {
-            return null;
-        }
-
         var script = $"window.__umExtractConversationContext({maxMessages});";
 
         try
         {
-            var raw = await UiThreadRunner.RunAsync(async () =>
-                    await coreWebView.ExecuteScriptAsync(script))
+            var raw = await WebViewScriptGateway.Instance
+                .ExecutePreparedScriptAsync(instanceId, script, cancellationToken)
                 .ConfigureAwait(false);
 
             if (string.IsNullOrWhiteSpace(raw))

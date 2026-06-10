@@ -91,6 +91,10 @@ public static class CommandPaletteHelper
             CommandPaletteAction.OpenAlert =>
                 NotificationFeedPanelHelper.IsValidAlertId(selection.AlertId)
                 && ShellNavigationService.IsValidInstanceId(selection.InstanceId),
+            CommandPaletteAction.FilterBranch =>
+                !string.IsNullOrWhiteSpace(selection.BranchKey),
+            CommandPaletteAction.RefreshOcc or CommandPaletteAction.OpenImmediateQueue =>
+                true,
             _ => Enum.IsDefined(selection.Action)
         };
     }

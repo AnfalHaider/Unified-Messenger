@@ -33,6 +33,16 @@ public class InstanceSessionManagerTests
     }
 
     [Fact]
+    public void SelectLruEvictionCandidate_ReturnsNullWhenOnlyProtectedInstancesRemain()
+    {
+        var manager = new InstanceSessionManager();
+        manager.TrackAccessForTests("visible-only");
+        manager.SetVisibleInstanceForTests("visible-only");
+
+        Assert.Null(manager.SelectLruEvictionCandidate("visible-only"));
+    }
+
+    [Fact]
     public void SyncInstance_PreservesMemoryTierLookupAfterAccessTracking()
     {
         var manager = new InstanceSessionManager();

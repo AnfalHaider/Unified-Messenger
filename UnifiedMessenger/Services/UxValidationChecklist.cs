@@ -35,6 +35,9 @@ public static class UxValidationChecklist
         "Branch workspace pill → thread card open",
         "Thread card / notification alert → instance focus with conversation key",
         "Settings section nav → section content",
-        "Personal search → account navigation"
+        "Personal search → account navigation",
+        "OCC layout edit → arrow keys move panel, Shift+arrow resize, Delete hide, preset picker",
+        "Personal layout edit → move section up/down",
+        "Notification hub open state visible in sidebar and title bar"
     ];
 }

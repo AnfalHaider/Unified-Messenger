@@ -16,6 +16,10 @@ public static class OccLayoutCommandHelper
         settings.OccContextPanelOrder = snapshot.ContextPanelOrder.ToList();
         settings.OccKpiMetricOrder = snapshot.KpiMetricOrder.ToList();
         settings.OccHiddenPanels = snapshot.HiddenPanels.ToList();
+        settings.OccPanelPlacements = snapshot.PanelPlacements
+            .Select(placement => placement.Clone())
+            .ToList();
+        settings.OccLayoutPresetId = snapshot.LayoutPresetId;
     }
 
     public static void RestoreDefaults(AppSettings settings) =>

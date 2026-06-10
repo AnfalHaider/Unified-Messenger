@@ -56,15 +56,22 @@ public sealed partial class WorkspaceSidebar : Grid
     public void Refresh(
         IEnumerable<MessengerInstance> instances,
         string? selectedInstanceId,
-        bool dashboardSelected)
+        bool dashboardSelected,
+        bool settingsSelected = false,
+        bool notificationHubSelected = false)
     {
         ArgumentNullException.ThrowIfNull(instances);
 
         _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
             dashboardSelected,
             selectedInstanceId,
-            settingsSelected: false);
-        _viewModel.ApplySelection(dashboardSelected, selectedInstanceId, settingsSelected: false);
+            settingsSelected,
+            notificationHubSelected);
+        _viewModel.ApplySelection(
+            dashboardSelected,
+            selectedInstanceId,
+            settingsSelected,
+            notificationHubSelected);
 
         var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instances);
         if (_currentPlan is not null &&
@@ -234,13 +241,22 @@ public sealed partial class WorkspaceSidebar : Grid
         }
     }
 
-    public void SetSelection(bool dashboardSelected, string? instanceId, bool settingsSelected = false)
+    public void SetSelection(
+        bool dashboardSelected,
+        string? instanceId,
+        bool settingsSelected = false,
+        bool notificationHubSelected = false)
     {
         _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
             dashboardSelected,
             instanceId,
-            settingsSelected);
-        _viewModel.ApplySelection(dashboardSelected, instanceId, settingsSelected);
+            settingsSelected,
+            notificationHubSelected);
+        _viewModel.ApplySelection(
+            dashboardSelected,
+            instanceId,
+            settingsSelected,
+            notificationHubSelected);
         ApplySelectionVisuals();
     }
 
@@ -539,6 +555,11 @@ public sealed partial class WorkspaceSidebar : Grid
             ApplyRowSelection(row, WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, instanceId));
         }
 
+        ApplyFooterButtonSelection(
+            NotificationsButton,
+            WorkspaceSidebarHelper.IsSelectionMatch(
+                _selectedKey,
+                WorkspaceSidebarHelper.NotificationHubSelectionKey));
         ApplyFooterButtonSelection(
             SettingsButton,
             WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, WorkspaceSidebarHelper.SettingsSelectionKey));

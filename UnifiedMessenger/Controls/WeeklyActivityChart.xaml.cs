@@ -20,6 +20,7 @@ public sealed partial class WeeklyActivityChart : UserControl
     {
         ViewModel.ApplySeries(series);
         SummaryText.Text = ViewModel.SummaryText;
+        ChartAccessibilityHost.Summary = ViewModel.SummaryText;
         EmptyHint.Visibility = ViewModel.ShowEmptyHint ? Visibility.Visible : Visibility.Collapsed;
         ChartHost.Visibility = ViewModel.ShowEmptyHint ? Visibility.Collapsed : Visibility.Visible;
         RenderBarsFromViewModel();

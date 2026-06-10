@@ -12,6 +12,11 @@ public interface IWebViewScriptGateway
         string functionName,
         IReadOnlyList<object?> arguments,
         CancellationToken cancellationToken = default);
+
+    Task<string?> ExecutePreparedScriptAsync(
+        string instanceId,
+        string script,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class WebViewScriptGateway : IWebViewScriptGateway
@@ -31,7 +36,17 @@ public sealed class WebViewScriptGateway : IWebViewScriptGateway
         ArgumentNullException.ThrowIfNull(arguments);
 
         var script = WebViewScriptBuilder.BuildFunctionCall(functionName, arguments);
-        return InstanceSessionManager.Instance.ExecuteScriptOnInstanceAsync(instanceId, script);
+        return ExecutePreparedScriptAsync(instanceId, script, cancellationToken);
+    }
+
+    public Task<string?> ExecutePreparedScriptAsync(
+        string instanceId,
+        string script,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(script);
+        return InstanceSessionManager.Instance.TryExecuteScriptOnInstanceAsync(instanceId, script);
     }
 }
 

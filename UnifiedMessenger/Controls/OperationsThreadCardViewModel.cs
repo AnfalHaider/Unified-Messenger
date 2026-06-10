@@ -39,11 +39,18 @@ public sealed class OperationsThreadCardViewModel
         CardBorderThickness = thread.IsSlaBreached || thread.IsRevenueLeakageRisk
             ? new Thickness(thread.IsSlaBreached ? 4 : 2, 1, 1, 1)
             : new Thickness(1);
-        SlaText = thread.IsSlaBreached
-            ? $"Waiting {UnifiedMessengerDashboardPresentationHelper.FormatWaitingDuration(thread.LatencyMinutes)} · SLA breach"
-            : string.Empty;
-        SlaBrush = new SolidColorBrush(Color.FromArgb(255, 220, 38, 38));
-        SlaVisibility = thread.IsSlaBreached ? Visibility.Visible : Visibility.Collapsed;
+        var slaThreshold = OperationalThresholds.GetSlaThresholdMinutes();
+        SlaText = thread.IsReplied || thread.IsSpamOrPromo
+            ? string.Empty
+            : UnifiedMessengerDashboardPresentationHelper.FormatSlaCountdown(
+                thread.LatencyMinutes,
+                slaThreshold);
+        SlaBrush = thread.IsSlaBreached
+            ? new SolidColorBrush(Color.FromArgb(255, 220, 38, 38))
+            : thread.LatencyMinutes >= slaThreshold * 0.75
+                ? new SolidColorBrush(Color.FromArgb(255, 245, 158, 11))
+                : new SolidColorBrush(Color.FromArgb(255, 100, 116, 139));
+        SlaVisibility = string.IsNullOrWhiteSpace(SlaText) ? Visibility.Collapsed : Visibility.Visible;
         BranchNameVisibility = hideBranchName ? Visibility.Collapsed : Visibility.Visible;
     }
 

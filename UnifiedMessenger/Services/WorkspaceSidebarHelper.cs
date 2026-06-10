@@ -10,11 +10,19 @@ public static class WorkspaceSidebarHelper
 
     public const string SettingsSelectionKey = "settings";
 
+    public const string NotificationHubSelectionKey = "notifications";
+
     public static string ResolveSelectionKey(
         bool dashboardSelected,
         string? instanceId,
-        bool settingsSelected = false)
+        bool settingsSelected = false,
+        bool notificationHubSelected = false)
     {
+        if (notificationHubSelected)
+        {
+            return NotificationHubSelectionKey;
+        }
+
         if (settingsSelected)
         {
             return SettingsSelectionKey;
@@ -26,6 +34,30 @@ public static class WorkspaceSidebarHelper
         }
 
         return instanceId.Trim();
+    }
+
+    public static ShellViewState ResolveShellViewState(
+        bool dashboardSelected,
+        string? instanceId,
+        bool settingsSelected,
+        bool notificationHubOpen)
+    {
+        if (notificationHubOpen)
+        {
+            return ShellViewState.NotificationHub;
+        }
+
+        if (settingsSelected)
+        {
+            return ShellViewState.Settings;
+        }
+
+        if (!dashboardSelected && !string.IsNullOrWhiteSpace(instanceId))
+        {
+            return ShellViewState.Instance;
+        }
+
+        return ShellViewState.Dashboard;
     }
 
     public static bool IsSelectionMatch(string? selectedKey, string rowKey) =>

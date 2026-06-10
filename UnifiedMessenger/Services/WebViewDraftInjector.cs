@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.Web.WebView2.Core;
 
 namespace UnifiedMessenger.Services;
 
@@ -98,17 +97,10 @@ public static class WebViewDraftInjector
         string script,
         CancellationToken cancellationToken)
     {
-        var webView = InstanceWebViewRegistry.Instance.TryGet(instanceId);
-        var coreWebView = webView?.CoreWebView2;
-        if (coreWebView is null)
-        {
-            return false;
-        }
-
         try
         {
-            var result = await UiThreadRunner.RunAsync(async () =>
-                    await coreWebView.ExecuteScriptAsync(script))
+            var result = await WebViewScriptGateway.Instance
+                .ExecutePreparedScriptAsync(instanceId, script, cancellationToken)
                 .ConfigureAwait(false);
 
             return ParseInjectResult(result);

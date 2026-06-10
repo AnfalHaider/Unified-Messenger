@@ -83,6 +83,46 @@ public sealed class UnifiedMessengerDashboardService
         };
     }
 
+    /// <summary>
+    /// Computes thread KPI counts without building kanban lists, branch metrics, or platform health.
+    /// </summary>
+    public UnifiedMessengerThreadMetrics BuildThreadMetricsOnly(
+        IEnumerable<MessengerInstance> professionalInstances,
+        string? selectedBranchKey = null)
+    {
+        ThreadRegistryService.Instance.RefreshOperationalFlags(raiseChanged: false);
+
+        var scopedInstances = DashboardPageHelper
+            .FilterProfessionalInstances(
+                professionalInstances.Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id)),
+                selectedBranchKey)
+            .ToList();
+
+        var allowedIds = scopedInstances
+            .Select(instance => instance.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var actionableThreads = ThreadRegistryService.Instance.GetAllThreads()
+            .Where(thread => allowedIds.Contains(thread.InstanceId))
+            .Where(thread => !thread.IsSpamOrPromo)
+            .ToList();
+
+        var urgentCount = actionableThreads.Count(thread => thread.IsImmediateAction && !thread.IsReplied);
+
+        return new UnifiedMessengerThreadMetrics
+        {
+            OpenThreadCount = actionableThreads.Count(thread => !thread.IsReplied),
+            HangingLeadCount = actionableThreads.Count(thread =>
+                !thread.IsReplied && thread.KanbanColumn == UnifiedMessengerKanbanColumn.HangingLeads),
+            ImmediateActionCount = urgentCount,
+            ImmediateActionQueueCount = Math.Min(urgentCount, ImmediateActionQueueDisplayLimit),
+            TotalRevenueAtRisk = actionableThreads
+                .Where(thread => thread.IsRevenueLeakageRisk)
+                .Sum(thread => thread.EstimatedValue),
+            ThreadsForSla = actionableThreads
+        };
+    }
+
     public void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
 
     internal static UnifiedMessengerBranchMetrics BuildBranchMetrics(

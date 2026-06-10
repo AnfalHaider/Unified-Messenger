@@ -61,7 +61,21 @@ public sealed partial class OperationsCommandCenter
         MainContentScrollViewer.Visibility = _viewModel.ShowMainContent ? Visibility.Visible : Visibility.Collapsed;
         ScopeText.Text = _viewModel.ScopeLabel;
         LastRefreshedText.Text = _viewModel.LastRefreshedText;
+        ApplyBranchFilterChip();
     }
+
+    private void ApplyBranchFilterChip()
+    {
+        var hasFilter = !string.IsNullOrWhiteSpace(_workspaceBranchKey);
+        BranchFilterChipPanel.Visibility = hasFilter ? Visibility.Visible : Visibility.Collapsed;
+        if (hasFilter)
+        {
+            BranchFilterChipText.Text = $"Branch: {_workspaceBranchKey}";
+        }
+    }
+
+    private void ClearBranchFilterButton_Click(object sender, RoutedEventArgs e) =>
+        SelectWorkspaceBranch(null);
 
     private bool IsWorkspaceBranchSelected(string branchName) =>
         !string.IsNullOrWhiteSpace(_workspaceBranchKey) &&
@@ -412,17 +426,17 @@ public sealed partial class OperationsCommandCenter
 
     private void ApplyStatusKpis(OccStatusKpiPresentation status)
     {
-        OpenThreadCountText.Text = status.OpenThreadCount;
-        HangingLeadCountText.Text = status.HangingLeadCount;
-        RevenueAtRiskText.Text = status.RevenueAtRisk;
+        OpenKpiCard.Value = status.OpenThreadCount;
+        HangingKpiCard.Value = status.HangingLeadCount;
+        RevenueKpiCard.Value = status.RevenueAtRisk;
         AvgReplyTimeValue.Text = status.AverageReplyTime;
-        SlaBreachesValue.Text = status.SlaBreaches;
+        SlaBreachesKpiCard.Value = status.SlaBreaches;
         ResponseRateValue.Text = status.ResponseRate;
-        ImmediateActionCountText.Text = status.ImmediateActionCount;
+        ImmediateActionKpiCard.Value = status.ImmediateActionCount;
         PeakHourValue.Text = status.PeakHour;
         DailyTrendValue.Text = status.DailyTrend;
         ApplySubtext(AvgReplyTimeSubtext, status.AverageReplyTimeSubtext);
-        ApplySubtext(SlaThresholdSubtext, status.SlaThresholdSubtext);
+        SlaBreachesKpiCard.Subtext = status.SlaThresholdSubtext ?? string.Empty;
 
         if (!string.IsNullOrWhiteSpace(status.ImmediateActionTooltip))
         {

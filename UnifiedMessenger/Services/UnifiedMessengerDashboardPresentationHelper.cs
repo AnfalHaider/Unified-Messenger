@@ -13,9 +13,22 @@ public static class UnifiedMessengerDashboardPresentationHelper
     public static string FormatLatency(double minutes) =>
         minutes <= 0 ? "—" : $"{minutes:0.#}m";
 
-    /// <summary>
-    /// Human-readable waiting duration for SLA and thread cards (e.g. 90m, 24h, 3d 2h).
-    /// </summary>
+    public static string FormatSlaCountdown(double latencyMinutes, double slaThresholdMinutes)
+    {
+        if (latencyMinutes <= 0 || slaThresholdMinutes <= 0)
+        {
+            return string.Empty;
+        }
+
+        var remaining = slaThresholdMinutes - latencyMinutes;
+        if (remaining <= 0)
+        {
+            return $"Waiting {FormatWaitingDuration(latencyMinutes)} · SLA breach";
+        }
+
+        return $"Waiting {FormatWaitingDuration(latencyMinutes)} · {FormatWaitingDuration(remaining)} to SLA";
+    }
+
     public static string FormatWaitingDuration(double minutes)
     {
         if (minutes <= 0)

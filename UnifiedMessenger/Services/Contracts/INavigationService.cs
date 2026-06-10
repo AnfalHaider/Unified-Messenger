@@ -14,6 +14,10 @@ public interface INavigationService
 
     event EventHandler? AddInstanceRequested;
 
+    event EventHandler<string?>? OccBranchFilterRequested;
+
+    event EventHandler? OccImmediateLaneFocusRequested;
+
     void RequestInstance(string instanceId);
 
     void RequestInstance(string instanceId, string? conversationKey, string? customerName = null);
@@ -27,6 +31,10 @@ public interface INavigationService
     void RequestInstanceRegistryRefresh();
 
     void RequestAddInstance();
+
+    void RequestOccBranchFilter(string? branchKey);
+
+    void RequestOccImmediateLaneFocus();
 
     void OpenInstance(string instanceId);
 

@@ -23,8 +23,8 @@ public sealed class DashboardScrapeOrchestrator
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            await InstanceSessionManager.Instance
-                .ExecuteScriptOnInstanceAsync(instance.Id, BuildForceScrapeScript(instance))
+            await WebViewScriptGateway.Instance
+                .ExecutePreparedScriptAsync(instance.Id, BuildForceScrapeScript(instance), cancellationToken)
                 .ConfigureAwait(false);
         }
     }

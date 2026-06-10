@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:UnifiedMessenger.Pages"
+    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     xmlns:vm="using:UnifiedMessenger.ViewModels"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -38,12 +39,14 @@
             VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="20" MaxWidth="720">
             <TextBlock Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.Name="Settings" Text="Settings" />
+            <TextBlock
+                FontSize="12"
+                Opacity="0.65"
+                Text="Local AI and About open from the navigation list on the left."
+                TextWrapping="WrapWholeWords" />
 
             <StackPanel x:Name="NotificationsSection" Tag="notifications" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="NOTIFICATIONS" />
+                <shared:SectionHeaderView Title="NOTIFICATIONS" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -147,6 +150,7 @@
                         </ToggleSwitch>
 
                         <Button
+                            x:Name="ClearNotificationsButton"
                             HorizontalAlignment="Left"
                             Click="ClearNotificationsButton_Click"
                             Content="Clear notification history" />
@@ -155,10 +159,7 @@
             </StackPanel>
 
             <StackPanel x:Name="AppearanceSection" Tag="appearance" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="APPEARANCE" />
+                <shared:SectionHeaderView Title="APPEARANCE" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -180,10 +181,7 @@
             </StackPanel>
 
             <StackPanel x:Name="SessionPerformanceSection" Tag="session-performance" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="SESSION &amp; PERFORMANCE" />
+                <shared:SectionHeaderView Title="SESSION &amp; PERFORMANCE" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -277,10 +275,7 @@
             </StackPanel>
 
             <StackPanel x:Name="ProfessionalMetricsSection" Tag="professional-metrics" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="PROFESSIONAL METRICS" />
+                <shared:SectionHeaderView Title="PROFESSIONAL METRICS" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -353,10 +348,7 @@
             </StackPanel>
 
             <StackPanel x:Name="DataPrivacySection" Tag="data-privacy" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="DATA &amp; PRIVACY" />
+                <shared:SectionHeaderView Title="DATA &amp; PRIVACY" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -370,6 +362,7 @@
                             Text="Destructive actions clear local operational telemetry stored on this device."
                             TextWrapping="WrapWholeWords" />
                         <Button
+                            x:Name="ClearAnalyticsButton"
                             HorizontalAlignment="Left"
                             Click="ClearAnalyticsButton_Click"
                             Content="Clear operational data" />
@@ -379,6 +372,7 @@
                             Spacing="8"
                             Visibility="Collapsed">
                             <Button
+                                x:Name="ExportInstancesButton"
                                 HorizontalAlignment="Left"
                                 Click="ExportInstancesButton_Click"
                                 Content="Export instances.json" />
@@ -387,6 +381,7 @@
                                 Content="Create backup before import"
                                 IsChecked="True" />
                             <Button
+                                x:Name="ImportInstancesButton"
                                 HorizontalAlignment="Left"
                                 Click="ImportInstancesButton_Click"
                                 Content="Import instances.json" />
@@ -396,10 +391,19 @@
             </StackPanel>
 
             <StackPanel x:Name="SystemSection" Tag="system" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="SYSTEM" />
+                <shared:SectionHeaderView Title="SYSTEM" />
+                <Border
+                    Padding="16"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel Spacing="6">
+                        <TextBlock FontWeight="SemiBold" Text="Keyboard shortcuts" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+D Dashboard · Ctrl+, Settings · Ctrl+K Command palette" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+Shift+N Notification panel · Ctrl+1–9 Switch instance · Ctrl+Space AI copilot (when enabled)" />
+                    </StackPanel>
+                </Border>
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -479,6 +483,7 @@
                         </ToggleSwitch>
 
                         <Button
+                            x:Name="CheckForUpdatesButton"
                             HorizontalAlignment="Left"
                             Click="CheckForUpdatesButton_Click"
                             Content="Check for updates" />
@@ -487,10 +492,7 @@
             </StackPanel>
 
             <StackPanel x:Name="RemovedAccountsSection" Tag="removed-accounts" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="REMOVED ACCOUNTS" />
+                <shared:SectionHeaderView Title="REMOVED ACCOUNTS" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -560,10 +562,7 @@
             </StackPanel>
 
             <StackPanel x:Name="StorageSection" Tag="storage" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="STORAGE" />
+                <shared:SectionHeaderView Title="STORAGE" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -593,10 +592,7 @@
             </StackPanel>
 
             <StackPanel x:Name="LocalAiSection" Tag="local-ai" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="LOCAL AI" />
+                <shared:SectionHeaderView Title="LOCAL AI" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -609,16 +605,17 @@
                             Opacity="0.65"
                             Text="Configure Ollama, download models, and choose the default drafting model."
                             TextWrapping="WrapWholeWords" />
-                        <HyperlinkButton AutomationProperties.Name="Open local AI settings" Click="LocalAiSettingsLink_Click" Content="Open local AI settings" />
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Select Local AI in the settings navigation list to open the full configuration page."
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
             </StackPanel>
 
             <StackPanel x:Name="AboutSection" Tag="about" Spacing="8">
-                <TextBlock
-                    FontWeight="SemiBold"
-                    Opacity="0.75"
-                    Text="ABOUT" />
+                <shared:SectionHeaderView Title="ABOUT" />
                 <Border
                     Padding="16"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -629,7 +626,11 @@
                         <TextBlock
                             x:Name="VersionText"
                             Opacity="0.8" />
-                        <HyperlinkButton AutomationProperties.Name="View app details" Click="AboutLink_Click" Content="View app details" />
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Select About in the settings navigation list to view version details and credits."
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
             </StackPanel>

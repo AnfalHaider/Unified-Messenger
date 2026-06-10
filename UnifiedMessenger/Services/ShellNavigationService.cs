@@ -21,6 +21,10 @@ public sealed class ShellNavigationService : INavigationService
 
     public event EventHandler? AddInstanceRequested;
 
+    public event EventHandler<string?>? OccBranchFilterRequested;
+
+    public event EventHandler? OccImmediateLaneFocusRequested;
+
     internal static ShellNavigationService CreateForTests() => new();
 
     internal static bool IsValidInstanceId(string? instanceId) =>
@@ -79,4 +83,10 @@ public sealed class ShellNavigationService : INavigationService
     {
         AddInstanceRequested?.Invoke(this, EventArgs.Empty);
     }
+
+    public void RequestOccBranchFilter(string? branchKey) =>
+        OccBranchFilterRequested?.Invoke(this, branchKey);
+
+    public void RequestOccImmediateLaneFocus() =>
+        OccImmediateLaneFocusRequested?.Invoke(this, EventArgs.Empty);
 }

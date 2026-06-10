@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:UnifiedMessenger.Controls"
+    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Width="320"
@@ -178,25 +179,12 @@
                 </ListView.ItemContainerStyle>
             </ListView>
 
-            <StackPanel
+            <shared:EmptyStateView
                 x:Name="EmptyStatePanel"
-                Padding="16"
                 VerticalAlignment="Center"
-                Spacing="8">
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    Opacity="0.7"
-                    Text="No notifications yet."
-                    TextAlignment="Center"
-                    TextWrapping="WrapWholeWords" />
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    FontSize="12"
-                    Opacity="0.55"
-                    Text="Unread badges appear on sidebar icons. Message previews show here when intercepted."
-                    TextAlignment="Center"
-                    TextWrapping="WrapWholeWords" />
-            </StackPanel>
+                Hint="Unread badges appear on sidebar icons. Message previews show here when intercepted."
+                IconGlyph="&#xEA8F;"
+                Title="No notifications yet." />
         </Grid>
     </Grid>
 </UserControl>

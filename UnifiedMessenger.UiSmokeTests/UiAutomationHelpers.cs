@@ -23,8 +23,17 @@ internal static class UiAutomationHelpers
         return false;
     }
 
-    public static AutomationElement? FindByName(AutomationElement root, string name) =>
-        root.FindFirstDescendant(root.ConditionFactory.ByName(name));
+    public static AutomationElement? FindByName(AutomationElement root, string name)
+    {
+        try
+        {
+            return root.FindFirstDescendant(root.ConditionFactory.ByName(name));
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     public static AutomationElement? FindByNameContains(AutomationElement root, string fragment)
     {
@@ -77,7 +86,14 @@ internal static class UiAutomationHelpers
         }
         catch
         {
-            window.Focus();
+            try
+            {
+                window.Focus();
+            }
+            catch
+            {
+                // UIA tree may be stale after navigation; callers should retry.
+            }
         }
     }
 

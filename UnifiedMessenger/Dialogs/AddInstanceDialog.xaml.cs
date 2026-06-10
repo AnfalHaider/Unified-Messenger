@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using FocusTrapHelper = UnifiedMessenger.Services.FocusTrapHelper;
 
 namespace UnifiedMessenger.Dialogs;
 
@@ -9,6 +10,7 @@ public sealed partial class AddInstanceDialog : ContentDialog
 {
     private readonly IReadOnlyList<MessengerInstance> _archivedInstances;
     private bool _isRestoreMode;
+    private FocusTrapHelper? _focusTrap;
 
     public AddInstanceDialog(IReadOnlyList<MessengerInstance> archivedInstances)
     {
@@ -51,12 +53,17 @@ public sealed partial class AddInstanceDialog : ContentDialog
 
         UpdateCustomUrlVisibility();
         UpdateFormMode();
+        _focusTrap?.Dispose();
+        _focusTrap = FocusTrapHelper.Activate(this);
+        DisplayNameBox.Focus(FocusState.Programmatic);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
+        _focusTrap?.Dispose();
+        _focusTrap = null;
     }
 
     private void RestoreBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

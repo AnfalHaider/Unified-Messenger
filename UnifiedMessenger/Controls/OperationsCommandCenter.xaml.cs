@@ -59,21 +59,90 @@ public sealed partial class OperationsCommandCenter : UserControl
         _services.ConfigureUi(() => XamlRoot);
     }
 
-    public async Task RefreshAsync(
+    public Task RefreshAsync(
         IEnumerable<MessengerInstance> professionalInstances,
-        IInstanceRegistryService? registry = null)
+        IInstanceRegistryService? registry = null) =>
+        RefreshCoreAsync(professionalInstances, registry, allowLoadingOverlay: true);
+
+    /// <summary>
+    /// Updates KPI counts and last-refreshed text while the Personal Overview tab is visible.
+    /// Skips kanban, thread cards, and platform intelligence rebuilds.
+    /// </summary>
+    public Task RefreshLightAsync(
+        IEnumerable<MessengerInstance> professionalInstances,
+        IInstanceRegistryService? registry = null) =>
+        RefreshKpisOnlyAsync(professionalInstances, registry);
+
+    private async Task RefreshKpisOnlyAsync(
+        IEnumerable<MessengerInstance> professionalInstances,
+        IInstanceRegistryService? registry)
     {
         _professionalInstances = professionalInstances;
         _registry = registry;
 
         if (_isRefreshing)
         {
-            DashboardRefreshCoordinator.Instance.ScheduleRefresh();
             return;
         }
 
         _isRefreshing = true;
-        if (_showWorkspaceLoading)
+        try
+        {
+            var instanceList = professionalInstances.ToList();
+            var status = await Task.Run(() =>
+                    OperationsCommandCenterService.Instance.BuildStatusOnly(
+                        instanceList,
+                        _workspaceBranchKey))
+                .ConfigureAwait(true);
+
+            ApplyStatusKpis(OccSnapshotPresenter.BuildStatusKpis(status));
+            _viewModel.LastRefreshedText =
+                OccSnapshotPresenter.BuildShellPresentation(
+                    instanceList.Count > 0,
+                    _viewModel.ScopeLabel,
+                    DateTime.Now).LastRefreshedText;
+            LastRefreshedText.Text = _viewModel.LastRefreshedText;
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
+    }
+
+    public void ApplyAccessibilityTabOrder()
+    {
+        AccessibilityTabOrderHelper.ApplyTabIndex(
+            RefreshCommandButton,
+            AccessibilityTabOrderHelper.OccRefreshButton);
+        AccessibilityTabOrderHelper.ApplyTabIndex(
+            BranchWorkspacePillBar,
+            AccessibilityTabOrderHelper.OccBranchPillBar);
+        AccessibilityTabOrderHelper.ApplyTabIndex(
+            LayoutEditToggleButton,
+            AccessibilityTabOrderHelper.OccLayoutButton);
+    }
+
+    private async Task RefreshCoreAsync(
+        IEnumerable<MessengerInstance> professionalInstances,
+        IInstanceRegistryService? registry,
+        bool allowLoadingOverlay)
+    {
+        _professionalInstances = professionalInstances;
+        _registry = registry;
+
+        if (_isRefreshing)
+        {
+            if (allowLoadingOverlay)
+            {
+                DashboardRefreshCoordinator.Instance.ScheduleRefresh();
+            }
+
+            return;
+        }
+
+        _isRefreshing = true;
+        var showLoading = allowLoadingOverlay && _showWorkspaceLoading;
+        if (showLoading)
         {
             SetWorkspaceLoadingVisible(true);
         }
@@ -109,7 +178,11 @@ public sealed partial class OperationsCommandCenter : UserControl
                         _workspaceBranchKey))
                 .ConfigureAwait(true);
 
-            RebuildBranchPills(_availableBranchKeys);
+            if (allowLoadingOverlay)
+            {
+                RebuildBranchPills(_availableBranchKeys);
+            }
+
             ApplySnapshot(snapshot);
             ApplyBackfillStatusUi();
         }
@@ -170,6 +243,7 @@ public sealed partial class OperationsCommandCenter : UserControl
 
         WireScrollBubbling();
         ApplyLayoutPreferences();
+        ApplyAccessibilityTabOrder();
         MaybeShowTeachingTips();
     }
 

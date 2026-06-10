@@ -2,12 +2,14 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using FocusTrapHelper = UnifiedMessenger.Services.FocusTrapHelper;
 
 namespace UnifiedMessenger.Dialogs;
 
 public sealed partial class EditInstanceMetadataDialog : ContentDialog
 {
     private readonly EditInstanceMetadataFormState _initialState;
+    private FocusTrapHelper? _focusTrap;
 
     public EditInstanceMetadataDialog(MessengerInstance instance)
     {
@@ -46,6 +48,8 @@ public sealed partial class EditInstanceMetadataDialog : ContentDialog
             platform.Id.Equals(_initialState.PlatformId, StringComparison.OrdinalIgnoreCase));
 
         UpdateCustomUrlPlaceholder();
+        _focusTrap?.Dispose();
+        _focusTrap = FocusTrapHelper.Activate(this);
         DisplayNameBox.Focus(FocusState.Programmatic);
     }
 
@@ -53,6 +57,8 @@ public sealed partial class EditInstanceMetadataDialog : ContentDialog
     {
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
+        _focusTrap?.Dispose();
+        _focusTrap = null;
     }
 
     private void PlatformBox_SelectionChanged(object sender, SelectionChangedEventArgs e) =>

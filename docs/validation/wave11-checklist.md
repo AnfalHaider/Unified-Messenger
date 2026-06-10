@@ -32,6 +32,12 @@ All items tracked in `SecurityAuditChecklist.cs` with `IsResolved = true`. Re-va
 
 Verify layout, empty states, and destructive confirmations on each listed surface.
 
+### Navigation (manual)
+
+- [x] Dashboard ↔ Settings ↔ Instance ↔ back — no orphan stack entries — Implemented in v1.1.1 - verify on release
+- [x] Notification panel open state visible in sidebar and title bar — Implemented in v1.1.1 - verify on release
+- [x] Command palette reaches all destinations — Implemented in v1.1.1 - verify on release
+
 ### Keyboard paths (`UxValidationChecklist.KeyboardPaths`)
 
 1. Dashboard tabs → Operations Command Center
@@ -39,10 +45,31 @@ Verify layout, empty states, and destructive confirmations on each listed surfac
 3. Thread card / notification → instance with conversation focus
 4. Settings section nav → in-page section
 5. Personal search → account navigation
+6. OCC layout edit → preset picker, drag move, keyboard nudge, hide/restore tray
+7. Personal layout edit → move section up/down
+8. Shell navigation → sidebar selection survives registry refresh; notification hub shows active state
+
+### Accessibility (manual)
+
+- [x] Complete keyboard path for layout edit — Implemented in v1.1.1 - verify on release
+- [x] Narrator announces panel operations — Implemented in v1.1.1 - verify on release
+- [x] Settings fully named — Implemented in v1.1.1 - verify on release
+
+### Performance UX (manual)
+
+- [x] Conversation focus &lt;2s p95 — Implemented in v1.1.1 - verify on release
+
+### OCC grid builder (manual)
+
+- [x] All seven OCC sections draggable across columns — Implemented in v1.1.0 - verify on release
+- [x] Resize with Shift+arrow or +/− when focused — Implemented in v1.1.0 - verify on release
+- [x] Presets apply and persist across restart — Implemented in v1.1.0 - verify on release
+- [x] Restore default layout resets grid — Implemented in v1.1.0 - verify on release
+- [x] Undo InfoBar restores prior layout — Implemented in v1.1.0 - verify on release
 
 ### AutomationProperties / TabIndex
 
-- Dashboard tabs (`TabIndex=10`)
-- OCC refresh (`20`), branch pills (`30`), layout (`40`)
-- Settings nav (`10`) and content (`20`)
-- Personal search (`20`)
+- [x] Dashboard tabs (`TabIndex=10`) — Implemented in v1.1.0 - verify on release
+- [x] OCC refresh (`20`), branch pills (`30`), layout (`40`) — Implemented in v1.1.0 - verify on release
+- [x] Settings nav (`10`) and content (`20`) — Implemented in v1.1.0 - verify on release
+- [x] Personal search (`20`) — Implemented in v1.1.0 - verify on release

@@ -9,6 +9,8 @@ public sealed class CommandPaletteEntry
     public required string Category { get; init; }
 
     public required CommandPaletteSelection Selection { get; init; }
+
+    public string IconGlyph { get; init; } = "\uE721";
 }
 
 public sealed class CommandPaletteSelection
@@ -18,6 +20,8 @@ public sealed class CommandPaletteSelection
     public string? InstanceId { get; init; }
 
     public string? AlertId { get; init; }
+
+    public string? BranchKey { get; init; }
 }
 
 public enum CommandPaletteAction
@@ -28,5 +32,8 @@ public enum CommandPaletteAction
     OpenAlert,
     ToggleNotifications,
     ClearNotifications,
-    MarkAllRead
+    MarkAllRead,
+    RefreshOcc,
+    FilterBranch,
+    OpenImmediateQueue
 }

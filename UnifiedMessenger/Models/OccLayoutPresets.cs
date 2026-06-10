@@ -1,0 +1,95 @@
+namespace UnifiedMessenger.Models;
+
+public static class OccLayoutPresets
+{
+    public const string OperationsFocus = "operations-focus";
+
+    public const string AnalyticsFocus = "analytics-focus";
+
+    public const string Compact = "compact";
+
+    public static readonly IReadOnlyList<string> All =
+        [OperationsFocus, AnalyticsFocus, Compact];
+
+    public static IReadOnlyList<OccPanelPlacement> Create(string presetId) =>
+        presetId switch
+        {
+            AnalyticsFocus => CreateAnalyticsFocus(),
+            Compact => CreateCompact(),
+            _ => CreateOperationsFocus()
+        };
+
+    public static IReadOnlyList<OccPanelPlacement> CreateOperationsFocus() =>
+    [
+        Panel(OccLayoutDefaults.KpiStripPanelId, 0, 0, OccLayoutGridConstants.FullWidthSpan, 1, 72),
+        Panel(OccLayoutDefaults.ImmediateLanePanelId, 0, 1, 5, 1, 240),
+        Panel(OccLayoutDefaults.KanbanPanelId, 5, 1, 7, 1, 320),
+        Panel(OccLayoutDefaults.BranchMetricsPanelId, 0, 2, 12, 1, 100),
+        Panel(OccLayoutDefaults.HighlightsPanelId, 0, 3, 6, 1, 120),
+        Panel(OccLayoutDefaults.AiFeedPanelId, 6, 3, 6, 1, 160),
+        Panel(OccLayoutDefaults.PlatformIntelligencePanelId, 0, 4, 6, 1, 120),
+        Panel(OccLayoutDefaults.AnalyticsPanelId, 6, 4, 6, 1, 160),
+        Panel(OccLayoutDefaults.DataHealthPanelId, 0, 5, 12, 1, 80)
+    ];
+
+    public static IReadOnlyList<OccPanelPlacement> CreateAnalyticsFocus() =>
+    [
+        Panel(OccLayoutDefaults.KpiStripPanelId, 0, 0, OccLayoutGridConstants.FullWidthSpan, 1, 72),
+        Panel(OccLayoutDefaults.ImmediateLanePanelId, 0, 1, 4, 1, 200),
+        Panel(OccLayoutDefaults.KanbanPanelId, 4, 1, 8, 1, 280),
+        Panel(OccLayoutDefaults.AnalyticsPanelId, 0, 2, 8, 1, 200),
+        Panel(OccLayoutDefaults.PlatformIntelligencePanelId, 8, 2, 4, 1, 160),
+        Panel(OccLayoutDefaults.HighlightsPanelId, 0, 3, 4, 1, 120),
+        Panel(OccLayoutDefaults.AiFeedPanelId, 4, 3, 4, 1, 160),
+        Panel(OccLayoutDefaults.DataHealthPanelId, 8, 3, 4, 1, 80),
+        Panel(OccLayoutDefaults.BranchMetricsPanelId, 0, 4, 12, 1, 100)
+    ];
+
+    public static IReadOnlyList<OccPanelPlacement> CreateCompact()
+    {
+        var panels = OccLayoutDefaults.ContextPanelOrder
+            .Prepend(OccLayoutDefaults.KanbanPanelId)
+            .Prepend(OccLayoutDefaults.ImmediateLanePanelId)
+            .Prepend(OccLayoutDefaults.KpiStripPanelId)
+            .ToList();
+
+        var placements = new List<OccPanelPlacement>(panels.Count);
+        for (var row = 0; row < panels.Count; row++)
+        {
+            placements.Add(Panel(panels[row], 0, row, OccLayoutGridConstants.FullWidthSpan, 1));
+        }
+
+        return placements;
+    }
+
+    private static int ResolveDefaultMinHeight(string panelId) => panelId switch
+    {
+        OccLayoutDefaults.KpiStripPanelId => 72,
+        OccLayoutDefaults.ImmediateLanePanelId => 200,
+        OccLayoutDefaults.KanbanPanelId => 280,
+        OccLayoutDefaults.BranchMetricsPanelId => 100,
+        OccLayoutDefaults.HighlightsPanelId => 120,
+        OccLayoutDefaults.AiFeedPanelId => 160,
+        OccLayoutDefaults.PlatformIntelligencePanelId => 120,
+        OccLayoutDefaults.AnalyticsPanelId => 160,
+        OccLayoutDefaults.DataHealthPanelId => 80,
+        _ => 80
+    };
+
+    private static OccPanelPlacement Panel(
+        string panelId,
+        int column,
+        int row,
+        int columnSpan,
+        int rowSpan,
+        int minHeightDp = 0) => new()
+    {
+        PanelId = panelId,
+        Column = column,
+        Row = row,
+        ColumnSpan = columnSpan,
+        RowSpan = rowSpan,
+        IsVisible = true,
+        MinHeightDp = minHeightDp > 0 ? minHeightDp : ResolveDefaultMinHeight(panelId)
+    };
+}
