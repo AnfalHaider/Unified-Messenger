@@ -2,7 +2,7 @@ namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 10;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -68,7 +68,21 @@ public sealed class AppSettings
 
     public bool EnableAutoDraft { get; set; }
 
+    public bool EnableBranchPulse { get; set; } = true;
+
     public bool AutoDraftOnlyWhenVisible { get; set; } = true;
+
+    public DraftTonePreference DraftTonePreference { get; set; } = DraftTonePreference.Warm;
+
+    public bool EnableVoiceNoteTranscription { get; set; }
+
+    public int VoiceNoteMaxDurationSeconds { get; set; } = 60;
+
+    public string VoiceNoteLanguageHint { get; set; } = "auto";
+
+    public string WhisperExecutablePath { get; set; } = string.Empty;
+
+    public string WhisperModelPath { get; set; } = string.Empty;
 
     /// <summary>
     /// When true, closing the window hides to the system tray instead of exiting the process.
@@ -123,7 +137,23 @@ public sealed class AppSettings
 
     public bool OccLayoutTeachingDismissed { get; set; }
 
+    /// <summary>
+    /// When true, the WhatsApp-focus OCC preset was auto-applied for WhatsApp-only module mode.
+    /// </summary>
+    public bool OccWhatsAppFocusLayoutApplied { get; set; }
+
     public bool OccThreadClickTeachingDismissed { get; set; }
+
+    /// <summary>
+    /// Per-branch service catalog used by WhatsApp operational context and triage prompts.
+    /// </summary>
+    public List<BranchOperationalProfile> BranchOperationalCatalog { get; set; } =
+        BranchOperationalCatalogDefaults.CreateDefaultList();
+
+    /// <summary>
+    /// Per-platform adapter module enablement. Missing entries default to enabled.
+    /// </summary>
+    public List<PlatformModuleSetting> PlatformModules { get; set; } = [];
 
     /// <summary>
     /// Clamps numeric settings and resets unknown enum values after load or manual edits.
@@ -133,6 +163,14 @@ public sealed class AppSettings
         if (Version < 1)
         {
             Version = 1;
+        }
+
+        MigrateBranchOperationalCatalog();
+        MigratePlatformModules();
+
+        if (Version < CurrentVersion)
+        {
+            Version = CurrentVersion;
         }
 
         SlaThresholdMinutes = Math.Clamp(SlaThresholdMinutes, MinSlaThresholdMinutes, MaxSlaThresholdMinutes);
@@ -166,9 +204,59 @@ public sealed class AppSettings
             StartupWarmMode = StartupWarmMode.WarmAll;
         }
 
+        if (!Enum.IsDefined(DraftTonePreference))
+        {
+            DraftTonePreference = DraftTonePreference.Warm;
+        }
+
+        VoiceNoteMaxDurationSeconds = Math.Clamp(VoiceNoteMaxDurationSeconds, 10, 120);
+        VoiceNoteLanguageHint = string.IsNullOrWhiteSpace(VoiceNoteLanguageHint)
+            ? "auto"
+            : VoiceNoteLanguageHint.Trim();
+        WhisperExecutablePath = WhisperExecutablePath?.Trim() ?? string.Empty;
+        WhisperModelPath = WhisperModelPath?.Trim() ?? string.Empty;
+
         LocalAiModelName = string.IsNullOrWhiteSpace(LocalAiModelName)
             ? "phi3:mini"
             : LocalAiModelName.Trim();
+    }
 
+    private void MigrateBranchOperationalCatalog()
+    {
+        if (Version < 6 && (BranchOperationalCatalog is null || BranchOperationalCatalog.Count == 0))
+        {
+            BranchOperationalCatalog = BranchOperationalCatalogDefaults.CreateDefaultList();
+        }
+
+        BranchOperationalCatalog ??= BranchOperationalCatalogDefaults.CreateDefaultList();
+
+        foreach (var profile in BranchOperationalCatalog)
+        {
+            profile.BranchKey = profile.BranchKey?.Trim() ?? string.Empty;
+            profile.Services = NormalizeStringList(profile.Services);
+            profile.StandardPackages = NormalizeStringList(profile.StandardPackages);
+            profile.BookingRules = profile.BookingRules?.Trim() ?? string.Empty;
+        }
+
+        BranchOperationalCatalog = BranchOperationalCatalog
+            .Where(profile => !string.IsNullOrWhiteSpace(profile.BranchKey))
+            .ToList();
+    }
+
+    private static List<string> NormalizeStringList(IEnumerable<string>? values) =>
+        values?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
+
+    private void MigratePlatformModules()
+    {
+        PlatformModules ??= [];
+
+        foreach (var item in PlatformModules)
+        {
+            item.PlatformId = PlatformDefinition.NormalizePlatformId(item.PlatformId);
+        }
     }
 }

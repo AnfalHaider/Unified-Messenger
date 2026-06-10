@@ -71,6 +71,8 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(DashboardUrgencyThresholdBox, "Dashboard urgency threshold");
         AutomationProperties.SetName(EnableStartupBackfillToggle, "Enable startup backfill");
         AutomationProperties.SetName(ShowHeuristicExecutiveInsightsToggle, "Show heuristic executive insights");
+        AutomationProperties.SetName(PlatformModulesList, "Platform module toggles");
+        AutomationProperties.SetName(BranchOperationalCatalogList, "Branch service catalog");
         AutomationProperties.SetName(ClearAnalyticsButton, "Clear operational data");
         AutomationProperties.SetName(ExportInstancesButton, "Export instances");
         AutomationProperties.SetName(ImportBackupCheckBox, "Create backup before import");
@@ -89,6 +91,7 @@ public sealed partial class SettingsPage : Page
         _sectionAnchors[SettingsNavigationHelper.NotificationsSectionKey] = NotificationsSection;
         _sectionAnchors[SettingsNavigationHelper.AppearanceSectionKey] = AppearanceSection;
         _sectionAnchors[SettingsNavigationHelper.SessionPerformanceSectionKey] = SessionPerformanceSection;
+        _sectionAnchors[SettingsNavigationHelper.PlatformModulesSectionKey] = PlatformModulesSection;
         _sectionAnchors[SettingsNavigationHelper.ProfessionalMetricsSectionKey] = ProfessionalMetricsSection;
         _sectionAnchors[SettingsNavigationHelper.DataPrivacySectionKey] = DataPrivacySection;
         _sectionAnchors[SettingsNavigationHelper.SystemSectionKey] = SystemSection;
@@ -121,6 +124,11 @@ public sealed partial class SettingsPage : Page
         }
 
         RefreshAll();
+
+        if (e.Parameter is RegistryNavigationArgs { SettingsSectionKey: { Length: > 0 } sectionKey })
+        {
+            DispatcherQueue.TryEnqueue(() => NavigateToSectionKey(sectionKey));
+        }
     }
 
     public void RefreshAll()
@@ -166,6 +174,8 @@ public sealed partial class SettingsPage : Page
         EnableAutoUpdateToggle.IsOn = settings.EnableAutoUpdate;
         PromptBeforeAutoUpdateToggle.IsOn = settings.PromptBeforeAutoUpdate;
         SlaThresholdBox.Value = settings.SlaThresholdMinutes;
+        RefreshBranchOperationalCatalog(settings);
+        RefreshPlatformModules(settings);
         _suppressToggleEvents = false;
 
         UpdateImportExportPanelVisibility(settings.EnableImportExportInstances);
@@ -241,6 +251,72 @@ public sealed partial class SettingsPage : Page
         ProfilesPathText.Text = _viewModel.ProfilesPath;
     }
 
+    private void RefreshBranchOperationalCatalog(AppSettings settings)
+    {
+        _viewModel.BranchOperationalCatalogRows.Clear();
+        foreach (var row in SettingsPageHelper.BuildBranchOperationalCatalogRows(settings.BranchOperationalCatalog))
+        {
+            _viewModel.BranchOperationalCatalogRows.Add(row);
+        }
+
+        BranchOperationalCatalogList.ItemsSource = _viewModel.BranchOperationalCatalogRows;
+    }
+
+    private void RefreshPlatformModules(AppSettings settings)
+    {
+        _viewModel.PlatformModuleRows.Clear();
+        foreach (var row in PlatformModuleSettingsHelper.BuildToggleRows(settings))
+        {
+            _viewModel.PlatformModuleRows.Add(row);
+        }
+
+        PlatformModulesList.ItemsSource = _viewModel.PlatformModuleRows;
+    }
+
+    private async void PlatformModuleToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents ||
+            sender is not ToggleSwitch { Tag: string platformId, IsOn: var isEnabled })
+        {
+            return;
+        }
+
+        await _services.AppSettings.UpdateAsync(settings =>
+            PlatformModuleSettingsHelper.SetPlatformEnabled(settings, platformId, isEnabled));
+    }
+
+    private async void BranchCatalogField_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents ||
+            sender is not TextBox { Tag: string branchKey })
+        {
+            return;
+        }
+
+        var row = _viewModel.BranchOperationalCatalogRows
+            .FirstOrDefault(entry => entry.BranchKey.Equals(branchKey, StringComparison.OrdinalIgnoreCase));
+        if (row is null)
+        {
+            return;
+        }
+
+        await _services.AppSettings.UpdateAsync(settings =>
+        {
+            var index = settings.BranchOperationalCatalog.FindIndex(profile =>
+                profile.BranchKey.Equals(branchKey, StringComparison.OrdinalIgnoreCase));
+            var updated = SettingsPageHelper.ToBranchOperationalProfile(row);
+
+            if (index >= 0)
+            {
+                settings.BranchOperationalCatalog[index] = updated;
+            }
+            else
+            {
+                settings.BranchOperationalCatalog.Add(updated);
+            }
+        });
+    }
+
     private void RefreshArchivedAccounts()
     {
         if (_registry is null)
@@ -279,21 +355,26 @@ public sealed partial class SettingsPage : Page
             return;
         }
 
-        _viewModel.SelectedSectionKey = item.Key;
+        NavigateToSectionKey(item.Key);
+    }
 
-        if (item.Key.Equals(SettingsNavigationHelper.LocalAiSectionKey, StringComparison.OrdinalIgnoreCase))
+    private void NavigateToSectionKey(string sectionKey)
+    {
+        _viewModel.SelectedSectionKey = sectionKey;
+
+        if (sectionKey.Equals(SettingsNavigationHelper.LocalAiSectionKey, StringComparison.OrdinalIgnoreCase))
         {
             Frame?.Navigate(typeof(LocalAISettingsPage), _services);
             return;
         }
 
-        if (item.Key.Equals(SettingsNavigationHelper.AboutSectionKey, StringComparison.OrdinalIgnoreCase))
+        if (sectionKey.Equals(SettingsNavigationHelper.AboutSectionKey, StringComparison.OrdinalIgnoreCase))
         {
             Frame?.Navigate(typeof(AboutPage));
             return;
         }
 
-        if (!_sectionAnchors.TryGetValue(item.Key, out var anchor))
+        if (!_sectionAnchors.TryGetValue(sectionKey, out var anchor))
         {
             return;
         }

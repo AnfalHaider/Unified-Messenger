@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Services.Backfill;
 
@@ -75,6 +76,12 @@ public sealed class BackfillSyncManager
         }
 
         if (!AppSettingsService.Instance.Settings.EnableStartupBackfill)
+        {
+            SetState(instance.Id, BackfillSyncState.Skipped);
+            return;
+        }
+
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(instance.Platform))
         {
             SetState(instance.Id, BackfillSyncState.Skipped);
             return;
@@ -170,6 +177,11 @@ public sealed class BackfillSyncManager
         SetState(instance.Id, result.IsSuccess ? BackfillSyncState.Completed : BackfillSyncState.Failed);
         StoreResult(instance.Id, result);
         RaiseProgress(instance.Id, GetState(instance.Id), result);
+        if (result.IsSuccess)
+        {
+            BranchPulseService.Instance.RequestRefreshAfterBackfill(instance);
+        }
+
         return result;
     }
 

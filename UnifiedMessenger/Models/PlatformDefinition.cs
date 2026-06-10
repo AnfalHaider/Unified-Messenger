@@ -6,6 +6,9 @@ public sealed class PlatformDefinition
 
     public required string DisplayName { get; init; }
 
+    /// <summary>Optional helper text shown when adding an instance.</summary>
+    public string Description { get; init; } = string.Empty;
+
     public required string DefaultUrl { get; init; }
 
     public string IconGlyph { get; init; } = "\uE774";
@@ -67,6 +70,7 @@ public sealed class PlatformDefinition
         {
             Id = "signal",
             DisplayName = "Signal",
+            Description = "No official web client — opens signal.org; badge uses title/DOM fallback only.",
             DefaultUrl = "https://signal.org/",
             IconGlyph = "\uE722",
             AccentColor = "#3A76F0"
@@ -75,6 +79,7 @@ public sealed class PlatformDefinition
         {
             Id = "teams",
             DisplayName = "Microsoft Teams",
+            Description = "Opens the Teams web client at teams.microsoft.com.",
             DefaultUrl = "https://teams.microsoft.com/",
             IconGlyph = "\uE715",
             AccentColor = "#6264A7"

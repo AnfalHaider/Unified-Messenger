@@ -186,7 +186,15 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
 
     public async Task ExportToFileAsync(string destinationPath, CancellationToken cancellationToken = default)
     {
-        var store = BuildStoreSnapshot();
+        await ExportFilteredJsonAsync([], destinationPath, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task ExportFilteredJsonAsync(
+        IEnumerable<MessengerInstance> instances,
+        string destinationPath,
+        CancellationToken cancellationToken = default)
+    {
+        var store = BuildFilteredStoreSnapshot(instances);
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
         await using var stream = File.Create(destinationPath);
@@ -817,15 +825,25 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
     }
 
-    private AnalyticsStore BuildStoreSnapshot()
+    private AnalyticsStore BuildStoreSnapshot() => BuildFilteredStoreSnapshot([]);
+
+    private AnalyticsStore BuildFilteredStoreSnapshot(IEnumerable<MessengerInstance> instances)
     {
+        var allowedIds = instances
+            .Select(instance => instance.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var includeAll = allowedIds.Count == 0;
+
         return new AnalyticsStore
         {
             Version = AnalyticsStore.CurrentVersion,
-            Instances = _stats.ToDictionary(
-                pair => pair.Key,
-                pair => MapToDto(pair.Value),
-                StringComparer.OrdinalIgnoreCase)
+            Instances = _stats
+                .Where(pair => includeAll || allowedIds.Contains(pair.Key))
+                .ToDictionary(
+                    pair => pair.Key,
+                    pair => MapToDto(pair.Value),
+                    StringComparer.OrdinalIgnoreCase)
         };
     }
 

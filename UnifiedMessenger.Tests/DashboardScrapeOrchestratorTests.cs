@@ -5,6 +5,13 @@ namespace UnifiedMessenger.Tests;
 
 public class DashboardScrapeOrchestratorTests
 {
+    public DashboardScrapeOrchestratorTests()
+    {
+        var settings = AppSettingsService.Instance.Settings;
+        PlatformModuleSettingsHelper.SetPlatformEnabled(settings, "metabusiness", true);
+        PlatformModuleSettingsHelper.SetPlatformEnabled(settings, "googlebusiness", true);
+    }
+
     [Fact]
     public void IsDashboardScrapeCapable_OnlyMetaAndGoogleBusiness()
     {

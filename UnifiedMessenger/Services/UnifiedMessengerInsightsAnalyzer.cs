@@ -132,7 +132,16 @@ public static partial class UnifiedMessengerInsightsAnalyzer
             SuggestedAction = item.SuggestedAction,
             IsSpamOrPromo = item.IsSpamOrPromo,
             EstimatedValue = estimatedValue,
-            IsRevenueLeakageRisk = leakage
+            IsRevenueLeakageRisk = leakage,
+            SuggestedDraftResponse = item.SuggestedDraftResponse,
+            RequestedServices = item.RequestedServices,
+            BranchTarget = item.BranchTarget,
+            SubIntent = item.SubIntent,
+            IntentTags = item.IntentTags,
+            IntentConfidence = item.IntentConfidence,
+            MessageKind = item.MessageKind,
+            VoiceDurationSeconds = item.VoiceDurationSeconds,
+            TranscriptConfidence = item.TranscriptConfidence
         };
     }
 

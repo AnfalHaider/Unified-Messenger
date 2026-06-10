@@ -88,6 +88,14 @@ public sealed class UnifiedMessengerInsightsEngine
             return;
         }
 
+        var triageItem = _triageService.GetAllItems()
+            .FirstOrDefault(item => item.Id.Equals(triageItemId, StringComparison.OrdinalIgnoreCase));
+        if (triageItem is null ||
+            !PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(triageItem.Platform))
+        {
+            return;
+        }
+
         _ = ChannelWriteHelper.TryWriteWithDropLog(
             _channel.Writer,
             new UnifiedMessengerInsightsJob
@@ -193,6 +201,11 @@ public sealed class UnifiedMessengerInsightsEngine
             return;
         }
 
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(item.Platform))
+        {
+            return;
+        }
+
         if (item.IsSpamOrPromo)
         {
             var spamOnly = UnifiedMessengerInsightsAnalyzer.ApplyOperationalInsights(item);
@@ -201,6 +214,20 @@ public sealed class UnifiedMessengerInsightsEngine
         }
 
         var transcript = await TryBuildTranscriptAsync(job.InstanceId, cancellationToken).ConfigureAwait(false);
+        var whatsAppContext = WhatsAppBusinessContextService.Instance.GetThreadContext(
+            item.InstanceId,
+            item.ConversationKey);
+        WhatsAppConversationMetadata? whatsAppMetadata = whatsAppContext is null
+            ? null
+            : new WhatsAppConversationMetadata
+            {
+                BusinessLabels = whatsAppContext.BusinessLabels,
+                VerifiedBusinessName = whatsAppContext.VerifiedBusinessName,
+                ProfilePhoneNumber = whatsAppContext.ProfilePhoneNumber,
+                ContactPhoneNumber = whatsAppContext.ContactPhoneNumber,
+                ChatJid = whatsAppContext.ConversationKey
+            };
+
         RichTriageInferenceJob inferenceJob = new()
         {
             TriageItemId = item.Id,
@@ -215,7 +242,12 @@ public sealed class UnifiedMessengerInsightsEngine
             TimestampUtc = item.TimestampUtc,
             HeuristicUrgencyScore = item.UrgencyScore,
             HeuristicSentiment = item.Sentiment,
-            ConversationTranscript = transcript ?? string.Empty
+            ConversationTranscript = transcript ?? string.Empty,
+            BranchKey = item.BranchName,
+            WhatsAppMetadata = whatsAppMetadata,
+            MessageKind = item.MessageKind,
+            VoiceDurationSeconds = item.VoiceDurationSeconds,
+            TranscriptConfidence = item.TranscriptConfidence
         };
 
         RichTriageLlmResponse? llmResponse = null;
@@ -244,6 +276,7 @@ public sealed class UnifiedMessengerInsightsEngine
         }
 
         _triageService.ReplaceItemForInsights(enrichedItem);
+        NotifyTriageDraftIfApplicable(enrichedItem);
         ThreadRegistryService.Instance.UpsertFromTriageItem(
             enrichedItem,
             enrichedItem.ConversationKey,
@@ -255,6 +288,17 @@ public sealed class UnifiedMessengerInsightsEngine
             enrichedItem.EstimatedValue,
             enrichedItem.IsRevenueLeakageRisk);
         UnifiedMessengerDashboardService.Instance.NotifyChanged();
+    }
+
+    private static void NotifyTriageDraftIfApplicable(MessageTriageItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.SuggestedDraftResponse) ||
+            !AppSettingsService.Instance.Settings.EnableAutoDraft)
+        {
+            return;
+        }
+
+        AutoDraftOrchestrator.Instance.HandleTriageDraftReady(item);
     }
 
     private static void RefreshThread(string? threadId)
@@ -291,7 +335,7 @@ public sealed class UnifiedMessengerInsightsEngine
         try
         {
             var context = await ConversationContextScraper
-                .ExtractAsync(instanceId, maxMessages: 6, cancellationToken)
+                .ExtractAsync(instanceId, maxMessages: 12, cancellationToken)
                 .ConfigureAwait(false);
             if (context is null || !context.Ok || context.Messages.Count == 0)
             {

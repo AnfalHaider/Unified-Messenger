@@ -1,3 +1,4 @@
+using System.Text.Json;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
@@ -55,6 +56,45 @@ public class MessageAnalyticsServiceTests : IDisposable
 
         Assert.False(File.Exists(_storePath));
         Assert.Equal(0, service.GetReceivedCount("inst-1"));
+    }
+
+    [Fact]
+    public async Task ExportFilteredJsonAsync_RespectsInstanceFilter()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        service.RecordMessageReceived("inst-1");
+        service.RecordMessageSent("inst-1");
+        service.RecordMessageReceived("inst-2");
+        service.RecordMessageSent("inst-2");
+        service.RecordMessageSent("inst-2");
+
+        var exportPath = Path.Combine(_tempDirectory, "filtered-export.json");
+        var instances = new[]
+        {
+            new MessengerInstance
+            {
+                Id = "inst-1",
+                DisplayName = "Support",
+                Platform = "whatsapp",
+                ProfileName = "whatsapp-support",
+                StartUrl = "https://web.whatsapp.com/"
+            }
+        };
+
+        await service.ExportFilteredJsonAsync(instances, exportPath);
+
+        await using var stream = File.OpenRead(exportPath);
+        using var document = await JsonDocument.ParseAsync(stream);
+        var instanceIds = document.RootElement
+            .GetProperty("instances")
+            .EnumerateObject()
+            .Select(property => property.Name)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["inst-1"], instanceIds);
+        Assert.Equal(1, document.RootElement.GetProperty("instances").GetProperty("inst-1").GetProperty("receivedCount").GetInt32());
+        Assert.Equal(1, document.RootElement.GetProperty("instances").GetProperty("inst-1").GetProperty("sentCount").GetInt32());
     }
 
     [Fact]

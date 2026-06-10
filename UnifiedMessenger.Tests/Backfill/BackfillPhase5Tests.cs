@@ -35,6 +35,13 @@ public class BackfillPhase5Tests : IDisposable
     {
         BackfillSyncManager.Instance.ResetStateForTests();
         BackfillSyncManager.TestProviderOverride = null;
+
+        var settings = AppSettingsService.Instance.Settings;
+        settings.EnableStartupBackfill = true;
+        PlatformModuleSettingsHelper.SetPlatformEnabled(settings, "whatsapp", true);
+        PlatformModuleSettingsHelper.SetPlatformEnabled(settings, "whatsappbusiness", true);
+        PlatformModuleSettingsHelper.SetPlatformEnabled(settings, "metabusiness", true);
+        PlatformModuleSettingsHelper.SetPlatformEnabled(settings, "googlebusiness", true);
     }
 
     [Fact]

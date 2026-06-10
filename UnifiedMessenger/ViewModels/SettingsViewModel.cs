@@ -10,6 +10,10 @@ public partial class SettingsViewModel : ViewModelBase
 
     public ObservableCollection<ArchivedAccountRowViewModel> ArchivedAccounts { get; } = [];
 
+    public ObservableCollection<BranchOperationalCatalogRowViewModel> BranchOperationalCatalogRows { get; } = [];
+
+    public ObservableCollection<PlatformModuleToggleRowViewModel> PlatformModuleRows { get; } = [];
+
     [ObservableProperty]
     private string _selectedSectionKey = SettingsNavigationHelper.NotificationsSectionKey;
 

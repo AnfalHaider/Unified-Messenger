@@ -24,13 +24,131 @@ public sealed class AutoDraftOrchestrator
     public void HandleInboundMessage(InboundMessageSelection selection)
     {
         ArgumentNullException.ThrowIfNull(selection);
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(selection.Platform))
+        {
+            return;
+        }
+
         _ = ProcessInboundAsync(selection);
+    }
+
+    public void HandleTriageDraftReady(MessageTriageItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(item.Platform))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(item.SuggestedDraftResponse))
+        {
+            return;
+        }
+
+        var messageText = string.IsNullOrWhiteSpace(item.MessageFullText)
+            ? item.MessagePreview
+            : item.MessageFullText;
+        _ = TryInjectTriageDraftAsync(
+            item.InstanceId,
+            item.Platform,
+            item.SuggestedDraftResponse,
+            messageText,
+            item.ConversationKey);
+    }
+
+    public async Task<bool> TryInjectTriageDraftAsync(
+        string instanceId,
+        string platform,
+        string draftText,
+        string messageText,
+        string conversationHint,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId) ||
+            string.IsNullOrWhiteSpace(platform) ||
+            string.IsNullOrWhiteSpace(draftText))
+        {
+            return false;
+        }
+
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(platform))
+        {
+            return false;
+        }
+
+        var settings = AppSettingsService.Instance.Settings;
+        if (!settings.EnableLocalAi || !settings.EnableAutoDraft)
+        {
+            return false;
+        }
+
+        if (settings.AutoDraftOnlyWhenVisible &&
+            !ActiveWorkspaceContext.IsInstanceActive(instanceId))
+        {
+            return false;
+        }
+
+        var trimmedDraft = draftText.Trim();
+        if (trimmedDraft.Length < 4)
+        {
+            return false;
+        }
+
+        var signature = BuildTriageSignature(messageText, conversationHint);
+        if (IsDuplicate(instanceId, signature))
+        {
+            return false;
+        }
+
+        var instanceGate = _instanceGates.GetOrAdd(instanceId, _ => new SemaphoreSlim(1, 1));
+        await instanceGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            if (IsDuplicate(instanceId, signature))
+            {
+                return false;
+            }
+
+            var injected = await WebViewDraftInjector
+                .InjectDraftAsync(instanceId, trimmedDraft, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!injected)
+            {
+                return false;
+            }
+
+            _lastSignatures[instanceId] = signature;
+            _lastDraftAt[instanceId] = DateTimeOffset.UtcNow;
+
+            DraftCompleted?.Invoke(
+                this,
+                new AutoDraftCompletedEventArgs(instanceId, platform, trimmedDraft.Length));
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"Triage draft injection failed for {instanceId}: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            instanceGate.Release();
+        }
     }
 
     internal async Task ProcessInboundAsync(
         InboundMessageSelection selection,
         CancellationToken cancellationToken = default)
     {
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(selection.Platform))
+        {
+            return;
+        }
+
         var settings = AppSettingsService.Instance.Settings;
         if (!settings.EnableLocalAi || !settings.EnableAutoDraft)
         {
@@ -139,7 +257,10 @@ public sealed class AutoDraftOrchestrator
     }
 
     private static string BuildSignature(InboundMessageSelection selection) =>
-        $"{selection.MessageText.Trim()}|{selection.ConversationHint.Trim()}";
+        BuildTriageSignature(selection.MessageText, selection.ConversationHint);
+
+    internal static string BuildTriageSignature(string messageText, string conversationHint) =>
+        $"{messageText.Trim()}|{conversationHint.Trim()}";
 
     private bool IsDuplicate(string instanceId, string signature)
     {

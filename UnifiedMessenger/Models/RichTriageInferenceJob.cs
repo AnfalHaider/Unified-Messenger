@@ -24,4 +24,14 @@ public sealed class RichTriageInferenceJob
 
     /// <summary>Recent thread lines from conversation-context-scraper.js, when available.</summary>
     public string ConversationTranscript { get; init; } = string.Empty;
+
+    public string BranchKey { get; init; } = string.Empty;
+
+    public WhatsAppConversationMetadata? WhatsAppMetadata { get; init; }
+
+    public InboundMessageKind MessageKind { get; init; } = InboundMessageKind.Text;
+
+    public double VoiceDurationSeconds { get; init; }
+
+    public double TranscriptConfidence { get; init; }
 }

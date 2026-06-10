@@ -77,6 +77,7 @@ public sealed class AppSettingsService : IAppSettingsService
             loaded.Normalize();
             OccLayoutService.Normalize(loaded);
             PersonalOverviewLayoutService.Normalize(loaded);
+            PlatformModuleSettingsHelper.NormalizePlatformModules(loaded);
             Settings = loaded;
 
             if (Settings.Version < AppSettings.CurrentVersion)
@@ -117,6 +118,7 @@ public sealed class AppSettingsService : IAppSettingsService
             Settings.Normalize();
             OccLayoutService.Normalize(Settings);
             PersonalOverviewLayoutService.Normalize(Settings);
+            PlatformModuleSettingsHelper.NormalizePlatformModules(Settings);
             await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
             Changed?.Invoke(this, EventArgs.Empty);
         }

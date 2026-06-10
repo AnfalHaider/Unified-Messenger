@@ -25,24 +25,42 @@ public class BranchWorkspaceHelperTests
     [Fact]
     public void BuildBranchMetrics_AggregatesThreadsAcrossInboxes()
     {
-        var instances = new[]
+        var originalModules = AppSettingsService.Instance.Settings.PlatformModules.ToList();
+        try
         {
-            CreateInstance("wa-dha", "Depilex DHA-2", "whatsappbusiness"),
-            CreateInstance("meta-dha", "Depilex DHA-2 Meta", "metabusiness")
-        };
+            PlatformModuleSettingsHelper.SetPlatformEnabled(
+                AppSettingsService.Instance.Settings,
+                "whatsappbusiness",
+                isEnabled: true);
+            PlatformModuleSettingsHelper.SetPlatformEnabled(
+                AppSettingsService.Instance.Settings,
+                "metabusiness",
+                isEnabled: true);
 
-        var threads = new[]
+            var instances = new[]
+            {
+                CreateInstance("wa-dha", "Depilex DHA-2", "whatsappbusiness"),
+                CreateInstance("meta-dha", "Depilex DHA-2 Meta", "metabusiness")
+            };
+
+            var threads = new[]
+            {
+                CreateThread("wa-dha", "DHA-2", "whatsappbusiness", "Sara"),
+                CreateThread("meta-dha", "DHA-2", "metabusiness", "Inbox")
+            };
+
+            var metrics = BranchWorkspaceHelper.BuildBranchMetrics("DHA-2", threads, instances);
+
+            Assert.Equal(2, metrics.UnresolvedCount);
+            Assert.Equal(2, metrics.InboxCount);
+            Assert.Contains("WA 1", metrics.PlatformBreakdown, StringComparison.Ordinal);
+            Assert.Contains("Meta 1", metrics.PlatformBreakdown, StringComparison.Ordinal);
+        }
+        finally
         {
-            CreateThread("wa-dha", "DHA-2", "whatsappbusiness", "Sara"),
-            CreateThread("meta-dha", "DHA-2", "metabusiness", "Inbox")
-        };
-
-        var metrics = BranchWorkspaceHelper.BuildBranchMetrics("DHA-2", threads, instances);
-
-        Assert.Equal(2, metrics.UnresolvedCount);
-        Assert.Equal(2, metrics.InboxCount);
-        Assert.Contains("WA 1", metrics.PlatformBreakdown, StringComparison.Ordinal);
-        Assert.Contains("Meta 1", metrics.PlatformBreakdown, StringComparison.Ordinal);
+            AppSettingsService.Instance.Settings.PlatformModules = originalModules;
+            PlatformModuleSettingsHelper.NormalizePlatformModules(AppSettingsService.Instance.Settings);
+        }
     }
 
     [Fact]

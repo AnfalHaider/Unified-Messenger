@@ -179,6 +179,11 @@ public sealed class RichTriageStoreService
                 continue;
             }
 
+            if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(item.Platform))
+            {
+                continue;
+            }
+
             UnifiedMessengerInsightsEngine.Instance.EnqueueMessageAnalysis(item.InstanceId, item.Id);
             queued++;
             if (queued >= maxJobs)

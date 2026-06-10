@@ -4,7 +4,7 @@
 
 | Gate | Command / job |
 |------|----------------|
-| Unit tests (750+ target) | `dotnet test UnifiedMessenger.Tests -c Release` |
+| Unit tests (750+ target; v2.0.2 baseline **936**) | `dotnet test UnifiedMessenger.Tests -c Release -p:Platform=x64` |
 | UI smoke | `ui-smoke` job in `.github/workflows/build.yml` |
 | Vulnerable packages | `dotnet list package --vulnerable --include-transitive` |
 
@@ -58,6 +58,13 @@ Verify layout, empty states, and destructive confirmations on each listed surfac
 ### Performance UX (manual)
 
 - [x] Conversation focus &lt;2s p95 — Implemented in v1.1.1 - verify on release
+
+### Branch pulse (manual)
+
+- [ ] Branch pulse panel visible in OCC (default in WhatsApp-focus preset)
+- [ ] Refresh pulse generates themes + summary when Local AI is running
+- [ ] Branch-scoped pill filters pulse to selected branch
+- [ ] Post-backfill auto-invalidates pulse cache for that branch
 
 ### OCC grid builder (manual)
 

@@ -11,8 +11,15 @@ public sealed class RichTriageLlmResponse
     [JsonPropertyName("Sentiment")]
     public string Sentiment { get; init; } = "Neutral";
 
+    [JsonPropertyName("sentiment")]
+    public string SentimentSchema { get; init; } = string.Empty;
+
     [JsonPropertyName("CustomerIntent")]
     public string CustomerIntent { get; init; } = "Inquiry";
+
+    /// <summary>WhatsApp schema: BookingRequest | PricingInquiry | Complaint | General</summary>
+    [JsonPropertyName("customerIntent")]
+    public string CustomerIntentSchema { get; init; } = string.Empty;
 
     [JsonPropertyName("ExtractedEntities")]
     public RichTriageExtractedEntities ExtractedEntities { get; init; } = new();
@@ -24,7 +31,7 @@ public sealed class RichTriageLlmResponse
     public string AiIntentCategory { get; init; } = UnifiedMessengerIntentCategory.Inquiry;
 
     [JsonPropertyName("ClientSentiment")]
-    public string ClientSentiment { get; init; } = ClientSentimentLabel.Neutral;
+    public string ClientSentiment { get; init; } = string.Empty;
 
     [JsonPropertyName("OperationalUrgency")]
     public int LegacyOperationalUrgency { get; init; }
@@ -52,4 +59,22 @@ public sealed class RichTriageLlmResponse
 
     [JsonPropertyName("suggestedAction")]
     public string SuggestedAction { get; init; } = string.Empty;
+
+    [JsonPropertyName("requestedServices")]
+    public IReadOnlyList<string> RequestedServices { get; init; } = [];
+
+    [JsonPropertyName("branchTarget")]
+    public string BranchTarget { get; init; } = string.Empty;
+
+    [JsonPropertyName("suggestedDraftResponse")]
+    public string SuggestedDraftResponse { get; init; } = string.Empty;
+
+    [JsonPropertyName("intentConfidence")]
+    public double IntentConfidence { get; init; }
+
+    [JsonPropertyName("subIntent")]
+    public string SubIntent { get; init; } = string.Empty;
+
+    [JsonPropertyName("tags")]
+    public IReadOnlyList<string> Tags { get; init; } = [];
 }

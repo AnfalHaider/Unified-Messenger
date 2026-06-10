@@ -8,14 +8,17 @@ public static class OccLayoutPresets
 
     public const string Compact = "compact";
 
+    public const string WhatsAppFocus = "whatsapp-focus";
+
     public static readonly IReadOnlyList<string> All =
-        [OperationsFocus, AnalyticsFocus, Compact];
+        [OperationsFocus, AnalyticsFocus, Compact, WhatsAppFocus];
 
     public static IReadOnlyList<OccPanelPlacement> Create(string presetId) =>
         presetId switch
         {
             AnalyticsFocus => CreateAnalyticsFocus(),
             Compact => CreateCompact(),
+            WhatsAppFocus => CreateWhatsAppFocus(),
             _ => CreateOperationsFocus()
         };
 
@@ -25,11 +28,12 @@ public static class OccLayoutPresets
         Panel(OccLayoutDefaults.ImmediateLanePanelId, 0, 1, 5, 1, 240),
         Panel(OccLayoutDefaults.KanbanPanelId, 5, 1, 7, 1, 320),
         Panel(OccLayoutDefaults.BranchMetricsPanelId, 0, 2, 12, 1, 100),
-        Panel(OccLayoutDefaults.HighlightsPanelId, 0, 3, 6, 1, 120),
+        Panel(OccLayoutDefaults.BranchPulsePanelId, 0, 3, 6, 1, 160),
         Panel(OccLayoutDefaults.AiFeedPanelId, 6, 3, 6, 1, 160),
-        Panel(OccLayoutDefaults.PlatformIntelligencePanelId, 0, 4, 6, 1, 120),
-        Panel(OccLayoutDefaults.AnalyticsPanelId, 6, 4, 6, 1, 160),
-        Panel(OccLayoutDefaults.DataHealthPanelId, 0, 5, 12, 1, 80)
+        Panel(OccLayoutDefaults.HighlightsPanelId, 0, 4, 6, 1, 120),
+        Panel(OccLayoutDefaults.PlatformIntelligencePanelId, 6, 4, 6, 1, 120),
+        Panel(OccLayoutDefaults.AnalyticsPanelId, 0, 5, 6, 1, 160),
+        Panel(OccLayoutDefaults.DataHealthPanelId, 6, 5, 6, 1, 80)
     ];
 
     public static IReadOnlyList<OccPanelPlacement> CreateAnalyticsFocus() =>
@@ -43,6 +47,18 @@ public static class OccLayoutPresets
         Panel(OccLayoutDefaults.AiFeedPanelId, 4, 3, 4, 1, 160),
         Panel(OccLayoutDefaults.DataHealthPanelId, 8, 3, 4, 1, 80),
         Panel(OccLayoutDefaults.BranchMetricsPanelId, 0, 4, 12, 1, 100)
+    ];
+
+    public static IReadOnlyList<OccPanelPlacement> CreateWhatsAppFocus() =>
+    [
+        Panel(OccLayoutDefaults.KpiStripPanelId, 0, 0, OccLayoutGridConstants.FullWidthSpan, 1, 72),
+        Panel(OccLayoutDefaults.ImmediateLanePanelId, 0, 1, 5, 1, 280),
+        Panel(OccLayoutDefaults.KanbanPanelId, 5, 1, 7, 1, 360),
+        Panel(OccLayoutDefaults.BranchMetricsPanelId, 0, 2, OccLayoutGridConstants.FullWidthSpan, 1, 100),
+        Panel(OccLayoutDefaults.BranchPulsePanelId, 0, 3, OccLayoutGridConstants.FullWidthSpan, 1, 180),
+        Panel(OccLayoutDefaults.AiFeedPanelId, 0, 4, 6, 1, 200),
+        Panel(OccLayoutDefaults.HighlightsPanelId, 6, 4, 6, 1, 140),
+        Panel(OccLayoutDefaults.DataHealthPanelId, 0, 5, OccLayoutGridConstants.FullWidthSpan, 1, 80)
     ];
 
     public static IReadOnlyList<OccPanelPlacement> CreateCompact()
@@ -68,6 +84,7 @@ public static class OccLayoutPresets
         OccLayoutDefaults.ImmediateLanePanelId => 200,
         OccLayoutDefaults.KanbanPanelId => 280,
         OccLayoutDefaults.BranchMetricsPanelId => 100,
+        OccLayoutDefaults.BranchPulsePanelId => 160,
         OccLayoutDefaults.HighlightsPanelId => 120,
         OccLayoutDefaults.AiFeedPanelId => 160,
         OccLayoutDefaults.PlatformIntelligencePanelId => 120,

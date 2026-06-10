@@ -99,6 +99,39 @@ public static class WorkspaceSidebarHelper
         return (professional, personal);
     }
 
+    public static string FormatMemoryTierLabel(MemoryTierPreference tier) =>
+        tier switch
+        {
+            MemoryTierPreference.Low => "Low",
+            MemoryTierPreference.High => "High",
+            _ => "Normal"
+        };
+
+    public static string AppendMemoryTierHint(string subtitle, MemoryTierPreference tier)
+    {
+        ArgumentNullException.ThrowIfNull(subtitle);
+
+        if (tier == MemoryTierPreference.Normal)
+        {
+            return subtitle;
+        }
+
+        return $"{subtitle} · Memory: {FormatMemoryTierLabel(tier)}";
+    }
+
+    public static string ComposeInstanceTooltip(
+        string displayName,
+        WorkspaceCategory category,
+        string statusSubtitle,
+        string adapterDescription,
+        MemoryTierPreference memoryTier,
+        string? connectionDetail = null)
+    {
+        var detailLine = string.IsNullOrWhiteSpace(connectionDetail) ? string.Empty : $"\n{connectionDetail}";
+        return
+            $"{displayName}\nWorkspace: {category}\n{statusSubtitle}{detailLine}\nMemory tier: {FormatMemoryTierLabel(memoryTier)}\nAdapter: {adapterDescription}";
+    }
+
     public static string ResolveStatusSubtitle(
         InstanceConnectionStatus connectionStatus,
         AdapterHealthState adapterState,

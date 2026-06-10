@@ -7,14 +7,17 @@ namespace UnifiedMessenger.Services;
 /// </summary>
 public static class PageServices
 {
-    public static RegistryNavigationArgs CreateRegistryArgs(ApplicationServices services)
+    public static RegistryNavigationArgs CreateRegistryArgs(
+        ApplicationServices services,
+        string? settingsSectionKey = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
         return new RegistryNavigationArgs
         {
             Registry = services.Registry,
-            Services = services
+            Services = services,
+            SettingsSectionKey = settingsSectionKey
         };
     }
 }

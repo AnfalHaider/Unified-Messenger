@@ -30,5 +30,11 @@ public interface IThreadRegistryService
         DateTimeOffset? resolvedAtUtc = null,
         string? platform = null);
 
+    void UpdateWhatsAppDeliveryStatus(
+        string instanceId,
+        string conversationKey,
+        string status,
+        DateTimeOffset? updatedAtUtc = null);
+
     void RefreshOperationalFlags(bool raiseChanged = true);
 }

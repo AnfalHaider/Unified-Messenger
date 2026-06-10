@@ -57,7 +57,7 @@ public sealed class ShellNavigationCoordinator
         _chrome?.UpdateShellChromeSelection();
     }
 
-    public async Task ShowSettingsAsync()
+    public async Task ShowSettingsAsync(string? sectionKey = null)
     {
         IsDashboardSelected = false;
         IsSettingsSelected = true;
@@ -68,7 +68,7 @@ public sealed class ShellNavigationCoordinator
         SetInstanceLoading(false, null);
         _ui.ContentFrame.Visibility = Visibility.Visible;
 
-        var navArgs = PageServices.CreateRegistryArgs(_services);
+        var navArgs = PageServices.CreateRegistryArgs(_services, sectionKey);
         NavigateShellFrame(typeof(SettingsPage), navArgs);
         ActiveWorkspaceContext.SetSettingsVisible();
         _ui.AppTitleBar.Subtitle = "Settings";

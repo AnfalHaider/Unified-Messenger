@@ -31,6 +31,7 @@ public static class InstanceDeletionService
         }
 
         services.NotificationHub.RemoveAlertsForInstance(instance.Id);
+        WhatsAppBusinessContextService.Instance.RemoveInstance(instance.Id);
         AdapterHealthMonitor.Instance.RemoveInstance(instance.Id);
         ProfessionalWorkspaceService.Instance.RemoveInstance(instance.Id);
     }

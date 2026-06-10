@@ -11,6 +11,8 @@ public static class SettingsNavigationHelper
 
     public const string SessionPerformanceSectionKey = "session-performance";
 
+    public const string PlatformModulesSectionKey = "platform-modules";
+
     public const string ProfessionalMetricsSectionKey = "professional-metrics";
 
     public const string DataPrivacySectionKey = "data-privacy";
@@ -30,6 +32,7 @@ public static class SettingsNavigationHelper
         new() { Key = NotificationsSectionKey, Label = "Notifications" },
         new() { Key = AppearanceSectionKey, Label = "Appearance" },
         new() { Key = SessionPerformanceSectionKey, Label = "Session & performance" },
+        new() { Key = PlatformModulesSectionKey, Label = "Platform modules" },
         new() { Key = ProfessionalMetricsSectionKey, Label = "Professional metrics" },
         new() { Key = DataPrivacySectionKey, Label = "Data & privacy" },
         new() { Key = SystemSectionKey, Label = "System" },

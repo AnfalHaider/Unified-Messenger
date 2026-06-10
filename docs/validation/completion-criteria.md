@@ -12,7 +12,7 @@ Assessment as of Wave 13 (deferred items complete).
 | 6 | OCC code-behind &lt; 400 lines | **Pass** | Main file ~199 lines; partials + `Controls/Occ/` helpers (D1) |
 | 7 | Refresh coordinator ≤1 rebuild per burst | **Pass** | `PerformanceValidationHelper` + Wave 11 tests |
 | 8 | CI release uses CI artifacts; smoke in CI | **Pass** | `.github/workflows/build.yml` `package` + `ui-smoke` |
-| 9 | 750+ unit tests green; UiSmoke green | **Pass** (unit) / **CI** (smoke) | 811 unit tests locally (v2.0); smoke runs on CI |
+| 9 | 750+ unit tests green; UiSmoke green | **Pass** (unit) / **CI** (smoke) | 936 unit tests locally (v2.0.2); smoke runs on CI |
 | 10 | Accessibility pass on dashboards | **Pass** (automated) | Tab order + AutomationProperties; OCC `Alt+Up/Down` reorder tested (D5) |
 | 11 | Legacy dead code removed or ticketed | **Pass** | Branch filter removed; D1–D6 resolved in `remaining-issues-log.md` |
 | 12 | Re-audit: no new significant issues | **Pass** | `ProgramCompletionCriteria.IsReleaseReady()` true |

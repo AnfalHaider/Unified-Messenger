@@ -24,6 +24,14 @@
     window.__umPostMessage(payload);
   }
 
+  function includeMutedBadges() {
+    if (window.__umShouldIncludeMutedBadges) {
+      return window.__umShouldIncludeMutedBadges();
+    }
+
+    return window.__umIncludeMutedBadges === true;
+  }
+
   function countActivityBadges() {
     var total = 0;
     var selectors = [
@@ -38,7 +46,7 @@
 
     selectors.forEach(function (selector) {
       document.querySelectorAll(selector).forEach(function (badge) {
-        if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(badge)) {
+        if (!includeMutedBadges() && window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(badge)) {
           return;
         }
 

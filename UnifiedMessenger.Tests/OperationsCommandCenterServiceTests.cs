@@ -93,6 +93,18 @@ public class OperationsCommandCenterServiceTests : IDisposable
     [Fact]
     public void BuildSnapshot_scopesPlatformIntelligenceToFilteredBranch()
     {
+        var originalModules = AppSettingsService.Instance.Settings.PlatformModules.ToList();
+        try
+        {
+            PlatformModuleSettingsHelper.SetPlatformEnabled(
+                AppSettingsService.Instance.Settings,
+                "googlebusiness",
+                isEnabled: true);
+            PlatformModuleSettingsHelper.SetPlatformEnabled(
+                AppSettingsService.Instance.Settings,
+                "metabusiness",
+                isEnabled: true);
+
         var instances = new[]
         {
             CreateInstance("google-f11", "Depilex F-11 Google", "googlebusiness"),
@@ -109,6 +121,12 @@ public class OperationsCommandCenterServiceTests : IDisposable
         Assert.False(filtered.PlatformIntelligence.HasMetaInstances);
         Assert.Single(filtered.PlatformIntelligence.GoogleInstanceIds);
         Assert.Empty(filtered.PlatformIntelligence.MetaInstanceIds);
+        }
+        finally
+        {
+            AppSettingsService.Instance.Settings.PlatformModules = originalModules;
+            PlatformModuleSettingsHelper.NormalizePlatformModules(AppSettingsService.Instance.Settings);
+        }
     }
 
     [Fact]

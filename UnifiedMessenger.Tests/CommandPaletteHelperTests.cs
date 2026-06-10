@@ -92,4 +92,90 @@ public class CommandPaletteHelperTests
     {
         Assert.Equal(expected, CommandPaletteHelper.NormalizeQuery(query));
     }
+
+    [Fact]
+    public void FilterEntries_MatchesTypoTolerantQueries()
+    {
+        var entries = new List<CommandPaletteEntry>
+        {
+            CreateEntry("Dashboard", subtitle: "Open overview", category: "Navigation"),
+            CreateEntry("Settings", subtitle: "App preferences", category: "Navigation")
+        };
+
+        var filtered = CommandPaletteHelper.FilterEntries(entries, "dashbord");
+
+        Assert.Single(filtered);
+        Assert.Equal("Dashboard", filtered[0].Title);
+    }
+
+    [Fact]
+    public void FilterEntries_MatchesCharacterSubsequenceQueries()
+    {
+        var entries = new List<CommandPaletteEntry>
+        {
+            CreateEntry("Toggle notification panel", subtitle: "Show or hide the hub panel", category: "Actions"),
+            CreateEntry("Settings", subtitle: "App preferences", category: "Navigation")
+        };
+
+        var filtered = CommandPaletteHelper.FilterEntries(entries, "ntfpnl");
+
+        Assert.Single(filtered);
+        Assert.Equal("Toggle notification panel", filtered[0].Title);
+    }
+
+    [Fact]
+    public void FilterEntries_PrefersExactMatchesOverFuzzyMatches()
+    {
+        var entries = new List<CommandPaletteEntry>
+        {
+            CreateEntry("Sales Dashboard", subtitle: "Overview"),
+            CreateEntry("Dashboard", subtitle: "Open overview")
+        };
+
+        var filtered = CommandPaletteHelper.FilterEntries(entries, "dashboard");
+
+        Assert.Equal("Dashboard", filtered[0].Title);
+        Assert.Equal("Sales Dashboard", filtered[1].Title);
+    }
+
+    [Theory]
+    [InlineData(CommandPaletteAction.OpenSettingsSection, "notifications", true)]
+    [InlineData(CommandPaletteAction.OpenSettingsSection, " ", false)]
+    public void IsValidSelection_ValidatesSettingsSectionKey(
+        CommandPaletteAction action,
+        string sectionKey,
+        bool expected)
+    {
+        var selection = new CommandPaletteSelection
+        {
+            Action = action,
+            SettingsSectionKey = sectionKey
+        };
+
+        Assert.Equal(expected, CommandPaletteHelper.IsValidSelection(selection));
+    }
+
+    [Theory]
+    [InlineData("dashboard", "dashbord", true)]
+    [InlineData("notification", "ntf", true)]
+    [InlineData("settings", "zzzz", false)]
+    public void IsCharacterSubsequence_DetectsOrderedCharacters(
+        string text,
+        string query,
+        bool expected)
+    {
+        Assert.Equal(expected, CommandPaletteHelper.IsCharacterSubsequence(text, query));
+    }
+
+    [Theory]
+    [InlineData("dashboard", "dashbord", 1)]
+    [InlineData("settings", "setting", 1)]
+    [InlineData("kitten", "sitting", 3)]
+    public void ComputeLevenshteinDistance_AllowsMinorTypos(
+        string left,
+        string right,
+        int expectedDistance)
+    {
+        Assert.Equal(expectedDistance, CommandPaletteHelper.ComputeLevenshteinDistance(left, right));
+    }
 }

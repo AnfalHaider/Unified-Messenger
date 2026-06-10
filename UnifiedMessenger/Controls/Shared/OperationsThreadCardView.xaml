@@ -86,6 +86,12 @@
                     Visibility="{x:Bind ViewModel.SlaVisibility, Mode=OneWay}" />
                 <TextBlock
                     FontSize="10"
+                    FontWeight="SemiBold"
+                    Foreground="{x:Bind ViewModel.DeliveryStatusBrush, Mode=OneWay}"
+                    Text="{x:Bind ViewModel.DeliveryStatusLabel, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.DeliveryStatusVisibility, Mode=OneWay}" />
+                <TextBlock
+                    FontSize="10"
                     Opacity="0.65"
                     Text="{x:Bind ViewModel.RevenueDisplay, Mode=OneWay}"
                     Visibility="{x:Bind ViewModel.RevenueVisibility, Mode=OneWay}" />

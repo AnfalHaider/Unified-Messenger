@@ -103,6 +103,11 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         thread.LastMessageTime = item.TimestampUtc;
         thread.LastTriageItemId = item.Id;
         thread.IsSpamOrPromo = spam;
+        thread.LastMessageKind = item.MessageKind.ToString();
+        if (item.MessageKind == InboundMessageKind.VoiceNote && item.TranscriptConfidence > 0)
+        {
+            thread.HasUnreadVoiceNote = false;
+        }
 
         if (reopenAfterReply)
         {
@@ -199,6 +204,82 @@ public sealed class ThreadRegistryService : IThreadRegistryService
             inboundAt,
             resolvedAt,
             customerName);
+        NotifyChanged();
+    }
+
+    public void UpdateWhatsAppDeliveryStatus(
+        string instanceId,
+        string conversationKey,
+        string status,
+        DateTimeOffset? updatedAtUtc = null)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId) ||
+            string.IsNullOrWhiteSpace(conversationKey) ||
+            string.IsNullOrWhiteSpace(status))
+        {
+            return;
+        }
+
+        var normalized = WhatsAppDeliveryStatusLabel.Normalize(status);
+        if (!WhatsAppDeliveryStatusLabel.IsKnown(normalized))
+        {
+            return;
+        }
+
+        var threadId = ConversationKeyResolver.BuildThreadId(instanceId, conversationKey.Trim());
+        if (!_threads.TryGetValue(threadId, out var thread))
+        {
+            return;
+        }
+
+        var incomingRank = WhatsAppDeliveryStatusLabel.Rank(normalized);
+        var currentRank = WhatsAppDeliveryStatusLabel.Rank(thread.WhatsAppDeliveryStatus);
+        if (incomingRank < currentRank)
+        {
+            return;
+        }
+
+        thread.WhatsAppDeliveryStatus = normalized;
+        thread.WhatsAppDeliveryUpdatedUtc = updatedAtUtc ?? DateTimeOffset.UtcNow;
+        NotifyChanged();
+    }
+
+    public void MarkVoiceNoteReceived(
+        string instanceId,
+        string conversationKey,
+        double durationSeconds,
+        bool hasUnreadVoiceNote)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(conversationKey))
+        {
+            return;
+        }
+
+        var threadId = ConversationKeyResolver.BuildThreadId(instanceId, conversationKey.Trim());
+        var now = DateTimeOffset.UtcNow;
+        var thread = _threads.GetOrAdd(threadId, _ => new ThreadData
+        {
+            ThreadId = threadId,
+            Platform = "whatsapp",
+            InstanceId = instanceId,
+            ConversationKey = conversationKey.Trim(),
+            CustomerName = "Customer",
+            LastMessageTime = now,
+            FirstInboundAtUtc = now
+        });
+
+        thread.LastMessageKind = nameof(InboundMessageKind.VoiceNote);
+        thread.HasUnreadVoiceNote = hasUnreadVoiceNote;
+        thread.LastMessageTime = now;
+        thread.LatencyMinutes = thread.IsReplied
+            ? thread.LatencyMinutes
+            : Math.Max(0, (now - thread.FirstInboundAtUtc).TotalMinutes);
+
+        if (durationSeconds > 0 && string.IsNullOrWhiteSpace(thread.NextActionSummary))
+        {
+            thread.NextActionSummary = $"Review {Math.Max(1, (int)Math.Round(durationSeconds))}s voice note";
+        }
+
         NotifyChanged();
     }
 
@@ -391,6 +472,9 @@ internal static class ThreadDataExtensions
         thread.LatencyMinutes = Math.Max(0, thread.LatencyMinutes);
         thread.ReplyLatencyMinutes = Math.Max(0, thread.ReplyLatencyMinutes);
         thread.EstimatedValue = Math.Max(0, thread.EstimatedValue);
+        thread.WhatsAppDeliveryStatus = string.IsNullOrWhiteSpace(thread.WhatsAppDeliveryStatus)
+            ? string.Empty
+            : WhatsAppDeliveryStatusLabel.Normalize(thread.WhatsAppDeliveryStatus);
 
         if (thread.FirstInboundAtUtc == default)
         {

@@ -108,6 +108,9 @@ public sealed class ShellController
             case CommandPaletteAction.OpenSettings:
                 await _navigation.ShowSettingsAsync();
                 break;
+            case CommandPaletteAction.OpenSettingsSection:
+                await _navigation.ShowSettingsAsync(selection.SettingsSectionKey);
+                break;
             case CommandPaletteAction.ToggleNotifications:
                 _chrome.SetNotificationPanelVisible(!_chrome.NotificationPanelVisible);
                 break;
@@ -243,7 +246,12 @@ public sealed class ShellController
         }
         else
         {
-            _pendingPanelReveal = true;
+            if (MainWindowShellLayout.ShouldQueueDeferredPanelReveal(
+                    _services.AppSettings.Settings.PanelAutoOpen))
+            {
+                _pendingPanelReveal = true;
+            }
+
             if (_services.AppSettings.Settings.EnableBackgroundToasts)
             {
                 var instance = _services.Registry.FindById(e.Alert.InstanceId);
@@ -256,6 +264,12 @@ public sealed class ShellController
     {
         if (!_chrome.IsAppInForeground || !_pendingPanelReveal || _chrome.NotificationPanelVisible)
         {
+            return;
+        }
+
+        if (!MainWindowShellLayout.ShouldRevealDeferredPanel(_services.AppSettings.Settings.PanelAutoOpen))
+        {
+            _pendingPanelReveal = false;
             return;
         }
 
@@ -367,6 +381,8 @@ public sealed class ShellController
         muteItem.Click += (_, _) => _ = ToggleInstanceMuteAsync(args.InstanceId);
         flyout.Items.Add(muteItem);
 
+        flyout.Items.Add(BuildMemoryTierSubmenu(args.InstanceId, args.Instance.MemoryTier));
+
         var refreshItem = new MenuFlyoutItem { Text = "Refresh WebView" };
         refreshItem.Click += (_, _) => _ = _services.SessionManager.ReloadSessionAsync(args.InstanceId);
         flyout.Items.Add(refreshItem);
@@ -383,6 +399,51 @@ public sealed class ShellController
         flyout.Items.Add(removeItem);
 
         flyout.ShowAt(args.Anchor);
+    }
+
+    private MenuFlyoutSubItem BuildMemoryTierSubmenu(string instanceId, MemoryTierPreference currentTier)
+    {
+        var submenu = new MenuFlyoutSubItem { Text = "Memory tier" };
+        foreach (var tier in new[] { MemoryTierPreference.Low, MemoryTierPreference.Normal, MemoryTierPreference.High })
+        {
+            var item = new RadioMenuFlyoutItem
+            {
+                Text = WorkspaceSidebarHelper.FormatMemoryTierLabel(tier),
+                IsChecked = tier == currentTier,
+                Tag = tier
+            };
+            item.Click += (_, _) => _ = UpdateInstanceMemoryTierAsync(instanceId, tier);
+            submenu.Items.Add(item);
+        }
+
+        return submenu;
+    }
+
+    private async Task UpdateInstanceMemoryTierAsync(string instanceId, MemoryTierPreference tier)
+    {
+        var instance = _services.Registry.FindById(instanceId);
+        if (instance is null || instance.MemoryTier == tier)
+        {
+            return;
+        }
+
+        try
+        {
+            await _services.Registry.UpdateInstanceMemoryTierAsync(instanceId, tier);
+            var updated = _services.Registry.FindById(instanceId);
+            if (updated is not null)
+            {
+                _services.SessionManager.SyncInstance(updated);
+                _services.SessionManager.RefreshMemoryTarget(instanceId);
+            }
+
+            _chrome.RebuildInstanceNavigation();
+            _navigation.RefreshDashboardIfVisible();
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not update memory tier", ex.Message);
+        }
     }
 
     private async Task ToggleInstanceCategoryAsync(string instanceId)

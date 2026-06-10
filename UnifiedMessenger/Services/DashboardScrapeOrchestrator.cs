@@ -47,6 +47,7 @@ public sealed class DashboardScrapeOrchestrator
     }
 
     public static bool IsDashboardScrapeCapable(MessengerInstance instance) =>
-        instance.Platform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase) ||
-        instance.Platform.Equals("googlebusiness", StringComparison.OrdinalIgnoreCase);
+        PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(instance.Platform) &&
+        (instance.Platform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase) ||
+         instance.Platform.Equals("googlebusiness", StringComparison.OrdinalIgnoreCase));
 }

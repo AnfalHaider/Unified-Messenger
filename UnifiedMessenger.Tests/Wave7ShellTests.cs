@@ -36,6 +36,10 @@ public class Wave7ShellTests
         Assert.Equal(WorkspaceSidebarHelper.DashboardSelectionKey, plan.Entries[1].Key);
         Assert.Equal("pro-1", plan.Entries[3].Key);
         Assert.Equal("personal-1", plan.Entries[5].Key);
+
+        Assert.Equal("Overview", plan.Entries[0].SectionTitle);
+        Assert.Equal("Pro / Business", plan.Entries[2].SectionTitle);
+        Assert.Equal("Personal / Life", plan.Entries[4].SectionTitle);
     }
 
     [Fact]

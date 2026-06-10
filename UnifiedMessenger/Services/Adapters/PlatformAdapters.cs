@@ -216,6 +216,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         ArgumentNullException.ThrowIfNull(hub);
         ArgumentNullException.ThrowIfNull(instance);
 
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(instance.Platform))
+        {
+            return;
+        }
+
         try
         {
             using var document = WebMessageParser.Parse(messageJson);
@@ -313,7 +318,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
             await ExecutePublishBadgeAsync(coreWebView).ConfigureAwait(true);
 
-            if (instance.IsProfessional)
+            if (instance.IsProfessional &&
+                PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(instance.Platform))
             {
                 BackfillSyncManager.Instance.Schedule(instance);
             }
@@ -432,16 +438,19 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         var timestamp = ParseMessageTimestamp(root);
         MessageAnalyticsService.Instance.RecordMessageReceived(instance.Id, resolvedKey, timestamp);
 
-        var selection = new InboundMessageSelection
-        {
-            InstanceId = instance.Id,
-            Platform = instance.Platform,
-            MessageText = messageText,
-            CustomerName = customerName,
-            ConversationKey = resolvedKey,
-            ConversationHint = conversationHint,
-            TimestampUtc = timestamp
-        };
+        var selection = WhatsAppOperationalContextBuilder.IsWhatsAppPlatform(instance.Platform)
+            ? WhatsAppIngressHandler.BuildInboundSelection(
+                root, instance, resolvedKey, customerName, messageText, timestamp)
+            : new InboundMessageSelection
+            {
+                InstanceId = instance.Id,
+                Platform = instance.Platform,
+                MessageText = messageText,
+                CustomerName = customerName,
+                ConversationKey = resolvedKey,
+                ConversationHint = conversationHint,
+                TimestampUtc = timestamp
+            };
 
         MessageTriageService.Instance.Enqueue(
             selection,
@@ -668,7 +677,15 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 JsonSerializer.Serialize(PlatformDefinition.NormalizePlatformId(instance.Platform)),
                 StringComparison.Ordinal)
             .Replace("__INCLUDE_MUTED_BADGES__", includeMutedBadges ? "true" : "false", StringComparison.Ordinal)
-            .Replace("__NOTIFICATIONS_MUTED__", instance.NotificationsMuted ? "true" : "false", StringComparison.Ordinal);
+            .Replace("__NOTIFICATIONS_MUTED__", instance.NotificationsMuted ? "true" : "false", StringComparison.Ordinal)
+            .Replace(
+                "__ENABLE_VOICE_NOTES__",
+                AppSettingsService.Instance.Settings.EnableVoiceNoteTranscription ? "true" : "false",
+                StringComparison.Ordinal)
+            .Replace(
+                "__VOICE_NOTE_MAX_SECONDS__",
+                AppSettingsService.Instance.Settings.VoiceNoteMaxDurationSeconds.ToString(),
+                StringComparison.Ordinal);
     }
 
     private static async Task<string> LoadScriptTemplateAsync(
@@ -724,289 +741,4 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             Debug.WriteLine($"Publish badge script failed: {ex.Message}");
         }
     }
-}
-
-public sealed class PlatformAdapterFactory
-{
-    private static readonly WhatsAppAdapter WhatsApp = new();
-    private static readonly WhatsAppBusinessAdapter WhatsAppBusiness = new();
-    private static readonly TelegramAdapter Telegram = new();
-    private static readonly MessengerAdapter Messenger = new();
-    private static readonly MetaBusinessAdapter MetaBusiness = new();
-    private static readonly GoogleBusinessAdapter GoogleBusiness = new();
-    private static readonly SlackAdapter Slack = new();
-    private static readonly DiscordAdapter Discord = new();
-    private static readonly SignalAdapter Signal = new();
-    private static readonly TeamsAdapter Teams = new();
-    private static readonly GenericWebAdapter GenericWeb = new();
-
-    public static IPlatformAdapter Resolve(string platformId) =>
-        PlatformDefinition.NormalizePlatformId(platformId) switch
-        {
-            "whatsapp" => WhatsApp,
-            "whatsappbusiness" => WhatsAppBusiness,
-            "telegram" => Telegram,
-            "messenger" => Messenger,
-            "metabusiness" => MetaBusiness,
-            "googlebusiness" => GoogleBusiness,
-            "slack" => Slack,
-            "discord" => Discord,
-            "signal" => Signal,
-            "teams" => Teams,
-            _ => GenericWeb
-        };
-}
-
-public sealed class WhatsAppAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "whatsapp-adapter.js";
-
-    protected override bool SupportsInboundAutoDraft => true;
-
-    public override string PlatformId => "whatsapp";
-
-    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
-}
-
-public sealed class WhatsAppBusinessAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "whatsapp-adapter.js";
-
-    protected override bool SupportsInboundAutoDraft => true;
-
-    public override string PlatformId => "whatsappbusiness";
-
-    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
-}
-
-public sealed class TelegramAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "telegram-adapter.js";
-
-    public override string PlatformId => "telegram";
-}
-
-public sealed class MessengerAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "messenger-adapter.js";
-
-    public override string PlatformId => "messenger";
-
-    protected override void RegisterNavigationHooks(CoreWebView2 coreWebView, MessengerInstance instance)
-    {
-        base.RegisterNavigationHooks(coreWebView, instance);
-
-        coreWebView.HistoryChanged += (sender, e) =>
-        {
-            _ = ExecutePublishBadgeAsync(coreWebView);
-        };
-    }
-}
-
-public sealed class MetaBusinessAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "meta_business_scraper.js";
-
-    protected override bool SupportsInboundAutoDraft => true;
-
-    public override string PlatformId => "metabusiness";
-
-    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
-
-    protected override bool HandleCustomMessage(
-        string? type,
-        JsonElement root,
-        NotificationHub hub,
-        MessengerInstance instance)
-    {
-        if (AdapterMessageTypes.DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
-        {
-            HandleDashboardScrapeStatus(root, instance);
-            return true;
-        }
-
-        if (AdapterMessageTypes.MetaTelemetrySnapshot.Equals(type, StringComparison.OrdinalIgnoreCase))
-        {
-            var avgMinutes = WebMessageParser.ReadOptionalDouble(root, "averageResponseMinutes");
-            var slaHints = WebMessageParser.ReadNonNegativeInt(root, "slaBreachHints");
-            var unread = WebMessageParser.ReadNonNegativeInt(root, "unreadCount");
-            ProfessionalWorkspaceService.Instance.HandleMetaTelemetrySnapshot(
-                instance.Id,
-                avgMinutes,
-                slaHints,
-                unread);
-            return true;
-        }
-
-        if (!AdapterMessageTypes.MetaInboundMessage.Equals(type, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        // Meta badge/unread telemetry only — AI triage runs when a conversation is opened via inbound-message-monitor.
-        ProfessionalWorkspaceService.Instance.HandleMetaInboundMessage(
-            instance.Id,
-            ParseMessageTimestamp(root),
-            WebMessageParser.ReadNonNegativeInt(root, "unreadCount"));
-
-        return true;
-    }
-}
-
-public sealed class GoogleBusinessAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "google_business_scraper.js";
-
-    protected override bool SupportsInboundAutoDraft => true;
-
-    public override string PlatformId => "googlebusiness";
-
-    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
-
-    protected override bool HandleCustomMessage(
-        string? type,
-        JsonElement root,
-        NotificationHub hub,
-        MessengerInstance instance)
-    {
-        if (AdapterMessageTypes.DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
-        {
-            HandleDashboardScrapeStatus(root, instance);
-            return true;
-        }
-
-        switch (type)
-        {
-            case AdapterMessageTypes.GoogleReviewSnapshot:
-                var unreplied = WebMessageParser.ReadNonNegativeInt(root, "unrepliedCount");
-
-                ProfessionalWorkspaceService.Instance.HandleGoogleReviewSnapshot(
-                    instance.Id,
-                    instance.DisplayName,
-                    unreplied);
-
-                if (!instance.NotificationsMuted)
-                {
-                    hub.UpdateBadgeCount(instance.Id, unreplied);
-                }
-
-                return true;
-
-            case AdapterMessageTypes.GoogleReviewAlert:
-                if (instance.NotificationsMuted)
-                {
-                    return true;
-                }
-
-                var reviewId = root.TryGetProperty("reviewId", out var reviewIdElement)
-                    ? reviewIdElement.GetString() ?? Guid.NewGuid().ToString("N")
-                    : Guid.NewGuid().ToString("N");
-                var reviewer = root.TryGetProperty("reviewerName", out var reviewerElement)
-                    ? reviewerElement.GetString() ?? "Customer"
-                    : "Customer";
-                var snippet = root.TryGetProperty("snippet", out var snippetElement)
-                    ? snippetElement.GetString() ?? string.Empty
-                    : string.Empty;
-                var location = root.TryGetProperty("locationLabel", out var locationElement)
-                    ? locationElement.GetString() ?? instance.DisplayName
-                    : instance.DisplayName;
-                var rating = WebMessageParser.ReadNonNegativeInt(root, "rating");
-                var detectedAt = ParseMessageTimestamp(root);
-
-                ProfessionalWorkspaceService.Instance.HandleGoogleReviewAlert(
-                    instance.Id,
-                    instance.DisplayName,
-                    reviewId,
-                    reviewer,
-                    snippet,
-                    location,
-                    rating,
-                    detectedAt);
-
-                hub.AddAlert(NotificationAlert.Create(
-                    instance.Id,
-                    instance.DisplayName,
-                    instance.Platform,
-                    $"{reviewer} · review",
-                    snippet,
-                    instance.IconGlyph,
-                    conversationKey: ConversationKeyResolver.BuildReviewKey(reviewId),
-                    customerName: reviewer));
-
-                if (!string.IsNullOrWhiteSpace(snippet))
-                {
-                    var reviewConversationKey = ConversationKeyResolver.BuildReviewKey(reviewId);
-                    if (!BackfillDedupeRegistry.TryAccept(
-                            instance.Id,
-                            instance.Platform,
-                            reviewConversationKey,
-                            snippet))
-                    {
-                        return true;
-                    }
-
-                    MessageAnalyticsService.Instance.RecordMessageReceived(
-                        instance.Id,
-                        reviewConversationKey,
-                        detectedAt);
-
-                    var selection = new InboundMessageSelection
-                    {
-                        InstanceId = instance.Id,
-                        Platform = instance.Platform,
-                        MessageText = snippet,
-                        CustomerName = reviewer,
-                        ConversationKey = reviewConversationKey,
-                        ConversationHint = reviewConversationKey,
-                        TimestampUtc = detectedAt
-                    };
-
-                    MessageTriageService.Instance.Enqueue(
-                        selection,
-                        instance.DisplayName,
-                        BranchWorkspaceHelper.ResolveBranchKey(instance));
-                    AutoDraftOrchestrator.Instance.HandleInboundMessage(selection);
-                }
-
-                return true;
-
-            default:
-                return false;
-        }
-    }
-}
-
-public sealed class SlackAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "slack-adapter.js";
-
-    public override string PlatformId => "slack";
-}
-
-public sealed class DiscordAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "discord-adapter.js";
-
-    public override string PlatformId => "discord";
-}
-
-public sealed class SignalAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "signal-adapter.js";
-
-    public override string PlatformId => "signal";
-}
-
-public sealed class TeamsAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "teams-adapter.js";
-
-    public override string PlatformId => "teams";
-}
-
-public sealed class GenericWebAdapter : BasePlatformAdapter
-{
-    protected override string ScriptFileName => "generic-adapter.js";
-
-    public override string PlatformId => "generic";
 }

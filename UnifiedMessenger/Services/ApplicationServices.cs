@@ -1,4 +1,6 @@
 using Microsoft.UI.Xaml;
+using UnifiedMessenger.Services.Contracts;
+using UnifiedMessenger.Services.PlatformModules;
 
 namespace UnifiedMessenger.Services;
 
@@ -18,9 +20,11 @@ public sealed class ApplicationServices
         IMessageAnalyticsService? messageAnalytics = null,
         IWebViewScriptGateway? webViewScriptGateway = null,
         IGitHubUpdateService? gitHubUpdate = null,
-        IDialogService? dialog = null)
+        IDialogService? dialog = null,
+        IPlatformModuleRegistry? platformModules = null)
     {
         Registry = registry ?? new InstanceRegistryService();
+        PlatformModules = platformModules ?? PlatformModuleRegistry.Instance;
         SessionManager = sessionManager ?? InstanceSessionManager.Instance;
         Navigation = navigation ?? ShellNavigationService.Instance;
         NotificationHub = notificationHub ?? global::UnifiedMessenger.Services.NotificationHub.Instance;
@@ -54,6 +58,8 @@ public sealed class ApplicationServices
     public IGitHubUpdateService GitHubUpdate { get; }
 
     public IDialogService Dialog { get; }
+
+    public IPlatformModuleRegistry PlatformModules { get; }
 
     public void ConfigureUi(XamlRoot? xamlRoot) =>
         ConfigureUi(() => xamlRoot!);

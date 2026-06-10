@@ -16,6 +16,8 @@ public interface IShellUiHost
 
     Grid InstanceWebViewHost { get; }
 
+    Grid ShellLayoutGrid { get; }
+
     Frame ContentFrame { get; }
 
     WorkspaceSidebar WorkspaceSidebar { get; }

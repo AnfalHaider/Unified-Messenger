@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v2.0.0](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v2.0.0)
+**Current release:** [v2.0.2](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v2.0.2)
 
 ## Download (Windows)
 
@@ -14,6 +14,13 @@ Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
+
+### What's in v2.0.2
+
+- **ENHANCEMENT_ROADMAP (36/36):** Sidebar rail, command palette, adapter hardening, memory tiers, taskbar overlay, headless WebView2 tests, analytics export, and remaining platform/devops gaps closed.
+- **WhatsApp supercharge W1–W6:** WhatsApp-focus OCC preset, enriched triage/copilot prompts, voice-note pipeline (DOM → Whisper → triage), and **Branch pulse** batch LLM summaries per branch in OCC.
+- **Platform modularization:** Per-platform module toggles with ingress/UI filtering across dashboard, OCC, and sidebar.
+- **936** unit tests (x64, Release).
 
 ### What's in v2.0.0
 
@@ -148,9 +155,27 @@ dotnet build -c Release -p:Platform=x64
 dotnet run -c Release -p:Platform=x64
 ```
 
+#### If `dotnet run` fails
+
+On a fresh clone, unpackaged WinUI apps can fail with package-identity, platform, or Windows App SDK loader errors. Publish x64 output and launch the executable directly:
+
+```powershell
+cd "d:\Projects\Unified Messenger\UnifiedMessenger"
+dotnet publish -c Release -p:Platform=x64
+.\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish\UnifiedMessenger.exe
+```
+
+If you only need a local framework-dependent build (no `publish` folder), this also works after `dotnet publish -c Release -p:Platform=x64`:
+
+```powershell
+.\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\UnifiedMessenger.exe
+```
+
+Always pass **`-p:Platform=x64`** (or **ARM64** on Arm hardware) — **Any CPU** is not supported for this WinUI project.
+
 ### Visual Studio
 
-Open `UnifiedMessenger.sln`, set **Platform** to **x64**, and run the **UnifiedMessenger** profile.
+Open `UnifiedMessenger.sln`, set **Platform** to **x64** (not Any CPU), and run the **UnifiedMessenger (x64)** profile.
 
 ### Tests
 

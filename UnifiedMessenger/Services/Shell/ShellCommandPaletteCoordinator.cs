@@ -33,6 +33,54 @@ public sealed class ShellCommandPaletteCoordinator
             },
             new()
             {
+                Title = "Settings: Notifications",
+                Subtitle = "Toast, badge, and panel preferences",
+                Category = "Navigation",
+                IconGlyph = "\uE713",
+                Selection = new CommandPaletteSelection
+                {
+                    Action = CommandPaletteAction.OpenSettingsSection,
+                    SettingsSectionKey = SettingsNavigationHelper.NotificationsSectionKey
+                }
+            },
+            new()
+            {
+                Title = "Settings: SLA",
+                Subtitle = "Response threshold and professional metrics",
+                Category = "Navigation",
+                IconGlyph = "\uE713",
+                Selection = new CommandPaletteSelection
+                {
+                    Action = CommandPaletteAction.OpenSettingsSection,
+                    SettingsSectionKey = SettingsNavigationHelper.ProfessionalMetricsSectionKey
+                }
+            },
+            new()
+            {
+                Title = "Settings: Updates",
+                Subtitle = "Auto-update and version checks",
+                Category = "Navigation",
+                IconGlyph = "\uE713",
+                Selection = new CommandPaletteSelection
+                {
+                    Action = CommandPaletteAction.OpenSettingsSection,
+                    SettingsSectionKey = SettingsNavigationHelper.SystemSectionKey
+                }
+            },
+            new()
+            {
+                Title = "Settings: Local AI",
+                Subtitle = "On-device draft and triage models",
+                Category = "Navigation",
+                IconGlyph = "\uE713",
+                Selection = new CommandPaletteSelection
+                {
+                    Action = CommandPaletteAction.OpenSettingsSection,
+                    SettingsSectionKey = SettingsNavigationHelper.LocalAiSectionKey
+                }
+            },
+            new()
+            {
                 Title = "Toggle notification panel",
                 Subtitle = "Show or hide the hub panel",
                 Category = "Actions",

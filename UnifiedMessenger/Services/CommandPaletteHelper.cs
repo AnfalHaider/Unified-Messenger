@@ -34,6 +34,8 @@ public static class CommandPaletteHelper
         return filtered.Take(maxResults).ToList();
     }
 
+    private const int FuzzyMatchMinimumScore = 12;
+
     public static bool EntryMatches(CommandPaletteEntry entry, string query)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -44,9 +46,7 @@ public static class CommandPaletteHelper
             return true;
         }
 
-        return entry.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || entry.Subtitle.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || entry.Category.Contains(query, StringComparison.OrdinalIgnoreCase);
+        return ScoreEntry(entry, query) >= FuzzyMatchMinimumScore;
     }
 
     public static int ScoreEntry(CommandPaletteEntry entry, string query)
@@ -59,22 +59,100 @@ public static class CommandPaletteHelper
             return 0;
         }
 
-        if (entry.Title.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        var titleScore = ScoreText(entry.Title, query);
+        var subtitleScore = ScoreText(entry.Subtitle, query) / 2;
+        var categoryScore = ScoreText(entry.Category, query) / 4;
+        return Math.Max(titleScore, Math.Max(subtitleScore, categoryScore));
+    }
+
+    internal static int ScoreText(string text, string query)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(query))
+        {
+            return 0;
+        }
+
+        if (text.StartsWith(query, StringComparison.OrdinalIgnoreCase))
         {
             return 100;
         }
 
-        if (entry.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
+        if (text.Contains(query, StringComparison.OrdinalIgnoreCase))
         {
             return 50;
         }
 
-        if (entry.Subtitle.Contains(query, StringComparison.OrdinalIgnoreCase))
+        if (IsCharacterSubsequence(text, query))
         {
-            return 25;
+            return 30 + query.Length;
         }
 
-        return entry.Category.Contains(query, StringComparison.OrdinalIgnoreCase) ? 10 : 0;
+        var distance = ComputeLevenshteinDistance(text, query);
+        var maxDistance = query.Length <= 3 ? 1 : query.Length <= 6 ? 2 : 3;
+        if (distance <= maxDistance)
+        {
+            return 20 - distance;
+        }
+
+        return 0;
+    }
+
+    internal static bool IsCharacterSubsequence(string text, string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        var queryIndex = 0;
+        for (var textIndex = 0; textIndex < text.Length && queryIndex < query.Length; textIndex++)
+        {
+            if (char.ToUpperInvariant(text[textIndex]) == char.ToUpperInvariant(query[queryIndex]))
+            {
+                queryIndex++;
+            }
+        }
+
+        return queryIndex == query.Length;
+    }
+
+    internal static int ComputeLevenshteinDistance(string left, string right)
+    {
+        if (left.Length == 0)
+        {
+            return right.Length;
+        }
+
+        if (right.Length == 0)
+        {
+            return left.Length;
+        }
+
+        var previous = new int[right.Length + 1];
+        var current = new int[right.Length + 1];
+
+        for (var column = 0; column <= right.Length; column++)
+        {
+            previous[column] = column;
+        }
+
+        for (var row = 1; row <= left.Length; row++)
+        {
+            current[0] = row;
+            var leftChar = char.ToUpperInvariant(left[row - 1]);
+
+            for (var column = 1; column <= right.Length; column++)
+            {
+                var substitutionCost = leftChar == char.ToUpperInvariant(right[column - 1]) ? 0 : 1;
+                current[column] = Math.Min(
+                    Math.Min(current[column - 1] + 1, previous[column] + 1),
+                    previous[column - 1] + substitutionCost);
+            }
+
+            (previous, current) = (current, previous);
+        }
+
+        return previous[right.Length];
     }
 
     public static bool IsValidSelection(CommandPaletteSelection? selection)
@@ -93,6 +171,8 @@ public static class CommandPaletteHelper
                 && ShellNavigationService.IsValidInstanceId(selection.InstanceId),
             CommandPaletteAction.FilterBranch =>
                 !string.IsNullOrWhiteSpace(selection.BranchKey),
+            CommandPaletteAction.OpenSettingsSection =>
+                !string.IsNullOrWhiteSpace(selection.SettingsSectionKey),
             CommandPaletteAction.RefreshOcc or CommandPaletteAction.OpenImmediateQueue =>
                 true,
             _ => Enum.IsDefined(selection.Action)

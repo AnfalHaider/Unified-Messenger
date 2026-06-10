@@ -178,7 +178,17 @@ public sealed partial class DashboardPage : Page
 
         PersonalOverviewPanel.Refresh(PersonalInstances);
         ScheduleBackfillRetryIfNeeded();
-        _ = RefreshOperationsCommandCenterAsync();
+        _ = ApplyWhatsAppFocusLayoutAndRefreshAsync();
+    }
+
+    private async Task ApplyWhatsAppFocusLayoutAndRefreshAsync()
+    {
+        if (WhatsAppFocusLayoutHelper.TryApplyRecommendedLayout(_services.AppSettings.Settings))
+        {
+            await _services.AppSettings.SaveAsync().ConfigureAwait(true);
+        }
+
+        await RefreshOperationsCommandCenterAsync().ConfigureAwait(true);
     }
 
     private async Task RefreshOperationsCommandCenterIfVisibleAsync()
@@ -221,8 +231,10 @@ public sealed partial class DashboardPage : Page
     }
 
     private IEnumerable<MessengerInstance> ProfessionalInstances =>
-        _registry?.Instances.Where(i => i.IsProfessional) ?? [];
+        PlatformModuleSettingsHelper.FilterEnabledInstances(
+            _registry?.Instances.Where(i => i.IsProfessional) ?? []);
 
     private IEnumerable<MessengerInstance> PersonalInstances =>
-        _registry?.Instances.Where(i => !i.IsProfessional) ?? [];
+        PlatformModuleSettingsHelper.FilterEnabledInstances(
+            _registry?.Instances.Where(i => !i.IsProfessional) ?? []);
 }

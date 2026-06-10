@@ -118,6 +118,43 @@ public class WorkspaceSidebarHelperTests
         Assert.Equal(expected, WorkspaceSidebarHelper.ShouldAcceptReorder(sourceId, targetId));
     }
 
+    [Theory]
+    [InlineData(MemoryTierPreference.Low, "Low")]
+    [InlineData(MemoryTierPreference.Normal, "Normal")]
+    [InlineData(MemoryTierPreference.High, "High")]
+    public void FormatMemoryTierLabel_ReturnsDisplayName(MemoryTierPreference tier, string expected)
+    {
+        Assert.Equal(expected, WorkspaceSidebarHelper.FormatMemoryTierLabel(tier));
+    }
+
+    [Theory]
+    [InlineData(MemoryTierPreference.Normal, "Status: Connected")]
+    [InlineData(MemoryTierPreference.Low, "Status: Connected · Memory: Low")]
+    [InlineData(MemoryTierPreference.High, "Status: Connected · Memory: High")]
+    public void AppendMemoryTierHint_AppendsOnlyForNonNormalTiers(
+        MemoryTierPreference tier,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            WorkspaceSidebarHelper.AppendMemoryTierHint("Status: Connected", tier));
+    }
+
+    [Fact]
+    public void ComposeInstanceTooltip_IncludesMemoryTier()
+    {
+        var tooltip = WorkspaceSidebarHelper.ComposeInstanceTooltip(
+            "Sales WhatsApp",
+            WorkspaceCategory.Professional,
+            "Status: Connected",
+            "Adapter ready",
+            MemoryTierPreference.High);
+
+        Assert.Contains("Sales WhatsApp", tooltip, StringComparison.Ordinal);
+        Assert.Contains("Memory tier: High", tooltip, StringComparison.Ordinal);
+        Assert.Contains("Adapter: Adapter ready", tooltip, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ResolveDropTargetInstanceId_MatchesRowBounds()
     {

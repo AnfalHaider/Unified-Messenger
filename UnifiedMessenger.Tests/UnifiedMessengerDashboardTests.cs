@@ -59,6 +59,45 @@ public class ThreadRegistryServiceTests
         Assert.True(ThreadRegistryService.EvaluateRevenueLeakage(thread));
     }
 
+    [Fact]
+    public void UpdateWhatsAppDeliveryStatus_UpdatesExistingThread()
+    {
+        var registry = ThreadRegistryService.CreateForTests();
+        var item = CreateItem("inst-1", "Sara", "Need bridal quote for Saturday");
+        registry.UpsertFromTriageItem(item, "120363@s.whatsapp.net", "DHA-2");
+
+        var updatedAt = DateTimeOffset.UtcNow;
+        registry.UpdateWhatsAppDeliveryStatus(
+            "inst-1",
+            "120363@s.whatsapp.net",
+            WhatsAppDeliveryStatusLabel.Sent,
+            updatedAt);
+
+        var thread = Assert.Single(registry.GetAllThreads());
+        Assert.Equal(WhatsAppDeliveryStatusLabel.Sent, thread.WhatsAppDeliveryStatus);
+        Assert.Equal(updatedAt, thread.WhatsAppDeliveryUpdatedUtc);
+    }
+
+    [Fact]
+    public void UpdateWhatsAppDeliveryStatus_IgnoresDowngrade()
+    {
+        var registry = ThreadRegistryService.CreateForTests();
+        var item = CreateItem("inst-1", "Sara", "Need bridal quote for Saturday");
+        registry.UpsertFromTriageItem(item, "120363@s.whatsapp.net", "DHA-2");
+
+        registry.UpdateWhatsAppDeliveryStatus(
+            "inst-1",
+            "120363@s.whatsapp.net",
+            WhatsAppDeliveryStatusLabel.Read);
+        registry.UpdateWhatsAppDeliveryStatus(
+            "inst-1",
+            "120363@s.whatsapp.net",
+            WhatsAppDeliveryStatusLabel.Sent);
+
+        var thread = Assert.Single(registry.GetAllThreads());
+        Assert.Equal(WhatsAppDeliveryStatusLabel.Read, thread.WhatsAppDeliveryStatus);
+    }
+
     private static MessageTriageItem CreateItem(string instanceId, string customer, string preview) =>
         new()
         {

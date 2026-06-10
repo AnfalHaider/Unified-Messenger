@@ -373,7 +373,7 @@
     lastSignature = signature;
     lastPostedAt = now;
 
-    window.__umPostMessage({
+    var payload = {
       type: 'inbound-message-selected',
       instanceId: INSTANCE_ID,
       platform: PLATFORM,
@@ -382,7 +382,27 @@
       conversationKey: conversationKey,
       conversationHint: conversationKey,
       timestampUtc: new Date().toISOString()
-    });
+    };
+
+    if (platformKey === 'whatsapp' || platformKey === 'whatsappbusiness') {
+      var header = typeof window.__umWhatsAppExtractChatHeader === 'function'
+        ? window.__umWhatsAppExtractChatHeader()
+        : null;
+      if (header) {
+        payload.verifiedBusinessName = header.verifiedBusinessName || '';
+        payload.profilePhoneNumber = header.profilePhoneNumber || '';
+        payload.contactPhoneNumber = header.contactPhoneNumber || '';
+      }
+
+      var labels = typeof window.__umWhatsAppScrapeSidebarLabels === 'function'
+        ? window.__umWhatsAppScrapeSidebarLabels(customerName || headerTitle)
+        : [];
+      if (labels && labels.length) {
+        payload.businessLabels = labels;
+      }
+    }
+
+    window.__umPostMessage(payload);
   }
 
   function schedulePublish() {

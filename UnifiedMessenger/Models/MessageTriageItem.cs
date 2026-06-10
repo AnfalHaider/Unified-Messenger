@@ -55,6 +55,25 @@ public sealed class MessageTriageItem
 
     public bool IsRevenueLeakageRisk { get; init; }
 
+    /// <summary>LLM-suggested WhatsApp reply draft (when local AI triage is enabled).</summary>
+    public string SuggestedDraftResponse { get; init; } = string.Empty;
+
+    public IReadOnlyList<string> RequestedServices { get; init; } = [];
+
+    public string BranchTarget { get; init; } = string.Empty;
+
+    public string SubIntent { get; init; } = string.Empty;
+
+    public IReadOnlyList<string> IntentTags { get; init; } = [];
+
+    public double IntentConfidence { get; init; }
+
+    public InboundMessageKind MessageKind { get; init; } = InboundMessageKind.Text;
+
+    public double TranscriptConfidence { get; init; }
+
+    public double VoiceDurationSeconds { get; init; }
+
     public string UrgencyLabel => UrgencyScore switch
     {
         >= 80 => "Critical",

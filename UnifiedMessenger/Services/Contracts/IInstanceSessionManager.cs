@@ -20,6 +20,8 @@ public interface IInstanceSessionManager
 
     void SyncInstance(MessengerInstance instance);
 
+    void RefreshMemoryTarget(string instanceId);
+
     Task WarmAllSessionsAsync(
         IEnumerable<MessengerInstance> instances,
         string? visibleInstanceId = null,

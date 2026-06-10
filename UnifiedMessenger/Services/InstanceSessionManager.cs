@@ -54,6 +54,17 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         _instanceLookup[instance.Id] = instance;
     }
 
+    public void RefreshMemoryTarget(string instanceId)
+    {
+        if (!_sessions.TryGetValue(instanceId, out var entry))
+        {
+            return;
+        }
+
+        var isForeground = instanceId.Equals(_visibleInstanceId, StringComparison.OrdinalIgnoreCase);
+        SetSessionVisualState(instanceId, entry.WebView, isForeground);
+    }
+
     /// <summary>
     /// Creates WebViews for every instance so background monitoring starts immediately.
     /// </summary>
@@ -306,6 +317,12 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             !_instanceLookup.TryGetValue(instanceId, out var instance))
         {
             await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(instance.Platform))
+        {
+            AdapterHealthMonitor.Instance.MarkNoAdapter(instanceId);
             return;
         }
 
@@ -607,6 +624,8 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
 
             var coreWebView = webView.CoreWebView2
                 ?? throw new InvalidOperationException("CoreWebView2 was not initialized.");
+
+            WebViewPlatformConfigurator.Apply(coreWebView, instance.Platform);
 
             var adapter = PlatformAdapterFactory.Resolve(instance.Platform);
             TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs> messageHandler = (_, args) =>

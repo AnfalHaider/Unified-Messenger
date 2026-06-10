@@ -170,6 +170,12 @@ public sealed class AdapterHealthMonitor
         {
             foreach (var (instanceId, status) in _statuses.ToList())
             {
+                if (!string.IsNullOrWhiteSpace(status.AdapterId) &&
+                    !PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(status.AdapterId))
+                {
+                    continue;
+                }
+
                 if (!EvaluateIsStale(status, now, StaleThreshold))
                 {
                     continue;

@@ -14,6 +14,8 @@ public static class OccLayoutDefaults
 
     public const string AiFeedPanelId = "AiFeed";
 
+    public const string BranchPulsePanelId = "BranchPulse";
+
     public const string PlatformIntelligencePanelId = "PlatformIntelligence";
 
     public const string AnalyticsPanelId = "Analytics";
@@ -26,8 +28,9 @@ public static class OccLayoutDefaults
     public static readonly IReadOnlyList<string> ContextPanelOrder =
     [
         BranchMetricsPanelId,
-        HighlightsPanelId,
+        BranchPulsePanelId,
         AiFeedPanelId,
+        HighlightsPanelId,
         PlatformIntelligencePanelId,
         AnalyticsPanelId,
         DataHealthPanelId

@@ -184,6 +184,7 @@ public sealed partial class OperationsCommandCenter : UserControl
 
             ApplySnapshot(snapshot);
             ApplyBackfillStatusUi();
+            await RefreshBranchPulseAsync().ConfigureAwait(true);
         }
         finally
         {

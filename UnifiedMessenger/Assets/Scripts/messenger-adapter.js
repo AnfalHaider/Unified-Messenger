@@ -24,6 +24,14 @@
     window.__umPostMessage(payload);
   }
 
+  function includeMutedBadges() {
+    if (window.__umShouldIncludeMutedBadges) {
+      return window.__umShouldIncludeMutedBadges();
+    }
+
+    return window.__umIncludeMutedBadges === true;
+  }
+
   function parseUnreadFromLabel(label) {
     if (!label) {
       return 0;
@@ -55,7 +63,7 @@
           return;
         }
 
-        if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(element)) {
+        if (!includeMutedBadges() && window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(element)) {
           return;
         }
 
@@ -80,7 +88,7 @@
         return;
       }
 
-      if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(unreadMarker)) {
+      if (!includeMutedBadges() && window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(unreadMarker)) {
         return;
       }
 

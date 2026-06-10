@@ -52,6 +52,14 @@ public sealed class OperationsThreadCardViewModel
                 : new SolidColorBrush(Color.FromArgb(255, 100, 116, 139));
         SlaVisibility = string.IsNullOrWhiteSpace(SlaText) ? Visibility.Collapsed : Visibility.Visible;
         BranchNameVisibility = hideBranchName ? Visibility.Collapsed : Visibility.Visible;
+        DeliveryStatusLabel = WhatsAppDeliveryStatusPresentation.ResolveLabel(thread.WhatsAppDeliveryStatus);
+        DeliveryStatusBrush = CreateBrush(
+            WhatsAppDeliveryStatusPresentation.ResolveBrushHex(thread.WhatsAppDeliveryStatus));
+        DeliveryStatusVisibility = WhatsAppDeliveryStatusPresentation.ShouldShow(
+            thread.Platform,
+            thread.WhatsAppDeliveryStatus)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     public string InstanceId { get; }
@@ -97,6 +105,12 @@ public sealed class OperationsThreadCardViewModel
     public SolidColorBrush SlaBrush { get; }
 
     public Visibility SlaVisibility { get; }
+
+    public string DeliveryStatusLabel { get; }
+
+    public SolidColorBrush DeliveryStatusBrush { get; }
+
+    public Visibility DeliveryStatusVisibility { get; }
 
     private static string BuildInboxLabel(ThreadData thread)
     {

@@ -118,17 +118,23 @@ public static class BranchWorkspaceHelper
         var parts = new List<string>();
         var whatsAppCount = openCountsByPlatform.GetValueOrDefault("whatsapp") +
                             openCountsByPlatform.GetValueOrDefault("whatsappbusiness");
-        if (whatsAppCount > 0)
+        if (whatsAppCount > 0 &&
+            (PlatformModuleSettingsHelper.IsPlatformModuleEnabled("whatsapp") ||
+             PlatformModuleSettingsHelper.IsPlatformModuleEnabled("whatsappbusiness")))
         {
             parts.Add($"WA {whatsAppCount}");
         }
 
-        if (openCountsByPlatform.TryGetValue("metabusiness", out var metaCount) && metaCount > 0)
+        if (openCountsByPlatform.TryGetValue("metabusiness", out var metaCount) &&
+            metaCount > 0 &&
+            PlatformModuleSettingsHelper.IsPlatformModuleEnabled("metabusiness"))
         {
             parts.Add($"Meta {metaCount}");
         }
 
-        if (openCountsByPlatform.TryGetValue("googlebusiness", out var googleCount) && googleCount > 0)
+        if (openCountsByPlatform.TryGetValue("googlebusiness", out var googleCount) &&
+            googleCount > 0 &&
+            PlatformModuleSettingsHelper.IsPlatformModuleEnabled("googlebusiness"))
         {
             parts.Add($"Google {googleCount}");
         }

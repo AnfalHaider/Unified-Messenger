@@ -232,7 +232,7 @@ public sealed partial class OperationsCommandCenter
             }
             else
             {
-                await analyticsService.ExportToFileAsync(file.Path);
+                await analyticsService.ExportFilteredJsonAsync(_snapshot.FilteredInstances, file.Path);
             }
 
             await ShowSimpleDialogAsync("Export complete", $"Analytics saved to {file.Name}.").ConfigureAwait(true);

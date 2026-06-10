@@ -55,4 +55,23 @@ public class PlatformDefinitionTests
 
         Assert.Equal(ids.Count, ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
+
+    [Fact]
+    public void Signal_PlatformNotesBadgeFallbackOnly()
+    {
+        var signal = PlatformDefinition.FindById("signal");
+
+        Assert.NotNull(signal);
+        Assert.Contains("badge", signal!.Description, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("signal.org", signal.DefaultUrl, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Teams_UsesTeamsMicrosoftUrl()
+    {
+        var teams = PlatformDefinition.FindById("teams");
+
+        Assert.NotNull(teams);
+        Assert.StartsWith("https://teams.microsoft.com", teams!.DefaultUrl, StringComparison.OrdinalIgnoreCase);
+    }
 }

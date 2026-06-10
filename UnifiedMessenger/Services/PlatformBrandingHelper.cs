@@ -12,6 +12,8 @@ public static class PlatformBrandingHelper
 
     private static readonly Color DefaultAccentColor = Color.FromArgb(255, 107, 114, 128);
 
+    private static readonly string[] PlatformIconExtensions = [".ico", ".png"];
+
     public static SolidColorBrush GetAccentBrush(MessengerInstance? instance)
     {
         return new SolidColorBrush(ParseAccentColor(instance?.AccentColor));
@@ -57,6 +59,47 @@ public static class PlatformBrandingHelper
         host.Children.Add(circle);
         host.Children.Add(glyph);
         return host;
+    }
+
+    public static string ResolveToastAttribution(MessengerInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+
+        var platform = PlatformDefinition.FindById(instance.Platform);
+        var platformName = platform?.DisplayName ?? instance.Platform;
+        return $"{platformName} · {instance.DisplayName}";
+    }
+
+    public static string? TryResolvePlatformIconFilePath(string? platformId)
+    {
+        if (string.IsNullOrWhiteSpace(platformId))
+        {
+            return null;
+        }
+
+        var baseDirectory = AppContext.BaseDirectory;
+        if (string.IsNullOrWhiteSpace(baseDirectory))
+        {
+            return null;
+        }
+
+        var normalized = PlatformDefinition.NormalizePlatformId(platformId);
+        foreach (var extension in PlatformIconExtensions)
+        {
+            var path = Path.Combine(baseDirectory, "Assets", "Platforms", normalized + extension);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        return null;
+    }
+
+    public static string? TryResolvePlatformIconUri(string? platformId)
+    {
+        var path = TryResolvePlatformIconFilePath(platformId);
+        return string.IsNullOrWhiteSpace(path) ? null : new Uri(path).AbsoluteUri;
     }
 
     public static string GetInitials(string? displayName)

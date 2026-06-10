@@ -24,6 +24,14 @@
     window.__umPostMessage(payload);
   }
 
+  function includeMutedBadges() {
+    if (window.__umShouldIncludeMutedBadges) {
+      return window.__umShouldIncludeMutedBadges();
+    }
+
+    return window.__umIncludeMutedBadges === true;
+  }
+
   function countSidebarBadges() {
     var total = 0;
     var seen = new Set();
@@ -42,7 +50,7 @@
           return;
         }
 
-        if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(badge)) {
+        if (!includeMutedBadges() && window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(badge)) {
           return;
         }
 

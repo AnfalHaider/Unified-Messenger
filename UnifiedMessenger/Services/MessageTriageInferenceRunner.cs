@@ -25,20 +25,36 @@ public sealed class OllamaTriageLlmClient : ITriageLlmClient
             return null;
         }
 
-        var userPrompt = AiTriagePromptService.BuildUserPrompt(
-            job.InstanceDisplayName,
-            job.Platform,
-            job.MessageText,
-            job.CustomerName,
-            job.ConversationHint,
-            job.ConversationTranscript,
-            strictJsonRetry);
+        string userPrompt;
+        string systemPrompt;
+
+        if (WhatsAppOperationalContextBuilder.IsWhatsAppPlatform(job.Platform))
+        {
+            userPrompt = AiWhatsAppTriagePromptService.BuildUserPrompt(
+                job,
+                job.WhatsAppMetadata,
+                job.BranchKey,
+                strictJsonRetry);
+            systemPrompt = AiWhatsAppTriagePromptService.SystemPrompt;
+        }
+        else
+        {
+            userPrompt = AiTriagePromptService.BuildUserPrompt(
+                job.InstanceDisplayName,
+                job.Platform,
+                job.MessageText,
+                job.CustomerName,
+                job.ConversationHint,
+                job.ConversationTranscript,
+                strictJsonRetry);
+            systemPrompt = AiTriagePromptService.SystemPrompt;
+        }
 
         return await OllamaInferenceCoordinator.Instance
             .CollectGenerateAsync(
                 InferencePriority.Background,
                 userPrompt,
-                AiTriagePromptService.SystemPrompt,
+                systemPrompt,
                 responseFormat: "json",
                 cancellationToken: cancellationToken)
             .ConfigureAwait(false);
@@ -112,7 +128,7 @@ public sealed class MessageTriageInferenceRunner
 
     internal static RichTriageLlmResponse NormalizeSchema(RichTriageLlmResponse response)
     {
-        var operationalUrgency = ResolveOperationalUrgency(response);
+        var operationalUrgency = ApplyWhatsAppSubIntentBoost(response, ResolveOperationalUrgency(response));
         var intentCategory = ResolveIntentCategory(response);
         var isSpam = response.IsSpamOrPromo ||
                      intentCategory.Equals(UnifiedMessengerIntentCategory.Spam, StringComparison.OrdinalIgnoreCase) ||
@@ -127,16 +143,28 @@ public sealed class MessageTriageInferenceRunner
             ? response.LegacyUrgencyScore
             : operationalUrgency * 20;
 
+        var clientSentiment = ResolveClientSentiment(response);
+        var services = response.RequestedServices?
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
+        var tags = response.Tags?
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Select(tag => tag.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
+
         return new RichTriageLlmResponse
         {
             LegacyUrgencyScore = Math.Clamp(legacyUrgencyScore, 0, 100),
             Sentiment = response.Sentiment,
             CustomerIntent = isSpam ? "Spam" : MapCustomerIntent(intentCategory, response.CustomerIntent),
-            ExtractedEntities = response.ExtractedEntities ?? new RichTriageExtractedEntities(),
+            ExtractedEntities = EnrichEntities(response.ExtractedEntities, services),
             CoreSummary = TrimCoreSummary(
                 CoalesceSummary(response.CoreSummary, actionableSummary, null)),
             AiIntentCategory = intentCategory,
-            ClientSentiment = response.ClientSentiment,
+            ClientSentiment = clientSentiment,
             OperationalUrgency = operationalUrgency,
             EstimatedValue = Math.Max(0, response.EstimatedValue),
             NextActionSummary = actionableSummary,
@@ -144,7 +172,19 @@ public sealed class MessageTriageInferenceRunner
             IsRevenueLeakageRisk = !isSpam && response.IsRevenueLeakageRisk,
             IsSpamOrPromo = isSpam,
             IntentCategory = intentCategory,
-            SuggestedAction = suggestedAction
+            SuggestedAction = suggestedAction,
+            RequestedServices = services,
+            BranchTarget = string.IsNullOrWhiteSpace(response.BranchTarget)
+                ? string.Empty
+                : response.BranchTarget.Trim(),
+            SuggestedDraftResponse = string.IsNullOrWhiteSpace(response.SuggestedDraftResponse)
+                ? string.Empty
+                : response.SuggestedDraftResponse.Trim(),
+            IntentConfidence = Math.Clamp(response.IntentConfidence, 0, 1),
+            SubIntent = string.IsNullOrWhiteSpace(response.SubIntent)
+                ? string.Empty
+                : response.SubIntent.Trim(),
+            Tags = tags
         };
     }
 
@@ -197,7 +237,16 @@ public sealed class MessageTriageInferenceRunner
             SuggestedAction = normalized.SuggestedAction,
             IsSpamOrPromo = normalized.IsSpamOrPromo,
             EstimatedValue = Math.Max(0, normalized.EstimatedValue),
-            IsRevenueLeakageRisk = normalized.IsRevenueLeakageRisk
+            IsRevenueLeakageRisk = normalized.IsRevenueLeakageRisk,
+            SuggestedDraftResponse = normalized.SuggestedDraftResponse,
+            RequestedServices = normalized.RequestedServices,
+            BranchTarget = normalized.BranchTarget,
+            SubIntent = normalized.SubIntent,
+            IntentTags = normalized.Tags,
+            IntentConfidence = normalized.IntentConfidence,
+            MessageKind = baseline.MessageKind,
+            VoiceDurationSeconds = baseline.VoiceDurationSeconds,
+            TranscriptConfidence = baseline.TranscriptConfidence
         };
     }
 
@@ -279,8 +328,29 @@ public sealed class MessageTriageInferenceRunner
             return true;
         }
 
+        if (!string.IsNullOrWhiteSpace(response.SuggestedDraftResponse))
+        {
+            return true;
+        }
+
         return !string.IsNullOrWhiteSpace(
             CoalesceSummary(response.ActionableSummary, response.NextActionSummary, response.CoreSummary));
+    }
+
+    internal static int ApplyWhatsAppSubIntentBoost(RichTriageLlmResponse response, int urgency)
+    {
+        if (string.IsNullOrWhiteSpace(response.SubIntent))
+        {
+            return urgency;
+        }
+
+        return response.SubIntent.Trim().ToLowerInvariant() switch
+        {
+            "bridalurgent" or "complaintescalation" => Math.Max(urgency, 5),
+            "reschedulerequest" => Math.Max(urgency, 4),
+            "depositquery" => Math.Max(urgency, 3),
+            _ => urgency
+        };
     }
 
     private static int ResolveOperationalUrgency(RichTriageLlmResponse response)
@@ -312,6 +382,11 @@ public sealed class MessageTriageInferenceRunner
             return MapIntentCategory(response.IntentCategory);
         }
 
+        if (!string.IsNullOrWhiteSpace(response.CustomerIntentSchema))
+        {
+            return MapIntentCategory(response.CustomerIntentSchema);
+        }
+
         if (!string.IsNullOrWhiteSpace(response.AiIntentCategory))
         {
             return MapIntentCategory(response.AiIntentCategory);
@@ -329,13 +404,63 @@ public sealed class MessageTriageInferenceRunner
 
         return raw.Trim().ToLowerInvariant() switch
         {
-            "booking" => UnifiedMessengerIntentCategory.Booking,
+            "booking" or "bookingrequest" => UnifiedMessengerIntentCategory.Booking,
             "complaint" => UnifiedMessengerIntentCategory.Complaint,
-            "pricing" or "price_inquiry" or "price inquiry" => UnifiedMessengerIntentCategory.PriceInquiry,
+            "pricing" or "price_inquiry" or "price inquiry" or "pricinginquiry" => UnifiedMessengerIntentCategory.PriceInquiry,
             "lead" => UnifiedMessengerIntentCategory.Lead,
             "spam" => UnifiedMessengerIntentCategory.Spam,
             "general" or "inquiry" => UnifiedMessengerIntentCategory.Inquiry,
             _ => UnifiedMessengerIntentCategory.Inquiry
+        };
+    }
+
+    private static string ResolveClientSentiment(RichTriageLlmResponse response)
+    {
+        if (!string.IsNullOrWhiteSpace(response.ClientSentiment))
+        {
+            return ParseClientSentiment(response.ClientSentiment, response.Sentiment);
+        }
+
+        var sentimentRaw = !string.IsNullOrWhiteSpace(response.SentimentSchema)
+            ? response.SentimentSchema
+            : response.Sentiment;
+
+        if (!string.IsNullOrWhiteSpace(sentimentRaw))
+        {
+            return sentimentRaw.Trim() switch
+            {
+                "Frustrated" => ClientSentimentLabel.Frustrated,
+                "Positive" => ClientSentimentLabel.Positive,
+                "Neutral" => ClientSentimentLabel.Neutral,
+                _ => ParseClientSentiment(sentimentRaw, null)
+            };
+        }
+
+        return ClientSentimentLabel.Neutral;
+    }
+
+    private static RichTriageExtractedEntities EnrichEntities(
+        RichTriageExtractedEntities? entities,
+        IReadOnlyList<string> requestedServices)
+    {
+        var baseEntities = entities ?? new RichTriageExtractedEntities();
+        if (requestedServices.Count == 0)
+        {
+            return baseEntities;
+        }
+
+        var serviceType = string.IsNullOrWhiteSpace(baseEntities.ServiceType)
+            ? string.Join(", ", requestedServices)
+            : baseEntities.ServiceType;
+
+        return new RichTriageExtractedEntities
+        {
+            CustomerName = baseEntities.CustomerName,
+            ContactNumber = baseEntities.ContactNumber,
+            RequestedDate = baseEntities.RequestedDate,
+            RequestedTime = baseEntities.RequestedTime,
+            ServiceType = serviceType,
+            ActionRequired = baseEntities.ActionRequired
         };
     }
 

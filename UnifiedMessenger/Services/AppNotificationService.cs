@@ -94,7 +94,7 @@ public sealed class AppNotificationService
 
             if (settings.ToastUsePlatformBranding && instance is not null)
             {
-                builder.AddText(instance.DisplayName)
+                builder.AddText(PlatformBrandingHelper.ResolveToastAttribution(instance))
                     .AddText(alert.Title)
                     .AddText(string.IsNullOrWhiteSpace(alert.Body) ? "New message" : alert.Body);
             }
@@ -107,7 +107,7 @@ public sealed class AppNotificationService
 
             ApplyToastSound(builder, settings);
 
-            var iconUri = ApplicationPaths.TryResolveAppIconUri();
+            var iconUri = ResolveToastAppLogoUri(settings, instance);
             if (!string.IsNullOrWhiteSpace(iconUri))
             {
                 builder.SetAppLogoOverride(new Uri(iconUri));
@@ -147,6 +147,20 @@ public sealed class AppNotificationService
 
     internal static string ResolveToastTag(AppSettings settings, NotificationAlert alert) =>
         settings.ToastGroupByInstance ? alert.InstanceId : alert.Id;
+
+    internal static string? ResolveToastAppLogoUri(AppSettings settings, MessengerInstance? instance)
+    {
+        if (settings.ToastUsePlatformBranding && instance is not null)
+        {
+            var platformIconUri = PlatformBrandingHelper.TryResolvePlatformIconUri(instance.Platform);
+            if (!string.IsNullOrWhiteSpace(platformIconUri))
+            {
+                return platformIconUri;
+            }
+        }
+
+        return ApplicationPaths.TryResolveAppIconUri();
+    }
 
     internal static bool ShouldMuteToast(AppSettings settings) =>
         settings.ToastSound == ToastSoundPreference.Silent;

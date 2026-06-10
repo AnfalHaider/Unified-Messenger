@@ -121,6 +121,23 @@
                             SelectionChanged="DefaultModelBox_SelectionChanged" />
 
                         <ToggleSwitch
+                            x:Name="EnableBranchPulseToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableBranchPulseToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Branch pulse summaries" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Batch-summarize open threads per branch in the Operations Command Center."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
                             x:Name="EnableAutoDraftToggle"
                             OffContent="Off"
                             OnContent="On"
@@ -153,6 +170,34 @@
                                 </StackPanel>
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
+
+                        <ComboBox
+                            x:Name="DraftToneBox"
+                            Header="WhatsApp draft tone"
+                            SelectionChanged="DraftToneBox_SelectionChanged" />
+
+                        <ToggleSwitch
+                            x:Name="EnableVoiceNoteTranscriptionToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableVoiceNoteTranscriptionToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Transcribe WhatsApp voice notes" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Detects incoming voice notes, transcribes locally with whisper.cpp, then runs AI triage on the transcript."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <TextBlock
+                            x:Name="WhisperStatusText"
+                            FontSize="12"
+                            Opacity="0.75"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
             </StackPanel>

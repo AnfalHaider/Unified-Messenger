@@ -146,6 +146,26 @@ public class InstanceRegistryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateInstanceMemoryTierAsync_PersistsTier()
+    {
+        var registry = new InstanceRegistryService(_storePath);
+        var instance = await registry.AddInstanceAsync("Work", "whatsapp", null);
+        Assert.Equal(MemoryTierPreference.Normal, instance.MemoryTier);
+
+        await registry.UpdateInstanceMemoryTierAsync(instance.Id, MemoryTierPreference.Low);
+
+        var updated = registry.FindById(instance.Id);
+        Assert.NotNull(updated);
+        Assert.Equal(MemoryTierPreference.Low, updated!.MemoryTier);
+
+        var reloaded = new InstanceRegistryService(_storePath);
+        await reloaded.LoadAsync();
+        var persisted = reloaded.FindById(instance.Id);
+        Assert.NotNull(persisted);
+        Assert.Equal(MemoryTierPreference.Low, persisted!.MemoryTier);
+    }
+
+    [Fact]
     public async Task LoadAsync_PersistsPerCategorySortOrder()
     {
         var registry = new InstanceRegistryService(_storePath);

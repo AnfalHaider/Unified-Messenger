@@ -18,6 +18,9 @@ public partial class LocalAISettingsViewModel : ViewModelBase
     private bool _ollamaAutoBootstrap;
 
     [ObservableProperty]
+    private bool _enableBranchPulse = true;
+
+    [ObservableProperty]
     private bool _enableAutoDraft;
 
     [ObservableProperty]

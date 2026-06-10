@@ -22,7 +22,8 @@ public sealed class UnifiedMessengerDashboardService
     {
         ThreadRegistryService.Instance.RefreshOperationalFlags(raiseChanged: false);
 
-        var instances = professionalInstances
+        var instances = PlatformModuleSettingsHelper
+            .FilterEnabledInstances(professionalInstances)
             .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
             .ToList();
 
@@ -94,7 +95,9 @@ public sealed class UnifiedMessengerDashboardService
 
         var scopedInstances = DashboardPageHelper
             .FilterProfessionalInstances(
-                professionalInstances.Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id)),
+                PlatformModuleSettingsHelper
+                    .FilterEnabledInstances(professionalInstances)
+                    .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id)),
                 selectedBranchKey)
             .ToList();
 
@@ -148,6 +151,11 @@ public sealed class UnifiedMessengerDashboardService
 
         foreach (var platformId in MonitoredPlatformIds)
         {
+            if (!PlatformModuleSettingsHelper.IsPlatformModuleEnabled(platformId))
+            {
+                continue;
+            }
+
             var platform = PlatformDefinition.FindById(platformId);
             var platformInstances = instances
                 .Where(instance =>

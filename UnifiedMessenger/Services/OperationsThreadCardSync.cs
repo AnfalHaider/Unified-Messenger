@@ -15,6 +15,7 @@ internal static class OperationsThreadCardSync
             thread.IsSlaBreached,
             thread.IsRevenueLeakageRisk,
             thread.EstimatedValue,
+            thread.WhatsAppDeliveryStatus ?? string.Empty,
             thread.NextActionSummary ?? string.Empty);
 
     public static bool ContentEquals(OperationsThreadCardViewModel existing, OperationsThreadCardViewModel incoming) =>
@@ -24,6 +25,7 @@ internal static class OperationsThreadCardSync
         existing.UrgencyLabel == incoming.UrgencyLabel &&
         existing.SlaText == incoming.SlaText &&
         existing.RevenueDisplay == incoming.RevenueDisplay &&
+        existing.DeliveryStatusLabel == incoming.DeliveryStatusLabel &&
         existing.SentimentLabel == incoming.SentimentLabel &&
         existing.IntentLabel == incoming.IntentLabel &&
         existing.BranchNameVisibility == incoming.BranchNameVisibility;

@@ -62,6 +62,11 @@ public sealed class MessageTriageService : IMessageTriageService
         bool skipDedupeCheck = false)
     {
         ArgumentNullException.ThrowIfNull(selection);
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(selection.Platform))
+        {
+            return;
+        }
+
         if (!RichTriageStoreService.Instance.IsLoaded)
         {
             return;
@@ -96,7 +101,10 @@ public sealed class MessageTriageService : IMessageTriageService
             ConversationKey = selection.ConversationKey,
             ConversationHint = selection.ConversationHint,
             TimestampUtc = selection.TimestampUtc,
-            AllowLlmInference = allowLlmInference
+            AllowLlmInference = allowLlmInference,
+            MessageKind = selection.MessageKind,
+            VoiceDurationSeconds = selection.VoiceDurationSeconds,
+            TranscriptConfidence = selection.TranscriptConfidence
         },
             "MessageTriage");
     }
@@ -252,9 +260,12 @@ public sealed class MessageTriageService : IMessageTriageService
             ? 5
             : MessageTriageScorer.ScoreUrgency(messageText, request.ConversationHint);
         var sentiment = MessageTriageScorer.ClassifySentiment(messageText);
-        var preview = messageText.Length <= 220
-            ? messageText
-            : messageText[..217] + "...";
+        var previewSource = request.MessageKind == InboundMessageKind.VoiceNote
+            ? $"Voice ({Math.Max(1, (int)Math.Round(request.VoiceDurationSeconds))}s): {messageText}"
+            : messageText;
+        var preview = previewSource.Length <= 220
+            ? previewSource
+            : previewSource[..217] + "...";
         if (ConversationNoiseFilter.IsDomChromePollution(preview))
         {
             return;
@@ -304,7 +315,10 @@ public sealed class MessageTriageService : IMessageTriageService
             NextActionSummary = nextAction,
             SuggestedAction = isSpam ? "Ignore" : string.Empty,
             IsSpamOrPromo = isSpam,
-            CustomerIntent = isSpam ? CustomerIntent.Spam : CustomerIntent.Inquiry
+            CustomerIntent = isSpam ? CustomerIntent.Spam : CustomerIntent.Inquiry,
+            MessageKind = request.MessageKind,
+            VoiceDurationSeconds = request.VoiceDurationSeconds,
+            TranscriptConfidence = request.TranscriptConfidence
         };
 
         var heuristicItem = UnifiedMessengerInsightsAnalyzer.ApplyOperationalInsights(item);
@@ -321,6 +335,11 @@ public sealed class MessageTriageService : IMessageTriageService
 
     internal async Task ProcessInferenceJobAsync(RichTriageInferenceJob job, CancellationToken cancellationToken)
     {
+        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(job.Platform))
+        {
+            return;
+        }
+
         if (!_items.TryGetValue(job.TriageItemId, out var baseline))
         {
             return;
@@ -348,6 +367,18 @@ public sealed class MessageTriageService : IMessageTriageService
             updated.SuggestedAction);
         UnifiedMessengerDashboardService.Instance.NotifyChanged();
         Changed?.Invoke(this, EventArgs.Empty);
+        NotifyTriageDraftIfApplicable(updated);
+    }
+
+    private static void NotifyTriageDraftIfApplicable(MessageTriageItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.SuggestedDraftResponse) ||
+            !AppSettingsService.Instance.Settings.EnableAutoDraft)
+        {
+            return;
+        }
+
+        AutoDraftOrchestrator.Instance.HandleTriageDraftReady(item);
     }
 
     private void PruneExpiredItems()
@@ -431,5 +462,11 @@ public sealed class MessageTriageService : IMessageTriageService
         public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
 
         public bool AllowLlmInference { get; init; } = true;
+
+        public InboundMessageKind MessageKind { get; init; } = InboundMessageKind.Text;
+
+        public double VoiceDurationSeconds { get; init; }
+
+        public double TranscriptConfidence { get; init; }
     }
 }

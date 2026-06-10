@@ -4,9 +4,11 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
+using UnifiedMessenger.Models;
 using UnifiedMessenger.Models.Ollama;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Ollama;
+using UnifiedMessenger.Services.VoiceNotes;
 using UnifiedMessenger.ViewModels;
 
 namespace UnifiedMessenger.Pages;
@@ -21,6 +23,7 @@ public sealed partial class LocalAISettingsPage : Page
     private readonly OllamaOrchestrationService _ollama = OllamaOrchestrationService.Instance;
     private DispatcherQueue? _dispatcher;
     private bool _suppressToggleEvents;
+    private bool _suppressDraftToneEvents;
     private CancellationTokenSource? _pageCts;
     private string? _activeDownloadModelId;
     private long _lastPullCompleted;
@@ -92,12 +95,15 @@ public sealed partial class LocalAISettingsPage : Page
         _viewModel.EnableLocalAi = settings.EnableLocalAi;
         _viewModel.OllamaAutoBootstrap = settings.OllamaAutoBootstrap;
         _viewModel.EnableAutoDraft = settings.EnableAutoDraft;
+        _viewModel.EnableBranchPulse = settings.EnableBranchPulse;
         _viewModel.AutoDraftOnlyWhenVisible = settings.AutoDraftOnlyWhenVisible;
         _viewModel.CanRefreshEngine = settings.EnableLocalAi;
         _viewModel.DefaultModelId = settings.LocalAiModelName;
         EnableLocalAiToggle.IsOn = _viewModel.EnableLocalAi;
         OllamaAutoBootstrapToggle.IsOn = _viewModel.OllamaAutoBootstrap;
         OllamaAutoBootstrapToggle.IsEnabled = _viewModel.EnableLocalAi;
+        EnableBranchPulseToggle.IsOn = _viewModel.EnableBranchPulse;
+        EnableBranchPulseToggle.IsEnabled = _viewModel.EnableLocalAi;
         EnableAutoDraftToggle.IsOn = _viewModel.EnableAutoDraft;
         EnableAutoDraftToggle.IsEnabled = _viewModel.EnableLocalAi;
         AutoDraftOnlyVisibleToggle.IsOn = _viewModel.AutoDraftOnlyWhenVisible;
@@ -106,8 +112,32 @@ public sealed partial class LocalAISettingsPage : Page
 
         UpdateModelManagerVisibility(_viewModel.EnableLocalAi);
         RefreshDefaultModelBox();
+        RefreshDraftToneBox(settings.DraftTonePreference);
+        EnableVoiceNoteTranscriptionToggle.IsOn = settings.EnableVoiceNoteTranscription;
+        EnableVoiceNoteTranscriptionToggle.IsEnabled = settings.EnableLocalAi;
+        WhisperStatusText.Text = WhisperRuntimeProbe.DescribeStatus(settings);
         ApplyConnectionState(_ollama.ConnectionState);
         _ = RefreshEngineAndModelsAsync();
+    }
+
+    private void RefreshDraftToneBox(DraftTonePreference selectedTone)
+    {
+        if (DraftToneBox.Items.Count == 0)
+        {
+            DraftToneBox.Items.Add(new ComboBoxItem { Content = "Warm (default)", Tag = DraftTonePreference.Warm });
+            DraftToneBox.Items.Add(new ComboBoxItem { Content = "Formal English", Tag = DraftTonePreference.Formal });
+            DraftToneBox.Items.Add(new ComboBoxItem { Content = "Roman Urdu friendly", Tag = DraftTonePreference.RomanUrdu });
+        }
+
+        _suppressDraftToneEvents = true;
+        DraftToneBox.IsEnabled = _services.AppSettings.Settings.EnableLocalAi;
+        DraftToneBox.SelectedIndex = selectedTone switch
+        {
+            DraftTonePreference.Formal => 1,
+            DraftTonePreference.RomanUrdu => 2,
+            _ => 0
+        };
+        _suppressDraftToneEvents = false;
     }
 
     private void RefreshDefaultModelBox()
@@ -245,8 +275,12 @@ public sealed partial class LocalAISettingsPage : Page
         var enabled = EnableLocalAiToggle.IsOn;
         await _services.AppSettings.UpdateAsync(settings => settings.EnableLocalAi = enabled);
         OllamaAutoBootstrapToggle.IsEnabled = enabled;
+        EnableBranchPulseToggle.IsEnabled = enabled;
         EnableAutoDraftToggle.IsEnabled = enabled;
         AutoDraftOnlyVisibleToggle.IsEnabled = enabled && EnableAutoDraftToggle.IsOn;
+        DraftToneBox.IsEnabled = enabled;
+        EnableVoiceNoteTranscriptionToggle.IsEnabled = enabled;
+        WhisperStatusText.Text = WhisperRuntimeProbe.DescribeStatus(_services.AppSettings.Settings);
         UpdateModelManagerVisibility(enabled);
 
         if (enabled)
@@ -271,6 +305,17 @@ public sealed partial class LocalAISettingsPage : Page
             settings.OllamaAutoBootstrap = OllamaAutoBootstrapToggle.IsOn);
     }
 
+    private async void EnableBranchPulseToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents)
+        {
+            return;
+        }
+
+        var enabled = EnableBranchPulseToggle.IsOn;
+        await _services.AppSettings.UpdateAsync(settings => settings.EnableBranchPulse = enabled);
+    }
+
     private async void EnableAutoDraftToggle_Toggled(object sender, RoutedEventArgs e)
     {
         if (_suppressToggleEvents)
@@ -293,6 +338,29 @@ public sealed partial class LocalAISettingsPage : Page
 
         await _services.AppSettings.UpdateAsync(settings =>
             settings.AutoDraftOnlyWhenVisible = AutoDraftOnlyVisibleToggle.IsOn);
+    }
+
+    private async void EnableVoiceNoteTranscriptionToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents)
+        {
+            return;
+        }
+
+        await _services.AppSettings.UpdateAsync(settings =>
+            settings.EnableVoiceNoteTranscription = EnableVoiceNoteTranscriptionToggle.IsOn);
+        WhisperStatusText.Text = WhisperRuntimeProbe.DescribeStatus(_services.AppSettings.Settings);
+    }
+
+    private async void DraftToneBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressDraftToneEvents ||
+            DraftToneBox.SelectedItem is not ComboBoxItem { Tag: DraftTonePreference tone })
+        {
+            return;
+        }
+
+        await _services.AppSettings.UpdateAsync(settings => settings.DraftTonePreference = tone);
     }
 
     private async void DefaultModelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

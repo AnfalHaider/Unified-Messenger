@@ -51,6 +51,15 @@ public sealed class ThreadData
 
     public string InstanceDisplayName { get; set; } = string.Empty;
 
+    /// <summary>Latest outgoing WhatsApp delivery tick: pending | sent | delivered | read.</summary>
+    public string WhatsAppDeliveryStatus { get; set; } = string.Empty;
+
+    public DateTimeOffset WhatsAppDeliveryUpdatedUtc { get; set; }
+
+    public string LastMessageKind { get; set; } = nameof(InboundMessageKind.Text);
+
+    public bool HasUnreadVoiceNote { get; set; }
+
     public bool IsSlaBreached =>
         !IsSpamOrPromo &&
         !IsReplied &&

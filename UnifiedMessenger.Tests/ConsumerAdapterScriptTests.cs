@@ -43,6 +43,35 @@ public class ConsumerAdapterScriptTests
         Assert.Contains("history.pushState", script, StringComparison.Ordinal);
     }
 
+    public static TheoryData<string> MutedBadgeConsumerAdapters => new()
+    {
+        "telegram-adapter.js",
+        "messenger-adapter.js",
+        "slack-adapter.js",
+        "discord-adapter.js",
+        "signal-adapter.js",
+        "teams-adapter.js"
+    };
+
+    [Theory]
+    [MemberData(nameof(MutedBadgeConsumerAdapters))]
+    public void ConsumerAdapter_RespectsMutedBadgePolicy(string scriptFileName)
+    {
+        var script = ReadScript(scriptFileName);
+
+        Assert.Contains("includeMutedBadges", script, StringComparison.Ordinal);
+        Assert.Contains("__umShouldIncludeMutedBadges", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WhatsAppAdapter_RespectsMutedBadgePolicy()
+    {
+        var script = ReadScript("whatsapp-adapter.js");
+
+        Assert.Contains("__umShouldIncludeMutedBadges", script, StringComparison.Ordinal);
+        Assert.Contains("isEligibleChat", script, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void WhatsAppAdapter_UsesIndexedDbAndDomFallbacks()
     {
@@ -58,6 +87,8 @@ public class ConsumerAdapterScriptTests
         var script = ReadScript("whatsapp-adapter.js");
 
         Assert.Contains("notification-preview", script, StringComparison.Ordinal);
+        Assert.Contains("businessLabels", script, StringComparison.Ordinal);
+        Assert.Contains("whatsapp-thread-context", script, StringComparison.Ordinal);
         Assert.DoesNotContain("type: 'inbound-message-selected'", script, StringComparison.Ordinal);
         Assert.Contains("scanForNewPreviews", script, StringComparison.Ordinal);
     }

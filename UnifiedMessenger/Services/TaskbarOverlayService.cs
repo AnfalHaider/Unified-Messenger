@@ -8,6 +8,8 @@ namespace UnifiedMessenger.Services;
 public static class TaskbarOverlayService
 {
     private static readonly Guid TaskbarListClsid = new("56FDF344-FD6D-11d0-958A-006097C9A090");
+    private static readonly object OverlayGate = new();
+    private static IntPtr _cachedOverlayIcon = IntPtr.Zero;
 
     public static bool TrySetOverlayCount(int count)
     {
@@ -32,8 +34,24 @@ public static class TaskbarOverlayService
 
             taskbar.HrInit();
 
-            var description = count > 0 ? NormalizeOverlayCount(count).ToString() : string.Empty;
-            taskbar.SetOverlayIcon(hwnd, IntPtr.Zero, description);
+            var normalized = NormalizeOverlayCount(count);
+            var description = FormatOverlayLabel(normalized);
+            IntPtr overlayIcon = IntPtr.Zero;
+
+            lock (OverlayGate)
+            {
+                ReleaseCachedOverlayIcon();
+
+                if (normalized > 0 &&
+                    TaskbarOverlayIconRenderer.TryCreateCountIcon(normalized, out var createdIcon))
+                {
+                    overlayIcon = createdIcon;
+                    _cachedOverlayIcon = createdIcon;
+                }
+
+                taskbar.SetOverlayIcon(hwnd, overlayIcon, description);
+            }
+
             return true;
         }
         catch (Exception ex)
@@ -50,6 +68,23 @@ public static class TaskbarOverlayService
 
     internal static int NormalizeOverlayCount(int count) =>
         count <= 0 ? 0 : Math.Min(count, 99);
+
+    internal static string FormatOverlayLabel(int count)
+    {
+        var normalized = NormalizeOverlayCount(count);
+        return normalized <= 0 ? string.Empty : normalized.ToString();
+    }
+
+    private static void ReleaseCachedOverlayIcon()
+    {
+        if (_cachedOverlayIcon == IntPtr.Zero)
+        {
+            return;
+        }
+
+        TaskbarOverlayIconRenderer.DestroyIconHandle(_cachedOverlayIcon);
+        _cachedOverlayIcon = IntPtr.Zero;
+    }
 
     [ComImport]
     [Guid("56FDF344-FD6D-11d0-958A-006097C9A090")]

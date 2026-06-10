@@ -22,6 +22,23 @@ public static class MainWindowShellLayout
     public static bool IsCompactSidebarWidth(double width) =>
         width <= SidebarWidthCompact + 1;
 
+    /// <summary>
+    /// Forces the shell grid and WebView host to remeasure after sidebar or notification column width changes.
+    /// WebView2 otherwise may keep stale bounds until the window is resized.
+    /// </summary>
+    public static void RequestShellContentReflow(FrameworkElement shellLayoutGrid, FrameworkElement instanceWebViewHost)
+    {
+        ArgumentNullException.ThrowIfNull(shellLayoutGrid);
+        ArgumentNullException.ThrowIfNull(instanceWebViewHost);
+
+        shellLayoutGrid.InvalidateMeasure();
+        shellLayoutGrid.InvalidateArrange();
+        instanceWebViewHost.InvalidateMeasure();
+        instanceWebViewHost.InvalidateArrange();
+        shellLayoutGrid.UpdateLayout();
+        instanceWebViewHost.UpdateLayout();
+    }
+
     public static bool IsAppInForeground(bool isWindowVisible, bool isWindowActivated) =>
         isWindowVisible && isWindowActivated;
 
@@ -34,6 +51,18 @@ public static class MainWindowShellLayout
             NotificationPanelAutoOpenMode.Never => false,
             _ => !isAppInForeground
         };
+
+    /// <summary>
+    /// Whether a background alert should queue a deferred panel reveal when the app is unfocused.
+    /// </summary>
+    public static bool ShouldQueueDeferredPanelReveal(NotificationPanelAutoOpenMode mode) =>
+        mode != NotificationPanelAutoOpenMode.Never;
+
+    /// <summary>
+    /// Whether a queued deferred panel reveal should open after the app returns to the foreground.
+    /// </summary>
+    public static bool ShouldRevealDeferredPanel(NotificationPanelAutoOpenMode mode) =>
+        mode != NotificationPanelAutoOpenMode.Never;
 
     public static (GridLength ColumnWidth, GridLength RowHeight) ResolveNotificationPanelMetrics(
         NotificationPanelDock dock,

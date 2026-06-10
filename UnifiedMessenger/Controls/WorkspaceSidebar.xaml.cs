@@ -317,21 +317,29 @@ public sealed partial class WorkspaceSidebar : Grid
                 WorkspaceSidebarHelper.ResolveConnectionIndicatorColor(connectionStatus, adapterStatus.State));
         }
 
+        var statusSubtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
+            connectionStatus,
+            adapterStatus.State,
+            instance.NotificationsMuted,
+            detail);
+        var displaySubtitle = WorkspaceSidebarHelper.AppendMemoryTierHint(statusSubtitle, instance.MemoryTier);
+
         if (_instanceStatusLabels.TryGetValue(normalizedId, out var statusLabel))
         {
-            statusLabel.Text = WorkspaceSidebarHelper.ResolveStatusSubtitle(
-                connectionStatus,
-                adapterStatus.State,
-                instance.NotificationsMuted,
-                detail);
+            statusLabel.Text = displaySubtitle;
         }
 
         if (_instanceRows.TryGetValue(normalizedId, out var row))
         {
-            var detailLine = string.IsNullOrWhiteSpace(detail) ? string.Empty : $"\n{detail}";
             ToolTipService.SetToolTip(
                 row,
-                $"{instance.DisplayName}\nWorkspace: {instance.Category}\n{statusLabel?.Text ?? connectionStatus.ToString()}{detailLine}\nAdapter: {adapterStatus.Description}");
+                WorkspaceSidebarHelper.ComposeInstanceTooltip(
+                    instance.DisplayName,
+                    instance.Category,
+                    statusSubtitle,
+                    adapterStatus.Description,
+                    instance.MemoryTier,
+                    detail));
         }
     }
 
@@ -347,13 +355,23 @@ public sealed partial class WorkspaceSidebar : Grid
         var header = new TextBlock
         {
             Tag = key,
-            Text = title.ToUpperInvariant(),
-            FontSize = 11,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            Opacity = 0.55,
-            Margin = new Thickness(4, 14, 4, 6),
-            CharacterSpacing = 40
+            Text = title,
+            Margin = new Thickness(4, 14, 4, 6)
         };
+
+        if (Application.Current.Resources.TryGetValue("UmSectionLabelTextStyle", out var styleResource) &&
+            styleResource is Style sectionStyle)
+        {
+            header.Style = sectionStyle;
+        }
+        else
+        {
+            header.FontSize = 11;
+            header.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+            header.Opacity = 0.75;
+            header.CharacterSpacing = 40;
+        }
+
         _compactHiddenElements.Add(header);
         return header;
     }
@@ -406,11 +424,12 @@ public sealed partial class WorkspaceSidebar : Grid
         var connectionStatus = InstanceConnectionStatusService.Instance.GetStatus(instanceId);
         var adapterState = AdapterHealthMonitor.Instance.GetStatus(instanceId).State;
         var connectionDetail = InstanceConnectionStatusService.Instance.GetDetail(instanceId);
-        var subtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
+        var statusSubtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
             connectionStatus,
             adapterState,
             instance.NotificationsMuted,
             connectionDetail);
+        var subtitle = WorkspaceSidebarHelper.AppendMemoryTierHint(statusSubtitle, instance.MemoryTier);
         var row = CreateSelectableRow(
             instanceId,
             instance,
@@ -421,6 +440,15 @@ public sealed partial class WorkspaceSidebar : Grid
         row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
         row.CanDrag = true;
         row.DragStarting += (_, e) => InstanceRow_DragStarting(e, instanceId, instance.DisplayName);
+        ToolTipService.SetToolTip(
+            row,
+            WorkspaceSidebarHelper.ComposeInstanceTooltip(
+                instance.DisplayName,
+                instance.Category,
+                statusSubtitle,
+                AdapterHealthMonitor.Instance.GetStatus(instanceId).Description,
+                instance.MemoryTier,
+                connectionDetail));
 
         RegisterInstanceRow(instance, row);
         return row;
@@ -575,6 +603,9 @@ public sealed partial class WorkspaceSidebar : Grid
         button.BorderThickness = selected
             ? new Thickness(3, 0, 0, 0)
             : new Thickness(0);
+        button.BorderBrush = selected
+            ? Application.Current.Resources["AccentFillColorDefaultBrush"] as Brush
+            : null;
     }
 
     private static void ApplyRowSelection(Border row, bool selected)

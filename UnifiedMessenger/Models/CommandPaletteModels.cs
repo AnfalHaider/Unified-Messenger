@@ -22,6 +22,8 @@ public sealed class CommandPaletteSelection
     public string? AlertId { get; init; }
 
     public string? BranchKey { get; init; }
+
+    public string? SettingsSectionKey { get; init; }
 }
 
 public enum CommandPaletteAction
@@ -29,6 +31,7 @@ public enum CommandPaletteAction
     OpenInstance,
     OpenDashboard,
     OpenSettings,
+    OpenSettingsSection,
     OpenAlert,
     ToggleNotifications,
     ClearNotifications,

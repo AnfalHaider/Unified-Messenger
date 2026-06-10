@@ -24,6 +24,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
     DispatcherQueue IShellUiHost.DispatcherQueue => DispatcherQueue;
     XamlRoot IShellUiHost.XamlRoot => Content.XamlRoot;
     Grid IShellUiHost.InstanceWebViewHost => InstanceWebViewHost;
+    Grid IShellUiHost.ShellLayoutGrid => ShellLayoutGrid;
     Frame IShellUiHost.ContentFrame => ContentFrame;
     WorkspaceSidebar IShellUiHost.WorkspaceSidebar => WorkspaceSidebar;
     NotificationFeedPanel IShellUiHost.NotificationPanel => NotificationPanel;
@@ -38,7 +39,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     void IShellUiHost.ActivateWindow() => Activate();
     void IShellUiHost.ShowAppWindow() => AppWindow.Show();
-
     public MainWindow()
     {
         InitializeComponent();
@@ -376,6 +376,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         if (SidebarColumn.Width.Value > 0)
         {
             SidebarColumn.Width = new GridLength(0);
+            _shell.Chrome.ApplySidebarLayout();
         }
         else
         {

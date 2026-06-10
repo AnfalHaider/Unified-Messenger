@@ -95,6 +95,7 @@ public sealed partial class OperationsCommandCenter
         _suppressPresetSelection = true;
         LayoutPresetComboBox.Items.Clear();
         LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "Operations focus", Tag = OccLayoutPresets.OperationsFocus });
+        LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "WhatsApp focus", Tag = OccLayoutPresets.WhatsAppFocus });
         LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "Analytics focus", Tag = OccLayoutPresets.AnalyticsFocus });
         LayoutPresetComboBox.Items.Add(new ComboBoxItem { Content = "Compact", Tag = OccLayoutPresets.Compact });
 
@@ -325,6 +326,7 @@ public sealed partial class OperationsCommandCenter
             [OccLayoutDefaults.ImmediateLanePanelId] = ImmediateLaneSection,
             [OccLayoutDefaults.KanbanPanelId] = KanbanSection,
             [OccLayoutDefaults.BranchMetricsPanelId] = BranchMetricsSection,
+            [OccLayoutDefaults.BranchPulsePanelId] = BranchPulseSection,
             [OccLayoutDefaults.HighlightsPanelId] = HighlightsSection,
             [OccLayoutDefaults.AiFeedPanelId] = AiFeedSection,
             [OccLayoutDefaults.PlatformIntelligencePanelId] = PlatformIntelligenceExpander,
@@ -363,6 +365,7 @@ public sealed partial class OperationsCommandCenter
         yield return (OccLayoutDefaults.ImmediateLanePanelId, ImmediateLaneSection);
         yield return (OccLayoutDefaults.KanbanPanelId, KanbanSection);
         yield return (OccLayoutDefaults.BranchMetricsPanelId, BranchMetricsSection);
+        yield return (OccLayoutDefaults.BranchPulsePanelId, BranchPulseSection);
         yield return (OccLayoutDefaults.HighlightsPanelId, HighlightsSection);
         yield return (OccLayoutDefaults.AiFeedPanelId, AiFeedSection);
         yield return (OccLayoutDefaults.PlatformIntelligencePanelId, PlatformIntelligenceExpander);
@@ -412,6 +415,7 @@ public sealed partial class OperationsCommandCenter
         OccLayoutDefaults.ImmediateLanePanelId => "Immediate lane",
         OccLayoutDefaults.KanbanPanelId => "Kanban",
         OccLayoutDefaults.BranchMetricsPanelId => "Branch metrics",
+        OccLayoutDefaults.BranchPulsePanelId => "Branch pulse",
         OccLayoutDefaults.HighlightsPanelId => "Highlights",
         OccLayoutDefaults.AiFeedPanelId => "AI feed",
         OccLayoutDefaults.PlatformIntelligencePanelId => "Platform intelligence",

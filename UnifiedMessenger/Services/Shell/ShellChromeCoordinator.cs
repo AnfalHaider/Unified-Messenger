@@ -49,12 +49,14 @@ public sealed class ShellChromeCoordinator
         if (MainWindowShellLayout.ShouldUseCompactSidebarDisplay(_ui.SidebarColumn.Width.Value, forceVisible))
         {
             _ui.WorkspaceSidebar.SetCompactDisplay(true);
+            RequestContentColumnReflow();
             return;
         }
 
         var width = MainWindowShellLayout.ResolveSidebarWidth(PanePinned, SidebarHoverExpanded);
         _ui.SidebarColumn.Width = new GridLength(width);
         _ui.WorkspaceSidebar.SetCompactDisplay(MainWindowShellLayout.IsCompactSidebarWidth(width));
+        RequestContentColumnReflow();
     }
 
     public void RebuildInstanceNavigation()
@@ -145,5 +147,9 @@ public sealed class ShellChromeCoordinator
             isVisible);
         _ui.NotificationColumn.Width = metrics.ColumnWidth;
         _ui.NotificationRow.Height = metrics.RowHeight;
+        RequestContentColumnReflow();
     }
+
+    private void RequestContentColumnReflow() =>
+        MainWindowShellLayout.RequestShellContentReflow(_ui.ShellLayoutGrid, _ui.InstanceWebViewHost);
 }

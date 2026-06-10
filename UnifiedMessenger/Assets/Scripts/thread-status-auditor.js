@@ -400,6 +400,23 @@
 
         if (snapshot.isOutgoing && !threadState.lastWasOutgoing) {
           broadcastResolved(instanceId, snapshot);
+          if ((platform === 'whatsapp' || platform === 'whatsappbusiness') &&
+              typeof window.__umWhatsAppDetectDeliveryStatus === 'function') {
+            var containers = document.querySelectorAll('div[data-testid="msg-container"]');
+            if (containers.length) {
+              var newest = containers[containers.length - 1];
+              var deliveryStatus = window.__umWhatsAppDetectDeliveryStatus(newest);
+              window.__umPostMessage({
+                type: 'whatsapp-outgoing-status',
+                instanceId: instanceId,
+                platform: platform,
+                conversationKey: snapshot.conversationKey,
+                deliveryStatus: deliveryStatus,
+                source: 'thread-status-auditor',
+                timestampUtc: new Date().toISOString()
+              });
+            }
+          }
         }
 
         threadState.lastWasOutgoing = snapshot.isOutgoing;

@@ -35,7 +35,7 @@ public sealed class HotkeyCopilotOrchestrator
             }
 
             var context = await ConversationContextScraper
-                .ExtractAsync(instanceId, maxMessages: 4, cancellationToken)
+                .ExtractAsync(instanceId, maxMessages: 8, cancellationToken)
                 .ConfigureAwait(false);
 
             if (context is null || !context.Ok)
@@ -54,11 +54,14 @@ public sealed class HotkeyCopilotOrchestrator
                 return;
             }
 
-            var prompt = AiDraftPromptService.BuildPrompt(
-                platform,
-                lastInbound,
-                customerName,
-                BuildTranscriptHint(context.Messages));
+            var prompt = await BuildCopilotPromptAsync(
+                    instanceId,
+                    platform,
+                    customerName,
+                    lastInbound,
+                    context.Messages,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
             await WebViewDraftInjector.ResetDraftStreamAsync(instanceId, cancellationToken)
                 .ConfigureAwait(false);
@@ -118,6 +121,77 @@ public sealed class HotkeyCopilotOrchestrator
         return InstanceSessionManager.Instance.VisibleInstanceId;
     }
 
+    private static async Task<AiDraftPromptRequest> BuildCopilotPromptAsync(
+        string instanceId,
+        string platform,
+        string? customerName,
+        string lastInbound,
+        IReadOnlyList<ConversationMessageEntry> messages,
+        CancellationToken cancellationToken)
+    {
+        if (!WhatsAppOperationalContextBuilder.IsWhatsAppPlatform(platform))
+        {
+            return AiDraftPromptService.BuildPrompt(
+                platform,
+                lastInbound,
+                customerName,
+                BuildTranscriptHint(messages));
+        }
+
+        var instance = await TryLoadInstanceAsync(instanceId, cancellationToken).ConfigureAwait(false);
+        var conversationKey = ResolveConversationKey(instanceId);
+        var whatsAppContext = string.IsNullOrWhiteSpace(conversationKey)
+            ? null
+            : WhatsAppBusinessContextService.Instance.GetThreadContext(instanceId, conversationKey);
+        WhatsAppConversationMetadata? metadata = whatsAppContext is null
+            ? null
+            : new WhatsAppConversationMetadata
+            {
+                BusinessLabels = whatsAppContext.BusinessLabels,
+                VerifiedBusinessName = whatsAppContext.VerifiedBusinessName,
+                ProfilePhoneNumber = whatsAppContext.ProfilePhoneNumber,
+                ContactPhoneNumber = whatsAppContext.ContactPhoneNumber,
+                ChatJid = whatsAppContext.ConversationKey
+            };
+
+        return AiWhatsAppCopilotPromptService.BuildPrompt(
+            instance?.DisplayName ?? instanceId,
+            instance?.BranchKey,
+            customerName ?? "Customer",
+            lastInbound,
+            messages,
+            metadata,
+            instanceId,
+            conversationKey);
+    }
+
+    private static async Task<MessengerInstance?> TryLoadInstanceAsync(
+        string instanceId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var registry = new InstanceRegistryService();
+            await registry.LoadAsync(cancellationToken).ConfigureAwait(false);
+            return registry.FindById(instanceId);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Copilot instance lookup failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static string ResolveConversationKey(string instanceId)
+    {
+        var thread = ThreadRegistryService.Instance.GetAllThreads()
+            .Where(candidate => candidate.InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(candidate => candidate.LastMessageTime)
+            .FirstOrDefault();
+
+        return thread?.ConversationKey ?? string.Empty;
+    }
+
     private static string BuildTranscriptHint(IReadOnlyList<ConversationMessageEntry> messages)
     {
         if (messages.Count == 0)
@@ -126,7 +200,7 @@ public sealed class HotkeyCopilotOrchestrator
         }
 
         var lines = messages
-            .TakeLast(4)
+            .TakeLast(8)
             .Select(m => $"{m.Direction}: {m.Text}");
         return "Recent transcript:\n" + string.Join("\n", lines);
     }

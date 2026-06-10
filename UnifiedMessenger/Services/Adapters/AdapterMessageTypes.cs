@@ -31,6 +31,12 @@ public static class AdapterMessageTypes
 
     public const string UpdateThreadStatus = "update-thread-status";
 
+    public const string WhatsAppThreadContext = "whatsapp-thread-context";
+
+    public const string WhatsAppOutgoingStatus = "whatsapp-outgoing-status";
+
+    public const string WhatsAppVoicePayload = "whatsapp-voice-payload";
+
     private static readonly HashSet<string> StandardTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         BadgeCount,
@@ -52,5 +58,8 @@ public static class AdapterMessageTypes
         InboundMessageSelected.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         MetaTelemetrySnapshot.Equals(type, StringComparison.OrdinalIgnoreCase) ||
-        UpdateThreadStatus.Equals(type, StringComparison.OrdinalIgnoreCase);
+        UpdateThreadStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        WhatsAppThreadContext.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        WhatsAppOutgoingStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        WhatsAppVoicePayload.Equals(type, StringComparison.OrdinalIgnoreCase);
 }

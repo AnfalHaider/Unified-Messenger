@@ -38,6 +38,12 @@ public static class WorkspaceSidebarMenuPlanner
     {
         ArgumentNullException.ThrowIfNull(instances);
 
+        var enabledInstances = PlatformModuleSettingsHelper.FilterEnabledInstances(instances).ToList();
+        if (WhatsAppFocusLayoutHelper.IsWhatsAppOnlyMode())
+        {
+            return BuildWhatsAppFocusPlan(enabledInstances);
+        }
+
         var entries = new List<SidebarMenuEntry>
         {
             new(OverviewHeaderKey, SidebarMenuEntryKind.SectionHeader, SectionTitle: "Overview"),
@@ -45,7 +51,7 @@ public static class WorkspaceSidebarMenuPlanner
             new(ProfessionalHeaderKey, SidebarMenuEntryKind.SectionHeader, SectionTitle: "Pro / Business")
         };
 
-        var (professional, personal) = WorkspaceSidebarHelper.PartitionInstances(instances);
+        var (professional, personal) = WorkspaceSidebarHelper.PartitionInstances(enabledInstances);
         if (professional.Count == 0)
         {
             entries.Add(new SidebarMenuEntry(
@@ -85,6 +91,35 @@ public static class WorkspaceSidebarMenuPlanner
                     SidebarMenuEntryKind.Instance,
                     Instance: instance));
             }
+        }
+
+        return new SidebarMenuPlan { Entries = entries };
+    }
+
+    private static SidebarMenuPlan BuildWhatsAppFocusPlan(IReadOnlyList<MessengerInstance> enabledInstances)
+    {
+        var entries = new List<SidebarMenuEntry>
+        {
+            new(OverviewHeaderKey, SidebarMenuEntryKind.SectionHeader, SectionTitle: "Overview"),
+            new(WorkspaceSidebarHelper.DashboardSelectionKey, SidebarMenuEntryKind.Dashboard)
+        };
+
+        if (enabledInstances.Count == 0)
+        {
+            entries.Add(new SidebarMenuEntry(
+                ProfessionalEmptyKey,
+                SidebarMenuEntryKind.EmptyHint,
+                HintText: "No WhatsApp accounts yet."));
+            return new SidebarMenuPlan { Entries = entries };
+        }
+
+        var (professional, personal) = WorkspaceSidebarHelper.PartitionInstances(enabledInstances);
+        foreach (var instance in professional.Concat(personal))
+        {
+            entries.Add(new SidebarMenuEntry(
+                instance.Id.Trim(),
+                SidebarMenuEntryKind.Instance,
+                Instance: instance));
         }
 
         return new SidebarMenuPlan { Entries = entries };

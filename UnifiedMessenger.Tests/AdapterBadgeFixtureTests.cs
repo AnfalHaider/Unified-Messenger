@@ -20,6 +20,16 @@ public class AdapterBadgeFixtureTests
             ["unread_count", "p-channel_sidebar__badge"]
         },
         {
+            "discord-adapter.js",
+            "discord-badge.html",
+            ["numberBadge", "mentionsBadge", "unreadBadge", "aria-label"]
+        },
+        {
+            "teams-adapter.js",
+            "teams-badge.html",
+            ["activity-feed-badge", "team-channels-unread-count", "badge-count", "ts-badge"]
+        },
+        {
             "google_business_scraper.js",
             "google-business-reviews.html",
             ["review", "unreplied", "aria-label"]

@@ -29,15 +29,18 @@ public sealed class OperationsCommandCenterService
         var threadService = threadDashboardService ?? UnifiedMessengerDashboardService.Instance;
         var workspace = professionalWorkspaceService ?? ProfessionalWorkspaceService.Instance;
 
-        var filteredInstances = DashboardPageHelper
-            .FilterProfessionalInstances(professionalInstances, selectedBranchKey)
+        var filteredInstances = PlatformModuleSettingsHelper
+            .FilterEnabledInstances(professionalInstances)
             .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
+            .ToList();
+        filteredInstances = DashboardPageHelper
+            .FilterProfessionalInstances(filteredInstances, selectedBranchKey)
             .ToList();
 
         var normalizedBranchKey = BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey);
         var threadOperations = threadService.BuildSnapshot(filteredInstances, normalizedBranchKey);
         var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
-            professionalInstances,
+            filteredInstances,
             hub,
             normalizedBranchKey);
 
@@ -79,7 +82,7 @@ public sealed class OperationsCommandCenterService
         return new OperationsCommandCenterSnapshot
         {
             ScopeLabel = DashboardCardEmptyStateHelper.BuildBranchScopeSubtitle(
-                professionalInstances.Where(instance => instance.IsProfessional),
+                filteredInstances,
                 normalizedBranchKey),
             SelectedBranchKey = normalizedBranchKey,
             FilteredInstances = filteredInstances,
@@ -111,9 +114,13 @@ public sealed class OperationsCommandCenterService
         var hub = notificationHub ?? NotificationHub.Instance;
         var threadService = UnifiedMessengerDashboardService.Instance;
         var normalizedBranchKey = BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey);
-        var metrics = threadService.BuildThreadMetricsOnly(professionalInstances, selectedBranchKey);
+        var enabledInstances = PlatformModuleSettingsHelper
+            .FilterEnabledInstances(professionalInstances)
+            .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
+            .ToList();
+        var metrics = threadService.BuildThreadMetricsOnly(enabledInstances, selectedBranchKey);
         var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
-            professionalInstances,
+            enabledInstances,
             hub,
             normalizedBranchKey);
 
@@ -177,18 +184,27 @@ public sealed class OperationsCommandCenterService
         IReadOnlyList<MessengerInstance> googleInstances,
         IReadOnlyList<MessengerInstance> metaInstances,
         CustomerTrustSnapshot customerTrust,
-        MetaResponseEfficiencySnapshot metaResponse) =>
-        new()
+        MetaResponseEfficiencySnapshot metaResponse)
+    {
+        var googleEnabled = PlatformModuleSettingsHelper.IsPlatformModuleEnabled("googlebusiness");
+        var metaEnabled = PlatformModuleSettingsHelper.IsPlatformModuleEnabled("metabusiness");
+
+        return new OperationsPlatformIntelligenceSnapshot
         {
             CustomerTrust = customerTrust,
             CustomerTrustDisplay = DashboardPageHelper.BuildCustomerTrustDisplay(customerTrust),
             MetaResponse = metaResponse,
             MetaResponseDisplay = DashboardPageHelper.BuildMetaResponseDisplay(metaResponse),
-            HasGoogleInstances = googleInstances.Count > 0,
-            HasMetaInstances = metaInstances.Count > 0,
-            GoogleInstanceIds = googleInstances.Select(instance => instance.Id).ToList(),
-            MetaInstanceIds = metaInstances.Select(instance => instance.Id).ToList()
+            HasGoogleInstances = googleEnabled && googleInstances.Count > 0,
+            HasMetaInstances = metaEnabled && metaInstances.Count > 0,
+            GoogleInstanceIds = googleEnabled
+                ? googleInstances.Select(instance => instance.Id).ToList()
+                : [],
+            MetaInstanceIds = metaEnabled
+                ? metaInstances.Select(instance => instance.Id).ToList()
+                : []
         };
+    }
 
     private static OperationsAnalyticsTrendSnapshot BuildAnalyticsTrendSnapshot(
         ProfessionalAnalyticsSnapshot analytics,

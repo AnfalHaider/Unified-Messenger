@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Controls.Occ;
@@ -14,6 +15,7 @@ public sealed partial class WeeklyActivityChart : UserControl
     public WeeklyActivityChart()
     {
         InitializeComponent();
+        AutomationProperties.SetName(ChartAccessibilityHost, "7-day activity chart");
     }
 
     public void SetSeries(IReadOnlyList<DailyActivityPoint>? series)
@@ -37,6 +39,7 @@ public sealed partial class WeeklyActivityChart : UserControl
         {
             var bar = ViewModel.Bars[i];
             var column = ChartBarRenderHelper.CreateColumnStack(bar.ToolTipText);
+            AutomationProperties.SetName(column, bar.ToolTipText);
 
             var bars = new Grid { Height = 100, VerticalAlignment = VerticalAlignment.Bottom };
             bars.ColumnDefinitions.Add(new ColumnDefinition());

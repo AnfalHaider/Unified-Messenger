@@ -59,4 +59,65 @@ public class AppNotificationServiceTests
             expected,
             AppNotificationService.ShouldMuteToast(new AppSettings { ToastSound = preference }));
     }
+
+    [Fact]
+    public void ResolveToastAttribution_IncludesPlatformAndInstanceNames()
+    {
+        var instance = new MessengerInstance
+        {
+            Platform = "slack",
+            DisplayName = "Work Ops"
+        };
+        instance.ApplyPlatformBranding();
+
+        var attribution = PlatformBrandingHelper.ResolveToastAttribution(instance);
+
+        Assert.Contains("Slack", attribution, StringComparison.Ordinal);
+        Assert.Contains("Work Ops", attribution, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResolveToastAppLogoUri_PrefersPlatformAssetWhenBrandingEnabled()
+    {
+        var platformDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Platforms");
+        Directory.CreateDirectory(platformDir);
+        var platformIconPath = Path.Combine(platformDir, "slack.png");
+        File.WriteAllBytes(platformIconPath, [0x89, 0x50, 0x4E, 0x47]);
+
+        try
+        {
+            var settings = new AppSettings { ToastUsePlatformBranding = true };
+            var instance = new MessengerInstance { Platform = "slack", DisplayName = "Work" };
+
+            var uri = AppNotificationService.ResolveToastAppLogoUri(settings, instance);
+
+            Assert.NotNull(uri);
+            Assert.Contains("slack.png", uri, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (File.Exists(platformIconPath))
+            {
+                File.Delete(platformIconPath);
+            }
+        }
+    }
+
+    [Fact]
+    public void ResolveToastAppLogoUri_FallsBackToAppIconWhenBrandingDisabled()
+    {
+        var settings = new AppSettings { ToastUsePlatformBranding = false };
+        var instance = new MessengerInstance { Platform = "slack", DisplayName = "Work" };
+
+        var uri = AppNotificationService.ResolveToastAppLogoUri(settings, instance);
+
+        if (ApplicationPaths.TryResolveAppIconUri() is null)
+        {
+            Assert.Null(uri);
+            return;
+        }
+
+        Assert.NotNull(uri);
+        Assert.Contains("AppIcon.ico", uri, StringComparison.OrdinalIgnoreCase);
+    }
 }
