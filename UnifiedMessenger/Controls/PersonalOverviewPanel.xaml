@@ -200,13 +200,8 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border
-                    MinHeight="200"
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard MinHeight="200">
+                    <shared:SurfaceCard.CardBody>
                     <Grid RowSpacing="12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -216,6 +211,7 @@
                         <ListView
                             x:Name="RecentActivityList"
                             Grid.Row="1"
+                            AutomationProperties.Name="Recent personal activity"
                             IsItemClickEnabled="True"
                             ItemClick="RecentActivityList_ItemClick"
                             MaxHeight="420"
@@ -300,15 +296,11 @@
                                 TextWrapping="WrapWholeWords" />
                         </StackPanel>
                     </Grid>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
 
-                <Border
-                    Grid.Column="1"
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard Grid.Column="1">
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock FontWeight="SemiBold" Text="Account Status" />
                         <TextBlock
@@ -319,6 +311,7 @@
 
                         <ListView
                             x:Name="InstanceTilesList"
+                            AutomationProperties.Name="Personal account status"
                             IsItemClickEnabled="True"
                             ItemClick="InstanceTilesList_ItemClick"
                             SelectionMode="None"
@@ -420,7 +413,8 @@
                                 TextWrapping="WrapWholeWords" />
                         </StackPanel>
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </Grid>
         </Grid>
     </ScrollViewer>

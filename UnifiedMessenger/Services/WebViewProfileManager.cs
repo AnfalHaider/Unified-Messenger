@@ -9,7 +9,7 @@ namespace UnifiedMessenger.Services;
 /// Singleton manager that owns one shared <see cref="CoreWebView2Environment"/> (single UDF, single browser process)
 /// and creates <see cref="WebView2"/> controls bound to isolated profile names.
 /// </summary>
-public sealed partial class WebViewProfileManager
+public sealed partial class WebViewProfileManager : IWebViewProfileManager
 {
     private static readonly Lazy<WebViewProfileManager> LazyInstance = new(() => new WebViewProfileManager());
 
@@ -79,11 +79,13 @@ public sealed partial class WebViewProfileManager
     /// </summary>
     public Task<WebView2> CreateWebViewAsync(
         string profileName,
+        string? startUrl = null,
         CancellationToken cancellationToken = default) =>
-        UiThreadRunner.RunAsync(() => CreateWebViewCoreAsync(profileName, cancellationToken));
+        UiThreadRunner.RunAsync(() => CreateWebViewCoreAsync(profileName, startUrl, cancellationToken));
 
     private async Task<WebView2> CreateWebViewCoreAsync(
         string profileName,
+        string? startUrl,
         CancellationToken cancellationToken)
     {
         profileName = NormalizeProfileName(profileName);
@@ -91,13 +93,14 @@ public sealed partial class WebViewProfileManager
 
         var environment = await EnsureEnvironmentAsync(cancellationToken).ConfigureAwait(false);
 
-        return await InitializeWebViewControlAsync(environment, profileName, cancellationToken)
+        return await InitializeWebViewControlAsync(environment, profileName, startUrl, cancellationToken)
             .ConfigureAwait(true);
     }
 
     private static Task<WebView2> InitializeWebViewControlAsync(
         CoreWebView2Environment environment,
         string profileName,
+        string? startUrl,
         CancellationToken cancellationToken) =>
         UiThreadRunner.RunAsync(async () =>
         {
@@ -111,7 +114,7 @@ public sealed partial class WebViewProfileManager
                 // WinRT may resume on a thread-pool thread; validate and return on the UI thread.
                 await webView.EnsureCoreWebView2Async(environment, options).AsTask().ConfigureAwait(false);
 
-                return await FinalizeWebViewControlAsync(webView, profileName).ConfigureAwait(false);
+                return await FinalizeWebViewControlAsync(webView, profileName, startUrl).ConfigureAwait(false);
             }
             catch
             {
@@ -124,7 +127,10 @@ public sealed partial class WebViewProfileManager
             }
         });
 
-    private static Task<WebView2> FinalizeWebViewControlAsync(WebView2 webView, string profileName) =>
+    private static Task<WebView2> FinalizeWebViewControlAsync(
+        WebView2 webView,
+        string profileName,
+        string? startUrl) =>
         UiThreadRunner.RunAsync(() =>
         {
             var actualProfile = webView.CoreWebView2?.Profile.ProfileName;
@@ -138,7 +144,9 @@ public sealed partial class WebViewProfileManager
 
             if (webView.CoreWebView2 is not null)
             {
-                WebViewNavigationGuard.Attach(webView.CoreWebView2);
+                WebViewNavigationGuard.Attach(
+                    webView.CoreWebView2,
+                    WebViewNavigationGuard.ExtractAdditionalHostsFromStartUrl(startUrl));
             }
 
             return Task.FromResult(webView);
@@ -168,7 +176,8 @@ public sealed partial class WebViewProfileManager
             await CloseWebViewOnUiThreadAsync(activeWebView).ConfigureAwait(true);
         }
 
-        var ephemeralWebView = await CreateWebViewAsync(profileName, cancellationToken).ConfigureAwait(true);
+        var ephemeralWebView = await CreateWebViewAsync(profileName, startUrl: null, cancellationToken)
+            .ConfigureAwait(true);
         try
         {
             if (ephemeralWebView.CoreWebView2 is not null)
@@ -192,36 +201,6 @@ public sealed partial class WebViewProfileManager
             await profile.ClearBrowsingDataAsync().AsTask().WaitAsync(cancellationToken).ConfigureAwait(true);
             profile.Delete();
         });
-
-    /// <summary>
-    /// Applies background memory policy across active WebView instances.
-    /// Uses <see cref="CoreWebView2.MemoryUsageTargetLevel"/> so WebSockets and scripts keep running.
-    /// </summary>
-    public void ApplyBackgroundMemoryPolicy(IEnumerable<WebView2> webViews, bool isBackground)
-    {
-        _ = UiThreadRunner.RunAsync(() =>
-        {
-            var targetLevel = isBackground
-                ? CoreWebView2MemoryUsageTargetLevel.Low
-                : CoreWebView2MemoryUsageTargetLevel.Normal;
-
-            foreach (var webView in webViews)
-            {
-                if (webView.CoreWebView2 is null)
-                {
-                    continue;
-                }
-
-                webView.Visibility = isBackground
-                    ? Microsoft.UI.Xaml.Visibility.Collapsed
-                    : Microsoft.UI.Xaml.Visibility.Visible;
-
-                webView.CoreWebView2.MemoryUsageTargetLevel = targetLevel;
-            }
-
-            return Task.CompletedTask;
-        });
-    }
 
     public static string NormalizeProfileName(string profileName) =>
         profileName.Trim();

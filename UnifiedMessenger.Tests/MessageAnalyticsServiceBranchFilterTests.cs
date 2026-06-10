@@ -75,7 +75,7 @@ public class MessageAnalyticsServiceBranchFilterTests : IDisposable
 
         Assert.True(allReceived >= d12Received);
         Assert.Equal(2, d12Received);
-        Assert.Equal(1, d12Only.IncludedInstanceIds.Count);
+        Assert.Single(d12Only.IncludedInstanceIds);
     }
 
     [Fact]

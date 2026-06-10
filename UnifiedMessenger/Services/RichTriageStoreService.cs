@@ -5,7 +5,7 @@ using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
-public sealed class RichTriageStoreService
+public sealed class RichTriageStoreService : IRichTriageStoreService
 {
     public const string FileName = "triage_v2.json";
 

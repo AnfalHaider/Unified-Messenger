@@ -4,7 +4,9 @@
 
 | Gate | Command / job |
 |------|----------------|
-| Unit tests (750+ target; v2.0.2 baseline **936**) | `dotnet test UnifiedMessenger.Tests -c Release -p:Platform=x64` |
+| Unit tests (750+ target; v2.0.5 baseline **959**) | `dotnet test UnifiedMessenger.Tests -c Release -p:Platform=x64` |
+| Line coverage gate (≥38%) | `verify` job — cobertura threshold in `build.yml` |
+| Benchmarks (informational) | `UnifiedMessenger.Benchmarks --job short` in `verify` job |
 | UI smoke | `ui-smoke` job in `.github/workflows/build.yml` |
 | Vulnerable packages | `dotnet list package --vulnerable --include-transitive` |
 

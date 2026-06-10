@@ -6,7 +6,7 @@ using UnifiedMessenger.Services.Ollama;
 
 namespace UnifiedMessenger.Services;
 
-public sealed class SystemTrayService : IDisposable
+public sealed class SystemTrayService : ISystemTrayService
 {
     private static readonly Lazy<SystemTrayService> LazyInstance = new(() => new SystemTrayService());
 

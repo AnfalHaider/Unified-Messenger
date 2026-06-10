@@ -47,12 +47,8 @@
 
             <StackPanel x:Name="NotificationsSection" Tag="notifications" Spacing="8">
                 <shared:SectionHeaderView Title="NOTIFICATIONS" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <ToggleSwitch
                             x:Name="BackgroundToastsToggle"
@@ -155,17 +151,14 @@
                             Click="ClearNotificationsButton_Click"
                             Content="Clear notification history" />
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="AppearanceSection" Tag="appearance" Spacing="8">
                 <shared:SectionHeaderView Title="APPEARANCE" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <ComboBox
                             x:Name="ThemePreferenceBox"
@@ -177,17 +170,14 @@
                             Header="Notification panel dock"
                             SelectionChanged="PanelDockBox_SelectionChanged" />
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="SessionPerformanceSection" Tag="session-performance" Spacing="8">
                 <shared:SectionHeaderView Title="SESSION &amp; PERFORMANCE" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <ComboBox
                             x:Name="StartupWarmModeBox"
@@ -271,17 +261,14 @@
                             </StackPanel>
                         </Expander>
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="PlatformModulesSection" Tag="platform-modules" Spacing="8">
                 <shared:SectionHeaderView Title="PLATFORM MODULES" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
                             FontSize="12"
@@ -320,17 +307,14 @@
                             </ListView.ItemTemplate>
                         </ListView>
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="ProfessionalMetricsSection" Tag="professional-metrics" Spacing="8">
                 <shared:SectionHeaderView Title="PROFESSIONAL METRICS" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <NumberBox
                             x:Name="SlaThresholdBox"
@@ -442,17 +426,14 @@
                             </ListView.ItemTemplate>
                         </ListView>
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="DataPrivacySection" Tag="data-privacy" Spacing="8">
                 <shared:SectionHeaderView Title="DATA &amp; PRIVACY" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
                             FontSize="12"
@@ -485,29 +466,23 @@
                                 Content="Import instances.json" />
                         </StackPanel>
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="SystemSection" Tag="system" Spacing="8">
                 <shared:SectionHeaderView Title="SYSTEM" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="6">
                         <TextBlock FontWeight="SemiBold" Text="Keyboard shortcuts" />
                         <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+D Dashboard · Ctrl+, Settings · Ctrl+K Command palette" />
                         <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+Shift+N Notification panel · Ctrl+1–9 Switch instance · Ctrl+Space AI copilot (when enabled)" />
                     </StackPanel>
-                </Border>
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <ToggleSwitch
                             x:Name="RunInBackgroundOnCloseToggle"
@@ -586,17 +561,14 @@
                             Click="CheckForUpdatesButton_Click"
                             Content="Check for updates" />
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="RemovedAccountsSection" Tag="removed-accounts" Spacing="8">
                 <shared:SectionHeaderView Title="REMOVED ACCOUNTS" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
                             FontSize="12"
@@ -656,17 +628,14 @@
                             Text="No removed accounts."
                             Visibility="Collapsed" />
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="StorageSection" Tag="storage" Spacing="8">
                 <shared:SectionHeaderView Title="STORAGE" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="8">
                         <TextBlock
                             FontSize="12"
@@ -686,17 +655,14 @@
                             IsTextSelectionEnabled="True"
                             TextWrapping="WrapWholeWords" />
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="LocalAiSection" Tag="local-ai" Spacing="8">
                 <shared:SectionHeaderView Title="LOCAL AI" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
                             FontSize="12"
@@ -709,17 +675,14 @@
                             Text="Select Local AI in the settings navigation list to open the full configuration page."
                             TextWrapping="WrapWholeWords" />
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
 
             <StackPanel x:Name="AboutSection" Tag="about" Spacing="8">
                 <shared:SectionHeaderView Title="ABOUT" />
-                <Border
-                    Padding="16"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
                             x:Name="VersionText"
@@ -730,7 +693,8 @@
                             Text="Select About in the settings navigation list to view version details and credits."
                             TextWrapping="WrapWholeWords" />
                     </StackPanel>
-                </Border>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
             </StackPanel>
         </StackPanel>
         </ScrollViewer>

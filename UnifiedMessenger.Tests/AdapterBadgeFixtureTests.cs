@@ -15,6 +15,16 @@ public class AdapterBadgeFixtureTests
             ["dialog-subtitle-badge", "ChatBadge", "unread"]
         },
         {
+            "messenger-adapter.js",
+            "messenger-badge.html",
+            ["mw_unread_count", "unread messages", "aria-label"]
+        },
+        {
+            "signal-adapter.js",
+            "signal-badge.html",
+            ["UnreadBadge", "unread", "aria-label"]
+        },
+        {
             "slack-adapter.js",
             "slack-badge.html",
             ["unread_count", "p-channel_sidebar__badge"]

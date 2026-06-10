@@ -9,6 +9,8 @@ public partial class App : Application
 {
     public static MainWindow? CurrentWindow { get; private set; }
 
+    public static ApplicationServices Services => ApplicationServiceProvider.Current;
+
     private MainWindow? _window;
 
     public App()
@@ -26,32 +28,34 @@ public partial class App : Application
     {
         try
         {
-            await AppSettingsService.Instance.LoadAsync().ConfigureAwait(true);
+            var services = ApplicationServices.CreateDefault();
+            ApplicationServiceProvider.Set(services);
+
+            await services.AppSettings.LoadAsync().ConfigureAwait(true);
 
             StartupTaskService.EnsureRegistrationMatchesPreference(
-                AppSettingsService.Instance.Settings.LaunchAtStartup);
+                services.AppSettings.Settings.LaunchAtStartup);
 
-            ThemeService.ApplyInitialLaunchTheme(AppSettingsService.Instance.Settings.ThemePreference);
+            ThemeService.ApplyInitialLaunchTheme(services.AppSettings.Settings.ThemePreference);
 
-            var notificationService = AppNotificationService.Instance;
-            notificationService.Initialize();
+            services.AppNotification.Initialize();
 
             _window = new MainWindow();
             CurrentWindow = _window;
 
-            ThemeService.Apply(AppSettingsService.Instance.Settings.ThemePreference);
+            ThemeService.Apply(services.AppSettings.Settings.ThemePreference);
 
-            notificationService.TryHandleLaunchActivation();
+            services.AppNotification.TryHandleLaunchActivation();
             _window.Activate();
 
             await _window.RunInitializationAsync().ConfigureAwait(true);
 
-            if (AppSettingsService.Instance.Settings.EnableAutoUpdate)
+            if (services.AppSettings.Settings.EnableAutoUpdate)
             {
-                _ = GitHubUpdateService.Instance.CheckForUpdatesAsync();
+                _ = services.GitHubUpdate.CheckForUpdatesAsync();
             }
 
-            OllamaOrchestrationService.Instance.WarmupInBackground();
+            services.Ollama.WarmupInBackground();
         }
         catch (Exception ex)
         {

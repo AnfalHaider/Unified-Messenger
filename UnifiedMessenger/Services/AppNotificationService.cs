@@ -17,7 +17,7 @@ public sealed class ToastActivationEventArgs : EventArgs
     public string? CustomerName { get; init; }
 }
 
-public sealed class AppNotificationService
+public sealed class AppNotificationService : IAppNotificationService
 {
     private static readonly Lazy<AppNotificationService> LazyInstance = new(() => new AppNotificationService());
 

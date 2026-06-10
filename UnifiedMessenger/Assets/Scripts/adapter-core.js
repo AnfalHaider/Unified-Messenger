@@ -560,6 +560,16 @@
     delete window.__umLastMessageSentAt;
     delete window.__umRecentPreviews;
     delete window.__unifiedMessengerPublishBadge;
+
+    // Secondary script install guards — must clear so ReinjectAsync can re-run IIFEs.
+    delete window.__umInboundMonitorInstalled;
+    delete window.__umConversationContextInstalled;
+    delete window.__umConnectionHandshakeInstalled;
+    delete window.__umAiDraftInjectInstalled;
+    delete window.__umVoiceMonitorInstalled;
+    delete window.__umThreadStatusAuditorCore;
+    delete window.__umThreadStatusAuditorInstalls;
+    delete window.__umWhatsAppAuditorInstalled;
   };
 
   window.__umCountFromTitle = function () {

@@ -37,5 +37,5 @@ Persisted in `settings.json` as `occPanelPlacements`.
 Shared controls are wired into production surfaces:
 
 - **Operations Command Center** — `MetricCardView` KPI row, `SectionHeaderView` for the live-thread header, `SurfaceCard` for immediate lane / kanban / highlights panels; charts use `AccessibleChartHost` internally.
-- **Settings** — all section labels use `SectionHeaderView`.
-- **Notifications / Personal Overview** — already use `EmptyStateView` and `LoadingOverlayView`.
+- **Settings** — all section labels use `SectionHeaderView`; section bodies use `SurfaceCard` + `UmSurfaceCardStyle`.
+- **Notifications / Personal Overview** — `EmptyStateView`, `LoadingOverlayView`; Personal Overview activity/status panels use `SurfaceCard`.

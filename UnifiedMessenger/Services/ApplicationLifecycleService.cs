@@ -1,4 +1,5 @@
 using UnifiedMessenger.Services.Backfill;
+using UnifiedMessenger.Services.Contracts;
 using UnifiedMessenger.Services.Ollama;
 
 namespace UnifiedMessenger.Services;
@@ -9,6 +10,7 @@ namespace UnifiedMessenger.Services;
 public static class ApplicationLifecycleService
 {
     private static readonly TimeSpan WorkerShutdownTimeout = TimeSpan.FromSeconds(2);
+    private static int _shutdownStarted;
 
     public static bool ShouldHideOnClose(bool forceShutdown, bool runInBackgroundOnClose) =>
         !forceShutdown && runInBackgroundOnClose;
@@ -16,23 +18,48 @@ public static class ApplicationLifecycleService
     public static void FlushPersistentStateFireAndForget() =>
         _ = FlushPersistentStateAsync();
 
-    public static async Task ShutdownAsync(CancellationToken cancellationToken = default)
+    public static void TryShutdownOnWindowClosed(bool forceShutdown, bool runInBackgroundOnClose)
     {
+        if (!forceShutdown && runInBackgroundOnClose)
+        {
+            return;
+        }
+
         try
         {
-            BackfillSyncManager.Instance.Shutdown();
-            MessageTriageService.Instance.Shutdown();
-            UnifiedMessengerInsightsEngine.Instance.Shutdown();
-            UnifiedMessengerStateSyncService.Instance.Shutdown();
-            OllamaInferenceCoordinator.Instance.Dispose();
+            ShutdownAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Lifecycle shutdown on close failed: {ex.Message}");
+        }
+    }
 
-            await MessageTriageService.Instance
+    public static async Task ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.Exchange(ref _shutdownStarted, 1) == 1)
+        {
+            return;
+        }
+
+        var services = TryGetServices();
+
+        try
+        {
+            services.Backfill.Shutdown();
+            services.MessageTriage.Shutdown();
+            services.InsightsEngine.Shutdown();
+            services.StateSync.Shutdown();
+            services.OllamaInference.Dispose();
+            services.Ollama.Dispose();
+
+            await services.MessageTriage
                 .WaitForShutdownAsync(WorkerShutdownTimeout)
                 .ConfigureAwait(false);
-            await UnifiedMessengerInsightsEngine.Instance
+            await services.InsightsEngine
                 .WaitForShutdownAsync(WorkerShutdownTimeout)
                 .ConfigureAwait(false);
-            await UnifiedMessengerStateSyncService.Instance
+            await services.StateSync
                 .WaitForShutdownAsync(WorkerShutdownTimeout)
                 .ConfigureAwait(false);
         }
@@ -46,14 +73,53 @@ public static class ApplicationLifecycleService
 
     public static async Task FlushPersistentStateAsync(CancellationToken cancellationToken = default)
     {
+        var services = TryGetServices();
+
         try
         {
-            await MessageAnalyticsService.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await RichTriageStoreService.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await services.MessageAnalytics.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await services.RichTriageStore.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Lifecycle flush failed: {ex.Message}");
         }
     }
+
+    private static LifecycleServices TryGetServices()
+    {
+        if (ApplicationServiceProvider.IsInitialized)
+        {
+            var root = ApplicationServiceProvider.Current;
+            return new LifecycleServices(
+                root.Backfill,
+                root.MessageTriage as MessageTriageService ?? MessageTriageService.Instance,
+                root.InsightsEngine,
+                root.StateSync,
+                root.OllamaInference,
+                root.Ollama,
+                root.MessageAnalytics,
+                root.RichTriageStore);
+        }
+
+        return new LifecycleServices(
+            BackfillSyncManager.Instance,
+            MessageTriageService.Instance,
+            UnifiedMessengerInsightsEngine.Instance,
+            UnifiedMessengerStateSyncService.Instance,
+            OllamaInferenceCoordinator.Instance,
+            OllamaOrchestrationService.Instance,
+            MessageAnalyticsService.Instance,
+            RichTriageStoreService.Instance);
+    }
+
+    private readonly record struct LifecycleServices(
+        BackfillSyncManager Backfill,
+        MessageTriageService MessageTriage,
+        UnifiedMessengerInsightsEngine InsightsEngine,
+        UnifiedMessengerStateSyncService StateSync,
+        OllamaInferenceCoordinator OllamaInference,
+        IOllamaOrchestrationService Ollama,
+        IMessageAnalyticsService MessageAnalytics,
+        IRichTriageStoreService RichTriageStore);
 }

@@ -42,6 +42,96 @@ public sealed class HeadlessAdapterIntegrationTests
         });
 
     [SkippableFact]
+    public Task DiscordAdapter_PostsBadgeCount_FromFixtureHtml() =>
+        StaThreadRunner.RunAsync(() =>
+        {
+            using var harness = HeadlessWebView2Harness.Create();
+            var message = harness.RunAdapterBadgeTest(
+                adapterScriptFileName: "discord-adapter.js",
+                fixtureFileName: "discord-badge.html",
+                instanceId: "test-discord",
+                platform: "discord",
+                expectedCount: 6);
+
+            Assert.Equal("badge-count", message.Type);
+            Assert.Equal("test-discord", message.InstanceId);
+            Assert.Equal("discord", message.Platform);
+            Assert.Equal(6, message.Count);
+        });
+
+    [SkippableFact]
+    public Task TeamsAdapter_PostsBadgeCount_FromFixtureHtml() =>
+        StaThreadRunner.RunAsync(() =>
+        {
+            using var harness = HeadlessWebView2Harness.Create();
+            var message = harness.RunAdapterBadgeTest(
+                adapterScriptFileName: "teams-adapter.js",
+                fixtureFileName: "teams-badge.html",
+                instanceId: "test-teams",
+                platform: "teams",
+                expectedCount: 15);
+
+            Assert.Equal("badge-count", message.Type);
+            Assert.Equal("test-teams", message.InstanceId);
+            Assert.Equal("teams", message.Platform);
+            Assert.Equal(15, message.Count);
+        });
+
+    [SkippableFact]
+    public Task TelegramAdapter_PostsBadgeCount_FromFixtureHtml() =>
+        StaThreadRunner.RunAsync(() =>
+        {
+            using var harness = HeadlessWebView2Harness.Create();
+            var message = harness.RunAdapterBadgeTest(
+                adapterScriptFileName: "telegram-adapter.js",
+                fixtureFileName: "telegram-badge.html",
+                instanceId: "test-telegram",
+                platform: "telegram",
+                expectedCount: 7);
+
+            Assert.Equal("badge-count", message.Type);
+            Assert.Equal("test-telegram", message.InstanceId);
+            Assert.Equal("telegram", message.Platform);
+            Assert.Equal(7, message.Count);
+        });
+
+    [SkippableFact]
+    public Task MessengerAdapter_PostsBadgeCount_FromFixtureHtml() =>
+        StaThreadRunner.RunAsync(() =>
+        {
+            using var harness = HeadlessWebView2Harness.Create();
+            var message = harness.RunAdapterBadgeTest(
+                adapterScriptFileName: "messenger-adapter.js",
+                fixtureFileName: "messenger-badge.html",
+                instanceId: "test-messenger",
+                platform: "messenger",
+                expectedCount: 5);
+
+            Assert.Equal("badge-count", message.Type);
+            Assert.Equal("test-messenger", message.InstanceId);
+            Assert.Equal("messenger", message.Platform);
+            Assert.Equal(5, message.Count);
+        });
+
+    [SkippableFact]
+    public Task SignalAdapter_PostsBadgeCount_FromFixtureHtml() =>
+        StaThreadRunner.RunAsync(() =>
+        {
+            using var harness = HeadlessWebView2Harness.Create();
+            var message = harness.RunAdapterBadgeTest(
+                adapterScriptFileName: "signal-adapter.js",
+                fixtureFileName: "signal-badge.html",
+                instanceId: "test-signal",
+                platform: "signal",
+                expectedCount: 7);
+
+            Assert.Equal("badge-count", message.Type);
+            Assert.Equal("test-signal", message.InstanceId);
+            Assert.Equal("signal", message.Platform);
+            Assert.Equal(7, message.Count);
+        });
+
+    [SkippableFact]
     public Task WhatsAppAdapter_DomScrapeFallback_MatchesFixtureBadgeTotal() =>
         StaThreadRunner.RunAsync(() =>
         {

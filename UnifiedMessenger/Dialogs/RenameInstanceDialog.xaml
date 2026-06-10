@@ -3,6 +3,7 @@
     x:Class="UnifiedMessenger.Dialogs.RenameInstanceDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="Rename instance"
     DefaultButton="Primary"
     PrimaryButtonText="Rename"
     SecondaryButtonText="Cancel"

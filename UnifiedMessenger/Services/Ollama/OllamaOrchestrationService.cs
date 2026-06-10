@@ -3,7 +3,7 @@ using UnifiedMessenger.Models.Ollama;
 
 namespace UnifiedMessenger.Services.Ollama;
 
-public sealed class OllamaOrchestrationService : IDisposable
+public sealed class OllamaOrchestrationService : IOllamaOrchestrationService
 {
     private static readonly Lazy<OllamaOrchestrationService> LazyInstance =
         new(() => new OllamaOrchestrationService());
@@ -13,6 +13,7 @@ public sealed class OllamaOrchestrationService : IDisposable
     private readonly SemaphoreSlim _engineGate = new(1, 1);
 
     private OllamaConnectionState _connectionState = OllamaConnectionState.Unknown;
+    private bool _disposed;
 
     internal OllamaOrchestrationService(OllamaHttpClient? apiClient = null, OllamaBootstrapService? bootstrap = null)
     {
@@ -251,6 +252,12 @@ public sealed class OllamaOrchestrationService : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
         _apiClient.Dispose();
         _bootstrap.Dispose();
         _engineGate.Dispose();

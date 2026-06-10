@@ -94,7 +94,7 @@ public class AdapterHealthMonitorTests
         var monitor = AdapterHealthMonitor.Instance;
         monitor.RemoveInstance("inst-stale");
 
-        monitor.MarkReady("inst-stale", "telegram");
+        monitor.MarkReady("inst-stale", "whatsapp");
         monitor.CheckForStaleAdapters(DateTimeOffset.UtcNow.AddMinutes(2));
 
         Assert.Equal(AdapterHealthState.Stale, monitor.GetStatus("inst-stale").State);

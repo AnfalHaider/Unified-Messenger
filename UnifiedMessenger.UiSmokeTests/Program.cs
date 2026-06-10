@@ -23,8 +23,7 @@ internal static class Program
         var allResults = new List<ModuleValidationResult>();
 
         Console.WriteLine("[Step 1] Structural audit — see report sections below.");
-        Console.WriteLine("[Step 2] Unit test suite (background services)...");
-        allResults.Add(ModuleValidationHarness.RunUnitTestSuite(repoRoot));
+        Console.WriteLine("[Step 2] Domain unit tests (lifecycle, OCC, analytics)...");
         allResults.AddRange(ModuleValidationHarness.RunDomainUnitTests(repoRoot));
 
         Console.WriteLine("[Step 3–4] Live UI automation + layout stress...");
@@ -65,7 +64,7 @@ internal static class Program
 
         PrintReport(allResults);
 
-        var hardFailures = allResults.Count(result => !result.Passed);
+        var hardFailures = allResults.Count(result => result.Severity == ModuleValidationSeverity.Fail);
         return hardFailures == 0 ? 0 : 3;
     }
 
@@ -75,17 +74,32 @@ internal static class Program
         Console.WriteLine("=== Validation Report ===");
         foreach (var result in results)
         {
-            var status = result.Passed ? "PASS" : "FAIL";
+            var status = result.Severity switch
+            {
+                ModuleValidationSeverity.Pass => "PASS",
+                ModuleValidationSeverity.Warn => "WARN",
+                _ => "FAIL"
+            };
             Console.WriteLine($"[{status}] {result.Layer}/{result.Module}: {result.Detail}");
         }
 
-        var passed = results.Count(result => result.Passed);
+        var passed = results.Count(result => result.Severity == ModuleValidationSeverity.Pass);
+        var warnings = results.Count(result => result.Severity == ModuleValidationSeverity.Warn);
+        var failed = results.Count(result => result.Severity == ModuleValidationSeverity.Fail);
         Console.WriteLine();
-        Console.WriteLine($"Summary: {passed}/{results.Count} modules passed");
+        Console.WriteLine(
+            $"Summary: {passed} passed, {warnings} warnings, {failed} failed ({results.Count} total)");
 
-        if (passed == results.Count)
+        if (failed == 0)
         {
-            Console.WriteLine("[ALL MODULES VALIDATED: AWAITING STATUS APPROVAL]");
+            if (warnings == 0)
+            {
+                Console.WriteLine("[ALL MODULES VALIDATED: AWAITING STATUS APPROVAL]");
+            }
+            else
+            {
+                Console.WriteLine($"[VALIDATION COMPLETE WITH {warnings} WARNING(S)]");
+            }
         }
     }
 

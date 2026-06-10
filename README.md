@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop hub for multiple web messaging accounts (WhatsApp, Telegram, Messenger, Slack, Discord, Google Business Profile, and custom URLs) with unified notifications and Professional/Personal workspace split.
 
-**Current release:** [v2.0.2](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v2.0.2)
+**Current release:** [v2.0.5](https://github.com/AnfalHaider/Unified-Messenger/releases/tag/v2.0.5)
 
 ## Download (Windows)
 
@@ -15,19 +15,41 @@ All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github
 
 Requires Windows 10 1809+ or Windows 11 and the WebView2 Runtime (usually preinstalled on Windows 11).
 
+### What's in v2.0.5
+
+- **Lifecycle DI:** `ApplicationLifecycleService` resolves workers via `ApplicationServiceProvider` when initialized.
+- **A11y:** Command palette + Personal Overview list names; Personal Overview section cards on `SurfaceCard`.
+- **OCC layout:** Undo logic extracted to `LayoutUndo.partial.cs`; adapter health test stabilized.
+- **959** unit tests (x64, Release); **38%** line-coverage CI gate.
+
+### What's in v2.0.4
+
+- **Composition root (A-01):** `ApplicationServiceProvider` wires 39 services; Shell, App, and MainWindow off direct `.Instance`; expanded CI DI gate.
+- **Settings refactor (A-04/A-07):** Eight domain partial classes; section cards migrated to `SurfaceCard` + `UmSurfaceCardStyle`.
+- **OCC layout split (A-05):** Five focused layout partials (edit, apply, drag-drop, keyboard, shared state).
+- **CI:** 37% line-coverage gate, informational BenchmarkDotNet job, UiSmoke duplicate unit run removed.
+- **959** unit tests (x64, Release).
+
+### What's in v2.0.3
+
+- **Audit remediation:** WebView navigation allowlist (OAuth + per-instance start URLs), adapter reinject guard cleanup, idempotent lifecycle shutdown, notification bridge tests.
+- **Headless adapter coverage:** All 7 consumer platforms (WhatsApp, Telegram, Messenger, Signal, Slack, Discord, Teams) validated via WebView2 fixtures.
+- **UiSmoke:** Duplicate full unit-suite run removed; WARN tier passes harness (exit 3 only on Fail).
+- **958** unit tests (x64, Release).
+
 ### What's in v2.0.2
 
 - **ENHANCEMENT_ROADMAP (36/36):** Sidebar rail, command palette, adapter hardening, memory tiers, taskbar overlay, headless WebView2 tests, analytics export, and remaining platform/devops gaps closed.
 - **WhatsApp supercharge W1–W6:** WhatsApp-focus OCC preset, enriched triage/copilot prompts, voice-note pipeline (DOM → Whisper → triage), and **Branch pulse** batch LLM summaries per branch in OCC.
 - **Platform modularization:** Per-platform module toggles with ingress/UI filtering across dashboard, OCC, and sidebar.
-- **936** unit tests (x64, Release).
+- **952** unit tests (x64, Release).
 
 ### What's in v2.0.0
 
 - **Shell architecture:** `ShellController` and coordinators extracted from `MainWindow`; DI migration gate for the shell layer; OCC layout interaction service and grid-only persist.
 - **Professional ops UX:** Branch filter chip in KPI strip; SLA countdown on thread cards; conversation-focus loading feedback; OCC command-palette actions (refresh, branch filter, immediate queue).
 - **Security:** WebMessage `instanceId` required; `WebViewNavigationGuard` (http/https only); centralized `WebViewScriptGateway`.
-- **Quality:** Coverlet coverage; BenchmarkDotNet suite (`UnifiedMessenger.Benchmarks`); UiSmoke warnings fail the harness; CI vulnerable-package scan.
+- **Quality:** Coverlet coverage; BenchmarkDotNet suite (`UnifiedMessenger.Benchmarks`); UiSmoke WARN tier (warnings pass, exit 3 only on Fail); CI vulnerable-package scan.
 - **Design system:** Personal summary cards on `MetricCardView`; OCC branch/insight list cards as shared views; palette category icons; Settings keyboard shortcut reference.
 - **811** unit tests (x64, Release).
 

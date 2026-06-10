@@ -36,6 +36,29 @@ public class AdapterCoreScriptTests
     }
 
     [Fact]
+    public void AdapterCoreScript_ResetClearsSecondaryScriptInstallGuards()
+    {
+        var script = ReadAdapterCoreScript();
+
+        string[] secondaryInstallGuards =
+        [
+            "delete window.__umInboundMonitorInstalled",
+            "delete window.__umConversationContextInstalled",
+            "delete window.__umConnectionHandshakeInstalled",
+            "delete window.__umAiDraftInjectInstalled",
+            "delete window.__umVoiceMonitorInstalled",
+            "delete window.__umThreadStatusAuditorCore",
+            "delete window.__umThreadStatusAuditorInstalls",
+            "delete window.__umWhatsAppAuditorInstalled"
+        ];
+
+        foreach (var guard in secondaryInstallGuards)
+        {
+            Assert.Contains(guard, script, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void AdapterCoreScript_SupportsAdapterDisposeHook()
     {
         var script = ReadAdapterCoreScript();

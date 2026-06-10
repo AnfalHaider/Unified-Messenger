@@ -3,7 +3,7 @@ using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
-public sealed class TaskbarBadgeService
+public sealed class TaskbarBadgeService : ITaskbarBadgeService
 {
     private static readonly Lazy<TaskbarBadgeService> LazyInstance = new(() => new TaskbarBadgeService());
 

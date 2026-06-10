@@ -3,6 +3,7 @@
     x:Class="UnifiedMessenger.Dialogs.EditInstanceMetadataDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="Edit instance metadata"
     DefaultButton="Primary"
     PrimaryButtonText="Save"
     SecondaryButtonText="Cancel"

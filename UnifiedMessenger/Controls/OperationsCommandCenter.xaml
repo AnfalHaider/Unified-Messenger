@@ -305,10 +305,12 @@
                                 </StackPanel>
                                 <controls:BranchWorkspacePillBar
                                     x:Name="BranchWorkspacePillBar"
+                                    AutomationProperties.Name="Branch workspace pills"
                                     Grid.Row="1"
                                     TabIndex="30" />
                                 <controls:KanbanColumnBoard
                                     x:Name="KanbanBoard"
+                                    AutomationProperties.Name="Branch workspace kanban"
                                     Grid.Row="3"
                                     ColumnOrderChanged="KanbanBoard_ColumnOrderChanged"
                                     CrossColumnDragAttempted="KanbanBoard_CrossColumnDragAttempted"

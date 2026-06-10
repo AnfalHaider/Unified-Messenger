@@ -5,7 +5,7 @@ namespace UnifiedMessenger.Services;
 /// <summary>
 /// Registers Ctrl+Space at the Windows level so the copilot hotkey works while the shell is hidden in the tray.
 /// </summary>
-public sealed class GlobalHotkeyService : IDisposable
+public sealed class GlobalHotkeyService : IGlobalHotkeyService
 {
     private const int HotkeyId = 0x554D;
     private const uint ModControl = 0x0002;

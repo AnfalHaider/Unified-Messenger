@@ -160,10 +160,12 @@ public sealed class ShellController
 
     public async Task InitializeAsync()
     {
+        // App.OnLaunched loads settings first; this call is idempotent via AppSettingsService._isLoaded
+        // and keeps ShellController safe when initialization order changes (e.g. tests, future entry points).
         await _services.AppSettings.LoadAsync().ConfigureAwait(true);
         await _services.Registry.LoadAsync().ConfigureAwait(true);
         await _services.MessageAnalytics.LoadAsync().ConfigureAwait(true);
-        var loadResult = await RichTriageStoreService.Instance.LoadAsync().ConfigureAwait(true);
+        var loadResult = await _services.RichTriageStore.LoadAsync().ConfigureAwait(true);
         if (loadResult.Status == RichTriageStoreLoadStatus.CorruptRecovered &&
             !string.IsNullOrWhiteSpace(loadResult.UserMessage))
         {
@@ -178,7 +180,7 @@ public sealed class ShellController
 
         try
         {
-            await WebViewProfileManager.Instance.EnsureEnvironmentAsync().ConfigureAwait(true);
+            await _services.WebViewProfileManager.EnsureEnvironmentAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -213,10 +215,10 @@ public sealed class ShellController
 
         if (_ui is MainWindow mainWindow)
         {
-            SystemTrayService.Instance.Attach(mainWindow);
+            _services.SystemTray.Attach(mainWindow);
         }
 
-        GlobalHotkeyService.Instance.EnsureRegistered();
+        _services.GlobalHotkey.EnsureRegistered();
         _services.GitHubUpdate.PromptForUpdateApplicationAsync = PromptForAutoUpdateAsync;
     }
 
@@ -255,7 +257,7 @@ public sealed class ShellController
             if (_services.AppSettings.Settings.EnableBackgroundToasts)
             {
                 var instance = _services.Registry.FindById(e.Alert.InstanceId);
-                AppNotificationService.Instance.ShowAlertToast(e.Alert, instance);
+                _services.AppNotification.ShowAlertToast(e.Alert, instance);
             }
         }
     }
@@ -289,7 +291,7 @@ public sealed class ShellController
 
         _ui.WorkspaceSidebar.UpdateNotificationHubBadge(_services.NotificationHub.TotalUnreadCount);
         _ui.NotificationPanel.Refresh(_services.NotificationHub, _services.Registry.Instances);
-        _ = TaskbarBadgeService.Instance.SyncBadgeAsync(_services.NotificationHub.TotalUnreadCount);
+        _ = _services.TaskbarBadge.SyncBadgeAsync(_services.NotificationHub.TotalUnreadCount);
         _navigation.RefreshDashboardIfVisible();
     }
 

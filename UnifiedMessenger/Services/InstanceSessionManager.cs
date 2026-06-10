@@ -614,7 +614,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         CancellationToken cancellationToken)
     {
         var webView = await WebViewProfileManager.Instance
-            .CreateWebViewAsync(instance.ProfileName, cancellationToken)
+            .CreateWebViewAsync(instance.ProfileName, instance.StartUrl, cancellationToken)
             .ConfigureAwait(true);
 
         return await UiThreadRunner.RunAsync(async () =>

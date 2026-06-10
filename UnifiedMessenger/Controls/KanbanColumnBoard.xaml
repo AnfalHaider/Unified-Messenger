@@ -34,7 +34,11 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel x:Name="NewColumnPanel" Grid.Column="0" Spacing="4">
+            <StackPanel
+                x:Name="NewColumnPanel"
+                Grid.Column="0"
+                AutomationProperties.Name="Kanban column: New inquiries"
+                Spacing="4">
                 <TextBlock FontSize="11" FontWeight="SemiBold" Text="New" />
                 <Border
                     x:Name="NewColumnDropZone"
@@ -45,6 +49,7 @@
                     CornerRadius="6">
                     <ListView
                         x:Name="NewInquiriesList"
+                        AutomationProperties.Name="New inquiries kanban list"
                         AllowDrop="True"
                         CanDragItems="False"
                         CanReorderItems="False"
@@ -69,7 +74,11 @@
                     Visibility="Collapsed" />
             </StackPanel>
 
-            <StackPanel x:Name="HangingColumnPanel" Grid.Column="1" Spacing="4">
+            <StackPanel
+                x:Name="HangingColumnPanel"
+                Grid.Column="1"
+                AutomationProperties.Name="Kanban column: Hanging leads"
+                Spacing="4">
                 <TextBlock FontSize="11" FontWeight="SemiBold" Text="Hanging" />
                 <Border
                     x:Name="HangingColumnDropZone"
@@ -80,6 +89,7 @@
                     CornerRadius="6">
                     <ListView
                         x:Name="HangingLeadsList"
+                        AutomationProperties.Name="Hanging leads kanban list"
                         AllowDrop="True"
                         CanDragItems="False"
                         CanReorderItems="False"
@@ -104,7 +114,11 @@
                     Visibility="Collapsed" />
             </StackPanel>
 
-            <StackPanel x:Name="ResolvedColumnPanel" Grid.Column="2" Spacing="4">
+            <StackPanel
+                x:Name="ResolvedColumnPanel"
+                Grid.Column="2"
+                AutomationProperties.Name="Kanban column: Resolved threads"
+                Spacing="4">
                 <TextBlock FontSize="11" FontWeight="SemiBold" Text="Resolved" />
                 <Border
                     x:Name="ResolvedColumnDropZone"
@@ -115,6 +129,7 @@
                     CornerRadius="6">
                     <ListView
                         x:Name="ResolvedList"
+                        AutomationProperties.Name="Resolved threads kanban list"
                         AllowDrop="True"
                         CanDragItems="False"
                         CanReorderItems="False"

@@ -347,46 +347,6 @@ internal static class ModuleValidationHarness
         }
     }
 
-    public static ModuleValidationResult RunUnitTestSuite(string repoRoot)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = "test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release -v q",
-            WorkingDirectory = repoRoot,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-
-        using var process = Process.Start(psi);
-        if (process is null)
-        {
-            return ModuleValidationResult.Fail(
-                "BackgroundServices.UnitTests",
-                "Services",
-                "Could not start dotnet test");
-        }
-
-        var output = process.StandardOutput.ReadToEnd();
-        process.WaitForExit(120_000);
-
-        if (process.ExitCode == 0 && output.Contains("Passed!", StringComparison.Ordinal))
-        {
-            var match = System.Text.RegularExpressions.Regex.Match(output, @"Passed:\s+(\d+)");
-            var count = match.Success ? match.Groups[1].Value : "?";
-            return ModuleValidationResult.Pass(
-                "BackgroundServices.UnitTests",
-                "Services",
-                $"{count} unit tests passed (triage, channels, adapters, lifecycle, ops center)");
-        }
-
-        return ModuleValidationResult.Fail(
-            "BackgroundServices.UnitTests",
-            "Services",
-            output.Length > 400 ? output[^400..] : output);
-    }
-
     private static ModuleValidationResult ValidateMainShell(AutomationElement window)
     {
         if (!window.IsEnabled)

@@ -13,9 +13,8 @@ namespace UnifiedMessenger;
 
 public sealed partial class MainWindow : Window, IShellUiHost
 {
-    private readonly ApplicationServices _services = new();
+    private readonly ApplicationServices _services = ApplicationServiceProvider.Current;
     private readonly MainWindowViewModel _shellViewModel = new();
-    private readonly AdapterHealthMonitor _adapterHealth = AdapterHealthMonitor.Instance;
     private readonly KeyboardShortcutService _keyboardShortcuts;
     private readonly ShellController _shell;
     private bool _forceShutdown;
@@ -36,14 +35,13 @@ public sealed partial class MainWindow : Window, IShellUiHost
     StackPanel IShellUiHost.InstanceLoadingPanel => InstanceLoadingPanel;
     ProgressBar IShellUiHost.StartupWarmProgressBar => StartupWarmProgressBar;
     TextBlock IShellUiHost.InstanceLoadingText => InstanceLoadingText;
-
     void IShellUiHost.ActivateWindow() => Activate();
     void IShellUiHost.ShowAppWindow() => AppWindow.Show();
     public MainWindow()
     {
         InitializeComponent();
         _services.ConfigureUi(() => Content.XamlRoot);
-        _shell = new ShellController(_services, this, _shellViewModel, _adapterHealth);
+        _shell = new ShellController(_services, this, _shellViewModel, _services.AdapterHealth);
 
         _keyboardShortcuts = new KeyboardShortcutService((UIElement)Content);
         _shell.RegisterKeyboardShortcuts(
@@ -100,9 +98,9 @@ public sealed partial class MainWindow : Window, IShellUiHost
         }
 
         _forceShutdown = true;
-        GlobalHotkeyService.Instance.Dispose();
+        _services.GlobalHotkey.Dispose();
         await ApplicationLifecycleService.ShutdownAsync().ConfigureAwait(true);
-        SystemTrayService.Instance.Dispose();
+        _services.SystemTray.Dispose();
         Close();
     }
 
@@ -125,17 +123,17 @@ public sealed partial class MainWindow : Window, IShellUiHost
         nav.AddInstanceRequested += OnAddInstanceRequested;
 
         _services.NotificationHub.Changed += OnNotificationHubChanged;
-        AppNotificationService.Instance.ActivationRequested += OnToastActivationRequested;
-        _adapterHealth.Changed += (_, _) => DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
-        _adapterHealth.AdapterStaleDetected += OnAdapterStaleDetected;
-        InstanceConnectionStatusService.Instance.Changed += OnConnectionStatusChanged;
+        _services.AppNotification.ActivationRequested += OnToastActivationRequested;
+        _services.AdapterHealth.Changed += (_, _) => DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+        _services.AdapterHealth.AdapterStaleDetected += OnAdapterStaleDetected;
+        _services.ConnectionStatus.Changed += OnConnectionStatusChanged;
         _services.SessionManager.SessionInitializing += OnSessionInitializing;
         _services.SessionManager.SessionFailed += OnSessionFailed;
-        AutoDraftOrchestrator.Instance.DraftCompleted += OnAutoDraftCompleted;
+        _services.AutoDraft.DraftCompleted += OnAutoDraftCompleted;
         _services.MessageAnalytics.Changed += (_, _) =>
             DispatcherQueue.TryEnqueue(_shell.Navigation.RefreshDashboardIfVisible);
         _services.AppSettings.Changed += OnAppSettingsChanged;
-        GlobalHotkeyService.Instance.CtrlSpacePressed += OnGlobalCopilotHotkey;
+        _services.GlobalHotkey.CtrlSpacePressed += OnGlobalCopilotHotkey;
     }
 
     private void OnAddInstanceRequested(object? sender, EventArgs e) =>
@@ -145,14 +143,14 @@ public sealed partial class MainWindow : Window, IShellUiHost
     {
         _services.Navigation.AddInstanceRequested -= OnAddInstanceRequested;
         _services.NotificationHub.Changed -= OnNotificationHubChanged;
-        AppNotificationService.Instance.ActivationRequested -= OnToastActivationRequested;
-        _adapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;
-        InstanceConnectionStatusService.Instance.Changed -= OnConnectionStatusChanged;
+        _services.AppNotification.ActivationRequested -= OnToastActivationRequested;
+        _services.AdapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;
+        _services.ConnectionStatus.Changed -= OnConnectionStatusChanged;
         _services.SessionManager.SessionInitializing -= OnSessionInitializing;
         _services.SessionManager.SessionFailed -= OnSessionFailed;
-        AutoDraftOrchestrator.Instance.DraftCompleted -= OnAutoDraftCompleted;
+        _services.AutoDraft.DraftCompleted -= OnAutoDraftCompleted;
         _services.AppSettings.Changed -= OnAppSettingsChanged;
-        GlobalHotkeyService.Instance.CtrlSpacePressed -= OnGlobalCopilotHotkey;
+        _services.GlobalHotkey.CtrlSpacePressed -= OnGlobalCopilotHotkey;
     }
 
     private void OpenCommandPalette()
@@ -196,17 +194,18 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
     {
+        ApplicationLifecycleService.TryShutdownOnWindowClosed(_forceShutdown, _services.AppSettings.Settings.RunInBackgroundOnClose);
         DetachShellHandlers();
-        GlobalHotkeyService.Instance.Dispose();
-        SystemTrayService.Instance.Dispose();
+        _services.GlobalHotkey.Dispose();
+        _services.SystemTray.Dispose();
     }
 
     private void OnGlobalCopilotHotkey(object? sender, EventArgs e) =>
-        _ = HotkeyCopilotOrchestrator.Instance.TryRunCopilotAsync();
+        _ = _services.HotkeyCopilot.TryRunCopilotAsync();
 
     private void OnAdapterStaleDetected(object? sender, string instanceId)
     {
-        if (!_adapterHealth.TryBeginRecovery(instanceId))
+        if (!_services.AdapterHealth.TryBeginRecovery(instanceId))
         {
             return;
         }
@@ -220,7 +219,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
             }
             finally
             {
-                _adapterHealth.EndRecovery(instanceId);
+                _services.AdapterHealth.EndRecovery(instanceId);
             }
         });
     }
@@ -288,7 +287,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     private void OnSessionInitializing(object? sender, InstanceSessionEventArgs e)
     {
-        InstanceConnectionStatusService.Instance.SetInitializing(e.Instance.Id, "Starting session");
+        _services.ConnectionStatus.SetInitializing(e.Instance.Id, "Starting session");
         e.Instance.Status = InstanceConnectionStatus.Initializing;
         DispatcherQueue.TryEnqueue(() =>
         {
@@ -309,7 +308,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     private void OnSessionFailed(object? sender, InstanceSessionErrorEventArgs e)
     {
-        InstanceConnectionStatusService.Instance.SetError(e.Instance.Id, e.Error.Message);
+        _services.ConnectionStatus.SetError(e.Instance.Id, e.Error.Message);
         e.Instance.Status = InstanceConnectionStatus.Error;
         DispatcherQueue.TryEnqueue(() =>
         {
@@ -322,7 +321,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
     {
         foreach (var instance in _services.Registry.Instances)
         {
-            InstanceConnectionStatusService.Instance.MirrorStatusToInstance(instance);
+            _services.ConnectionStatus.MirrorStatusToInstance(instance);
             WorkspaceSidebar.UpdateInstanceHealth(instance.Id, instance);
         }
 

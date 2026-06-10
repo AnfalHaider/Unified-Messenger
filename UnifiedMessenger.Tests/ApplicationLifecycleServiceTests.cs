@@ -15,4 +15,10 @@ public class ApplicationLifecycleServiceTests
         Assert.Equal(
             expected,
             ApplicationLifecycleService.ShouldHideOnClose(forceShutdown, runInBackground));
+
+    [Fact]
+    public void TryShutdownOnWindowClosed_WhenRunInBackground_DoesNotThrow() =>
+        ApplicationLifecycleService.TryShutdownOnWindowClosed(
+            forceShutdown: false,
+            runInBackgroundOnClose: true);
 }
