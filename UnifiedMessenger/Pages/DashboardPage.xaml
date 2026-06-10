@@ -38,11 +38,11 @@
             CanDragTabs="False"
             CanReorderTabs="False"
             IsAddTabButtonVisible="False">
-            <TabViewItem Header="Operations Command Center" AutomationProperties.Name="Operations Command Center Tab" IsClosable="False">
+            <TabViewItem Header="Operations Command Center" AutomationProperties.AutomationId="DashboardOccTab" AutomationProperties.Name="Operations Command Center Tab" IsClosable="False">
                 <controls:OperationsCommandCenter x:Name="OperationsCommandCenterPanel" />
             </TabViewItem>
 
-            <TabViewItem Header="Personal Overview" AutomationProperties.Name="Personal Overview Tab" IsClosable="False">
+            <TabViewItem Header="Personal Overview" AutomationProperties.AutomationId="DashboardPersonalTab" AutomationProperties.Name="Personal Overview Tab" IsClosable="False">
                 <controls:PersonalOverviewPanel x:Name="PersonalOverviewPanel" />
             </TabViewItem>
         </TabView>

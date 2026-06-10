@@ -81,18 +81,21 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <Button
                             x:Name="LayoutEditToggleButton"
+                            AutomationProperties.AutomationId="OccLayoutEditToggle"
                             AutomationProperties.Name="Customize layout"
                             Click="LayoutEditToggleButton_Click"
                             Content="Customize layout"
                             TabIndex="40" />
                         <ComboBox
                             x:Name="LayoutPresetComboBox"
+                            AutomationProperties.AutomationId="OccLayoutPreset"
                             AutomationProperties.Name="Layout preset"
                             MinWidth="160"
                             SelectionChanged="LayoutPresetComboBox_SelectionChanged"
                             Visibility="Collapsed" />
                         <Button
                             x:Name="RestoreLayoutButton"
+                            AutomationProperties.AutomationId="OccRestoreLayout"
                             AutomationProperties.Name="Restore default layout"
                             Click="RestoreLayoutButton_Click"
                             Content="Restore default layout"
@@ -305,11 +308,13 @@
                                 </StackPanel>
                                 <controls:BranchWorkspacePillBar
                                     x:Name="BranchWorkspacePillBar"
+                                    AutomationProperties.AutomationId="OccBranchPills"
                                     AutomationProperties.Name="Branch workspace pills"
                                     Grid.Row="1"
                                     TabIndex="30" />
                                 <controls:KanbanColumnBoard
                                     x:Name="KanbanBoard"
+                                    AutomationProperties.AutomationId="OccBranchKanban"
                                     AutomationProperties.Name="Branch workspace kanban"
                                     Grid.Row="3"
                                     ColumnOrderChanged="KanbanBoard_ColumnOrderChanged"
@@ -478,6 +483,7 @@
                         <Expander
                             x:Name="PlatformIntelligenceExpander"
                             AllowDrop="True"
+                            AutomationProperties.AutomationId="OccPlatformIntelligence"
                             AutomationProperties.Name="Platform intelligence expander"
                             DragOver="OccSection_DragOver"
                             Drop="OccSection_Drop"
@@ -655,6 +661,7 @@
         <StackPanel
             x:Name="HiddenPanelsTray"
             Margin="12,0,12,48"
+            AutomationProperties.AutomationId="OccHiddenPanelsTray"
             AutomationProperties.Name="Hidden panels tray"
             Orientation="Horizontal"
             Spacing="8"

@@ -7,12 +7,20 @@ namespace UnifiedMessenger.UiSmokeTests;
 
 internal static class UiAutomationHelpers
 {
-    public static bool WaitForMarker(AutomationElement root, string marker, TimeSpan timeout)
+    public static bool WaitForMarker(AutomationElement root, string marker, TimeSpan timeout) =>
+        WaitForMarkerOrAutomationId(root, marker, null, timeout);
+
+    public static bool WaitForMarkerOrAutomationId(
+        AutomationElement root,
+        string name,
+        string? automationId,
+        TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
-            if (FindByName(root, marker) is not null)
+            if (FindByName(root, name) is not null ||
+                (!string.IsNullOrWhiteSpace(automationId) && FindByAutomationId(root, automationId) is not null))
             {
                 return true;
             }
@@ -28,6 +36,18 @@ internal static class UiAutomationHelpers
         try
         {
             return root.FindFirstDescendant(root.ConditionFactory.ByName(name));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static AutomationElement? FindByAutomationId(AutomationElement root, string automationId)
+    {
+        try
+        {
+            return root.FindFirstDescendant(root.ConditionFactory.ByAutomationId(automationId));
         }
         catch
         {
@@ -54,28 +74,34 @@ internal static class UiAutomationHelpers
     public static bool ClickByName(AutomationElement root, string name)
     {
         var target = FindByName(root, name);
-        if (target is null)
-        {
-            return false;
-        }
+        return target is not null && ClickElement(target);
+    }
 
-        try
+    public static bool ClickByNameOrAutomationId(
+        AutomationElement root,
+        string name,
+        string? automationId = null)
+    {
+        if (ClickByName(root, name))
         {
-            target.Focus();
-            if (target.Patterns.Invoke.IsSupported)
-            {
-                target.Patterns.Invoke.Pattern.Invoke();
-                return true;
-            }
-
-            target.Click();
             return true;
         }
-        catch
+
+        if (string.IsNullOrWhiteSpace(automationId))
         {
             return false;
         }
+
+        var target = FindByAutomationId(root, automationId);
+        return target is not null && ClickElement(target);
     }
+
+    public static bool FindMarkerOrAutomationId(
+        AutomationElement root,
+        string name,
+        string? automationId = null) =>
+        FindByName(root, name) is not null ||
+        (!string.IsNullOrWhiteSpace(automationId) && FindByAutomationId(root, automationId) is not null);
 
     public static void FocusWindow(AutomationElement window)
     {
@@ -142,17 +168,130 @@ internal static class UiAutomationHelpers
     public static bool ClickByNameContains(AutomationElement root, string fragment)
     {
         var target = FindByNameContains(root, fragment);
-        if (target is null)
+        return target is not null && ClickElement(target);
+    }
+
+    public static bool EnsureDashboardOperationsTab(AutomationElement window)
+    {
+        UiAutomationHelpers.FocusWindow(window);
+        if (ClickByNameOrAutomationId(window, "Operations Command Center Tab", "DashboardOccTab"))
         {
-            return false;
+            Thread.Sleep(400);
+            return true;
         }
 
+        foreach (var tab in window.FindAllDescendants(window.ConditionFactory.ByControlType(ControlType.TabItem)))
+        {
+            try
+            {
+                if (NameContains(tab, "Operations Command Center") ||
+                    NameContains(tab, "Operations Command"))
+                {
+                    if (ClickElement(tab))
+                    {
+                        Thread.Sleep(400);
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // Stale UIA nodes during TabView hydration.
+            }
+        }
+
+        return ClickByNameContains(window, "Operations Command Center");
+    }
+
+    public static bool WaitForDashboardOccReady(AutomationElement window, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (FindMarkerOrAutomationId(window, "Refresh Operations Command Center", null) ||
+                FindMarkerOrAutomationId(window, "Customize layout", "OccLayoutEditToggle") ||
+                FindMarkerOrAutomationId(window, "Kanban column: New inquiries", null) ||
+                FindByNameContains(window, "No professional accounts") is not null)
+            {
+                return true;
+            }
+
+            Thread.Sleep(250);
+        }
+
+        return false;
+    }
+
+    public static void ScrollDashboardOccIntoView(AutomationElement window)
+    {
+        UiAutomationHelpers.FocusWindow(window);
+        for (var step = 0; step < 4; step++)
+        {
+            Keyboard.Press(VirtualKeyShort.PRIOR);
+            Keyboard.Release(VirtualKeyShort.PRIOR);
+            Thread.Sleep(80);
+        }
+
+        for (var step = 0; step < 6; step++)
+        {
+            Keyboard.Press(VirtualKeyShort.NEXT);
+            Keyboard.Release(VirtualKeyShort.NEXT);
+            Thread.Sleep(120);
+        }
+    }
+
+    public static string? SafeName(AutomationElement element)
+    {
+        try
+        {
+            return element.Name;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static bool EnsurePersonalOverviewTab(AutomationElement window)
+    {
+        UiAutomationHelpers.FocusWindow(window);
+        if (ClickByNameOrAutomationId(window, "Personal Overview Tab", "DashboardPersonalTab"))
+        {
+            Thread.Sleep(400);
+            return true;
+        }
+
+        foreach (var tab in window.FindAllDescendants(window.ConditionFactory.ByControlType(ControlType.TabItem)))
+        {
+            if (NameContains(tab, "Personal Overview") && ClickElement(tab))
+            {
+                Thread.Sleep(400);
+                return true;
+            }
+        }
+
+        return ClickByNameContains(window, "Personal Overview");
+    }
+
+    private static bool ClickElement(AutomationElement target)
+    {
         try
         {
             target.Focus();
             if (target.Patterns.Invoke.IsSupported)
             {
                 target.Patterns.Invoke.Pattern.Invoke();
+                return true;
+            }
+
+            if (target.Patterns.ExpandCollapse.IsSupported)
+            {
+                var pattern = target.Patterns.ExpandCollapse.Pattern;
+                if (pattern.ExpandCollapseState == ExpandCollapseState.Collapsed)
+                {
+                    pattern.Expand();
+                }
+
                 return true;
             }
 

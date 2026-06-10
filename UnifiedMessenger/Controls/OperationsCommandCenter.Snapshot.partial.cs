@@ -79,14 +79,14 @@ public sealed partial class OperationsCommandCenter
         SelectWorkspaceBranch(null);
 
     private bool IsWorkspaceBranchSelected(string branchName) =>
-        !string.IsNullOrWhiteSpace(_workspaceBranchKey) &&
-        branchName.Equals(_workspaceBranchKey, StringComparison.OrdinalIgnoreCase);
+        !string.IsNullOrWhiteSpace(WorkspaceBranchKey) &&
+        branchName.Equals(WorkspaceBranchKey, StringComparison.OrdinalIgnoreCase);
 
     private bool IsWorkspaceBranchScoped() =>
-        !string.IsNullOrWhiteSpace(_workspaceBranchKey);
+        !string.IsNullOrWhiteSpace(WorkspaceBranchKey);
 
     private bool ShouldHideBranchOnCards() =>
-        !string.IsNullOrWhiteSpace(_workspaceBranchKey);
+        !string.IsNullOrWhiteSpace(WorkspaceBranchKey);
 
     private void ApplyKanban(UnifiedMessengerDashboardSnapshot threadOps)
     {
@@ -415,13 +415,13 @@ public sealed partial class OperationsCommandCenter
         {
             _lastPillBarSignature = pillBar.Signature;
             _suppressPillSelection = true;
-            BranchWorkspacePillBar.SetItems(pillBar.Items, _workspaceBranchKey);
+            BranchWorkspacePillBar.SetItems(pillBar.Items, WorkspaceBranchKey);
             _suppressPillSelection = false;
             return;
         }
 
         _suppressPillSelection = true;
-        BranchWorkspacePillBar.SelectBranchKey(_workspaceBranchKey);
+        BranchWorkspacePillBar.SelectBranchKey(WorkspaceBranchKey);
         _suppressPillSelection = false;
     }
 

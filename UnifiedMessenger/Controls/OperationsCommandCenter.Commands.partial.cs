@@ -26,13 +26,12 @@ public sealed partial class OperationsCommandCenter
 
     public void SelectWorkspaceBranch(string? branchKey)
     {
-        if (string.Equals(_workspaceBranchKey, branchKey, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(WorkspaceBranchKey, branchKey, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        _workspaceBranchKey = branchKey;
-        _services.OccFilter.BranchKey = branchKey;
+        WorkspaceBranchKey = branchKey;
         _showWorkspaceLoading = true;
         SelectWorkspacePill(branchKey);
         ApplyBranchFilterChip();
@@ -49,7 +48,7 @@ public sealed partial class OperationsCommandCenter
 
     private void RefreshBranchMetricSelection()
     {
-        var selected = _workspaceBranchKey;
+        var selected = WorkspaceBranchKey;
         var isScoped = IsWorkspaceBranchScoped();
         for (var index = 0; index < _branchMetrics.Count; index++)
         {

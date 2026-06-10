@@ -35,12 +35,12 @@ public sealed partial class OperationsCommandCenter
 
     private bool BranchPulseMatchesScope(string? snapshotBranchKey)
     {
-        if (string.IsNullOrWhiteSpace(_workspaceBranchKey))
+        if (string.IsNullOrWhiteSpace(WorkspaceBranchKey))
         {
             return string.IsNullOrWhiteSpace(snapshotBranchKey);
         }
 
-        return snapshotBranchKey?.Equals(_workspaceBranchKey, StringComparison.OrdinalIgnoreCase) == true;
+        return snapshotBranchKey?.Equals(WorkspaceBranchKey, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private void ApplyBranchPulse(BranchPulseSnapshot snapshot)
@@ -83,7 +83,7 @@ public sealed partial class OperationsCommandCenter
             .ToList();
 
         var snapshot = await _services.BranchPulse.GenerateAsync(
-            _workspaceBranchKey,
+            WorkspaceBranchKey,
             scopedThreads,
             instanceList).ConfigureAwait(true);
         ApplyBranchPulse(snapshot);
@@ -92,7 +92,7 @@ public sealed partial class OperationsCommandCenter
     private async void BranchPulseRefreshButton_Click(object sender, RoutedEventArgs e)
     {
         EnsureBranchPulseSubscription();
-        _services.BranchPulse.Invalidate(_workspaceBranchKey);
+        _services.BranchPulse.Invalidate(WorkspaceBranchKey);
 
         var instanceList = _professionalInstances.ToList();
         var allowedIds = instanceList
@@ -104,7 +104,7 @@ public sealed partial class OperationsCommandCenter
             .ToList();
 
         var snapshot = await _services.BranchPulse.GenerateAsync(
-            _workspaceBranchKey,
+            WorkspaceBranchKey,
             scopedThreads,
             instanceList,
             force: true).ConfigureAwait(true);

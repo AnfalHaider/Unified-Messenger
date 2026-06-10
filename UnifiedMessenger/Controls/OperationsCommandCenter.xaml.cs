@@ -23,7 +23,11 @@ public sealed partial class OperationsCommandCenter : UserControl
     private IEnumerable<MessengerInstance> _professionalInstances = [];
     private OperationsCommandCenterSnapshot _snapshot = OperationsCommandCenterSnapshot.Empty;
     private IInstanceRegistryService? _registry;
-    private string? _workspaceBranchKey;
+    private string? WorkspaceBranchKey
+    {
+        get => _services.OccFilter.BranchKey;
+        set => _services.OccFilter.BranchKey = value;
+    }
     private IReadOnlyList<string> _availableBranchKeys = [];
     private bool _suppressPillSelection;
     private string? _lastPillBarSignature;
@@ -92,7 +96,7 @@ public sealed partial class OperationsCommandCenter : UserControl
             var status = await Task.Run(() =>
                     _services.OperationsCommandCenter.BuildStatusOnly(
                         instanceList,
-                        _workspaceBranchKey))
+                        WorkspaceBranchKey))
                 .ConfigureAwait(true);
 
             ApplyStatusKpis(OccSnapshotPresenter.BuildStatusKpis(status));
@@ -160,11 +164,10 @@ public sealed partial class OperationsCommandCenter : UserControl
                 _services.ThreadRegistry.GetAllThreads()
                     .Where(thread => allowedIds.Contains(thread.InstanceId)));
 
-            if (!string.IsNullOrWhiteSpace(_workspaceBranchKey) &&
+            if (!string.IsNullOrWhiteSpace(WorkspaceBranchKey) &&
                 _availableBranchKeys.All(branch =>
-                    !branch.Equals(_workspaceBranchKey, StringComparison.OrdinalIgnoreCase)))
+                    !branch.Equals(WorkspaceBranchKey, StringComparison.OrdinalIgnoreCase)))
             {
-                _workspaceBranchKey = null;
                 _services.OccFilter.Clear();
             }
 
@@ -176,7 +179,7 @@ public sealed partial class OperationsCommandCenter : UserControl
             var snapshot = await Task.Run(() =>
                     _services.OperationsCommandCenter.BuildSnapshot(
                         instanceList,
-                        _workspaceBranchKey))
+                        WorkspaceBranchKey))
                 .ConfigureAwait(true);
 
             if (allowLoadingOverlay)
@@ -254,18 +257,28 @@ public sealed partial class OperationsCommandCenter : UserControl
             return;
         }
 
-        if (string.Equals(_workspaceBranchKey, branchKey, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(WorkspaceBranchKey, branchKey, StringComparison.OrdinalIgnoreCase))
         {
             RefreshBranchMetricSelection();
             return;
         }
 
-        _workspaceBranchKey = branchKey;
-        _services.OccFilter.BranchKey = branchKey;
+        WorkspaceBranchKey = branchKey;
         _showWorkspaceLoading = true;
         _ = RefreshAsync(_professionalInstances, _registry);
     }
 
     private void OnOccFilterStateChanged(object? sender, EventArgs e) =>
-        _dispatcherQueue.TryEnqueue(ApplyBranchFilterChip);
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            ApplyBranchFilterChip();
+            if (!_suppressPillSelection)
+            {
+                _suppressPillSelection = true;
+                BranchWorkspacePillBar.SelectBranchKey(_services.OccFilter.BranchKey);
+                _suppressPillSelection = false;
+            }
+
+            RefreshBranchMetricSelection();
+        });
 }

@@ -4,7 +4,7 @@
 
 | Gate | Command / job |
 |------|----------------|
-| Unit tests (750+ target; v2.0.6 baseline **966**) | `dotnet test UnifiedMessenger.Tests -c Release -p:Platform=x64` |
+| Unit tests (750+ target; v2.0.7 baseline **966**) | `dotnet test UnifiedMessenger.Tests -c Release -p:Platform=x64` |
 | Line coverage gate (≥38%; measured baseline ~38.0%, aspirational 40%) | `verify` job — `COVERAGE_LINE_THRESHOLD` in `build.yml` |
 | Benchmark regression (`ResolveLayout` mean ≤ 6 μs) | `verify` job — `UnifiedMessenger.Benchmarks --job short` |
 | UI smoke (PR/push) | `ui-smoke` job in `.github/workflows/build.yml` |
