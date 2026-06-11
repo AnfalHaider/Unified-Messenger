@@ -254,7 +254,7 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download x64 publish output
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: publish-win-x64
           path: publish/win-x64
@@ -281,13 +281,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download x64 installer
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: installer-win-x64
           path: dist
 
       - name: Download ARM64 installer
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: installer-win-arm64
           path: dist
