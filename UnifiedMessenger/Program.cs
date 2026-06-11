@@ -24,7 +24,15 @@ public static class Program
 
         if (!SingleInstanceGuard.TryAcquire())
         {
-            Debug.WriteLine("Unified Messenger is already running; exiting second instance.");
+            if (SecondInstanceActivator.TryActivateExistingInstance())
+            {
+                Debug.WriteLine("Unified Messenger is already running; restored existing window.");
+            }
+            else
+            {
+                Debug.WriteLine("Unified Messenger is already running; could not restore existing window.");
+            }
+
             WindowsAppRuntimeBootstrapHelper.ShutdownIfNeeded();
             return;
         }

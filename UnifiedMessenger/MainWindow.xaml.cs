@@ -76,6 +76,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
             NotificationNavigationHelper.OpenAlert(_services.Navigation, alert);
 
         AttachShellHandlers();
+        SecondInstanceActivator.StartServer(() => DispatcherQueue.TryEnqueue(ShowFromTray));
     }
 
     public async Task RunInitializationAsync()
@@ -195,6 +196,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
     {
+        SecondInstanceActivator.StopServer();
         ApplicationLifecycleService.TryShutdownOnWindowClosed(_forceShutdown, _services.AppSettings.Settings.RunInBackgroundOnClose);
         DetachShellHandlers();
         _services.GlobalHotkey.Dispose();
