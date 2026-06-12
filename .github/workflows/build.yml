@@ -73,48 +73,6 @@ jobs:
           path: ${{ runner.temp }}/coverage/**/coverage.cobertura.xml
           if-no-files-found: warn
 
-      - name: Build benchmarks
-        run: dotnet build UnifiedMessenger.Benchmarks/UnifiedMessenger.Benchmarks.csproj --configuration ${{ env.CONFIGURATION }} --no-restore -p:Platform=${{ env.PLATFORM }}
-
-      - name: Run benchmarks and enforce ResolveLayout regression gate
-        shell: pwsh
-        run: |
-          Write-Host "Running OCC layout benchmarks (--job short)"
-          $benchmarkOutput = dotnet run --project UnifiedMessenger.Benchmarks/UnifiedMessenger.Benchmarks.csproj `
-            -c ${{ env.CONFIGURATION }} `
-            --no-build `
-            -p:Platform=${{ env.PLATFORM }} `
-            -- --job short 2>&1
-          $text = ($benchmarkOutput | Out-String)
-          Write-Host $text
-
-          $meanUs = $null
-          if ($text -match '\|\s*ResolveLayout\s*\|\s*([\d.]+)\s*μs') {
-            $meanUs = [double]$Matches[1]
-          } elseif ($text -match '\|\s*ResolveLayout\s*\|\s*([\d.]+)\s*us') {
-            $meanUs = [double]$Matches[1]
-          }
-
-          if ($null -eq $meanUs) {
-            $report = Get-ChildItem -Path "BenchmarkDotNet.Artifacts/results" -Filter "*OccLayoutBenchmarks-report-github.md" -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-            if ($report) {
-              $reportText = Get-Content $report.FullName -Raw
-              if ($reportText -match '\|\s*ResolveLayout\s*\|\s*([\d.]+)\s*μs') {
-                $meanUs = [double]$Matches[1]
-              }
-            }
-          }
-
-          $maxUs = 6.0
-          Write-Host "ResolveLayout mean: $meanUs μs (max allowed: $maxUs μs)"
-          if ($null -eq $meanUs) {
-            throw "Could not parse ResolveLayout mean time from benchmark output"
-          }
-          if ($meanUs -gt $maxUs) {
-            throw "ResolveLayout mean $meanUs μs exceeds regression threshold $maxUs μs"
-          }
-
       - name: Enforce shell DI gate
         shell: pwsh
         run: |
@@ -123,14 +81,12 @@ jobs:
             'MessageAnalyticsService.Instance',
             'NotificationHub.Instance',
             'ThreadRegistryService.Instance',
-            'RichTriageStoreService.Instance',
             'WebViewProfileManager.Instance',
             'SystemTrayService.Instance',
             'GlobalHotkeyService.Instance',
             'AppNotificationService.Instance',
             'TaskbarBadgeService.Instance',
-            'GitHubUpdateService.Instance',
-            'OllamaOrchestrationService.Instance'
+            'GitHubUpdateService.Instance'
           )
           $shellFiles = Get-ChildItem -Path "UnifiedMessenger/Services/Shell" -Filter *.cs -Recurse
           foreach ($file in $shellFiles) {

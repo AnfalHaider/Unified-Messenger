@@ -48,7 +48,7 @@ internal static class ModuleValidationHarness
             if (exitCode == 0 && output.Contains("Passed!", StringComparison.Ordinal))
             {
                 var totalMatch = System.Text.RegularExpressions.Regex.Match(output, @"Total:\s+(\d+)");
-                var total = totalMatch.Success ? totalMatch.Groups[1].Value : "433";
+                var total = totalMatch.Success ? totalMatch.Groups[1].Value : "437";
                 var detail = attempt == 1
                     ? $"{total} tests passed"
                     : $"{total} tests passed (retry {attempt})";
@@ -125,12 +125,8 @@ internal static class ModuleValidationHarness
 
         if (!UiAutomationHelpers.FindMarkerOrAutomationId(
                 window,
-                "Branch workspace kanban",
-                "OccBranchKanban") &&
-            !UiAutomationHelpers.FindMarkerOrAutomationId(
-                window,
                 "Branch workspace pills",
-                "OccBranchPills") &&
+                null) &&
             UiAutomationHelpers.FindByName(window, "Kanban column: New inquiries") is null)
         {
             return ModuleValidationResult.Warn(
@@ -437,7 +433,7 @@ internal static class ModuleValidationHarness
 
     private static ModuleValidationResult ValidateWorkspaceSidebar(AutomationElement window)
     {
-        var markers = new[] { "Sidebar Dashboard", "Add Instance", "Notification Hub", "Settings" };
+        var markers = new[] { "Unified Messenger brand", "Sidebar Dashboard", "Add Instance", "Notification Hub", "Settings" };
         var found = markers.Where(marker => UiAutomationHelpers.FindByName(window, marker) is not null).ToList();
         return found.Count >= 2
             ? ModuleValidationResult.Pass("WorkspaceSidebar", "Control", $"Markers: {string.Join(", ", found)}")

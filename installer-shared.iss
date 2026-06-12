@@ -5,7 +5,7 @@
 #define MyAppExeName "UnifiedMessenger.exe"
 #define MyAppPublisher "AnfalHaider"
 #define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "3.1.2"
+#define MyAppVersion "3.1.3"
 #define MyAppMutex "UnifiedMessenger_AppMutex"
 
 ; Per-user install (no elevation). Binaries only — user data stays in %LocalAppData%\UnifiedMessenger.

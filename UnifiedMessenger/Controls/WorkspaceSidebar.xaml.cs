@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
@@ -41,10 +42,25 @@ public sealed partial class WorkspaceSidebar : Grid
     public WorkspaceSidebar()
     {
         InitializeComponent();
+        ApplyBrandWordmarkForTheme();
+        ActualThemeChanged += (_, _) => ApplyBrandWordmarkForTheme();
         MenuStack.AllowDrop = true;
         MenuStack.DragOver += MenuStack_DragOver;
         MenuStack.Drop += MenuStack_Drop;
         Unloaded += OnUnloaded;
+    }
+
+    private void ApplyBrandWordmarkForTheme()
+    {
+        var useDarkWordmark = ActualTheme == ElementTheme.Dark;
+        var assetPath = ApplicationPaths.TryResolveBrandingAssetPath(
+            useDarkWordmark ? "wordmark-inline-dark.png" : "wordmark-inline-light.png");
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return;
+        }
+
+        BrandWordmarkImage.Source = new BitmapImage(new Uri(assetPath));
     }
 
     public event EventHandler<(string SourceInstanceId, string TargetInstanceId)>? InstanceReorderRequested;
@@ -237,7 +253,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private void ApplyCompactDisplay()
     {
         var labelVisibility = _isCompact ? Visibility.Collapsed : Visibility.Visible;
-        BrandTitleText.Visibility = labelVisibility;
+        BrandWordmarkImage.Visibility = labelVisibility;
         AddInstanceLabel.Visibility = labelVisibility;
         NotificationsLabel.Visibility = labelVisibility;
         SettingsLabel.Visibility = labelVisibility;

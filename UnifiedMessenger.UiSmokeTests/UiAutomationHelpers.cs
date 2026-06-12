@@ -208,8 +208,9 @@ internal static class UiAutomationHelpers
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
-            if (FindMarkerOrAutomationId(window, "Refresh Operations Command Center", null) ||
-                FindMarkerOrAutomationId(window, "Customize layout", "OccLayoutEditToggle") ||
+            if (FindMarkerOrAutomationId(window, "DATE RANGE", null) ||
+                FindMarkerOrAutomationId(window, "From date", null) ||
+                FindMarkerOrAutomationId(window, "Refresh", null) ||
                 FindMarkerOrAutomationId(window, "Kanban column: New inquiries", null) ||
                 FindByNameContains(window, "No professional accounts") is not null)
             {

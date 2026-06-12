@@ -1,18 +1,21 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Regenerates Unified Messenger branding assets from master icon and logo PNGs.
+    Regenerates Unified Messenger branding assets from master icon and logo sources.
 .PARAMETER IconPath
-    Square-ish app icon source (used for window icon, installer, and toasts).
+    Square app icon PNG (window icon, installer, tray, toasts).
+.PARAMETER LogoSvgPath
+    Full wordmark SVG (icon + UNIFIED MESSENGER text). Exported via Inkscape when available.
 .PARAMETER LogoPath
-    Wide logo source (stored as branding master for future marketing use).
+    Optional wide logo PNG fallback when SVG export is unavailable.
 #>
 param(
     [Parameter(Mandatory = $true)]
     [string]$IconPath,
 
-    [Parameter(Mandatory = $true)]
-    [string]$LogoPath,
+    [string]$LogoSvgPath = "",
+
+    [string]$LogoPath = "",
 
     [string]$AssetsRoot = ""
 )
@@ -25,7 +28,12 @@ if ([string]::IsNullOrWhiteSpace($AssetsRoot)) {
     $AssetsRoot = Join-Path (Split-Path -Parent $PSScriptRoot) "Assets"
 }
 
-[string]$TileBackground = "#1E293B"
+[string]$TileBackground = "#1B75BB"
+[string[]]$InkscapeCandidates = @(
+    "${env:ProgramFiles}\Inkscape\bin\inkscape.exe",
+    "${env:ProgramFiles(x86)}\Inkscape\bin\inkscape.exe",
+    "$env:LOCALAPPDATA\Programs\Inkscape\bin\inkscape.exe"
+)
 
 function Convert-HexToColor([string]$Hex) {
     $hex = $Hex.TrimStart('#')
@@ -34,6 +42,33 @@ function Convert-HexToColor([string]$Hex) {
         [Convert]::ToInt32($hex.Substring(0, 2), 16),
         [Convert]::ToInt32($hex.Substring(2, 2), 16),
         [Convert]::ToInt32($hex.Substring(4, 2), 16))
+}
+
+function Resolve-InkscapePath() {
+    foreach ($candidate in $InkscapeCandidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Export-SvgToPng([string]$SvgPath, [string]$OutputPath, [int]$Width) {
+    $inkscape = Resolve-InkscapePath
+    if ($null -eq $inkscape) {
+        throw "Inkscape is required to export wordmark SVG. Install from https://inkscape.org or pass -LogoPath PNG."
+    }
+
+    $directory = Split-Path -Parent $OutputPath
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    }
+
+    & $inkscape $SvgPath --export-type=png --export-filename=$OutputPath -w $Width | Out-Null
+    if (-not (Test-Path -LiteralPath $OutputPath)) {
+        throw "Inkscape failed to export $SvgPath"
+    }
 }
 
 function New-SquareBitmap([System.Drawing.Image]$Source, [int]$CanvasSize, [double]$ContentRatio = 0.82) {
@@ -69,7 +104,7 @@ function New-WideBitmap([System.Drawing.Image]$Source, [int]$Width, [int]$Height
         $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
         $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
 
-        $padding = [Math]::Min($Width, $Height) * 0.08
+        $padding = [Math]::Min($Width, $Height) * 0.06
         $maxWidth = $Width - (2 * $padding)
         $maxHeight = $Height - (2 * $padding)
         $scale = [Math]::Min($maxWidth / $Source.Width, $maxHeight / $Source.Height)
@@ -84,6 +119,69 @@ function New-WideBitmap([System.Drawing.Image]$Source, [int]$Width, [int]$Height
     }
 
     return $bitmap
+}
+
+function New-InlineWordmark([System.Drawing.Image]$IconSource, [int]$CanvasWidth = 280, [int]$CanvasHeight = 44) {
+    $bitmap = New-Object System.Drawing.Bitmap $CanvasWidth, $CanvasHeight, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.Clear([System.Drawing.Color]::Transparent)
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+
+        $iconSize = $CanvasHeight - 4
+        $graphics.DrawImage($IconSource, 0, 2, $iconSize, $iconSize)
+
+        $titleFont = New-Object System.Drawing.Font ("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
+        $subtitleFont = New-Object System.Drawing.Font ("Segoe UI", 8, [System.Drawing.FontStyle]::Regular)
+        try {
+            $textX = $iconSize + 10
+            $graphics.DrawString("UNIFIED", $titleFont, [System.Drawing.Brushes]::White, $textX, 4)
+            $graphics.DrawString("MESSENGER", $subtitleFont, [System.Drawing.Brushes]::White, $textX + 1, 22)
+        }
+        finally {
+            $titleFont.Dispose()
+            $subtitleFont.Dispose()
+        }
+    }
+    finally {
+        $graphics.Dispose()
+    }
+
+    return $bitmap
+}
+
+function New-InlineWordmarkTheme([System.Drawing.Image]$IconSource, [System.Drawing.Color]$TextColor, [string]$OutputPath, [int]$CanvasWidth = 280, [int]$CanvasHeight = 44) {
+    $bitmap = New-Object System.Drawing.Bitmap $CanvasWidth, $CanvasHeight, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    try {
+        $graphics.Clear([System.Drawing.Color]::Transparent)
+        $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $graphics.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+
+        $iconSize = $CanvasHeight - 4
+        $graphics.DrawImage($IconSource, 0, 2, $iconSize, $iconSize)
+
+        $brush = New-Object System.Drawing.SolidBrush $TextColor
+        $titleFont = New-Object System.Drawing.Font ("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
+        $subtitleFont = New-Object System.Drawing.Font ("Segoe UI", 8, [System.Drawing.FontStyle]::Regular)
+        try {
+            $textX = $iconSize + 10
+            $graphics.DrawString("UNIFIED", $titleFont, $brush, $textX, 4)
+            $graphics.DrawString("MESSENGER", $subtitleFont, $brush, $textX + 1, 22)
+        }
+        finally {
+            $brush.Dispose()
+            $titleFont.Dispose()
+            $subtitleFont.Dispose()
+        }
+    }
+    finally {
+        $graphics.Dispose()
+    }
+
+    Save-Png $bitmap $OutputPath
+    $bitmap.Dispose()
 }
 
 function Resize-Bitmap([System.Drawing.Bitmap]$Source, [int]$Size) {
@@ -165,22 +263,45 @@ function Save-Icon([System.Drawing.Bitmap]$SquareMaster, [string]$Path, [int[]]$
 }
 
 $iconSourcePath = (Resolve-Path -LiteralPath $IconPath).Path
-$logoSourcePath = (Resolve-Path -LiteralPath $LogoPath).Path
 $assetsRootPath = (Resolve-Path -LiteralPath $AssetsRoot).Path
 $brandingPath = Join-Path $assetsRootPath "Branding"
 $background = Convert-HexToColor $TileBackground
+$wordmarkHeroPath = Join-Path $brandingPath "wordmark-hero.png"
+$wordmarkInlineDarkPath = Join-Path $brandingPath "wordmark-inline-dark.png"
+$wordmarkInlineLightPath = Join-Path $brandingPath "wordmark-inline-light.png"
 
 $iconSource = [System.Drawing.Image]::FromFile($iconSourcePath)
-$logoSource = [System.Drawing.Image]::FromFile($logoSourcePath)
+$logoSource = $null
+$iconMaster = $null
+$wideMaster = $null
 try {
     $iconMaster = New-SquareBitmap -Source $iconSource -CanvasSize 1024
+
+    if (-not [string]::IsNullOrWhiteSpace($LogoSvgPath) -and (Test-Path -LiteralPath $LogoSvgPath)) {
+        Export-SvgToPng -SvgPath (Resolve-Path -LiteralPath $LogoSvgPath).Path -OutputPath $wordmarkHeroPath -Width 720
+        $logoSource = [System.Drawing.Image]::FromFile($wordmarkHeroPath)
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($LogoPath) -and (Test-Path -LiteralPath $LogoPath)) {
+        $logoSource = [System.Drawing.Image]::FromFile((Resolve-Path -LiteralPath $LogoPath).Path)
+        Save-Png ([System.Drawing.Bitmap]$logoSource.Clone()) $wordmarkHeroPath
+    }
+    else {
+        throw "Provide -LogoSvgPath or -LogoPath for the UNIFIED MESSENGER wordmark."
+    }
+
     $wideMaster = New-WideBitmap -Source $logoSource -Width 1240 -Height 600 -Background $background
     Save-Png $iconMaster (Join-Path $brandingPath "icon-master.png")
     Save-Png $wideMaster (Join-Path $brandingPath "wide-master.png")
 
+    New-InlineWordmarkTheme -IconSource $iconSource -TextColor ([System.Drawing.Color]::White) -OutputPath $wordmarkInlineDarkPath
+    New-InlineWordmarkTheme -IconSource $iconSource -TextColor ([System.Drawing.Color]::FromArgb(255, 30, 41, 59)) -OutputPath $wordmarkInlineLightPath
+
     $icoPath = Join-Path $assetsRootPath "AppIcon.ico"
     Save-Icon -SquareMaster $iconMaster -Path $icoPath
     Write-Host "Wrote $icoPath"
+    Write-Host "Wrote $wordmarkHeroPath"
+    Write-Host "Wrote $wordmarkInlineDarkPath"
+    Write-Host "Wrote $wordmarkInlineLightPath"
 }
 finally {
     if ($null -ne $iconSource) { $iconSource.Dispose() }

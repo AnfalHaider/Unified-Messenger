@@ -48,4 +48,33 @@ public static class ApplicationPaths
         var iconPath = Path.Combine(baseDirectory, "Assets", "AppIcon.ico");
         return File.Exists(iconPath) ? iconPath : null;
     }
+
+    public static string? TryResolveBrandingAssetPath(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        var baseDirectory = AppContext.BaseDirectory;
+        if (string.IsNullOrWhiteSpace(baseDirectory))
+        {
+            return null;
+        }
+
+        var assetPath = Path.Combine(baseDirectory, "Assets", "Branding", fileName);
+        return File.Exists(assetPath) ? assetPath : null;
+    }
+
+    public static string? TryResolveWordmarkHeroUri() =>
+        TryResolveBrandingUri("wordmark-hero.png");
+
+    public static string? TryResolveWordmarkInlineUri(bool useDarkTheme) =>
+        TryResolveBrandingUri(useDarkTheme ? "wordmark-inline-dark.png" : "wordmark-inline-light.png");
+
+    private static string? TryResolveBrandingUri(string fileName)
+    {
+        var path = TryResolveBrandingAssetPath(fileName);
+        return string.IsNullOrWhiteSpace(path) ? null : new Uri(path).AbsoluteUri;
+    }
 }

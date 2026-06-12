@@ -216,7 +216,6 @@ public sealed class ShellController
             _services.SystemTray.Attach(mainWindow);
         }
 
-        GlobalHotkeyService.Instance.EnsureRegistered();
         _services.GitHubUpdate.PromptForUpdateApplicationAsync = PromptForAutoUpdateAsync;
     }
 

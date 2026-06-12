@@ -31,51 +31,48 @@
                 BorderThickness="1"
                 CornerRadius="8">
                 <StackPanel Spacing="16">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Image Width="48" Height="48" Source="Assets/AppIcon.ico" />
-                        <StackPanel VerticalAlignment="Center" Spacing="4">
-                            <TextBlock
-                                FontSize="20"
-                                FontWeight="SemiBold"
-                                Text="Unified Messenger" />
-                            <TextBlock
-                                x:Name="VersionText"
-                                Opacity="0.7" />
-                        </StackPanel>
-                    </StackPanel>
+                    <Image
+                        MaxWidth="320"
+                        HorizontalAlignment="Left"
+                        Stretch="Uniform"
+                        Source="Assets/Branding/wordmark-hero.png" />
+                    <TextBlock
+                        x:Name="VersionText"
+                        Margin="0,-4,0,0"
+                        Opacity="0.7" />
 
                     <TextBlock
                         FontSize="16"
                         FontWeight="SemiBold"
-                        Text="The Central Workspace for Business &amp; Life"
+                        Text="WhatsApp operations in one native workspace"
                         TextWrapping="WrapWholeWords" />
 
                     <TextBlock
                         Opacity="0.85"
-                        Text="Unified Messenger transforms how you manage your digital ecosystem by bringing together your professional operational platforms and personal communication into a single, high-performance desktop environment."
+                        Text="Unified Messenger runs multiple isolated WhatsApp and WhatsApp Business Web sessions in a single WinUI desktop shell with a unified notification hub and operations dashboard."
                         TextWrapping="WrapWholeWords" />
 
                     <TextBlock
                         Opacity="0.85"
-                        Text="Engineered with a dual-context core, Unified Messenger splits your workflow into dedicated Professional and Personal zones. The built-in Workspace Dashboard delivers real-time operational intelligence—tracking response rates, incoming reviews, and messaging metrics for your business accounts—while keeping your personal feeds cleanly isolated so you can completely disconnect when you are off the clock."
+                        Text="The Operations Command Center tracks response metrics, branch workload, and message volume over selectable date ranges. Personal Overview keeps non-business accounts separated so you can switch context without juggling browser windows."
                         TextWrapping="WrapWholeWords" />
 
                     <StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="Key Features:" />
+                        <TextBlock FontWeight="SemiBold" Text="Key features" />
 
                         <TextBlock
                             Opacity="0.85"
-                            Text="• Multi-Profile Isolation: Run multiple concurrent instances of the same platform completely independently without session crossover."
+                            Text="• Multi-profile isolation with shared WebView2 environment optimization."
                             TextWrapping="WrapWholeWords" />
 
                         <TextBlock
                             Opacity="0.85"
-                            Text="• Resource-Light Architecture: Built natively on Windows utilizing shared environment optimization to keep memory consumption at an absolute minimum."
+                            Text="• Unified notification feed with native navigation to the right account."
                             TextWrapping="WrapWholeWords" />
 
                         <TextBlock
                             Opacity="0.85"
-                            Text="• Unified Notification Center: Gather and manage alerts from across all web profiles into one centralized, native panel."
+                            Text="• Heuristic triage, KPI dashboard, and date-filtered analytics without cloud LLM dependencies."
                             TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </StackPanel>

@@ -27,22 +27,15 @@
             Padding="8,12,8,8"
             Spacing="2"
             VerticalAlignment="Top">
-            <StackPanel
-                x:Name="BrandHeaderPanel"
-                Margin="4,0,4,12"
-                Orientation="Horizontal"
-                Spacing="10">
+            <Grid x:Name="BrandHeaderPanel" Margin="4,0,4,12">
                 <Image
-                    Width="24"
-                    Height="24"
-                    Source="Assets/AppIcon.ico" />
-                <TextBlock
-                    x:Name="BrandTitleText"
-                    VerticalAlignment="Center"
-                    FontSize="15"
-                    FontWeight="SemiBold"
-                    Text="Unified Messenger" />
-            </StackPanel>
+                    x:Name="BrandWordmarkImage"
+                    MaxHeight="40"
+                    AutomationProperties.Name="Unified Messenger brand"
+                    HorizontalAlignment="Left"
+                    Stretch="Uniform"
+                    Source="Assets/Branding/wordmark-inline-light.png" />
+            </Grid>
 
             <StackPanel x:Name="MenuStack" Spacing="2" />
         </StackPanel>
