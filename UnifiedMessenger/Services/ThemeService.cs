@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Models;
 using Windows.UI;
@@ -20,9 +22,19 @@ public static class ThemeService
             return;
         }
 
-        if (ResolveApplicationTheme(preference) is ApplicationTheme applicationTheme)
+        if (ResolveApplicationTheme(preference) is not ApplicationTheme applicationTheme)
+        {
+            return;
+        }
+
+        try
         {
             application.RequestedTheme = applicationTheme;
+        }
+        catch (COMException ex)
+        {
+            // Defensive: WinUI rejects Application.RequestedTheme after the first window exists.
+            Debug.WriteLine($"ApplyInitialLaunchTheme skipped: {ex.Message}");
         }
     }
 

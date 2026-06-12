@@ -29,16 +29,16 @@ public partial class App : Application
             var services = ApplicationServices.CreateDefault();
             ApplicationServiceProvider.Set(services);
 
-            // Create the window on the UI thread before any await — WinRT/file IO resumes on pool threads.
-            _window = new MainWindow();
-            CurrentWindow = _window;
-
             await services.AppSettings.LoadAsync().ConfigureAwait(true);
 
             StartupTaskService.EnsureRegistrationMatchesPreference(
                 services.AppSettings.Settings.LaunchAtStartup);
 
+            // Application.RequestedTheme must be set before the first Window is created (WinUI COM 0x80131515).
             ThemeService.ApplyInitialLaunchTheme(services.AppSettings.Settings.ThemePreference);
+
+            _window = new MainWindow();
+            CurrentWindow = _window;
 
             services.AppNotification.Initialize();
 

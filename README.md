@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v3.1.0 (WhatsApp Core “Lite” line)
+**Current release:** v3.1.1 (WhatsApp Core “Lite” line)
 
 ## Scope
 
@@ -27,6 +27,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 | **ARM64** | [UnifiedMessengerSetup-arm64.exe](https://github.com/AnfalHaider/Unified-Messenger/releases/latest/download/UnifiedMessengerSetup-arm64.exe) |
 
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
+
+### What’s in v3.1.1
+
+- **Startup fix:** Light/Dark theme no longer crashes launch when applied before the main window is created.
 
 ### What’s in v3.1.0
 
@@ -106,7 +110,7 @@ GitHub Actions (`.github/workflows/build.yml`):
 3. **ui-smoke** — FlaUI harness against published x64 binary
 4. **release** — tag `v*` only; attaches CI-built installers to GitHub Releases
 
-Push tag `v3.1.0` to publish a release. Pushing to `main` alone updates source but not the Releases page.
+Push tag `v3.1.1` to publish a release. Pushing to `main` alone updates source but not the Releases page.
 
 ## Auto-update
 
