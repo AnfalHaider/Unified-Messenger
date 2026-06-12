@@ -258,8 +258,8 @@ public sealed partial class WorkspaceSidebar : Grid
         NotificationsLabel.Visibility = labelVisibility;
         SettingsLabel.Visibility = labelVisibility;
 
-        MenuRoot.Padding = _isCompact ? new Thickness(6, 12, 6, 8) : new Thickness(8, 12, 8, 8);
-        FooterPanel.Padding = _isCompact ? new Thickness(8, 10, 8, 12) : new Thickness(12, 10, 12, 12);
+        MenuRoot.Padding = _isCompact ? ResolveThickness("UmPaddingSidebarMenuCompact", new Thickness(6, 12, 6, 8)) : ResolveThickness("UmPaddingSidebarMenu", new Thickness(8, 12, 8, 8));
+        FooterPanel.Padding = _isCompact ? ResolveThickness("UmPaddingFooterCompact", new Thickness(8, 10, 8, 12)) : ResolveThickness("UmPaddingFooter", new Thickness(12, 10, 12, 12));
 
         foreach (var element in _compactHiddenElements)
         {
@@ -421,7 +421,7 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             Tag = key,
             Text = title,
-            Margin = new Thickness(4, 14, 4, 6)
+            Margin = ResolveThickness("UmMarginSectionHeader", new Thickness(4, 14, 4, 6))
         };
 
         if (Application.Current.Resources.TryGetValue("UmSectionLabelTextStyle", out var styleResource) &&
@@ -448,11 +448,14 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             Tag = key,
             Text = text,
-            FontSize = 12,
             Opacity = 0.5,
-            Margin = new Thickness(8, 0, 8, 4),
+            Margin = ResolveThickness("UmPaddingSm", new Thickness(8, 0, 8, 4)),
             TextWrapping = TextWrapping.WrapWholeWords
         };
+        if (ResolveTextStyle("UmBodyTextStyle") is { } bodyStyle)
+        {
+            hint.Style = bodyStyle;
+        }
         AutomationProperties.SetName(hint, text);
         _compactHiddenElements.Add(hint);
         return hint;
@@ -586,7 +589,7 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             Tag = key,
             Padding = new Thickness(10, 10, 8, 10),
-            CornerRadius = new CornerRadius(8),
+            CornerRadius = ResolveCornerRadius("UmCornerRadiusMdValue", new CornerRadius(8)),
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
             BorderThickness = new Thickness(3, 0, 0, 0),
             BorderBrush = accentBrush,
@@ -613,8 +616,10 @@ public sealed partial class WorkspaceSidebar : Grid
         var titleLabel = new TextBlock
         {
             Text = title,
+            MinWidth = 0,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.NoWrap,
             MaxLines = 1
         };
         textPanel.Children.Add(titleLabel);
@@ -625,11 +630,16 @@ public sealed partial class WorkspaceSidebar : Grid
         var statusLabel = new TextBlock
         {
             Text = subtitle,
-            FontSize = 11,
+            MinWidth = 0,
             Opacity = 0.62,
             TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.NoWrap,
             MaxLines = 1
         };
+        if (ResolveTextStyle("UmCaptionTextStyle") is { } captionStyle)
+        {
+            statusLabel.Style = captionStyle;
+        }
         textPanel.Children.Add(statusLabel);
         _compactHiddenElements.Add(textPanel);
 
@@ -854,4 +864,19 @@ public sealed partial class WorkspaceSidebar : Grid
 
         return WorkspaceSidebarHelper.ResolveDropTargetInstanceId(position.Y, bounds);
     }
+
+    private static Thickness ResolveThickness(string key, Thickness fallback) =>
+        Application.Current.Resources.TryGetValue(key, out var resource) && resource is Thickness thickness
+            ? thickness
+            : fallback;
+
+    private static CornerRadius ResolveCornerRadius(string key, CornerRadius fallback) =>
+        Application.Current.Resources.TryGetValue(key, out var resource) && resource is CornerRadius radius
+            ? radius
+            : fallback;
+
+    private static Style? ResolveTextStyle(string key) =>
+        Application.Current.Resources.TryGetValue(key, out var resource) && resource is Style style
+            ? style
+            : null;
 }

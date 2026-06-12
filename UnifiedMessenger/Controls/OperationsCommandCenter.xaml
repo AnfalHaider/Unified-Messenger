@@ -12,7 +12,7 @@
     <UserControl.Resources>
         <DataTemplate x:Key="OperationsImmediateCardTemplate" x:DataType="controls:OperationsThreadCardViewModel">
             <shared:OperationsThreadCardView
-                Margin="0,0,0,8"
+                Margin="{StaticResource UmMarginBottomSm}"
                 DisplayStyle="Immediate"
                 ViewModel="{Binding}" />
         </DataTemplate>
@@ -22,8 +22,8 @@
         <StackPanel
             x:Name="EmptyStatePanel"
             HorizontalAlignment="Center"
+            Spacing="{StaticResource UmSpacingMd}"
             VerticalAlignment="Center"
-            Spacing="12"
             Visibility="Collapsed">
             <TextBlock
                 HorizontalAlignment="Center"
@@ -43,36 +43,34 @@
         </StackPanel>
 
         <ScrollViewer x:Name="MainContentScrollViewer" VerticalScrollBarVisibility="Auto">
-            <StackPanel Spacing="16" Padding="0,0,0,24">
-                <Grid ColumnSpacing="12">
+            <StackPanel Padding="{StaticResource UmPaddingBottomXl}" Spacing="{StaticResource UmSpacingLg}">
+                <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" MinWidth="0" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel MinWidth="0" Spacing="4">
+                    <StackPanel MinWidth="0" Spacing="{StaticResource UmSpacingXs}">
                         <TextBlock
                             x:Name="ScopeText"
                             MinWidth="0"
-                            FontSize="14"
-                            Opacity="0.9"
-                            Text="Showing: All Branches"
-                            TextTrimming="CharacterEllipsis" />
+                            Style="{StaticResource UmScopeTextStyle}"
+                            Text="Showing: All Branches" />
                         <TextBlock
                             x:Name="LastRefreshedText"
                             MinWidth="0"
                             Style="{StaticResource UmCaptionTextStyle}"
-                            Text="Updated just now"
-                            TextTrimming="CharacterEllipsis" />
+                            Text="Updated just now" />
                         <StackPanel
                             x:Name="BranchFilterChipPanel"
                             Orientation="Horizontal"
-                            Spacing="8"
+                            Spacing="{StaticResource UmSpacingSm}"
                             Visibility="Collapsed">
                             <TextBlock
                                 x:Name="BranchFilterChipText"
-                                VerticalAlignment="Center"
-                                Opacity="0.8"
-                                Text="Branch filter" />
+                                MinWidth="0"
+                                Style="{StaticResource UmBodyTextStyle}"
+                                Text="Branch filter"
+                                VerticalAlignment="Center" />
                             <Button
                                 Click="ClearBranchFilterButton_Click"
                                 Content="Clear"
@@ -90,14 +88,12 @@
 
                 <controls:BranchWorkspacePillBar x:Name="BranchWorkspacePillBar" />
 
-                <StackPanel
-                    x:Name="DateRangeFilterPanel"
-                    Spacing="8">
+                <StackPanel x:Name="DateRangeFilterPanel" Spacing="{StaticResource UmSpacingSm}">
                     <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="DATE RANGE" />
-                    <Grid ColumnSpacing="12">
+                    <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" MinWidth="140" />
-                            <ColumnDefinition Width="*" MinWidth="140" />
+                            <ColumnDefinition MinWidth="140" Width="*" />
+                            <ColumnDefinition MinWidth="140" Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <DatePicker
@@ -123,8 +119,8 @@
 
                 <Grid
                     x:Name="KpiMetricsGrid"
-                    ColumnSpacing="12"
-                    RowSpacing="12">
+                    ColumnSpacing="{StaticResource UmSpacingMd}"
+                    RowSpacing="{StaticResource UmSpacingMd}">
                     <VisualStateManager.VisualStateGroups>
                         <VisualStateGroup>
                             <VisualState x:Name="WideKpiLayout">
@@ -141,10 +137,10 @@
                         </VisualStateGroup>
                     </VisualStateManager.VisualStateGroups>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" MinWidth="120" />
-                        <ColumnDefinition Width="*" MinWidth="120" />
-                        <ColumnDefinition Width="*" MinWidth="120" />
-                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition MinWidth="120" Width="*" />
+                        <ColumnDefinition MinWidth="120" Width="*" />
+                        <ColumnDefinition MinWidth="120" Width="*" />
+                        <ColumnDefinition MinWidth="120" Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -173,32 +169,35 @@
                         Grid.Column="1"
                         Grid.Row="1"
                         Label="SLA breaches"
-                        Value="—" />
+                        Value="0" />
                 </Grid>
 
                 <controls:MessageVolumeLineChart x:Name="MessageVolumeChart" />
 
-                <StackPanel x:Name="ImmediateLaneSection" Spacing="8">
+                <StackPanel x:Name="ImmediateLaneSection" Spacing="{StaticResource UmSpacingSm}">
                     <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Immediate queue" />
-                                    <TextBlock
+                    <TextBlock
                         x:Name="ImmediateQueueEmptyText"
-                        Opacity="0.65"
+                        Style="{StaticResource UmEmptyHintTextStyle}"
                         Text="No urgent threads in the current scope."
-                                        Visibility="Collapsed" />
-                                <ListView
-                                    x:Name="ImmediateQueueList"
-                                    IsItemClickEnabled="True"
-                                    ItemClick="ThreadCardList_ItemClick"
-                                    ItemTemplate="{StaticResource OperationsImmediateCardTemplate}"
-                                    SelectionMode="None" />
-                                </StackPanel>
+                        TextAlignment="Left"
+                        Visibility="Collapsed" />
+                    <ListView
+                        x:Name="ImmediateQueueList"
+                        IsItemClickEnabled="True"
+                        ItemClick="ThreadCardList_ItemClick"
+                        ItemTemplate="{StaticResource OperationsImmediateCardTemplate}"
+                        SelectionMode="None"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                </StackPanel>
 
-                                <controls:KanbanColumnBoard
-                                    x:Name="KanbanBoard"
-                                    ColumnOrderChanged="KanbanBoard_ColumnOrderChanged"
-                                    CrossColumnDragAttempted="KanbanBoard_CrossColumnDragAttempted"
+                <controls:KanbanColumnBoard
+                    x:Name="KanbanBoard"
+                    ColumnOrderChanged="KanbanBoard_ColumnOrderChanged"
+                    CrossColumnDragAttempted="KanbanBoard_CrossColumnDragAttempted"
                     ItemClickRequested="KanbanBoard_ItemClickRequested" />
-                                </StackPanel>
+            </StackPanel>
         </ScrollViewer>
 
         <Grid

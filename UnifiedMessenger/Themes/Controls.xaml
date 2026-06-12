@@ -34,6 +34,7 @@
         <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
         <Setter Property="Padding" Value="12,6" />
         <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
     </Style>
 
     <Style x:Key="AccentButtonStyle" TargetType="Button">
@@ -42,5 +43,14 @@
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
         <Setter Property="Padding" Value="14,8" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+    </Style>
+
+    <Style x:Key="KanbanColumnDropZoneStyle" TargetType="Border">
+        <Setter Property="MinHeight" Value="{StaticResource UmKanbanColumnMinHeight}" />
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusSmValue}" />
     </Style>
 </ResourceDictionary>

@@ -12,22 +12,24 @@
     mc:Ignorable="d">
 
     <Grid.RowDefinitions>
-        <RowDefinition Height="*" MinHeight="0" />
+        <RowDefinition MinHeight="0" Height="*" />
         <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
     <ScrollViewer
         Grid.Row="0"
         HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
         HorizontalScrollBarVisibility="Disabled"
+        VerticalAlignment="Stretch"
         VerticalScrollBarVisibility="Auto">
         <StackPanel
             x:Name="MenuRoot"
-            Padding="8,12,8,8"
+            Padding="{StaticResource UmPaddingSidebarMenu}"
             Spacing="2"
             VerticalAlignment="Top">
-            <Grid x:Name="BrandHeaderPanel" Margin="4,0,4,12">
+            <Grid
+                x:Name="BrandHeaderPanel"
+                Margin="{StaticResource UmMarginBrandHeader}">
                 <Image
                     x:Name="BrandWordmarkImage"
                     MaxHeight="40"
@@ -42,10 +44,10 @@
     </ScrollViewer>
 
     <StackPanel
-        Grid.Row="1"
         x:Name="FooterPanel"
-        Padding="12,10,12,12"
-        Spacing="8"
+        Grid.Row="1"
+        Padding="{StaticResource UmPaddingFooter}"
+        Spacing="{StaticResource UmSpacingSm}"
         BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
         BorderThickness="0,1,0,0">
         <Button
@@ -57,9 +59,14 @@
             Click="AddInstanceButton_Click"
             Style="{StaticResource AccentButtonStyle}"
             ToolTipService.ToolTip="Add Instance">
-            <StackPanel x:Name="AddInstanceContent" Orientation="Horizontal" Spacing="8">
-                <FontIcon FontSize="14" Glyph="&#xE710;" />
-                <TextBlock x:Name="AddInstanceLabel" Text="Add Instance" />
+            <StackPanel x:Name="AddInstanceContent" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
+                <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE710;" />
+                <TextBlock
+                    x:Name="AddInstanceLabel"
+                    MinWidth="0"
+                    Style="{StaticResource UmBodyTextStyle}"
+                    Text="Add Instance"
+                    TextTrimming="CharacterEllipsis" />
             </StackPanel>
         </Button>
 
@@ -81,18 +88,20 @@
                 <FontIcon
                     Grid.Column="0"
                     VerticalAlignment="Center"
-                    FontSize="14"
+                    FontSize="{StaticResource UmIconSizeSm}"
                     Glyph="&#xEA8F;" />
                 <TextBlock
                     x:Name="NotificationsLabel"
                     Grid.Column="1"
-                    Margin="10,0,0,0"
-                    VerticalAlignment="Center"
-                    Text="Notification Hub" />
+                    MinWidth="0"
+                    Margin="{StaticResource UmMarginIconLabelGap}"
+                    Style="{StaticResource UmBodyTextStyle}"
+                    Text="Notification Hub"
+                    VerticalAlignment="Center" />
                 <InfoBadge
                     x:Name="NotificationHubBadge"
                     Grid.Column="2"
-                    Margin="8,0,0,0"
+                    Margin="{StaticResource UmMarginBadgeGap}"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
                     Visibility="Collapsed" />
@@ -108,9 +117,14 @@
             Click="SettingsButton_Click"
             Style="{StaticResource SubtleButtonStyle}"
             ToolTipService.ToolTip="Settings">
-            <StackPanel x:Name="SettingsContent" Orientation="Horizontal" Spacing="10">
-                <FontIcon FontSize="14" Glyph="&#xE713;" />
-                <TextBlock x:Name="SettingsLabel" Text="Settings" />
+            <StackPanel x:Name="SettingsContent" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
+                <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE713;" />
+                <TextBlock
+                    x:Name="SettingsLabel"
+                    MinWidth="0"
+                    Style="{StaticResource UmBodyTextStyle}"
+                    Text="Settings"
+                    TextTrimming="CharacterEllipsis" />
             </StackPanel>
         </Button>
     </StackPanel>

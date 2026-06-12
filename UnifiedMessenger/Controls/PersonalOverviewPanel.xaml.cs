@@ -48,9 +48,23 @@ public sealed partial class PersonalOverviewPanel : UserControl
         if (Content is ScrollViewer rootScrollViewer)
         {
             ScrollInputHelper.EnableVerticalScrollBubbling(SummaryCardsGrid, rootScrollViewer);
+            WireResponsiveLayoutHelpers(rootScrollViewer);
         }
 
         ApplyPersonalLayoutPreferences();
+    }
+
+    private void WireResponsiveLayoutHelpers(ScrollViewer rootScrollViewer)
+    {
+        if (VisualStateManager.GetVisualStateGroups(SummaryCardsGrid) is { Count: > 0 } summaryGroups)
+        {
+            ScrollOffsetPreservationHelper.Attach(summaryGroups[0], rootScrollViewer);
+        }
+
+        if (VisualStateManager.GetVisualStateGroups(ContentGrid) is { Count: > 0 } contentGroups)
+        {
+            ScrollOffsetPreservationHelper.Attach(contentGroups[0], rootScrollViewer);
+        }
     }
 
     public void Refresh(IEnumerable<MessengerInstance> personalInstances)

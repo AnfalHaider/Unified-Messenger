@@ -12,7 +12,7 @@
         Background="{ThemeResource LayerFillColorDefaultBrush}"
         BorderBrush="{x:Bind ViewModel.CardBorderBrush, Mode=OneTime}"
         BorderThickness="{x:Bind ViewModel.CardBorderThickness, Mode=OneTime}"
-        CornerRadius="8"
+        CornerRadius="{StaticResource UmCornerRadiusMdValue}"
         ToolTipService.ToolTip="{x:Bind ViewModel.NextActionSummary, Mode=OneTime}">
         <Grid ColumnSpacing="8">
             <Grid.ColumnDefinitions>
@@ -23,11 +23,11 @@
                 Background="{x:Bind ViewModel.CardBorderBrush, Mode=OneTime}"
                 CornerRadius="2"
                 Visibility="{x:Bind SlaStripeVisibility, Mode=OneTime}" />
-            <StackPanel Grid.Column="1" Spacing="{x:Bind ContentSpacing, Mode=OneTime}">
+            <StackPanel Grid.Column="1" MinWidth="0" Spacing="{x:Bind ContentSpacing, Mode=OneTime}">
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition MinWidth="0" Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <FontIcon
@@ -36,10 +36,12 @@
                         Opacity="0.75" />
                     <TextBlock
                         Grid.Column="1"
+                        MinWidth="0"
                         FontSize="{x:Bind CustomerNameFontSize, Mode=OneTime}"
                         FontWeight="SemiBold"
                         Text="{x:Bind ViewModel.CustomerName, Mode=OneTime}"
-                        TextTrimming="CharacterEllipsis" />
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="NoWrap" />
                     <Border
                         Grid.Column="2"
                         Padding="{x:Bind UrgencyBadgePadding, Mode=OneTime}"
@@ -52,15 +54,13 @@
                     </Border>
                 </Grid>
                 <TextBlock
-                    FontSize="10"
                     Opacity="0.55"
-                    Text="{x:Bind ViewModel.InboxLabel, Mode=OneTime}"
-                    TextTrimming="CharacterEllipsis" />
+                    Style="{StaticResource UmCaptionTextStyle}"
+                    Text="{x:Bind ViewModel.InboxLabel, Mode=OneTime}" />
                 <TextBlock
-                    FontSize="10"
                     Opacity="0.45"
+                    Style="{StaticResource UmCaptionTextStyle}"
                     Text="{x:Bind ViewModel.BranchName, Mode=OneTime}"
-                    TextTrimming="CharacterEllipsis"
                     Visibility="{x:Bind ViewModel.BranchNameVisibility, Mode=OneTime}" />
                 <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{x:Bind TagRowVisibility, Mode=OneTime}">
                     <Border Padding="6,2" Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="4">

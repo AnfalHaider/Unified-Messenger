@@ -17,9 +17,12 @@ public partial class MessageVolumeLineChartViewModel : ViewModelBase
     [ObservableProperty]
     private bool _showEmptyHint = true;
 
-    public void ApplySeries(IReadOnlyList<DailyActivityPoint>? series)
+    public void ApplySeries(
+        IReadOnlyList<DailyActivityPoint>? series,
+        double width = 320,
+        double height = 96)
     {
-        var chart = MessageVolumeLineChartHelper.Build(series);
+        var chart = MessageVolumeLineChartHelper.Build(series, width, height);
         SummaryText = chart.SummaryText;
         LinePathData = chart.LinePathData;
         AreaPathData = chart.AreaPathData;

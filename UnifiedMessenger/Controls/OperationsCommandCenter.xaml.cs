@@ -48,6 +48,17 @@ public sealed partial class OperationsCommandCenter : UserControl
     {
         InitializeDateRangePickers();
         ApplyAccessibilityTabOrder();
+        WireResponsiveLayoutHelpers();
+    }
+
+    private void WireResponsiveLayoutHelpers()
+    {
+        if (VisualStateManager.GetVisualStateGroups(KpiMetricsGrid) is { Count: > 0 } kpiGroups)
+        {
+            ScrollOffsetPreservationHelper.Attach(kpiGroups[0], MainContentScrollViewer);
+        }
+        KanbanBoard.WireScrollBubbling(MainContentScrollViewer);
+        ScrollInputHelper.EnableVerticalScrollBubbling(ImmediateQueueList, MainContentScrollViewer);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)

@@ -3,31 +3,57 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Style x:Key="UmCaptionTextStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="10" />
+    <Style x:Key="UmEllipsisTextStyle" TargetType="TextBlock">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <Style x:Key="UmCaptionTextStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeCaption}" />
         <Setter Property="Opacity" Value="0.65" />
     </Style>
 
-    <Style x:Key="UmBodyTextStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12" />
+    <Style x:Key="UmBodyTextStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeBody}" />
     </Style>
 
-    <Style x:Key="UmSectionLabelTextStyle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11" />
+    <Style x:Key="UmScopeTextStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeScope}" />
+        <Setter Property="Opacity" Value="0.9" />
+    </Style>
+
+    <Style x:Key="UmSectionLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeSectionLabel}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Opacity" Value="0.75" />
         <Setter Property="CharacterSpacing" Value="40" />
     </Style>
 
-    <Style x:Key="DashboardSectionHeaderStyle" TargetType="TextBlock">
+    <Style x:Key="DashboardSectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{StaticResource UmBrandSlateBrush}" />
     </Style>
 
-    <Style x:Key="DashboardMetricValueStyle" TargetType="TextBlock">
+    <Style x:Key="DashboardMetricLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeSectionLabel}" />
+        <Setter Property="Opacity" Value="0.65" />
+    </Style>
+
+    <Style x:Key="DashboardMetricValueStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeMetricValue}" />
         <Setter Property="Foreground" Value="{StaticResource UmBrandBlueBrush}" />
+    </Style>
+
+    <Style x:Key="UmKanbanColumnHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeSectionLabel}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="UmEmptyHintTextStyle" TargetType="TextBlock" BasedOn="{StaticResource UmCaptionTextStyle}">
+        <Setter Property="TextWrapping" Value="WrapWholeWords" />
+        <Setter Property="TextAlignment" Value="Center" />
     </Style>
 </ResourceDictionary>

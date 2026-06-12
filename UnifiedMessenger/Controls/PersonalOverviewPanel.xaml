@@ -12,7 +12,7 @@
         AutomationProperties.AutomationId="PersonalOverviewPanel"
         AutomationProperties.Name="Personal Overview"
         VerticalScrollBarVisibility="Auto">
-        <Grid RowSpacing="16">
+        <Grid RowSpacing="{StaticResource UmSpacingLg}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -22,7 +22,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
                 <Button
                     x:Name="PersonalLayoutEditButton"
                     AutomationProperties.AutomationId="PersonalLayoutEditToggle"
@@ -80,8 +80,8 @@
                 Tag="Summary"
                 AutomationProperties.AutomationId="PersonalSummaryCards"
                 AutomationProperties.Name="Personal summary metrics"
-                ColumnSpacing="12"
-                RowSpacing="12">
+                ColumnSpacing="{StaticResource UmSpacingMd}"
+                RowSpacing="{StaticResource UmSpacingMd}">
                 <VisualStateManager.VisualStateGroups>
                     <VisualStateGroup>
                         <VisualState x:Name="WideSummaryLayout">
@@ -104,8 +104,8 @@
                 </VisualStateManager.VisualStateGroups>
 
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" MinWidth="0" />
+                    <ColumnDefinition Width="*" MinWidth="0" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -146,10 +146,10 @@
                 x:Name="PersonalToolbarGrid"
                 Grid.Row="4"
                 Tag="Toolbar"
-                ColumnSpacing="12">
+                ColumnSpacing="{StaticResource UmSpacingMd}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" MinWidth="0" />
                 </Grid.ColumnDefinitions>
                 <Button
                     x:Name="OpenBusiestInboxButton"
@@ -161,7 +161,7 @@
                     x:Name="PersonalLastUpdatedText"
                     Grid.Column="1"
                     HorizontalAlignment="Right"
-                    Opacity="0.55"
+                    Style="{StaticResource UmCaptionTextStyle}"
                     Text="Updated just now"
                     VerticalAlignment="Center" />
             </Grid>
@@ -170,7 +170,7 @@
                 x:Name="ContentGrid"
                 Grid.Row="5"
                 Tag="Content"
-                ColumnSpacing="16">
+                ColumnSpacing="{StaticResource UmSpacingLg}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="LeftColumn" Width="*" MinWidth="280" />
                     <ColumnDefinition x:Name="RightColumn" Width="*" MinWidth="260" />
@@ -217,14 +217,14 @@
                     AutomationProperties.AutomationId="PersonalRecentActivityCard"
                     MinHeight="200">
                     <shared:SurfaceCard.CardBody>
-                    <Grid RowSpacing="12">
+                    <Grid RowSpacing="{StaticResource UmSpacingMd}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" MinHeight="120" />
                         </Grid.RowDefinitions>
                         <TextBlock
                             AutomationProperties.Name="Recent Activity section"
-                            FontWeight="SemiBold"
+                            Style="{StaticResource DashboardSectionHeaderStyle}"
                             Text="Recent Activity" />
                         <ListView
                             x:Name="RecentActivityList"
@@ -234,14 +234,16 @@
                             IsItemClickEnabled="True"
                             ItemClick="RecentActivityList_ItemClick"
                             MaxHeight="420"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
                             SelectionMode="None">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Padding="8,10" ColumnSpacing="10">
+                                    <Grid Padding="{StaticResource UmPaddingSm}" ColumnSpacing="{StaticResource UmSpacingSm}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" MinWidth="0" />
                                         </Grid.ColumnDefinitions>
                                         <Ellipse
                                             Width="8"
@@ -253,33 +255,34 @@
                                         <FontIcon
                                             Grid.Column="1"
                                             VerticalAlignment="Top"
-                                            FontSize="14"
+                                            FontSize="{StaticResource UmIconSizeSm}"
                                             Foreground="{Binding AccentBrush}"
                                             Glyph="{Binding IconGlyph}" />
-                                        <StackPanel Grid.Column="2" Spacing="2">
-                                            <Grid ColumnSpacing="8">
+                                        <StackPanel Grid.Column="2" MinWidth="0" Spacing="2">
+                                            <Grid ColumnSpacing="{StaticResource UmSpacingSm}">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" MinWidth="0" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock
+                                                    MinWidth="0"
                                                     FontWeight="SemiBold"
                                                     Text="{Binding Title}"
-                                                    TextTrimming="CharacterEllipsis" />
+                                                    TextTrimming="CharacterEllipsis"
+                                                    TextWrapping="NoWrap" />
                                                 <TextBlock
                                                     Grid.Column="1"
-                                                    FontSize="11"
-                                                    Opacity="0.55"
+                                                    Style="{StaticResource UmCaptionTextStyle}"
                                                     Text="{Binding RelativeTimeText}" />
                                             </Grid>
                                             <TextBlock
-                                                FontSize="12"
+                                                MinWidth="0"
+                                                Style="{StaticResource UmBodyTextStyle}"
                                                 Opacity="0.75"
-                                                Text="{Binding Body}"
-                                                TextTrimming="CharacterEllipsis" />
+                                                Text="{Binding Body}" />
                                             <TextBlock
-                                                FontSize="11"
-                                                Opacity="0.55"
+                                                MinWidth="0"
+                                                Style="{StaticResource UmCaptionTextStyle}"
                                                 Text="{Binding InstanceDisplayName}" />
                                         </StackPanel>
                                     </Grid>
@@ -322,13 +325,13 @@
                     Grid.Column="1"
                     AutomationProperties.AutomationId="PersonalAccountStatusCard">
                     <shared:SurfaceCard.CardBody>
-                    <StackPanel Spacing="12">
+                    <StackPanel Spacing="{StaticResource UmSpacingMd}">
                         <TextBlock
                             AutomationProperties.Name="Account Status section"
-                            FontWeight="SemiBold"
+                            Style="{StaticResource DashboardSectionHeaderStyle}"
                             Text="Account Status" />
                         <TextBlock
-                            FontSize="12"
+                            Style="{StaticResource UmBodyTextStyle}"
                             Opacity="0.65"
                             Text="Connection health and unread counts for personal accounts."
                             TextWrapping="WrapWholeWords" />
@@ -339,6 +342,8 @@
                             AutomationProperties.Name="Personal account status"
                             IsItemClickEnabled="True"
                             ItemClick="InstanceTilesList_ItemClick"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
                             SelectionMode="None"
                             Visibility="Visible">
                             <ListView.ItemsPanel>
@@ -351,26 +356,28 @@
                                     <Border
                                         Width="168"
                                         Margin="0,0,8,8"
-                                        Padding="10"
+                                        Padding="{StaticResource UmPaddingSm}"
                                         Background="{ThemeResource LayerFillColorDefaultBrush}"
                                         BorderBrush="{Binding AccentBrush}"
                                         BorderThickness="2,0,0,0"
-                                        CornerRadius="6">
-                                        <StackPanel Spacing="6">
-                                            <Grid ColumnSpacing="6">
+                                        CornerRadius="{StaticResource UmCornerRadiusSmValue}">
+                                        <StackPanel Spacing="{StaticResource UmSpacingSm}">
+                                            <Grid ColumnSpacing="{StaticResource UmSpacingSm}">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" MinWidth="0" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <StackPanel MinWidth="0" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
                                                     <FontIcon
-                                                        FontSize="12"
+                                                        FontSize="{StaticResource UmFontSizeBody}"
                                                         Foreground="{Binding AccentBrush}"
                                                         Glyph="{Binding IconGlyph}" />
                                                     <TextBlock
+                                                        MinWidth="0"
                                                         FontWeight="SemiBold"
                                                         Text="{Binding DisplayName}"
-                                                        TextTrimming="CharacterEllipsis" />
+                                                        TextTrimming="CharacterEllipsis"
+                                                        TextWrapping="NoWrap" />
                                                 </StackPanel>
                                                 <FontIcon
                                                     x:Name="MutedIndicatorIcon"
@@ -383,35 +390,35 @@
                                                     Visibility="{Binding MutedIndicatorVisibility}" />
                                             </Grid>
                                             <TextBlock
-                                                FontSize="11"
+                                                MinWidth="0"
+                                                Style="{StaticResource UmCaptionTextStyle}"
                                                 Opacity="0.6"
                                                 Text="{Binding PlatformLabel}" />
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Border
                                                     Padding="6,2"
                                                     Background="{Binding ConnectionBrush}"
-                                                    CornerRadius="4">
+                                                    CornerRadius="{StaticResource UmCornerRadiusSmValue}">
                                                     <TextBlock
-                                                        FontSize="10"
+                                                        FontSize="{StaticResource UmFontSizeCaption}"
                                                         Foreground="White"
                                                         Text="{Binding ConnectionStatusLabel}" />
                                                 </Border>
                                                 <Border
                                                     Padding="6,2"
                                                     Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                    CornerRadius="4"
+                                                    CornerRadius="{StaticResource UmCornerRadiusSmValue}"
                                                     Visibility="{Binding UnreadBadgeVisibility}">
                                                     <TextBlock
-                                                        FontSize="10"
+                                                        FontSize="{StaticResource UmFontSizeCaption}"
                                                         Text="{Binding UnreadBadgeText}" />
                                                 </Border>
                                             </StackPanel>
                                             <TextBlock
-                                                FontSize="11"
+                                                MinWidth="0"
+                                                Style="{StaticResource UmCaptionTextStyle}"
                                                 Opacity="0.75"
-                                                Text="{Binding DetailLine}"
-                                                TextTrimming="CharacterEllipsis"
-                                                TextWrapping="NoWrap" />
+                                                Text="{Binding DetailLine}" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>

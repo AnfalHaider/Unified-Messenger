@@ -7,30 +7,24 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <UserControl.Resources>
-        <Style x:Key="MetricSubtextStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="Opacity" Value="0.55" />
-            <Setter Property="TextWrapping" Value="WrapWholeWords" />
-        </Style>
-    </UserControl.Resources>
-
-    <Border x:Name="CardBorder" MinWidth="90" Padding="12,8" Style="{StaticResource DashboardMetricCardStyle}">
-        <StackPanel Spacing="4">
+    <Border
+        x:Name="CardBorder"
+        MinWidth="90"
+        Padding="{StaticResource UmMetricCardPadding}"
+        Style="{StaticResource DashboardMetricCardStyle}">
+        <StackPanel Spacing="{StaticResource UmSpacingXs}">
             <TextBlock
                 x:Name="LabelText"
-                FontSize="11"
-                Opacity="0.65"
+                Style="{StaticResource DashboardMetricLabelStyle}"
                 Text="{x:Bind Label, Mode=OneWay}" />
             <TextBlock
                 x:Name="ValueText"
-                FontSize="20"
-                FontWeight="SemiBold"
-                Foreground="{StaticResource UmBrandBlueBrush}"
+                Style="{StaticResource DashboardMetricValueStyle}"
                 Text="{x:Bind Value, Mode=OneWay}" />
             <TextBlock
-                Style="{StaticResource MetricSubtextStyle}"
+                Style="{StaticResource UmCaptionTextStyle}"
                 Text="{x:Bind Subtext, Mode=OneWay}"
+                TextWrapping="WrapWholeWords"
                 Visibility="{x:Bind SubtextVisibility, Mode=OneWay}" />
         </StackPanel>
     </Border>

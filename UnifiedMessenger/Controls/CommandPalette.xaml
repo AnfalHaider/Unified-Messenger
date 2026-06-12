@@ -10,7 +10,7 @@
 
     <Grid
         x:Name="Overlay"
-        Background="#66000000"
+        Background="{StaticResource UmModalOverlayBrush}"
         PointerPressed="Overlay_PointerPressed">
         <Border
             x:Name="PalettePanel"
@@ -54,7 +54,7 @@
                                 </Grid.ColumnDefinitions>
                                 <FontIcon
                                     VerticalAlignment="Center"
-                                    FontSize="14"
+                                    FontSize="{StaticResource UmIconSizeSm}"
                                     Glyph="{Binding IconGlyph}"
                                     Opacity="0.55" />
                                 <StackPanel Grid.Column="1" Spacing="2">
@@ -63,11 +63,11 @@
                                         Text="{Binding Title}"
                                         TextTrimming="CharacterEllipsis" />
                                     <TextBlock
-                                        FontSize="12"
+                                        Style="{StaticResource UmBodyTextStyle}"
                                         Opacity="0.65"
                                         Text="{Binding Subtitle}"
                                         TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
+</StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>

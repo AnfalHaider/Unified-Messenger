@@ -11,36 +11,36 @@
 
     <shared:SurfaceCard>
         <shared:SurfaceCard.CardBody>
-            <StackPanel Spacing="10">
+            <StackPanel Spacing="{StaticResource UmSpacingMd}">
                 <TextBlock
                     Style="{StaticResource UmSectionLabelTextStyle}"
                     Text="MESSAGE VOLUME" />
                 <TextBlock
                     x:Name="SummaryTextBlock"
                     Opacity="0.75"
+                    Style="{StaticResource UmBodyTextStyle}"
                     Text="No message volume in the selected range."
                     TextWrapping="WrapWholeWords" />
-                <Grid Height="110" MinWidth="200">
+                <Grid
+                    x:Name="ChartPlotGrid"
+                    MinWidth="200"
+                    Height="{StaticResource UmChartHeight}">
                     <Path
                         x:Name="AreaPath"
-                        Data="M0,110 L0,110 Z"
                         Fill="{StaticResource UmBrandTealBrush}"
                         Opacity="0.15"
-                        Stretch="Fill" />
+                        Stretch="None" />
                     <Path
                         x:Name="LinePath"
-                        Data="M0,110 L0,110"
                         Stroke="{StaticResource UmBrandTealBrush}"
                         StrokeThickness="2"
-                        Stretch="Fill" />
+                        Stretch="None" />
                     <TextBlock
                         x:Name="EmptyHintText"
                         HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Opacity="0.55"
+                        Style="{StaticResource UmEmptyHintTextStyle}"
                         Text="Activity will appear after WhatsApp messages are detected."
-                        TextAlignment="Center"
-                        TextWrapping="WrapWholeWords"
+                        VerticalAlignment="Center"
                         Visibility="Visible" />
                 </Grid>
             </StackPanel>

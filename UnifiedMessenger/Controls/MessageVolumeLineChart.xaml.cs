@@ -10,110 +10,129 @@ namespace UnifiedMessenger.Controls;
 
 public sealed partial class MessageVolumeLineChart : UserControl
 {
+    private const double DefaultPlotWidth = 320;
+
     private readonly MessageVolumeLineChartViewModel _viewModel = new();
-    private readonly PathGeometry _lineGeometry = new();
-    private readonly PathGeometry _areaGeometry = new();
-    private string? _lastSeriesSignature;
+    private IReadOnlyList<DailyActivityPoint>? _currentSeries;
+    private string? _lastRenderedSignature;
 
     public MessageVolumeLineChart()
     {
         InitializeComponent();
-        LinePath.Data = _lineGeometry;
-        AreaPath.Data = _areaGeometry;
+        ChartPlotGrid.SizeChanged += OnChartPlotSizeChanged;
+        Loaded += (_, _) => RenderChart();
     }
 
     public void ApplySeries(IReadOnlyList<DailyActivityPoint>? series)
     {
-        _viewModel.ApplySeries(series);
+        _currentSeries = series;
+        _viewModel.ApplySeries(series, ResolvePlotWidth(), ResolvePlotHeight());
         SummaryTextBlock.Text = _viewModel.SummaryText;
         EmptyHintText.Visibility = _viewModel.ShowEmptyHint ? Visibility.Visible : Visibility.Collapsed;
-
-        if (_viewModel.ShowEmptyHint || series is null || series.Count == 0)
-        {
-            _lastSeriesSignature = null;
-            _lineGeometry.Figures.Clear();
-            _areaGeometry.Figures.Clear();
-            return;
-        }
-
-        var signature = BuildSeriesSignature(series);
-        if (signature == _lastSeriesSignature)
-        {
-            return;
-        }
-
-        _lastSeriesSignature = signature;
-        UpdateLineGeometry(_lineGeometry, series, closeArea: false);
-        UpdateLineGeometry(_areaGeometry, series, closeArea: true);
+        RenderChart();
     }
 
-    private static string BuildSeriesSignature(IReadOnlyList<DailyActivityPoint> series)
+    private void OnChartPlotSizeChanged(object sender, SizeChangedEventArgs e) =>
+        RenderChart();
+
+    private void RenderChart()
     {
-        var builder = new System.Text.StringBuilder(series.Count * 12);
-        foreach (var point in series)
+        if (_viewModel.ShowEmptyHint || _currentSeries is null || _currentSeries.Count == 0)
         {
-            builder.Append(point.Label)
-                .Append(':')
-                .Append(point.Sent)
-                .Append('/')
-                .Append(point.Received)
-                .Append('|');
+            _lastRenderedSignature = null;
+            LinePath.Data = null;
+            AreaPath.Data = null;
+            return;
         }
 
-        return builder.ToString();
-    }
-
-    private static void UpdateLineGeometry(
-        PathGeometry geometry,
-        IReadOnlyList<DailyActivityPoint> series,
-        bool closeArea)
-    {
-        var points = BuildChartPoints(series);
-        geometry.Figures.Clear();
-
-        if (points.Count == 0)
+        var width = ResolvePlotWidth();
+        var height = ResolvePlotHeight();
+        var chart = MessageVolumeLineChartHelper.Build(_currentSeries, width, height);
+        var signature = $"{chart.LinePathData}|{chart.AreaPathData}|{width:0.#}|{height:0.#}";
+        if (signature == _lastRenderedSignature)
         {
             return;
         }
 
-        var figure = new PathFigure { StartPoint = points[0] };
-        if (points.Count > 1)
+        _lastRenderedSignature = signature;
+        LinePath.Data = CreateGeometry(chart.LinePathData);
+        AreaPath.Data = CreateGeometry(chart.AreaPathData);
+    }
+
+    private double ResolvePlotWidth()
+    {
+        var width = ChartPlotGrid.ActualWidth;
+        return width > 0 ? width : DefaultPlotWidth;
+    }
+
+    private static double ResolvePlotHeight() =>
+        Application.Current.Resources.TryGetValue("UmChartPlotHeight", out var token) &&
+        token is double plotHeight
+            ? plotHeight
+            : 96;
+
+    private static Geometry? CreateGeometry(string pathData)
+    {
+        if (string.IsNullOrWhiteSpace(pathData))
         {
-            var segment = new PolyLineSegment();
-            for (var i = 1; i < points.Count; i++)
+            return null;
+        }
+
+        var geometry = new PathGeometry();
+        var tokens = pathData.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        PathFigure? figure = null;
+        PolyLineSegment? segment = null;
+
+        for (var i = 0; i < tokens.Length; i++)
+        {
+            switch (tokens[i])
             {
-                segment.Points.Add(points[i]);
+                case "M":
+                    if (figure is not null)
+                    {
+                        if (segment?.Points.Count > 0)
+                        {
+                            figure.Segments.Add(segment);
+                        }
+
+                        geometry.Figures.Add(figure);
+                    }
+
+                    figure = new PathFigure
+                    {
+                        StartPoint = ParsePoint(tokens[++i])
+                    };
+                    segment = new PolyLineSegment();
+                    break;
+                case "L":
+                    segment?.Points.Add(ParsePoint(tokens[++i]));
+                    break;
+                case "Z":
+                    if (figure is not null)
+                    {
+                        figure.IsClosed = true;
+                    }
+
+                    break;
+            }
+        }
+
+        if (figure is not null)
+        {
+            if (segment?.Points.Count > 0)
+            {
+                figure.Segments.Add(segment);
             }
 
-            figure.Segments.Add(segment);
-            figure.IsClosed = closeArea;
+            geometry.Figures.Add(figure);
         }
 
-        geometry.Figures.Add(figure);
+        return geometry;
     }
 
-    private static List<Point> BuildChartPoints(IReadOnlyList<DailyActivityPoint> series)
+    private static Point ParsePoint(string token)
     {
-        var totals = series.Select(point => point.Sent + point.Received).ToList();
-        var peak = Math.Max(1, totals.Max());
-        const double width = 320;
-        const double height = 96;
-        var stepX = series.Count <= 1 ? width : width / (series.Count - 1);
-        var points = new List<Point>(series.Count + 2);
-
-        for (var i = 0; i < series.Count; i++)
-        {
-            var x = i * stepX;
-            var y = height - (totals[i] * height / peak);
-            points.Add(new Point(x, y));
-        }
-
-        if (points.Count > 1)
-        {
-            points.Insert(0, new Point(points[0].X, height));
-            points.Add(new Point(points[^1].X, height));
-        }
-
-        return points;
+        var parts = token.Split(',');
+        return new Point(double.Parse(parts[0]), double.Parse(parts[1]));
     }
 }

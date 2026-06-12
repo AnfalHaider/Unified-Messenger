@@ -18,7 +18,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <StackPanel Spacing="8">
+    <StackPanel Spacing="{StaticResource UmSpacingSm}">
         <InfoBar
             x:Name="CrossColumnInfoBar"
             IsClosable="True"
@@ -38,19 +38,13 @@
                 x:Name="NewColumnPanel"
                 Grid.Column="0"
                 AutomationProperties.Name="Kanban column: New inquiries"
-                Spacing="4">
-                <TextBlock FontSize="11" FontWeight="SemiBold" Text="New" />
-                <Border
-                    x:Name="NewColumnDropZone"
-                    MinHeight="120"
-                    Padding="2"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="6">
+                Spacing="{StaticResource UmSpacingXs}">
+                <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="New" />
+                <Border x:Name="NewColumnDropZone" Style="{StaticResource KanbanColumnDropZoneStyle}">
                     <ListView
                         x:Name="NewInquiriesList"
-                        AutomationProperties.Name="New inquiries kanban list"
                         AllowDrop="True"
+                        AutomationProperties.Name="New inquiries kanban list"
                         CanDragItems="False"
                         CanReorderItems="False"
                         DragItemsCompleted="KanbanList_DragItemsCompleted"
@@ -68,8 +62,7 @@
                 </Border>
                 <TextBlock
                     x:Name="NewInquiriesEmptyText"
-                    FontSize="10"
-                    Opacity="0.55"
+                    Style="{StaticResource UmCaptionTextStyle}"
                     Text="No new inquiries."
                     Visibility="Collapsed" />
             </StackPanel>
@@ -78,19 +71,13 @@
                 x:Name="HangingColumnPanel"
                 Grid.Column="1"
                 AutomationProperties.Name="Kanban column: Hanging leads"
-                Spacing="4">
-                <TextBlock FontSize="11" FontWeight="SemiBold" Text="Hanging" />
-                <Border
-                    x:Name="HangingColumnDropZone"
-                    MinHeight="120"
-                    Padding="2"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="6">
+                Spacing="{StaticResource UmSpacingXs}">
+                <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="Hanging" />
+                <Border x:Name="HangingColumnDropZone" Style="{StaticResource KanbanColumnDropZoneStyle}">
                     <ListView
                         x:Name="HangingLeadsList"
-                        AutomationProperties.Name="Hanging leads kanban list"
                         AllowDrop="True"
+                        AutomationProperties.Name="Hanging leads kanban list"
                         CanDragItems="False"
                         CanReorderItems="False"
                         DragItemsCompleted="KanbanList_DragItemsCompleted"
@@ -108,8 +95,7 @@
                 </Border>
                 <TextBlock
                     x:Name="HangingLeadsEmptyText"
-                    FontSize="10"
-                    Opacity="0.55"
+                    Style="{StaticResource UmCaptionTextStyle}"
                     Text="No hanging leads."
                     Visibility="Collapsed" />
             </StackPanel>
@@ -118,19 +104,13 @@
                 x:Name="ResolvedColumnPanel"
                 Grid.Column="2"
                 AutomationProperties.Name="Kanban column: Resolved threads"
-                Spacing="4">
-                <TextBlock FontSize="11" FontWeight="SemiBold" Text="Resolved" />
-                <Border
-                    x:Name="ResolvedColumnDropZone"
-                    MinHeight="120"
-                    Padding="2"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="6">
+                Spacing="{StaticResource UmSpacingXs}">
+                <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="Resolved" />
+                <Border x:Name="ResolvedColumnDropZone" Style="{StaticResource KanbanColumnDropZoneStyle}">
                     <ListView
                         x:Name="ResolvedList"
-                        AutomationProperties.Name="Resolved threads kanban list"
                         AllowDrop="True"
+                        AutomationProperties.Name="Resolved threads kanban list"
                         CanDragItems="False"
                         CanReorderItems="False"
                         DragItemsCompleted="KanbanList_DragItemsCompleted"
@@ -148,8 +128,7 @@
                 </Border>
                 <TextBlock
                     x:Name="ResolvedEmptyText"
-                    FontSize="10"
-                    Opacity="0.55"
+                    Style="{StaticResource UmCaptionTextStyle}"
                     Text="Nothing resolved yet."
                     Visibility="Collapsed" />
             </StackPanel>

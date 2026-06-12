@@ -195,7 +195,11 @@ public sealed partial class KanbanColumnBoard : UserControl
 
     private void UpdateDropZoneChrome(Border dropZone, int itemCount)
     {
-        dropZone.MinHeight = IsReorderEnabled && itemCount == 0 ? 160 : 120;
+        var minHeight = Application.Current.Resources.TryGetValue("UmKanbanColumnMinHeight", out var token) &&
+                        token is double baseHeight
+            ? baseHeight
+            : 120;
+        dropZone.MinHeight = IsReorderEnabled && itemCount == 0 ? minHeight + 40 : minHeight;
     }
 
     public string? ResolveColumnKey(ListView listView) => ResolveColumnKeyInternal(listView);
