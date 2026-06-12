@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v3.1.4 (WhatsApp Core “Lite” line)
+**Current release:** v3.1.5 (WhatsApp Core “Lite” line)
 
 ## Scope
 
@@ -28,6 +28,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
+
+### What's in v3.1.5
+
+- **UI hyper-loop polish:** Design-token pass across Operations Command Center, Personal Overview, kanban, message-volume chart, metric/thread cards, and workspace sidebar; shared scroll-offset preservation for list refresh stability.
+- **Token cleanup:** Command palette modal scrim, notification feed typography, and sidebar compact padding wired to theme tokens.
 ### What's in v3.1.4
 
 - **Hyper-loop audit fixes:** Stop WhatsApp telemetry from double-counting analytics, ignore orphan branch keys in OCC pills, guard OCC date-range picker races and unload leaks, reuse message-volume chart geometries, and clear telemetry timers on adapter dispose.
@@ -124,7 +129,7 @@ GitHub Actions (`.github/workflows/build.yml`):
 3. **ui-smoke** — FlaUI harness against published x64 binary
 4. **release** — tag `v*` only; attaches CI-built installers to GitHub Releases
 
-Push tag `v3.1.4` to publish a release. Pushing to `main` alone updates source but not the Releases page.
+Push tag `v3.1.5` to publish a release. Pushing to `main` alone updates source but not the Releases page.
 
 ## Auto-update
 
