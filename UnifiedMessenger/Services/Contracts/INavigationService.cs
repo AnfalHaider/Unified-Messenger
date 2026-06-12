@@ -18,7 +18,7 @@ public interface INavigationService
 
     event EventHandler? OccImmediateLaneFocusRequested;
 
-    event EventHandler? OccSnapshotExportRequested;
+    event EventHandler<string?>? SettingsOpenRequested;
 
     void RequestInstance(string instanceId);
 
@@ -38,7 +38,7 @@ public interface INavigationService
 
     void RequestOccImmediateLaneFocus();
 
-    void RequestOccSnapshotExport();
+    void RequestOpenSettings(string? sectionKey = null);
 
     void OpenInstance(string instanceId);
 

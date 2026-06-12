@@ -12,9 +12,6 @@ public sealed class MessageTriageItem
 
     public required string MessagePreview { get; init; }
 
-    /// <summary>
-    /// Full cleaned inbound text for LLM inference (may exceed preview length).
-    /// </summary>
     public string MessageFullText { get; init; } = string.Empty;
 
     public string CustomerName { get; init; } = "Customer";
@@ -30,8 +27,6 @@ public sealed class MessageTriageItem
     public CustomerIntent CustomerIntent { get; init; } = CustomerIntent.Inquiry;
 
     public string CoreSummary { get; init; } = string.Empty;
-
-    public RichTriageExtractedEntities ExtractedEntities { get; init; } = new();
 
     public string ThreadId { get; init; } = string.Empty;
 
@@ -55,24 +50,7 @@ public sealed class MessageTriageItem
 
     public bool IsRevenueLeakageRisk { get; init; }
 
-    /// <summary>LLM-suggested WhatsApp reply draft (when local AI triage is enabled).</summary>
-    public string SuggestedDraftResponse { get; init; } = string.Empty;
-
-    public IReadOnlyList<string> RequestedServices { get; init; } = [];
-
-    public string BranchTarget { get; init; } = string.Empty;
-
-    public string SubIntent { get; init; } = string.Empty;
-
-    public IReadOnlyList<string> IntentTags { get; init; } = [];
-
-    public double IntentConfidence { get; init; }
-
     public InboundMessageKind MessageKind { get; init; } = InboundMessageKind.Text;
-
-    public double TranscriptConfidence { get; init; }
-
-    public double VoiceDurationSeconds { get; init; }
 
     public string UrgencyLabel => UrgencyScore switch
     {
@@ -95,9 +73,6 @@ public sealed class MessageTriageDashboardSnapshot
 
     public IReadOnlyList<MessageTriageItem> UrgentQueue { get; init; } = [];
 
-    /// <summary>
-    /// Recent professional inbound with urgency below the urgent threshold (see <see cref="DashboardCardEmptyStateHelper.UrgentScoreThreshold"/>).
-    /// </summary>
     public IReadOnlyList<MessageTriageItem> RecentInbound { get; init; } = [];
 
     public int TotalTriageCount => PositiveCount + NeutralCount + NegativeCount;

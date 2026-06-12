@@ -196,6 +196,22 @@ public static class ConversationKeyResolver
         return collapsed;
     }
 
+    public static bool Matches(string? expected, string? actual, string? platform = null)
+    {
+        var expectedKey = NormalizeExplicitKey(expected ?? string.Empty, platform);
+        var actualKey = NormalizeExplicitKey(actual ?? string.Empty, platform);
+
+        if (string.IsNullOrWhiteSpace(expectedKey) || string.IsNullOrWhiteSpace(actualKey))
+        {
+            return string.Equals(
+                CollapseWhitespace(expected ?? string.Empty),
+                CollapseWhitespace(actual ?? string.Empty),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        return expectedKey.Equals(actualKey, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string CollapseWhitespace(string value) =>
         string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).Trim();
 }

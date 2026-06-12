@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
-using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Pages;
 
@@ -22,8 +21,6 @@ public sealed partial class DashboardPage : Page
     }
 
     private bool IsOperationsCommandCenterTabSelected => DashboardTabs.SelectedIndex == 0;
-
-    private bool IsPersonalOverviewTabSelected => DashboardTabs.SelectedIndex == 1;
 
     private void OnResourceTimerTick(object? sender, object e)
     {
@@ -70,7 +67,6 @@ public sealed partial class DashboardPage : Page
         var navigation = _services.Navigation;
         navigation.OccBranchFilterRequested += OnOccBranchFilterRequested;
         navigation.OccImmediateLaneFocusRequested += OnOccImmediateLaneFocusRequested;
-        navigation.OccSnapshotExportRequested += OnOccSnapshotExportRequested;
 
         _services.AdapterHealth.Changed += OnPersonalDataChanged;
         _services.ConnectionStatus.Changed += OnPersonalDataChanged;
@@ -98,7 +94,6 @@ public sealed partial class DashboardPage : Page
         var navigation = _services.Navigation;
         navigation.OccBranchFilterRequested -= OnOccBranchFilterRequested;
         navigation.OccImmediateLaneFocusRequested -= OnOccImmediateLaneFocusRequested;
-        navigation.OccSnapshotExportRequested -= OnOccSnapshotExportRequested;
 
         _services.AdapterHealth.Changed -= OnPersonalDataChanged;
         _services.ConnectionStatus.Changed -= OnPersonalDataChanged;
@@ -133,17 +128,7 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             DashboardTabs.SelectedIndex = 0;
-            _services.OccFilter.BranchKey = branchKey;
-            OperationsCommandCenterPanel.SelectWorkspaceBranch(branchKey);
-        });
-    }
-
-    private void OnOccSnapshotExportRequested(object? sender, EventArgs e)
-    {
-        DispatcherQueue.TryEnqueue(async () =>
-        {
-            DashboardTabs.SelectedIndex = 0;
-            await OperationsCommandCenterPanel.ExportSnapshotAsync().ConfigureAwait(true);
+            OperationsCommandCenterPanel.SelectWorkspaceBranch(branchKey, forceRefresh: true);
         });
     }
 
@@ -189,28 +174,7 @@ public sealed partial class DashboardPage : Page
         WelcomeSubtitle.Text = DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
 
         PersonalOverviewPanel.Refresh(PersonalInstances);
-        ScheduleBackfillRetryIfNeeded();
-        _ = ApplyWhatsAppFocusLayoutAndRefreshAsync();
-    }
-
-    private async Task ApplyWhatsAppFocusLayoutAndRefreshAsync()
-    {
-        if (WhatsAppFocusLayoutHelper.TryApplyRecommendedLayout(_services.AppSettings.Settings))
-        {
-            await _services.AppSettings.SaveAsync().ConfigureAwait(true);
-        }
-
-        await RefreshOperationsCommandCenterAsync().ConfigureAwait(true);
-    }
-
-    private async Task RefreshOperationsCommandCenterIfVisibleAsync()
-    {
-        if (!IsOperationsCommandCenterTabSelected)
-        {
-            return;
-        }
-
-        await RefreshOperationsCommandCenterAsync().ConfigureAwait(true);
+        _ = RefreshOperationsCommandCenterAsync();
     }
 
     private async Task RefreshOperationsCommandCenterAsync()
@@ -225,28 +189,9 @@ public sealed partial class DashboardPage : Page
             _registry).ConfigureAwait(true);
     }
 
-    private void ScheduleBackfillRetryIfNeeded()
-    {
-        if (!_services.AppSettings.Settings.EnableStartupBackfill)
-        {
-            return;
-        }
-
-        foreach (var instance in ProfessionalInstances)
-        {
-            var state = _services.Backfill.GetState(instance.Id);
-            if (state is BackfillSyncState.NotStarted or BackfillSyncState.Failed or BackfillSyncState.Skipped)
-            {
-                _services.Backfill.Schedule(instance);
-            }
-        }
-    }
-
     private IEnumerable<MessengerInstance> ProfessionalInstances =>
-        PlatformModuleSettingsHelper.FilterEnabledInstances(
-            _registry?.Instances.Where(i => i.IsProfessional) ?? []);
+        _registry?.Instances.Where(i => i.IsProfessional) ?? [];
 
     private IEnumerable<MessengerInstance> PersonalInstances =>
-        PlatformModuleSettingsHelper.FilterEnabledInstances(
-            _registry?.Instances.Where(i => !i.IsProfessional) ?? []);
+        _registry?.Instances.Where(i => !i.IsProfessional) ?? [];
 }

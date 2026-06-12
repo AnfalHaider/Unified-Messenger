@@ -10,12 +10,6 @@ public static partial class BranchNameResolver
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex BranchTokenPattern();
 
-    public static string Resolve(MessengerInstance instance)
-    {
-        ArgumentNullException.ThrowIfNull(instance);
-        return Resolve(instance.DisplayName);
-    }
-
     public static string Resolve(string? displayName)
     {
         if (string.IsNullOrWhiteSpace(displayName))

@@ -104,7 +104,7 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         thread.LastTriageItemId = item.Id;
         thread.IsSpamOrPromo = spam;
         thread.LastMessageKind = item.MessageKind.ToString();
-        if (item.MessageKind == InboundMessageKind.VoiceNote && item.TranscriptConfidence > 0)
+        if (item.MessageKind == InboundMessageKind.VoiceNote)
         {
             thread.HasUnreadVoiceNote = false;
         }
@@ -207,6 +207,41 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         NotifyChanged();
     }
 
+    public void UpdateLastMessageKind(
+        string instanceId,
+        string conversationKey,
+        InboundMessageKind messageKind,
+        DateTimeOffset messageAtUtc)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId) || string.IsNullOrWhiteSpace(conversationKey))
+        {
+            return;
+        }
+
+        var threadId = ConversationKeyResolver.BuildThreadId(instanceId, conversationKey.Trim());
+        if (!_threads.TryGetValue(threadId, out var thread))
+        {
+            thread = _threads.GetOrAdd(threadId, _ => new ThreadData
+            {
+                ThreadId = threadId,
+                Platform = "whatsapp",
+                InstanceId = instanceId,
+                ConversationKey = conversationKey.Trim(),
+                CustomerName = conversationKey.Trim(),
+                LastMessageTime = messageAtUtc,
+                FirstInboundAtUtc = messageAtUtc
+            });
+        }
+
+        thread.LastMessageKind = messageKind.ToString();
+        if (messageAtUtc > thread.LastMessageTime)
+        {
+            thread.LastMessageTime = messageAtUtc;
+        }
+
+        NotifyChanged();
+    }
+
     public void UpdateWhatsAppDeliveryStatus(
         string instanceId,
         string conversationKey,
@@ -229,7 +264,17 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         var threadId = ConversationKeyResolver.BuildThreadId(instanceId, conversationKey.Trim());
         if (!_threads.TryGetValue(threadId, out var thread))
         {
-            return;
+            var createdAt = updatedAtUtc ?? DateTimeOffset.UtcNow;
+            thread = _threads.GetOrAdd(threadId, _ => new ThreadData
+            {
+                ThreadId = threadId,
+                Platform = "whatsapp",
+                InstanceId = instanceId,
+                ConversationKey = conversationKey.Trim(),
+                CustomerName = conversationKey.Trim(),
+                LastMessageTime = createdAt,
+                FirstInboundAtUtc = createdAt
+            });
         }
 
         var incomingRank = WhatsAppDeliveryStatusLabel.Rank(normalized);
@@ -327,10 +372,6 @@ public sealed class ThreadRegistryService : IThreadRegistryService
             Changed?.Invoke(this, EventArgs.Empty);
         }
     }
-
-    [Obsolete("Use ConversationKeyResolver.BuildThreadId")]
-    internal static string BuildThreadId(string instanceId, string conversationKey) =>
-        ConversationKeyResolver.BuildThreadId(instanceId, conversationKey);
 
     internal static int MapOperationalUrgency(int urgencyScore) =>
         urgencyScore switch

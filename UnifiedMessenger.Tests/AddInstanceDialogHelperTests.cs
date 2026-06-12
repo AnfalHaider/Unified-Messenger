@@ -6,9 +6,9 @@ namespace UnifiedMessenger.Tests;
 public class AddInstanceDialogHelperTests
 {
     [Theory]
-    [InlineData("generic", true)]
     [InlineData("whatsapp", false)]
-    public void ShouldShowCustomUrlField_OnlyForGenericPlatform(string platformId, bool expected)
+    [InlineData("whatsappbusiness", false)]
+    public void ShouldShowCustomUrlField_IsFalseForWhatsAppPlatforms(string platformId, bool expected)
     {
         Assert.Equal(expected, AddInstanceDialogHelper.ShouldShowCustomUrlField(platformId));
     }
@@ -39,23 +39,6 @@ public class AddInstanceDialogHelperTests
 
         Assert.False(submission.IsValid);
         Assert.Equal("Display name is required.", submission.ValidationMessage);
-    }
-
-    [Fact]
-    public void ValidatePrimaryAction_RequiresCustomUrlForGenericPlatform()
-    {
-        var generic = PlatformDefinition.FindById("generic");
-        Assert.NotNull(generic);
-
-        var submission = AddInstanceDialogHelper.ValidatePrimaryAction(
-            selectedArchivedInstance: null,
-            displayName: "Custom Site",
-            platform: generic,
-            customUrl: null,
-            WorkspaceCategory.Personal);
-
-        Assert.False(submission.IsValid);
-        Assert.Equal("Enter a custom URL for this platform.", submission.ValidationMessage);
     }
 
     [Theory]

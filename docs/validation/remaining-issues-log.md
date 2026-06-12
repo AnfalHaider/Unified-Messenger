@@ -23,6 +23,18 @@ Issues that do **not** block continued delivery but prevent claiming full comple
 | Legacy branch filter / control center | Removed Wave 4 |
 | Dashboard client-side branch scoping | Removed (locked decision) |
 
+## OCC / pipeline audit (Waves 1–6 + Phase 8)
+
+| ID | Status | Notes |
+|----|--------|-------|
+| P-01 Canonical conversation key (WhatsApp JID) | **Resolved** | `__umResolveActiveChatJid` centralized in `adapter-core.js`; wired through adapter, context scraper, voice monitor |
+| VN-01 Voice note conversation binding | **Resolved** | Voice monitor passes resolved `chatJid` into `__umResolvePlatformConversationIdentity` |
+| VN-05 Voice script gating | **Resolved** | `EnableLocalAi && EnableVoiceNoteTranscription` in `PlatformAdapters.PrepareScript` |
+| UI-01 AutomationIds | **Resolved** | Wave 5 — sidebar, Personal Overview, notification feed, command palette |
+| Phase 8 Bugbot / security | **Resolved** | Branch metrics, pulse coalescing, draft generation tokens, fail-closed probe |
+
+**Manual only (Phase 9):** live WhatsApp Web fidelity checklist, branch pulse with Ollama running, Copilot Ctrl+Space on real instance.
+
 ## Release readiness
 
 **Tag release when:** automatable criteria pass (see `completion-criteria.md`) and UiSmoke green on CI.

@@ -8,7 +8,7 @@ public sealed class UnifiedMessengerDashboardService
     private static readonly Lazy<UnifiedMessengerDashboardService> LazyInstance =
         new(() => new UnifiedMessengerDashboardService());
 
-    private static readonly string[] MonitoredPlatformIds = ["metabusiness", "googlebusiness", "whatsapp", "whatsappbusiness"];
+    private static readonly string[] MonitoredPlatformIds = ["whatsapp", "whatsappbusiness"];
 
     public const int ImmediateActionQueueDisplayLimit = 24;
 
@@ -18,37 +18,50 @@ public sealed class UnifiedMessengerDashboardService
 
     public UnifiedMessengerDashboardSnapshot BuildSnapshot(
         IEnumerable<MessengerInstance> professionalInstances,
-        string? selectedBranchKey = null)
+        string? selectedBranchKey = null) =>
+        BuildSnapshot(professionalInstances, selectedBranchKey, fromUtc: null, toUtc: null);
+
+    public UnifiedMessengerDashboardSnapshot BuildSnapshot(
+        IEnumerable<MessengerInstance> professionalInstances,
+        string? selectedBranchKey,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
     {
         ThreadRegistryService.Instance.RefreshOperationalFlags(raiseChanged: false);
 
-        var instances = PlatformModuleSettingsHelper
-            .FilterEnabledInstances(professionalInstances)
+        var instances = professionalInstances
             .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
+            .Where(instance => PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
             .ToList();
 
         var scopedInstances = DashboardPageHelper
             .FilterProfessionalInstances(instances, selectedBranchKey)
             .ToList();
 
-        var allowedIds = scopedInstances
-            .Select(instance => instance.Id)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var instanceById = instances.ToDictionary(
+            instance => instance.Id,
+            StringComparer.OrdinalIgnoreCase);
 
-        var threads = ThreadRegistryService.Instance.GetAllThreads()
-            .Where(thread => allowedIds.Contains(thread.InstanceId))
+        var threads = BranchWorkspaceHelper
+            .FilterThreadsForBranchWorkspace(
+                ThreadRegistryService.Instance.GetAllThreads(),
+                instanceById,
+                selectedBranchKey);
+        var filteredThreads = OccDateRangeFilterHelper
+            .FilterByTimestamp(threads, thread => thread.LastMessageTime, fromUtc, toUtc)
             .OrderByDescending(thread => thread.LastMessageTime)
             .ToList();
+        threads = filteredThreads;
 
         var displayOrder = ThreadDisplayOrderService.Instance;
 
-        var branchNames = BranchWorkspaceHelper.CollectBranchKeys(scopedInstances, threads);
+        var branchNames = BranchWorkspaceHelper.CollectBranchKeys(scopedInstances, filteredThreads);
 
         var branchMetrics = branchNames
-            .Select(branch => BranchWorkspaceHelper.BuildBranchMetrics(branch, threads, scopedInstances))
+            .Select(branch => BranchWorkspaceHelper.BuildBranchMetrics(branch, filteredThreads, instances))
             .ToList();
 
-        var actionableThreads = threads.Where(thread => !thread.IsSpamOrPromo).ToList();
+        var actionableThreads = filteredThreads.Where(thread => !thread.IsSpamOrPromo).ToList();
 
         var revenueAtRisk = actionableThreads
             .Where(thread => thread.IsRevenueLeakageRisk)
@@ -60,7 +73,7 @@ public sealed class UnifiedMessengerDashboardService
             .Take(ImmediateActionQueueDisplayLimit)
             .ToList();
 
-        threads = threads
+        var orderedThreads = filteredThreads
             .GroupBy(thread => thread.KanbanColumn)
             .SelectMany(group => displayOrder.SortThreadsForKanbanColumn(group, group.Key))
             .ToList();
@@ -75,7 +88,7 @@ public sealed class UnifiedMessengerDashboardService
             TotalRevenueAtRisk = revenueAtRisk,
             PlatformHealth = BuildPlatformHealth(scopedInstances),
             ImmediateActionQueue = immediateQueue,
-            AllThreads = threads,
+            AllThreads = orderedThreads,
             BranchNames = branchNames,
             OpenThreadCount = openThreads,
             HangingLeadCount = hangingLeads,
@@ -93,20 +106,20 @@ public sealed class UnifiedMessengerDashboardService
     {
         ThreadRegistryService.Instance.RefreshOperationalFlags(raiseChanged: false);
 
-        var scopedInstances = DashboardPageHelper
-            .FilterProfessionalInstances(
-                PlatformModuleSettingsHelper
-                    .FilterEnabledInstances(professionalInstances)
-                    .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id)),
-                selectedBranchKey)
+        var instances = professionalInstances
+            .Where(instance => instance.IsProfessional && !string.IsNullOrWhiteSpace(instance.Id))
+            .Where(instance => PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
             .ToList();
 
-        var allowedIds = scopedInstances
-            .Select(instance => instance.Id)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var instanceById = instances.ToDictionary(
+            instance => instance.Id,
+            StringComparer.OrdinalIgnoreCase);
 
-        var actionableThreads = ThreadRegistryService.Instance.GetAllThreads()
-            .Where(thread => allowedIds.Contains(thread.InstanceId))
+        var actionableThreads = BranchWorkspaceHelper
+            .FilterThreadsForBranchWorkspace(
+                ThreadRegistryService.Instance.GetAllThreads(),
+                instanceById,
+                selectedBranchKey)
             .Where(thread => !thread.IsSpamOrPromo)
             .ToList();
 
@@ -127,12 +140,6 @@ public sealed class UnifiedMessengerDashboardService
     }
 
     public void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
-
-    internal static UnifiedMessengerBranchMetrics BuildBranchMetrics(
-        string branchName,
-        IReadOnlyList<ThreadData> threads,
-        IReadOnlyList<MessengerInstance> instances) =>
-        BranchWorkspaceHelper.BuildBranchMetrics(branchName, threads, instances);
 
     internal static string ResolveLatencyColor(double averageLatencyMinutes) =>
         averageLatencyMinutes switch

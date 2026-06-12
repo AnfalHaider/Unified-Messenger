@@ -1,6 +1,5 @@
 using System.Text.Json;
 using UnifiedMessenger.Models;
-using UnifiedMessenger.Services.VoiceNotes;
 
 namespace UnifiedMessenger.Services.Adapters;
 
@@ -20,9 +19,9 @@ internal static class WhatsAppIngressHandler
             return true;
         }
 
-        if (AdapterMessageTypes.WhatsAppVoicePayload.Equals(type, StringComparison.OrdinalIgnoreCase))
+        if (AdapterMessageTypes.WhatsAppTelemetry.Equals(type, StringComparison.OrdinalIgnoreCase))
         {
-            HandleVoicePayload(root, instance);
+            HandleTelemetry(root, instance);
             return true;
         }
 
@@ -41,15 +40,6 @@ internal static class WhatsAppIngressHandler
         var verified = ReadOptionalString(root, "verifiedBusinessName");
         var profilePhone = ReadOptionalString(root, "profilePhoneNumber");
         var contactPhone = ReadOptionalString(root, "contactPhoneNumber");
-
-        var metadata = new WhatsAppConversationMetadata
-        {
-            BusinessLabels = labels,
-            VerifiedBusinessName = verified,
-            ProfilePhoneNumber = profilePhone,
-            ContactPhoneNumber = contactPhone,
-            ChatJid = resolvedKey
-        };
 
         WhatsAppBusinessContextService.Instance.UpsertThreadContext(new WhatsAppThreadContextSnapshot
         {
@@ -103,101 +93,68 @@ internal static class WhatsAppIngressHandler
         });
     }
 
-    public static WhatsAppVoiceNotePayload? TryParseVoicePayload(JsonElement root, MessengerInstance instance)
+    private static void HandleTelemetry(JsonElement root, MessengerInstance instance)
     {
         var conversationKey = ReadOptionalString(root, "conversationKey");
-        var audioBase64 = ReadOptionalString(root, "audioBase64");
-        if (string.IsNullOrWhiteSpace(conversationKey) || string.IsNullOrWhiteSpace(audioBase64))
-        {
-            return null;
-        }
-
-        var duration = root.TryGetProperty("durationSeconds", out var durationElement) &&
-                       durationElement.TryGetDouble(out var durationValue)
-            ? durationValue
-            : 0;
-
-        return new WhatsAppVoiceNotePayload
-        {
-            InstanceId = instance.Id,
-            Platform = instance.Platform,
-            ConversationKey = conversationKey.Trim(),
-            CustomerName = ReadOptionalString(root, "customerName") ?? "Customer",
-            DurationSeconds = duration,
-            MimeType = ReadOptionalString(root, "mimeType") ?? "audio/ogg",
-            AudioBase64 = audioBase64,
-            TimestampUtc = WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow),
-            BusinessLabels = ReadStringArray(root, "businessLabels"),
-            VerifiedBusinessName = ReadOptionalString(root, "verifiedBusinessName"),
-            ProfilePhoneNumber = ReadOptionalString(root, "profilePhoneNumber"),
-            ContactPhoneNumber = ReadOptionalString(root, "contactPhoneNumber")
-        };
-    }
-
-    public static InboundMessageSelection BuildVoiceInboundSelection(
-        WhatsAppVoiceNotePayload payload,
-        MessengerInstance instance,
-        string messageText,
-        double transcriptConfidence)
-    {
-        using var document = JsonDocument.Parse(JsonSerializer.Serialize(new
-        {
-            conversationKey = payload.ConversationKey,
-            customerName = payload.CustomerName,
-            businessLabels = payload.BusinessLabels,
-            verifiedBusinessName = payload.VerifiedBusinessName,
-            profilePhoneNumber = payload.ProfilePhoneNumber,
-            contactPhoneNumber = payload.ContactPhoneNumber
-        }));
-
-        var selection = BuildInboundSelection(
-            document.RootElement,
-            instance,
-            payload.ConversationKey,
-            payload.CustomerName,
-            messageText,
-            payload.TimestampUtc);
-
-        return new InboundMessageSelection
-        {
-            InstanceId = selection.InstanceId,
-            Platform = selection.Platform,
-            MessageText = selection.MessageText,
-            CustomerName = selection.CustomerName,
-            ConversationHint = selection.ConversationHint,
-            ConversationKey = selection.ConversationKey,
-            TimestampUtc = selection.TimestampUtc,
-            BusinessLabels = selection.BusinessLabels,
-            VerifiedBusinessName = selection.VerifiedBusinessName,
-            ProfilePhoneNumber = selection.ProfilePhoneNumber,
-            ContactPhoneNumber = selection.ContactPhoneNumber,
-            MessageKind = InboundMessageKind.VoiceNote,
-            VoiceDurationSeconds = payload.DurationSeconds,
-            TranscriptConfidence = transcriptConfidence
-        };
-    }
-
-    private static void HandleVoicePayload(JsonElement root, MessengerInstance instance)
-    {
-        if (TryParseVoicePayload(root, instance) is not { } payload)
+        if (string.IsNullOrWhiteSpace(conversationKey))
         {
             return;
         }
 
+        var capturedAt = WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
+        var lastReceivedAt = ReadOptionalTimestamp(root, "lastReceivedAtUtc");
+        var lastSentAt = ReadOptionalTimestamp(root, "lastSentAtUtc");
+        var receivedKind = ParseMessageKind(ReadOptionalString(root, "lastReceivedKind"));
+        var sentKind = ParseMessageKind(ReadOptionalString(root, "lastSentKind"));
+
+        var payload = new WhatsAppTelemetryPayload
+        {
+            InstanceId = instance.Id,
+            ConversationKey = conversationKey,
+            CustomerName = ReadOptionalString(root, "customerName") ?? string.Empty,
+            ContactPhoneNumber = ReadOptionalString(root, "contactPhoneNumber"),
+            ProfilePhoneNumber = ReadOptionalString(root, "profilePhoneNumber"),
+            LastReceivedAtUtc = lastReceivedAt,
+            LastSentAtUtc = lastSentAt,
+            LastReceivedKind = receivedKind,
+            LastSentKind = sentKind,
+            ActiveMessagePreview = ReadOptionalString(root, "activeMessagePreview"),
+            CapturedAtUtc = capturedAt
+        };
+
         WhatsAppBusinessContextService.Instance.UpsertThreadContext(new WhatsAppThreadContextSnapshot
         {
             InstanceId = instance.Id,
-            ConversationKey = payload.ConversationKey,
+            ConversationKey = conversationKey,
             CustomerName = payload.CustomerName,
-            BusinessLabels = payload.BusinessLabels,
-            VerifiedBusinessName = payload.VerifiedBusinessName,
+            BusinessLabels = ReadStringArray(root, "businessLabels"),
+            VerifiedBusinessName = ReadOptionalString(root, "verifiedBusinessName"),
             ProfilePhoneNumber = payload.ProfilePhoneNumber,
             ContactPhoneNumber = payload.ContactPhoneNumber,
-            CapturedAtUtc = payload.TimestampUtc,
-            LastVoiceNoteAtUtc = payload.TimestampUtc
+            CapturedAtUtc = capturedAt
         });
 
-        VoiceNotePipelineService.Instance.Enqueue(payload);
+        if (lastReceivedAt is not null)
+        {
+            MessageAnalyticsService.Instance.RecordMessageReceived(
+                instance.Id,
+                conversationKey,
+                lastReceivedAt);
+            ThreadRegistryService.Instance.UpdateLastMessageKind(
+                instance.Id,
+                conversationKey,
+                receivedKind,
+                lastReceivedAt.Value);
+        }
+
+        if (lastSentAt is not null)
+        {
+            MessageAnalyticsService.Instance.RecordMessageSent(
+                instance.Id,
+                chatHint: payload.CustomerName,
+                conversationKey: conversationKey,
+                sentAtUtc: lastSentAt);
+        }
     }
 
     private static void HandleOutgoingStatus(JsonElement root, MessengerInstance instance)
@@ -255,4 +212,31 @@ internal static class WhatsAppIngressHandler
         root.TryGetProperty(propertyName, out var element)
             ? element.GetString()
             : null;
+
+    private static DateTimeOffset? ReadOptionalTimestamp(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var element))
+        {
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.String &&
+            DateTimeOffset.TryParse(element.GetString(), out var parsed))
+        {
+            return parsed.ToUniversalTime();
+        }
+
+        return null;
+    }
+
+    internal static InboundMessageKind ParseMessageKind(string? raw) =>
+        (raw ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "image" => InboundMessageKind.Image,
+            "audio" => InboundMessageKind.Audio,
+            "catalog" => InboundMessageKind.Catalog,
+            "booking" => InboundMessageKind.Booking,
+            "voice" or "voicenote" => InboundMessageKind.VoiceNote,
+            _ => InboundMessageKind.Text
+        };
 }

@@ -36,6 +36,13 @@ public static class WebViewNavigationGuard
         coreWebView.NavigationStarting += OnNavigationStarting;
     }
 
+    public static void Detach(CoreWebView2 coreWebView)
+    {
+        ArgumentNullException.ThrowIfNull(coreWebView);
+        coreWebView.NavigationStarting -= OnNavigationStarting;
+        WebViewAllowlists.Remove(coreWebView);
+    }
+
     public static bool IsAllowedNavigationUri(string? uri, IEnumerable<string>? additionalHosts = null) =>
         IsAllowedNavigationUri(uri, CreateAllowlist(additionalHosts));
 

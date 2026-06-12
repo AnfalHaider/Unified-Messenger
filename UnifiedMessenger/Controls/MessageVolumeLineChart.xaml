@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="UnifiedMessenger.Controls.MessageVolumeLineChart"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
+    AutomationProperties.Name="Message volume trend"
+    mc:Ignorable="d">
+
+    <shared:SurfaceCard>
+        <shared:SurfaceCard.CardBody>
+            <StackPanel Spacing="10">
+                <TextBlock
+                    Style="{StaticResource UmSectionLabelTextStyle}"
+                    Text="MESSAGE VOLUME" />
+                <TextBlock
+                    x:Name="SummaryTextBlock"
+                    Opacity="0.75"
+                    Text="No message volume in the selected range."
+                    TextWrapping="WrapWholeWords" />
+                <Grid Height="110" MinWidth="200">
+                    <Path
+                        x:Name="AreaPath"
+                        Data="M0,110 L0,110 Z"
+                        Fill="{StaticResource UmBrandTealBrush}"
+                        Opacity="0.15"
+                        Stretch="Fill" />
+                    <Path
+                        x:Name="LinePath"
+                        Data="M0,110 L0,110"
+                        Stroke="{StaticResource UmBrandTealBrush}"
+                        StrokeThickness="2"
+                        Stretch="Fill" />
+                    <TextBlock
+                        x:Name="EmptyHintText"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Opacity="0.55"
+                        Text="Activity will appear after WhatsApp messages are detected."
+                        TextAlignment="Center"
+                        TextWrapping="WrapWholeWords"
+                        Visibility="Visible" />
+                </Grid>
+            </StackPanel>
+        </shared:SurfaceCard.CardBody>
+    </shared:SurfaceCard>
+</UserControl>

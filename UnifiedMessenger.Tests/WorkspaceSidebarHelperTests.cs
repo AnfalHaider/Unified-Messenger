@@ -68,7 +68,7 @@ public class WorkspaceSidebarHelperTests
     public void ResolveStatusSubtitle_DoesNotShowUnknownForConnectedAdapter()
     {
         Assert.Equal(
-            "Status: Connected · syncing",
+            "Connected · syncing",
             WorkspaceSidebarHelper.ResolveStatusSubtitle(
                 InstanceConnectionStatus.Connected,
                 AdapterHealthState.Unknown,
@@ -79,7 +79,7 @@ public class WorkspaceSidebarHelperTests
     public void ResolveStatusSubtitle_ShowsConnectedWhenHandshakeSucceeds()
     {
         Assert.Equal(
-            "Status: Connected",
+            "Connected",
             WorkspaceSidebarHelper.ResolveStatusSubtitle(
                 InstanceConnectionStatus.Connected,
                 AdapterHealthState.Healthy,
@@ -87,10 +87,10 @@ public class WorkspaceSidebarHelperTests
     }
 
     [Fact]
-    public void ResolveStatusSubtitle_ShowsAwaitingViewContextFromDetail()
+    public void ResolveStatusSubtitle_KeepsSidebarCompactWhenDetailPresent()
     {
         Assert.Equal(
-            "Status: Connected · awaiting view context",
+            "Connected",
             WorkspaceSidebarHelper.ResolveStatusSubtitle(
                 InstanceConnectionStatus.Connected,
                 AdapterHealthState.Healthy,
@@ -128,16 +128,16 @@ public class WorkspaceSidebarHelperTests
     }
 
     [Theory]
-    [InlineData(MemoryTierPreference.Normal, "Status: Connected")]
-    [InlineData(MemoryTierPreference.Low, "Status: Connected · Memory: Low")]
-    [InlineData(MemoryTierPreference.High, "Status: Connected · Memory: High")]
+    [InlineData(MemoryTierPreference.Normal, "Connected")]
+    [InlineData(MemoryTierPreference.Low, "Connected · Memory: Low")]
+    [InlineData(MemoryTierPreference.High, "Connected · Memory: High")]
     public void AppendMemoryTierHint_AppendsOnlyForNonNormalTiers(
         MemoryTierPreference tier,
         string expected)
     {
         Assert.Equal(
             expected,
-            WorkspaceSidebarHelper.AppendMemoryTierHint("Status: Connected", tier));
+            WorkspaceSidebarHelper.AppendMemoryTierHint("Connected", tier));
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class WorkspaceSidebarHelperTests
         var tooltip = WorkspaceSidebarHelper.ComposeInstanceTooltip(
             "Sales WhatsApp",
             WorkspaceCategory.Professional,
-            "Status: Connected",
+            "Connected",
             "Adapter ready",
             MemoryTierPreference.High);
 

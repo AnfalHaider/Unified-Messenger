@@ -6,14 +6,12 @@ public sealed class PlatformDefinition
 
     public required string DisplayName { get; init; }
 
-    /// <summary>Optional helper text shown when adding an instance.</summary>
     public string Description { get; init; } = string.Empty;
 
     public required string DefaultUrl { get; init; }
 
     public string IconGlyph { get; init; } = "\uE774";
 
-    /// <summary>Hex accent color used for sidebar identity (e.g. #25D366).</summary>
     public string AccentColor { get; init; } = "#6B7280";
 
     public static IReadOnlyList<PlatformDefinition> All { get; } =
@@ -33,80 +31,6 @@ public sealed class PlatformDefinition
             DefaultUrl = "https://web.whatsapp.com/",
             IconGlyph = "\uE8BD",
             AccentColor = "#128C7E"
-        },
-        new PlatformDefinition
-        {
-            Id = "telegram",
-            DisplayName = "Telegram",
-            DefaultUrl = "https://web.telegram.org/",
-            IconGlyph = "\uE939",
-            AccentColor = "#229ED9"
-        },
-        new PlatformDefinition
-        {
-            Id = "messenger",
-            DisplayName = "Messenger",
-            DefaultUrl = "https://www.messenger.com/",
-            IconGlyph = "\uE8F2",
-            AccentColor = "#0084FF"
-        },
-        new PlatformDefinition
-        {
-            Id = "slack",
-            DisplayName = "Slack",
-            DefaultUrl = "https://app.slack.com/client",
-            IconGlyph = "\uE715",
-            AccentColor = "#4A154B"
-        },
-        new PlatformDefinition
-        {
-            Id = "discord",
-            DisplayName = "Discord",
-            DefaultUrl = "https://discord.com/app",
-            IconGlyph = "\uE716",
-            AccentColor = "#5865F2"
-        },
-        new PlatformDefinition
-        {
-            Id = "signal",
-            DisplayName = "Signal",
-            Description = "No official web client — opens signal.org; badge uses title/DOM fallback only.",
-            DefaultUrl = "https://signal.org/",
-            IconGlyph = "\uE722",
-            AccentColor = "#3A76F0"
-        },
-        new PlatformDefinition
-        {
-            Id = "teams",
-            DisplayName = "Microsoft Teams",
-            Description = "Opens the Teams web client at teams.microsoft.com.",
-            DefaultUrl = "https://teams.microsoft.com/",
-            IconGlyph = "\uE715",
-            AccentColor = "#6264A7"
-        },
-        new PlatformDefinition
-        {
-            Id = "metabusiness",
-            DisplayName = "Meta Business Suite",
-            DefaultUrl = "https://business.facebook.com/latest/inbox/",
-            IconGlyph = "\uE717",
-            AccentColor = "#0866FF"
-        },
-        new PlatformDefinition
-        {
-            Id = "googlebusiness",
-            DisplayName = "Google Business Profile",
-            DefaultUrl = "https://business.google.com/locations",
-            IconGlyph = "\uE774",
-            AccentColor = "#4285F4"
-        },
-        new PlatformDefinition
-        {
-            Id = "generic",
-            DisplayName = "Custom URL",
-            DefaultUrl = string.Empty,
-            IconGlyph = "\uE268",
-            AccentColor = "#6B7280"
         }
     ];
 
@@ -124,10 +48,10 @@ public sealed class PlatformDefinition
     {
         if (string.IsNullOrWhiteSpace(platformId))
         {
-            return "generic";
+            return "whatsapp";
         }
 
         var match = All.FirstOrDefault(p => p.Id.Equals(platformId.Trim(), StringComparison.OrdinalIgnoreCase));
-        return match?.Id ?? "generic";
+        return match?.Id ?? "whatsapp";
     }
 }

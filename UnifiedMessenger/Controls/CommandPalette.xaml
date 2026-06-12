@@ -19,6 +19,7 @@
             Padding="0"
             HorizontalAlignment="Center"
             VerticalAlignment="Top"
+            AutomationProperties.AutomationId="CommandPaletteRoot"
             AutomationProperties.Name="Command palette"
             Background="{ThemeResource LayerFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -29,6 +30,7 @@
             <StackPanel Spacing="0">
                 <AutoSuggestBox
                     x:Name="SearchBox"
+                    AutomationProperties.AutomationId="CommandPaletteSearch"
                     AutomationProperties.Name="Command Palette Search"
                     Margin="12,12,12,8"
                     PlaceholderText="Search instances, alerts, and actions..."

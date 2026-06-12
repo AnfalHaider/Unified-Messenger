@@ -36,5 +36,11 @@ public interface IThreadRegistryService
         string status,
         DateTimeOffset? updatedAtUtc = null);
 
+    void UpdateLastMessageKind(
+        string instanceId,
+        string conversationKey,
+        InboundMessageKind messageKind,
+        DateTimeOffset messageAtUtc);
+
     void RefreshOperationalFlags(bool raiseChanged = true);
 }

@@ -45,18 +45,6 @@ public sealed class ShellCommandPaletteCoordinator
             },
             new()
             {
-                Title = "Settings: SLA",
-                Subtitle = "Response threshold and professional metrics",
-                Category = "Navigation",
-                IconGlyph = "\uE713",
-                Selection = new CommandPaletteSelection
-                {
-                    Action = CommandPaletteAction.OpenSettingsSection,
-                    SettingsSectionKey = SettingsNavigationHelper.ProfessionalMetricsSectionKey
-                }
-            },
-            new()
-            {
                 Title = "Settings: Updates",
                 Subtitle = "Auto-update and version checks",
                 Category = "Navigation",
@@ -65,18 +53,6 @@ public sealed class ShellCommandPaletteCoordinator
                 {
                     Action = CommandPaletteAction.OpenSettingsSection,
                     SettingsSectionKey = SettingsNavigationHelper.SystemSectionKey
-                }
-            },
-            new()
-            {
-                Title = "Settings: Local AI",
-                Subtitle = "On-device draft and triage models",
-                Category = "Navigation",
-                IconGlyph = "\uE713",
-                Selection = new CommandPaletteSelection
-                {
-                    Action = CommandPaletteAction.OpenSettingsSection,
-                    SettingsSectionKey = SettingsNavigationHelper.LocalAiSectionKey
                 }
             },
             new()
@@ -116,14 +92,6 @@ public sealed class ShellCommandPaletteCoordinator
                 Category = "Operations",
                 IconGlyph = "\uE7BA",
                 Selection = new CommandPaletteSelection { Action = CommandPaletteAction.OpenImmediateQueue }
-            },
-            new()
-            {
-                Title = "Export OCC snapshot",
-                Subtitle = "Save KPIs and immediate queue to CSV",
-                Category = "Operations",
-                IconGlyph = "\uE8E5",
-                Selection = new CommandPaletteSelection { Action = CommandPaletteAction.ExportOccSnapshot }
             }
         };
 

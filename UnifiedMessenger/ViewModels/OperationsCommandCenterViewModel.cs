@@ -39,18 +39,6 @@ public partial class OperationsCommandCenterViewModel : ViewModelBase
     private bool _isRefreshInProgress;
 
     [ObservableProperty]
-    private bool _isBackfillRunning;
-
-    [ObservableProperty]
-    private int _backfillRunningCount;
-
-    [ObservableProperty]
-    private string _backfillStatusText = string.Empty;
-
-    [ObservableProperty]
-    private bool _showBackfillStatus;
-
-    [ObservableProperty]
     private bool _showNewInquiriesEmpty;
 
     [ObservableProperty]
@@ -76,16 +64,6 @@ public partial class OperationsCommandCenterViewModel : ViewModelBase
         ShowMainContent = shell.ShowMainContent;
         ScopeLabel = shell.ScopeLabel;
         LastRefreshedText = shell.LastRefreshedText;
-    }
-
-    public void ApplyBackfillStatus(OccBackfillStatusPresentation status)
-    {
-        ArgumentNullException.ThrowIfNull(status);
-
-        IsBackfillRunning = status.IsRunning;
-        BackfillRunningCount = status.RunningCount;
-        BackfillStatusText = status.StatusText;
-        ShowBackfillStatus = status.ShowStatus;
     }
 
     public void ApplyImmediateQueuePresentation(OccImmediateQueuePresentation queue)

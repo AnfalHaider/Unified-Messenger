@@ -98,35 +98,4 @@ public static class SettingsPageHelper
         string.IsNullOrWhiteSpace(text)
             ? []
             : text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
-
-    public static IReadOnlyList<BranchOperationalCatalogRowViewModel> BuildBranchOperationalCatalogRows(
-        IEnumerable<BranchOperationalProfile> catalog)
-    {
-        ArgumentNullException.ThrowIfNull(catalog);
-
-        return catalog
-            .Where(profile => !string.IsNullOrWhiteSpace(profile.BranchKey))
-            .OrderBy(profile => profile.BranchKey, StringComparer.OrdinalIgnoreCase)
-            .Select(profile => new BranchOperationalCatalogRowViewModel
-            {
-                BranchKey = profile.BranchKey.Trim(),
-                ServicesText = FormatCommaSeparatedList(profile.Services),
-                StandardPackagesText = FormatCommaSeparatedList(profile.StandardPackages),
-                BookingRulesText = profile.BookingRules?.Trim() ?? string.Empty
-            })
-            .ToList();
-    }
-
-    public static BranchOperationalProfile ToBranchOperationalProfile(BranchOperationalCatalogRowViewModel row)
-    {
-        ArgumentNullException.ThrowIfNull(row);
-
-        return new BranchOperationalProfile
-        {
-            BranchKey = row.BranchKey.Trim(),
-            Services = ParseCommaSeparatedList(row.ServicesText),
-            StandardPackages = ParseCommaSeparatedList(row.StandardPackagesText),
-            BookingRules = row.BookingRulesText?.Trim() ?? string.Empty
-        };
-    }
 }

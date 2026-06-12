@@ -31,15 +31,15 @@ public class EditInstanceMetadataDialogHelperTests
         var initial = EditInstanceMetadataDialogHelper.CreateInitialFormState(new MessengerInstance
         {
             DisplayName = "Inbox",
-            Platform = "metabusiness",
-            StartUrl = "https://business.facebook.com"
+            Platform = "whatsappbusiness",
+            StartUrl = "https://web.whatsapp.com/"
         });
 
         var submission = EditInstanceMetadataDialogHelper.ValidatePrimaryAction(
             initial,
             displayName: "Inbox",
-            PlatformDefinition.FindById("metabusiness"),
-            customUrlText: "https://business.facebook.com",
+            PlatformDefinition.FindById("whatsappbusiness"),
+            customUrlText: "https://web.whatsapp.com/",
             notesText: null,
             branchKeyText: "DHA-2");
 
@@ -66,50 +66,6 @@ public class EditInstanceMetadataDialogHelperTests
 
         Assert.False(submission.IsValid);
         Assert.Equal(EditInstanceMetadataDialogHelper.RequiredDisplayNameMessage, submission.ValidationMessage);
-    }
-
-    [Fact]
-    public void ValidatePrimaryAction_RequiresStartUrlForGenericPlatform()
-    {
-        var initial = EditInstanceMetadataDialogHelper.CreateInitialFormState(new MessengerInstance
-        {
-            DisplayName = "Custom",
-            Platform = "generic",
-            StartUrl = "https://example.com"
-        });
-
-        var submission = EditInstanceMetadataDialogHelper.ValidatePrimaryAction(
-            initial,
-            displayName: "Custom",
-            PlatformDefinition.FindById("generic"),
-            customUrlText: null,
-            notesText: null);
-
-        Assert.False(submission.IsValid);
-        Assert.Equal(EditInstanceMetadataDialogHelper.RequiredStartUrlMessage, submission.ValidationMessage);
-    }
-
-    [Theory]
-    [InlineData("ftp://example.com")]
-    [InlineData("not-a-url")]
-    public void ValidatePrimaryAction_RejectsInvalidStartUrl(string url)
-    {
-        var initial = EditInstanceMetadataDialogHelper.CreateInitialFormState(new MessengerInstance
-        {
-            DisplayName = "Custom",
-            Platform = "generic",
-            StartUrl = "https://example.com"
-        });
-
-        var submission = EditInstanceMetadataDialogHelper.ValidatePrimaryAction(
-            initial,
-            displayName: "Custom",
-            PlatformDefinition.FindById("generic"),
-            customUrlText: url,
-            notesText: null);
-
-        Assert.False(submission.IsValid);
-        Assert.Equal(EditInstanceMetadataDialogHelper.InvalidStartUrlMessage, submission.ValidationMessage);
     }
 
     [Fact]

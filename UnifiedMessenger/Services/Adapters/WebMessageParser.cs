@@ -75,9 +75,15 @@ internal static class WebMessageParser
     internal static DateTimeOffset ReadTimestampUtc(JsonElement root, DateTimeOffset fallback)
     {
         if (root.TryGetProperty("timestampUtc", out var timestampElement) &&
-            DateTimeOffset.TryParse(timestampElement.GetString(), out var parsed))
+            DateTimeOffset.TryParse(timestampElement.GetString(), out var parsedUtc))
         {
-            return parsed;
+            return parsedUtc;
+        }
+
+        if (root.TryGetProperty("timestamp", out var legacyTimestampElement) &&
+            DateTimeOffset.TryParse(legacyTimestampElement.GetString(), out var parsedLegacy))
+        {
+            return parsedLegacy;
         }
 
         return fallback;

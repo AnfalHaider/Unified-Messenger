@@ -85,4 +85,13 @@ public class AdapterCoreScriptTests
         Assert.Contains("previewMaxEntries", script, StringComparison.Ordinal);
         Assert.Contains("pruneRecentPreviews", script, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void AdapterCoreScript_ExposesCanonicalActiveChatJidResolver()
+    {
+        var script = ReadAdapterCoreScript();
+
+        Assert.Contains("__umResolveActiveChatJid", script, StringComparison.Ordinal);
+        Assert.Contains("conversation-info-header", script, StringComparison.Ordinal);
+    }
 }

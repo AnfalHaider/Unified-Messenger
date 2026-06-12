@@ -16,14 +16,16 @@ internal static class Program
             return 1;
         }
 
-        Console.WriteLine("=== Unified Messenger — Full Module Validation ===");
+        Console.WriteLine("=== Unified Messenger 3.1 — Lite Module Validation ===");
         Console.WriteLine($"Executable: {exePath}");
         Console.WriteLine();
 
         var allResults = new List<ModuleValidationResult>();
 
         Console.WriteLine("[Step 1] Structural audit — see report sections below.");
-        Console.WriteLine("[Step 2] Domain unit tests (lifecycle, OCC, analytics)...");
+        StopExistingInstances();
+
+        Console.WriteLine("[Step 2] Domain unit tests (full Release suite)...");
         allResults.AddRange(ModuleValidationHarness.RunDomainUnitTests(repoRoot));
 
         Console.WriteLine("[Step 3–4] Live UI automation + layout stress...");

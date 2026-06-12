@@ -1,5 +1,5 @@
-using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -8,6 +8,7 @@ using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.ViewModels;
 using Windows.Foundation;
+using Windows.System;
 
 namespace UnifiedMessenger.Controls;
 
@@ -27,6 +28,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private SidebarMenuPlan? _currentPlan;
     private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
     private bool _isCompact;
+    private int _nextSidebarTabIndex = AccessibilityTabOrderHelper.SidebarMenuBase;
 
     public WorkspaceSidebarViewModel ViewModel => _viewModel;
 
@@ -116,6 +118,7 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private void SyncMenuStack(SidebarMenuPlan plan)
     {
+        _nextSidebarTabIndex = AccessibilityTabOrderHelper.SidebarMenuBase;
         _instanceRows.Clear();
         _instanceBadges.Clear();
         _instanceStatusDots.Clear();
@@ -213,6 +216,16 @@ public sealed partial class WorkspaceSidebar : Grid
         }
 
         ToolTipService.SetToolTip(row, instance.DisplayName);
+        if (_instanceStatusLabels.TryGetValue(instanceId, out var statusLabel))
+        {
+            UpdateSelectableRowAccessibility(
+                row,
+                instanceId,
+                instance.DisplayName,
+                statusLabel.Text,
+                WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, instanceId),
+                ResolveBadgeCount(instanceId));
+        }
     }
 
     public void SetCompactDisplay(bool compact)
@@ -289,6 +302,19 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             badge.Visibility = Visibility.Collapsed;
         }
+
+        if (_instanceRows.TryGetValue(instanceId.Trim(), out var row) &&
+            _instanceTitleLabels.TryGetValue(instanceId.Trim(), out var titleLabel) &&
+            _instanceStatusLabels.TryGetValue(instanceId.Trim(), out var statusLabel))
+        {
+            UpdateSelectableRowAccessibility(
+                row,
+                instanceId.Trim(),
+                titleLabel.Text,
+                statusLabel.Text,
+                WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, instanceId.Trim()),
+                clampedCount);
+        }
     }
 
     public void UpdateNotificationHubBadge(int total)
@@ -304,6 +330,14 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             NotificationHubBadge.Visibility = Visibility.Collapsed;
         }
+
+        UpdateFooterButtonAccessibility(
+            NotificationsButton,
+            "Notification Hub",
+            WorkspaceSidebarHelper.IsSelectionMatch(
+                _selectedKey,
+                WorkspaceSidebarHelper.NotificationHubSelectionKey),
+            clampedTotal);
     }
 
     public void UpdateInstanceHealth(string instanceId, MessengerInstance instance)
@@ -336,7 +370,8 @@ public sealed partial class WorkspaceSidebar : Grid
             statusLabel.Text = displaySubtitle;
         }
 
-        if (_instanceRows.TryGetValue(normalizedId, out var row))
+        if (_instanceRows.TryGetValue(normalizedId, out var row) &&
+            _instanceTitleLabels.TryGetValue(normalizedId, out var titleLabel))
         {
             ToolTipService.SetToolTip(
                 row,
@@ -347,6 +382,13 @@ public sealed partial class WorkspaceSidebar : Grid
                     adapterStatus.Description,
                     instance.MemoryTier,
                     detail));
+            UpdateSelectableRowAccessibility(
+                row,
+                normalizedId,
+                titleLabel.Text,
+                displaySubtitle,
+                WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, normalizedId),
+                ResolveBadgeCount(normalizedId));
         }
     }
 
@@ -379,6 +421,7 @@ public sealed partial class WorkspaceSidebar : Grid
             header.CharacterSpacing = 40;
         }
 
+        AutomationProperties.SetName(header, WorkspaceSidebarAccessibility.ComposeSectionHeaderName(title));
         _compactHiddenElements.Add(header);
         return header;
     }
@@ -394,6 +437,7 @@ public sealed partial class WorkspaceSidebar : Grid
             Margin = new Thickness(8, 0, 8, 4),
             TextWrapping = TextWrapping.WrapWholeWords
         };
+        AutomationProperties.SetName(hint, text);
         _compactHiddenElements.Add(hint);
         return hint;
     }
@@ -401,13 +445,25 @@ public sealed partial class WorkspaceSidebar : Grid
     private Border CreateDashboardRow()
     {
         var row = CreateSelectableRow(WorkspaceSidebarHelper.DashboardSelectionKey, null, "Dashboard", "Overview", null);
-        AutomationProperties.SetName(row, "Sidebar Dashboard");
         row.PointerPressed += DashboardRow_PointerPressed;
+        row.KeyDown += DashboardRow_KeyDown;
         _dashboardRow = row;
         return row;
     }
 
     private void DashboardRow_PointerPressed(object sender, PointerRoutedEventArgs e) =>
+        ActivateDashboardRow();
+
+    private void DashboardRow_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is VirtualKey.Enter or VirtualKey.Space)
+        {
+            ActivateDashboardRow();
+            e.Handled = true;
+        }
+    }
+
+    private void ActivateDashboardRow() =>
         DashboardRequested?.Invoke(this, EventArgs.Empty);
 
     private static FrameworkElement CreateFallbackIcon(string glyph, SolidColorBrush accentBrush, double size)
@@ -445,6 +501,7 @@ public sealed partial class WorkspaceSidebar : Grid
             PlatformBrandingHelper.GetAccentBrush(instance));
 
         row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
+        row.KeyDown += (sender, e) => InstanceRow_KeyDown(sender, e, instanceId, instance, row);
         row.CanDrag = true;
         row.DragStarting += (_, e) => InstanceRow_DragStarting(e, instanceId, instance.DisplayName);
         ToolTipService.SetToolTip(
@@ -477,6 +534,22 @@ public sealed partial class WorkspaceSidebar : Grid
         InstanceRequested?.Invoke(this, instanceId);
     }
 
+    private void InstanceRow_KeyDown(
+        object sender,
+        KeyRoutedEventArgs e,
+        string instanceId,
+        MessengerInstance instance,
+        Border row)
+    {
+        if (e.Key is not (VirtualKey.Enter or VirtualKey.Space))
+        {
+            return;
+        }
+
+        InstanceRequested?.Invoke(this, instanceId);
+        e.Handled = true;
+    }
+
     private static void InstanceRow_DragStarting(DragStartingEventArgs e, string instanceId, string displayName)
     {
         e.Data.SetText(instanceId);
@@ -500,7 +573,10 @@ public sealed partial class WorkspaceSidebar : Grid
             CornerRadius = new CornerRadius(8),
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
             BorderThickness = new Thickness(3, 0, 0, 0),
-            BorderBrush = accentBrush
+            BorderBrush = accentBrush,
+            IsTabStop = true,
+            TabIndex = _nextSidebarTabIndex++,
+            UseSystemFocusVisuals = true
         };
 
         var grid = new Grid { ColumnSpacing = 10 };
@@ -512,12 +588,18 @@ public sealed partial class WorkspaceSidebar : Grid
             ? ProfileAvatarService.CreateAvatar(instance, 28)
             : (FrameworkElement)CreateFallbackIcon("\uE9D9", accentBrush, 28);
 
-        var textPanel = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var textPanel = new StackPanel
+        {
+            Spacing = 2,
+            VerticalAlignment = VerticalAlignment.Center,
+            MinWidth = 0
+        };
         var titleLabel = new TextBlock
         {
             Text = title,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxLines = 1
         };
         textPanel.Children.Add(titleLabel);
         if (!WorkspaceSidebarHelper.IsSelectionMatch(key, WorkspaceSidebarHelper.DashboardSelectionKey))
@@ -529,7 +611,8 @@ public sealed partial class WorkspaceSidebar : Grid
             Text = subtitle,
             FontSize = 11,
             Opacity = 0.62,
-            TextTrimming = TextTrimming.CharacterEllipsis
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxLines = 1
         };
         textPanel.Children.Add(statusLabel);
         _compactHiddenElements.Add(textPanel);
@@ -573,21 +656,76 @@ public sealed partial class WorkspaceSidebar : Grid
             _instanceBadges[key] = badge;
         }
 
+        UpdateSelectableRowAccessibility(
+            row,
+            key,
+            title,
+            subtitle,
+            WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, key),
+            ResolveBadgeCount(key));
+
         return row;
+    }
+
+    private int ResolveBadgeCount(string key)
+    {
+        if (!_instanceBadges.TryGetValue(key, out var badge) ||
+            badge.Visibility != Visibility.Visible)
+        {
+            return 0;
+        }
+
+        return (int)badge.Value;
+    }
+
+    private static void UpdateSelectableRowAccessibility(
+        Border row,
+        string key,
+        string title,
+        string subtitle,
+        bool selected,
+        int badgeCount)
+    {
+        AutomationProperties.SetAutomationId(row, WorkspaceSidebarAccessibility.ResolveRowAutomationId(key));
+        AutomationProperties.SetName(
+            row,
+            WorkspaceSidebarHelper.IsSelectionMatch(key, WorkspaceSidebarHelper.DashboardSelectionKey)
+                ? WorkspaceSidebarAccessibility.ComposeDashboardName(selected)
+                : WorkspaceSidebarAccessibility.ComposeInstanceName(title, subtitle, badgeCount, selected));
     }
 
     private void ApplySelectionVisuals()
     {
         if (_dashboardRow is not null)
         {
-            ApplyRowSelection(
+            var dashboardSelected = WorkspaceSidebarHelper.IsSelectionMatch(
+                _selectedKey,
+                WorkspaceSidebarHelper.DashboardSelectionKey);
+            ApplyRowSelection(_dashboardRow, dashboardSelected);
+            UpdateSelectableRowAccessibility(
                 _dashboardRow,
-                WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, WorkspaceSidebarHelper.DashboardSelectionKey));
+                WorkspaceSidebarHelper.DashboardSelectionKey,
+                "Dashboard",
+                "Overview",
+                dashboardSelected,
+                badgeCount: 0);
         }
 
         foreach (var (instanceId, row) in _instanceRows)
         {
-            ApplyRowSelection(row, WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, instanceId));
+            var selected = WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, instanceId);
+            ApplyRowSelection(row, selected);
+            if (_instanceTitleLabels.TryGetValue(instanceId, out var titleLabel) &&
+                _instanceStatusLabels.TryGetValue(instanceId, out var statusLabel))
+            {
+                UpdateSelectableRowAccessibility(
+                    row,
+                    instanceId,
+                    titleLabel.Text,
+                    statusLabel.Text,
+                    selected,
+                    ResolveBadgeCount(instanceId));
+            }
         }
 
         ApplyFooterButtonSelection(
@@ -598,6 +736,34 @@ public sealed partial class WorkspaceSidebar : Grid
         ApplyFooterButtonSelection(
             SettingsButton,
             WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, WorkspaceSidebarHelper.SettingsSelectionKey));
+        UpdateFooterButtonAccessibility(
+            NotificationsButton,
+            "Notification Hub",
+            WorkspaceSidebarHelper.IsSelectionMatch(
+                _selectedKey,
+                WorkspaceSidebarHelper.NotificationHubSelectionKey),
+            _viewModel.NotificationHubBadgeCount);
+        UpdateFooterButtonAccessibility(
+            SettingsButton,
+            "Settings",
+            WorkspaceSidebarHelper.IsSelectionMatch(
+                _selectedKey,
+                WorkspaceSidebarHelper.SettingsSelectionKey),
+            badgeCount: 0);
+    }
+
+    private static void UpdateFooterButtonAccessibility(
+        Button button,
+        string label,
+        bool selected,
+        int badgeCount)
+    {
+        var name = badgeCount > 0
+            ? $"{label}, {badgeCount} unread{(selected ? ", selected" : string.Empty)}"
+            : selected
+                ? $"{label}, selected"
+                : label;
+        AutomationProperties.SetName(button, name);
     }
 
     private static void ApplyFooterButtonSelection(Button button, bool selected)

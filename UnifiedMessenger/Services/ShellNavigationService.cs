@@ -25,7 +25,7 @@ public sealed class ShellNavigationService : INavigationService
 
     public event EventHandler? OccImmediateLaneFocusRequested;
 
-    public event EventHandler? OccSnapshotExportRequested;
+    public event EventHandler<string?>? SettingsOpenRequested;
 
     internal static ShellNavigationService CreateForTests() => new();
 
@@ -92,6 +92,6 @@ public sealed class ShellNavigationService : INavigationService
     public void RequestOccImmediateLaneFocus() =>
         OccImmediateLaneFocusRequested?.Invoke(this, EventArgs.Empty);
 
-    public void RequestOccSnapshotExport() =>
-        OccSnapshotExportRequested?.Invoke(this, EventArgs.Empty);
+    public void RequestOpenSettings(string? sectionKey = null) =>
+        SettingsOpenRequested?.Invoke(this, sectionKey);
 }

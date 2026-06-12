@@ -2,7 +2,6 @@ using H.NotifyIcon;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
-using UnifiedMessenger.Services.Ollama;
 
 namespace UnifiedMessenger.Services;
 
@@ -13,7 +12,6 @@ public sealed class SystemTrayService : ISystemTrayService
     private TaskbarIcon? _trayIcon;
     private MainWindow? _window;
     private bool _disposed;
-    private bool _copilotBusy;
 
     private SystemTrayService()
     {
@@ -33,11 +31,10 @@ public sealed class SystemTrayService : ISystemTrayService
 
         _window = window;
 
-        var defaultIcon = CreateIconSource("AppIcon.ico");
         _trayIcon = new TaskbarIcon
         {
             ToolTipText = "Unified Messenger",
-            IconSource = defaultIcon
+            IconSource = CreateIconSource("AppIcon.ico")
         };
 
         var menu = new MenuFlyout();
@@ -51,9 +48,6 @@ public sealed class SystemTrayService : ISystemTrayService
 
         _trayIcon.ContextFlyout = menu;
         _trayIcon.DoubleClickCommand = new TrayActionCommand(ShowMainWindow);
-
-        OllamaInferenceCoordinator.Instance.ActivityChanged += OnInferenceActivityChanged;
-        UpdateTrayPresentation();
         _trayIcon.ForceCreate(enablesEfficiencyMode: false);
     }
 
@@ -88,7 +82,6 @@ public sealed class SystemTrayService : ISystemTrayService
         }
 
         _disposed = true;
-        OllamaInferenceCoordinator.Instance.ActivityChanged -= OnInferenceActivityChanged;
 
         if (_trayIcon is not null)
         {
@@ -97,26 +90,6 @@ public sealed class SystemTrayService : ISystemTrayService
         }
 
         _window = null;
-    }
-
-    private void OnInferenceActivityChanged(object? sender, OllamaInferenceActivity activity)
-    {
-        _copilotBusy = activity == OllamaInferenceActivity.InteractiveStreaming;
-        UpdateTrayPresentation();
-    }
-
-    private void UpdateTrayPresentation()
-    {
-        if (_trayIcon is null)
-        {
-            return;
-        }
-
-        var iconFile = _copilotBusy ? "AppIconTrayAi.ico" : "AppIcon.ico";
-        _trayIcon.IconSource = CreateIconSource(iconFile);
-        _trayIcon.ToolTipText = _copilotBusy
-            ? "Unified Messenger — AI drafting…"
-            : "Unified Messenger";
     }
 
     private static ImageSource CreateIconSource(string fileName)

@@ -1,4 +1,0 @@
-/* Unified Messenger — Messenger Web chrome blend (platform-specific) */
-nav, [role="navigation"] {
-  box-shadow: inset 1px 0 0 var(--um-shell-seam);
-}

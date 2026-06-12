@@ -4,7 +4,7 @@ namespace UnifiedMessenger.Services;
 
 /// <summary>
 /// Canonical branch identity and aggregation for the Operations Command Center.
-/// A branch groups multiple professional inboxes (WhatsApp, Meta, Google, etc.).
+/// A branch groups multiple professional WhatsApp inboxes under one workspace key.
 /// </summary>
 public static class BranchWorkspaceHelper
 {
@@ -24,19 +24,6 @@ public static class BranchWorkspaceHelper
         return BranchNameResolver.Resolve(displayName);
     }
 
-    /// <summary>Tab tag value for the aggregate (all branches) workspace.</summary>
-    public const string AllBranchesWorkspaceTag = "";
-
-    public static string? ResolveWorkspaceBranchKeyFromTabTag(object? tabTag)
-    {
-        if (tabTag is not string branchTag || string.IsNullOrWhiteSpace(branchTag))
-        {
-            return null;
-        }
-
-        return branchTag.Trim();
-    }
-
     public static IEnumerable<MessengerInstance> FilterByBranchKey(
         IEnumerable<MessengerInstance> instances,
         string? selectedBranchKey)
@@ -51,6 +38,67 @@ public static class BranchWorkspaceHelper
         var key = selectedBranchKey.Trim();
         return instances.Where(instance =>
             ResolveBranchKey(instance).Equals(key, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Canonical branch for a thread: triage-assigned <see cref="ThreadData.BranchName"/> when set,
+    /// otherwise the hosting instance branch.
+    /// </summary>
+    public static string ResolveEffectiveBranchKey(ThreadData thread, MessengerInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(instance);
+
+        if (!string.IsNullOrWhiteSpace(thread.BranchName))
+        {
+            return thread.BranchName.Trim();
+        }
+
+        return ResolveBranchKey(instance);
+    }
+
+    /// <summary>
+    /// Whether a thread belongs to the selected branch workspace (OCC kanban, pulse, metrics).
+    /// </summary>
+    public static bool ThreadBelongsToBranchWorkspace(
+        ThreadData thread,
+        MessengerInstance instance,
+        string? selectedBranchKey)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        ArgumentNullException.ThrowIfNull(instance);
+
+        if (string.IsNullOrWhiteSpace(selectedBranchKey))
+        {
+            return true;
+        }
+
+        return ResolveEffectiveBranchKey(thread, instance)
+            .Equals(selectedBranchKey.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static IEnumerable<ThreadData> FilterThreadsForBranchWorkspace(
+        IEnumerable<ThreadData> threads,
+        IReadOnlyDictionary<string, MessengerInstance> instancesById,
+        string? selectedBranchKey)
+    {
+        ArgumentNullException.ThrowIfNull(threads);
+        ArgumentNullException.ThrowIfNull(instancesById);
+
+        if (string.IsNullOrWhiteSpace(selectedBranchKey))
+        {
+            return threads;
+        }
+
+        return threads.Where(thread =>
+        {
+            if (!instancesById.TryGetValue(thread.InstanceId, out var instance))
+            {
+                return false;
+            }
+
+            return ThreadBelongsToBranchWorkspace(thread, instance, selectedBranchKey);
+        });
     }
 
     public static IReadOnlyList<string> CollectBranchKeys(
@@ -118,33 +166,15 @@ public static class BranchWorkspaceHelper
         var parts = new List<string>();
         var whatsAppCount = openCountsByPlatform.GetValueOrDefault("whatsapp") +
                             openCountsByPlatform.GetValueOrDefault("whatsappbusiness");
-        if (whatsAppCount > 0 &&
-            (PlatformModuleSettingsHelper.IsPlatformModuleEnabled("whatsapp") ||
-             PlatformModuleSettingsHelper.IsPlatformModuleEnabled("whatsappbusiness")))
+        if (whatsAppCount > 0)
         {
             parts.Add($"WA {whatsAppCount}");
-        }
-
-        if (openCountsByPlatform.TryGetValue("metabusiness", out var metaCount) &&
-            metaCount > 0 &&
-            PlatformModuleSettingsHelper.IsPlatformModuleEnabled("metabusiness"))
-        {
-            parts.Add($"Meta {metaCount}");
-        }
-
-        if (openCountsByPlatform.TryGetValue("googlebusiness", out var googleCount) &&
-            googleCount > 0 &&
-            PlatformModuleSettingsHelper.IsPlatformModuleEnabled("googlebusiness"))
-        {
-            parts.Add($"Google {googleCount}");
         }
 
         var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "whatsapp",
-            "whatsappbusiness",
-            "metabusiness",
-            "googlebusiness"
+            "whatsappbusiness"
         };
 
         var other = openCountsByPlatform
@@ -167,18 +197,40 @@ public static class BranchWorkspaceHelper
     public sealed record BranchTabCounts(int OpenCount, int ImmediateCount);
 
     public static IReadOnlyDictionary<string, BranchTabCounts> ComputeBranchTabCounts(
-        IEnumerable<ThreadData> threads)
+        IEnumerable<ThreadData> threads) =>
+        ComputeBranchTabCounts(threads, instancesById: null);
+
+    public static IReadOnlyDictionary<string, BranchTabCounts> ComputeBranchTabCounts(
+        IEnumerable<ThreadData> threads,
+        IReadOnlyDictionary<string, MessengerInstance>? instancesById)
     {
         ArgumentNullException.ThrowIfNull(threads);
 
         return threads
-            .Where(thread => !string.IsNullOrWhiteSpace(thread.BranchName))
-            .GroupBy(thread => thread.BranchName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(thread =>
+            {
+                var branchKey = string.Empty;
+                if (instancesById is not null &&
+                    instancesById.TryGetValue(thread.InstanceId, out var instance))
+                {
+                    branchKey = ResolveEffectiveBranchKey(thread, instance);
+                }
+                else if (!string.IsNullOrWhiteSpace(thread.BranchName))
+                {
+                    branchKey = thread.BranchName.Trim();
+                }
+
+                return (thread, branchKey);
+            })
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.branchKey))
+            .GroupBy(entry => entry.branchKey, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,
                 group => new BranchTabCounts(
-                    OpenCount: group.Count(thread => !thread.IsReplied && !thread.IsSpamOrPromo),
-                    ImmediateCount: group.Count(thread => thread.IsImmediateAction && !thread.IsReplied)),
+                    OpenCount: group.Count(entry =>
+                        !entry.thread.IsReplied && !entry.thread.IsSpamOrPromo),
+                    ImmediateCount: group.Count(entry =>
+                        entry.thread.IsImmediateAction && !entry.thread.IsReplied)),
                 StringComparer.OrdinalIgnoreCase);
     }
 
@@ -235,9 +287,11 @@ public static class BranchWorkspaceHelper
         IReadOnlyList<ThreadData> threads,
         IReadOnlyList<MessengerInstance> instances)
     {
-        var branchThreads = threads
-            .Where(thread => thread.BranchName.Equals(branchName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var instanceById = instances.ToDictionary(
+            instance => instance.Id,
+            StringComparer.OrdinalIgnoreCase);
+
+        var branchThreads = FilterThreadsForBranchWorkspace(threads, instanceById, branchName).ToList();
 
         var unresolved = branchThreads
             .Where(thread => !thread.IsReplied && !thread.IsSpamOrPromo)

@@ -5,9 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:UnifiedMessenger.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:occ="using:UnifiedMessenger.Controls.Occ"
-    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     mc:Ignorable="d">
 
     <UserControl.Resources>
@@ -17,32 +16,35 @@
                 DisplayStyle="Immediate"
                 ViewModel="{Binding}" />
         </DataTemplate>
-
-        <DataTemplate x:Key="OperationsKanbanCardTemplate" x:DataType="controls:OperationsThreadCardViewModel">
-            <shared:OperationsThreadCardView
-                Margin="0,0,0,6"
-                DisplayStyle="Kanban"
-                ViewModel="{Binding}" />
-        </DataTemplate>
-
-        <DataTemplate x:Key="OperationsBranchMetricCardTemplate" x:DataType="occ:BranchMetricViewModel">
-            <occ:OccBranchMetricCardView ViewModel="{Binding}" />
-        </DataTemplate>
-
-        <DataTemplate x:Key="OperationsInsightFeedTemplate" x:DataType="occ:OperationsInsightFeedViewModel">
-            <occ:OccInsightFeedCardView ViewModel="{Binding}" />
-        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
-        <ScrollViewer x:Name="MainContentScrollViewer" VerticalScrollBarVisibility="Auto">
-            <Grid MinHeight="360" RowSpacing="16">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" MinHeight="360" />
-                </Grid.RowDefinitions>
+        <StackPanel
+            x:Name="EmptyStatePanel"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="12"
+            Visibility="Collapsed">
+            <TextBlock
+                HorizontalAlignment="Center"
+                Style="{StaticResource SubtitleTextBlockStyle}"
+                Text="No professional accounts yet" />
+            <TextBlock
+                MaxWidth="420"
+                HorizontalAlignment="Center"
+                Opacity="0.7"
+                Text="Add a WhatsApp instance with Workspace set to Professional."
+                TextAlignment="Center"
+                TextWrapping="WrapWholeWords" />
+            <Button
+                HorizontalAlignment="Center"
+                Click="AddProfessionalInstanceButton_Click"
+                Content="Add instance" />
+        </StackPanel>
 
-                <Grid Grid.Row="0" ColumnSpacing="12">
+        <ScrollViewer x:Name="MainContentScrollViewer" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="16" Padding="0,0,0,24">
+                <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
@@ -50,643 +52,161 @@
                     <StackPanel Spacing="4">
                         <TextBlock
                             x:Name="ScopeText"
-                            AutomationProperties.Name="Operations Command Center scope"
                             FontSize="14"
-                            FontWeight="SemiBold"
-                            Opacity="0.85"
+                            Opacity="0.9"
                             Text="Showing: All Branches" />
                         <TextBlock
                             x:Name="LastRefreshedText"
-                            FontSize="11"
-                            Opacity="0.55"
+                            Style="{StaticResource UmCaptionTextStyle}"
                             Text="Updated just now" />
                         <StackPanel
-                            x:Name="BackfillStatusPanel"
+                            x:Name="BranchFilterChipPanel"
                             Orientation="Horizontal"
-                            Spacing="6"
+                            Spacing="8"
                             Visibility="Collapsed">
-                            <ProgressRing
-                                Width="12"
-                                Height="12"
-                                Foreground="{StaticResource UmBrandTealBrush}"
-                                IsActive="True" />
                             <TextBlock
-                                x:Name="BackfillStatusText"
-                                FontSize="11"
-                                Foreground="{StaticResource UmBrandTealDarkBrush}"
-                                Opacity="0.9"
-                                Text="Backfill running…" />
+                                x:Name="BranchFilterChipText"
+                                VerticalAlignment="Center"
+                                Opacity="0.8"
+                                Text="Branch filter" />
+                            <Button
+                                Click="ClearBranchFilterButton_Click"
+                                Content="Clear"
+                                Style="{StaticResource SubtleButtonStyle}" />
                         </StackPanel>
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Button
-                            x:Name="LayoutEditToggleButton"
-                            AutomationProperties.AutomationId="OccLayoutEditToggle"
-                            AutomationProperties.Name="Customize layout"
-                            Click="LayoutEditToggleButton_Click"
-                            Content="Customize layout"
-                            TabIndex="40" />
-                        <ComboBox
-                            x:Name="LayoutPresetComboBox"
-                            AutomationProperties.AutomationId="OccLayoutPreset"
-                            AutomationProperties.Name="Layout preset"
-                            MinWidth="160"
-                            SelectionChanged="LayoutPresetComboBox_SelectionChanged"
-                            Visibility="Collapsed" />
-                        <Button
-                            x:Name="RestoreLayoutButton"
-                            AutomationProperties.AutomationId="OccRestoreLayout"
-                            AutomationProperties.Name="Restore default layout"
-                            Click="RestoreLayoutButton_Click"
-                            Content="Restore default layout"
-                            Visibility="Collapsed" />
-                        <Button
-                            x:Name="RefreshCommandButton"
-                            AutomationProperties.Name="Refresh Operations Command Center"
-                            Click="RefreshCommandButton_Click"
-                            Content="Refresh platform data"
-                            TabIndex="20" />
-                    </StackPanel>
+                    <Button
+                        x:Name="RefreshCommandButton"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Click="RefreshCommandButton_Click"
+                        Content="Refresh"
+                        Style="{StaticResource SubtleButtonStyle}" />
                 </Grid>
 
+                <controls:BranchWorkspacePillBar x:Name="BranchWorkspacePillBar" />
+
+                <StackPanel
+                    x:Name="DateRangeFilterPanel"
+                    Spacing="8">
+                    <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="DATE RANGE" />
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="140" />
+                            <ColumnDefinition Width="*" MinWidth="140" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <DatePicker
+                            x:Name="FromDatePicker"
+                            Grid.Column="0"
+                            AutomationProperties.Name="From date"
+                            DateChanged="DateRangePicker_DateChanged"
+                            Header="From" />
+                        <DatePicker
+                            x:Name="ToDatePicker"
+                            Grid.Column="1"
+                            AutomationProperties.Name="To date"
+                            DateChanged="DateRangePicker_DateChanged"
+                            Header="To" />
+                        <Button
+                            Grid.Column="2"
+                            VerticalAlignment="Bottom"
+                            Click="ClearDateRangeButton_Click"
+                            Content="Clear range"
+                            Style="{StaticResource SubtleButtonStyle}" />
+                    </Grid>
+                </StackPanel>
+
                 <Grid
-                    x:Name="OccLayoutGrid"
-                    Grid.Row="1"
+                    x:Name="KpiMetricsGrid"
                     ColumnSpacing="12"
-                    RowSpacing="12"
-                    SizeChanged="OccLayoutGrid_SizeChanged">
-                    <Grid
-                        x:Name="KpiStripSection"
-                        Tag="KpiStrip"
-                        ColumnSpacing="8"
-                        RowSpacing="8">
-                        <VisualStateManager.VisualStateGroups>
+                    RowSpacing="12">
+                    <VisualStateManager.VisualStateGroups>
                         <VisualStateGroup>
                             <VisualState x:Name="WideKpiLayout">
                                 <VisualState.StateTriggers>
-                                    <AdaptiveTrigger MinWindowWidth="960" />
+                                    <AdaptiveTrigger MinWindowWidth="900" />
                                 </VisualState.StateTriggers>
-                            </VisualState>
-                            <VisualState x:Name="NarrowKpiLayout">
                                 <VisualState.Setters>
-                                    <Setter Target="OperationsKpiHeader.(Grid.ColumnSpan)" Value="2" />
-                                    <Setter Target="RevenueKpiCard.(Grid.Column)" Value="0" />
-                                    <Setter Target="RevenueKpiCard.(Grid.ColumnSpan)" Value="2" />
-                                    <Setter Target="RevenueKpiCard.(Grid.Row)" Value="2" />
-                                    <Setter Target="ImmediateActionKpiCard.(Grid.Column)" Value="0" />
-                                    <Setter Target="ImmediateActionKpiCard.(Grid.Row)" Value="3" />
-                                    <Setter Target="SlaBreachesKpiCard.(Grid.Column)" Value="1" />
-                                    <Setter Target="SlaBreachesKpiCard.(Grid.Row)" Value="3" />
+                                    <Setter Target="ImmediateActionCard.(Grid.Column)" Value="2" />
+                                    <Setter Target="ImmediateActionCard.(Grid.Row)" Value="0" />
+                                    <Setter Target="SlaBreachesCard.(Grid.Column)" Value="3" />
+                                    <Setter Target="SlaBreachesCard.(Grid.Row)" Value="0" />
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
                     </VisualStateManager.VisualStateGroups>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                    </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid Grid.ColumnSpan="5" ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <shared:SectionHeaderView
-                            x:Name="OperationsKpiHeader"
-                            Title="Operations (live threads)" />
-                        <StackPanel
-                            x:Name="BranchFilterChipPanel"
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Orientation="Horizontal"
-                            Spacing="6"
-                            Visibility="Collapsed">
-                            <Border
-                                Padding="10,4"
-                                Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                CornerRadius="12">
-                                <TextBlock
-                                    x:Name="BranchFilterChipText"
-                                    FontSize="11"
-                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                    Text="Branch: DHA-2" />
-                            </Border>
-                            <Button
-                                x:Name="ClearBranchFilterButton"
-                                AutomationProperties.Name="Clear branch filter"
-                                Click="ClearBranchFilterButton_Click"
-                                Content="Clear filter"
-                                Style="{StaticResource SubtleButtonStyle}" />
-                        </StackPanel>
-                    </Grid>
                     <shared:MetricCardView
-                        x:Name="OpenKpiCard"
-                        Grid.Row="1"
-                        MinWidth="100"
-                        Label="Open conversations"
+                        x:Name="OpenThreadsCard"
+                        Grid.Column="0"
+                        Grid.Row="0"
+                        Label="Open threads"
                         Value="0" />
                     <shared:MetricCardView
-                        x:Name="HangingKpiCard"
-                        Grid.Row="1"
+                        x:Name="HangingLeadsCard"
                         Grid.Column="1"
-                        MinWidth="100"
+                        Grid.Row="0"
                         Label="Hanging leads"
                         Value="0" />
                     <shared:MetricCardView
-                        x:Name="RevenueKpiCard"
+                        x:Name="ImmediateActionCard"
+                        Grid.Column="0"
                         Grid.Row="1"
-                        Grid.Column="2"
-                        MinWidth="120"
-                        IsAccent="True"
-                        Label="Revenue at risk"
-                        Value="PKR 0" />
-                    <shared:MetricCardView
-                        x:Name="ImmediateActionKpiCard"
-                        Grid.Row="1"
-                        Grid.Column="3"
-                        MinWidth="90"
-                        Label="Immediate"
-                        ToolTipService.ToolTip="All urgent threads in scope. The action lane shows the top 24 by urgency."
+                        Label="Needs action"
                         Value="0" />
                     <shared:MetricCardView
-                        x:Name="SlaBreachesKpiCard"
+                        x:Name="SlaBreachesCard"
+                        Grid.Column="1"
                         Grid.Row="1"
-                        Grid.Column="4"
-                        MinWidth="90"
                         Label="SLA breaches"
-                        ToolTipService.ToolTip="Active threads exceeding the SLA threshold. Based on live thread latency, not historical analytics."
                         Value="—" />
-                    </Grid>
+                </Grid>
 
-                    <shared:SurfaceCard
-                            x:Name="ImmediateLaneSection"
-                            AllowDrop="True"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            Tag="ImmediateLane">
-                            <shared:SurfaceCard.CardBody>
-                            <Grid RowSpacing="8">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" MaxHeight="280" />
-                                </Grid.RowDefinitions>
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
+                <controls:MessageVolumeLineChart x:Name="MessageVolumeChart" />
+
+                <StackPanel x:Name="ImmediateLaneSection" Spacing="8">
+                    <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Immediate queue" />
                                     <TextBlock
-                                        x:Name="ImmediateLaneDragGrip"
-                                        FontFamily="Segoe MDL2 Assets"
-                                        FontSize="12"
-                                        Opacity="0.45"
-                                        Text="&#xE700;"
+                        x:Name="ImmediateQueueEmptyText"
+                        Opacity="0.65"
+                        Text="No urgent threads in the current scope."
                                         Visibility="Collapsed" />
-                                    <TextBlock Grid.Column="1" FontWeight="SemiBold" Text="Immediate action lane" />
-                                </Grid>
                                 <ListView
                                     x:Name="ImmediateQueueList"
-                                    Grid.Row="1"
-                                    AllowDrop="True"
-                                    CanDragItems="False"
-                                    CanReorderItems="False"
-                                    DragItemsCompleted="ImmediateQueueList_DragItemsCompleted"
                                     IsItemClickEnabled="True"
-                                    IsSwipeEnabled="False"
                                     ItemClick="ThreadCardList_ItemClick"
                                     ItemTemplate="{StaticResource OperationsImmediateCardTemplate}"
-                                    RightTapped="ThreadCardList_RightTapped"
-                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                    ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                     SelectionMode="None" />
-                                <TextBlock
-                                    x:Name="ImmediateQueueEmptyText"
-                                    Grid.Row="1"
-                                    HorizontalAlignment="Center"
-                                    Margin="0,16,0,0"
-                                    Opacity="0.6"
-                                    Text="No urgent threads right now."
-                                    Visibility="Collapsed" />
-                                <TextBlock
-                                    x:Name="ImmediateQueueFooterText"
-                                    Grid.Row="1"
-                                    VerticalAlignment="Bottom"
-                                    Margin="0,0,0,4"
-                                    FontSize="10"
-                                    Opacity="0.55"
-                                    TextWrapping="WrapWholeWords"
-                                    Visibility="Collapsed" />
-                            </Grid>
-                            </shared:SurfaceCard.CardBody>
-                        </shared:SurfaceCard>
-
-                        <shared:SurfaceCard
-                            x:Name="KanbanSection"
-                            AllowDrop="True"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            Tag="Kanban">
-                            <shared:SurfaceCard.CardBody>
-                            <Grid RowSpacing="8">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="*" MinHeight="200" />
-                                </Grid.RowDefinitions>
-                                <StackPanel Spacing="4">
-                                    <TextBlock Style="{StaticResource DashboardSectionHeaderStyle}" Text="Branch workspace kanban" />
-                                    <TextBlock FontSize="11" Opacity="0.6" Text="Pills scope KPIs, kanban, analytics, and insights to one branch." TextWrapping="WrapWholeWords" />
                                 </StackPanel>
-                                <controls:BranchWorkspacePillBar
-                                    x:Name="BranchWorkspacePillBar"
-                                    AutomationProperties.AutomationId="OccBranchPills"
-                                    AutomationProperties.Name="Branch workspace pills"
-                                    Grid.Row="1"
-                                    TabIndex="30" />
+
                                 <controls:KanbanColumnBoard
                                     x:Name="KanbanBoard"
-                                    AutomationProperties.AutomationId="OccBranchKanban"
-                                    AutomationProperties.Name="Branch workspace kanban"
-                                    Grid.Row="3"
                                     ColumnOrderChanged="KanbanBoard_ColumnOrderChanged"
                                     CrossColumnDragAttempted="KanbanBoard_CrossColumnDragAttempted"
-                                    ItemClickRequested="KanbanBoard_ItemClickRequested"
-                                    ThreadContextMenuRequested="KanbanBoard_ThreadContextMenuRequested" />
-                            </Grid>
-                            </shared:SurfaceCard.CardBody>
-                        </shared:SurfaceCard>
-
-                        <StackPanel
-                            x:Name="BranchMetricsSection"
-                            AllowDrop="True"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            Spacing="4"
-                            Tag="BranchMetrics">
-                        <ScrollViewer x:Name="BranchMetricsScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                            <ListView
-                                x:Name="BranchMetricsList"
-                                IsItemClickEnabled="True"
-                                ItemClick="BranchMetricsList_ItemClick"
-                                ItemTemplate="{StaticResource OperationsBranchMetricCardTemplate}"
-                                SelectionMode="None">
-                                <ListView.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="8" />
-                                    </ItemsPanelTemplate>
-                                </ListView.ItemsPanel>
-                            </ListView>
-                        </ScrollViewer>
-                        <TextBlock x:Name="BranchMetricsEmptyText" FontSize="11" Opacity="0.55" Text="Branch metrics appear when threads are tracked." Visibility="Collapsed" />
-                        </StackPanel>
-
-                        <StackPanel x:Name="PlatformHealthSection" Spacing="6" Visibility="Collapsed">
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Opacity="0.7" Text="Adapter sync status" />
-                            <ItemsControl x:Name="PlatformHealthItems">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="8" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Padding="8,4" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" />
-                                                <TextBlock FontSize="11" Text="{Binding Label}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-
-                        <shared:SurfaceCard
-                            x:Name="BranchPulseSection"
-                            AllowDrop="True"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            Tag="BranchPulse">
-                            <shared:SurfaceCard.CardBody>
-                            <StackPanel Spacing="8">
-                                <Grid ColumnSpacing="8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock FontWeight="SemiBold" Text="Branch pulse" />
-                                        <TextBlock
-                                            x:Name="BranchPulseScopeText"
-                                            FontSize="11"
-                                            Opacity="0.65"
-                                            Text="All branches" />
-                                    </StackPanel>
-                                    <Button
-                                        x:Name="BranchPulseRefreshButton"
-                                        Grid.Column="1"
-                                        AutomationProperties.Name="Refresh branch pulse"
-                                        Click="BranchPulseRefreshButton_Click"
-                                        Content="Refresh pulse"
-                                        VerticalAlignment="Center" />
-                                </Grid>
-                                <ProgressRing
-                                    x:Name="BranchPulseProgressRing"
-                                    Width="16"
-                                    Height="16"
-                                    IsActive="False"
-                                    Visibility="Collapsed" />
-                                <TextBlock
-                                    x:Name="BranchPulseStatusText"
-                                    FontSize="11"
-                                    Opacity="0.65"
-                                    Text="Summarize open threads with Local AI."
-                                    TextWrapping="WrapWholeWords" />
-                                <TextBlock
-                                    x:Name="BranchPulseStaleText"
-                                    FontSize="11"
-                                    Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                                    Text="Summary may be outdated (&gt;24h)"
-                                    Visibility="Collapsed" />
-                                <TextBlock
-                                    x:Name="BranchPulseSummaryText"
-                                    TextWrapping="WrapWholeWords"
-                                    Visibility="Collapsed" />
-                                <ItemsControl x:Name="BranchPulseThemesList" Visibility="Collapsed">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock
-                                                Margin="0,0,0,4"
-                                                FontSize="12"
-                                                Opacity="0.85"
-                                                Text="{Binding}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                            </shared:SurfaceCard.CardBody>
-                        </shared:SurfaceCard>
-
-                        <shared:SurfaceCard
-                            x:Name="HighlightsSection"
-                            AllowDrop="True"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            Tag="Highlights">
-                            <shared:SurfaceCard.CardBody>
-                            <StackPanel Spacing="8">
-                                <TextBlock FontWeight="SemiBold" Text="Operational highlights" />
-                                <ListView x:Name="OperationalHighlightsList" IsItemClickEnabled="True" ItemClick="OperationalHighlightsList_ItemClick" MaxHeight="160" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Spacing="2" Padding="0,4">
-                                                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock FontSize="11" Opacity="0.75" Text="{Binding Subtitle}" TextWrapping="WrapWholeWords" />
-                                                <TextBlock FontSize="10" Opacity="0.45" Text="{Binding InstanceDisplayName}" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
-                                <TextBlock x:Name="OperationalHighlightsEmptyText" Opacity="0.6" Text="Activity highlights appear after message traffic is recorded." Visibility="Collapsed" />
-                            </StackPanel>
-                            </shared:SurfaceCard.CardBody>
-                        </shared:SurfaceCard>
-
-                        <Border
-                            x:Name="AiFeedSection"
-                            Padding="12"
-                            AllowDrop="True"
-                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            Tag="AiFeed">
-                            <StackPanel Spacing="8">
-                                <TextBlock FontWeight="SemiBold" Text="AI insight feed" />
-                                <ListView x:Name="AiInsightFeedList" IsItemClickEnabled="True" ItemClick="InsightFeedList_ItemClick" ItemTemplate="{StaticResource OperationsInsightFeedTemplate}" MaxHeight="280" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionMode="None" />
-                                <TextBlock x:Name="AiInsightFeedEmptyText" Opacity="0.6" Text="Insights appear as messages are classified." Visibility="Collapsed" />
-                            </StackPanel>
-                        </Border>
-
-                        <Expander
-                            x:Name="PlatformIntelligenceExpander"
-                            AllowDrop="True"
-                            AutomationProperties.AutomationId="OccPlatformIntelligence"
-                            AutomationProperties.Name="Platform intelligence expander"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            IsExpanded="False"
-                            Tag="PlatformIntelligence">
-                            <Expander.Header>
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock x:Name="PlatformIntelligenceHeaderText" FontWeight="SemiBold" Text="Platform intelligence &amp; refresh" />
-                                    <InfoBadge x:Name="PlatformIntelligenceReviewBadge" VerticalAlignment="Center" Visibility="Collapsed" />
+                    ItemClickRequested="KanbanBoard_ItemClickRequested" />
                                 </StackPanel>
-                            </Expander.Header>
-                            <StackPanel Spacing="12">
-                                <StackPanel x:Name="GoogleIntelligenceSection" Spacing="8">
-                                    <TextBlock FontWeight="SemiBold" Text="Google Business · Customer trust" />
-                                    <TextBlock x:Name="AggregateRatingValue" FontSize="18" FontWeight="SemiBold" Text="—" />
-                                    <TextBlock x:Name="UnrepliedReviewsValue" FontSize="11" Opacity="0.65" Text="—" />
-                                    <ListView x:Name="GoogleReviewAlertsList" MaxHeight="140" SelectionChanged="GoogleReviewAlertsList_SelectionChanged" SelectionMode="Single">
-                                        <ListView.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Spacing="2">
-                                                    <TextBlock FontWeight="SemiBold" Text="{Binding ReviewerName}" />
-                                                    <TextBlock FontSize="11" Opacity="0.75" Text="{Binding Snippet}" TextTrimming="CharacterEllipsis" MaxLines="2" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ListView.ItemTemplate>
-                                    </ListView>
-                                    <TextBlock x:Name="GoogleReviewAlertsEmptyText" Opacity="0.6" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
-                                    <TextBox x:Name="ReviewReplyBox" AcceptsReturn="True" PlaceholderText="Draft a review reply..." MaxHeight="72" TextWrapping="Wrap" />
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button x:Name="SubmitReviewReplyButton" Click="SubmitReviewReplyButton_Click" Content="Insert draft" />
-                                        <Button Click="OpenSelectedReviewInstanceButton_Click" Content="Open Google" />
-                                    </StackPanel>
-                                </StackPanel>
-                                <StackPanel x:Name="MetaIntelligenceSection" Spacing="8">
-                                    <TextBlock FontWeight="SemiBold" Text="Meta Business · Response analytics" />
-                                    <TextBlock x:Name="MetaAverageResponseValue" FontSize="20" FontWeight="SemiBold" Text="—" />
-                                    <TextBlock x:Name="MetaEfficiencyRatingValue" FontSize="12" Opacity="0.75" Text="—" />
-                                    <TextBlock x:Name="MetaSampleCountValue" FontSize="11" Opacity="0.65" Text="Samples: —" />
-                                    <TextBlock x:Name="MetaLastInboundValue" FontSize="11" Opacity="0.65" Text="Last inbound: —" />
-                                    <TextBlock x:Name="MetaLastReplyValue" FontSize="11" Opacity="0.65" Text="Last reply: —" />
-                                    <TextBlock x:Name="MetaPendingResponseText" FontSize="11" Opacity="0.75" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
-                                    <TextBlock x:Name="MetaResponseEmptyText" Opacity="0.6" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
-                                </StackPanel>
-                                <Button x:Name="RefreshPlatformDataButton" Click="RefreshPlatformDataButton_Click" Content="Refresh platform data" />
-                            </StackPanel>
-                        </Expander>
-
-                        <Expander
-                            x:Name="AnalyticsTrendsExpander"
-                            AllowDrop="True"
-                            AutomationProperties.Name="Analytics trends expander"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            IsExpanded="False"
-                            Tag="Analytics">
-                            <Expander.Header>
-                                <StackPanel Spacing="2">
-                                    <TextBlock FontWeight="SemiBold" Text="Analytics &amp; trends" />
-                                    <TextBlock x:Name="AnalyticsTrendsSummaryText" FontSize="11" Opacity="0.65" TextWrapping="WrapWholeWords" />
-                                </StackPanel>
-                            </Expander.Header>
-                            <StackPanel Spacing="12">
-                                <Border Padding="12" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock FontWeight="SemiBold" Text="Event analytics" />
-                                        <Grid ColumnSpacing="12" RowSpacing="8">
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Spacing="2">
-                                                <TextBlock FontSize="10" Opacity="0.65" Text="Avg reply" />
-                                                <TextBlock x:Name="AvgReplyTimeValue" FontSize="16" FontWeight="SemiBold" Text="—" />
-                                                <TextBlock x:Name="AvgReplyTimeSubtext" FontSize="10" Opacity="0.55" TextWrapping="WrapWholeWords" Visibility="Collapsed" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock FontSize="10" Opacity="0.65" Text="Response rate (events)" />
-                                                <TextBlock x:Name="ResponseRateValue" FontSize="12" FontWeight="SemiBold" Text="—" TextWrapping="WrapWholeWords" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Row="1" Spacing="2">
-                                                <TextBlock FontSize="10" Opacity="0.65" Text="Peak hour" />
-                                                <TextBlock x:Name="PeakHourValue" FontSize="14" FontWeight="SemiBold" Text="—" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
-                                                <TextBlock FontSize="10" Opacity="0.65" Text="Daily trend" />
-                                                <TextBlock x:Name="DailyTrendValue" FontSize="12" FontWeight="SemiBold" Text="—" TextWrapping="WrapWholeWords" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-                                <Border Padding="12" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock FontWeight="SemiBold" Text="Message volume (7 days)" />
-                                        <controls:WeeklyActivityChart x:Name="WeeklyChart" Height="120" />
-                                        <TextBlock x:Name="AnalyticsVolumeEmptyText" Opacity="0.6" Text="No message volume recorded for this scope yet." Visibility="Collapsed" />
-                                        <Grid ColumnSpacing="12">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Sent: " Opacity="0.65" />
-                                            <TextBlock x:Name="SentCountValue" Grid.Column="0" Margin="36,0,0,0" Text="—" />
-                                            <TextBlock Grid.Column="1" Opacity="0.65" Text="Received:" />
-                                            <TextBlock x:Name="ReceivedCountValue" Grid.Column="1" Margin="72,0,0,0" Text="—" />
-                                            <Button Grid.Column="2" Click="ExportAnalyticsButton_Click" Content="Export" />
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-
-                                <Border Padding="12" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock FontWeight="SemiBold" Text="Sentiment (7 days)" />
-                                        <controls:SentimentActivityChart x:Name="SentimentChart" Height="100" />
-                                        <TextBlock x:Name="SentimentEmptyText" Opacity="0.6" Text="Sentiment breakdown appears after triage classifies inbound messages." Visibility="Collapsed" />
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </Expander>
-
-                        <Border
-                            x:Name="HealthChipsSection"
-                            Padding="12"
-                            AllowDrop="True"
-                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            DragOver="OccSection_DragOver"
-                            Drop="OccSection_Drop"
-                            Tag="DataHealth"
-                            Visibility="Collapsed">
-                            <StackPanel Spacing="8">
-                                <TextBlock FontWeight="SemiBold" Text="Data health" />
-                                <ItemsControl x:Name="HealthChipsItems">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="6" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Padding="8,4" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="4">
-                                                <TextBlock FontSize="10" Text="{Binding Summary}" />
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-                </Grid>
-            </Grid>
         </ScrollViewer>
 
-        <shared:EmptyStateView
-            x:Name="EmptyStatePanel"
-            Hint="Add a Professional workspace instance to use the Operations Command Center."
-            IconGlyph="&#xE731;"
-            Title="No professional accounts yet"
-            Visibility="Collapsed">
-            <shared:EmptyStateView.ActionContent>
-                <Button Click="AddProfessionalInstanceButton_Click" Content="Add professional instance" />
-            </shared:EmptyStateView.ActionContent>
-        </shared:EmptyStateView>
-
-        <shared:LoadingOverlayView
+        <Grid
             x:Name="WorkspaceLoadingOverlay"
-            Message="Updating workspace…"
-            Visibility="Collapsed" />
-
-        <StackPanel
-            x:Name="HiddenPanelsTray"
-            Margin="12,0,12,48"
-            AutomationProperties.AutomationId="OccHiddenPanelsTray"
-            AutomationProperties.Name="Hidden panels tray"
-            Orientation="Horizontal"
-            Spacing="8"
-            VerticalAlignment="Bottom"
-            Visibility="Collapsed" />
-
-        <TextBlock
-            x:Name="LayoutLiveRegion"
-            AutomationProperties.LiveSetting="Polite"
-            IsHitTestVisible="False"
-            MaxHeight="0"
-            Opacity="0"
-            Text="" />
-
-        <InfoBar
-            x:Name="LayoutUndoInfoBar"
-            IsClosable="True"
-            IsOpen="False"
-            Message="Layout changed."
-            Severity="Informational"
-            Title="Dashboard layout"
-            VerticalAlignment="Bottom">
-            <InfoBar.ActionButton>
-                <Button Click="LayoutUndoInfoBar_ActionClick" Content="Undo" />
-            </InfoBar.ActionButton>
-        </InfoBar>
+            Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+            Visibility="Collapsed">
+            <ProgressRing
+                Width="48"
+                Height="48"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsActive="True" />
+        </Grid>
     </Grid>
 </UserControl>

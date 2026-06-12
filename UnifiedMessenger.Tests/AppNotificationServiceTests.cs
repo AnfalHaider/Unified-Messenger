@@ -36,7 +36,7 @@ public class AppNotificationServiceTests
     public void ResolveToastTag_UsesInstanceIdWhenGroupingEnabled()
     {
         var settings = new AppSettings { ToastGroupByInstance = true };
-        var alert = NotificationAlert.Create("inst-1", "Work", "slack", "Ping");
+        var alert = NotificationAlert.Create("inst-1", "Work", "whatsapp", "Ping");
 
         Assert.Equal("inst-1", AppNotificationService.ResolveToastTag(settings, alert));
     }
@@ -45,7 +45,7 @@ public class AppNotificationServiceTests
     public void ResolveToastTag_UsesAlertIdWhenGroupingDisabled()
     {
         var settings = new AppSettings { ToastGroupByInstance = false };
-        var alert = NotificationAlert.Create("inst-1", "Work", "slack", "Ping");
+        var alert = NotificationAlert.Create("inst-1", "Work", "whatsapp", "Ping");
 
         Assert.Equal(alert.Id, AppNotificationService.ResolveToastTag(settings, alert));
     }
@@ -65,14 +65,14 @@ public class AppNotificationServiceTests
     {
         var instance = new MessengerInstance
         {
-            Platform = "slack",
+            Platform = "whatsapp",
             DisplayName = "Work Ops"
         };
         instance.ApplyPlatformBranding();
 
         var attribution = PlatformBrandingHelper.ResolveToastAttribution(instance);
 
-        Assert.Contains("Slack", attribution, StringComparison.Ordinal);
+        Assert.Contains("WhatsApp", attribution, StringComparison.Ordinal);
         Assert.Contains("Work Ops", attribution, StringComparison.Ordinal);
     }
 
@@ -81,18 +81,18 @@ public class AppNotificationServiceTests
     {
         var platformDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Platforms");
         Directory.CreateDirectory(platformDir);
-        var platformIconPath = Path.Combine(platformDir, "slack.png");
+        var platformIconPath = Path.Combine(platformDir, "whatsapp.png");
         File.WriteAllBytes(platformIconPath, [0x89, 0x50, 0x4E, 0x47]);
 
         try
         {
             var settings = new AppSettings { ToastUsePlatformBranding = true };
-            var instance = new MessengerInstance { Platform = "slack", DisplayName = "Work" };
+            var instance = new MessengerInstance { Platform = "whatsapp", DisplayName = "Work" };
 
             var uri = AppNotificationService.ResolveToastAppLogoUri(settings, instance);
 
             Assert.NotNull(uri);
-            Assert.Contains("slack.png", uri, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("whatsapp.png", uri, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -107,7 +107,7 @@ public class AppNotificationServiceTests
     public void ResolveToastAppLogoUri_FallsBackToAppIconWhenBrandingDisabled()
     {
         var settings = new AppSettings { ToastUsePlatformBranding = false };
-        var instance = new MessengerInstance { Platform = "slack", DisplayName = "Work" };
+        var instance = new MessengerInstance { Platform = "whatsapp", DisplayName = "Work" };
 
         var uri = AppNotificationService.ResolveToastAppLogoUri(settings, instance);
 

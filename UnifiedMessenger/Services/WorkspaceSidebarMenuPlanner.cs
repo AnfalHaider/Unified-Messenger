@@ -39,61 +39,7 @@ public static class WorkspaceSidebarMenuPlanner
         ArgumentNullException.ThrowIfNull(instances);
 
         var enabledInstances = PlatformModuleSettingsHelper.FilterEnabledInstances(instances).ToList();
-        if (WhatsAppFocusLayoutHelper.IsWhatsAppOnlyMode())
-        {
-            return BuildWhatsAppFocusPlan(enabledInstances);
-        }
-
-        var entries = new List<SidebarMenuEntry>
-        {
-            new(OverviewHeaderKey, SidebarMenuEntryKind.SectionHeader, SectionTitle: "Overview"),
-            new(WorkspaceSidebarHelper.DashboardSelectionKey, SidebarMenuEntryKind.Dashboard),
-            new(ProfessionalHeaderKey, SidebarMenuEntryKind.SectionHeader, SectionTitle: "Pro / Business")
-        };
-
-        var (professional, personal) = WorkspaceSidebarHelper.PartitionInstances(enabledInstances);
-        if (professional.Count == 0)
-        {
-            entries.Add(new SidebarMenuEntry(
-                ProfessionalEmptyKey,
-                SidebarMenuEntryKind.EmptyHint,
-                HintText: "No business accounts yet."));
-        }
-        else
-        {
-            foreach (var instance in professional)
-            {
-                entries.Add(new SidebarMenuEntry(
-                    instance.Id.Trim(),
-                    SidebarMenuEntryKind.Instance,
-                    Instance: instance));
-            }
-        }
-
-        entries.Add(new SidebarMenuEntry(
-            PersonalHeaderKey,
-            SidebarMenuEntryKind.SectionHeader,
-            SectionTitle: "Personal / Life"));
-
-        if (personal.Count == 0)
-        {
-            entries.Add(new SidebarMenuEntry(
-                PersonalEmptyKey,
-                SidebarMenuEntryKind.EmptyHint,
-                HintText: "No personal accounts yet."));
-        }
-        else
-        {
-            foreach (var instance in personal)
-            {
-                entries.Add(new SidebarMenuEntry(
-                    instance.Id.Trim(),
-                    SidebarMenuEntryKind.Instance,
-                    Instance: instance));
-            }
-        }
-
-        return new SidebarMenuPlan { Entries = entries };
+        return BuildWhatsAppFocusPlan(enabledInstances);
     }
 
     private static SidebarMenuPlan BuildWhatsAppFocusPlan(IReadOnlyList<MessengerInstance> enabledInstances)

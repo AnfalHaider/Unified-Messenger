@@ -86,16 +86,14 @@ public class NotificationFeedPanelHelperTests
         {
             NotificationAlert.Create("inst-1", "Sales WA", "whatsapp", "Msg 1", id: "a1"),
             NotificationAlert.Create("inst-2", "Support WA", "whatsapp", "Msg 2", id: "a2"),
-            NotificationAlert.Create("inst-3", "Team TG", "telegram", "Msg 3", id: "a3")
+            NotificationAlert.Create("inst-3", "Team TG", "whatsapp", "Msg 3", id: "a3")
         };
 
         var groups = NotificationFeedPanelHelper.GroupAlertsByPlatform(alerts, new Dictionary<string, MessengerInstance>());
 
-        Assert.Equal(2, groups.Count);
+        Assert.Single(groups);
         Assert.Equal("WhatsApp", groups[0].Key);
-        Assert.Equal(2, groups[0].Count);
-        Assert.Equal("Telegram", groups[1].Key);
-        Assert.Single(groups[1]);
+        Assert.Equal(3, groups[0].Count);
     }
 
     [Fact]
@@ -103,12 +101,12 @@ public class NotificationFeedPanelHelperTests
     {
         var alert = NotificationAlert.Create("inst-1", "Sales", "not-a-platform", "Msg", id: "a1");
         var lookup = NotificationFeedPanelHelper.BuildInstanceLookup([
-            new MessengerInstance { Id = "inst-1", DisplayName = "Sales", Platform = "messenger" }
+            new MessengerInstance { Id = "inst-1", DisplayName = "Sales", Platform = "whatsappbusiness" }
         ]);
 
         var groups = NotificationFeedPanelHelper.GroupAlertsByPlatform([alert], lookup);
 
         Assert.Single(groups);
-        Assert.Equal("Messenger", groups[0].Key);
+        Assert.Equal("WhatsApp", groups[0].Key);
     }
 }

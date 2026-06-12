@@ -1,0 +1,55 @@
+using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Adapters;
+
+namespace UnifiedMessenger.Tests;
+
+public class OccDateRangeFilterTests
+{
+    [Fact]
+    public void IsWithinRange_RespectsInclusiveBounds()
+    {
+        var from = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
+        var to = new DateTimeOffset(2026, 6, 10, 23, 59, 59, TimeSpan.Zero);
+        var inside = new DateTimeOffset(2026, 6, 5, 12, 0, 0, TimeSpan.Zero);
+        var before = new DateTimeOffset(2026, 5, 31, 23, 0, 0, TimeSpan.Zero);
+        var after = new DateTimeOffset(2026, 6, 11, 0, 0, 1, TimeSpan.Zero);
+
+        Assert.True(OccDateRangeFilterHelper.IsWithinRange(inside, from, to));
+        Assert.False(OccDateRangeFilterHelper.IsWithinRange(before, from, to));
+        Assert.False(OccDateRangeFilterHelper.IsWithinRange(after, from, to));
+    }
+
+    [Fact]
+    public void BuildDailySeriesForRange_ReturnsOrderedPoints()
+    {
+        var sent = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["2026-06-08"] = 2,
+            ["2026-06-09"] = 4
+        };
+        var received = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["2026-06-08"] = 1,
+            ["2026-06-09"] = 3
+        };
+
+        var localOffset = DateTimeOffset.Now.Offset;
+        var from = OccDateRangeFilterState.NormalizeStartOfDay(
+            new DateTimeOffset(2026, 6, 8, 0, 0, 0, localOffset))!.Value;
+        var to = OccDateRangeFilterState.NormalizeEndOfDay(
+            new DateTimeOffset(2026, 6, 9, 0, 0, 0, localOffset))!.Value;
+        var series = OccDateRangeFilterHelper.BuildDailySeriesForRange(sent, received, from, to);
+
+        Assert.Equal(2, series.Count);
+        Assert.Equal(2, series[0].Sent);
+        Assert.Equal(4, series[1].Sent);
+        Assert.Equal(3, series[1].Received);
+    }
+
+    [Fact]
+    public void ParseMessageKind_MapsTelemetryKinds()
+    {
+        Assert.Equal(Models.InboundMessageKind.Catalog, WhatsAppIngressHandler.ParseMessageKind("catalog"));
+        Assert.Equal(Models.InboundMessageKind.Audio, WhatsAppIngressHandler.ParseMessageKind("audio"));
+    }
+}

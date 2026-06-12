@@ -81,33 +81,6 @@ public sealed class OperationsStatusSnapshot
 public sealed class OperationsPlatformIntelligenceSnapshot
 {
     public static OperationsPlatformIntelligenceSnapshot Empty { get; } = new();
-
-    public CustomerTrustSnapshot CustomerTrust { get; init; } = new();
-
-    public CustomerTrustDisplay CustomerTrustDisplay { get; init; } = new()
-    {
-        AggregateRating = "—",
-        UnrepliedReviews = "—"
-    };
-
-    public MetaResponseEfficiencySnapshot MetaResponse { get; init; } = new();
-
-    public MetaResponseDisplay MetaResponseDisplay { get; init; } = new()
-    {
-        AverageResponse = "—",
-        EfficiencyRating = "Awaiting data",
-        SampleCount = "—",
-        LastInbound = "—",
-        LastReply = "—"
-    };
-
-    public bool HasGoogleInstances { get; init; }
-
-    public bool HasMetaInstances { get; init; }
-
-    public IReadOnlyList<string> GoogleInstanceIds { get; init; } = [];
-
-    public IReadOnlyList<string> MetaInstanceIds { get; init; } = [];
 }
 
 public sealed class OperationsAnalyticsTrendSnapshot
@@ -148,6 +121,8 @@ public sealed class OperationsInsightFeedItem
     public required string Summary { get; init; }
 
     public string? InstanceId { get; init; }
+
+    public string? ConversationKey { get; init; }
 
     public string? ThreadId { get; init; }
 

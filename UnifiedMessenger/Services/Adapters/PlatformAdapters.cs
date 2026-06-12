@@ -4,8 +4,6 @@ using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
-using UnifiedMessenger.Services.Backfill;
-
 namespace UnifiedMessenger.Services.Adapters;
 
 public interface IPlatformAdapter
@@ -56,42 +54,12 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         var adapterScript = PrepareScript(
             await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
             instance);
-        var conversationContextScript = PrepareScript(
-            await LoadScriptTemplateAsync("conversation-context-scraper.js", cancellationToken).ConfigureAwait(false),
-            instance);
-        string? draftInjectScript = null;
-        string? inboundMonitorScript = null;
-
-        if (SupportsInboundAutoDraft)
-        {
-            draftInjectScript = PrepareScript(
-                await LoadScriptTemplateAsync("ai-draft-inject.js", cancellationToken).ConfigureAwait(false),
-                instance);
-            inboundMonitorScript = PrepareScript(
-                await LoadScriptTemplateAsync("inbound-message-monitor.js", cancellationToken).ConfigureAwait(false),
-                instance);
-        }
-
         await UiThreadRunner.RunAsync(async () =>
         {
             coreWebView.Settings.IsWebMessageEnabled = true;
             await AddDocumentCreatedScriptAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, handshakeScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
-            await AddDocumentCreatedScriptAsync(coreWebView, conversationContextScript, cancellationToken)
-                .ConfigureAwait(true);
-
-            if (draftInjectScript is not null)
-            {
-                await AddDocumentCreatedScriptAsync(coreWebView, draftInjectScript, cancellationToken)
-                    .ConfigureAwait(true);
-            }
-
-            if (inboundMonitorScript is not null)
-            {
-                await AddDocumentCreatedScriptAsync(coreWebView, inboundMonitorScript, cancellationToken)
-                    .ConfigureAwait(true);
-            }
 
             foreach (var additionalScript in AdditionalScriptFileNames)
             {
@@ -123,22 +91,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             var adapterScript = PrepareScript(
                 await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
                 instance);
-            var conversationContextScript = PrepareScript(
-                await LoadScriptTemplateAsync("conversation-context-scraper.js", cancellationToken).ConfigureAwait(false),
-                instance);
-            string? draftInjectScript = null;
-            string? inboundMonitorScript = null;
-
-            if (SupportsInboundAutoDraft)
-            {
-                draftInjectScript = PrepareScript(
-                    await LoadScriptTemplateAsync("ai-draft-inject.js", cancellationToken).ConfigureAwait(false),
-                    instance);
-                inboundMonitorScript = PrepareScript(
-                    await LoadScriptTemplateAsync("inbound-message-monitor.js", cancellationToken).ConfigureAwait(false),
-                    instance);
-            }
-
             var additionalScripts = new List<string>();
             foreach (var additionalScript in AdditionalScriptFileNames)
             {
@@ -158,20 +110,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     .ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
-                await ExecuteScriptSafeAsync(coreWebView, conversationContextScript, cancellationToken)
-                    .ConfigureAwait(true);
-
-                if (draftInjectScript is not null)
-                {
-                    await ExecuteScriptSafeAsync(coreWebView, draftInjectScript, cancellationToken)
-                        .ConfigureAwait(true);
-                }
-
-                if (inboundMonitorScript is not null)
-                {
-                    await ExecuteScriptSafeAsync(coreWebView, inboundMonitorScript, cancellationToken)
-                        .ConfigureAwait(true);
-                }
 
                 foreach (var additionalScript in additionalScripts)
                 {
@@ -215,11 +153,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
     {
         ArgumentNullException.ThrowIfNull(hub);
         ArgumentNullException.ThrowIfNull(instance);
-
-        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(instance.Platform))
-        {
-            return;
-        }
 
         try
         {
@@ -291,12 +224,14 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 return;
             }
 
-            _ = OnNavigationCompletedAsync(coreWebView, instance);
+            _ = UiThreadRunner.RunAsync(() => OnNavigationCompletedAsync(coreWebView, instance));
         };
     }
 
     private async Task OnNavigationCompletedAsync(CoreWebView2 coreWebView, MessengerInstance instance)
     {
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+
         InstanceConnectionStatusService.Instance.SetInitializing(instance.Id, "Loading workspace");
 
         try
@@ -307,22 +242,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     CancellationToken.None)
                 .ConfigureAwait(true);
 
-            if (SupportsInboundAutoDraft)
-            {
-                await ExecuteScriptSafeAsync(
-                        coreWebView,
-                        "if (window.__umStartInboundMessageMonitor) { window.__umStartInboundMessageMonitor(); }",
-                        CancellationToken.None)
-                    .ConfigureAwait(true);
-            }
-
             await ExecutePublishBadgeAsync(coreWebView).ConfigureAwait(true);
-
-            if (instance.IsProfessional &&
-                PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(instance.Platform))
-            {
-                BackfillSyncManager.Instance.Schedule(instance);
-            }
         }
         catch (Exception ex)
         {
@@ -385,8 +305,9 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
     }
 
-    protected static void HandleDashboardScrapeStatus(JsonElement root, MessengerInstance instance) =>
-        DashboardScrapeStatusHandler.Apply(root, instance);
+    protected static void HandleDashboardScrapeStatus(JsonElement root, MessengerInstance instance)
+    {
+    }
 
     protected static bool TryHandleInboundMessageSelected(
         string? type,
@@ -427,11 +348,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             root.TryGetProperty("customerName", out var nameProbe) ? nameProbe.GetString() : null,
             messageText);
 
-        if (!BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, resolvedKey, messageText))
-        {
-            return true;
-        }
-
         var customerName = root.TryGetProperty("customerName", out var customerElement)
             ? customerElement.GetString() ?? "Customer"
             : "Customer";
@@ -457,7 +373,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             instance.DisplayName,
             BranchWorkspaceHelper.ResolveBranchKey(instance),
             skipDedupeCheck: true);
-        AutoDraftOrchestrator.Instance.HandleInboundMessage(selection);
 
         return true;
     }
@@ -502,11 +417,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         {
             case AdapterMessageTypes.BadgeCount:
                 var badgeCount = WebMessageParser.ReadNonNegativeInt(root, "count");
-                if (IsMetaBusinessPlatform(instance.Platform))
-                {
-                    ProfessionalWorkspaceService.Instance.SyncMetaUnreadCount(instance.Id, badgeCount);
-                }
-
                 if (muted)
                 {
                     return true;
@@ -594,20 +504,17 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     chatHint,
                     null);
                 MessageAnalyticsService.Instance.RecordMessageSent(instance.Id, chatHint);
-                if (IsMetaBusinessPlatform(instance.Platform))
-                {
-                    ProfessionalWorkspaceService.Instance.HandleMetaReplySent(
-                        instance.Id,
-                        DateTimeOffset.UtcNow);
-                }
 
-                UnifiedMessengerStateSyncService.Instance.EnqueueThreadResolved(
-                    instance.Id,
-                    resolvedSentKey,
-                    chatHint,
-                    DateTimeOffset.UtcNow,
-                    source: "message-sent",
-                    platform: instance.Platform);
+                if (!WhatsAppOperationalContextBuilder.IsWhatsAppPlatform(instance.Platform))
+                {
+                    UnifiedMessengerStateSyncService.Instance.EnqueueThreadResolved(
+                        instance.Id,
+                        resolvedSentKey,
+                        chatHint,
+                        DateTimeOffset.UtcNow,
+                        source: "message-sent",
+                        platform: instance.Platform);
+                }
 
                 return true;
 
@@ -616,33 +523,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
     }
 
-    private static bool IsMetaBusinessPlatform(string platformId) =>
-        platformId.Equals("metabusiness", StringComparison.OrdinalIgnoreCase);
-
-    private static bool ShouldRecordPreviewForAnalytics(string platform, string title, string body)
-    {
-        var normalizedPlatform = PlatformDefinition.NormalizePlatformId(platform);
-        if (normalizedPlatform.Equals("whatsapp", StringComparison.OrdinalIgnoreCase) ||
-            normalizedPlatform.Equals("whatsappbusiness", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (normalizedPlatform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase) &&
-            IsSyntheticMetaUnreadPreview(title, body))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static bool IsSyntheticMetaUnreadPreview(string title, string body)
-    {
-        var combined = $"{title} {body}".Trim();
-        return combined.Contains("unread customer message", StringComparison.OrdinalIgnoreCase) ||
-               combined.Contains("unread messages", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool ShouldRecordPreviewForAnalytics(string platform, string title, string body) =>
+        false;
 
     private static bool TryMarkRegistered(CoreWebView2 coreWebView)
     {
@@ -660,10 +542,12 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         string script,
         CancellationToken cancellationToken)
     {
-        await coreWebView
-            .AddScriptToExecuteOnDocumentCreatedAsync(script)
-            .AsTask()
-            .WaitAsync(cancellationToken)
+        await WebViewUiAwaiter
+            .AwaitAsync(
+                coreWebView
+                    .AddScriptToExecuteOnDocumentCreatedAsync(script)
+                    .AsTask()
+                    .WaitAsync(cancellationToken))
             .ConfigureAwait(true);
     }
 
@@ -678,14 +562,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 StringComparison.Ordinal)
             .Replace("__INCLUDE_MUTED_BADGES__", includeMutedBadges ? "true" : "false", StringComparison.Ordinal)
             .Replace("__NOTIFICATIONS_MUTED__", instance.NotificationsMuted ? "true" : "false", StringComparison.Ordinal)
-            .Replace(
-                "__ENABLE_VOICE_NOTES__",
-                AppSettingsService.Instance.Settings.EnableVoiceNoteTranscription ? "true" : "false",
-                StringComparison.Ordinal)
-            .Replace(
-                "__VOICE_NOTE_MAX_SECONDS__",
-                AppSettingsService.Instance.Settings.VoiceNoteMaxDurationSeconds.ToString(),
-                StringComparison.Ordinal);
+            .Replace("__ENABLE_VOICE_NOTES__", "false", StringComparison.Ordinal)
+            .Replace("__VOICE_NOTE_MAX_SECONDS__", "60", StringComparison.Ordinal);
     }
 
     private static async Task<string> LoadScriptTemplateAsync(
@@ -727,14 +605,18 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         string script,
         CancellationToken cancellationToken)
     {
-        await coreWebView.ExecuteScriptAsync(script).AsTask().WaitAsync(cancellationToken).ConfigureAwait(true);
+        await WebViewUiAwaiter
+            .AwaitAsync(coreWebView.ExecuteScriptAsync(script).AsTask().WaitAsync(cancellationToken))
+            .ConfigureAwait(true);
     }
 
     protected static async Task ExecutePublishBadgeAsync(CoreWebView2 coreWebView)
     {
         try
         {
-            await coreWebView.ExecuteScriptAsync(PublishBadgeScript).AsTask().ConfigureAwait(true);
+            await WebViewUiAwaiter
+                .AwaitAsync(coreWebView.ExecuteScriptAsync(PublishBadgeScript).AsTask())
+                .ConfigureAwait(true);
         }
         catch (Exception ex)
         {

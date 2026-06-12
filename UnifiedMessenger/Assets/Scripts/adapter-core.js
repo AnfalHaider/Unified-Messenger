@@ -31,6 +31,45 @@
   };
 
   /**
+   * Resolves the active WhatsApp chat JID from sidebar selection or conversation header.
+   * Shared by whatsapp-adapter, conversation-context-scraper, and whatsapp-voice-monitor.
+   */
+  window.__umResolveActiveChatJid = function () {
+    var rows = document.querySelectorAll(
+      '#pane-side [role="row"][aria-selected="true"], #side [role="row"][aria-selected="true"]'
+    );
+    for (var i = 0; i < rows.length; i++) {
+      var rowId = rows[i].getAttribute && rows[i].getAttribute('data-id');
+      if (rowId && rowId.indexOf('@') >= 0) {
+        return rowId;
+      }
+    }
+
+    var headerSelectors = [
+      'header [data-testid="conversation-info-header"]',
+      '#main header',
+      'header[data-testid="conversation-header"]'
+    ];
+
+    for (var s = 0; s < headerSelectors.length; s++) {
+      var headerNode = document.querySelector(headerSelectors[s]);
+      if (!headerNode) {
+        continue;
+      }
+
+      var dataId = headerNode.getAttribute && headerNode.getAttribute('data-id');
+      if (dataId) {
+        var match = String(dataId).match(/(\d+@[^_\s]+)/);
+        if (match) {
+          return match[1];
+        }
+      }
+    }
+
+    return '';
+  };
+
+  /**
    * Labels that Meta (and other platforms) use for chrome — not customer names.
    * Must stay aligned with ConversationKeyResolver.IsGenericConversationLabel in C#.
    */

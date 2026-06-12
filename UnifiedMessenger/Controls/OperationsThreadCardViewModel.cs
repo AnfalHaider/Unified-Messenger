@@ -60,7 +60,13 @@ public sealed class OperationsThreadCardViewModel
             thread.WhatsAppDeliveryStatus)
             ? Visibility.Visible
             : Visibility.Collapsed;
+        LastMessageTimeUtc = thread.LastMessageTime;
+        LastMessageKind = thread.LastMessageKind;
     }
+
+    public DateTimeOffset LastMessageTimeUtc { get; }
+
+    public string LastMessageKind { get; }
 
     public string InstanceId { get; }
 

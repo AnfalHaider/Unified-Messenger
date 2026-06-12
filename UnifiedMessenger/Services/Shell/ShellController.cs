@@ -157,10 +157,6 @@ public sealed class ShellController
                 await _navigation.ShowDashboardAsync();
                 _services.Navigation.RequestOccImmediateLaneFocus();
                 break;
-            case CommandPaletteAction.ExportOccSnapshot:
-                await _navigation.ShowDashboardAsync();
-                _services.Navigation.RequestOccSnapshotExport();
-                break;
         }
     }
 
@@ -171,12 +167,6 @@ public sealed class ShellController
         await _services.AppSettings.LoadAsync().ConfigureAwait(true);
         await _services.Registry.LoadAsync().ConfigureAwait(true);
         await _services.MessageAnalytics.LoadAsync().ConfigureAwait(true);
-        var loadResult = await _services.RichTriageStore.LoadAsync().ConfigureAwait(true);
-        if (loadResult.Status == RichTriageStoreLoadStatus.CorruptRecovered &&
-            !string.IsNullOrWhiteSpace(loadResult.UserMessage))
-        {
-            await _services.Dialog.ShowErrorAsync("Triage data recovered", loadResult.UserMessage);
-        }
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);
@@ -187,6 +177,7 @@ public sealed class ShellController
         try
         {
             await _services.WebViewProfileManager.EnsureEnvironmentAsync().ConfigureAwait(true);
+            await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -201,6 +192,7 @@ public sealed class ShellController
             _navigation.ApplyInstanceLoadingUi();
             try
             {
+                await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
                 await _services.SessionManager.WarmAllSessionsAsync(instances, visibleInstanceId: null)
                     .ConfigureAwait(true);
             }
@@ -224,7 +216,7 @@ public sealed class ShellController
             _services.SystemTray.Attach(mainWindow);
         }
 
-        _services.GlobalHotkey.EnsureRegistered();
+        GlobalHotkeyService.Instance.EnsureRegistered();
         _services.GitHubUpdate.PromptForUpdateApplicationAsync = PromptForAutoUpdateAsync;
     }
 

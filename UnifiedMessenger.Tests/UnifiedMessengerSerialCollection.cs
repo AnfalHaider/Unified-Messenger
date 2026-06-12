@@ -1,5 +1,4 @@
 using UnifiedMessenger.Services;
-using UnifiedMessenger.Services.Ollama;
 
 namespace UnifiedMessenger.Tests;
 
@@ -15,6 +14,5 @@ public sealed class UnifiedMessengerSerialGate
     {
         ThreadRegistryService.Instance.RestoreThreads([]);
         MessageTriageService.Instance.ResetForTests([]);
-        OllamaInferenceCoordinator.Instance.SetActivityForTests(OllamaInferenceActivity.Idle);
     }
 }

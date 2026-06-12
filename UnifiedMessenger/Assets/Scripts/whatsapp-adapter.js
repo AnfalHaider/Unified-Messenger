@@ -151,6 +151,161 @@
     };
   }
 
+  function detectMessageKind(container) {
+    if (!container) {
+      return 'text';
+    }
+
+    if (container.querySelector('[data-testid="audio-play"], [data-icon="audio"], [data-icon="ptt"]')) {
+      return 'audio';
+    }
+
+    if (container.querySelector('[data-testid="image-thumb"], img[src*="blob:"], [data-testid="media-url-provider"] img')) {
+      return 'image';
+    }
+
+    var text = normalizeText(container.textContent || '');
+    if (/view catalog|catalog item|product list/i.test(text)) {
+      return 'catalog';
+    }
+
+    if (/booking|appointment|reserve|schedule/i.test(text)) {
+      return 'booking';
+    }
+
+    return 'text';
+  }
+
+  function parseMessageTimestamp(container) {
+    if (!container) {
+      return null;
+    }
+
+    var prePlain = container.getAttribute('data-pre-plain-text');
+    if (prePlain) {
+      var parsed = Date.parse(prePlain);
+      if (!isNaN(parsed)) {
+        return new Date(parsed).toISOString();
+      }
+    }
+
+    var timeNode = container.querySelector('span[data-testid="msg-meta"] span, span[dir="auto"][title]');
+    if (timeNode) {
+      var title = timeNode.getAttribute('title') || timeNode.textContent || '';
+      var titleParsed = Date.parse(title);
+      if (!isNaN(titleParsed)) {
+        return new Date(titleParsed).toISOString();
+      }
+    }
+
+    return new Date().toISOString();
+  }
+
+  function scanConversationTelemetry() {
+    var header = extractChatHeader();
+    if (!header.title) {
+      return null;
+    }
+
+    var conversationKey = resolveActiveConversationKey(header);
+    if (!conversationKey) {
+      return null;
+    }
+
+    var containers = document.querySelectorAll('div[data-testid="msg-container"]');
+    var lastReceivedAtUtc = null;
+    var lastSentAtUtc = null;
+    var lastReceivedKind = 'text';
+    var lastSentKind = 'text';
+    var activePreview = '';
+
+    for (var i = 0; i < containers.length; i++) {
+      var node = containers[i];
+      var isOutgoing = node.classList.contains('message-out') ||
+        !!node.querySelector('.message-out') ||
+        !!node.closest('.message-out');
+      var timestamp = parseMessageTimestamp(node);
+      var kind = detectMessageKind(node);
+      var previewNode = node.querySelector('span.selectable-text, span.copyable-text');
+      var preview = previewNode ? normalizeText(previewNode.textContent || '') : '';
+
+      if (isOutgoing) {
+        lastSentAtUtc = timestamp;
+        lastSentKind = kind;
+      } else {
+        lastReceivedAtUtc = timestamp;
+        lastReceivedKind = kind;
+        activePreview = preview || activePreview;
+      }
+    }
+
+    return {
+      conversationKey: conversationKey,
+      customerName: header.title,
+      contactPhoneNumber: header.contactPhoneNumber || '',
+      profilePhoneNumber: header.profilePhoneNumber || '',
+      verifiedBusinessName: header.verifiedBusinessName || '',
+      businessLabels: scrapeSidebarLabelsForTitle(header.title),
+      lastReceivedAtUtc: lastReceivedAtUtc,
+      lastSentAtUtc: lastSentAtUtc,
+      lastReceivedKind: lastReceivedKind,
+      lastSentKind: lastSentKind,
+      activeMessagePreview: activePreview
+    };
+  }
+
+  var lastTelemetrySignature = '';
+  var telemetryScheduled = false;
+
+  function publishTelemetryImmediate() {
+    telemetryScheduled = false;
+    var telemetry = scanConversationTelemetry();
+    if (!telemetry) {
+      return;
+    }
+
+    var signature = [
+      telemetry.conversationKey,
+      telemetry.lastReceivedAtUtc || '',
+      telemetry.lastSentAtUtc || '',
+      telemetry.lastReceivedKind,
+      telemetry.lastSentKind,
+      telemetry.activeMessagePreview
+    ].join('|');
+
+    if (signature === lastTelemetrySignature) {
+      return;
+    }
+
+    lastTelemetrySignature = signature;
+    postMessage({
+      type: 'whatsapp-telemetry',
+      instanceId: INSTANCE_ID,
+      platform: PLATFORM,
+      conversationKey: telemetry.conversationKey,
+      customerName: telemetry.customerName,
+      contactPhoneNumber: telemetry.contactPhoneNumber,
+      profilePhoneNumber: telemetry.profilePhoneNumber,
+      verifiedBusinessName: telemetry.verifiedBusinessName,
+      businessLabels: telemetry.businessLabels,
+      lastReceivedAtUtc: telemetry.lastReceivedAtUtc,
+      lastSentAtUtc: telemetry.lastSentAtUtc,
+      lastReceivedKind: telemetry.lastReceivedKind,
+      lastSentKind: telemetry.lastSentKind,
+      activeMessagePreview: telemetry.activeMessagePreview,
+      timestampUtc: new Date().toISOString()
+    });
+  }
+
+  function schedulePublishTelemetry() {
+    if (telemetryScheduled) {
+      return;
+    }
+
+    telemetryScheduled = true;
+    window.setTimeout(publishTelemetryImmediate, 300);
+  }
+
   function detectOutgoingDeliveryStatus(container) {
     if (!container) {
       return 'pending';
@@ -182,12 +337,19 @@
     return 'pending';
   }
 
+  function resolveActiveChatJid() {
+    return typeof window.__umResolveActiveChatJid === 'function'
+      ? window.__umResolveActiveChatJid()
+      : '';
+  }
+
   function resolveActiveConversationKey(header) {
+    var chatJid = resolveActiveChatJid();
     if (typeof window.__umResolvePlatformConversationIdentity === 'function') {
       var identity = window.__umResolvePlatformConversationIdentity(PLATFORM, {
         headerTitle: header.title,
         messagePreview: '',
-        chatJid: ''
+        chatJid: chatJid
       });
       if (identity && identity.conversationKey) {
         return identity.conversationKey;
@@ -286,6 +448,7 @@
   function startActiveContextMonitor() {
     publishActiveThreadContext();
     publishOutgoingStatusFromDom();
+    schedulePublishTelemetry();
 
     if (activeContextTimer) {
       return;
@@ -295,6 +458,7 @@
       if (!document.hidden) {
         publishActiveThreadContext();
         publishOutgoingStatusFromDom();
+        schedulePublishTelemetry();
       }
     }, 4000);
 
@@ -388,10 +552,29 @@
       }
 
       var subtitle = row.querySelector(
-        'span[dir="auto"]:last-of-type, div._ak8k span, span[data-testid="last-msg-status"], span[data-testid="last-msg-text"]'
+        'span[data-testid="last-msg-text"], ' +
+          'span[data-testid="last-msg-status"], ' +
+          'div[data-testid="cell-frame-secondary"] span, ' +
+          'span[dir="ltr"]:last-of-type, ' +
+          'span[dir="auto"]:last-of-type, ' +
+          'div._ak8k span'
       );
       if (subtitle && subtitle.textContent) {
         return subtitle.textContent.trim();
+      }
+
+      var secondaryCells = row.querySelectorAll(
+        '[data-testid="cell-frame-secondary"] span, [role="gridcell"] span'
+      );
+      for (var j = secondaryCells.length - 1; j >= 0; j--) {
+        var cellText = normalizeText(secondaryCells[j].textContent || '');
+        if (!cellText || cellText === chatTitle) {
+          continue;
+        }
+
+        if (cellText.length <= 200) {
+          return cellText;
+        }
       }
     }
 
@@ -612,7 +795,7 @@
     }
 
     publishScheduled = true;
-    window.setTimeout(publishBadgeCountImmediate, 150);
+    window.setTimeout(publishBadgeCountImmediate, 250);
   }
 
   window.__unifiedMessengerPublishBadge = publishBadgeCountImmediate;
@@ -636,6 +819,7 @@
     domObserver = new MutationObserver(function () {
       schedulePublishBadgeCount();
       publishActiveThreadContext();
+      schedulePublishTelemetry();
     });
 
     roots.forEach(function (root) {

@@ -66,10 +66,6 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(EnableInstanceNotesTagsToggle, "Enable instance notes and tags");
         AutomationProperties.SetName(SlaThresholdBox, "SLA threshold minutes");
         AutomationProperties.SetName(DashboardUrgencyThresholdBox, "Dashboard urgency threshold");
-        AutomationProperties.SetName(EnableStartupBackfillToggle, "Enable startup backfill");
-        AutomationProperties.SetName(ShowHeuristicExecutiveInsightsToggle, "Show heuristic executive insights");
-        AutomationProperties.SetName(PlatformModulesList, "Platform module toggles");
-        AutomationProperties.SetName(BranchOperationalCatalogList, "Branch service catalog");
         AutomationProperties.SetName(ClearAnalyticsButton, "Clear operational data");
         AutomationProperties.SetName(ExportInstancesButton, "Export instances");
         AutomationProperties.SetName(ImportBackupCheckBox, "Create backup before import");
@@ -88,14 +84,11 @@ public sealed partial class SettingsPage : Page
         _sectionAnchors[SettingsNavigationHelper.NotificationsSectionKey] = NotificationsSection;
         _sectionAnchors[SettingsNavigationHelper.AppearanceSectionKey] = AppearanceSection;
         _sectionAnchors[SettingsNavigationHelper.SessionPerformanceSectionKey] = SessionPerformanceSection;
-        _sectionAnchors[SettingsNavigationHelper.PlatformModulesSectionKey] = PlatformModulesSection;
-        _sectionAnchors[SettingsNavigationHelper.ProfessionalMetricsSectionKey] = ProfessionalMetricsSection;
         _sectionAnchors[SettingsNavigationHelper.DataPrivacySectionKey] = DataPrivacySection;
         _sectionAnchors[SettingsNavigationHelper.KeyboardShortcutsSectionKey] = KeyboardShortcutsSection;
         _sectionAnchors[SettingsNavigationHelper.SystemSectionKey] = SystemSection;
         _sectionAnchors[SettingsNavigationHelper.RemovedAccountsSectionKey] = RemovedAccountsSection;
         _sectionAnchors[SettingsNavigationHelper.StorageSectionKey] = StorageSection;
-        _sectionAnchors[SettingsNavigationHelper.LocalAiSectionKey] = LocalAiSection;
         _sectionAnchors[SettingsNavigationHelper.AboutSectionKey] = AboutSection;
 
         _viewModel.SectionNavItems.Clear();
@@ -163,17 +156,13 @@ public sealed partial class SettingsPage : Page
         EnableImportExportInstancesToggle.IsOn = settings.EnableImportExportInstances;
         EnableInstanceNotesTagsToggle.IsOn = settings.EnableInstanceNotesTags;
         RunInBackgroundOnCloseToggle.IsOn = settings.RunInBackgroundOnClose;
-        EnableStartupBackfillToggle.IsOn = settings.EnableStartupBackfill;
         DashboardUrgencyThresholdBox.Value = settings.DashboardUrgencyThreshold;
-        ShowHeuristicExecutiveInsightsToggle.IsOn = settings.ShowHeuristicExecutiveInsights;
         LaunchAtStartupToggle.IsOn = StartupTaskService.EnsureRegistrationMatchesPreference(
             settings.LaunchAtStartup);
         PromptPinToTaskbarToggle.IsOn = settings.PromptPinToTaskbar;
         EnableAutoUpdateToggle.IsOn = settings.EnableAutoUpdate;
         PromptBeforeAutoUpdateToggle.IsOn = settings.PromptBeforeAutoUpdate;
         SlaThresholdBox.Value = settings.SlaThresholdMinutes;
-        RefreshBranchOperationalCatalog(settings);
-        RefreshPlatformModules(settings);
         _suppressToggleEvents = false;
 
         UpdateImportExportPanelVisibility(settings.EnableImportExportInstances);
@@ -211,12 +200,6 @@ public sealed partial class SettingsPage : Page
     private void NavigateToSectionKey(string sectionKey)
     {
         _viewModel.SelectedSectionKey = sectionKey;
-
-        if (sectionKey.Equals(SettingsNavigationHelper.LocalAiSectionKey, StringComparison.OrdinalIgnoreCase))
-        {
-            Frame?.Navigate(typeof(LocalAISettingsPage), _services);
-            return;
-        }
 
         if (sectionKey.Equals(SettingsNavigationHelper.AboutSectionKey, StringComparison.OrdinalIgnoreCase))
         {

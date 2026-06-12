@@ -1,7 +1,3 @@
-using UnifiedMessenger.Services.Backfill;
-using UnifiedMessenger.Services.Contracts;
-using UnifiedMessenger.Services.Ollama;
-
 namespace UnifiedMessenger.Services;
 
 /// <summary>
@@ -46,17 +42,10 @@ public static class ApplicationLifecycleService
 
         try
         {
-            services.Backfill.Shutdown();
             services.MessageTriage.Shutdown();
-            services.InsightsEngine.Shutdown();
             services.StateSync.Shutdown();
-            services.OllamaInference.Dispose();
-            services.Ollama.Dispose();
 
             await services.MessageTriage
-                .WaitForShutdownAsync(WorkerShutdownTimeout)
-                .ConfigureAwait(false);
-            await services.InsightsEngine
                 .WaitForShutdownAsync(WorkerShutdownTimeout)
                 .ConfigureAwait(false);
             await services.StateSync
@@ -69,6 +58,18 @@ public static class ApplicationLifecycleService
         }
 
         await FlushPersistentStateAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            var sessionManager = ApplicationServiceProvider.IsInitialized
+                ? ApplicationServiceProvider.Current.SessionManager
+                : InstanceSessionManager.Instance;
+            await sessionManager.CloseAllSessionsAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Lifecycle WebView session close failed: {ex.Message}");
+        }
     }
 
     public static async Task FlushPersistentStateAsync(CancellationToken cancellationToken = default)
@@ -78,7 +79,6 @@ public static class ApplicationLifecycleService
         try
         {
             await services.MessageAnalytics.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await services.RichTriageStore.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -92,34 +92,19 @@ public static class ApplicationLifecycleService
         {
             var root = ApplicationServiceProvider.Current;
             return new LifecycleServices(
-                root.Backfill,
                 root.MessageTriage as MessageTriageService ?? MessageTriageService.Instance,
-                root.InsightsEngine,
                 root.StateSync,
-                root.OllamaInference,
-                root.Ollama,
-                root.MessageAnalytics,
-                root.RichTriageStore);
+                root.MessageAnalytics);
         }
 
         return new LifecycleServices(
-            BackfillSyncManager.Instance,
             MessageTriageService.Instance,
-            UnifiedMessengerInsightsEngine.Instance,
             UnifiedMessengerStateSyncService.Instance,
-            OllamaInferenceCoordinator.Instance,
-            OllamaOrchestrationService.Instance,
-            MessageAnalyticsService.Instance,
-            RichTriageStoreService.Instance);
+            MessageAnalyticsService.Instance);
     }
 
     private readonly record struct LifecycleServices(
-        BackfillSyncManager Backfill,
         MessageTriageService MessageTriage,
-        UnifiedMessengerInsightsEngine InsightsEngine,
         UnifiedMessengerStateSyncService StateSync,
-        OllamaInferenceCoordinator OllamaInference,
-        IOllamaOrchestrationService Ollama,
-        IMessageAnalyticsService MessageAnalytics,
-        IRichTriageStoreService RichTriageStore);
+        IMessageAnalyticsService MessageAnalytics);
 }

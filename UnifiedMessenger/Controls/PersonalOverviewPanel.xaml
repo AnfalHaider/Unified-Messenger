@@ -8,7 +8,10 @@
     xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     mc:Ignorable="d">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <ScrollViewer
+        AutomationProperties.AutomationId="PersonalOverviewPanel"
+        AutomationProperties.Name="Personal Overview"
+        VerticalScrollBarVisibility="Auto">
         <Grid RowSpacing="16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -22,7 +25,9 @@
             <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8">
                 <Button
                     x:Name="PersonalLayoutEditButton"
+                    AutomationProperties.AutomationId="PersonalLayoutEditToggle"
                     AutomationProperties.Name="Customize personal layout"
+                    TabIndex="15"
                     Click="PersonalLayoutEditButton_Click"
                     Content="Customize layout"
                     Style="{StaticResource SubtleButtonStyle}" />
@@ -43,7 +48,7 @@
                 x:Name="NoAccountsEmptyPanel"
                 Grid.Row="1"
                 Tag="Empty"
-                Hint="Add WhatsApp, Telegram, Signal, or another personal messenger to track activity here."
+                Hint="Add a WhatsApp or WhatsApp Business account to track personal activity here."
                 IconGlyph="&#xE8FA;"
                 Title="No personal accounts yet"
                 Visibility="Collapsed">
@@ -60,6 +65,7 @@
                 x:Name="GlobalSearchBox"
                 Grid.Row="2"
                 Tag="Search"
+                AutomationProperties.AutomationId="PersonalGlobalSearch"
                 AutomationProperties.Name="Search personal accounts"
                 PlaceholderText="Search personal accounts, senders, or messages..."
                 QueryIcon="Find"
@@ -72,6 +78,8 @@
                 x:Name="SummaryCardsGrid"
                 Grid.Row="3"
                 Tag="Summary"
+                AutomationProperties.AutomationId="PersonalSummaryCards"
+                AutomationProperties.Name="Personal summary metrics"
                 ColumnSpacing="12"
                 RowSpacing="12">
                 <VisualStateManager.VisualStateGroups>
@@ -107,18 +115,21 @@
 
                 <shared:MetricCardView
                     x:Name="SummaryCardAccounts"
+                    MetricAutomationId="PersonalMetric_Accounts"
                     Label="Accounts"
                     Value="0" />
 
                 <shared:MetricCardView
                     x:Name="SummaryCardUnread"
                     Grid.Column="1"
+                    MetricAutomationId="PersonalMetric_Unread"
                     Label="Unread"
                     Value="0" />
 
                 <shared:MetricCardView
                     x:Name="SummaryCardMemory"
                     Grid.Row="1"
+                    MetricAutomationId="PersonalMetric_Memory"
                     Label="App memory"
                     Value="0 MB" />
 
@@ -126,6 +137,7 @@
                     x:Name="SummaryCardActive"
                     Grid.Row="1"
                     Grid.Column="1"
+                    MetricAutomationId="PersonalMetric_ActiveView"
                     Label="Active view"
                     Value="None" />
             </Grid>
@@ -141,6 +153,7 @@
                 </Grid.ColumnDefinitions>
                 <Button
                     x:Name="OpenBusiestInboxButton"
+                    AutomationProperties.Name="Open busiest personal inbox"
                     Click="OpenBusiestInboxButton_Click"
                     Content="Open busiest inbox"
                     Visibility="Collapsed" />
@@ -200,17 +213,23 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <shared:SurfaceCard MinHeight="200">
+                <shared:SurfaceCard
+                    AutomationProperties.AutomationId="PersonalRecentActivityCard"
+                    MinHeight="200">
                     <shared:SurfaceCard.CardBody>
                     <Grid RowSpacing="12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" MinHeight="120" />
                         </Grid.RowDefinitions>
-                        <TextBlock FontWeight="SemiBold" Text="Recent Activity" />
+                        <TextBlock
+                            AutomationProperties.Name="Recent Activity section"
+                            FontWeight="SemiBold"
+                            Text="Recent Activity" />
                         <ListView
                             x:Name="RecentActivityList"
                             Grid.Row="1"
+                            AutomationProperties.AutomationId="PersonalRecentActivity"
                             AutomationProperties.Name="Recent personal activity"
                             IsItemClickEnabled="True"
                             ItemClick="RecentActivityList_ItemClick"
@@ -299,10 +318,15 @@
                     </shared:SurfaceCard.CardBody>
                 </shared:SurfaceCard>
 
-                <shared:SurfaceCard Grid.Column="1">
+                <shared:SurfaceCard
+                    Grid.Column="1"
+                    AutomationProperties.AutomationId="PersonalAccountStatusCard">
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
-                        <TextBlock FontWeight="SemiBold" Text="Account Status" />
+                        <TextBlock
+                            AutomationProperties.Name="Account Status section"
+                            FontWeight="SemiBold"
+                            Text="Account Status" />
                         <TextBlock
                             FontSize="12"
                             Opacity="0.65"
@@ -311,6 +335,7 @@
 
                         <ListView
                             x:Name="InstanceTilesList"
+                            AutomationProperties.AutomationId="PersonalAccountStatus"
                             AutomationProperties.Name="Personal account status"
                             IsItemClickEnabled="True"
                             ItemClick="InstanceTilesList_ItemClick"

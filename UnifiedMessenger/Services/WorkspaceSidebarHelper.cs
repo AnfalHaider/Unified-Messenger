@@ -143,21 +143,21 @@ public static class WorkspaceSidebarHelper
             return "Notifications muted";
         }
 
-        if (connectionStatus == InstanceConnectionStatus.Connected &&
-            !string.IsNullOrWhiteSpace(connectionDetail))
+        if (connectionStatus == InstanceConnectionStatus.Connected)
         {
-            return FormatConnectedDetailSubtitle(connectionDetail);
+            return connectionStatus switch
+            {
+                _ when adapterState == AdapterHealthState.Healthy => "Connected",
+                _ => "Connected · syncing"
+            };
         }
 
         return connectionStatus switch
         {
-            InstanceConnectionStatus.Connected when adapterState == AdapterHealthState.Healthy =>
-                "Status: Connected",
-            InstanceConnectionStatus.Connected => "Status: Connected · syncing",
-            InstanceConnectionStatus.LoggedOut => "Status: Logged out",
-            InstanceConnectionStatus.Error => "Status: Error",
-            InstanceConnectionStatus.Initializing => "Status: Connecting…",
-            _ => "Status: Connecting…"
+            InstanceConnectionStatus.LoggedOut => "Signed out",
+            InstanceConnectionStatus.Error => "Connection error",
+            InstanceConnectionStatus.Initializing => "Connecting…",
+            _ => "Connecting…"
         };
     }
 

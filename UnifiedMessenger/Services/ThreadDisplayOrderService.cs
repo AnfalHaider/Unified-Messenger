@@ -104,10 +104,6 @@ public sealed class ThreadDisplayOrderService
         }
 
         TrimColumnMap(columnMap);
-        if (!SuppressPersistence)
-        {
-            RichTriageStoreService.Instance.ScheduleDisplayOrderSave();
-        }
     }
 
     public void MoveToTop(string columnKey, string threadId)

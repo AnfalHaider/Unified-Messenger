@@ -207,7 +207,7 @@
     var profile = resolveProfile(platform);
 
     if (anySelectorMatches(profile.loggedIn) || urlHintsLoggedIn(profile)) {
-      publishStatus(instanceId, platform, 'Connected', 'Signed-in UI detected');
+      publishStatus(instanceId, platform, 'Connected', 'Signed in');
       return 'Connected';
     }
 

@@ -35,6 +35,8 @@ public static class AdapterMessageTypes
 
     public const string WhatsAppOutgoingStatus = "whatsapp-outgoing-status";
 
+    public const string WhatsAppTelemetry = "whatsapp-telemetry";
+
     public const string WhatsAppVoicePayload = "whatsapp-voice-payload";
 
     private static readonly HashSet<string> StandardTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -61,5 +63,6 @@ public static class AdapterMessageTypes
         UpdateThreadStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         WhatsAppThreadContext.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         WhatsAppOutgoingStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
+        WhatsAppTelemetry.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         WhatsAppVoicePayload.Equals(type, StringComparison.OrdinalIgnoreCase);
 }

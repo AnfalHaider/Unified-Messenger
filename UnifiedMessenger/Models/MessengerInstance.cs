@@ -71,7 +71,18 @@ public sealed class MessengerInstance
         DisplayName = DisplayName?.Trim() ?? string.Empty;
         ProfileName = ProfileName?.Trim() ?? string.Empty;
         StartUrl = StartUrl?.Trim() ?? string.Empty;
+        var rawPlatform = Platform?.Trim() ?? string.Empty;
         Platform = PlatformDefinition.NormalizePlatformId(Platform);
+
+        if (PlatformDefinition.FindById(rawPlatform) is null &&
+            !string.IsNullOrWhiteSpace(rawPlatform))
+        {
+            var def = PlatformDefinition.FindById(Platform);
+            if (def is not null)
+            {
+                StartUrl = def.DefaultUrl;
+            }
+        }
         Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes.Trim();
         BranchKey = string.IsNullOrWhiteSpace(BranchKey) ? null : BranchKey.Trim();
 

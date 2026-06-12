@@ -607,6 +607,17 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
             migrated = true;
         }
 
+        if (_store.Version < 5)
+        {
+            foreach (var instance in AllInstances())
+            {
+                instance.Normalize();
+            }
+
+            _store.Version = 5;
+            migrated = true;
+        }
+
         if (_store.Version < InstanceStore.CurrentVersion)
         {
             RenormalizeSortOrders(_store.Instances.Where(i => i.IsProfessional));

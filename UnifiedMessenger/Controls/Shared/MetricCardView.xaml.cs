@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 
 namespace UnifiedMessenger.Controls.Shared;
@@ -17,14 +18,21 @@ public sealed partial class MetricCardView : UserControl
             nameof(Label),
             typeof(string),
             typeof(MetricCardView),
-            new PropertyMetadata(string.Empty));
+            new PropertyMetadata(string.Empty, OnMetricTextChanged));
 
     public static readonly DependencyProperty ValueProperty =
         DependencyProperty.Register(
             nameof(Value),
             typeof(string),
             typeof(MetricCardView),
-            new PropertyMetadata("—"));
+            new PropertyMetadata("—", OnMetricTextChanged));
+
+    public static readonly DependencyProperty MetricAutomationIdProperty =
+        DependencyProperty.Register(
+            nameof(MetricAutomationId),
+            typeof(string),
+            typeof(MetricCardView),
+            new PropertyMetadata(string.Empty, OnMetricAutomationIdChanged));
 
     public static readonly DependencyProperty SubtextProperty =
         DependencyProperty.Register(
@@ -36,7 +44,17 @@ public sealed partial class MetricCardView : UserControl
     public MetricCardView()
     {
         InitializeComponent();
-        Loaded += (_, _) => UpdateAccentVisualState();
+        Loaded += (_, _) =>
+        {
+            UpdateAccentVisualState();
+            UpdateAutomationName();
+        };
+    }
+
+    public string MetricAutomationId
+    {
+        get => (string)GetValue(MetricAutomationIdProperty);
+        set => SetValue(MetricAutomationIdProperty, value);
     }
 
     public bool IsAccent
@@ -97,5 +115,37 @@ public sealed partial class MetricCardView : UserControl
     private void UpdateAccentVisualState()
     {
         VisualStateManager.GoToState(this, IsAccent ? "Accent" : "Normal", true);
+    }
+
+    private static void OnMetricTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is MetricCardView card)
+        {
+            card.UpdateAutomationName();
+        }
+    }
+
+    private static void OnMetricAutomationIdChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is MetricCardView card)
+        {
+            card.ApplyMetricAutomationId();
+        }
+    }
+
+    private void ApplyMetricAutomationId()
+    {
+        if (!string.IsNullOrWhiteSpace(MetricAutomationId))
+        {
+            AutomationProperties.SetAutomationId(this, MetricAutomationId);
+        }
+    }
+
+    private void UpdateAutomationName()
+    {
+        ApplyMetricAutomationId();
+        var label = string.IsNullOrWhiteSpace(Label) ? "Metric" : Label.Trim();
+        var value = string.IsNullOrWhiteSpace(Value) ? "—" : Value.Trim();
+        AutomationProperties.SetName(this, $"{label}: {value}");
     }
 }

@@ -41,6 +41,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
     public MainWindow()
     {
         InitializeComponent();
+        UiThreadRunner.Register(DispatcherQueue);
         _services.ConfigureUi(() => Content.XamlRoot);
         _shell = new ShellController(_services, this, _shellViewModel, _services.AdapterHealth);
 
@@ -81,8 +82,11 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     public async Task RunInitializationAsync()
     {
-        await _shell.InitializeAsync();
-        _shell.ApplyPanePinUi(PanePinButton, PanePinIcon);
+        await UiThreadRunner.RunAsync(async () =>
+        {
+            await _shell.InitializeAsync().ConfigureAwait(true);
+            _shell.ApplyPanePinUi(PanePinButton, PanePinIcon);
+        }).ConfigureAwait(true);
     }
 
     public void ShowFromTray()
@@ -100,7 +104,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
         }
 
         _forceShutdown = true;
-        _services.GlobalHotkey.Dispose();
         await ApplicationLifecycleService.ShutdownAsync().ConfigureAwait(true);
         _services.SystemTray.Dispose();
         Close();
@@ -123,6 +126,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
                 _shell.Navigation.RefreshDashboardIfVisible();
             });
         nav.AddInstanceRequested += OnAddInstanceRequested;
+        nav.SettingsOpenRequested += OnSettingsOpenRequested;
 
         _services.NotificationHub.Changed += OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested += OnToastActivationRequested;
@@ -131,28 +135,28 @@ public sealed partial class MainWindow : Window, IShellUiHost
         _services.ConnectionStatus.Changed += OnConnectionStatusChanged;
         _services.SessionManager.SessionInitializing += OnSessionInitializing;
         _services.SessionManager.SessionFailed += OnSessionFailed;
-        _services.AutoDraft.DraftCompleted += OnAutoDraftCompleted;
         _services.MessageAnalytics.Changed += (_, _) =>
             DispatcherQueue.TryEnqueue(_shell.Navigation.RefreshDashboardIfVisible);
         _services.AppSettings.Changed += OnAppSettingsChanged;
-        _services.GlobalHotkey.CtrlSpacePressed += OnGlobalCopilotHotkey;
     }
 
     private void OnAddInstanceRequested(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() => _ = _shell.ShowAddInstanceDialogAsync());
 
+    private void OnSettingsOpenRequested(object? sender, string? sectionKey) =>
+        DispatcherQueue.TryEnqueue(() => _ = _shell.Navigation.ShowSettingsAsync(sectionKey));
+
     private void DetachShellHandlers()
     {
         _services.Navigation.AddInstanceRequested -= OnAddInstanceRequested;
+        _services.Navigation.SettingsOpenRequested -= OnSettingsOpenRequested;
         _services.NotificationHub.Changed -= OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested -= OnToastActivationRequested;
         _services.AdapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;
         _services.ConnectionStatus.Changed -= OnConnectionStatusChanged;
         _services.SessionManager.SessionInitializing -= OnSessionInitializing;
         _services.SessionManager.SessionFailed -= OnSessionFailed;
-        _services.AutoDraft.DraftCompleted -= OnAutoDraftCompleted;
         _services.AppSettings.Changed -= OnAppSettingsChanged;
-        _services.GlobalHotkey.CtrlSpacePressed -= OnGlobalCopilotHotkey;
     }
 
     private void OpenCommandPalette()
@@ -199,12 +203,8 @@ public sealed partial class MainWindow : Window, IShellUiHost
         SecondInstanceActivator.StopServer();
         ApplicationLifecycleService.TryShutdownOnWindowClosed(_forceShutdown, _services.AppSettings.Settings.RunInBackgroundOnClose);
         DetachShellHandlers();
-        _services.GlobalHotkey.Dispose();
         _services.SystemTray.Dispose();
     }
-
-    private void OnGlobalCopilotHotkey(object? sender, EventArgs e) =>
-        _ = _services.HotkeyCopilot.TryRunCopilotAsync();
 
     private void OnAdapterStaleDetected(object? sender, string instanceId)
     {
@@ -338,33 +338,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
             ThemeService.Apply(_services.AppSettings.Settings.ThemePreference);
             _shell.Chrome.ApplyNotificationPanelDockLayout();
             _ = _services.SessionManager.BroadcastAdapterSettingsAsync();
-        });
-    }
-
-    private void OnAutoDraftCompleted(object? sender, AutoDraftCompletedEventArgs e)
-    {
-        if (!ActiveWorkspaceContext.IsInstanceActive(e.InstanceId))
-        {
-            return;
-        }
-
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            AppTitleBar.Subtitle = "AI draft ready — review before sending";
-            _ = ClearAutoDraftSubtitleAsync(e.InstanceId);
-        });
-    }
-
-    private async Task ClearAutoDraftSubtitleAsync(string instanceId)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(8)).ConfigureAwait(true);
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            if (AppTitleBar.Subtitle == "AI draft ready — review before sending" &&
-                _services.Registry.FindById(instanceId) is { } instance)
-            {
-                AppTitleBar.Subtitle = instance.DisplayName;
-            }
         });
     }
 

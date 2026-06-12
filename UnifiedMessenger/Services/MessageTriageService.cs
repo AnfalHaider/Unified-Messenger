@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using UnifiedMessenger.Models;
-using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Services;
 
@@ -25,11 +24,9 @@ public sealed class MessageTriageService : IMessageTriageService
 
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _worker;
-    private readonly MessageTriageInferenceRunner _inferenceRunner;
 
-    private MessageTriageService(bool startBackgroundWorker, MessageTriageInferenceRunner? inferenceRunner = null)
+    private MessageTriageService(bool startBackgroundWorker)
     {
-        _inferenceRunner = inferenceRunner ?? new MessageTriageInferenceRunner();
         if (startBackgroundWorker)
         {
             _worker = Task.Run(ProcessQueueAsync);
@@ -38,11 +35,6 @@ public sealed class MessageTriageService : IMessageTriageService
         {
             _worker = Task.CompletedTask;
         }
-    }
-
-    internal MessageTriageService(MessageTriageInferenceRunner inferenceRunner)
-        : this(startBackgroundWorker: false, inferenceRunner)
-    {
     }
 
     internal MessageTriageService()
@@ -62,15 +54,6 @@ public sealed class MessageTriageService : IMessageTriageService
         bool skipDedupeCheck = false)
     {
         ArgumentNullException.ThrowIfNull(selection);
-        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(selection.Platform))
-        {
-            return;
-        }
-
-        if (!RichTriageStoreService.Instance.IsLoaded)
-        {
-            return;
-        }
 
         var cleanedMessage = ConversationNoiseFilter.CleanForInference(selection.MessageText);
         if (string.IsNullOrWhiteSpace(cleanedMessage))
@@ -78,57 +61,29 @@ public sealed class MessageTriageService : IMessageTriageService
             return;
         }
 
-        if (!skipDedupeCheck &&
-            !BackfillDedupeRegistry.TryAccept(
-                selection.InstanceId,
-                selection.Platform,
-                ResolveDedupeKey(selection),
-                selection.MessageText))
-        {
-            return;
-        }
-
         _ = ChannelWriteHelper.TryWriteWithDropLog(
             _channel.Writer,
             new MessageTriageRequest
-        {
-            InstanceId = selection.InstanceId,
-            InstanceDisplayName = instanceDisplayName ?? selection.InstanceId,
-            BranchKey = branchKey ?? string.Empty,
-            Platform = selection.Platform,
-            MessageText = cleanedMessage,
-            CustomerName = selection.CustomerName,
-            ConversationKey = selection.ConversationKey,
-            ConversationHint = selection.ConversationHint,
-            TimestampUtc = selection.TimestampUtc,
-            AllowLlmInference = allowLlmInference,
-            MessageKind = selection.MessageKind,
-            VoiceDurationSeconds = selection.VoiceDurationSeconds,
-            TranscriptConfidence = selection.TranscriptConfidence
-        },
+            {
+                InstanceId = selection.InstanceId,
+                InstanceDisplayName = instanceDisplayName ?? selection.InstanceId,
+                BranchKey = branchKey ?? string.Empty,
+                Platform = selection.Platform,
+                MessageText = cleanedMessage,
+                CustomerName = selection.CustomerName,
+                ConversationKey = selection.ConversationKey,
+                ConversationHint = selection.ConversationHint,
+                TimestampUtc = selection.TimestampUtc,
+                MessageKind = selection.MessageKind
+            },
             "MessageTriage");
     }
-
-    private static string ResolveDedupeKey(InboundMessageSelection selection) =>
-        ConversationKeyResolver.Resolve(
-            selection.Platform,
-            selection.ConversationKey,
-            selection.ConversationHint,
-            selection.CustomerName,
-            selection.MessageText);
 
     public IReadOnlyList<MessageTriageItem> GetAllItems() =>
         _items.Values
             .OrderByDescending(item => item.UrgencyScore)
             .ThenByDescending(item => item.TimestampUtc)
             .ToList();
-
-    internal void ReplaceItemForInsights(MessageTriageItem item)
-    {
-        ArgumentNullException.ThrowIfNull(item);
-        _items[item.Id] = item;
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
 
     internal void RestoreItems(IEnumerable<MessageTriageItem> items)
     {
@@ -206,14 +161,8 @@ public sealed class MessageTriageService : IMessageTriageService
             CustomerName = selection.CustomerName,
             ConversationKey = selection.ConversationKey,
             ConversationHint = selection.ConversationHint,
-            TimestampUtc = selection.TimestampUtc,
-            AllowLlmInference = true
+            TimestampUtc = selection.TimestampUtc
         });
-    }
-
-    internal async Task ProcessInferenceForTestsAsync(RichTriageInferenceJob job)
-    {
-        await ProcessInferenceJobAsync(job, CancellationToken.None).ConfigureAwait(false);
     }
 
     internal async Task ProcessQueueAsync()
@@ -260,16 +209,14 @@ public sealed class MessageTriageService : IMessageTriageService
             ? 5
             : MessageTriageScorer.ScoreUrgency(messageText, request.ConversationHint);
         var sentiment = MessageTriageScorer.ClassifySentiment(messageText);
-        var previewSource = request.MessageKind == InboundMessageKind.VoiceNote
-            ? $"Voice ({Math.Max(1, (int)Math.Round(request.VoiceDurationSeconds))}s): {messageText}"
-            : messageText;
-        var preview = previewSource.Length <= 220
-            ? previewSource
-            : previewSource[..217] + "...";
+        var preview = messageText.Length <= 220
+            ? messageText
+            : messageText[..217] + "...";
         if (ConversationNoiseFilter.IsDomChromePollution(preview))
         {
             return;
         }
+
         var branchName = BranchWorkspaceHelper.ResolveBranchKey(request.BranchKey, request.InstanceDisplayName);
         var conversationKey = ConversationKeyResolver.Resolve(
             request.Platform,
@@ -281,17 +228,10 @@ public sealed class MessageTriageService : IMessageTriageService
         var operationalUrgency = isSpam
             ? 1
             : ThreadRegistryService.MapOperationalUrgency(urgency);
-        var aiIntent = isSpam
-            ? UnifiedMessengerIntentCategory.Spam
-            : UnifiedMessengerIntentCategory.Inquiry;
-        var nextAction = isSpam
-            ? "Promotional message — no action required"
-            : string.Empty;
 
-        var itemId = $"{request.InstanceId}|{Guid.NewGuid():N}";
         var item = new MessageTriageItem
         {
-            Id = itemId,
+            Id = $"{request.InstanceId}|{Guid.NewGuid():N}",
             InstanceId = request.InstanceId,
             InstanceDisplayName = request.InstanceDisplayName,
             Platform = request.Platform,
@@ -306,79 +246,25 @@ public sealed class MessageTriageService : IMessageTriageService
             ConversationKey = conversationKey,
             BranchName = branchName,
             OperationalUrgency = operationalUrgency,
-            AiIntentCategory = aiIntent,
+            AiIntentCategory = isSpam
+                ? UnifiedMessengerIntentCategory.Spam
+                : UnifiedMessengerIntentCategory.Inquiry,
             ClientSentiment = sentiment == MessageSentiment.Negative
                 ? ClientSentimentLabel.Frustrated
                 : sentiment == MessageSentiment.Positive
                     ? ClientSentimentLabel.Positive
                     : ClientSentimentLabel.Neutral,
-            NextActionSummary = nextAction,
+            NextActionSummary = isSpam ? "Promotional message — no action required" : string.Empty,
             SuggestedAction = isSpam ? "Ignore" : string.Empty,
             IsSpamOrPromo = isSpam,
             CustomerIntent = isSpam ? CustomerIntent.Spam : CustomerIntent.Inquiry,
-            MessageKind = request.MessageKind,
-            VoiceDurationSeconds = request.VoiceDurationSeconds,
-            TranscriptConfidence = request.TranscriptConfidence
+            MessageKind = request.MessageKind
         };
 
-        var heuristicItem = UnifiedMessengerInsightsAnalyzer.ApplyOperationalInsights(item);
-        _items[item.Id] = heuristicItem;
-        ThreadRegistryService.Instance.UpsertFromTriageItem(heuristicItem, conversationKey, branchName);
+        _items[item.Id] = item;
+        ThreadRegistryService.Instance.UpsertFromTriageItem(item, conversationKey, branchName);
         PruneExpiredItems();
         Changed?.Invoke(this, EventArgs.Empty);
-
-        if (!isSpam && request.AllowLlmInference)
-        {
-            UnifiedMessengerInsightsEngine.Instance.EnqueueMessageAnalysis(request.InstanceId, itemId);
-        }
-    }
-
-    internal async Task ProcessInferenceJobAsync(RichTriageInferenceJob job, CancellationToken cancellationToken)
-    {
-        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(job.Platform))
-        {
-            return;
-        }
-
-        if (!_items.TryGetValue(job.TriageItemId, out var baseline))
-        {
-            return;
-        }
-
-        var response = await _inferenceRunner.TryInferAsync(job, cancellationToken).ConfigureAwait(false);
-        var updated = response is null
-            ? UnifiedMessengerInsightsAnalyzer.ApplyOperationalInsights(baseline)
-            : MessageTriageInferenceRunner.ApplyInference(
-                baseline,
-                UnifiedMessengerInsightsAnalyzer.Enrich(response, job));
-
-        _items[job.TriageItemId] = updated;
-        ThreadRegistryService.Instance.UpsertFromTriageItem(
-            updated,
-            job.ConversationHint,
-            string.IsNullOrWhiteSpace(updated.BranchName) ? baseline.BranchName : updated.BranchName,
-            updated.NextActionSummary,
-            updated.AiIntentCategory,
-            updated.ClientSentiment,
-            updated.OperationalUrgency,
-            updated.EstimatedValue,
-            updated.IsRevenueLeakageRisk,
-            updated.IsSpamOrPromo,
-            updated.SuggestedAction);
-        UnifiedMessengerDashboardService.Instance.NotifyChanged();
-        Changed?.Invoke(this, EventArgs.Empty);
-        NotifyTriageDraftIfApplicable(updated);
-    }
-
-    private static void NotifyTriageDraftIfApplicable(MessageTriageItem item)
-    {
-        if (string.IsNullOrWhiteSpace(item.SuggestedDraftResponse) ||
-            !AppSettingsService.Instance.Settings.EnableAutoDraft)
-        {
-            return;
-        }
-
-        AutoDraftOrchestrator.Instance.HandleTriageDraftReady(item);
     }
 
     private void PruneExpiredItems()
@@ -461,12 +347,6 @@ public sealed class MessageTriageService : IMessageTriageService
 
         public DateTimeOffset TimestampUtc { get; init; } = DateTimeOffset.UtcNow;
 
-        public bool AllowLlmInference { get; init; } = true;
-
         public InboundMessageKind MessageKind { get; init; } = InboundMessageKind.Text;
-
-        public double VoiceDurationSeconds { get; init; }
-
-        public double TranscriptConfidence { get; init; }
     }
 }

@@ -11,10 +11,10 @@ public class InstanceConnectionStatusServiceTests
         var service = new InstanceConnectionStatusService();
 
         service.SetInitializing("branch-1");
-        service.SetConnected("branch-1", "Signed-in UI detected");
+        service.SetConnected("branch-1", "Signed in");
 
         Assert.Equal(InstanceConnectionStatus.Connected, service.GetStatus("branch-1"));
-        Assert.Equal("Signed-in UI detected", service.GetDetail("branch-1"));
+        Assert.Equal("Signed in", service.GetDetail("branch-1"));
     }
 
     [Theory]

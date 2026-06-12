@@ -1,8 +1,6 @@
 ﻿using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Services;
-using UnifiedMessenger.Services.Ollama;
-
 namespace UnifiedMessenger;
 
 public partial class App : Application
@@ -31,6 +29,10 @@ public partial class App : Application
             var services = ApplicationServices.CreateDefault();
             ApplicationServiceProvider.Set(services);
 
+            // Create the window on the UI thread before any await — WinRT/file IO resumes on pool threads.
+            _window = new MainWindow();
+            CurrentWindow = _window;
+
             await services.AppSettings.LoadAsync().ConfigureAwait(true);
 
             StartupTaskService.EnsureRegistrationMatchesPreference(
@@ -39,9 +41,6 @@ public partial class App : Application
             ThemeService.ApplyInitialLaunchTheme(services.AppSettings.Settings.ThemePreference);
 
             services.AppNotification.Initialize();
-
-            _window = new MainWindow();
-            CurrentWindow = _window;
 
             ThemeService.Apply(services.AppSettings.Settings.ThemePreference);
 
@@ -55,7 +54,6 @@ public partial class App : Application
                 _ = services.GitHubUpdate.CheckForUpdatesAsync();
             }
 
-            services.Ollama.WarmupInBackground();
         }
         catch (Exception ex)
         {

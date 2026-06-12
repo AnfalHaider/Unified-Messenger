@@ -348,7 +348,7 @@
       conversationKey: snapshot.conversationKey,
       customerName: snapshot.customerName,
       source: 'thread-status-auditor',
-      timestamp: new Date().toISOString()
+      timestampUtc: new Date().toISOString()
     });
   }
 

@@ -6,24 +6,14 @@ public class PlatformDefinitionTests
 {
     [Theory]
     [InlineData("whatsapp", "WhatsApp")]
-    [InlineData("telegram", "Telegram")]
-    [InlineData("messenger", "Messenger")]
-    [InlineData("slack", "Slack")]
-    [InlineData("discord", "Discord")]
-    [InlineData("signal", "Signal")]
-    [InlineData("teams", "Microsoft Teams")]
-    [InlineData("metabusiness", "Meta Business Suite")]
-    [InlineData("googlebusiness", "Google Business Profile")]
+    [InlineData("whatsappbusiness", "WhatsApp Business")]
     public void FindById_ReturnsKnownPlatform(string id, string expectedName)
     {
         var platform = PlatformDefinition.FindById(id);
 
         Assert.NotNull(platform);
         Assert.Equal(expectedName, platform!.DisplayName);
-        if (!string.Equals(id, "generic", StringComparison.OrdinalIgnoreCase))
-        {
-            Assert.False(string.IsNullOrWhiteSpace(platform.DefaultUrl));
-        }
+        Assert.False(string.IsNullOrWhiteSpace(platform.DefaultUrl));
     }
 
     [Fact]
@@ -38,40 +28,23 @@ public class PlatformDefinitionTests
     [Fact]
     public void FindById_ReturnsNullForUnknownPlatform()
     {
-        Assert.Null(PlatformDefinition.FindById("unknown-platform"));
+        Assert.Null(PlatformDefinition.FindById("telegram"));
     }
 
     [Fact]
-    public void NormalizePlatformId_UnknownPlatformFallsBackToGeneric()
+    public void NormalizePlatformId_UnknownPlatformFallsBackToWhatsApp()
     {
-        Assert.Equal("generic", PlatformDefinition.NormalizePlatformId("not-a-platform"));
+        Assert.Equal("whatsapp", PlatformDefinition.NormalizePlatformId("not-a-platform"));
         Assert.Equal("whatsapp", PlatformDefinition.NormalizePlatformId("WHATSAPP"));
     }
 
     [Fact]
-    public void All_ContainsUniquePlatformIds()
+    public void All_ContainsOnlyWhatsAppPlatforms()
     {
         var ids = PlatformDefinition.All.Select(p => p.Id).ToList();
 
-        Assert.Equal(ids.Count, ids.Distinct(StringComparer.OrdinalIgnoreCase).Count());
-    }
-
-    [Fact]
-    public void Signal_PlatformNotesBadgeFallbackOnly()
-    {
-        var signal = PlatformDefinition.FindById("signal");
-
-        Assert.NotNull(signal);
-        Assert.Contains("badge", signal!.Description, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("signal.org", signal.DefaultUrl, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Teams_UsesTeamsMicrosoftUrl()
-    {
-        var teams = PlatformDefinition.FindById("teams");
-
-        Assert.NotNull(teams);
-        Assert.StartsWith("https://teams.microsoft.com", teams!.DefaultUrl, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, ids.Count);
+        Assert.Contains("whatsapp", ids);
+        Assert.Contains("whatsappbusiness", ids);
     }
 }

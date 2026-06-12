@@ -5,6 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    AutomationProperties.AutomationId="WorkspaceSidebar"
+    AutomationProperties.Name="Workspace navigation"
     HorizontalAlignment="Stretch"
     VerticalAlignment="Stretch"
     mc:Ignorable="d">
@@ -18,8 +20,13 @@
         Grid.Row="0"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Stretch"
+        HorizontalScrollBarVisibility="Disabled"
         VerticalScrollBarVisibility="Auto">
-        <StackPanel x:Name="MenuRoot" Padding="8,12,8,8" Spacing="2">
+        <StackPanel
+            x:Name="MenuRoot"
+            Padding="8,12,8,8"
+            Spacing="2"
+            VerticalAlignment="Top">
             <StackPanel
                 x:Name="BrandHeaderPanel"
                 Margin="4,0,4,12"
@@ -50,7 +57,9 @@
         BorderThickness="0,1,0,0">
         <Button
             x:Name="AddInstanceButton"
+            AutomationProperties.AutomationId="SidebarAddInstance"
             AutomationProperties.Name="Add Instance"
+            TabIndex="90"
             HorizontalAlignment="Stretch"
             Click="AddInstanceButton_Click"
             Style="{StaticResource AccentButtonStyle}"
@@ -63,7 +72,9 @@
 
         <Button
             x:Name="NotificationsButton"
+            AutomationProperties.AutomationId="SidebarNotifications"
             AutomationProperties.Name="Notification Hub"
+            TabIndex="91"
             HorizontalAlignment="Stretch"
             Click="NotificationsButton_Click"
             Style="{StaticResource SubtleButtonStyle}"
@@ -97,7 +108,9 @@
 
         <Button
             x:Name="SettingsButton"
+            AutomationProperties.AutomationId="SidebarSettings"
             AutomationProperties.Name="Settings"
+            TabIndex="92"
             HorizontalAlignment="Stretch"
             Click="SettingsButton_Click"
             Style="{StaticResource SubtleButtonStyle}"

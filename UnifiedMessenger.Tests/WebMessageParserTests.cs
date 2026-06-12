@@ -96,4 +96,21 @@ public class WebMessageParserTests
         Assert.Equal(12.5, WebMessageParser.ReadOptionalDouble(numeric.RootElement, "averageResponseMinutes"));
         Assert.Equal(18, WebMessageParser.ReadOptionalDouble(text.RootElement, "averageResponseMinutes"));
     }
+
+    [Fact]
+    public void ReadTimestampUtc_PrefersTimestampUtcThenLegacyTimestamp()
+    {
+        var fallback = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        using var utc = WebMessageParser.Parse("""{"timestampUtc":"2026-06-10T12:00:00Z"}""");
+        using var legacy = WebMessageParser.Parse("""{"timestamp":"2026-06-09T08:30:00Z"}""");
+        using var missing = WebMessageParser.Parse("""{"type":"badge-count"}""");
+
+        Assert.Equal(
+            new DateTimeOffset(2026, 6, 10, 12, 0, 0, TimeSpan.Zero),
+            WebMessageParser.ReadTimestampUtc(utc.RootElement, fallback));
+        Assert.Equal(
+            new DateTimeOffset(2026, 6, 9, 8, 30, 0, TimeSpan.Zero),
+            WebMessageParser.ReadTimestampUtc(legacy.RootElement, fallback));
+        Assert.Equal(fallback, WebMessageParser.ReadTimestampUtc(missing.RootElement, fallback));
+    }
 }

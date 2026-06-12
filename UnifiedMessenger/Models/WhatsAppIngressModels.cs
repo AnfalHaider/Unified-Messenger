@@ -36,6 +36,32 @@ public sealed class WhatsAppThreadContextSnapshot
     public DateTimeOffset? LastVoiceNoteAtUtc { get; init; }
 }
 
+/// <summary>Structured active-conversation telemetry from whatsapp-telemetry WebMessages.</summary>
+public sealed class WhatsAppTelemetryPayload
+{
+    public required string InstanceId { get; init; }
+
+    public required string ConversationKey { get; init; }
+
+    public string CustomerName { get; init; } = string.Empty;
+
+    public string? ContactPhoneNumber { get; init; }
+
+    public string? ProfilePhoneNumber { get; init; }
+
+    public DateTimeOffset? LastReceivedAtUtc { get; init; }
+
+    public DateTimeOffset? LastSentAtUtc { get; init; }
+
+    public InboundMessageKind LastReceivedKind { get; init; } = InboundMessageKind.Text;
+
+    public InboundMessageKind LastSentKind { get; init; } = InboundMessageKind.Text;
+
+    public string? ActiveMessagePreview { get; init; }
+
+    public DateTimeOffset CapturedAtUtc { get; init; } = DateTimeOffset.UtcNow;
+}
+
 /// <summary>Outgoing manager reply delivery telemetry from WhatsApp Web ticks.</summary>
 public sealed class WhatsAppOutgoingStatusEvent
 {

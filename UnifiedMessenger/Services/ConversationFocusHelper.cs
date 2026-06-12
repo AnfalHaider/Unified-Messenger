@@ -2,81 +2,59 @@ using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
-/// <summary>
-/// Waits for a WebView session to accept conversation-focus scripts before giving up.
-/// </summary>
 public static class ConversationFocusHelper
 {
-    public const int DefaultTimeoutMs = 2000;
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(250);
 
-    public const int InitialDelayMs = 150;
+    public static bool ParseScriptBoolean(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
 
-    public const int MaxDelayMs = 400;
+        var trimmed = raw.Trim().Trim('"');
+        return trimmed.Equals("true", StringComparison.OrdinalIgnoreCase);
+    }
 
     public static async Task<bool> TryFocusConversationWithRetryAsync(
         IInstanceSessionManager sessionManager,
         MessengerInstance instance,
         string? conversationKey,
         string? customerName,
-        int timeoutMs = DefaultTimeoutMs,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sessionManager);
         ArgumentNullException.ThrowIfNull(instance);
 
-        var script = WebViewScriptBuilder.BuildFunctionCall(
-            "__umFocusConversation",
-            [
-                PlatformDefinition.NormalizePlatformId(instance.Platform),
-                conversationKey ?? string.Empty,
-                customerName ?? string.Empty
-            ]);
-
-        var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
-        var delayMs = InitialDelayMs;
-
-        while (DateTime.UtcNow < deadline)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            try
-            {
-                var rawResult = await sessionManager
-                    .TryExecuteScriptOnInstanceAsync(instance.Id, script)
-                    .ConfigureAwait(false);
-
-                if (ParseScriptBoolean(rawResult))
-                {
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Conversation focus attempt failed: {ex.Message}");
-            }
-
-            var remaining = deadline - DateTime.UtcNow;
-            if (remaining <= TimeSpan.Zero)
-            {
-                break;
-            }
-
-            var wait = TimeSpan.FromMilliseconds(Math.Min(delayMs, remaining.TotalMilliseconds));
-            await Task.Delay(wait, cancellationToken).ConfigureAwait(false);
-            delayMs = Math.Min(delayMs * 2, MaxDelayMs);
-        }
-
-        return false;
-    }
-
-    internal static bool ParseScriptBoolean(string? scriptResult)
-    {
-        if (string.IsNullOrWhiteSpace(scriptResult))
+        if (string.IsNullOrWhiteSpace(conversationKey))
         {
             return false;
         }
 
-        var normalized = scriptResult.Trim().Trim('"');
-        return normalized.Equals("true", StringComparison.OrdinalIgnoreCase);
+        var script = WebViewScriptBuilder.BuildFunctionCall(
+            "__umFocusConversation",
+            [instance.Platform, conversationKey.Trim(), customerName ?? string.Empty]);
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var raw = await sessionManager
+                .TryExecuteScriptOnInstanceAsync(instance.Id, script)
+                .ConfigureAwait(false);
+
+            if (ParseScriptBoolean(raw))
+            {
+                return true;
+            }
+
+            if (attempt < 2)
+            {
+                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return false;
     }
 }

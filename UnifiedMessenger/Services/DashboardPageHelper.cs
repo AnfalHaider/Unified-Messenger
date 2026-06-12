@@ -8,8 +8,6 @@ public static class DashboardPageHelper
 
     public const int MaxSearchSuggestions = 6;
 
-    public const string AllBranchesOptionId = "";
-
     public static IEnumerable<MessengerInstance> FilterProfessionalInstances(
         IEnumerable<MessengerInstance> professionalInstances,
         string? selectedBranchKey) =>
@@ -18,7 +16,20 @@ public static class DashboardPageHelper
     public static ProfessionalDashboardTelemetry CaptureProfessionalDashboardTelemetry(
         IEnumerable<MessengerInstance> professionalInstances,
         NotificationHub notificationHub,
-        string? branchInstanceId = null)
+        string? branchInstanceId = null) =>
+        CaptureProfessionalDashboardTelemetry(
+            professionalInstances,
+            notificationHub,
+            branchInstanceId,
+            fromUtc: null,
+            toUtc: null);
+
+    public static ProfessionalDashboardTelemetry CaptureProfessionalDashboardTelemetry(
+        IEnumerable<MessengerInstance> professionalInstances,
+        NotificationHub notificationHub,
+        string? branchInstanceId,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
     {
         ArgumentNullException.ThrowIfNull(professionalInstances);
         ArgumentNullException.ThrowIfNull(notificationHub);
@@ -26,7 +37,9 @@ public static class DashboardPageHelper
         var snapshot = MessageAnalyticsService.Instance.CaptureProfessionalSnapshot(
             professionalInstances,
             notificationHub,
-            branchInstanceId);
+            branchInstanceId,
+            fromUtc,
+            toUtc);
 
         return new ProfessionalDashboardTelemetry
         {
@@ -34,16 +47,6 @@ public static class DashboardPageHelper
             Display = BuildProfessionalDisplay(snapshot),
             FilteredInstances = FilterProfessionalInstances(professionalInstances, branchInstanceId).ToList()
         };
-    }
-
-    public static MessageTriageDashboardSnapshot BuildFilteredTriageSnapshot(
-        IEnumerable<MessengerInstance> professionalInstances,
-        string? branchInstanceId = null,
-        MessageTriageService? triageService = null)
-    {
-        var service = triageService ?? MessageTriageService.Instance;
-        return service.BuildSnapshot(
-            FilterProfessionalInstances(professionalInstances, branchInstanceId));
     }
 
     public static IReadOnlyList<ExecutiveInsightCardDisplay> BuildExecutiveInsights(
@@ -60,8 +63,7 @@ public static class DashboardPageHelper
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var service = triageService ?? MessageTriageService.Instance;
-        var showHeuristic = includeHeuristic ??
-                            AppSettingsService.Instance.Settings.ShowHeuristicExecutiveInsights;
+        var showHeuristic = includeHeuristic ?? true;
 
         var items = service.GetAllItems()
             .Where(item => allowedIds.Contains(item.InstanceId))
@@ -72,7 +74,7 @@ public static class DashboardPageHelper
         var cards = new List<ExecutiveInsightCardDisplay>();
         foreach (var item in items.Where(HasExecutiveInsightContent))
         {
-            var sourceLabel = item.InferenceSource == TriageInferenceSource.LocalAi ? "Local AI" : "Rich";
+            var sourceLabel = TriageInferenceLabelFormatter.Format(item.InferenceSource);
             cards.Add(BuildExecutiveInsightCard(item, sourceLabel));
             if (cards.Count >= 12)
             {
@@ -101,31 +103,28 @@ public static class DashboardPageHelper
         BuildExecutiveInsightCard(item, "Heuristic");
 
     internal static bool HasExecutiveInsightContent(MessageTriageItem item) =>
-        item.InferenceSource == TriageInferenceSource.LocalAi ||
         !string.IsNullOrWhiteSpace(item.CoreSummary) ||
-        HasExtractedEntityValue(item.ExtractedEntities);
+        HasHeuristicInsightFields(item);
 
-    private static bool HasExtractedEntityValue(RichTriageExtractedEntities entities) =>
-        !string.IsNullOrWhiteSpace(entities.CustomerName) ||
-        !string.IsNullOrWhiteSpace(entities.ContactNumber) ||
-        !string.IsNullOrWhiteSpace(entities.RequestedDate) ||
-        !string.IsNullOrWhiteSpace(entities.RequestedTime) ||
-        !string.IsNullOrWhiteSpace(entities.ServiceType) ||
-        !string.IsNullOrWhiteSpace(entities.ActionRequired);
+    private static bool HasHeuristicInsightFields(MessageTriageItem item) =>
+        (!string.IsNullOrWhiteSpace(item.CustomerName) &&
+         !item.CustomerName.Equals("Customer", StringComparison.OrdinalIgnoreCase)) ||
+        !string.IsNullOrWhiteSpace(item.NextActionSummary) ||
+        !string.IsNullOrWhiteSpace(item.SuggestedAction);
 
     internal static ExecutiveInsightCardDisplay BuildExecutiveInsightCard(
         MessageTriageItem item,
         string sourceLabel)
     {
-        var entities = item.ExtractedEntities ?? new RichTriageExtractedEntities();
         var fields = new List<ExecutiveInsightFieldDisplay>();
 
-        AddField(fields, "Customer", "\uE77B", entities.CustomerName);
-        AddField(fields, "Contact", "\uE717", entities.ContactNumber);
-        AddField(fields, "Service", "\uE14C", entities.ServiceType);
-        AddField(fields, "Date", "\uE787", entities.RequestedDate);
-        AddField(fields, "Time", "\uE121", entities.RequestedTime);
-        AddField(fields, "Action required", "\uE72C", entities.ActionRequired, emphasize: true);
+        AddField(
+            fields,
+            "Customer",
+            "\uE77B",
+            item.CustomerName.Equals("Customer", StringComparison.OrdinalIgnoreCase) ? null : item.CustomerName);
+        AddField(fields, "Next action", "\uE72C", item.NextActionSummary, emphasize: true);
+        AddField(fields, "Suggested", "\uE8FD", item.SuggestedAction);
 
         if (fields.Count == 0 && sourceLabel.Equals("Heuristic", StringComparison.OrdinalIgnoreCase))
         {
@@ -200,9 +199,6 @@ public static class DashboardPageHelper
             _ => $"{personalCount} personal account{(personalCount == 1 ? "" : "s")} connected."
         };
 
-    public static string FormatUnrepliedReviewCount(int count) =>
-        count == 1 ? "1 unreplied review" : $"{count} unreplied reviews";
-
     public static string FormatInboundOnlyResponseRate(int receivedCount, int replyPairCount)
     {
         if (receivedCount <= 0)
@@ -264,60 +260,6 @@ public static class DashboardPageHelper
             Triage = snapshot.Triage,
             HasMessageVolume = snapshot.HasMessageVolume,
             HasReplyMetrics = snapshot.HasReplyMetrics
-        };
-    }
-
-    public static CustomerTrustDisplay BuildCustomerTrustDisplay(CustomerTrustSnapshot snapshot)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-
-        var hasData = snapshot.TotalUnrepliedReviews > 0 || snapshot.PendingReviews.Count > 0;
-        return new CustomerTrustDisplay
-        {
-            AggregateRating = hasData && snapshot.AggregateRatingDisplay != Placeholder
-                ? snapshot.AggregateRatingDisplay
-                : hasData
-                    ? snapshot.AggregateRatingDisplay
-                    : Placeholder,
-            UnrepliedReviews = hasData
-                ? FormatUnrepliedReviewCount(snapshot.TotalUnrepliedReviews)
-                : Placeholder,
-            PendingReviews = snapshot.PendingReviews
-        };
-    }
-
-    public static MetaResponseDisplay BuildMetaResponseDisplay(MetaResponseEfficiencySnapshot snapshot)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-
-        var hasInbound = snapshot.LastInboundDisplay != Placeholder;
-        var hasReplySamples = snapshot.SampleCount > 0;
-        var hasData = hasReplySamples ||
-                        snapshot.ActiveUnreadCount > 0 ||
-                        hasInbound ||
-                        snapshot.LastReplyDisplay != Placeholder;
-
-        var inboundOnly = hasData && !hasReplySamples && hasInbound;
-        var average = snapshot.AverageResponseDisplay != Placeholder
-            ? snapshot.AverageResponseDisplay
-            : Placeholder;
-
-        return new MetaResponseDisplay
-        {
-            AverageResponse = average,
-            EfficiencyRating = hasData
-                ? snapshot.EfficiencyRating
-                : "Awaiting data",
-            SampleCount = hasData
-                ? snapshot.SampleCount.ToString()
-                : Placeholder,
-            LastInbound = hasData ? snapshot.LastInboundDisplay : Placeholder,
-            LastReply = hasData ? snapshot.LastReplyDisplay : Placeholder,
-            HasData = hasData,
-            InboundOnly = inboundOnly,
-            PendingResponseLabel = inboundOnly && snapshot.ActiveUnreadCount > 0
-                ? $"{snapshot.ActiveUnreadCount} pending response"
-                : string.Empty
         };
     }
 
@@ -419,7 +361,7 @@ public static class DashboardPageHelper
         emptyReason switch
         {
             PersonalDashboardEmptyReason.NoPersonalAccounts =>
-                "Use Add Instance in the sidebar to connect WhatsApp, Telegram, or another personal messenger.",
+                "Use Add Instance in the sidebar to connect a WhatsApp or WhatsApp Business account.",
             PersonalDashboardEmptyReason.AllAccountsMuted =>
                 "Unmute an account in Settings or the sidebar to see notifications again.",
             PersonalDashboardEmptyReason.NoRecentActivity =>
@@ -632,15 +574,6 @@ public sealed class ProfessionalDashboardDisplay
     public MessageTriageDashboardSnapshot Triage { get; init; } = MessageTriageDashboardSnapshot.Empty;
 }
 
-public sealed class CustomerTrustDisplay
-{
-    public required string AggregateRating { get; init; }
-
-    public required string UnrepliedReviews { get; init; }
-
-    public IReadOnlyList<GoogleReviewAlert> PendingReviews { get; init; } = [];
-}
-
 public sealed class ProfessionalDashboardTelemetry
 {
     public required ProfessionalAnalyticsSnapshot Snapshot { get; init; }
@@ -678,21 +611,3 @@ public sealed class ExecutiveInsightCardDisplay
     public IReadOnlyList<ExecutiveInsightFieldDisplay> Fields { get; init; } = [];
 }
 
-public sealed class MetaResponseDisplay
-{
-    public required string AverageResponse { get; init; }
-
-    public required string EfficiencyRating { get; init; }
-
-    public required string SampleCount { get; init; }
-
-    public required string LastInbound { get; init; }
-
-    public required string LastReply { get; init; }
-
-    public bool HasData { get; init; }
-
-    public bool InboundOnly { get; init; }
-
-    public string PendingResponseLabel { get; init; } = string.Empty;
-}

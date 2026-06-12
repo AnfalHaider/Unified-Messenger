@@ -35,6 +35,8 @@ public interface IInstanceSessionManager
 
     Task CloseSessionAsync(string instanceId);
 
+    Task CloseAllSessionsAsync(CancellationToken cancellationToken = default);
+
     Task ReloadSessionAsync(string instanceId, CancellationToken cancellationToken = default);
 
     Task ReloadAllSessionsAsync(CancellationToken cancellationToken = default);

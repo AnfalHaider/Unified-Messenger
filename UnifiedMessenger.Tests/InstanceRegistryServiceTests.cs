@@ -29,8 +29,8 @@ public class InstanceRegistryServiceTests : IDisposable
     {
         var registry = new InstanceRegistryService(_storePath);
         await registry.AddInstanceAsync("First", "whatsapp", null);
-        await registry.AddInstanceAsync("Second", "telegram", null);
-        var third = await registry.AddInstanceAsync("Third", "messenger", null);
+        await registry.AddInstanceAsync("Second", "whatsapp", null);
+        var third = await registry.AddInstanceAsync("Third", "whatsappbusiness", null);
         var first = registry.Instances.First(i => i.DisplayName == "First");
 
         await registry.ReorderInstanceBeforeAsync(third.Id, first.Id);
@@ -47,15 +47,15 @@ public class InstanceRegistryServiceTests : IDisposable
 
         await registry.UpdateInstanceMetadataAsync(
             instance.Id,
-            "Work Slack",
-            "https://app.slack.com/client/T123",
-            "slack",
+            "Work Business",
+            "https://web.whatsapp.com/",
+            "whatsappbusiness",
             "Primary support channel");
 
         var updated = registry.FindById(instance.Id);
         Assert.NotNull(updated);
-        Assert.Equal("Work Slack", updated!.DisplayName);
-        Assert.Equal("slack", updated.Platform);
+        Assert.Equal("Work Business", updated!.DisplayName);
+        Assert.Equal("whatsappbusiness", updated.Platform);
         Assert.Equal("Primary support channel", updated.Notes);
         Assert.StartsWith("https://", updated.StartUrl);
     }
@@ -64,13 +64,13 @@ public class InstanceRegistryServiceTests : IDisposable
     public async Task UpdateInstanceMetadataAsync_PersistsBranchKey()
     {
         var registry = new InstanceRegistryService(_storePath);
-        var instance = await registry.AddInstanceAsync("Inbox", "metabusiness", null);
+        var instance = await registry.AddInstanceAsync("Inbox", "whatsappbusiness", null);
 
         await registry.UpdateInstanceMetadataAsync(
             instance.Id,
-            "Meta Inbox",
-            "https://business.facebook.com",
-            "metabusiness",
+            "Business Inbox",
+            "https://web.whatsapp.com/",
+            "whatsappbusiness",
             notes: null,
             branchKey: "DHA-2");
 
@@ -115,8 +115,8 @@ public class InstanceRegistryServiceTests : IDisposable
                     Id = "b",
                     DisplayName = "Two",
                     ProfileName = "shared-profile",
-                    Platform = "telegram",
-                    StartUrl = "https://web.telegram.org/",
+                    Platform = "whatsappbusiness",
+                    StartUrl = "https://web.whatsapp.com/",
                     SortOrder = 2
                 }
             ]
@@ -170,8 +170,8 @@ public class InstanceRegistryServiceTests : IDisposable
     {
         var registry = new InstanceRegistryService(_storePath);
         await registry.AddInstanceAsync("Personal A", "whatsapp", null);
-        await registry.AddInstanceAsync("Personal B", "telegram", null);
-        await registry.AddInstanceAsync("Pro A", "slack", null, WorkspaceCategory.Professional);
+        await registry.AddInstanceAsync("Personal B", "whatsappbusiness", null);
+        await registry.AddInstanceAsync("Pro A", "whatsapp", null, WorkspaceCategory.Professional);
 
         var reloaded = new InstanceRegistryService(_storePath);
         await reloaded.LoadAsync();

@@ -126,4 +126,40 @@ public sealed partial class SettingsPage
         await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableInstanceNotesTags = EnableInstanceNotesTagsToggle.IsOn);
     }
+
+    private async void SlaThresholdBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_suppressToggleEvents || double.IsNaN(args.NewValue))
+        {
+            return;
+        }
+
+        var value = SettingsPageHelper.NormalizeSlaThresholdMinutes(args.NewValue);
+        if (SettingsPageHelper.RequiresNumberBoxCorrection(value, args.NewValue))
+        {
+            sender.Value = value;
+            return;
+        }
+
+        await _services.AppSettings.UpdateAsync(settings =>
+            settings.SlaThresholdMinutes = value);
+    }
+
+    private async void DashboardUrgencyThresholdBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_suppressToggleEvents || double.IsNaN(args.NewValue))
+        {
+            return;
+        }
+
+        var value = (int)Math.Clamp(Math.Round(args.NewValue), 15, 50);
+        if (SettingsPageHelper.RequiresNumberBoxCorrection(value, args.NewValue))
+        {
+            sender.Value = value;
+            return;
+        }
+
+        await _services.AppSettings.UpdateAsync(settings =>
+            settings.DashboardUrgencyThreshold = value);
+    }
 }

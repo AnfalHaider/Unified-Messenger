@@ -12,7 +12,11 @@ public interface IMessageAnalyticsService
 
     Task ClearAllDataAsync(CancellationToken cancellationToken = default);
 
-    void RecordMessageSent(string instanceId, string? chatHint = null, string? conversationKey = null);
+    void RecordMessageSent(
+        string instanceId,
+        string? chatHint = null,
+        string? conversationKey = null,
+        DateTimeOffset? sentAtUtc = null);
 
     void RecordMessageReceived(string instanceId, string? conversationKey = null, DateTimeOffset? receivedAtUtc = null);
 

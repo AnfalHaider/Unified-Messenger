@@ -15,6 +15,14 @@ public static class AccessibilityTabOrderHelper
 
     public const int PersonalSearchBox = 20;
 
+    public const int SidebarMenuBase = 1;
+
+    public const int SidebarFooterAddInstance = 90;
+
+    public const int SidebarFooterNotifications = 91;
+
+    public const int SidebarFooterSettings = 92;
+
     public const int SettingsSectionNav = 10;
 
     public const int SettingsContent = 20;

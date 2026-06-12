@@ -233,7 +233,11 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         await File.WriteAllLinesAsync(destinationPath, lines, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
     }
 
-    public void RecordMessageSent(string instanceId, string? chatHint = null, string? conversationKey = null)
+    public void RecordMessageSent(
+        string instanceId,
+        string? chatHint = null,
+        string? conversationKey = null,
+        DateTimeOffset? sentAtUtc = null)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
@@ -241,13 +245,14 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
 
         _ = conversationKey;
+        var sentAt = sentAtUtc ?? DateTimeOffset.UtcNow;
 
         lock (_debounceLock)
         {
             var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
             stats.SentCount++;
-            IncrementDaily(stats.DailySent, 1);
-            stats.LastSentUtc = DateTimeOffset.UtcNow;
+            IncrementDaily(stats.DailySent, 1, sentAt);
+            stats.LastSentUtc = sentAt;
 
             if (!string.IsNullOrWhiteSpace(chatHint))
             {
@@ -359,7 +364,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
     {
         stats.ReceivedCount++;
         stats.LastReceivedUtc = receivedAtUtc;
-        IncrementDaily(stats.DailyReceived, 1);
+        IncrementDaily(stats.DailyReceived, 1, receivedAtUtc);
 
         var hour = receivedAtUtc.LocalDateTime.Hour;
         if (stats.HourlyReceived.Length == 24)
@@ -415,7 +420,20 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
     public ProfessionalAnalyticsSnapshot CaptureProfessionalSnapshot(
         IEnumerable<MessengerInstance> professionalInstances,
         NotificationHub notificationHub,
-        string? selectedBranchKey = null)
+        string? selectedBranchKey = null) =>
+        CaptureProfessionalSnapshot(
+            professionalInstances,
+            notificationHub,
+            selectedBranchKey,
+            fromUtc: null,
+            toUtc: null);
+
+    public ProfessionalAnalyticsSnapshot CaptureProfessionalSnapshot(
+        IEnumerable<MessengerInstance> professionalInstances,
+        NotificationHub notificationHub,
+        string? selectedBranchKey,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
     {
         _ = notificationHub;
         var instances = DashboardPageHelper
@@ -428,17 +446,25 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         var totalReplyMinutes = 0.0;
         var replyCount = 0;
         var hourlyTotals = new int[24];
+        var sentByDay = new Dictionary<string, int>(StringComparer.Ordinal);
+        var receivedByDay = new Dictionary<string, int>(StringComparer.Ordinal);
 
         foreach (var instance in instances)
         {
-            sent += GetSentCount(instance.Id);
-            received += GetReceivedCount(instance.Id);
-            slaBreaches += GetHistoricalSlaBreachCount(instance.Id);
-
-            if (_stats.TryGetValue(instance.Id, out var stats))
+            if (!_stats.TryGetValue(instance.Id, out var stats))
             {
+                continue;
+            }
+
+            if (fromUtc is null && toUtc is null)
+            {
+                sent += stats.SentCount;
+                received += stats.ReceivedCount;
+                slaBreaches += CountSlaBreachesStatic(stats);
                 totalReplyMinutes += stats.TotalReplyMinutes;
                 replyCount += stats.ReplyCount;
+                MergeDailyBuckets(sentByDay, stats.DailySent);
+                MergeDailyBuckets(receivedByDay, stats.DailyReceived);
 
                 for (var h = 0; h < 24; h++)
                 {
@@ -447,10 +473,42 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
                         hourlyTotals[h] += stats.HourlyReceived[h];
                     }
                 }
+
+                continue;
             }
+
+            foreach (var (day, count) in stats.DailySent)
+            {
+                if (!IsDayInRange(day, fromUtc, toUtc))
+                {
+                    continue;
+                }
+
+                sent += count;
+                sentByDay.TryGetValue(day, out var currentSent);
+                sentByDay[day] = currentSent + count;
+            }
+
+            foreach (var (day, count) in stats.DailyReceived)
+            {
+                if (!IsDayInRange(day, fromUtc, toUtc))
+                {
+                    continue;
+                }
+
+                received += count;
+                receivedByDay.TryGetValue(day, out var currentReceived);
+                receivedByDay[day] = currentReceived + count;
+            }
+
+            slaBreaches += CountSlaBreachesStatic(stats);
+            totalReplyMinutes += stats.TotalReplyMinutes;
+            replyCount += stats.ReplyCount;
         }
 
-        var weeklyActivity = BuildWeeklyActivity(instances);
+        var weeklyActivity = fromUtc is null && toUtc is null
+            ? BuildWeeklyActivity(instances)
+            : OccDateRangeFilterHelper.BuildDailySeriesForRange(sentByDay, receivedByDay, fromUtc, toUtc);
         var hasMessageVolume = sent > 0 ||
                                received > 0 ||
                                weeklyActivity.Any(point => point.Sent > 0 || point.Received > 0);
@@ -539,11 +597,22 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
     }
 
-    private static void IncrementDaily(Dictionary<string, int> buckets, int amount)
+    private static void IncrementDaily(Dictionary<string, int> buckets, int amount, DateTimeOffset? atUtc = null)
     {
-        var key = DateTime.Now.ToString("yyyy-MM-dd");
+        var key = (atUtc ?? DateTimeOffset.UtcNow).LocalDateTime.ToString("yyyy-MM-dd");
         buckets.TryGetValue(key, out var current);
         buckets[key] = current + amount;
+    }
+
+    private static bool IsDayInRange(string dayKey, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    {
+        if (!DateTime.TryParseExact(dayKey, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
+        {
+            return false;
+        }
+
+        var timestamp = new DateTimeOffset(day, DateTimeOffset.Now.Offset);
+        return OccDateRangeFilterHelper.IsWithinRange(timestamp, fromUtc, toUtc);
     }
 
     private static void TrimReplyLatencies(InstanceMessageStats stats)

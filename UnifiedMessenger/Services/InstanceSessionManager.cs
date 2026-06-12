@@ -257,6 +257,20 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
     public Task CloseSessionAsync(string instanceId) =>
         UiThreadRunner.RunAsync(() => CloseSessionCoreAsync(instanceId));
 
+    public Task CloseAllSessionsAsync(CancellationToken cancellationToken = default) =>
+        UiThreadRunner.RunAsync(() => CloseAllSessionsCoreAsync(cancellationToken));
+
+    private async Task CloseAllSessionsCoreAsync(CancellationToken cancellationToken)
+    {
+        foreach (var instanceId in _sessions.Keys.ToList())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await CloseSessionCoreAsync(instanceId).ConfigureAwait(true);
+        }
+
+        _visibleInstanceId = null;
+    }
+
     private async Task CloseSessionCoreAsync(string instanceId)
     {
         if (!_sessions.TryGetValue(instanceId, out var entry))
@@ -320,12 +334,6 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             return;
         }
 
-        if (!PlatformModules.PlatformModuleRegistry.Instance.IsEnabled(instance.Platform))
-        {
-            AdapterHealthMonitor.Instance.MarkNoAdapter(instanceId);
-            return;
-        }
-
         try
         {
             var adapter = PlatformAdapterFactory.Resolve(instance.Platform);
@@ -360,7 +368,9 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
 
         try
         {
-            await entry.WebView.CoreWebView2.TrySuspendAsync().AsTask().ConfigureAwait(false);
+            await WebViewUiAwaiter
+                .AwaitAsync(entry.WebView.CoreWebView2.TrySuspendAsync().AsTask())
+                .ConfigureAwait(true);
         }
         catch (Exception ex)
         {
@@ -498,7 +508,9 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
 
             try
             {
-                return await entry.WebView.CoreWebView2.ExecuteScriptAsync(script).AsTask().ConfigureAwait(true);
+                return await WebViewUiAwaiter
+                    .AwaitAsync(entry.WebView.CoreWebView2.ExecuteScriptAsync(script).AsTask())
+                    .ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -528,7 +540,9 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
 
             try
             {
-                await entry.WebView.CoreWebView2.ExecuteScriptAsync(script).AsTask().ConfigureAwait(true);
+                await WebViewUiAwaiter
+                    .AwaitAsync(entry.WebView.CoreWebView2.ExecuteScriptAsync(script).AsTask())
+                    .ConfigureAwait(true);
             }
             catch (Exception ex)
             {
@@ -551,6 +565,19 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
 
         if (entry.WebView.CoreWebView2 is not null)
         {
+            WebViewNavigationGuard.Detach(entry.WebView.CoreWebView2);
+
+            try
+            {
+                await WebViewUiAwaiter
+                    .AwaitAsync(entry.WebView.CoreWebView2.TrySuspendAsync().AsTask())
+                    .ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WebView pre-close suspend failed: {ex.Message}");
+            }
+
             entry.WebView.Close();
         }
 

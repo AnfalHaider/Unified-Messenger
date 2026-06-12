@@ -1,8 +1,0 @@
-/* Unified Messenger — Telegram Web chrome blend (platform-specific) */
-html, body, #Main {
-  border-left: 1px solid var(--um-shell-seam) !important;
-}
-
-.left-column, .chatlist-container, .sidebar {
-  box-shadow: inset 1px 0 0 var(--um-shell-seam);
-}

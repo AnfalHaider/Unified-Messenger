@@ -1,5 +1,4 @@
 using Microsoft.UI.Dispatching;
-using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Services;
 
@@ -8,7 +7,7 @@ namespace UnifiedMessenger.Services;
 /// </summary>
 public sealed class DashboardRefreshCoordinator
 {
-    private const int DebounceMilliseconds = 450;
+    private const int DebounceMilliseconds = 500;
 
     private static readonly Lazy<DashboardRefreshCoordinator> LazyInstance =
         new(() => new DashboardRefreshCoordinator());
@@ -53,8 +52,6 @@ public sealed class DashboardRefreshCoordinator
         ThreadRegistryService.Instance.Changed += OnOperationalSourceChanged;
         UnifiedMessengerDashboardService.Instance.Changed += OnOperationalSourceChanged;
         MessageAnalyticsService.Instance.Changed += OnOperationalSourceChanged;
-        ProfessionalWorkspaceService.Instance.Changed += OnOperationalSourceChanged;
-        BackfillSyncManager.Instance.ProgressChanged += OnOperationalSourceChanged;
     }
 
     public void Unsubscribe()
@@ -83,8 +80,6 @@ public sealed class DashboardRefreshCoordinator
         ThreadRegistryService.Instance.Changed -= OnOperationalSourceChanged;
         UnifiedMessengerDashboardService.Instance.Changed -= OnOperationalSourceChanged;
         MessageAnalyticsService.Instance.Changed -= OnOperationalSourceChanged;
-        ProfessionalWorkspaceService.Instance.Changed -= OnOperationalSourceChanged;
-        BackfillSyncManager.Instance.ProgressChanged -= OnOperationalSourceChanged;
 
         _debounceTimer?.Stop();
     }

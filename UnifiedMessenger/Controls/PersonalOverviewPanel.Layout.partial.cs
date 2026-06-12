@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using UnifiedMessenger.Services;
@@ -16,6 +17,9 @@ public sealed partial class PersonalOverviewPanel
     {
         _isLayoutEditMode = enabled;
         PersonalLayoutEditButton.Content = enabled ? "Done" : "Customize layout";
+        AutomationProperties.SetName(
+            PersonalLayoutEditButton,
+            enabled ? "Done editing personal layout" : "Customize personal layout");
         PersonalLayoutMoveUpButton.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
         PersonalLayoutMoveDownButton.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
     }

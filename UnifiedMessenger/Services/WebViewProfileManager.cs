@@ -92,6 +92,7 @@ public sealed partial class WebViewProfileManager : IWebViewProfileManager
         ValidateProfileName(profileName);
 
         var environment = await EnsureEnvironmentAsync(cancellationToken).ConfigureAwait(false);
+        await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
 
         return await InitializeWebViewControlAsync(environment, profileName, startUrl, cancellationToken)
             .ConfigureAwait(true);
@@ -111,46 +112,47 @@ public sealed partial class WebViewProfileManager : IWebViewProfileManager
                 var options = environment.CreateCoreWebView2ControllerOptions();
                 options.ProfileName = profileName;
 
-                // WinRT may resume on a thread-pool thread; validate and return on the UI thread.
-                await webView.EnsureCoreWebView2Async(environment, options).AsTask().ConfigureAwait(false);
+                await WebViewUiAwaiter
+                    .AwaitAsync(webView.EnsureCoreWebView2Async(environment, options).AsTask())
+                    .ConfigureAwait(true);
 
-                return await FinalizeWebViewControlAsync(webView, profileName, startUrl).ConfigureAwait(false);
+                return FinalizeWebViewControlOnUiThread(webView, profileName, startUrl);
             }
             catch
             {
                 if (webView is not null)
                 {
-                    await CloseWebViewOnUiThreadAsync(webView).ConfigureAwait(false);
+                    await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
+                    webView.Close();
                 }
 
                 throw;
             }
         });
 
-    private static Task<WebView2> FinalizeWebViewControlAsync(
+    private static WebView2 FinalizeWebViewControlOnUiThread(
         WebView2 webView,
         string profileName,
-        string? startUrl) =>
-        UiThreadRunner.RunAsync(() =>
+        string? startUrl)
+    {
+        var actualProfile = webView.CoreWebView2?.Profile.ProfileName;
+        if (actualProfile is null ||
+            !actualProfile.Equals(profileName, StringComparison.OrdinalIgnoreCase))
         {
-            var actualProfile = webView.CoreWebView2?.Profile.ProfileName;
-            if (actualProfile is null ||
-                !actualProfile.Equals(profileName, StringComparison.OrdinalIgnoreCase))
-            {
-                webView.Close();
-                throw new InvalidOperationException(
-                    $"Profile mismatch. Expected \"{profileName}\" but got \"{actualProfile ?? "null"}\".");
-            }
+            webView.Close();
+            throw new InvalidOperationException(
+                $"Profile mismatch. Expected \"{profileName}\" but got \"{actualProfile ?? "null"}\".");
+        }
 
-            if (webView.CoreWebView2 is not null)
-            {
-                WebViewNavigationGuard.Attach(
-                    webView.CoreWebView2,
-                    WebViewNavigationGuard.ExtractAdditionalHostsFromStartUrl(startUrl));
-            }
+        if (webView.CoreWebView2 is not null)
+        {
+            WebViewNavigationGuard.Attach(
+                webView.CoreWebView2,
+                WebViewNavigationGuard.ExtractAdditionalHostsFromStartUrl(startUrl));
+        }
 
-            return Task.FromResult(webView);
-        });
+        return webView;
+    }
 
     private static Task CloseWebViewOnUiThreadAsync(WebView2 webView) =>
         UiThreadRunner.RunAsync(() =>
@@ -198,7 +200,9 @@ public sealed partial class WebViewProfileManager : IWebViewProfileManager
         CancellationToken cancellationToken) =>
         UiThreadRunner.RunAsync(async () =>
         {
-            await profile.ClearBrowsingDataAsync().AsTask().WaitAsync(cancellationToken).ConfigureAwait(true);
+            await WebViewUiAwaiter
+                .AwaitAsync(profile.ClearBrowsingDataAsync().AsTask().WaitAsync(cancellationToken))
+                .ConfigureAwait(true);
             profile.Delete();
         });
 
