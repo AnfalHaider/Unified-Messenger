@@ -49,16 +49,20 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Spacing="4">
+                    <StackPanel MinWidth="0" Spacing="4">
                         <TextBlock
                             x:Name="ScopeText"
+                            MinWidth="0"
                             FontSize="14"
                             Opacity="0.9"
-                            Text="Showing: All Branches" />
+                            Text="Showing: All Branches"
+                            TextTrimming="CharacterEllipsis" />
                         <TextBlock
                             x:Name="LastRefreshedText"
+                            MinWidth="0"
                             Style="{StaticResource UmCaptionTextStyle}"
-                            Text="Updated just now" />
+                            Text="Updated just now"
+                            TextTrimming="CharacterEllipsis" />
                         <StackPanel
                             x:Name="BranchFilterChipPanel"
                             Orientation="Horizontal"

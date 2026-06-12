@@ -21,6 +21,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     private string? _lastPillBarSignature;
     private bool _isRefreshing;
     private bool _showWorkspaceLoading;
+    private bool _suppressDateRangeEvents;
     private IReadOnlyDictionary<string, BranchWorkspaceHelper.BranchTabCounts> _branchTabCounts =
         new Dictionary<string, BranchWorkspaceHelper.BranchTabCounts>(StringComparer.OrdinalIgnoreCase);
 
@@ -39,11 +40,21 @@ public sealed partial class OperationsCommandCenter : UserControl
         BranchWorkspacePillBar.SelectionChanged += OnBranchWorkspacePillSelectionChanged;
         _services.OccFilter.Changed += OnOccFilterStateChanged;
         _services.OccDateRangeFilter.Changed += OnOccDateRangeFilterChanged;
-        Loaded += (_, _) =>
-        {
-            InitializeDateRangePickers();
-            ApplyAccessibilityTabOrder();
-        };
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        InitializeDateRangePickers();
+        ApplyAccessibilityTabOrder();
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        BranchWorkspacePillBar.SelectionChanged -= OnBranchWorkspacePillSelectionChanged;
+        _services.OccFilter.Changed -= OnOccFilterStateChanged;
+        _services.OccDateRangeFilter.Changed -= OnOccDateRangeFilterChanged;
     }
 
     public void ConfigureServices(ApplicationServices services)
@@ -51,10 +62,18 @@ public sealed partial class OperationsCommandCenter : UserControl
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
 
-        if (!_services.OccDateRangeFilter.HasActiveFilter)
+        _suppressDateRangeEvents = true;
+        try
         {
-            _services.OccDateRangeFilter.FromUtc = DateTimeOffset.Now.AddDays(-6);
-            _services.OccDateRangeFilter.ToUtc = DateTimeOffset.Now;
+            if (!_services.OccDateRangeFilter.HasActiveFilter)
+            {
+                _services.OccDateRangeFilter.FromUtc = DateTimeOffset.Now.AddDays(-6);
+                _services.OccDateRangeFilter.ToUtc = DateTimeOffset.Now;
+            }
+        }
+        finally
+        {
+            _suppressDateRangeEvents = false;
         }
     }
 
@@ -240,30 +259,50 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void InitializeDateRangePickers()
     {
         var today = DateTimeOffset.Now;
-        if (_services.OccDateRangeFilter.FromUtc is { } from)
+        _suppressDateRangeEvents = true;
+        try
         {
-            FromDatePicker.Date = from;
-        }
-        else
-        {
-            FromDatePicker.Date = today.AddDays(-6);
-        }
+            if (_services.OccDateRangeFilter.FromUtc is { } from)
+            {
+                FromDatePicker.Date = from;
+            }
+            else
+            {
+                FromDatePicker.Date = today.AddDays(-6);
+            }
 
-        if (_services.OccDateRangeFilter.ToUtc is { } to)
-        {
-            ToDatePicker.Date = to;
+            if (_services.OccDateRangeFilter.ToUtc is { } to)
+            {
+                ToDatePicker.Date = to;
+            }
+            else
+            {
+                ToDatePicker.Date = today;
+            }
         }
-        else
+        finally
         {
-            ToDatePicker.Date = today;
+            _suppressDateRangeEvents = false;
         }
     }
 
-    private void OnOccDateRangeFilterChanged(object? sender, EventArgs e) =>
+    private void OnOccDateRangeFilterChanged(object? sender, EventArgs e)
+    {
+        if (_suppressDateRangeEvents)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(() => _ = RefreshAsync(_professionalInstances, _registry));
+    }
 
     private void DateRangePicker_DateChanged(object sender, DatePickerValueChangedEventArgs args)
     {
+        if (_suppressDateRangeEvents)
+        {
+            return;
+        }
+
         if (ReferenceEquals(sender, FromDatePicker))
         {
             _services.OccDateRangeFilter.FromUtc = args.NewDate;

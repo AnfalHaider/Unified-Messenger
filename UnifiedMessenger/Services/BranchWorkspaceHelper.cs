@@ -108,12 +108,28 @@ public static class BranchWorkspaceHelper
         ArgumentNullException.ThrowIfNull(instances);
         ArgumentNullException.ThrowIfNull(threads);
 
-        return instances
-            .Select(ResolveBranchKey)
-            .Concat(threads.Select(thread => thread.BranchName))
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+        var instanceList = instances.ToList();
+        var instanceById = instanceList.ToDictionary(
+            instance => instance.Id,
+            StringComparer.OrdinalIgnoreCase);
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var instance in instanceList)
+        {
+            keys.Add(ResolveBranchKey(instance));
+        }
+
+        foreach (var thread in threads)
+        {
+            if (!instanceById.TryGetValue(thread.InstanceId, out var instance))
+            {
+                continue;
+            }
+
+            keys.Add(ResolveEffectiveBranchKey(thread, instance));
+        }
+
+        return keys
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }

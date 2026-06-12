@@ -1,3 +1,5 @@
+using System.Text.Json;
+using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Adapters;
 
@@ -51,5 +53,84 @@ public class OccDateRangeFilterTests
     {
         Assert.Equal(Models.InboundMessageKind.Catalog, WhatsAppIngressHandler.ParseMessageKind("catalog"));
         Assert.Equal(Models.InboundMessageKind.Audio, WhatsAppIngressHandler.ParseMessageKind("audio"));
+    }
+
+    [Fact]
+    public void CollectBranchKeys_IgnoresOrphanThreadBranches()
+    {
+        var instances = new[]
+        {
+            new MessengerInstance
+            {
+                Id = "dha",
+                DisplayName = "Depilex DHA-2",
+                Platform = "whatsappbusiness",
+                Category = WorkspaceCategory.Professional
+            }
+        };
+
+        var threads = new[]
+        {
+            new ThreadData
+            {
+                ThreadId = "orphan",
+                InstanceId = "missing-instance",
+                Platform = "whatsappbusiness",
+                BranchName = "F-11",
+                ConversationKey = "orphan",
+                CustomerName = "Orphan",
+                LastMessageTime = DateTimeOffset.UtcNow
+            },
+            new ThreadData
+            {
+                ThreadId = "dha|active",
+                InstanceId = "dha",
+                Platform = "whatsappbusiness",
+                BranchName = "DHA-2",
+                ConversationKey = "active",
+                CustomerName = "Active",
+                LastMessageTime = DateTimeOffset.UtcNow
+            }
+        };
+
+        var keys = BranchWorkspaceHelper.CollectBranchKeys(instances, threads);
+
+        Assert.Single(keys);
+        Assert.Equal("DHA-2", keys[0]);
+    }
+
+    [Fact]
+    public void HandleTelemetry_DoesNotIncrementAnalyticsCounts()
+    {
+        var instanceId = $"telemetry-{Guid.NewGuid():N}";
+        var instance = new MessengerInstance
+        {
+            Id = instanceId,
+            DisplayName = "Telemetry Test",
+            Platform = "whatsappbusiness"
+        };
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            type = "whatsapp-telemetry",
+            conversationKey = "customer-1",
+            customerName = "Customer",
+            lastReceivedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+            lastReceivedKind = "text",
+            lastSentAtUtc = DateTimeOffset.UtcNow.ToString("O"),
+            lastSentKind = "text"
+        });
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+
+        var receivedBefore = MessageAnalyticsService.Instance.GetReceivedCount(instanceId);
+        var sentBefore = MessageAnalyticsService.Instance.GetSentCount(instanceId);
+
+        Assert.True(WhatsAppIngressHandler.TryHandle("whatsapp-telemetry", root, instance));
+        Assert.True(WhatsAppIngressHandler.TryHandle("whatsapp-telemetry", root, instance));
+
+        Assert.Equal(receivedBefore, MessageAnalyticsService.Instance.GetReceivedCount(instanceId));
+        Assert.Equal(sentBefore, MessageAnalyticsService.Instance.GetSentCount(instanceId));
     }
 }

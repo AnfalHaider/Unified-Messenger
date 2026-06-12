@@ -103,57 +103,30 @@ internal static class WhatsAppIngressHandler
 
         var capturedAt = WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
         var lastReceivedAt = ReadOptionalTimestamp(root, "lastReceivedAtUtc");
-        var lastSentAt = ReadOptionalTimestamp(root, "lastSentAtUtc");
         var receivedKind = ParseMessageKind(ReadOptionalString(root, "lastReceivedKind"));
-        var sentKind = ParseMessageKind(ReadOptionalString(root, "lastSentKind"));
-
-        var payload = new WhatsAppTelemetryPayload
-        {
-            InstanceId = instance.Id,
-            ConversationKey = conversationKey,
-            CustomerName = ReadOptionalString(root, "customerName") ?? string.Empty,
-            ContactPhoneNumber = ReadOptionalString(root, "contactPhoneNumber"),
-            ProfilePhoneNumber = ReadOptionalString(root, "profilePhoneNumber"),
-            LastReceivedAtUtc = lastReceivedAt,
-            LastSentAtUtc = lastSentAt,
-            LastReceivedKind = receivedKind,
-            LastSentKind = sentKind,
-            ActiveMessagePreview = ReadOptionalString(root, "activeMessagePreview"),
-            CapturedAtUtc = capturedAt
-        };
+        var customerName = ReadOptionalString(root, "customerName") ?? string.Empty;
 
         WhatsAppBusinessContextService.Instance.UpsertThreadContext(new WhatsAppThreadContextSnapshot
         {
             InstanceId = instance.Id,
             ConversationKey = conversationKey,
-            CustomerName = payload.CustomerName,
+            CustomerName = customerName,
             BusinessLabels = ReadStringArray(root, "businessLabels"),
             VerifiedBusinessName = ReadOptionalString(root, "verifiedBusinessName"),
-            ProfilePhoneNumber = payload.ProfilePhoneNumber,
-            ContactPhoneNumber = payload.ContactPhoneNumber,
+            ProfilePhoneNumber = ReadOptionalString(root, "profilePhoneNumber"),
+            ContactPhoneNumber = ReadOptionalString(root, "contactPhoneNumber"),
             CapturedAtUtc = capturedAt
         });
 
+        // Telemetry reflects the active conversation snapshot, not discrete new messages.
+        // Analytics increments are handled by inbound previews, outgoing monitors, and delivery status.
         if (lastReceivedAt is not null)
         {
-            MessageAnalyticsService.Instance.RecordMessageReceived(
-                instance.Id,
-                conversationKey,
-                lastReceivedAt);
             ThreadRegistryService.Instance.UpdateLastMessageKind(
                 instance.Id,
                 conversationKey,
                 receivedKind,
                 lastReceivedAt.Value);
-        }
-
-        if (lastSentAt is not null)
-        {
-            MessageAnalyticsService.Instance.RecordMessageSent(
-                instance.Id,
-                chatHint: payload.CustomerName,
-                conversationKey: conversationKey,
-                sentAtUtc: lastSentAt);
         }
     }
 

@@ -256,9 +256,11 @@
 
   var lastTelemetrySignature = '';
   var telemetryScheduled = false;
+  var telemetryTimer = null;
 
   function publishTelemetryImmediate() {
     telemetryScheduled = false;
+    telemetryTimer = null;
     var telemetry = scanConversationTelemetry();
     if (!telemetry) {
       return;
@@ -303,7 +305,7 @@
     }
 
     telemetryScheduled = true;
-    window.setTimeout(publishTelemetryImmediate, 300);
+    telemetryTimer = window.setTimeout(publishTelemetryImmediate, 300);
   }
 
   function detectOutgoingDeliveryStatus(container) {
@@ -925,6 +927,14 @@
       window.clearInterval(activeContextTimer);
       activeContextTimer = null;
     }
+
+    if (telemetryTimer) {
+      window.clearTimeout(telemetryTimer);
+      telemetryTimer = null;
+    }
+
+    telemetryScheduled = false;
+    lastTelemetrySignature = '';
 
     unhookSpaNavigation();
     document.removeEventListener('visibilitychange', onVisibilityChange);
