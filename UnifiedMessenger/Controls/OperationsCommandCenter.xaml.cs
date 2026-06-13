@@ -341,7 +341,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     {
         EmptyStatePanel.Visibility = _viewModel.ShowEmptyState ? Visibility.Visible : Visibility.Collapsed;
         MainContentScrollViewer.Visibility = _viewModel.ShowMainContent ? Visibility.Visible : Visibility.Collapsed;
-        LastRefreshedText.Text = _viewModel.LastRefreshedText;
+        NotifyHeaderStatusChanged();
         ApplyBranchFilterChip();
     }
 

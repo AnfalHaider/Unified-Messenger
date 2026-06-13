@@ -75,6 +75,9 @@ public sealed partial class DashboardPage : Page
             TabView.SelectedIndexProperty,
             OnDashboardTabSelectionChanged);
 
+        OperationsCommandCenterPanel.HeaderStatusChanged += OnOccHeaderStatusChanged;
+        UpdateDashboardOccHeaderStatus();
+
         _resourceTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(DashboardPageHelper.ResourceRefreshIntervalSeconds)
@@ -102,6 +105,8 @@ public sealed partial class DashboardPage : Page
             TabView.SelectedIndexProperty,
             _dashboardTabSelectionCallbackToken);
 
+        OperationsCommandCenterPanel.HeaderStatusChanged -= OnOccHeaderStatusChanged;
+
         if (_resourceTimer is not null)
         {
             _resourceTimer.Tick -= OnResourceTimerTick;
@@ -114,6 +119,7 @@ public sealed partial class DashboardPage : Page
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            UpdateDashboardOccHeaderStatus();
             if (!IsOperationsCommandCenterTabSelected || _registry is null)
             {
                 return;
@@ -121,6 +127,38 @@ public sealed partial class DashboardPage : Page
 
             _ = RefreshOperationsCommandCenterAsync();
         });
+    }
+
+    private void OnOccHeaderStatusChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(UpdateDashboardOccHeaderStatus);
+
+    private void UpdateDashboardOccHeaderStatus()
+    {
+        var showOccStatus = IsOperationsCommandCenterTabSelected;
+        DashboardOccStatusRow.Visibility = showOccStatus ? Visibility.Visible : Visibility.Collapsed;
+        if (!showOccStatus)
+        {
+            return;
+        }
+
+        var lastRefreshed = OperationsCommandCenterPanel.HeaderLastRefreshedText;
+        DashboardLastRefreshedText.Text = lastRefreshed;
+        DashboardLastRefreshedText.Visibility = string.IsNullOrWhiteSpace(lastRefreshed)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        var showBackfill = OperationsCommandCenterPanel.HeaderShowBackfillStatus;
+        DashboardBackfillStatusPanel.Visibility = showBackfill ? Visibility.Visible : Visibility.Collapsed;
+        if (showBackfill)
+        {
+            DashboardBackfillStatusText.Text = OperationsCommandCenterPanel.HeaderBackfillStatusText;
+        }
+
+        DashboardOccStatusSeparator.Visibility =
+            DashboardLastRefreshedText.Visibility == Visibility.Visible &&
+            showBackfill
+                ? Visibility.Visible
+                : Visibility.Collapsed;
     }
 
     private void OnOccBranchFilterRequested(object? sender, string? branchKey)

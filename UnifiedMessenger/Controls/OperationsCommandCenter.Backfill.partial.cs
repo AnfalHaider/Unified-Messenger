@@ -28,9 +28,16 @@ public sealed partial class OperationsCommandCenter
     {
         var status = OccBackfillStatusPresenter.BuildStatus(_professionalInstances);
         _viewModel.ApplyBackfillStatus(status);
-        BackfillStatusText.Text = _viewModel.BackfillStatusText;
-        BackfillStatusPanel.Visibility = _viewModel.ShowBackfillStatus
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        NotifyHeaderStatusChanged();
     }
+
+    public event EventHandler? HeaderStatusChanged;
+
+    public string HeaderLastRefreshedText => _viewModel.LastRefreshedText;
+
+    public bool HeaderShowBackfillStatus => _viewModel.ShowBackfillStatus;
+
+    public string HeaderBackfillStatusText => _viewModel.BackfillStatusText;
+
+    private void NotifyHeaderStatusChanged() => HeaderStatusChanged?.Invoke(this, EventArgs.Empty);
 }

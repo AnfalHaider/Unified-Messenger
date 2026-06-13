@@ -50,16 +50,16 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel MinWidth="0" Spacing="{StaticResource UmSpacingXs}">
-                        <TextBlock
-                            x:Name="ScopeText"
-                            MinWidth="0"
-                            Style="{StaticResource UmScopeTextStyle}"
-                            Text="Showing: All Branches" />
-                        <TextBlock
-                            x:Name="LastRefreshedText"
-                            MinWidth="0"
-                            Style="{StaticResource UmCaptionTextStyle}"
-                            Text="Updated just now" />
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Spacing="{StaticResource UmSpacingSm}"
+                            VerticalAlignment="Center">
+                            <TextBlock
+                                x:Name="ScopeText"
+                                MinWidth="0"
+                                Style="{StaticResource UmScopeTextStyle}"
+                                Text="Showing: All Branches" />
+                        </StackPanel>
                         <StackPanel
                             x:Name="NavigationStatusPanel"
                             Orientation="Horizontal"
@@ -74,23 +74,6 @@
                                 FontSize="11"
                                 Foreground="{ThemeResource SystemFillColorCriticalBrush}"
                                 TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                        <StackPanel
-                            x:Name="BackfillStatusPanel"
-                            Orientation="Horizontal"
-                            Spacing="6"
-                            Visibility="Collapsed">
-                            <ProgressRing
-                                Width="14"
-                                Height="14"
-                                Foreground="{StaticResource UmBrandTealBrush}"
-                                IsActive="True" />
-                            <TextBlock
-                                x:Name="BackfillStatusText"
-                                FontSize="11"
-                                Foreground="{StaticResource UmBrandTealDarkBrush}"
-                                Opacity="0.9"
-                                Text="Backfill running…" />
                         </StackPanel>
                         <StackPanel
                             x:Name="BranchFilterChipPanel"
