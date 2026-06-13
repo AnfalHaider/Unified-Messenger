@@ -171,21 +171,9 @@ public sealed class ThreadRegistryService : IThreadRegistryService
 
         var resolvedAt = resolvedAtUtc ?? DateTimeOffset.UtcNow;
         var key = ResolveKey(platform ?? string.Empty, conversationKey, null, customerName, null);
-        var threadId = ConversationKeyResolver.BuildThreadId(instanceId, key);
-        if (!_threads.TryGetValue(threadId, out var thread))
+        if (!TryFindUnrepliedThread(instanceId, key, customerName, platform, out var thread))
         {
-            thread = new ThreadData
-            {
-                ThreadId = threadId,
-                Platform = string.IsNullOrWhiteSpace(platform) ? "unknown" : platform.Trim(),
-                InstanceId = instanceId,
-                ConversationKey = key,
-                CustomerName = string.IsNullOrWhiteSpace(customerName) ? "Customer" : customerName.Trim(),
-                BranchName = string.Empty,
-                LastMessageTime = resolvedAt,
-                FirstInboundAtUtc = resolvedAt
-            };
-            _threads[threadId] = thread;
+            return;
         }
 
         var inboundAt = thread.FirstInboundAtUtc == default
@@ -200,11 +188,70 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         thread.LastMessageTime = resolvedAt;
         MessageAnalyticsService.Instance.RecordThreadReply(
             instanceId,
-            key,
+            thread.ConversationKey,
             inboundAt,
             resolvedAt,
             customerName);
         NotifyChanged();
+    }
+
+    public bool TryGetUnrepliedThread(
+        string instanceId,
+        string? conversationKey,
+        string? customerName,
+        string? platform,
+        out ThreadData? thread)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            thread = null;
+            return false;
+        }
+
+        var key = ResolveKey(platform ?? string.Empty, conversationKey, null, customerName, null);
+        return TryFindUnrepliedThread(instanceId, key, customerName, platform, out thread);
+    }
+
+    private bool TryFindUnrepliedThread(
+        string instanceId,
+        string key,
+        string? customerName,
+        string? platform,
+        out ThreadData thread)
+    {
+        var threadId = ConversationKeyResolver.BuildThreadId(instanceId, key);
+        if (_threads.TryGetValue(threadId, out thread!) && !thread.IsReplied)
+        {
+            return true;
+        }
+
+        foreach (var candidate in _threads.Values)
+        {
+            if (!candidate.InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase) ||
+                candidate.IsReplied)
+            {
+                continue;
+            }
+
+            if (ConversationKeyResolver.Matches(key, candidate.ConversationKey, platform) ||
+                ConversationKeyResolver.Matches(key, candidate.CustomerName, platform))
+            {
+                thread = candidate;
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(customerName) &&
+                candidate.CustomerName.Equals(customerName.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                (ConversationKeyResolver.IsWhatsAppJid(key) ||
+                 ConversationKeyResolver.IsWhatsAppJid(candidate.ConversationKey)))
+            {
+                thread = candidate;
+                return true;
+            }
+        }
+
+        thread = null!;
+        return false;
     }
 
     public void SetThreadKanbanColumn(string threadId, UnifiedMessengerKanbanColumn targetColumn)

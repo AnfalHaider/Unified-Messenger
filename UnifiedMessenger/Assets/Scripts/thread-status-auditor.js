@@ -184,17 +184,22 @@
     }
 
     var platformId = snapshotPlatform(profile);
+    var chatJid = typeof window.__umResolveActiveChatJid === 'function'
+      ? window.__umResolveActiveChatJid()
+      : '';
     if (typeof window.__umResolvePlatformConversationIdentity === 'function') {
       return window.__umResolvePlatformConversationIdentity(platformId, {
         reviewId: reviewId,
-        headerTitle: headerTitle
+        headerTitle: headerTitle,
+        chatJid: chatJid
       }).conversationKey;
     }
 
     if (typeof window.__umResolveConversationKey === 'function') {
       return window.__umResolveConversationKey(platformId, {
         reviewId: reviewId,
-        headerTitle: headerTitle
+        headerTitle: headerTitle,
+        chatJid: chatJid
       });
     }
 
@@ -322,10 +327,14 @@
     }
 
     var customerName = conversationKey.replace(/^review:/, '') || 'Customer';
+    var chatJid = typeof window.__umResolveActiveChatJid === 'function'
+      ? window.__umResolveActiveChatJid()
+      : '';
     if (typeof window.__umResolvePlatformConversationIdentity === 'function' && platformKey) {
       var identity = window.__umResolvePlatformConversationIdentity(platformKey, {
         headerTitle: conversationKey,
-        conversationKey: conversationKey
+        conversationKey: conversationKey,
+        chatJid: chatJid
       });
       if (identity.customerName) {
         customerName = identity.customerName;
@@ -395,6 +404,9 @@
         if (snapshot.conversationKey !== threadState.conversationKey) {
           threadState.conversationKey = snapshot.conversationKey;
           threadState.lastWasOutgoing = snapshot.isOutgoing;
+          if (snapshot.isOutgoing) {
+            broadcastResolved(instanceId, snapshot);
+          }
           return;
         }
 

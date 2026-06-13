@@ -624,10 +624,15 @@
     }
 
     window.__umLastMessageSentAt = now;
+    var chatJid = typeof window.__umResolveActiveChatJid === 'function'
+      ? window.__umResolveActiveChatJid()
+      : '';
     var resolvedKey = window.__umResolveConversationKey(platform, {
       conversationKey: conversationKey,
       conversationHint: chatHint,
-      customerName: chatHint
+      customerName: chatHint,
+      headerTitle: chatHint,
+      chatJid: chatJid
     });
     window.__umPostMessage({
       type: 'message-sent',
@@ -739,11 +744,15 @@
 
       lastOutgoingSignature = signature;
       var chatHint = resolveChatHint();
+      var chatJid = typeof window.__umResolveActiveChatJid === 'function'
+        ? window.__umResolveActiveChatJid()
+        : '';
       var identity = typeof window.__umResolvePlatformConversationIdentity === 'function'
         ? window.__umResolvePlatformConversationIdentity(platform, {
             headerTitle: chatHint,
             customerName: chatHint,
-            messagePreview: signature
+            messagePreview: signature,
+            chatJid: chatJid
           })
         : null;
       var conversationKey = identity
@@ -894,7 +903,19 @@
     }
 
     function emitSent(source) {
-      window.__umEmitMessageSent(instanceId, platform, source, getChatHint());
+      var chatHint = getChatHint();
+      var chatJid = typeof window.__umResolveActiveChatJid === 'function'
+        ? window.__umResolveActiveChatJid()
+        : '';
+      var conversationKey = typeof window.__umResolveConversationKey === 'function'
+        ? window.__umResolveConversationKey(platform, {
+            chatJid: chatJid,
+            headerTitle: chatHint,
+            conversationHint: chatHint,
+            customerName: chatHint
+          })
+        : '';
+      window.__umEmitMessageSent(instanceId, platform, source, chatHint, conversationKey);
     }
 
     window.__umOutgoingKeydownHandler = function (event) {

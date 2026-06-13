@@ -87,7 +87,8 @@ public static class BranchWorkspaceHelper
 
         if (string.IsNullOrWhiteSpace(selectedBranchKey))
         {
-            return threads;
+            return threads.Where(thread =>
+                instancesById.ContainsKey(thread.InstanceId));
         }
 
         return threads.Where(thread =>

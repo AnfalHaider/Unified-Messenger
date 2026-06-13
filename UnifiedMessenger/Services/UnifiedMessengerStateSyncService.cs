@@ -38,7 +38,7 @@ public sealed class UnifiedMessengerStateSyncService
     private readonly Channel<UnifiedMessengerSyncEvent> _channel = Channel.CreateBounded<UnifiedMessengerSyncEvent>(
         new BoundedChannelOptions(ChannelCapacity)
         {
-            FullMode = BoundedChannelFullMode.DropOldest,
+            FullMode = BoundedChannelFullMode.Wait,
             SingleReader = true,
             SingleWriter = false
         });
@@ -72,19 +72,34 @@ public sealed class UnifiedMessengerStateSyncService
             return;
         }
 
-        _ = ChannelWriteHelper.TryWriteWithDropLog(
-            _channel.Writer,
-            new UnifiedMessengerSyncEvent
-            {
-                Kind = UnifiedMessengerSyncEventKind.ThreadResolved,
-                InstanceId = instanceId.Trim(),
-                ConversationKey = conversationKey,
-                CustomerName = customerName,
-                TimestampUtc = resolvedAtUtc ?? DateTimeOffset.UtcNow,
-                Source = source,
-                Platform = platform
-            },
-            "UnifiedMessengerStateSync");
+        var syncEvent = new UnifiedMessengerSyncEvent
+        {
+            Kind = UnifiedMessengerSyncEventKind.ThreadResolved,
+            InstanceId = instanceId.Trim(),
+            ConversationKey = conversationKey,
+            CustomerName = customerName,
+            TimestampUtc = resolvedAtUtc ?? DateTimeOffset.UtcNow,
+            Source = source,
+            Platform = platform
+        };
+
+        _ = EnqueueAsync(syncEvent);
+    }
+
+    private async Task EnqueueAsync(UnifiedMessengerSyncEvent syncEvent)
+    {
+        try
+        {
+            await _channel.Writer.WriteAsync(syncEvent, _cts.Token).ConfigureAwait(false);
+        }
+        catch (ChannelClosedException)
+        {
+            // shutdown
+        }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        {
+            // shutdown
+        }
     }
 
     internal async Task ProcessEventForTestsAsync(UnifiedMessengerSyncEvent syncEvent)

@@ -521,14 +521,33 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     chatHint,
                     null);
                 MessageAnalyticsService.Instance.RecordMessageSent(instance.Id, chatHint);
+                var sentAtUtc = ParseMessageTimestamp(root);
 
-                if (!WhatsAppOperationalContextBuilder.IsWhatsAppPlatform(instance.Platform))
+                if (WhatsAppOperationalContextBuilder.IsWhatsAppPlatform(instance.Platform))
+                {
+                    if (ThreadRegistryService.Instance.TryGetUnrepliedThread(
+                            instance.Id,
+                            resolvedSentKey,
+                            chatHint,
+                            instance.Platform,
+                            out _))
+                    {
+                        UnifiedMessengerStateSyncService.Instance.EnqueueThreadResolved(
+                            instance.Id,
+                            resolvedSentKey,
+                            chatHint,
+                            sentAtUtc,
+                            source: "message-sent",
+                            platform: instance.Platform);
+                    }
+                }
+                else
                 {
                     UnifiedMessengerStateSyncService.Instance.EnqueueThreadResolved(
                         instance.Id,
                         resolvedSentKey,
                         chatHint,
-                        DateTimeOffset.UtcNow,
+                        sentAtUtc,
                         source: "message-sent",
                         platform: instance.Platform);
                 }

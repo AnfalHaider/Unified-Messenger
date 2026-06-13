@@ -93,6 +93,10 @@ public class OccChartBackfillHelperTests : IDisposable
     [Fact]
     public void BackfillDailyAggregate_PopulatesChartWithoutChangingLiveKpiCounts()
     {
+        BackfillSyncManager.Instance.ResetStateForTests();
+        ThreadRegistryService.Instance.RestoreThreads([]);
+
+        var instanceId = "inst-backfill-" + Guid.NewGuid().ToString("N");
         var storePath = Path.Combine(
             Path.GetTempPath(),
             "UnifiedMessengerTests",
@@ -103,7 +107,7 @@ public class OccChartBackfillHelperTests : IDisposable
         var analytics = new MessageAnalyticsService(storePath);
         var today = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd");
         analytics.RecordBackfillDailyAggregate(
-            "inst-1",
+            instanceId,
             new Dictionary<string, int> { [today] = 3 },
             new Dictionary<string, int> { [today] = 2 });
 
@@ -113,7 +117,7 @@ public class OccChartBackfillHelperTests : IDisposable
             [
                 new MessengerInstance
                 {
-                    Id = "inst-1",
+                    Id = instanceId,
                     DisplayName = "Branch",
                     Platform = "whatsapp",
                     Category = WorkspaceCategory.Professional
@@ -125,14 +129,14 @@ public class OccChartBackfillHelperTests : IDisposable
             toUtc: to);
 
         Assert.True(chartSnapshot.HasMessageVolume);
-        Assert.Equal(0, analytics.GetReceivedCount("inst-1"));
-        Assert.Equal(0, analytics.GetSentCount("inst-1"));
+        Assert.Equal(0, analytics.GetReceivedCount(instanceId));
+        Assert.Equal(0, analytics.GetSentCount(instanceId));
 
         ThreadRegistryService.Instance.UpsertFromTriageItem(
             new MessageTriageItem
             {
-                Id = "inst-1|live",
-                InstanceId = "inst-1",
+                Id = instanceId + "|live",
+                InstanceId = instanceId,
                 InstanceDisplayName = "Branch",
                 Platform = "whatsapp",
                 MessagePreview = "Live queue thread",
@@ -148,7 +152,7 @@ public class OccChartBackfillHelperTests : IDisposable
         {
             new MessengerInstance
             {
-                Id = "inst-1",
+                Id = instanceId,
                 DisplayName = "Branch",
                 Platform = "whatsapp",
                 Category = WorkspaceCategory.Professional
