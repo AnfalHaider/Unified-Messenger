@@ -54,6 +54,14 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         var adapterScript = PrepareScript(
             await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
             instance);
+        var additionalScripts = new List<string>(AdditionalScriptFileNames.Count);
+        foreach (var additionalScript in AdditionalScriptFileNames)
+        {
+            additionalScripts.Add(PrepareScript(
+                await LoadScriptTemplateAsync(additionalScript, cancellationToken).ConfigureAwait(false),
+                instance));
+        }
+
         await UiThreadRunner.RunAsync(async () =>
         {
             coreWebView.Settings.IsWebMessageEnabled = true;
@@ -61,11 +69,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             await AddDocumentCreatedScriptAsync(coreWebView, handshakeScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
 
-            foreach (var additionalScript in AdditionalScriptFileNames)
+            foreach (var script in additionalScripts)
             {
-                var script = PrepareScript(
-                    await LoadScriptTemplateAsync(additionalScript, cancellationToken).ConfigureAwait(false),
-                    instance);
                 await AddDocumentCreatedScriptAsync(coreWebView, script, cancellationToken).ConfigureAwait(true);
             }
 
