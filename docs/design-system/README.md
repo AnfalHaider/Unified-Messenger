@@ -4,7 +4,7 @@
 
 | File | Purpose |
 |------|---------|
-| `Themes/Tokens.xaml` | Brand colors, spacing, corner radius |
+| `Themes/Tokens.xaml` | Brand colors, spacing, corner radius, opacity scale (`UmOpacityMuted`, `UmOpacityHint`) |
 | `Themes/Typography.xaml` | Section headers, metric values, body/caption styles |
 | `Themes/Controls.xaml` | Dashboard and surface card border styles |
 
@@ -24,18 +24,20 @@ Merged in `App.xaml`.
 
 ## OCC layout
 
-Operations Command Center uses a 12-column grid (`OccLayoutGridEngine`) with presets:
+Operations Command Center uses a **fixed responsive layout** (KPI grid, branch pills, immediate queue, three-column kanban). User-controlled **display order** within kanban columns is persisted in `triage_v2.json` via `ThreadDisplayOrderService`.
 
-- `operations-focus` (default)
-- `analytics-focus`
-- `compact`
+## Semantic colors
 
-Persisted in `settings.json` as `occPanelPlacements`.
+Delivery and status accents are centralized in `UmSemanticColors` (aligned with brand tokens).
 
-## Adoption (Workstream B)
+## Adoption
 
 Shared controls are wired into production surfaces:
 
-- **Operations Command Center** — `MetricCardView` KPI row, `SectionHeaderView` for the live-thread header, `SurfaceCard` for immediate lane / kanban / highlights panels; charts use `AccessibleChartHost` internally.
-- **Settings** — all section labels use `SectionHeaderView`; section bodies use `SurfaceCard` + `UmSurfaceCardStyle`.
+- **Operations Command Center** — `MetricCardView` KPI row, kanban columns, message volume chart.
+- **Settings** — `SectionHeaderView`; section bodies use `SurfaceCard` + `UmSurfaceCardStyle`.
 - **Notifications / Personal Overview** — `EmptyStateView`, `LoadingOverlayView`; Personal Overview activity/status panels use `SurfaceCard`.
+
+## Deferred
+
+- **High-contrast theme** — not implemented in v3.2.0; tracked as a future accessibility milestone.

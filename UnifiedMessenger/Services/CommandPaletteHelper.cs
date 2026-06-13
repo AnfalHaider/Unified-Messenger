@@ -175,6 +175,9 @@ public static class CommandPaletteHelper
                 !string.IsNullOrWhiteSpace(selection.SettingsSectionKey),
             CommandPaletteAction.RefreshOcc or CommandPaletteAction.OpenImmediateQueue =>
                 true,
+            CommandPaletteAction.OpenThread =>
+                ShellNavigationService.IsValidInstanceId(selection.InstanceId)
+                && !string.IsNullOrWhiteSpace(selection.ConversationKey),
             _ => Enum.IsDefined(selection.Action)
         };
     }

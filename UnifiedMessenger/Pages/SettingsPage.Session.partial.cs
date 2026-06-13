@@ -13,9 +13,9 @@ public sealed partial class SettingsPage
         {
             StartupWarmModeBox.ItemsSource = new[]
             {
-                new StartupWarmModeOption(StartupWarmMode.WarmAll, "Warm all"),
-                new StartupWarmModeOption(StartupWarmMode.VisibleOnly, "Visible only"),
-                new StartupWarmModeOption(StartupWarmMode.Lazy, "Lazy")
+                new StartupWarmModeOption(StartupWarmMode.WarmAll, "Warm all (loads every instance)"),
+                new StartupWarmModeOption(StartupWarmMode.VisibleOnly, "Visible only (recommended)"),
+                new StartupWarmModeOption(StartupWarmMode.Lazy, "Lazy (load on demand)")
             };
             StartupWarmModeBox.DisplayMemberPath = nameof(StartupWarmModeOption.Label);
         }

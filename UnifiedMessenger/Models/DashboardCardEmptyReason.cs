@@ -11,6 +11,5 @@ public enum DashboardCardEmptyReason
     ConnectedNoData,
     InboundOnlyAwaitingReply,
     NoTriageItems,
-    OnlyLowUrgencyItems,
-    AwaitingLocalAi
+    OnlyLowUrgencyItems
 }

@@ -33,6 +33,7 @@ public sealed partial class ApplicationServices
         DashboardRefreshCoordinator? dashboardRefresh = null,
         UnifiedMessengerStateSyncService? stateSync = null,
         ThreadDisplayOrderService? threadDisplayOrder = null,
+        TriagePersistenceService? triagePersistence = null,
         InstanceWebViewRegistry? webViewRegistry = null,
         ResourceMonitorService? resourceMonitor = null,
         WhatsAppBusinessContextService? whatsAppBusinessContext = null,
@@ -62,6 +63,7 @@ public sealed partial class ApplicationServices
         DashboardRefresh = dashboardRefresh ?? DashboardRefreshCoordinator.Instance;
         StateSync = stateSync ?? UnifiedMessengerStateSyncService.Instance;
         ThreadDisplayOrder = threadDisplayOrder ?? ThreadDisplayOrderService.Instance;
+        TriagePersistence = triagePersistence ?? TriagePersistenceService.Instance;
         WebViewRegistry = webViewRegistry ?? InstanceWebViewRegistry.Instance;
         ResourceMonitor = resourceMonitor ?? ResourceMonitorService.Instance;
         WhatsAppBusinessContext = whatsAppBusinessContext ?? WhatsAppBusinessContextService.Instance;
@@ -114,6 +116,8 @@ public sealed partial class ApplicationServices
     public UnifiedMessengerStateSyncService StateSync { get; }
 
     public ThreadDisplayOrderService ThreadDisplayOrder { get; }
+
+    public TriagePersistenceService TriagePersistence { get; }
 
     public InstanceWebViewRegistry WebViewRegistry { get; }
 

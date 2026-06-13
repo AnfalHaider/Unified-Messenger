@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Tests;
@@ -6,25 +5,7 @@ namespace UnifiedMessenger.Tests;
 [Collection("SecondInstanceActivator")]
 public sealed class SecondInstanceActivatorTests : IDisposable
 {
-    public SecondInstanceActivatorTests()
-    {
-        SecondInstanceActivator.StopServer();
-        foreach (var process in Process.GetProcessesByName("UnifiedMessenger"))
-        {
-            try
-            {
-                if (!process.HasExited)
-                {
-                    process.Kill(entireProcessTree: true);
-                    process.WaitForExit(3000);
-                }
-            }
-            catch
-            {
-                // Best effort so unit tests do not fight a live install.
-            }
-        }
-    }
+    public SecondInstanceActivatorTests() => SecondInstanceActivator.StopServer();
 
     public void Dispose() => SecondInstanceActivator.StopServer();
 

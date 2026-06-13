@@ -205,6 +205,15 @@ internal static class UiAutomationHelpers
 
     public static bool WaitForDashboardOccReady(AutomationElement window, TimeSpan timeout)
     {
+        if (WaitForMarkerOrAutomationId(
+                window,
+                null,
+                "OccSnapshotReady",
+                timeout))
+        {
+            return true;
+        }
+
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
@@ -217,7 +226,7 @@ internal static class UiAutomationHelpers
                 return true;
             }
 
-            Thread.Sleep(250);
+            Thread.Sleep(150);
         }
 
         return false;

@@ -36,14 +36,30 @@ jobs:
         run: dotnet build UnifiedMessenger.sln --configuration ${{ env.CONFIGURATION }} --no-restore -p:Platform=${{ env.PLATFORM }}
 
       - name: Test with coverage
-        run: >
-          dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj
-          --configuration ${{ env.CONFIGURATION }}
-          --no-build
-          --verbosity normal
-          -p:Platform=${{ env.PLATFORM }}
-          --collect:"XPlat Code Coverage"
-          --results-directory "${{ runner.temp }}/coverage"
+        shell: pwsh
+        run: |
+          $output = dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj `
+            --configuration ${{ env.CONFIGURATION }} `
+            --no-build `
+            --verbosity normal `
+            -p:Platform=${{ env.PLATFORM }} `
+            --collect:"XPlat Code Coverage" `
+            --results-directory "${{ runner.temp }}/coverage" 2>&1 | Out-String
+          Write-Host $output
+          if ($output -notmatch 'Passed!\s+- Failed:\s+0') {
+            throw "Unit tests did not all pass."
+          }
+          $match = [regex]::Match($output, 'Total tests:\s+(\d+)')
+          if (-not $match.Success) {
+            throw "Could not parse unit test count from dotnet test output."
+          }
+          $count = [int]$match.Groups[1].Value
+          Write-Host "Unit test count: $count"
+          $docPath = "docs/validation/completion-criteria.md"
+          $doc = Get-Content $docPath -Raw
+          if ($doc -notmatch "$count") {
+            Write-Warning "completion-criteria.md may be stale (expected mention of ~$count tests)."
+          }
 
       - name: Report and enforce coverage threshold
         shell: pwsh
@@ -83,7 +99,6 @@ jobs:
             'ThreadRegistryService.Instance',
             'WebViewProfileManager.Instance',
             'SystemTrayService.Instance',
-            'GlobalHotkeyService.Instance',
             'AppNotificationService.Instance',
             'TaskbarBadgeService.Instance',
             'GitHubUpdateService.Instance'

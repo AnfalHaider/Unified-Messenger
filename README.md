@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v3.1.5 (WhatsApp Core “Lite” line)
+**Current release:** v3.2.0 (WhatsApp Core "Lite" line)
 
 ## Scope
 
@@ -29,6 +29,13 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+### What's in v3.2.0
+
+- **Ultimate audit remediation:** Persist triage, thread registry, and kanban display order to `triage_v2.json`; doc reconciliation; OCC keyboard reorder (`Alt+Up/Down`, `Escape`).
+- **Dead code removal:** Global hotkey service, legacy multi-platform connection handshake profiles, unused `AwaitingLocalAi` enum.
+- **UX & ops:** Command palette thread search, first-run Personal vs Professional onboarding, HTTPS-only WebView navigation, default startup warm mode `VisibleOnly`.
+- **Tests:** Triage persistence round-trip + kanban keyboard reorder unit tests.
+
 ### What's in v3.1.5
 
 - **UI hyper-loop polish:** Design-token pass across Operations Command Center, Personal Overview, kanban, message-volume chart, metric/thread cards, and workspace sidebar; shared scroll-offset preservation for list refresh stability.
@@ -40,18 +47,18 @@ All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github
 
 ### What's in v3.1.3
 
-- **Full branding refresh:** Gradient app icon plus UNIFIED MESSENGER wordmark on About and sidebar; brand blue accent tokens (#1B75BB�#2E3191).
+- **Full branding refresh:** Gradient app icon plus UNIFIED MESSENGER wordmark on About and sidebar; brand blue accent tokens (#1B75BB?#2E3191).
 - **Audit fixes:** Removed dead copilot hotkey registration, fixed CI benchmark gate, refreshed UiSmoke OCC probes.
 
-### What’s in v3.1.2
+### What?s in v3.1.2
 
 - **Updated branding:** Gradient four-bubble app icon applied across shell, tray, toasts, About page, and installers.
 
-### What’s in v3.1.1
+### What?s in v3.1.1
 
 - **Startup fix:** Light/Dark theme no longer crashes launch when applied before the main window is created.
 
-### What’s in v3.1.0
+### What?s in v3.1.0
 
 - **Dashboard overhaul:** OCC date-range filtering, message-volume trend chart, deeper WhatsApp telemetry ingress.
 - **Sidebar UX:** Compact status labels, WhatsApp-focused instance list, improved truncation and tooltips.
@@ -61,22 +68,22 @@ All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Shell (MainWindow + WorkspaceSidebar + Notification Hub) │
-├──────────────┬──────────────────────────┬─────────────────┤
-│ WhatsApp     │ Dashboard                │ Settings / About│
-│ instances    │  ├─ Operations (OCC)     │                 │
-│ (WebView2    │  └─ Personal Overview    │                 │
-│  profiles)   │                          │                 │
-└──────────────┴──────────────────────────┴─────────────────┘
-         ▲ DOM scripts (adapter-core, whatsapp-adapter)
-         │ WebMessage bridge
-         ▼
+???????????????????????????????????????????????????????????????
+?  Shell (MainWindow + WorkspaceSidebar + Notification Hub) ?
+?????????????????????????????????????????????????????????????
+? WhatsApp     ? Dashboard                ? Settings / About?
+? instances    ?  ?? Operations (OCC)     ?                 ?
+? (WebView2    ?  ?? Personal Overview    ?                 ?
+?  profiles)   ?                          ?                 ?
+?????????????????????????????????????????????????????????????
+         ? DOM scripts (adapter-core, whatsapp-adapter)
+         ? WebMessage bridge
+         ?
    Notification + triage services (heuristic, local JSON stores)
 ```
 
 - **WebView2:** One shared environment / user-data folder; isolated `ProfileName` per account.
-- **OCC:** Fixed panels — KPI strip, branch workspace pills, immediate queue, kanban columns — fed by heuristic triage and thread registry.
+- **OCC:** Fixed panels ? KPI strip, branch workspace pills, immediate queue, kanban columns ? fed by heuristic triage and thread registry.
 - **Notifications:** DOM-scraped counts and alerts merged into a single native feed.
 
 ## Build from source
@@ -124,16 +131,16 @@ dotnet run --project UnifiedMessenger.UiSmokeTests\UnifiedMessenger.UiSmokeTests
 
 GitHub Actions (`.github/workflows/build.yml`):
 
-1. **verify** — build + unit tests (Release, x64)
-2. **package** — publish win-x64 and win-arm64, compile Inno Setup, SHA-256 sidecars
-3. **ui-smoke** — FlaUI harness against published x64 binary
-4. **release** — tag `v*` only; attaches CI-built installers to GitHub Releases
+1. **verify** ? build + unit tests (Release, x64)
+2. **package** ? publish win-x64 and win-arm64, compile Inno Setup, SHA-256 sidecars
+3. **ui-smoke** ? FlaUI harness against published x64 binary
+4. **release** ? tag `v*` only; attaches CI-built installers to GitHub Releases
 
 Push tag `v3.1.5` to publish a release. Pushing to `main` alone updates source but not the Releases page.
 
 ## Auto-update
 
-`GitHubUpdateService` checks GitHub Releases on startup. When a newer tag is available, it downloads the matching installer, verifies Authenticode (and SHA-256 when published), and runs a silent Inno install. Control behavior under **Settings → Updates**.
+`GitHubUpdateService` checks GitHub Releases on startup. When a newer tag is available, it downloads the matching installer, verifies Authenticode (and SHA-256 when published), and runs a silent Inno install. Control behavior under **Settings ? Updates**.
 
 ## Keyboard shortcuts
 
@@ -143,7 +150,7 @@ Push tag `v3.1.5` to publish a release. Pushing to `main` alone updates source b
 | Ctrl+, (comma) | Settings |
 | Ctrl+Shift+N | Toggle notification panel |
 | Ctrl+K | Command palette |
-| Ctrl+1–9 | Switch to instance (sidebar order) |
+| Ctrl+1?9 | Switch to instance (sidebar order) |
 
 ## User data
 

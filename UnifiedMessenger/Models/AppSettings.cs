@@ -3,7 +3,7 @@ namespace UnifiedMessenger.Models;
 public sealed class AppSettings
 {
     /// <summary>Lite baseline — legacy AI/OCC-layout keys are dropped on load via re-save.</summary>
-    public const int CurrentVersion = 12;
+    public const int CurrentVersion = 13;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -46,9 +46,11 @@ public sealed class AppSettings
 
     public bool HasPromptedPinToTaskbar { get; set; }
 
+    public bool HasCompletedWorkspaceOnboarding { get; set; }
+
     public int MaxConcurrentWebViews { get; set; }
 
-    public StartupWarmMode StartupWarmMode { get; set; } = StartupWarmMode.WarmAll;
+    public StartupWarmMode StartupWarmMode { get; set; } = StartupWarmMode.VisibleOnly;
 
     public bool EnableLazyWebViewLoading { get; set; }
 
@@ -105,7 +107,7 @@ public sealed class AppSettings
 
         if (!Enum.IsDefined(StartupWarmMode))
         {
-            StartupWarmMode = StartupWarmMode.WarmAll;
+            StartupWarmMode = StartupWarmMode.VisibleOnly;
         }
     }
 }

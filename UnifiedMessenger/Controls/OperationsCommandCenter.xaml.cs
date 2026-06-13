@@ -49,6 +49,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         InitializeDateRangePickers();
         ApplyAccessibilityTabOrder();
         WireResponsiveLayoutHelpers();
+        WireKanbanKeyboardShortcuts();
     }
 
     private void WireResponsiveLayoutHelpers()
@@ -260,75 +261,14 @@ public sealed partial class OperationsCommandCenter : UserControl
         ApplyKanban(threadOps);
         ApplyImmediateQueue(threadOps);
         ApplyAnalyticsTrends(snapshot.AnalyticsTrends);
+        MarkSnapshotReadyForAutomation();
     }
 
-    private void ApplyAnalyticsTrends(OperationsAnalyticsTrendSnapshot trends)
+    private void MarkSnapshotReadyForAutomation()
     {
-        MessageVolumeChart.ApplySeries(trends.WeeklyActivity);
-    }
-
-    private void InitializeDateRangePickers()
-    {
-        var today = DateTimeOffset.Now;
-        _suppressDateRangeEvents = true;
-        try
-        {
-            if (_services.OccDateRangeFilter.FromUtc is { } from)
-            {
-                FromDatePicker.Date = from;
-            }
-            else
-            {
-                FromDatePicker.Date = today.AddDays(-6);
-            }
-
-            if (_services.OccDateRangeFilter.ToUtc is { } to)
-            {
-                ToDatePicker.Date = to;
-            }
-            else
-            {
-                ToDatePicker.Date = today;
-            }
-        }
-        finally
-        {
-            _suppressDateRangeEvents = false;
-        }
-    }
-
-    private void OnOccDateRangeFilterChanged(object? sender, EventArgs e)
-    {
-        if (_suppressDateRangeEvents)
-        {
-            return;
-        }
-
-        _dispatcherQueue.TryEnqueue(() => _ = RefreshAsync(_professionalInstances, _registry));
-    }
-
-    private void DateRangePicker_DateChanged(object sender, DatePickerValueChangedEventArgs args)
-    {
-        if (_suppressDateRangeEvents)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(sender, FromDatePicker))
-        {
-            _services.OccDateRangeFilter.FromUtc = args.NewDate;
-        }
-        else if (ReferenceEquals(sender, ToDatePicker))
-        {
-            _services.OccDateRangeFilter.ToUtc = args.NewDate;
-        }
-    }
-
-    private void ClearDateRangeButton_Click(object sender, RoutedEventArgs e)
-    {
-        _services.OccDateRangeFilter.Clear();
-        InitializeDateRangePickers();
-        _ = RefreshAsync(_professionalInstances, _registry);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(
+            ScopeText,
+            ViewAutomationIds.OccSnapshotReady);
     }
 
     private void ApplyShellPresentation(bool hasProfessional, OperationsStatusSnapshot status)
@@ -370,58 +310,6 @@ public sealed partial class OperationsCommandCenter : UserControl
         ImmediateActionCard.Value = kpis.ImmediateActionCount;
         SlaBreachesCard.Value = kpis.SlaBreaches;
     }
-
-    private bool ShouldHideBranchOnCards() =>
-        !string.IsNullOrWhiteSpace(WorkspaceBranchKey);
-
-    private void ApplyKanban(UnifiedMessengerDashboardSnapshot threadOps)
-    {
-        var hideBranch = ShouldHideBranchOnCards();
-
-        SyncThreadCards(
-            _viewModel.NewInquiries,
-            OccThreadCardPresenter
-                .BuildKanbanColumn(threadOps.AllThreads, UnifiedMessengerKanbanColumn.NewInquiries, hideBranch)
-                .ToList());
-        SyncThreadCards(
-            _viewModel.HangingLeads,
-            OccThreadCardPresenter
-                .BuildKanbanColumn(threadOps.AllThreads, UnifiedMessengerKanbanColumn.HangingLeads, hideBranch)
-                .ToList());
-        SyncThreadCards(
-            _viewModel.Resolved,
-            OccThreadCardPresenter
-                .BuildKanbanColumn(threadOps.AllThreads, UnifiedMessengerKanbanColumn.Resolved, hideBranch)
-                .ToList());
-
-        KanbanBoard.UpdateEmptyStates(
-            _viewModel.NewInquiries.Count,
-            _viewModel.HangingLeads.Count,
-            _viewModel.Resolved.Count);
-    }
-
-    private void ApplyImmediateQueue(UnifiedMessengerDashboardSnapshot threadOps)
-    {
-        var hideBranch = ShouldHideBranchOnCards();
-        SyncThreadCards(
-            _viewModel.ImmediateQueue,
-            OccThreadCardPresenter.BuildThreadCards(threadOps.ImmediateActionQueue, hideBranch));
-
-        _viewModel.ApplyImmediateQueuePresentation(
-            OccSnapshotPresenter.BuildImmediateQueuePresentation(threadOps));
-        ImmediateQueueEmptyText.Visibility = _viewModel.ShowImmediateQueueEmpty
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private static void SyncThreadCards(
-        ObservableCollection<OperationsThreadCardViewModel> target,
-        IReadOnlyList<OperationsThreadCardViewModel> source) =>
-        ObservableCollectionSyncHelper.Sync(
-            target,
-            source,
-            card => card.ThreadId,
-            OperationsThreadCardSync.ContentEquals);
 
     private void RebuildBranchPills(IReadOnlyList<MessengerInstance> instanceList)
     {
@@ -498,38 +386,5 @@ public sealed partial class OperationsCommandCenter : UserControl
         {
             RefreshCommandButton.IsEnabled = true;
         }
-    }
-
-    private void ThreadCardList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is OperationsThreadCardViewModel card &&
-            !string.IsNullOrWhiteSpace(card.InstanceId))
-        {
-            _services.Navigation.OpenInstance(
-                card.InstanceId,
-                card.ConversationKey,
-                card.CustomerName);
-        }
-    }
-
-    private void KanbanBoard_ColumnOrderChanged(
-        object sender,
-        (string ColumnKey, IReadOnlyList<string> OrderedThreadIds) e) =>
-        _services.ThreadDisplayOrder.UpdateColumnOrder(e.ColumnKey, e.OrderedThreadIds);
-
-    private void KanbanBoard_ItemClickRequested(object sender, OperationsThreadCardViewModel card)
-    {
-        if (!string.IsNullOrWhiteSpace(card.InstanceId))
-        {
-            _services.Navigation.OpenInstance(
-                card.InstanceId,
-                card.ConversationKey,
-                card.CustomerName);
-        }
-    }
-
-    private void KanbanBoard_CrossColumnDragAttempted(object sender, EventArgs e)
-    {
-        // Column placement is status-driven; reorder is within-column only.
     }
 }

@@ -26,6 +26,8 @@ public sealed class ThreadDisplayOrderService
 
     public static ThreadDisplayOrderService Instance => LazyInstance.Value;
 
+    public event EventHandler? Changed;
+
     public static string GetColumnKey(UnifiedMessengerKanbanColumn column) => column.ToString();
 
     public void Load(IEnumerable<ThreadDisplayOrderEntry>? entries)
@@ -104,6 +106,7 @@ public sealed class ThreadDisplayOrderService
         }
 
         TrimColumnMap(columnMap);
+        NotifyChanged();
     }
 
     public void MoveToTop(string columnKey, string threadId)
@@ -123,6 +126,7 @@ public sealed class ThreadDisplayOrderService
             .ToList();
 
         UpdateColumnOrder(columnKey, orderedIds);
+        NotifyChanged();
     }
 
     public void PruneOrphans(IReadOnlyCollection<string> validThreadIds)
@@ -149,6 +153,8 @@ public sealed class ThreadDisplayOrderService
                 _sortByColumn.Remove(columnKey);
             }
         }
+
+        NotifyChanged();
     }
 
     public List<ThreadData> SortThreads(
@@ -177,6 +183,16 @@ public sealed class ThreadDisplayOrderService
     {
         _sortByColumn.Clear();
         SuppressPersistence = false;
+    }
+
+    private void NotifyChanged()
+    {
+        if (SuppressPersistence)
+        {
+            return;
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     private Dictionary<string, int> GetOrCreateColumnMap(string columnKey)

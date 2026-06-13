@@ -157,6 +157,16 @@ public sealed class ShellController
                 await _navigation.ShowDashboardAsync();
                 _services.Navigation.RequestOccImmediateLaneFocus();
                 break;
+            case CommandPaletteAction.OpenThread:
+                if (!string.IsNullOrWhiteSpace(selection.InstanceId))
+                {
+                    _services.Navigation.OpenInstance(
+                        selection.InstanceId,
+                        selection.ConversationKey,
+                        selection.CustomerName);
+                }
+
+                break;
         }
     }
 
@@ -167,6 +177,7 @@ public sealed class ShellController
         await _services.AppSettings.LoadAsync().ConfigureAwait(true);
         await _services.Registry.LoadAsync().ConfigureAwait(true);
         await _services.MessageAnalytics.LoadAsync().ConfigureAwait(true);
+        await _services.TriagePersistence.LoadAsync().ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);
@@ -209,6 +220,7 @@ public sealed class ShellController
         }
 
         await _navigation.ShowDashboardAsync().ConfigureAwait(true);
+        _ = MaybeShowWorkspaceOnboardingAsync();
         _ = MaybePromptPinToTaskbarAsync();
 
         if (_ui is MainWindow mainWindow)
@@ -661,6 +673,18 @@ public sealed class ShellController
         };
 
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    private async Task MaybeShowWorkspaceOnboardingAsync()
+    {
+        var settings = _services.AppSettings.Settings;
+        if (settings.HasCompletedWorkspaceOnboarding)
+        {
+            return;
+        }
+
+        await FirstRunOnboardingHelper.TryShowAsync(_ui.XamlRoot).ConfigureAwait(true);
+        await _services.AppSettings.UpdateAsync(s => s.HasCompletedWorkspaceOnboarding = true).ConfigureAwait(true);
     }
 
     private async Task MaybePromptPinToTaskbarAsync()

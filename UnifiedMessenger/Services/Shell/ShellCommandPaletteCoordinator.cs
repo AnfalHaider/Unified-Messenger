@@ -114,6 +114,32 @@ public sealed class ShellCommandPaletteCoordinator
             });
         }
 
+        var professionalIds = professionalInstances
+            .Select(instance => instance.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var thread in _services.ThreadRegistry.GetAllThreads()
+                     .Where(thread => professionalIds.Contains(thread.InstanceId))
+                     .OrderByDescending(thread => thread.LastMessageTime)
+                     .Take(40))
+        {
+            entries.Add(new CommandPaletteEntry
+            {
+                Title = thread.CustomerName,
+                Subtitle = $"{thread.InstanceDisplayName} · {thread.BranchName}",
+                Category = "Threads",
+                IconGlyph = "\uE8BD",
+                Selection = new CommandPaletteSelection
+                {
+                    Action = CommandPaletteAction.OpenThread,
+                    InstanceId = thread.InstanceId,
+                    ConversationKey = thread.ConversationKey,
+                    CustomerName = thread.CustomerName
+                }
+            });
+        }
+
         foreach (var instance in _services.Registry.GetOrderedInstances())
         {
             var platform = PlatformDefinition.FindById(instance.Platform);

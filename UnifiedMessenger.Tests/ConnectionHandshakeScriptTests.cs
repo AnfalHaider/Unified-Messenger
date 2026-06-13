@@ -13,16 +13,17 @@ public class ConnectionHandshakeScriptTests
         Assert.Contains("'Connected'", script, StringComparison.Ordinal);
         Assert.Contains("__umConnectionPollTimer", script, StringComparison.Ordinal);
         Assert.Contains("urlLoggedIn", script, StringComparison.Ordinal);
-        Assert.Contains("discord", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("whatsapp", script, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void ConnectionHandshakeScript_IncludesGoogleBusinessSelectors()
+    public void ConnectionHandshakeScript_IncludesWhatsAppSelectors()
     {
         var script = ReadScript("connection-handshake.js");
 
-        Assert.Contains("googlebusiness", script, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Business Profile", script, StringComparison.Ordinal);
+        Assert.Contains("whatsapp", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("web.whatsapp.com", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("googlebusiness", script, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ReadScript(string fileName)

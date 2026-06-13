@@ -24,6 +24,10 @@ public sealed class CommandPaletteSelection
     public string? BranchKey { get; init; }
 
     public string? SettingsSectionKey { get; init; }
+
+    public string? ConversationKey { get; init; }
+
+    public string? CustomerName { get; init; }
 }
 
 public enum CommandPaletteAction
@@ -38,5 +42,6 @@ public enum CommandPaletteAction
     MarkAllRead,
     RefreshOcc,
     FilterBranch,
-    OpenImmediateQueue
+    OpenImmediateQueue,
+    OpenThread
 }

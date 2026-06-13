@@ -8,43 +8,6 @@
   window.__umConnectionHandshakeInstalled = true;
 
   var profiles = {
-    googlebusiness: {
-      loggedIn: [
-        '[data-merchant-id]',
-        '[aria-label*="Business Profile" i]',
-        '[href*="business.google.com"][aria-current]',
-        'img[alt*="logo" i][src*="googleusercontent"]',
-        '[role="main"]',
-        'a[href*="/reviews" i]',
-        'a[href*="/messaging" i]'
-      ],
-      loggedOut: [
-        'input[type="email"]',
-        '#identifierId',
-        '[data-action="sign in" i]',
-        'form[action*="accounts.google.com"]',
-        'button[jsname*="login" i]'
-      ],
-      urlLoggedIn: ['business.google.com/locations', 'business.google.com/reviews', 'business.google.com/messaging']
-    },
-    metabusiness: {
-      loggedIn: [
-        '[data-testid="inbox_thread_list"]',
-        '[aria-label*="Inbox" i]',
-        '[role="navigation"] a[href*="inbox"]',
-        '[data-pagelet="BizInbox"]',
-        '[role="main"] [role="row"]',
-        'div[aria-label*="Conversation" i]'
-      ],
-      loggedOut: [
-        'input[name="email"]',
-        '#email',
-        '[data-testid="login_form"]',
-        'button[name="login"]',
-        'input[type="password"][name="pass"]'
-      ],
-      urlLoggedIn: ['business.facebook.com', 'facebook.com/latest/inbox']
-    },
     whatsapp: {
       loggedIn: [
         '#pane-side',
@@ -60,86 +23,6 @@
         '[data-testid="link-device-phone-number-code-screen-instructions"]'
       ],
       urlLoggedIn: ['web.whatsapp.com']
-    },
-    discord: {
-      loggedIn: [
-        '[aria-label="Servers sidebar"]',
-        '[class*="guilds"]',
-        '[class*="sidebar"] [role="tree"]',
-        'nav[aria-label*="Servers" i]',
-        '[data-list-id="guildsnav"]'
-      ],
-      loggedOut: [
-        'form[class*="authBox"]',
-        'input[name="email"]',
-        'button[type="submit"]',
-        '[class*="authBox"] h1'
-      ],
-      urlLoggedIn: ['discord.com/channels', 'discord.com/app']
-    },
-    telegram: {
-      loggedIn: [
-        '.chatlist',
-        '#column-left .chatlist',
-        '.tabs-tab[data-tab="0"].active'
-      ],
-      loggedOut: [
-        '#auth-pages',
-        '.auth-form',
-        'input[type="tel"]'
-      ],
-      urlLoggedIn: ['web.telegram.org']
-    },
-    slack: {
-      loggedIn: [
-        '[data-qa="channel_sidebar"]',
-        '.p-client_container',
-        '[aria-label="Channels"]'
-      ],
-      loggedOut: [
-        '[data-qa="signin_form"]',
-        'input[name="email"]',
-        '#signin_btn'
-      ],
-      urlLoggedIn: ['app.slack.com/client']
-    },
-    messenger: {
-      loggedIn: [
-        '[role="navigation"]',
-        '[aria-label="Chats"]',
-        '[data-pagelet="MWThreadList"]'
-      ],
-      loggedOut: [
-        'input[name="email"]',
-        '#email',
-        'button[name="login"]'
-      ],
-      urlLoggedIn: ['messenger.com']
-    },
-    teams: {
-      loggedIn: [
-        '[data-tid="experience-layout"]',
-        '[aria-label*="Chat" i]',
-        '.ui-tree__item'
-      ],
-      loggedOut: [
-        'input[type="email"]',
-        '#i0116',
-        '#idSIButton9'
-      ],
-      urlLoggedIn: ['teams.microsoft.com']
-    },
-    signal: {
-      loggedIn: [
-        '.module-left-pane',
-        '.conversation-list',
-        '.inbox'
-      ],
-      loggedOut: [
-        '.module-sign-in',
-        'input[type="tel"]'
-      ],
-      urlLoggedIn: []
     },
     generic: {
       loggedIn: ['main', '[role="main"]', 'nav', 'header'],

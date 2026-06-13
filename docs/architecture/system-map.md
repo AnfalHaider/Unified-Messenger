@@ -1,6 +1,6 @@
 # Unified Messenger — system map
 
-Gate 0 / Wave 12 architecture reference.
+Gate 0 / Wave 12 architecture reference (updated v3.2.0).
 
 ## Runtime layers
 
@@ -11,7 +11,7 @@ Gate 0 / Wave 12 architecture reference.
 └────────────┬────────────────────┬───────────────────────────┘
              │                    │
     ┌────────▼────────┐   ┌───────▼──────────────────────────┐
-    │ DashboardPage   │   │ SettingsPage / LocalAI / About   │
+    │ DashboardPage   │   │ SettingsPage / About             │
     │  ├─ OCC         │   └──────────────────────────────────┘
     │  └─ Personal    │
     └────────┬────────┘
@@ -20,6 +20,7 @@ Gate 0 / Wave 12 architecture reference.
     │ ApplicationServices (composition root)                  │
     │ Registry · SessionManager · Navigation · NotificationHub│
     │ AppSettings · ThreadRegistry · MessageTriage · Analytics│
+    │ TriagePersistence · ThreadDisplayOrder · StateSync      │
     │ WebViewScriptGateway · GitHubUpdate · Dialog            │
     └────────┬────────────────────────────────────────────────┘
              │
@@ -30,7 +31,7 @@ Gate 0 / Wave 12 architecture reference.
              │                                         │
     ┌────────▼─────────────────────────────────────────▼───────┐
     │ Services (domain + persistence)                          │
-    │ Triage · Threads · Analytics · Workspace · Backfill · AI │
+    │ Triage · Threads · Analytics · Dashboard refresh         │
     └────────┬─────────────────────────────────────────────────┘
              │
     ┌────────▼────────┐
@@ -38,7 +39,7 @@ Gate 0 / Wave 12 architecture reference.
     │ settings.json    │
     │ instances.json   │
     │ analytics.json   │
-    │ triage store     │
+    │ triage_v2.json   │
     └──────────────────┘
 ```
 
@@ -50,15 +51,16 @@ Gate 0 / Wave 12 architecture reference.
 | Personal notifications | JS `notification-preview` | NotificationHub → PersonalDashboardService | Personal overview, feed panel |
 | Instance navigation | `INavigationService.OpenInstance` | ShellNavigationService → InstanceSessionManager | MainWindow WebView host |
 | Operational refresh | Triage/thread/analytics events | DashboardRefreshCoordinator (450 ms debounce) | DashboardPage |
+| Triage persistence | Triage/thread/order mutations | TriagePersistenceService (750 ms debounce) | `triage_v2.json` |
 | Settings destructive | SettingsPage actions | OperationalDataService, InstanceRegistryService | Settings |
 | Import/export | Settings (experimental) | InstanceRegistryService + backup `.bak` | Settings |
 
-## MVVM map (Waves 6–10)
+## MVVM map
 
 | Surface | ViewModel | Presenter / helper |
 |---------|-----------|-------------------|
 | Shell | MainWindowViewModel, WorkspaceSidebarViewModel, NotificationFeedViewModel | NotificationFeedPresenter, WorkspaceSidebarMenuPlanner |
-| OCC | OperationsCommandCenterViewModel, BranchWorkspacePillBarViewModel | OccSnapshotPresenter, OccThreadCardPresenter, OccLayoutCommandHelper |
+| OCC | OperationsCommandCenterViewModel, BranchWorkspacePillBarViewModel | OccSnapshotPresenter, OccThreadCardPresenter |
 | Personal | PersonalOverviewViewModel | PersonalSnapshotPresenter, PersonalOverviewSearchPresenter |
 | Settings | SettingsViewModel | SettingsArchivedAccountsPresenter, SettingsImportExportPresenter |
 | Charts | WeeklyActivityChartViewModel, SentimentActivityChartViewModel | WeeklyActivityChartHelper, DashboardTriageHelper |
@@ -67,7 +69,7 @@ Gate 0 / Wave 12 architecture reference.
 
 | Job | Purpose |
 |-----|---------|
-| `verify` | Build + 750+ unit tests |
+| `verify` | Build + unit tests (442) |
 | `package` | Publish win-x64 / win-arm64 + Inno installers + SHA-256 sidecars |
 | `ui-smoke` | FlaUI harness against published x64 binary |
 | `release` | Tag-driven GitHub release from CI artifacts |
@@ -75,4 +77,8 @@ Gate 0 / Wave 12 architecture reference.
 ## Persistence paths
 
 - User data root: `%LOCALAPPDATA%\UnifiedMessenger\`
-- `settings.json`, `instances.json`, WebView profiles, operational JSON stores
+- `settings.json`, `instances.json`, `analytics.json`, `triage_v2.json`, WebView profiles
+
+## Platform scope
+
+WhatsApp and WhatsApp Business Web only (v3.0+ lite baseline).

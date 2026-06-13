@@ -28,10 +28,10 @@ public static class WhatsAppDeliveryStatusPresentation
     public static string ResolveBrushHex(string status) =>
         WhatsAppDeliveryStatusLabel.Normalize(status) switch
         {
-            WhatsAppDeliveryStatusLabel.Read => "#2563EB",
-            WhatsAppDeliveryStatusLabel.Delivered => "#64748B",
-            WhatsAppDeliveryStatusLabel.Sent => "#94A3B8",
-            WhatsAppDeliveryStatusLabel.Pending => "#94A3B8",
-            _ => "#00000000"
+            WhatsAppDeliveryStatusLabel.Read => UmSemanticColors.StatusRead,
+            WhatsAppDeliveryStatusLabel.Delivered => UmSemanticColors.StatusDelivered,
+            WhatsAppDeliveryStatusLabel.Sent => UmSemanticColors.StatusSent,
+            WhatsAppDeliveryStatusLabel.Pending => UmSemanticColors.StatusPending,
+            _ => UmSemanticColors.Transparent
         };
 }

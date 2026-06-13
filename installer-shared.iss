@@ -5,7 +5,7 @@
 #define MyAppExeName "UnifiedMessenger.exe"
 #define MyAppPublisher "AnfalHaider"
 #define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "3.1.5"
+#define MyAppVersion "3.2.0"
 #define MyAppMutex "UnifiedMessenger_AppMutex"
 
 ; Per-user install (no elevation). Binaries only — user data stays in %LocalAppData%\UnifiedMessenger.
@@ -27,7 +27,6 @@ function IsPreservedRootDir(const DirName: String): Boolean;
 begin
   Result :=
     (CompareText(DirName, 'WebView2') = 0) or
-    (CompareText(DirName, 'ollama') = 0) or
     (CompareText(DirName, 'avatars') = 0);
 end;
 

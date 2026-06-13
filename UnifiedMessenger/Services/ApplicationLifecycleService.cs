@@ -79,6 +79,7 @@ public static class ApplicationLifecycleService
         try
         {
             await services.MessageAnalytics.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await services.TriagePersistence.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -94,17 +95,20 @@ public static class ApplicationLifecycleService
             return new LifecycleServices(
                 root.MessageTriage as MessageTriageService ?? MessageTriageService.Instance,
                 root.StateSync,
-                root.MessageAnalytics);
+                root.MessageAnalytics,
+                root.TriagePersistence);
         }
 
         return new LifecycleServices(
             MessageTriageService.Instance,
             UnifiedMessengerStateSyncService.Instance,
-            MessageAnalyticsService.Instance);
+            MessageAnalyticsService.Instance,
+            TriagePersistenceService.Instance);
     }
 
     private readonly record struct LifecycleServices(
         MessageTriageService MessageTriage,
         UnifiedMessengerStateSyncService StateSync,
-        IMessageAnalyticsService MessageAnalytics);
+        IMessageAnalyticsService MessageAnalytics,
+        TriagePersistenceService TriagePersistence);
 }

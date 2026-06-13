@@ -23,6 +23,8 @@ public static class ViewAutomationIds
 
     public const string ShellNotificationToggle = "ShellNotificationToggle";
 
+    public const string OccSnapshotReady = "OccSnapshotReady";
+
     public static string SidebarInstance(string instanceId) =>
         $"SidebarInstance_{Sanitize(instanceId)}";
 

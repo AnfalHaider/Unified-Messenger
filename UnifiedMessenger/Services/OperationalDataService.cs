@@ -8,9 +8,7 @@ public static class OperationalDataService
     public static async Task ClearAllAsync(CancellationToken cancellationToken = default)
     {
         await MessageAnalyticsService.Instance.ClearAllDataAsync(cancellationToken).ConfigureAwait(false);
-        MessageTriageService.Instance.DrainPendingQueue();
-        MessageTriageService.Instance.RestoreItems([]);
-        ThreadRegistryService.Instance.RestoreThreads([]);
+        await TriagePersistenceService.Instance.ClearAsync(cancellationToken).ConfigureAwait(false);
         NotificationHub.Instance.ClearAlerts();
         UnifiedMessengerDashboardService.Instance.NotifyChanged();
     }
