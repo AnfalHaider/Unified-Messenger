@@ -38,7 +38,8 @@ public sealed partial class ApplicationServices
         ResourceMonitorService? resourceMonitor = null,
         WhatsAppBusinessContextService? whatsAppBusinessContext = null,
         OccFilterState? occFilter = null,
-        OccDateRangeFilterState? occDateRangeFilter = null)
+        OccDateRangeFilterState? occDateRangeFilter = null,
+        OccViewModeState? occViewMode = null)
     {
         Registry = registry ?? new InstanceRegistryService();
         SessionManager = sessionManager ?? InstanceSessionManager.Instance;
@@ -69,6 +70,7 @@ public sealed partial class ApplicationServices
         WhatsAppBusinessContext = whatsAppBusinessContext ?? WhatsAppBusinessContextService.Instance;
         OccFilter = occFilter ?? OccFilterState.Instance;
         OccDateRangeFilter = occDateRangeFilter ?? OccDateRangeFilterState.Instance;
+        OccViewMode = occViewMode ?? OccViewModeState.Instance;
     }
 
     public IInstanceRegistryService Registry { get; }
@@ -128,6 +130,8 @@ public sealed partial class ApplicationServices
     public OccFilterState OccFilter { get; }
 
     public OccDateRangeFilterState OccDateRangeFilter { get; }
+
+    public OccViewModeState OccViewMode { get; }
 
     public void ConfigureUi(XamlRoot? xamlRoot) =>
         ConfigureUi(() => xamlRoot!);

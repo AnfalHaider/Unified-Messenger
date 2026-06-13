@@ -39,6 +39,8 @@ public sealed class OccStatusKpiPresentation
     public string DailyTrend { get; init; } = "—";
 
     public string? ImmediateActionTooltip { get; init; }
+
+    public string? SlaBreachesTooltip { get; init; }
 }
 
 public sealed class OccPillBarPresentation
@@ -100,7 +102,10 @@ public static class OccSnapshotPresenter
             ImmediateActionCount = status.ImmediateActionTotal.ToString(),
             PeakHour = status.PeakHour,
             DailyTrend = status.DailyTrend,
-            ImmediateActionTooltip = tooltip
+            ImmediateActionTooltip = tooltip,
+            SlaBreachesTooltip = status.SlaBreachesNumeric <= 0
+                ? "No SLA breaches in live workload."
+                : "Open the worst SLA breach by wait time."
         };
     }
 

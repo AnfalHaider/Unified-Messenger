@@ -79,14 +79,18 @@ public class OccDateRangeFilterTests
     }
 
     [Fact]
-    public void FormatScopeLabel_AppendsRangeToBranchScope()
+    public void FormatScopeLabel_AppendsModeAndRangeToBranchScope()
     {
         var from = new DateTimeOffset(2026, 6, 7, 0, 0, 0, DateTimeOffset.Now.Offset);
         var to = new DateTimeOffset(2026, 6, 13, 0, 0, 0, DateTimeOffset.Now.Offset);
 
-        var label = OccDateRangeFilterHelper.FormatScopeLabel("Showing: All Branches", from, to);
+        var label = OccDateRangeFilterHelper.FormatScopeLabel(
+            "Showing: All Branches",
+            from,
+            to,
+            OccViewMode.Live);
 
-        Assert.StartsWith("Showing: All Branches ·", label, StringComparison.Ordinal);
+        Assert.StartsWith("Showing: All Branches · Live workload ·", label, StringComparison.Ordinal);
         Assert.Contains("Jun", label, StringComparison.OrdinalIgnoreCase);
     }
 

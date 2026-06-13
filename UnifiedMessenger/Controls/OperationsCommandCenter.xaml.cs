@@ -42,6 +42,8 @@ public sealed partial class OperationsCommandCenter : UserControl
         BranchWorkspacePillBar.SelectionChanged += OnBranchWorkspacePillSelectionChanged;
         _services.OccFilter.Changed += OnOccFilterStateChanged;
         _services.OccDateRangeFilter.Changed += OnOccDateRangeFilterChanged;
+        _services.OccViewMode.Changed += OnOccViewModeChanged;
+        _services.Navigation.InstanceNavigationFailed += OnInstanceNavigationFailed;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -49,6 +51,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         InitializeDateRangePickers();
+        InitializeViewModeToggle();
         ApplyAccessibilityTabOrder();
         WireResponsiveLayoutHelpers();
         WireKanbanKeyboardShortcuts();
@@ -67,6 +70,8 @@ public sealed partial class OperationsCommandCenter : UserControl
         BranchWorkspacePillBar.SelectionChanged -= OnBranchWorkspacePillSelectionChanged;
         _services.OccFilter.Changed -= OnOccFilterStateChanged;
         _services.OccDateRangeFilter.Changed -= OnOccDateRangeFilterChanged;
+        _services.OccViewMode.Changed -= OnOccViewModeChanged;
+        _services.Navigation.InstanceNavigationFailed -= OnInstanceNavigationFailed;
         StopDateRangeDebounceTimer();
     }
 
@@ -81,6 +86,9 @@ public sealed partial class OperationsCommandCenter : UserControl
             OccDateRangeSettingsHelper.ApplyPersistedRange(
                 _services.AppSettings.Settings,
                 _services.OccDateRangeFilter);
+            OccViewModeSettingsHelper.ApplyPersistedMode(
+                _services.AppSettings.Settings,
+                _services.OccViewMode);
             if (!_services.OccDateRangeFilter.HasActiveFilter)
             {
                 _services.OccDateRangeFilter.ResetToDefaultWindow();
@@ -158,7 +166,8 @@ public sealed partial class OperationsCommandCenter : UserControl
                         instanceList,
                         WorkspaceBranchKey,
                         fromUtc: _services.OccDateRangeFilter.FromUtc,
-                        toUtc: _services.OccDateRangeFilter.ToUtc))
+                        toUtc: _services.OccDateRangeFilter.ToUtc,
+                        viewMode: _services.OccViewMode.Mode))
                 .ConfigureAwait(true);
 
             var notificationHub = _services.NotificationHub as NotificationHub ?? NotificationHub.Instance;
@@ -251,12 +260,14 @@ public sealed partial class OperationsCommandCenter : UserControl
 
             var fromUtc = _services.OccDateRangeFilter.FromUtc;
             var toUtc = _services.OccDateRangeFilter.ToUtc;
+            var viewMode = _services.OccViewMode.Mode;
             var snapshot = await Task.Run(() =>
                     _services.OperationsCommandCenter.BuildSnapshot(
                         instanceList,
                         WorkspaceBranchKey,
                         fromUtc,
-                        toUtc))
+                        toUtc,
+                        viewMode))
                 .ConfigureAwait(true);
 
             if (allowLoadingOverlay)
@@ -265,6 +276,10 @@ public sealed partial class OperationsCommandCenter : UserControl
             }
 
             ApplySnapshot(snapshot);
+            OccChartBackfillHelper.TryScheduleBackfillForEmptyChart(
+                snapshot.AnalyticsTrends.WeeklyActivity,
+                instanceList,
+                WorkspaceBranchKey);
             ApplyBackfillStatusUi();
         }
         finally
@@ -350,6 +365,12 @@ public sealed partial class OperationsCommandCenter : UserControl
         {
             ImmediateActionCard.NavigationTooltip = kpis.ImmediateActionTooltip;
         }
+
+        SlaBreachesCard.NavigationTooltip = ParseKpiCount(kpis.SlaBreaches) > 0
+            ? kpis.SlaBreachesTooltip ?? "Open the worst SLA breach by wait time."
+            : _services.OccViewMode.IsHistorical
+                ? "No SLA breaches in the selected period."
+                : kpis.SlaBreachesTooltip ?? "No SLA breaches in live workload.";
     }
 
     private static int ParseKpiCount(string value)
@@ -375,7 +396,8 @@ public sealed partial class OperationsCommandCenter : UserControl
         ScopeText.Text = OccDateRangeFilterHelper.FormatScopeLabel(
             branchScope,
             _services.OccDateRangeFilter.FromUtc,
-            _services.OccDateRangeFilter.ToUtc);
+            _services.OccDateRangeFilter.ToUtc,
+            _services.OccViewMode.Mode);
     }
 
     private void RebuildBranchPills(IReadOnlyList<MessengerInstance> instanceList)

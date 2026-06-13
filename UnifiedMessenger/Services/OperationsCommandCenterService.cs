@@ -23,6 +23,7 @@ public sealed class OperationsCommandCenterService
             selectedBranchKey,
             fromUtc: null,
             toUtc: null,
+            viewMode: OccViewMode.Live,
             notificationHub,
             triageService,
             threadDashboardService);
@@ -32,6 +33,7 @@ public sealed class OperationsCommandCenterService
         string? selectedBranchKey,
         DateTimeOffset? fromUtc,
         DateTimeOffset? toUtc,
+        OccViewMode viewMode = OccViewMode.Live,
         NotificationHub? notificationHub = null,
         MessageTriageService? triageService = null,
         UnifiedMessengerDashboardService? threadDashboardService = null)
@@ -50,7 +52,13 @@ public sealed class OperationsCommandCenterService
             .ToList();
 
         var normalizedBranchKey = BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey);
-        var threadOperations = threadService.BuildSnapshot(filteredInstances, normalizedBranchKey);
+        var threadFromUtc = viewMode == OccViewMode.Historical ? fromUtc : null;
+        var threadToUtc = viewMode == OccViewMode.Historical ? toUtc : null;
+        var threadOperations = threadService.BuildSnapshot(
+            filteredInstances,
+            normalizedBranchKey,
+            threadFromUtc,
+            threadToUtc);
         var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
             filteredInstances,
             hub,
@@ -92,7 +100,8 @@ public sealed class OperationsCommandCenterService
         string? selectedBranchKey = null,
         NotificationHub? notificationHub = null,
         DateTimeOffset? fromUtc = null,
-        DateTimeOffset? toUtc = null)
+        DateTimeOffset? toUtc = null,
+        OccViewMode viewMode = OccViewMode.Live)
     {
         ArgumentNullException.ThrowIfNull(professionalInstances);
 
@@ -106,7 +115,13 @@ public sealed class OperationsCommandCenterService
             .FilterProfessionalInstances(filteredInstances, normalizedBranchKey)
             .ToList();
 
-        var threadOperations = threadService.BuildSnapshot(filteredInstances, normalizedBranchKey);
+        var threadFromUtc = viewMode == OccViewMode.Historical ? fromUtc : null;
+        var threadToUtc = viewMode == OccViewMode.Historical ? toUtc : null;
+        var threadOperations = threadService.BuildSnapshot(
+            filteredInstances,
+            normalizedBranchKey,
+            threadFromUtc,
+            threadToUtc);
         var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
             filteredInstances,
             hub,

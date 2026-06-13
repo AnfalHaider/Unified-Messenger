@@ -2,7 +2,8 @@ namespace UnifiedMessenger.Services;
 
 /// <summary>
 /// Shared date-range filter for Operations Command Center charts and analytics.
-/// KPI, kanban, and immediate queue always show current workload regardless of range.
+/// In Live mode, KPI/kanban and immediate queue show current workload regardless of range.
+/// In Historical mode, operational panels also respect the selected date range.
 /// </summary>
 public sealed class OccDateRangeFilterState
 {

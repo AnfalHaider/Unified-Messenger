@@ -19,13 +19,14 @@ public static class MessageVolumeLineChartHelper
         IReadOnlyList<DailyActivityPoint>? series,
         double width = 320,
         double height = 96,
-        bool rangeExceedsDisplayCap = false)
+        bool rangeExceedsDisplayCap = false,
+        bool isHistoricalMode = false)
     {
         if (series is null || series.Count == 0)
         {
             return new MessageVolumeLineChartSummary
             {
-                SummaryText = BuildSummaryText(0, 0, rangeExceedsDisplayCap)
+                SummaryText = BuildSummaryText(0, 0, rangeExceedsDisplayCap, isHistoricalMode)
             };
         }
 
@@ -35,7 +36,7 @@ public static class MessageVolumeLineChartHelper
         {
             return new MessageVolumeLineChartSummary
             {
-                SummaryText = BuildSummaryText(0, 0, rangeExceedsDisplayCap)
+                SummaryText = BuildSummaryText(0, 0, rangeExceedsDisplayCap, isHistoricalMode)
             };
         }
 
@@ -55,7 +56,7 @@ public static class MessageVolumeLineChartHelper
 
         return new MessageVolumeLineChartSummary
         {
-            SummaryText = BuildSummaryText(totalMessages, peak, rangeExceedsDisplayCap),
+            SummaryText = BuildSummaryText(totalMessages, peak, rangeExceedsDisplayCap, isHistoricalMode),
             LinePathData = linePath,
             AreaPathData = areaPath,
             PeakTotal = peak,
@@ -63,11 +64,19 @@ public static class MessageVolumeLineChartHelper
         };
     }
 
-    private static string BuildSummaryText(int totalMessages, int peakDayTotal, bool rangeExceedsDisplayCap)
+    private static string BuildSummaryText(
+        int totalMessages,
+        int peakDayTotal,
+        bool rangeExceedsDisplayCap,
+        bool isHistoricalMode)
     {
         if (totalMessages == 0)
         {
-            var empty = "No message volume in the selected range.";
+            var kpiHint = isHistoricalMode
+                ? "KPI cards reflect threads in the selected period."
+                : "KPI cards show your live queue.";
+            var empty =
+                $"No message volume in the selected range. Volume comes from synced message history; {kpiHint}";
             return rangeExceedsDisplayCap
                 ? $"{empty} Chart shows the first {OccDateRangeFilterHelper.ChartDisplayDayCap} days only."
                 : empty;

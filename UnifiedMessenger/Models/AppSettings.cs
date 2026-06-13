@@ -91,6 +91,9 @@ public sealed class AppSettings
     /// <summary>Persisted OCC chart date range (local calendar date, yyyy-MM-dd).</summary>
     public string? OccDateRangeToLocal { get; set; }
 
+    /// <summary>Persisted OCC view mode: Live workload or Historical report.</summary>
+    public string? OccViewMode { get; set; }
+
     public void Normalize()
     {
         if (Version < 1)

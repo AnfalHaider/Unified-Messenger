@@ -2,6 +2,8 @@ using System.Globalization;
 
 namespace UnifiedMessenger.Services;
 
+using UnifiedMessenger.Models;
+
 public static class OccDateRangeFilterHelper
 {
     public const int ChartDisplayDayCap = 31;
@@ -85,12 +87,17 @@ public static class OccDateRangeFilterHelper
     public static string FormatScopeLabel(
         string branchScope,
         DateTimeOffset? fromUtc,
-        DateTimeOffset? toUtc)
+        DateTimeOffset? toUtc,
+        OccViewMode viewMode = OccViewMode.Live)
     {
+        var modeLabel = viewMode == OccViewMode.Historical ? "Historical report" : "Live workload";
         var rangeLabel = FormatRangeLabel(fromUtc, toUtc);
-        return string.IsNullOrWhiteSpace(rangeLabel)
-            ? branchScope
-            : $"{branchScope} · {rangeLabel}";
+        if (string.IsNullOrWhiteSpace(rangeLabel))
+        {
+            return $"{branchScope} · {modeLabel}";
+        }
+
+        return $"{branchScope} · {modeLabel} · {rangeLabel}";
     }
 
     public static string FormatRangeLabel(DateTimeOffset? fromUtc, DateTimeOffset? toUtc)

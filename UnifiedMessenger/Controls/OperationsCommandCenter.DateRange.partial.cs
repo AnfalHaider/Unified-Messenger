@@ -139,6 +139,7 @@ public sealed partial class OperationsCommandCenter
 
     private void ApplyAnalyticsTrends(OperationsAnalyticsTrendSnapshot trends)
     {
+        MessageVolumeChart.IsHistoricalMode = _services.OccViewMode.IsHistorical;
         var exceedsCap = OccDateRangeFilterHelper.ExceedsChartDisplayCap(
             _services.OccDateRangeFilter.FromUtc,
             _services.OccDateRangeFilter.ToUtc);

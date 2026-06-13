@@ -42,16 +42,21 @@ public sealed class UnifiedMessengerDashboardService
             instance => instance.Id,
             StringComparer.OrdinalIgnoreCase);
 
-        // Operational views (KPI, kanban, immediate queue) always reflect current workload.
-        // Date range applies to analytics/chart only — see OperationsCommandCenterService.
-        _ = fromUtc;
-        _ = toUtc;
-
-        var threads = BranchWorkspaceHelper
+        List<ThreadData> threads = BranchWorkspaceHelper
             .FilterThreadsForBranchWorkspace(
                 ThreadRegistryService.Instance.GetAllThreads(),
                 instanceById,
                 selectedBranchKey)
+            .ToList();
+
+        if (fromUtc is not null || toUtc is not null)
+        {
+            threads = OccDateRangeFilterHelper
+                .FilterByTimestamp(threads, thread => thread.LastMessageTime, fromUtc, toUtc)
+                .ToList();
+        }
+
+        threads = threads
             .OrderByDescending(thread => thread.LastMessageTime)
             .ToList();
 

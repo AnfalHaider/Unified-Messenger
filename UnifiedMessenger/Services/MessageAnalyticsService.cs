@@ -254,6 +254,11 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             IncrementDaily(stats.DailySent, 1, sentAt);
             stats.LastSentUtc = sentAt;
 
+            if (!string.IsNullOrWhiteSpace(conversationKey))
+            {
+                stats.LastPairedConversationKey = NormalizeAnalyticsConversationKey(conversationKey);
+            }
+
             if (!string.IsNullOrWhiteSpace(chatHint))
             {
                 stats.LastChatHint = chatHint.Trim();

@@ -21,9 +21,10 @@ public partial class MessageVolumeLineChartViewModel : ViewModelBase
         IReadOnlyList<DailyActivityPoint>? series,
         double width = 320,
         double height = 96,
-        bool rangeExceedsDisplayCap = false)
+        bool rangeExceedsDisplayCap = false,
+        bool isHistoricalMode = false)
     {
-        var chart = MessageVolumeLineChartHelper.Build(series, width, height, rangeExceedsDisplayCap);
+        var chart = MessageVolumeLineChartHelper.Build(series, width, height, rangeExceedsDisplayCap, isHistoricalMode);
         SummaryText = chart.SummaryText;
         LinePathData = chart.LinePathData;
         AreaPathData = chart.AreaPathData;

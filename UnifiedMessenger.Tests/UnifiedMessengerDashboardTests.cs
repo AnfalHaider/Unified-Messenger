@@ -291,7 +291,38 @@ public class UnifiedMessengerDashboardServiceTests : IDisposable
     }
 
     [Fact]
-    public void BuildSnapshot_DateRange_DoesNotHideCurrentOperationalThreads()
+    public void BuildSnapshot_LiveMode_DateRange_DoesNotHideCurrentOperationalThreads()
+    {
+        ThreadRegistryService.Instance.UpsertFromTriageItem(
+            CreateItem("dha", "Stale Lead", "Old inquiry", DateTimeOffset.UtcNow.AddDays(-45)),
+            "Stale Lead",
+            "DHA-2",
+            aiIntentCategory: UnifiedMessengerIntentCategory.Lead);
+
+        var instances = new[]
+        {
+            new MessengerInstance
+            {
+                Id = "dha",
+                DisplayName = "Depilex DHA-2",
+                Platform = "whatsappbusiness",
+                Category = WorkspaceCategory.Professional
+            }
+        };
+
+        var snapshot = UnifiedMessengerDashboardService.Instance.BuildSnapshot(
+            instances,
+            selectedBranchKey: null,
+            fromUtc: null,
+            toUtc: null);
+
+        Assert.Equal(1, snapshot.OpenThreadCount);
+        Assert.Single(snapshot.AllThreads);
+        Assert.Equal("Stale Lead", snapshot.AllThreads[0].CustomerName);
+    }
+
+    [Fact]
+    public void BuildSnapshot_HistoricalDateRange_FiltersOperationalThreads()
     {
         ThreadRegistryService.Instance.UpsertFromTriageItem(
             CreateItem("dha", "Stale Lead", "Old inquiry", DateTimeOffset.UtcNow.AddDays(-45)),
@@ -318,9 +349,8 @@ public class UnifiedMessengerDashboardServiceTests : IDisposable
             fromUtc: from,
             toUtc: to);
 
-        Assert.Equal(1, snapshot.OpenThreadCount);
-        Assert.Single(snapshot.AllThreads);
-        Assert.Equal("Stale Lead", snapshot.AllThreads[0].CustomerName);
+        Assert.Equal(0, snapshot.OpenThreadCount);
+        Assert.Empty(snapshot.AllThreads);
     }
 
     private static MessageTriageItem CreateItem(

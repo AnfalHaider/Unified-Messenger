@@ -28,12 +28,26 @@ public sealed partial class MessageVolumeLineChart : UserControl
     {
         _currentSeries = series;
         _rangeExceedsDisplayCap = rangeExceedsDisplayCap;
-        _viewModel.ApplySeries(series, ResolvePlotWidth(), ResolvePlotHeight(), rangeExceedsDisplayCap);
+        _viewModel.ApplySeries(
+            series,
+            ResolvePlotWidth(),
+            ResolvePlotHeight(),
+            rangeExceedsDisplayCap,
+            IsHistoricalMode);
         SummaryTextBlock.Text = _viewModel.SummaryText;
         EmptyHintText.Visibility = _viewModel.ShowEmptyHint ? Visibility.Visible : Visibility.Collapsed;
+        if (_viewModel.ShowEmptyHint)
+        {
+            EmptyHintText.Text = IsHistoricalMode
+                ? "Historical volume appears after message history is synced for the selected period."
+                : "Volume appears after WhatsApp message history is synced. KPI cards show your live queue.";
+        }
+
         UpdateAxisLabels(series);
         RenderChart();
     }
+
+    public bool IsHistoricalMode { get; set; }
 
     private void UpdateAxisLabels(IReadOnlyList<DailyActivityPoint>? series)
     {

@@ -99,6 +99,12 @@ public sealed class ShellNavigationCoordinator
         var instance = _services.Registry.FindById(request.InstanceId);
         if (instance is null)
         {
+            _services.Navigation.NotifyNavigationFailed(new InstanceNavigationFailedEventArgs
+            {
+                InstanceId = request.InstanceId,
+                ConversationKey = request.ConversationKey,
+                Message = "That account is no longer available. Refresh the dashboard and try again."
+            });
             return;
         }
 
@@ -114,6 +120,13 @@ public sealed class ShellNavigationCoordinator
 
             if (!focused)
             {
+                _services.Navigation.NotifyNavigationFailed(new InstanceNavigationFailedEventArgs
+                {
+                    InstanceId = request.InstanceId,
+                    ConversationKey = request.ConversationKey,
+                    Message = "The account opened, but Unified Messenger could not focus the requested chat."
+                });
+
                 _ui.DispatcherQueue.TryEnqueue(() =>
                     _ = _services.Dialog.ShowErrorAsync(
                         "Could not open conversation",

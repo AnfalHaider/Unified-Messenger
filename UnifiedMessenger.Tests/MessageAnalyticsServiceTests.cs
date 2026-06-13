@@ -98,6 +98,28 @@ public class MessageAnalyticsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RecordMessageSent_PersistsConversationKey()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        service.RecordMessageSent("inst-1", chatHint: "Customer", conversationKey: "120363@s.whatsapp.net");
+
+        var exportPath = Path.Combine(_tempDirectory, "sent-export.json");
+        await service.ExportFilteredJsonAsync(
+            [
+                new MessengerInstance
+                {
+                    Id = "inst-1",
+                    DisplayName = "Support",
+                    Platform = "whatsapp"
+                }
+            ],
+            exportPath);
+
+        var json = await File.ReadAllTextAsync(exportPath);
+        Assert.Contains("120363@s.whatsapp.net", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ExportCsvAsync_WritesExpectedHeader()
     {
         var service = new MessageAnalyticsService(_storePath);

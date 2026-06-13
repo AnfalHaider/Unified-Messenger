@@ -1,3 +1,5 @@
+using UnifiedMessenger.Models;
+
 namespace UnifiedMessenger.Services;
 
 /// <summary>
@@ -26,6 +28,8 @@ public sealed class ShellNavigationService : INavigationService
     public event EventHandler? OccImmediateLaneFocusRequested;
 
     public event EventHandler<string?>? SettingsOpenRequested;
+
+    public event EventHandler<InstanceNavigationFailedEventArgs>? InstanceNavigationFailed;
 
     internal static ShellNavigationService CreateForTests() => new();
 
@@ -94,4 +98,10 @@ public sealed class ShellNavigationService : INavigationService
 
     public void RequestOpenSettings(string? sectionKey = null) =>
         SettingsOpenRequested?.Invoke(this, sectionKey);
+
+    public void NotifyNavigationFailed(InstanceNavigationFailedEventArgs args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        InstanceNavigationFailed?.Invoke(this, args);
+    }
 }

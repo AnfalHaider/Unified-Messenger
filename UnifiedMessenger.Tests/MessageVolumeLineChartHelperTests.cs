@@ -22,6 +22,29 @@ public class MessageVolumeLineChartHelperTests
     }
 
     [Fact]
+    public void Build_WithZeroTotals_ExplainsHistoryAndLiveKpis()
+    {
+        var series = new[]
+        {
+            new DailyActivityPoint { Label = "Mon", Sent = 0, Received = 0 },
+            new DailyActivityPoint { Label = "Tue", Sent = 0, Received = 0 }
+        };
+
+        var chart = MessageVolumeLineChartHelper.Build(series);
+
+        Assert.Contains("message history", chart.SummaryText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("live queue", chart.SummaryText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Build_WithZeroTotals_HistoricalMode_ExplainsPeriodKpis()
+    {
+        var chart = MessageVolumeLineChartHelper.Build([], isHistoricalMode: true);
+
+        Assert.Contains("selected period", chart.SummaryText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Build_WithZeroTotals_DoesNotReportFakePeakDay()
     {
         var series = new[]

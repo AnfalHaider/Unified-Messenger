@@ -1,3 +1,5 @@
+using UnifiedMessenger.Models;
+
 namespace UnifiedMessenger.Services;
 
 public interface INavigationService
@@ -19,6 +21,8 @@ public interface INavigationService
     event EventHandler? OccImmediateLaneFocusRequested;
 
     event EventHandler<string?>? SettingsOpenRequested;
+
+    event EventHandler<InstanceNavigationFailedEventArgs>? InstanceNavigationFailed;
 
     void RequestInstance(string instanceId);
 
@@ -43,4 +47,6 @@ public interface INavigationService
     void OpenInstance(string instanceId);
 
     void OpenInstance(string instanceId, string? conversationKey, string? customerName = null);
+
+    void NotifyNavigationFailed(InstanceNavigationFailedEventArgs args);
 }
