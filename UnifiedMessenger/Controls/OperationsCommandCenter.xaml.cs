@@ -22,6 +22,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     private bool _isRefreshing;
     private bool _showWorkspaceLoading;
     private bool _suppressDateRangeEvents;
+    private DispatcherQueueTimer? _dateRangeDebounceTimer;
     private IReadOnlyDictionary<string, BranchWorkspaceHelper.BranchTabCounts> _branchTabCounts =
         new Dictionary<string, BranchWorkspaceHelper.BranchTabCounts>(StringComparer.OrdinalIgnoreCase);
 
@@ -57,10 +58,6 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private void WireResponsiveLayoutHelpers()
     {
-        if (VisualStateManager.GetVisualStateGroups(KpiMetricsGrid) is { Count: > 0 } kpiGroups)
-        {
-            ScrollOffsetPreservationHelper.Attach(kpiGroups[0], MainContentScrollViewer);
-        }
         KanbanBoard.WireScrollBubbling(MainContentScrollViewer);
         ScrollInputHelper.EnableVerticalScrollBubbling(ImmediateQueueList, MainContentScrollViewer);
     }
@@ -70,6 +67,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         BranchWorkspacePillBar.SelectionChanged -= OnBranchWorkspacePillSelectionChanged;
         _services.OccFilter.Changed -= OnOccFilterStateChanged;
         _services.OccDateRangeFilter.Changed -= OnOccDateRangeFilterChanged;
+        StopDateRangeDebounceTimer();
     }
 
     public void ConfigureServices(ApplicationServices services)
@@ -80,10 +78,12 @@ public sealed partial class OperationsCommandCenter : UserControl
         _suppressDateRangeEvents = true;
         try
         {
+            OccDateRangeSettingsHelper.ApplyPersistedRange(
+                _services.AppSettings.Settings,
+                _services.OccDateRangeFilter);
             if (!_services.OccDateRangeFilter.HasActiveFilter)
             {
-                _services.OccDateRangeFilter.FromUtc = DateTimeOffset.Now.AddDays(-6);
-                _services.OccDateRangeFilter.ToUtc = DateTimeOffset.Now;
+                _services.OccDateRangeFilter.ResetToDefaultWindow();
             }
         }
         finally
@@ -161,8 +161,33 @@ public sealed partial class OperationsCommandCenter : UserControl
                         toUtc: _services.OccDateRangeFilter.ToUtc))
                 .ConfigureAwait(true);
 
+            var notificationHub = _services.NotificationHub as NotificationHub ?? NotificationHub.Instance;
+            var analyticsTrends = await Task.Run(() =>
+                {
+                    var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
+                        instanceList,
+                        notificationHub,
+                        WorkspaceBranchKey,
+                        _services.OccDateRangeFilter.FromUtc,
+                        _services.OccDateRangeFilter.ToUtc);
+                    var analytics = telemetry.Snapshot;
+                    return new OperationsAnalyticsTrendSnapshot
+                    {
+                        WeeklyActivity = analytics.WeeklyActivity,
+                        SentCount = analytics.SentCount,
+                        ReceivedCount = analytics.ReceivedCount,
+                        HasMessageVolume = analytics.HasMessageVolume,
+                        HasReplyMetrics = analytics.HasReplyMetrics,
+                        Triage = analytics.Triage,
+                        Highlights = analytics.Highlights
+                    };
+                })
+                .ConfigureAwait(true);
+
             ApplyStatusKpis(OccSnapshotPresenter.BuildStatusKpis(status));
+            ApplyScopeLabel(snapshotScopeLabel: null, statusBranchScope: null);
             ApplyShellPresentation(instanceList.Count > 0, status);
+            ApplyAnalyticsTrends(analyticsTrends);
             RebuildBranchPills(instanceList);
         }
         finally
@@ -262,6 +287,7 @@ public sealed partial class OperationsCommandCenter : UserControl
             DateTime.Now));
         ApplyShellUi();
         ApplyStatusKpis(OccSnapshotPresenter.BuildStatusKpis(snapshot.Status));
+        ApplyScopeLabel(snapshot.ScopeLabel, null);
         ApplyKanban(threadOps);
         ApplyImmediateQueue(threadOps);
         ApplyAnalyticsTrends(snapshot.AnalyticsTrends);
@@ -277,21 +303,22 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private void ApplyShellPresentation(bool hasProfessional, OperationsStatusSnapshot status)
     {
+        var branchScope = _services.OccFilter.BranchKey is { Length: > 0 } branchKey
+            ? $"Showing: {branchKey}"
+            : "Showing: All Branches";
         _viewModel.ApplyShellPresentation(OccSnapshotPresenter.BuildShellPresentation(
             hasProfessional,
-            _services.OccFilter.BranchKey is { Length: > 0 } key
-                ? $"Showing: {key}"
-                : "Showing: All Branches",
+            branchScope,
             DateTime.Now));
         ApplyShellUi();
         ApplyStatusKpis(OccSnapshotPresenter.BuildStatusKpis(status));
+        ApplyScopeLabel(null, branchScope);
     }
 
     private void ApplyShellUi()
     {
         EmptyStatePanel.Visibility = _viewModel.ShowEmptyState ? Visibility.Visible : Visibility.Collapsed;
         MainContentScrollViewer.Visibility = _viewModel.ShowMainContent ? Visibility.Visible : Visibility.Collapsed;
-        ScopeText.Text = _viewModel.ScopeLabel;
         LastRefreshedText.Text = _viewModel.LastRefreshedText;
         ApplyBranchFilterChip();
     }
@@ -313,6 +340,42 @@ public sealed partial class OperationsCommandCenter : UserControl
         HangingLeadsCard.Value = kpis.HangingLeadCount;
         ImmediateActionCard.Value = kpis.ImmediateActionCount;
         SlaBreachesCard.Value = kpis.SlaBreaches;
+
+        OpenThreadsCard.IsEnabled = ParseKpiCount(kpis.OpenThreadCount) > 0;
+        HangingLeadsCard.IsEnabled = ParseKpiCount(kpis.HangingLeadCount) > 0;
+        ImmediateActionCard.IsEnabled = ParseKpiCount(kpis.ImmediateActionCount) > 0;
+        SlaBreachesCard.IsEnabled = ParseKpiCount(kpis.SlaBreaches) > 0;
+
+        if (!string.IsNullOrWhiteSpace(kpis.ImmediateActionTooltip))
+        {
+            ImmediateActionCard.NavigationTooltip = kpis.ImmediateActionTooltip;
+        }
+    }
+
+    private static int ParseKpiCount(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value == "—")
+        {
+            return 0;
+        }
+
+        return int.TryParse(value, out var count) ? count : 0;
+    }
+
+    private void ApplyScopeLabel(string? snapshotScopeLabel, string? statusBranchScope)
+    {
+        var branchScope = snapshotScopeLabel
+            ?? statusBranchScope
+            ?? _viewModel.ScopeLabel;
+        if (string.IsNullOrWhiteSpace(branchScope))
+        {
+            branchScope = "Showing: All Branches";
+        }
+
+        ScopeText.Text = OccDateRangeFilterHelper.FormatScopeLabel(
+            branchScope,
+            _services.OccDateRangeFilter.FromUtc,
+            _services.OccDateRangeFilter.ToUtc);
     }
 
     private void RebuildBranchPills(IReadOnlyList<MessengerInstance> instanceList)

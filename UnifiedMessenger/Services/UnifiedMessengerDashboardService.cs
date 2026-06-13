@@ -42,26 +42,28 @@ public sealed class UnifiedMessengerDashboardService
             instance => instance.Id,
             StringComparer.OrdinalIgnoreCase);
 
+        // Operational views (KPI, kanban, immediate queue) always reflect current workload.
+        // Date range applies to analytics/chart only — see OperationsCommandCenterService.
+        _ = fromUtc;
+        _ = toUtc;
+
         var threads = BranchWorkspaceHelper
             .FilterThreadsForBranchWorkspace(
                 ThreadRegistryService.Instance.GetAllThreads(),
                 instanceById,
-                selectedBranchKey);
-        var filteredThreads = OccDateRangeFilterHelper
-            .FilterByTimestamp(threads, thread => thread.LastMessageTime, fromUtc, toUtc)
+                selectedBranchKey)
             .OrderByDescending(thread => thread.LastMessageTime)
             .ToList();
-        threads = filteredThreads;
 
         var displayOrder = ThreadDisplayOrderService.Instance;
 
-        var branchNames = BranchWorkspaceHelper.CollectBranchKeys(scopedInstances, filteredThreads);
+        var branchNames = BranchWorkspaceHelper.CollectBranchKeys(scopedInstances, threads);
 
         var branchMetrics = branchNames
-            .Select(branch => BranchWorkspaceHelper.BuildBranchMetrics(branch, filteredThreads, instances))
+            .Select(branch => BranchWorkspaceHelper.BuildBranchMetrics(branch, threads, instances))
             .ToList();
 
-        var actionableThreads = filteredThreads.Where(thread => !thread.IsSpamOrPromo).ToList();
+        var actionableThreads = threads.Where(thread => !thread.IsSpamOrPromo).ToList();
 
         var revenueAtRisk = actionableThreads
             .Where(thread => thread.IsRevenueLeakageRisk)
@@ -73,7 +75,7 @@ public sealed class UnifiedMessengerDashboardService
             .Take(ImmediateActionQueueDisplayLimit)
             .ToList();
 
-        var orderedThreads = filteredThreads
+        var orderedThreads = threads
             .GroupBy(thread => thread.KanbanColumn)
             .SelectMany(group => displayOrder.SortThreadsForKanbanColumn(group, group.Key))
             .ToList();

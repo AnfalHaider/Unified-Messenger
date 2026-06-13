@@ -10,17 +10,17 @@
     <Border
         Padding="{x:Bind CardPadding, Mode=OneTime}"
         Background="{ThemeResource LayerFillColorDefaultBrush}"
-        BorderBrush="{x:Bind ViewModel.CardBorderBrush, Mode=OneTime}"
-        BorderThickness="{x:Bind ViewModel.CardBorderThickness, Mode=OneTime}"
+        BorderBrush="{x:Bind ViewModel.CardBorderBrush, Mode=OneWay}"
+        BorderThickness="{x:Bind ViewModel.CardBorderThickness, Mode=OneWay}"
         CornerRadius="{StaticResource UmCornerRadiusMdValue}"
-        ToolTipService.ToolTip="{x:Bind ViewModel.NextActionSummary, Mode=OneTime}">
+        ToolTipService.ToolTip="{x:Bind ViewModel.NextActionSummary, Mode=OneWay}">
         <Grid ColumnSpacing="{StaticResource UmSpacingSm}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Border
-                Background="{x:Bind ViewModel.CardBorderBrush, Mode=OneTime}"
+                Background="{x:Bind ViewModel.CardBorderBrush, Mode=OneWay}"
                 CornerRadius="2"
                 Visibility="{x:Bind SlaStripeVisibility, Mode=OneTime}" />
             <StackPanel Grid.Column="1" MinWidth="0" Spacing="{x:Bind ContentSpacing, Mode=OneTime}">
@@ -33,47 +33,47 @@
                     <FontIcon
                         FontSize="{x:Bind PlatformIconSize, Mode=OneTime}"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Glyph="{x:Bind ViewModel.PlatformGlyph, Mode=OneTime}" />
+                        Glyph="{x:Bind ViewModel.PlatformGlyph, Mode=OneWay}" />
                     <TextBlock
                         Grid.Column="1"
                         MinWidth="0"
                         FontSize="{x:Bind CustomerNameFontSize, Mode=OneTime}"
                         FontWeight="SemiBold"
                         Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                        Text="{x:Bind ViewModel.CustomerName, Mode=OneTime}"
+                        Text="{x:Bind ViewModel.CustomerName, Mode=OneWay}"
                         TextTrimming="CharacterEllipsis"
                         TextWrapping="NoWrap" />
                     <Border
                         Grid.Column="2"
                         Padding="{x:Bind UrgencyBadgePadding, Mode=OneTime}"
-                        Background="{x:Bind ViewModel.UrgencyBrush, Mode=OneTime}"
+                        Background="{x:Bind ViewModel.UrgencyBrush, Mode=OneWay}"
                         CornerRadius="{StaticResource UmCornerRadiusSmValue}">
                         <TextBlock
                             Style="{StaticResource UmBadgeLabelOnAccentStyle}"
                             FontSize="{x:Bind UrgencyBadgeFontSize, Mode=OneTime}"
-                            Text="{x:Bind ViewModel.UrgencyLabel, Mode=OneTime}" />
+                            Text="{x:Bind ViewModel.UrgencyLabel, Mode=OneWay}" />
                     </Border>
                 </Grid>
                 <TextBlock
                     Style="{StaticResource UmCaptionTextStyle}"
-                    Text="{x:Bind ViewModel.InboxLabel, Mode=OneTime}" />
+                    Text="{x:Bind ViewModel.InboxLabel, Mode=OneWay}" />
                 <TextBlock
                     Style="{StaticResource UmCaptionTextStyle}"
-                    Text="{x:Bind ViewModel.BranchName, Mode=OneTime}"
-                    Visibility="{x:Bind ViewModel.BranchNameVisibility, Mode=OneTime}" />
+                    Text="{x:Bind ViewModel.BranchName, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.BranchNameVisibility, Mode=OneWay}" />
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource UmSpacingXs}" Visibility="{x:Bind TagRowVisibility, Mode=OneTime}">
                     <Border Style="{StaticResource UmTagBadgeStyle}">
                         <TextBlock
                             Style="{StaticResource UmBadgeLabelStyle}"
                             Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                            Text="{x:Bind ViewModel.IntentLabel, Mode=OneTime}" />
+                            Text="{x:Bind ViewModel.IntentLabel, Mode=OneWay}" />
                     </Border>
                     <Border
-                        Background="{x:Bind ViewModel.SentimentBrush, Mode=OneTime}"
+                        Background="{x:Bind ViewModel.SentimentBrush, Mode=OneWay}"
                         Style="{StaticResource UmSemanticBadgeStyle}">
                         <TextBlock
                             Style="{StaticResource UmBadgeLabelOnAccentStyle}"
-                            Text="{x:Bind ViewModel.SentimentLabel, Mode=OneTime}" />
+                            Text="{x:Bind ViewModel.SentimentLabel, Mode=OneWay}" />
                     </Border>
                 </StackPanel>
                 <TextBlock
@@ -82,26 +82,26 @@
                     Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                     MaxLines="{x:Bind SummaryMaxLines, Mode=OneTime}"
                     Opacity="{StaticResource UmOpacityHint}"
-                    Text="{x:Bind ViewModel.NextActionSummary, Mode=OneTime}"
+                    Text="{x:Bind ViewModel.NextActionSummary, Mode=OneWay}"
                     TextTrimming="CharacterEllipsis"
                     TextWrapping="WrapWholeWords" />
                 <TextBlock
                     FontSize="{StaticResource UmBadgeFontSize}"
                     FontWeight="SemiBold"
-                    Foreground="{x:Bind ViewModel.SlaBrush, Mode=OneTime}"
-                    Text="{x:Bind ViewModel.SlaText, Mode=OneTime}"
-                    Visibility="{x:Bind ViewModel.SlaVisibility, Mode=OneTime}" />
+                    Foreground="{x:Bind ViewModel.SlaBrush, Mode=OneWay}"
+                    Text="{x:Bind ViewModel.SlaText, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.SlaVisibility, Mode=OneWay}" />
                 <TextBlock
                     FontSize="{StaticResource UmBadgeFontSize}"
                     FontWeight="SemiBold"
-                    Foreground="{x:Bind ViewModel.DeliveryStatusBrush, Mode=OneTime}"
-                    Text="{x:Bind ViewModel.DeliveryStatusLabel, Mode=OneTime}"
-                    Visibility="{x:Bind ViewModel.DeliveryStatusVisibility, Mode=OneTime}" />
+                    Foreground="{x:Bind ViewModel.DeliveryStatusBrush, Mode=OneWay}"
+                    Text="{x:Bind ViewModel.DeliveryStatusLabel, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.DeliveryStatusVisibility, Mode=OneWay}" />
                 <TextBlock
                     FontSize="{StaticResource UmBadgeFontSize}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="{x:Bind ViewModel.RevenueDisplay, Mode=OneTime}"
-                    Visibility="{x:Bind ViewModel.RevenueVisibility, Mode=OneTime}" />
+                    Text="{x:Bind ViewModel.RevenueDisplay, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.RevenueVisibility, Mode=OneWay}" />
                 <TextBlock
                     FontSize="{StaticResource UmBadgeFontSize}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"

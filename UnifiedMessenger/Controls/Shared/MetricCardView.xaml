@@ -10,8 +10,10 @@
     <Border
         x:Name="CardBorder"
         MinWidth="90"
+        KeyDown="CardBorder_KeyDown"
         Padding="{StaticResource UmMetricCardPadding}"
-        Style="{StaticResource DashboardMetricCardStyle}">
+        Style="{StaticResource DashboardMetricCardStyle}"
+        Tapped="CardBorder_Tapped">
         <Grid ColumnSpacing="{StaticResource UmSpacingSm}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -54,6 +56,24 @@
                     <Setter Target="ValueText.FontSize" Value="22" />
                     <Setter Target="ValueText.FontWeight" Value="Bold" />
                     <Setter Target="MetricIcon.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                </VisualState.Setters>
+            </VisualState>
+        </VisualStateGroup>
+        <VisualStateGroup x:Name="InteractionStates">
+            <VisualState x:Name="InteractiveNormal" />
+            <VisualState x:Name="PointerOver">
+                <VisualState.Setters>
+                    <Setter Target="CardBorder.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                </VisualState.Setters>
+            </VisualState>
+            <VisualState x:Name="Pressed">
+                <VisualState.Setters>
+                    <Setter Target="CardBorder.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                </VisualState.Setters>
+            </VisualState>
+            <VisualState x:Name="Disabled">
+                <VisualState.Setters>
+                    <Setter Target="CardBorder.Opacity" Value="0.55" />
                 </VisualState.Setters>
             </VisualState>
         </VisualStateGroup>

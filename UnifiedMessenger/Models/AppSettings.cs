@@ -3,7 +3,7 @@ namespace UnifiedMessenger.Models;
 public sealed class AppSettings
 {
     /// <summary>Lite baseline — legacy AI/OCC-layout keys are dropped on load via re-save.</summary>
-    public const int CurrentVersion = 14;
+    public const int CurrentVersion = 15;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -84,6 +84,12 @@ public sealed class AppSettings
 
     public List<string> PersonalOverviewSectionOrder { get; set; } =
         PersonalOverviewLayoutDefaults.SectionOrder.ToList();
+
+    /// <summary>Persisted OCC chart date range (local calendar date, yyyy-MM-dd).</summary>
+    public string? OccDateRangeFromLocal { get; set; }
+
+    /// <summary>Persisted OCC chart date range (local calendar date, yyyy-MM-dd).</summary>
+    public string? OccDateRangeToLocal { get; set; }
 
     public void Normalize()
     {

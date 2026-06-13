@@ -15,6 +15,7 @@ public sealed partial class MessageVolumeLineChart : UserControl
     private readonly MessageVolumeLineChartViewModel _viewModel = new();
     private IReadOnlyList<DailyActivityPoint>? _currentSeries;
     private string? _lastRenderedSignature;
+    private bool _rangeExceedsDisplayCap;
 
     public MessageVolumeLineChart()
     {
@@ -23,10 +24,11 @@ public sealed partial class MessageVolumeLineChart : UserControl
         Loaded += (_, _) => RenderChart();
     }
 
-    public void ApplySeries(IReadOnlyList<DailyActivityPoint>? series)
+    public void ApplySeries(IReadOnlyList<DailyActivityPoint>? series, bool rangeExceedsDisplayCap = false)
     {
         _currentSeries = series;
-        _viewModel.ApplySeries(series, ResolvePlotWidth(), ResolvePlotHeight());
+        _rangeExceedsDisplayCap = rangeExceedsDisplayCap;
+        _viewModel.ApplySeries(series, ResolvePlotWidth(), ResolvePlotHeight(), rangeExceedsDisplayCap);
         SummaryTextBlock.Text = _viewModel.SummaryText;
         EmptyHintText.Visibility = _viewModel.ShowEmptyHint ? Visibility.Visible : Visibility.Collapsed;
         UpdateAxisLabels(series);
@@ -61,7 +63,7 @@ public sealed partial class MessageVolumeLineChart : UserControl
 
         var width = ResolvePlotWidth();
         var height = ResolvePlotHeight();
-        var chart = MessageVolumeLineChartHelper.Build(_currentSeries, width, height);
+        var chart = MessageVolumeLineChartHelper.Build(_currentSeries, width, height, _rangeExceedsDisplayCap);
         var signature = $"{chart.LinePathData}|{chart.AreaPathData}|{width:0.#}|{height:0.#}";
         if (signature == _lastRenderedSignature)
         {

@@ -50,11 +50,7 @@ public sealed class OperationsCommandCenterService
             .ToList();
 
         var normalizedBranchKey = BranchWorkspaceHelper.NormalizeBranchKey(selectedBranchKey);
-        var threadOperations = threadService.BuildSnapshot(
-            filteredInstances,
-            normalizedBranchKey,
-            fromUtc,
-            toUtc);
+        var threadOperations = threadService.BuildSnapshot(filteredInstances, normalizedBranchKey);
         var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
             filteredInstances,
             hub,
@@ -110,11 +106,7 @@ public sealed class OperationsCommandCenterService
             .FilterProfessionalInstances(filteredInstances, normalizedBranchKey)
             .ToList();
 
-        var threadOperations = threadService.BuildSnapshot(
-            filteredInstances,
-            normalizedBranchKey,
-            fromUtc,
-            toUtc);
+        var threadOperations = threadService.BuildSnapshot(filteredInstances, normalizedBranchKey);
         var telemetry = DashboardPageHelper.CaptureProfessionalDashboardTelemetry(
             filteredInstances,
             hub,

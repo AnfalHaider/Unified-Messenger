@@ -1,10 +1,13 @@
 namespace UnifiedMessenger.Services;
 
 /// <summary>
-/// Shared date-range filter for Operations Command Center KPIs, charts, and thread views.
+/// Shared date-range filter for Operations Command Center charts and analytics.
+/// KPI, kanban, and immediate queue always show current workload regardless of range.
 /// </summary>
 public sealed class OccDateRangeFilterState
 {
+    public const int DefaultWindowDays = 7;
+
     private static readonly Lazy<OccDateRangeFilterState> LazyInstance = new(() => new OccDateRangeFilterState());
 
     private DateTimeOffset? _fromUtc;
@@ -54,17 +57,54 @@ public sealed class OccDateRangeFilterState
         }
     }
 
-    public bool HasActiveFilter => FromUtc is not null || ToUtc is not null;
+    public bool HasActiveFilter => FromUtc is not null && ToUtc is not null;
 
-    public void Clear()
+    public void Clear() => ResetToDefaultWindow();
+
+    public void ResetToDefaultWindow()
     {
-        if (_fromUtc is null && _toUtc is null)
+        var today = DateTimeOffset.Now;
+        var from = NormalizeStartOfDay(today.AddDays(-(DefaultWindowDays - 1)));
+        var to = NormalizeEndOfDay(today);
+
+        if (_fromUtc == from && _toUtc == to)
         {
             return;
         }
 
-        _fromUtc = null;
-        _toUtc = null;
+        _fromUtc = from;
+        _toUtc = to;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void ApplyPersistedRange(DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    {
+        if (fromUtc is null || toUtc is null)
+        {
+            ResetToDefaultWindow();
+            return;
+        }
+
+        var from = NormalizeStartOfDay(fromUtc);
+        var to = NormalizeEndOfDay(toUtc);
+        if (from is null || to is null)
+        {
+            ResetToDefaultWindow();
+            return;
+        }
+
+        if (from > to)
+        {
+            (from, to) = (to, from);
+        }
+
+        if (_fromUtc == from && _toUtc == to)
+        {
+            return;
+        }
+
+        _fromUtc = from;
+        _toUtc = to;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 

@@ -526,10 +526,6 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
                 receivedByDay.TryGetValue(day, out var currentReceived);
                 receivedByDay[day] = currentReceived + count;
             }
-
-            slaBreaches += CountSlaBreachesStatic(stats);
-            totalReplyMinutes += stats.TotalReplyMinutes;
-            replyCount += stats.ReplyCount;
         }
 
         var weeklyActivity = fromUtc is null && toUtc is null
@@ -538,18 +534,27 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         var hasMessageVolume = sent > 0 ||
                                received > 0 ||
                                weeklyActivity.Any(point => point.Sent > 0 || point.Received > 0);
-        var hasReplyMetrics = replyCount > 0;
+        var isRangeFiltered = fromUtc is not null || toUtc is not null;
+        var hasReplyMetrics = !isRangeFiltered && replyCount > 0;
 
         return new ProfessionalAnalyticsSnapshot
         {
             SentCount = sent,
             ReceivedCount = received,
-            ReplyPairCount = replyCount,
-            AverageReplyTimeDisplay = FormatAverageReplyTime(totalReplyMinutes, replyCount),
-            SlaBreaches = slaBreaches,
-            ResponseRateDisplay = FormatResponseRate(replyCount, slaBreaches),
-            PeakHourDisplay = FormatPeakHour(hourlyTotals),
-            DailyTrendDisplay = ComputeDailyTrend(instances),
+            ReplyPairCount = isRangeFiltered ? 0 : replyCount,
+            AverageReplyTimeDisplay = isRangeFiltered
+                ? "—"
+                : FormatAverageReplyTime(totalReplyMinutes, replyCount),
+            SlaBreaches = isRangeFiltered ? 0 : slaBreaches,
+            ResponseRateDisplay = isRangeFiltered
+                ? "—"
+                : FormatResponseRate(replyCount, slaBreaches),
+            PeakHourDisplay = isRangeFiltered
+                ? "—"
+                : FormatPeakHour(hourlyTotals),
+            DailyTrendDisplay = isRangeFiltered
+                ? ComputeDailyTrendForSeries(weeklyActivity)
+                : ComputeDailyTrend(instances),
             HasReplyMetrics = hasReplyMetrics,
             HasMessageVolume = hasMessageVolume,
             WeeklyActivity = weeklyActivity,
@@ -806,6 +811,30 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         var change = (today - yesterday) * 100.0 / yesterday;
         var sign = change >= 0 ? "+" : "";
         return $"{sign}{Math.Round(change, 0)}% vs yesterday";
+    }
+
+    private static string ComputeDailyTrendForSeries(IReadOnlyList<DailyActivityPoint> series)
+    {
+        if (series.Count < 2)
+        {
+            return "—";
+        }
+
+        var previous = series[^2].Sent + series[^2].Received;
+        var latest = series[^1].Sent + series[^1].Received;
+        if (latest == 0 && previous == 0)
+        {
+            return "—";
+        }
+
+        if (previous == 0)
+        {
+            return $"+{latest} vs prior day";
+        }
+
+        var change = (latest - previous) * 100.0 / previous;
+        var sign = change >= 0 ? "+" : "";
+        return $"{sign}{Math.Round(change, 0)}% vs prior day";
     }
 
     private IReadOnlyList<OperationalHighlightItem> BuildOperationalHighlights(

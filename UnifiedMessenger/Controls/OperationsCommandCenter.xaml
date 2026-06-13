@@ -146,64 +146,61 @@
                     </shared:SurfaceCard.CardBody>
                 </shared:SurfaceCard>
 
-                <Grid
-                    x:Name="KpiMetricsGrid"
-                    ColumnSpacing="{StaticResource UmSpacingMd}"
-                    RowSpacing="{StaticResource UmSpacingMd}">
-                    <VisualStateManager.VisualStateGroups>
-                        <VisualStateGroup>
-                            <VisualState x:Name="WideKpiLayout">
-                                <VisualState.StateTriggers>
-                                    <AdaptiveTrigger MinWindowWidth="900" />
-                                </VisualState.StateTriggers>
-                                <VisualState.Setters>
-                                    <Setter Target="ImmediateActionCard.(Grid.Column)" Value="2" />
-                                    <Setter Target="ImmediateActionCard.(Grid.Row)" Value="0" />
-                                    <Setter Target="SlaBreachesCard.(Grid.Column)" Value="3" />
-                                    <Setter Target="SlaBreachesCard.(Grid.Row)" Value="0" />
-                                </VisualState.Setters>
-                            </VisualState>
-                        </VisualStateGroup>
-                    </VisualStateManager.VisualStateGroups>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition MinWidth="120" Width="*" />
-                        <ColumnDefinition MinWidth="120" Width="*" />
-                        <ColumnDefinition MinWidth="120" Width="*" />
-                        <ColumnDefinition MinWidth="120" Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <shared:MetricCardView
-                        x:Name="OpenThreadsCard"
-                        Grid.Column="0"
-                        Grid.Row="0"
-                        IconGlyph="&#xE8BD;"
-                        Label="Open threads"
-                        Value="0" />
-                    <shared:MetricCardView
-                        x:Name="HangingLeadsCard"
-                        Grid.Column="1"
-                        Grid.Row="0"
-                        IconGlyph="&#xE823;"
-                        Label="Hanging leads"
-                        Value="0" />
-                    <shared:MetricCardView
-                        x:Name="ImmediateActionCard"
-                        Grid.Column="0"
-                        Grid.Row="1"
-                        IconGlyph="&#xE7BA;"
-                        Label="Needs action"
-                        Value="0" />
-                    <shared:MetricCardView
-                        x:Name="SlaBreachesCard"
-                        Grid.Column="1"
-                        Grid.Row="1"
-                        IconGlyph="&#xE783;"
-                        Label="SLA breaches"
-                        Value="0" />
-                </Grid>
+                <ScrollViewer
+                    HorizontalScrollBarVisibility="Auto"
+                    HorizontalScrollMode="Enabled"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled">
+                    <StackPanel
+                        x:Name="KpiMetricsRow"
+                        Orientation="Horizontal"
+                        Spacing="{StaticResource UmSpacingMd}">
+                        <shared:MetricCardView
+                            x:Name="OpenThreadsCard"
+                            MinWidth="140"
+                            Width="180"
+                            Activated="OpenThreadsCard_Activated"
+                            IconGlyph="&#xE8BD;"
+                            IsInteractive="True"
+                            Label="Open threads"
+                            MetricAutomationId="OccKpiOpenThreads"
+                            NavigationTooltip="Open the highest-latency unreplied thread"
+                            Value="0" />
+                        <shared:MetricCardView
+                            x:Name="HangingLeadsCard"
+                            MinWidth="140"
+                            Width="180"
+                            Activated="HangingLeadsCard_Activated"
+                            IconGlyph="&#xE823;"
+                            IsInteractive="True"
+                            Label="Hanging leads"
+                            MetricAutomationId="OccKpiHangingLeads"
+                            NavigationTooltip="Open the top hanging-lead thread"
+                            Value="0" />
+                        <shared:MetricCardView
+                            x:Name="ImmediateActionCard"
+                            MinWidth="140"
+                            Width="180"
+                            Activated="ImmediateActionCard_Activated"
+                            IconGlyph="&#xE7BA;"
+                            IsInteractive="True"
+                            Label="Needs action"
+                            MetricAutomationId="OccKpiNeedsAction"
+                            NavigationTooltip="Open the top immediate-queue thread"
+                            Value="0" />
+                        <shared:MetricCardView
+                            x:Name="SlaBreachesCard"
+                            MinWidth="140"
+                            Width="180"
+                            Activated="SlaBreachesCard_Activated"
+                            IconGlyph="&#xE783;"
+                            IsInteractive="True"
+                            Label="SLA breaches"
+                            MetricAutomationId="OccKpiSlaBreaches"
+                            NavigationTooltip="Open the worst SLA breach by wait time"
+                            Value="0" />
+                    </StackPanel>
+                </ScrollViewer>
 
                 <StackPanel x:Name="ImmediateLaneSection" Spacing="{StaticResource UmSpacingSm}">
                     <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Immediate queue" />

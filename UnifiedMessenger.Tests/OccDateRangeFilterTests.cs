@@ -49,6 +49,60 @@ public class OccDateRangeFilterTests
     }
 
     [Fact]
+    public void ResetToDefaultWindow_SetsSevenDayInclusiveRange()
+    {
+        var filter = OccDateRangeFilterState.CreateForTests();
+        filter.FromUtc = DateTimeOffset.Now.AddDays(-30);
+        filter.ToUtc = DateTimeOffset.Now.AddDays(-20);
+
+        filter.ResetToDefaultWindow();
+
+        Assert.True(filter.HasActiveFilter);
+        Assert.NotNull(filter.FromUtc);
+        Assert.NotNull(filter.ToUtc);
+        var spanDays = (filter.ToUtc!.Value.Date - filter.FromUtc!.Value.Date).Days + 1;
+        Assert.Equal(OccDateRangeFilterState.DefaultWindowDays, spanDays);
+    }
+
+    [Fact]
+    public void Clear_ResetsToDefaultWindow()
+    {
+        var filter = OccDateRangeFilterState.CreateForTests();
+        filter.FromUtc = DateTimeOffset.Now.AddDays(-30);
+        filter.ToUtc = DateTimeOffset.Now.AddDays(-20);
+
+        filter.Clear();
+
+        Assert.True(filter.HasActiveFilter);
+        var spanDays = (filter.ToUtc!.Value.Date - filter.FromUtc!.Value.Date).Days + 1;
+        Assert.Equal(OccDateRangeFilterState.DefaultWindowDays, spanDays);
+    }
+
+    [Fact]
+    public void FormatScopeLabel_AppendsRangeToBranchScope()
+    {
+        var from = new DateTimeOffset(2026, 6, 7, 0, 0, 0, DateTimeOffset.Now.Offset);
+        var to = new DateTimeOffset(2026, 6, 13, 0, 0, 0, DateTimeOffset.Now.Offset);
+
+        var label = OccDateRangeFilterHelper.FormatScopeLabel("Showing: All Branches", from, to);
+
+        Assert.StartsWith("Showing: All Branches ·", label, StringComparison.Ordinal);
+        Assert.Contains("Jun", label, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExceedsChartDisplayCap_DetectsRangesBeyondThirtyOneDays()
+    {
+        var from = DateTimeOffset.Now.AddDays(-40);
+        var to = DateTimeOffset.Now;
+
+        Assert.True(OccDateRangeFilterHelper.ExceedsChartDisplayCap(from, to));
+        Assert.False(OccDateRangeFilterHelper.ExceedsChartDisplayCap(
+            DateTimeOffset.Now.AddDays(-6),
+            DateTimeOffset.Now));
+    }
+
+    [Fact]
     public void ParseMessageKind_MapsTelemetryKinds()
     {
         Assert.Equal(Models.InboundMessageKind.Catalog, WhatsAppIngressHandler.ParseMessageKind("catalog"));

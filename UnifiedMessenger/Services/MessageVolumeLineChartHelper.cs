@@ -18,19 +18,28 @@ public static class MessageVolumeLineChartHelper
     public static MessageVolumeLineChartSummary Build(
         IReadOnlyList<DailyActivityPoint>? series,
         double width = 320,
-        double height = 96)
+        double height = 96,
+        bool rangeExceedsDisplayCap = false)
     {
         if (series is null || series.Count == 0)
         {
             return new MessageVolumeLineChartSummary
             {
-                SummaryText = "No message volume in the selected range."
+                SummaryText = BuildSummaryText(0, 0, rangeExceedsDisplayCap)
             };
         }
 
         var totals = series.Select(point => point.Sent + point.Received).ToList();
-        var peak = Math.Max(1, totals.Max());
         var totalMessages = totals.Sum();
+        if (totalMessages == 0)
+        {
+            return new MessageVolumeLineChartSummary
+            {
+                SummaryText = BuildSummaryText(0, 0, rangeExceedsDisplayCap)
+            };
+        }
+
+        var peak = totals.Max();
         var stepX = series.Count <= 1 ? width : width / (series.Count - 1);
         var linePoints = new List<(double X, double Y)>(series.Count);
 
@@ -46,12 +55,28 @@ public static class MessageVolumeLineChartHelper
 
         return new MessageVolumeLineChartSummary
         {
-            SummaryText = $"{totalMessages} messages in range (peak day {peak})",
+            SummaryText = BuildSummaryText(totalMessages, peak, rangeExceedsDisplayCap),
             LinePathData = linePath,
             AreaPathData = areaPath,
             PeakTotal = peak,
             TotalMessages = totalMessages
         };
+    }
+
+    private static string BuildSummaryText(int totalMessages, int peakDayTotal, bool rangeExceedsDisplayCap)
+    {
+        if (totalMessages == 0)
+        {
+            var empty = "No message volume in the selected range.";
+            return rangeExceedsDisplayCap
+                ? $"{empty} Chart shows the first {OccDateRangeFilterHelper.ChartDisplayDayCap} days only."
+                : empty;
+        }
+
+        var summary = $"{totalMessages} messages in range (peak day {peakDayTotal})";
+        return rangeExceedsDisplayCap
+            ? $"{summary}. Chart shows the first {OccDateRangeFilterHelper.ChartDisplayDayCap} days only."
+            : summary;
     }
 
     private static string BuildPolyline(IReadOnlyList<(double X, double Y)> points, bool closeArea)
