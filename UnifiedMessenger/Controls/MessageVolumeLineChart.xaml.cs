@@ -29,7 +29,21 @@ public sealed partial class MessageVolumeLineChart : UserControl
         _viewModel.ApplySeries(series, ResolvePlotWidth(), ResolvePlotHeight());
         SummaryTextBlock.Text = _viewModel.SummaryText;
         EmptyHintText.Visibility = _viewModel.ShowEmptyHint ? Visibility.Visible : Visibility.Collapsed;
+        UpdateAxisLabels(series);
         RenderChart();
+    }
+
+    private void UpdateAxisLabels(IReadOnlyList<DailyActivityPoint>? series)
+    {
+        if (series is null || series.Count == 0)
+        {
+            AxisStartLabel.Text = "—";
+            AxisEndLabel.Text = "—";
+            return;
+        }
+
+        AxisStartLabel.Text = series[0].Label;
+        AxisEndLabel.Text = series[^1].Label;
     }
 
     private void OnChartPlotSizeChanged(object sender, SizeChangedEventArgs e) =>

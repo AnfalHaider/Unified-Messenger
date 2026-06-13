@@ -12,7 +12,7 @@
     <UserControl.Resources>
         <DataTemplate x:Key="OperationsKanbanCardTemplate" x:DataType="controls:OperationsThreadCardViewModel">
             <shared:OperationsThreadCardView
-                Margin="0,0,0,6"
+                Margin="{StaticResource UmMarginBottomSm}"
                 DisplayStyle="Kanban"
                 ViewModel="{Binding}" />
         </DataTemplate>
@@ -23,11 +23,11 @@
             x:Name="CrossColumnInfoBar"
             IsClosable="True"
             IsOpen="False"
-            Message="Column placement is determined by thread status. Reorder within a column, or open the thread to update status in the platform."
+            Message="Drag cards between columns to update thread status. Within-column order is saved automatically."
             Severity="Informational"
-            Title="Visual order only" />
+            Title="Kanban drag" />
 
-        <Grid ColumnSpacing="6">
+        <Grid ColumnSpacing="{StaticResource UmSpacingSm}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
@@ -41,30 +41,43 @@
                 Spacing="{StaticResource UmSpacingXs}">
                 <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="New" />
                 <Border x:Name="NewColumnDropZone" Style="{StaticResource KanbanColumnDropZoneStyle}">
-                    <ListView
-                        x:Name="NewInquiriesList"
-                        AllowDrop="True"
-                        AutomationProperties.Name="New inquiries kanban list"
-                        CanDragItems="False"
-                        CanReorderItems="False"
-                        DragItemsCompleted="KanbanList_DragItemsCompleted"
-                        DragItemsStarting="KanbanList_DragItemsStarting"
-                        DragOver="KanbanList_DragOver"
-                        Drop="KanbanList_Drop"
-                        IsItemClickEnabled="True"
-                        IsSwipeEnabled="False"
-                        ItemClick="KanbanList_ItemClick"
-                        ItemTemplate="{StaticResource OperationsKanbanCardTemplate}"
-                        RightTapped="KanbanList_RightTapped"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                        SelectionMode="None" />
+                    <Grid>
+                        <ListView
+                            x:Name="NewInquiriesList"
+                            AllowDrop="True"
+                            AutomationProperties.Name="New inquiries kanban list"
+                            CanDragItems="False"
+                            CanReorderItems="False"
+                            DragItemsCompleted="KanbanList_DragItemsCompleted"
+                            DragItemsStarting="KanbanList_DragItemsStarting"
+                            DragOver="KanbanList_DragOver"
+                            Drop="KanbanList_Drop"
+                            IsItemClickEnabled="True"
+                            IsSwipeEnabled="False"
+                            ItemClick="KanbanList_ItemClick"
+                            ItemTemplate="{StaticResource OperationsKanbanCardTemplate}"
+                            RightTapped="KanbanList_RightTapped"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            SelectionMode="None" />
+                        <Border
+                            x:Name="NewInquiriesEmptyPanel"
+                            Style="{StaticResource UmKanbanEmptyStateStyle}"
+                            Visibility="Collapsed">
+                            <StackPanel HorizontalAlignment="Center" Spacing="{StaticResource UmSpacingXs}">
+                                <FontIcon
+                                    HorizontalAlignment="Center"
+                                    FontSize="{StaticResource UmIconSizeSm}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Glyph="&#xE8BD;" />
+                                <TextBlock
+                                    x:Name="NewInquiriesEmptyText"
+                                    Style="{StaticResource UmEmptyHintTextStyle}"
+                                    Text="No new inquiries." />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Border>
-                <TextBlock
-                    x:Name="NewInquiriesEmptyText"
-                    Style="{StaticResource UmCaptionTextStyle}"
-                    Text="No new inquiries."
-                    Visibility="Collapsed" />
             </StackPanel>
 
             <StackPanel
@@ -74,30 +87,43 @@
                 Spacing="{StaticResource UmSpacingXs}">
                 <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="Hanging" />
                 <Border x:Name="HangingColumnDropZone" Style="{StaticResource KanbanColumnDropZoneStyle}">
-                    <ListView
-                        x:Name="HangingLeadsList"
-                        AllowDrop="True"
-                        AutomationProperties.Name="Hanging leads kanban list"
-                        CanDragItems="False"
-                        CanReorderItems="False"
-                        DragItemsCompleted="KanbanList_DragItemsCompleted"
-                        DragItemsStarting="KanbanList_DragItemsStarting"
-                        DragOver="KanbanList_DragOver"
-                        Drop="KanbanList_Drop"
-                        IsItemClickEnabled="True"
-                        IsSwipeEnabled="False"
-                        ItemClick="KanbanList_ItemClick"
-                        ItemTemplate="{StaticResource OperationsKanbanCardTemplate}"
-                        RightTapped="KanbanList_RightTapped"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                        SelectionMode="None" />
+                    <Grid>
+                        <ListView
+                            x:Name="HangingLeadsList"
+                            AllowDrop="True"
+                            AutomationProperties.Name="Hanging leads kanban list"
+                            CanDragItems="False"
+                            CanReorderItems="False"
+                            DragItemsCompleted="KanbanList_DragItemsCompleted"
+                            DragItemsStarting="KanbanList_DragItemsStarting"
+                            DragOver="KanbanList_DragOver"
+                            Drop="KanbanList_Drop"
+                            IsItemClickEnabled="True"
+                            IsSwipeEnabled="False"
+                            ItemClick="KanbanList_ItemClick"
+                            ItemTemplate="{StaticResource OperationsKanbanCardTemplate}"
+                            RightTapped="KanbanList_RightTapped"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            SelectionMode="None" />
+                        <Border
+                            x:Name="HangingLeadsEmptyPanel"
+                            Style="{StaticResource UmKanbanEmptyStateStyle}"
+                            Visibility="Collapsed">
+                            <StackPanel HorizontalAlignment="Center" Spacing="{StaticResource UmSpacingXs}">
+                                <FontIcon
+                                    HorizontalAlignment="Center"
+                                    FontSize="{StaticResource UmIconSizeSm}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Glyph="&#xE823;" />
+                                <TextBlock
+                                    x:Name="HangingLeadsEmptyText"
+                                    Style="{StaticResource UmEmptyHintTextStyle}"
+                                    Text="No hanging leads." />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Border>
-                <TextBlock
-                    x:Name="HangingLeadsEmptyText"
-                    Style="{StaticResource UmCaptionTextStyle}"
-                    Text="No hanging leads."
-                    Visibility="Collapsed" />
             </StackPanel>
 
             <StackPanel
@@ -107,30 +133,43 @@
                 Spacing="{StaticResource UmSpacingXs}">
                 <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="Resolved" />
                 <Border x:Name="ResolvedColumnDropZone" Style="{StaticResource KanbanColumnDropZoneStyle}">
-                    <ListView
-                        x:Name="ResolvedList"
-                        AllowDrop="True"
-                        AutomationProperties.Name="Resolved threads kanban list"
-                        CanDragItems="False"
-                        CanReorderItems="False"
-                        DragItemsCompleted="KanbanList_DragItemsCompleted"
-                        DragItemsStarting="KanbanList_DragItemsStarting"
-                        DragOver="KanbanList_DragOver"
-                        Drop="KanbanList_Drop"
-                        IsItemClickEnabled="True"
-                        IsSwipeEnabled="False"
-                        ItemClick="KanbanList_ItemClick"
-                        ItemTemplate="{StaticResource OperationsKanbanCardTemplate}"
-                        RightTapped="KanbanList_RightTapped"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                        SelectionMode="None" />
+                    <Grid>
+                        <ListView
+                            x:Name="ResolvedList"
+                            AllowDrop="True"
+                            AutomationProperties.Name="Resolved threads kanban list"
+                            CanDragItems="False"
+                            CanReorderItems="False"
+                            DragItemsCompleted="KanbanList_DragItemsCompleted"
+                            DragItemsStarting="KanbanList_DragItemsStarting"
+                            DragOver="KanbanList_DragOver"
+                            Drop="KanbanList_Drop"
+                            IsItemClickEnabled="True"
+                            IsSwipeEnabled="False"
+                            ItemClick="KanbanList_ItemClick"
+                            ItemTemplate="{StaticResource OperationsKanbanCardTemplate}"
+                            RightTapped="KanbanList_RightTapped"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            SelectionMode="None" />
+                        <Border
+                            x:Name="ResolvedEmptyPanel"
+                            Style="{StaticResource UmKanbanEmptyStateStyle}"
+                            Visibility="Collapsed">
+                            <StackPanel HorizontalAlignment="Center" Spacing="{StaticResource UmSpacingXs}">
+                                <FontIcon
+                                    HorizontalAlignment="Center"
+                                    FontSize="{StaticResource UmIconSizeSm}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Glyph="&#xE73E;" />
+                                <TextBlock
+                                    x:Name="ResolvedEmptyText"
+                                    Style="{StaticResource UmEmptyHintTextStyle}"
+                                    Text="Nothing resolved yet." />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </Border>
-                <TextBlock
-                    x:Name="ResolvedEmptyText"
-                    Style="{StaticResource UmCaptionTextStyle}"
-                    Text="Nothing resolved yet."
-                    Visibility="Collapsed" />
             </StackPanel>
         </Grid>
     </StackPanel>

@@ -11,6 +11,13 @@ public static class ThemeService
 {
     private static UISettings? _uiSettings;
 
+    private static AccessibilitySettings? _accessibilitySettings;
+
+    private static ResourceDictionary? _highContrastDictionary;
+
+    private static readonly Uri HighContrastDictionaryUri =
+        new("ms-appx:///Themes/HighContrast.xaml");
+
     /// <summary>
     /// Sets <see cref="Application.RequestedTheme"/> once at startup (before the main window).
     /// System leaves the OS default unchanged.
@@ -36,6 +43,8 @@ public static class ThemeService
             // Defensive: WinUI rejects Application.RequestedTheme after the first window exists.
             Debug.WriteLine($"ApplyInitialLaunchTheme skipped: {ex.Message}");
         }
+
+        EnsureHighContrastWatcher();
     }
 
     /// <summary>
@@ -51,6 +60,7 @@ public static class ThemeService
         root.RequestedTheme = ResolveElementTheme(preference);
         SyncTitleBarTheme(App.CurrentWindow, ResolveEffectiveElementTheme(preference));
         EnsureSystemThemeWatcher(preference);
+        EnsureHighContrastWatcher();
     }
 
     internal static ElementTheme ResolveElementTheme(AppThemePreference preference) =>
@@ -76,6 +86,56 @@ public static class ThemeService
             AppThemePreference.Dark => ElementTheme.Dark,
             _ => ReadSystemElementTheme()
         };
+
+    internal static bool IsSystemHighContrastEnabled() =>
+        new AccessibilitySettings().HighContrast;
+
+    internal static void ApplyHighContrastOverrides(bool enabled)
+    {
+        if (Application.Current?.Resources is not ResourceDictionary root)
+        {
+            return;
+        }
+
+        if (enabled)
+        {
+            if (_highContrastDictionary is null)
+            {
+                _highContrastDictionary = new ResourceDictionary
+                {
+                    Source = HighContrastDictionaryUri
+                };
+                root.MergedDictionaries.Add(_highContrastDictionary);
+            }
+
+            return;
+        }
+
+        if (_highContrastDictionary is not null)
+        {
+            root.MergedDictionaries.Remove(_highContrastDictionary);
+            _highContrastDictionary = null;
+        }
+    }
+
+    private static void EnsureHighContrastWatcher()
+    {
+        _accessibilitySettings ??= new AccessibilitySettings();
+        ApplyHighContrastOverrides(_accessibilitySettings.HighContrast);
+        _accessibilitySettings.HighContrastChanged -= OnHighContrastChanged;
+        _accessibilitySettings.HighContrastChanged += OnHighContrastChanged;
+    }
+
+    private static void OnHighContrastChanged(AccessibilitySettings sender, object args)
+    {
+        ApplyHighContrastOverrides(sender.HighContrast);
+
+        if (App.CurrentWindow?.Content is FrameworkElement root)
+        {
+            var preference = AppSettingsService.Instance.Settings.ThemePreference;
+            SyncTitleBarTheme(App.CurrentWindow, ResolveEffectiveElementTheme(preference));
+        }
+    }
 
     private static void EnsureSystemThemeWatcher(AppThemePreference preference)
     {
@@ -113,6 +173,16 @@ public static class ThemeService
     private static void SyncTitleBarTheme(Window window, ElementTheme theme)
     {
         var titleBar = window.AppWindow.TitleBar;
+        var highContrast = _accessibilitySettings?.HighContrast == true;
+
+        if (highContrast)
+        {
+            titleBar.ButtonForegroundColor = Color.FromArgb(255, 255, 255, 255);
+            titleBar.ButtonHoverForegroundColor = Color.FromArgb(255, 255, 255, 255);
+            titleBar.ButtonHoverBackgroundColor = Color.FromArgb(40, 255, 255, 255);
+            titleBar.ButtonPressedBackgroundColor = Color.FromArgb(60, 255, 255, 255);
+            return;
+        }
 
         if (theme == ElementTheme.Dark)
         {

@@ -417,11 +417,17 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private UIElement CreateSectionHeader(string title, string key)
     {
+        var marginKey = string.Equals(key, WorkspaceSidebarMenuPlanner.OverviewHeaderKey, StringComparison.OrdinalIgnoreCase)
+            ? "UmMarginSectionHeaderFirst"
+            : string.Equals(key, WorkspaceSidebarMenuPlanner.ActiveAccountsHeaderKey, StringComparison.OrdinalIgnoreCase)
+                ? "UmMarginActiveAccountsHeader"
+                : "UmMarginSectionHeader";
+
         var header = new TextBlock
         {
             Tag = key,
             Text = title,
-            Margin = ResolveThickness("UmMarginSectionHeader", new Thickness(4, 14, 4, 6))
+            Margin = ResolveThickness(marginKey, new Thickness(4, 8, 4, 4))
         };
 
         if (Application.Current.Resources.TryGetValue("UmSectionLabelTextStyle", out var styleResource) &&
@@ -431,9 +437,9 @@ public sealed partial class WorkspaceSidebar : Grid
         }
         else
         {
-            header.FontSize = 11;
+            header.FontSize = ResolveDouble("UmFontSizeSectionLabel", 11);
             header.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
-            header.Opacity = 0.75;
+            header.Opacity = ResolveDouble("UmOpacityHint", 0.75);
             header.CharacterSpacing = 40;
         }
 
@@ -448,9 +454,11 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             Tag = key,
             Text = text,
-            Opacity = 0.5,
+            Opacity = ResolveDouble("UmOpacitySubtle", 0.55),
             Margin = ResolveThickness("UmPaddingSm", new Thickness(8, 0, 8, 4)),
-            TextWrapping = TextWrapping.WrapWholeWords
+            TextWrapping = TextWrapping.WrapWholeWords,
+            MinWidth = 0,
+            TextTrimming = TextTrimming.CharacterEllipsis
         };
         if (ResolveTextStyle("UmBodyTextStyle") is { } bodyStyle)
         {
@@ -590,9 +598,9 @@ public sealed partial class WorkspaceSidebar : Grid
             Tag = key,
             Padding = new Thickness(10, 10, 8, 10),
             CornerRadius = ResolveCornerRadius("UmCornerRadiusMdValue", new CornerRadius(8)),
-            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0)),
+            Background = ResolveTransparentBrush(),
             BorderThickness = new Thickness(3, 0, 0, 0),
-            BorderBrush = accentBrush,
+            BorderBrush = ResolveTransparentBrush(),
             IsTabStop = true,
             TabIndex = _nextSidebarTabIndex++,
             UseSystemFocusVisuals = true
@@ -606,6 +614,7 @@ public sealed partial class WorkspaceSidebar : Grid
         var iconHost = instance is not null
             ? ProfileAvatarService.CreateAvatar(instance, 28)
             : (FrameworkElement)CreateFallbackIcon("\uE9D9", accentBrush, 28);
+        iconHost.VerticalAlignment = VerticalAlignment.Center;
 
         var textPanel = new StackPanel
         {
@@ -622,6 +631,10 @@ public sealed partial class WorkspaceSidebar : Grid
             TextWrapping = TextWrapping.NoWrap,
             MaxLines = 1
         };
+        if (ResolveTextStyle("UmBodyTextStyle") is { } titleStyle)
+        {
+            titleLabel.Style = titleStyle;
+        }
         textPanel.Children.Add(titleLabel);
         if (!WorkspaceSidebarHelper.IsSelectionMatch(key, WorkspaceSidebarHelper.DashboardSelectionKey))
         {
@@ -631,7 +644,6 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             Text = subtitle,
             MinWidth = 0,
-            Opacity = 0.62,
             TextTrimming = TextTrimming.CharacterEllipsis,
             TextWrapping = TextWrapping.NoWrap,
             MaxLines = 1
@@ -639,6 +651,10 @@ public sealed partial class WorkspaceSidebar : Grid
         if (ResolveTextStyle("UmCaptionTextStyle") is { } captionStyle)
         {
             statusLabel.Style = captionStyle;
+        }
+        else
+        {
+            statusLabel.Opacity = ResolveDouble("UmOpacityMuted", 0.65);
         }
         textPanel.Children.Add(statusLabel);
         _compactHiddenElements.Add(textPanel);
@@ -654,7 +670,8 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             Width = 8,
             Height = 8,
-            Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 128, 128, 128))
+            Fill = ResolveBrush("TextFillColorSecondaryBrush")
+                  ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 128, 128, 128))
         };
 
         var badge = new InfoBadge
@@ -795,28 +812,27 @@ public sealed partial class WorkspaceSidebar : Grid
     private static void ApplyFooterButtonSelection(Button button, bool selected)
     {
         button.Background = selected
-            ? Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush
-              ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 243, 243, 243))
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+            ? ResolveBrush("CardBackgroundFillColorDefaultBrush")
+              ?? ResolveBrush("LayerFillColorDefaultBrush")
+            : ResolveTransparentBrush();
 
-        button.BorderThickness = selected
-            ? new Thickness(3, 0, 0, 0)
-            : new Thickness(0);
+        button.BorderThickness = new Thickness(3, 0, 0, 0);
         button.BorderBrush = selected
-            ? Application.Current.Resources["AccentFillColorDefaultBrush"] as Brush
-            : null;
+            ? ResolveBrush("SystemFillColorSuccessBrush")
+            : ResolveTransparentBrush();
     }
 
     private static void ApplyRowSelection(Border row, bool selected)
     {
         row.Background = selected
-            ? Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush
-              ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 243, 243, 243))
-            : new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+            ? ResolveBrush("CardBackgroundFillColorDefaultBrush")
+              ?? ResolveBrush("LayerFillColorDefaultBrush")
+            : ResolveTransparentBrush();
 
-        row.BorderThickness = selected
-            ? new Thickness(3, 0, 0, 0)
-            : new Thickness(0);
+        row.BorderThickness = new Thickness(3, 0, 0, 0);
+        row.BorderBrush = selected
+            ? ResolveBrush("SystemFillColorSuccessBrush")
+            : ResolveTransparentBrush();
     }
 
     private void AddInstanceButton_Click(object sender, RoutedEventArgs e) =>
@@ -879,4 +895,17 @@ public sealed partial class WorkspaceSidebar : Grid
         Application.Current.Resources.TryGetValue(key, out var resource) && resource is Style style
             ? style
             : null;
+
+    private static Brush ResolveTransparentBrush() =>
+        ResolveBrush("UmTransparentBrush") ?? new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+
+    private static Brush? ResolveBrush(string key) =>
+        Application.Current.Resources.TryGetValue(key, out var resource) && resource is Brush brush
+            ? brush
+            : null;
+
+    private static double ResolveDouble(string key, double fallback) =>
+        Application.Current.Resources.TryGetValue(key, out var resource) && resource is double value
+            ? value
+            : fallback;
 }

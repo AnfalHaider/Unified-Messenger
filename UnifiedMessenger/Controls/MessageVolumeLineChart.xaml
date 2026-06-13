@@ -5,45 +5,56 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     AutomationProperties.Name="Message volume trend"
     mc:Ignorable="d">
 
-    <shared:SurfaceCard>
-        <shared:SurfaceCard.CardBody>
-            <StackPanel Spacing="{StaticResource UmSpacingMd}">
-                <TextBlock
-                    Style="{StaticResource UmSectionLabelTextStyle}"
-                    Text="MESSAGE VOLUME" />
-                <TextBlock
-                    x:Name="SummaryTextBlock"
-                    Opacity="0.75"
-                    Style="{StaticResource UmBodyTextStyle}"
-                    Text="No message volume in the selected range."
-                    TextWrapping="WrapWholeWords" />
-                <Grid
-                    x:Name="ChartPlotGrid"
-                    MinWidth="200"
-                    Height="{StaticResource UmChartHeight}">
-                    <Path
-                        x:Name="AreaPath"
-                        Fill="{StaticResource UmBrandTealBrush}"
-                        Opacity="0.15"
-                        Stretch="None" />
-                    <Path
-                        x:Name="LinePath"
-                        Stroke="{StaticResource UmBrandTealBrush}"
-                        StrokeThickness="2"
-                        Stretch="None" />
-                    <TextBlock
-                        x:Name="EmptyHintText"
-                        HorizontalAlignment="Center"
-                        Style="{StaticResource UmEmptyHintTextStyle}"
-                        Text="Activity will appear after WhatsApp messages are detected."
-                        VerticalAlignment="Center"
-                        Visibility="Visible" />
-                </Grid>
-            </StackPanel>
-        </shared:SurfaceCard.CardBody>
-    </shared:SurfaceCard>
+    <StackPanel Spacing="{StaticResource UmSpacingSm}">
+        <TextBlock
+            Style="{StaticResource UmSectionLabelTextStyle}"
+            Text="MESSAGE VOLUME" />
+        <TextBlock
+            x:Name="SummaryTextBlock"
+            Style="{StaticResource UmBodyTextStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="No message volume in the selected range."
+            TextWrapping="WrapWholeWords" />
+        <Grid
+            x:Name="ChartPlotGrid"
+            MinWidth="200"
+            Height="{StaticResource UmChartHeight}">
+            <Path
+                x:Name="AreaPath"
+                Fill="{StaticResource UmBrandTealBrush}"
+                Opacity="{StaticResource UmOpacitySubtle}"
+                Stretch="None" />
+            <Path
+                x:Name="LinePath"
+                Stroke="{StaticResource UmBrandTealBrush}"
+                StrokeThickness="{StaticResource UmChartStrokeThickness}"
+                Stretch="None" />
+            <TextBlock
+                x:Name="EmptyHintText"
+                HorizontalAlignment="Center"
+                Style="{StaticResource UmEmptyHintTextStyle}"
+                Text="Activity will appear after WhatsApp messages are detected."
+                VerticalAlignment="Center"
+                Visibility="Visible" />
+        </Grid>
+        <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition MinWidth="0" Width="*" />
+                <ColumnDefinition MinWidth="0" Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                x:Name="AxisStartLabel"
+                Style="{StaticResource UmChartAxisLabelStyle}"
+                Text="—" />
+            <TextBlock
+                x:Name="AxisEndLabel"
+                Grid.Column="1"
+                HorizontalAlignment="Right"
+                Style="{StaticResource UmChartAxisLabelStyle}"
+                Text="—" />
+        </Grid>
+    </StackPanel>
 </UserControl>

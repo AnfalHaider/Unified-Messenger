@@ -41,6 +41,13 @@ public sealed partial class MetricCardView : UserControl
             typeof(MetricCardView),
             new PropertyMetadata(string.Empty, OnSubtextChanged));
 
+    public static readonly DependencyProperty IconGlyphProperty =
+        DependencyProperty.Register(
+            nameof(IconGlyph),
+            typeof(string),
+            typeof(MetricCardView),
+            new PropertyMetadata(string.Empty, OnIconGlyphChanged));
+
     public MetricCardView()
     {
         InitializeComponent();
@@ -81,6 +88,14 @@ public sealed partial class MetricCardView : UserControl
         set => SetValue(SubtextProperty, value);
     }
 
+    public string IconGlyph
+    {
+        get => (string)GetValue(IconGlyphProperty);
+        set => SetValue(IconGlyphProperty, value);
+    }
+
+    public Visibility IconVisibility { get; private set; } = Visibility.Collapsed;
+
     public static readonly DependencyProperty SubtextVisibilityProperty =
         DependencyProperty.Register(
             nameof(SubtextVisibility),
@@ -101,6 +116,17 @@ public sealed partial class MetricCardView : UserControl
             card.SubtextVisibility = string.IsNullOrWhiteSpace((string?)e.NewValue)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+        }
+    }
+
+    private static void OnIconGlyphChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is MetricCardView card)
+        {
+            card.IconVisibility = string.IsNullOrWhiteSpace((string?)e.NewValue)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            card.Bindings.Update();
         }
     }
 

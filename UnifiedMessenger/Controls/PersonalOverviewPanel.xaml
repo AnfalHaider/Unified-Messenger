@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:shared="using:UnifiedMessenger.Controls.Shared"
+    xmlns:vm="using:UnifiedMessenger.ViewModels"
     mc:Ignorable="d">
 
     <ScrollViewer
@@ -238,7 +239,7 @@
                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
                             SelectionMode="None">
                             <ListView.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="vm:PersonalOverviewActivityRowViewModel">
                                     <Grid Padding="{StaticResource UmPaddingSm}" ColumnSpacing="{StaticResource UmSpacingSm}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -352,7 +353,7 @@
                                 </ItemsPanelTemplate>
                             </ListView.ItemsPanel>
                             <ListView.ItemTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="vm:PersonalOverviewTileRowViewModel">
                                     <Border
                                         Width="168"
                                         Margin="0,0,8,8"

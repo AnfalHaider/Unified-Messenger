@@ -26,13 +26,9 @@ public static class WorkspaceSidebarMenuPlanner
 {
     public const string OverviewHeaderKey = "header:overview";
 
-    public const string ProfessionalHeaderKey = "header:pro";
+    public const string ActiveAccountsHeaderKey = "header:active-accounts";
 
-    public const string PersonalHeaderKey = "header:personal";
-
-    public const string ProfessionalEmptyKey = "empty:pro";
-
-    public const string PersonalEmptyKey = "empty:personal";
+    public const string ActiveAccountsEmptyKey = "empty:active-accounts";
 
     public static SidebarMenuPlan BuildPlan(IEnumerable<MessengerInstance> instances)
     {
@@ -53,11 +49,16 @@ public static class WorkspaceSidebarMenuPlanner
         if (enabledInstances.Count == 0)
         {
             entries.Add(new SidebarMenuEntry(
-                ProfessionalEmptyKey,
+                ActiveAccountsEmptyKey,
                 SidebarMenuEntryKind.EmptyHint,
                 HintText: "No WhatsApp accounts yet."));
             return new SidebarMenuPlan { Entries = entries };
         }
+
+        entries.Add(new SidebarMenuEntry(
+            ActiveAccountsHeaderKey,
+            SidebarMenuEntryKind.SectionHeader,
+            SectionTitle: "ACTIVE ACCOUNTS"));
 
         var (professional, personal) = WorkspaceSidebarHelper.PartitionInstances(enabledInstances);
         foreach (var instance in professional.Concat(personal))

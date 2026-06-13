@@ -1,5 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.ViewModels;
 
@@ -21,4 +24,14 @@ public partial class PersonalOverviewActivityRowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isUnread;
+
+    public SolidColorBrush AccentBrush => PlatformBrandingHelper.GetAccentBrush(AccentColorHex);
+
+    public Visibility UnreadIndicatorVisibility =>
+        IsUnread ? Visibility.Visible : Visibility.Collapsed;
+
+    partial void OnIsUnreadChanged(bool value)
+    {
+        OnPropertyChanged(nameof(UnreadIndicatorVisibility));
+    }
 }

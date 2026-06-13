@@ -32,7 +32,7 @@
             <TextBlock
                 MaxWidth="420"
                 HorizontalAlignment="Center"
-                Opacity="0.7"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 Text="Add a WhatsApp instance with Workspace set to Professional."
                 TextAlignment="Center"
                 TextWrapping="WrapWholeWords" />
@@ -88,34 +88,46 @@
 
                 <controls:BranchWorkspacePillBar x:Name="BranchWorkspacePillBar" />
 
-                <StackPanel x:Name="DateRangeFilterPanel" Spacing="{StaticResource UmSpacingSm}">
-                    <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="DATE RANGE" />
-                    <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition MinWidth="140" Width="*" />
-                            <ColumnDefinition MinWidth="140" Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <DatePicker
-                            x:Name="FromDatePicker"
-                            Grid.Column="0"
-                            AutomationProperties.Name="From date"
-                            DateChanged="DateRangePicker_DateChanged"
-                            Header="From" />
-                        <DatePicker
-                            x:Name="ToDatePicker"
-                            Grid.Column="1"
-                            AutomationProperties.Name="To date"
-                            DateChanged="DateRangePicker_DateChanged"
-                            Header="To" />
-                        <Button
-                            Grid.Column="2"
-                            VerticalAlignment="Bottom"
-                            Click="ClearDateRangeButton_Click"
-                            Content="Clear range"
-                            Style="{StaticResource SubtleButtonStyle}" />
-                    </Grid>
-                </StackPanel>
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                        <StackPanel Spacing="{StaticResource UmSpacingMd}">
+                            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition MinWidth="0" Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Style="{StaticResource UmSectionLabelTextStyle}"
+                                    Text="DATE RANGE" />
+                                <Button
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="ClearDateRangeButton_Click"
+                                    Content="Clear Filter"
+                                    Style="{StaticResource SubtleButtonStyle}" />
+                            </Grid>
+                            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition MinWidth="140" Width="*" />
+                                    <ColumnDefinition MinWidth="140" Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <DatePicker
+                                    x:Name="FromDatePicker"
+                                    Grid.Column="0"
+                                    AutomationProperties.Name="From date"
+                                    DateChanged="DateRangePicker_DateChanged"
+                                    Header="From" />
+                                <DatePicker
+                                    x:Name="ToDatePicker"
+                                    Grid.Column="1"
+                                    AutomationProperties.Name="To date"
+                                    DateChanged="DateRangePicker_DateChanged"
+                                    Header="To" />
+                            </Grid>
+                            <controls:MessageVolumeLineChart x:Name="MessageVolumeChart" />
+                        </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
 
                 <Grid
                     x:Name="KpiMetricsGrid"
@@ -150,29 +162,31 @@
                         x:Name="OpenThreadsCard"
                         Grid.Column="0"
                         Grid.Row="0"
+                        IconGlyph="&#xE8BD;"
                         Label="Open threads"
                         Value="0" />
                     <shared:MetricCardView
                         x:Name="HangingLeadsCard"
                         Grid.Column="1"
                         Grid.Row="0"
+                        IconGlyph="&#xE823;"
                         Label="Hanging leads"
                         Value="0" />
                     <shared:MetricCardView
                         x:Name="ImmediateActionCard"
                         Grid.Column="0"
                         Grid.Row="1"
+                        IconGlyph="&#xE7BA;"
                         Label="Needs action"
                         Value="0" />
                     <shared:MetricCardView
                         x:Name="SlaBreachesCard"
                         Grid.Column="1"
                         Grid.Row="1"
+                        IconGlyph="&#xE783;"
                         Label="SLA breaches"
                         Value="0" />
                 </Grid>
-
-                <controls:MessageVolumeLineChart x:Name="MessageVolumeChart" />
 
                 <StackPanel x:Name="ImmediateLaneSection" Spacing="{StaticResource UmSpacingSm}">
                     <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Immediate queue" />
@@ -195,6 +209,7 @@
                 <controls:KanbanColumnBoard
                     x:Name="KanbanBoard"
                     ColumnOrderChanged="KanbanBoard_ColumnOrderChanged"
+                    ColumnTransferRequested="KanbanBoard_ColumnTransferRequested"
                     CrossColumnDragAttempted="KanbanBoard_CrossColumnDragAttempted"
                     ItemClickRequested="KanbanBoard_ItemClickRequested" />
             </StackPanel>

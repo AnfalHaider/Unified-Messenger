@@ -12,21 +12,33 @@
         MinWidth="90"
         Padding="{StaticResource UmMetricCardPadding}"
         Style="{StaticResource DashboardMetricCardStyle}">
-        <StackPanel Spacing="{StaticResource UmSpacingXs}">
-            <TextBlock
-                x:Name="LabelText"
-                Style="{StaticResource DashboardMetricLabelStyle}"
-                Text="{x:Bind Label, Mode=OneWay}" />
-            <TextBlock
-                x:Name="ValueText"
-                Style="{StaticResource DashboardMetricValueStyle}"
-                Text="{x:Bind Value, Mode=OneWay}" />
-            <TextBlock
-                Style="{StaticResource UmCaptionTextStyle}"
-                Text="{x:Bind Subtext, Mode=OneWay}"
-                TextWrapping="WrapWholeWords"
-                Visibility="{x:Bind SubtextVisibility, Mode=OneWay}" />
-        </StackPanel>
+        <Grid ColumnSpacing="{StaticResource UmSpacingSm}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition MinWidth="0" Width="*" />
+            </Grid.ColumnDefinitions>
+            <FontIcon
+                x:Name="MetricIcon"
+                VerticalAlignment="Top"
+                FontSize="{StaticResource UmIconSizeSm}"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Glyph="{x:Bind IconGlyph, Mode=OneWay}"
+                Visibility="{x:Bind IconVisibility, Mode=OneWay}" />
+            <StackPanel Grid.Column="1" MinWidth="0" Spacing="{StaticResource UmSpacingXs}">
+                <TextBlock
+                    x:Name="LabelText"
+                    Style="{StaticResource DashboardMetricLabelStyle}"
+                    Text="{x:Bind Label, Mode=OneWay}" />
+                <TextBlock
+                    x:Name="ValueText"
+                    Style="{StaticResource DashboardMetricValueStyle}"
+                    Text="{x:Bind Value, Mode=OneWay}" />
+                <TextBlock
+                    Style="{StaticResource DashboardMetricTrendStyle}"
+                    Text="{x:Bind Subtext, Mode=OneWay}"
+                    Visibility="{x:Bind SubtextVisibility, Mode=OneWay}" />
+            </StackPanel>
+        </Grid>
     </Border>
 
     <VisualStateManager.VisualStateGroups>
@@ -41,6 +53,7 @@
                     <Setter Target="ValueText.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                     <Setter Target="ValueText.FontSize" Value="22" />
                     <Setter Target="ValueText.FontWeight" Value="Bold" />
+                    <Setter Target="MetricIcon.Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
                 </VisualState.Setters>
             </VisualState>
         </VisualStateGroup>

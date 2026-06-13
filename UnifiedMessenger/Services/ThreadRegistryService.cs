@@ -207,6 +207,38 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         NotifyChanged();
     }
 
+    public void SetThreadKanbanColumn(string threadId, UnifiedMessengerKanbanColumn targetColumn)
+    {
+        if (string.IsNullOrWhiteSpace(threadId) || !_threads.TryGetValue(threadId, out var thread))
+        {
+            return;
+        }
+
+        switch (targetColumn)
+        {
+            case UnifiedMessengerKanbanColumn.Resolved:
+                MarkThreadResolved(
+                    thread.InstanceId,
+                    thread.ConversationKey,
+                    thread.CustomerName,
+                    DateTimeOffset.UtcNow,
+                    thread.Platform);
+                return;
+            case UnifiedMessengerKanbanColumn.HangingLeads:
+                thread.IsReplied = false;
+                thread.IsRevenueLeakageRisk = true;
+                break;
+            case UnifiedMessengerKanbanColumn.NewInquiries:
+                thread.IsReplied = false;
+                thread.IsRevenueLeakageRisk = false;
+                break;
+            default:
+                return;
+        }
+
+        NotifyChanged();
+    }
+
     public void UpdateLastMessageKind(
         string instanceId,
         string conversationKey,

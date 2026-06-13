@@ -42,6 +42,39 @@ public class ThreadRegistryServiceTests
     }
 
     [Fact]
+    public void SetThreadKanbanColumn_MarksHangingLead()
+    {
+        var registry = ThreadRegistryService.CreateForTests();
+        var item = CreateItem("inst-1", "Sara", "Package price?");
+
+        registry.UpsertFromTriageItem(item, "Sara", "F-11");
+
+        var thread = Assert.Single(registry.GetAllThreads());
+        registry.SetThreadKanbanColumn(thread.ThreadId, UnifiedMessengerKanbanColumn.HangingLeads);
+
+        Assert.False(thread.IsReplied);
+        Assert.True(thread.IsRevenueLeakageRisk);
+        Assert.Equal(UnifiedMessengerKanbanColumn.HangingLeads, thread.KanbanColumn);
+    }
+
+    [Fact]
+    public void SetThreadKanbanColumn_ReopensResolvedThreadToNew()
+    {
+        var registry = ThreadRegistryService.CreateForTests();
+        var item = CreateItem("inst-1", "Sara", "Package price?");
+
+        registry.UpsertFromTriageItem(item, "Sara", "F-11");
+        registry.MarkThreadResolved("inst-1", "Sara", "Sara", DateTimeOffset.UtcNow);
+
+        var thread = Assert.Single(registry.GetAllThreads());
+        registry.SetThreadKanbanColumn(thread.ThreadId, UnifiedMessengerKanbanColumn.NewInquiries);
+
+        Assert.False(thread.IsReplied);
+        Assert.False(thread.IsRevenueLeakageRisk);
+        Assert.Equal(UnifiedMessengerKanbanColumn.NewInquiries, thread.KanbanColumn);
+    }
+
+    [Fact]
     public void EvaluateRevenueLeakage_FlagsCommercialThreadsAfterThirtyMinutes()
     {
         var thread = new ThreadData

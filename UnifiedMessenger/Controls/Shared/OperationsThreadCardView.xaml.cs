@@ -43,15 +43,15 @@ public sealed partial class OperationsThreadCardView : UserControl
         set => SetValue(DisplayStyleProperty, value);
     }
 
-    public Thickness CardPadding { get; private set; } = new(10, 8, 8, 8);
+    public Thickness CardPadding { get; private set; } = new(12, 10, 10, 10);
 
-    public double ContentSpacing { get; private set; } = 4;
+    public double ContentSpacing { get; private set; } = 6;
 
     public double PlatformIconSize { get; private set; } = 12;
 
     public double CustomerNameFontSize { get; private set; } = 12;
 
-    public Thickness UrgencyBadgePadding { get; private set; } = new(4, 1, 4, 1);
+    public Thickness UrgencyBadgePadding { get; private set; } = new(6, 2, 6, 2);
 
     public double UrgencyBadgeFontSize { get; private set; } = 10;
 
@@ -82,11 +82,11 @@ public sealed partial class OperationsThreadCardView : UserControl
     {
         if (style == OperationsThreadCardDisplayStyle.Immediate)
         {
-            CardPadding = new Thickness(12);
-            ContentSpacing = 6;
+            CardPadding = ResolveThickness("UmPaddingThreadCardImmediate", new Thickness(14));
+            ContentSpacing = 8;
             PlatformIconSize = 14;
             CustomerNameFontSize = 14;
-            UrgencyBadgePadding = new Thickness(6, 2, 6, 2);
+            UrgencyBadgePadding = ResolveThickness("UmPaddingBadge", new Thickness(6, 2, 6, 2));
             UrgencyBadgeFontSize = 11;
             TagRowVisibility = Visibility.Visible;
             SummaryFontSize = 12;
@@ -97,13 +97,13 @@ public sealed partial class OperationsThreadCardView : UserControl
         }
         else
         {
-            CardPadding = new Thickness(10, 8, 8, 8);
-            ContentSpacing = 4;
+            CardPadding = ResolveThickness("UmPaddingThreadCard", new Thickness(12, 10, 10, 10));
+            ContentSpacing = 6;
             PlatformIconSize = 12;
             CustomerNameFontSize = 12;
-            UrgencyBadgePadding = new Thickness(4, 1, 4, 1);
+            UrgencyBadgePadding = ResolveThickness("UmPaddingBadge", new Thickness(6, 2, 6, 2));
             UrgencyBadgeFontSize = 10;
-            TagRowVisibility = Visibility.Collapsed;
+            TagRowVisibility = Visibility.Visible;
             SummaryFontSize = 11;
             IsSummaryBold = false;
             SummaryMaxLines = 2;
@@ -113,4 +113,9 @@ public sealed partial class OperationsThreadCardView : UserControl
 
         Bindings.Update();
     }
+
+    private static Thickness ResolveThickness(string key, Thickness fallback) =>
+        Application.Current.Resources.TryGetValue(key, out var resource) && resource is Thickness thickness
+            ? thickness
+            : fallback;
 }

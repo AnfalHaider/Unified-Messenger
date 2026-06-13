@@ -109,6 +109,26 @@ public sealed class ThreadDisplayOrderService
         NotifyChanged();
     }
 
+    public void RemoveFromColumn(string columnKey, string threadId)
+    {
+        if (string.IsNullOrWhiteSpace(columnKey) ||
+            string.IsNullOrWhiteSpace(threadId) ||
+            !_sortByColumn.TryGetValue(columnKey, out var columnMap))
+        {
+            return;
+        }
+
+        if (columnMap.Remove(threadId))
+        {
+            if (columnMap.Count == 0)
+            {
+                _sortByColumn.Remove(columnKey);
+            }
+
+            NotifyChanged();
+        }
+    }
+
     public void MoveToTop(string columnKey, string threadId)
     {
         if (string.IsNullOrWhiteSpace(columnKey) || string.IsNullOrWhiteSpace(threadId))

@@ -38,6 +38,6 @@ Shared controls are wired into production surfaces:
 - **Settings** — `SectionHeaderView`; section bodies use `SurfaceCard` + `UmSurfaceCardStyle`.
 - **Notifications / Personal Overview** — `EmptyStateView`, `LoadingOverlayView`; Personal Overview activity/status panels use `SurfaceCard`.
 
-## Deferred
+## Accessibility
 
-- **High-contrast theme** — not implemented in v3.2.0; tracked as a future accessibility milestone.
+- **High-contrast theme** — system high-contrast mode merges `Themes/HighContrast.xaml` overrides at runtime via `ThemeService` (v3.3.0).

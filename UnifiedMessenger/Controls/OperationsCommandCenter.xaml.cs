@@ -37,6 +37,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         ImmediateQueueList.ItemsSource = _viewModel.ImmediateQueue;
         KanbanBoard.BindCollections(_viewModel.NewInquiries, _viewModel.HangingLeads, _viewModel.Resolved);
+        KanbanBoard.IsReorderEnabled = true;
         BranchWorkspacePillBar.SelectionChanged += OnBranchWorkspacePillSelectionChanged;
         _services.OccFilter.Changed += OnOccFilterStateChanged;
         _services.OccDateRangeFilter.Changed += OnOccDateRangeFilterChanged;

@@ -16,7 +16,7 @@ internal static class Program
             return 1;
         }
 
-        Console.WriteLine("=== Unified Messenger 3.2.1 — Lite Module Validation ===");
+        Console.WriteLine("=== Unified Messenger 3.3.0 — Lite Module Validation ===");
         Console.WriteLine($"Executable: {exePath}");
         Console.WriteLine();
 

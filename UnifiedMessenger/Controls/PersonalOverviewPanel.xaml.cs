@@ -1,7 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Presenters;
 using UnifiedMessenger.Services;
@@ -26,6 +25,9 @@ public sealed partial class PersonalOverviewPanel : UserControl
     public PersonalOverviewPanel()
     {
         InitializeComponent();
+        RecentActivityList.ItemsSource = _viewModel.ActivityItems;
+        InstanceTilesList.ItemsSource = _viewModel.TileItems;
+        GlobalSearchBox.ItemsSource = _viewModel.SearchSuggestions;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -35,6 +37,8 @@ public sealed partial class PersonalOverviewPanel : UserControl
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
     }
+
+    public PersonalOverviewViewModel ViewModel => _viewModel;
 
     public void ApplyAccessibilityTabOrder() =>
         AccessibilityTabOrderHelper.ApplyTabIndex(
@@ -152,20 +156,6 @@ public sealed partial class PersonalOverviewPanel : UserControl
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        RecentActivityList.ItemsSource = _viewModel.ActivityItems
-            .Select(item => new PersonalOverviewActivityViewItem
-            {
-                Alert = item.Alert,
-                Title = item.Title,
-                Body = item.Body,
-                InstanceDisplayName = item.InstanceDisplayName,
-                RelativeTimeText = item.RelativeTimeText,
-                IconGlyph = item.IconGlyph,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(item.AccentColorHex),
-                UnreadIndicatorVisibility = item.IsUnread ? Visibility.Visible : Visibility.Collapsed
-            })
-            .ToList();
-
         RecentActivityEmptyTitle.Text = _viewModel.ActivityEmptyTitle;
         RecentActivityEmptyText.Text = _viewModel.ActivityEmptyHint;
         RecentActivityEmptyIcon.Glyph = _viewModel.ActivityEmptyIconGlyph;
@@ -175,23 +165,6 @@ public sealed partial class PersonalOverviewPanel : UserControl
         RecentActivityList.Visibility = _viewModel.ShowActivityList
             ? Visibility.Visible
             : Visibility.Collapsed;
-
-        InstanceTilesList.ItemsSource = _viewModel.TileItems
-            .Select(tile => new PersonalOverviewTileViewItem
-            {
-                InstanceId = tile.InstanceId,
-                DisplayName = tile.DisplayName,
-                PlatformLabel = tile.PlatformLabel,
-                DetailLine = tile.DetailLine,
-                ConnectionStatusLabel = tile.ConnectionStatusLabel,
-                ConnectionBrush = PlatformBrandingHelper.GetAccentBrush(tile.ConnectionColorHex),
-                IconGlyph = tile.IconGlyph,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(tile.AccentColorHex),
-                MutedIndicatorVisibility = tile.IsMuted ? Visibility.Visible : Visibility.Collapsed,
-                UnreadBadgeVisibility = tile.ShowUnreadBadge ? Visibility.Visible : Visibility.Collapsed,
-                UnreadBadgeText = tile.UnreadBadgeText
-            })
-            .ToList();
 
         InstanceTilesEmptyText.Text = _viewModel.InstanceTilesEmptyHint;
         InstanceTilesEmptyPanel.Visibility = _viewModel.ShowInstanceTilesEmptyState
@@ -241,7 +214,7 @@ public sealed partial class PersonalOverviewPanel : UserControl
 
     private void GlobalSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        if (args.ChosenSuggestion is PersonalOverviewSearchSuggestion suggestion)
+        if (args.ChosenSuggestion is PersonalOverviewSearchSuggestionViewModel suggestion)
         {
             NavigateFromSearchSuggestion(suggestion.InstanceId);
             return;
@@ -262,7 +235,7 @@ public sealed partial class PersonalOverviewPanel : UserControl
 
     private void GlobalSearchBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
     {
-        if (args.SelectedItem is PersonalOverviewSearchSuggestion suggestion)
+        if (args.SelectedItem is PersonalOverviewSearchSuggestionViewModel suggestion)
         {
             NavigateFromSearchSuggestion(suggestion.InstanceId);
         }
@@ -272,15 +245,6 @@ public sealed partial class PersonalOverviewPanel : UserControl
     {
         var suggestions = BuildSearchSuggestions(query);
         _viewModel.ApplySearchSuggestions(suggestions);
-        GlobalSearchBox.ItemsSource = suggestions
-            .Select(suggestion => new PersonalOverviewSearchSuggestion
-            {
-                Label = suggestion.Label,
-                SubLabel = suggestion.SubLabel,
-                InstanceId = suggestion.InstanceId,
-                AccentBrush = PlatformBrandingHelper.GetAccentBrush(suggestion.AccentColorHex)
-            })
-            .ToList();
     }
 
     private List<PersonalOverviewSearchSuggestionViewModel> BuildSearchSuggestions(string? query)
@@ -311,7 +275,7 @@ public sealed partial class PersonalOverviewPanel : UserControl
 
     private void RecentActivityList_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is PersonalOverviewActivityViewItem item)
+        if (e.ClickedItem is PersonalOverviewActivityRowViewModel item)
         {
             NotificationNavigationHelper.OpenAlert(_services.Navigation, item.Alert);
         }
@@ -319,66 +283,9 @@ public sealed partial class PersonalOverviewPanel : UserControl
 
     private void InstanceTilesList_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is PersonalOverviewTileViewItem tile)
+        if (e.ClickedItem is PersonalOverviewTileRowViewModel tile)
         {
             _services.Navigation.OpenInstance(tile.InstanceId);
         }
-    }
-
-    private sealed class PersonalOverviewActivityViewItem
-    {
-        public required NotificationAlert Alert { get; init; }
-
-        public required string Title { get; init; }
-
-        public required string Body { get; init; }
-
-        public required string InstanceDisplayName { get; init; }
-
-        public required string RelativeTimeText { get; init; }
-
-        public required string IconGlyph { get; init; }
-
-        public required SolidColorBrush AccentBrush { get; init; }
-
-        public Visibility UnreadIndicatorVisibility { get; init; }
-    }
-
-    private sealed class PersonalOverviewTileViewItem
-    {
-        public required string InstanceId { get; init; }
-
-        public required string DisplayName { get; init; }
-
-        public required string PlatformLabel { get; init; }
-
-        public required string DetailLine { get; init; }
-
-        public required string ConnectionStatusLabel { get; init; }
-
-        public required SolidColorBrush ConnectionBrush { get; init; }
-
-        public required string IconGlyph { get; init; }
-
-        public required SolidColorBrush AccentBrush { get; init; }
-
-        public Visibility MutedIndicatorVisibility { get; init; }
-
-        public Visibility UnreadBadgeVisibility { get; init; }
-
-        public string UnreadBadgeText { get; init; } = string.Empty;
-    }
-
-    private sealed class PersonalOverviewSearchSuggestion
-    {
-        public required string Label { get; init; }
-
-        public required string SubLabel { get; init; }
-
-        public string? InstanceId { get; init; }
-
-        public SolidColorBrush? AccentBrush { get; init; }
-
-        public override string ToString() => $"{Label} ({SubLabel})";
     }
 }

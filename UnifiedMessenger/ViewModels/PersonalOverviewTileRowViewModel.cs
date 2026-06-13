@@ -1,4 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
+using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.ViewModels;
 
@@ -30,6 +33,22 @@ public partial class PersonalOverviewTileRowViewModel : ViewModelBase
 
     public string UnreadBadgeText => UnreadCount == 1 ? "1 unread" : $"{UnreadCount} unread";
 
-    partial void OnUnreadCountChanged(int value) =>
+    public SolidColorBrush ConnectionBrush => PlatformBrandingHelper.GetAccentBrush(ConnectionColorHex);
+
+    public SolidColorBrush AccentBrush => PlatformBrandingHelper.GetAccentBrush(AccentColorHex);
+
+    public Visibility MutedIndicatorVisibility =>
+        IsMuted ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility UnreadBadgeVisibility =>
+        ShowUnreadBadge ? Visibility.Visible : Visibility.Collapsed;
+
+    partial void OnUnreadCountChanged(int value)
+    {
         OnPropertyChanged(nameof(ShowUnreadBadge));
+        OnPropertyChanged(nameof(UnreadBadgeVisibility));
+    }
+
+    partial void OnIsMutedChanged(bool value) =>
+        OnPropertyChanged(nameof(MutedIndicatorVisibility));
 }

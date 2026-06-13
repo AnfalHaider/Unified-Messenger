@@ -79,6 +79,22 @@ public sealed partial class OperationsCommandCenter
         (string ColumnKey, IReadOnlyList<string> OrderedThreadIds) e) =>
         _services.ThreadDisplayOrder.UpdateColumnOrder(e.ColumnKey, e.OrderedThreadIds);
 
+    private async void KanbanBoard_ColumnTransferRequested(
+        object sender,
+        (OperationsThreadCardViewModel Card, string SourceColumnKey, string TargetColumnKey) e)
+    {
+        if (!Enum.TryParse<UnifiedMessengerKanbanColumn>(e.TargetColumnKey, out var targetColumn))
+        {
+            return;
+        }
+
+        _services.ThreadRegistry.SetThreadKanbanColumn(e.Card.ThreadId, targetColumn);
+        _services.ThreadDisplayOrder.RemoveFromColumn(e.SourceColumnKey, e.Card.ThreadId);
+        _services.ThreadDisplayOrder.MoveToTop(e.TargetColumnKey, e.Card.ThreadId);
+
+        await RefreshAsync(_professionalInstances, _registry).ConfigureAwait(true);
+    }
+
     private void KanbanBoard_ItemClickRequested(object sender, OperationsThreadCardViewModel card)
     {
         _keyboardMoveThreadId = card.ThreadId;
@@ -95,6 +111,6 @@ public sealed partial class OperationsCommandCenter
 
     private void KanbanBoard_CrossColumnDragAttempted(object sender, EventArgs e)
     {
-        // Column placement is status-driven; reorder is within-column only.
+        // Cross-column transfer is handled by ColumnTransferRequested.
     }
 }

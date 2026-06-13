@@ -30,6 +30,8 @@ public interface IThreadRegistryService
         DateTimeOffset? resolvedAtUtc = null,
         string? platform = null);
 
+    void SetThreadKanbanColumn(string threadId, UnifiedMessengerKanbanColumn targetColumn);
+
     void UpdateWhatsAppDeliveryStatus(
         string instanceId,
         string conversationKey,

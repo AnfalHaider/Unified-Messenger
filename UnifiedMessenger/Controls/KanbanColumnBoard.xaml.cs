@@ -13,6 +13,8 @@ public sealed partial class KanbanColumnBoard : UserControl
 {
     private string? _dragSourceColumnKey;
 
+    private OperationsThreadCardViewModel? _dragSourceCard;
+
     public KanbanColumnBoard()
     {
         InitializeComponent();
@@ -23,6 +25,9 @@ public sealed partial class KanbanColumnBoard : UserControl
     public event EventHandler<(string ColumnKey, IReadOnlyList<string> OrderedThreadIds)>? ColumnOrderChanged;
 
     public event EventHandler? CrossColumnDragAttempted;
+
+    public event EventHandler<(OperationsThreadCardViewModel Card, string SourceColumnKey, string TargetColumnKey)>?
+        ColumnTransferRequested;
 
     public event EventHandler<(OperationsThreadCardViewModel Card, ListView SourceList, Point Position)>? ThreadContextMenuRequested;
 
@@ -54,13 +59,20 @@ public sealed partial class KanbanColumnBoard : UserControl
         int hangingCount,
         int resolvedCount)
     {
-        NewInquiriesEmptyText.Visibility = newCount == 0 ? Visibility.Visible : Visibility.Collapsed;
-        HangingLeadsEmptyText.Visibility = hangingCount == 0 ? Visibility.Visible : Visibility.Collapsed;
-        ResolvedEmptyText.Visibility = resolvedCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+        SetColumnEmptyState(NewInquiriesEmptyPanel, NewInquiriesList, newCount);
+        SetColumnEmptyState(HangingLeadsEmptyPanel, HangingLeadsList, hangingCount);
+        SetColumnEmptyState(ResolvedEmptyPanel, ResolvedList, resolvedCount);
 
         UpdateDropZoneChrome(NewColumnDropZone, newCount);
         UpdateDropZoneChrome(HangingColumnDropZone, hangingCount);
         UpdateDropZoneChrome(ResolvedColumnDropZone, resolvedCount);
+    }
+
+    private static void SetColumnEmptyState(Border emptyPanel, ListView listView, int count)
+    {
+        var isEmpty = count == 0;
+        emptyPanel.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+        listView.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private static void OnIsReorderEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -80,11 +92,10 @@ public sealed partial class KanbanColumnBoard : UserControl
             list.IsSwipeEnabled = enabled;
         }
 
-        var dashStyle = enabled ? "Dashed" : "Solid";
         foreach (var dropZone in new[] { NewColumnDropZone, HangingColumnDropZone, ResolvedColumnDropZone })
         {
             dropZone.BorderThickness = new Thickness(1);
-            dropZone.Opacity = enabled ? 1.0 : 1.0;
+            dropZone.Opacity = 1.0;
         }
     }
 
@@ -119,6 +130,7 @@ public sealed partial class KanbanColumnBoard : UserControl
         }
 
         _dragSourceColumnKey = ResolveColumnKey(listView);
+        _dragSourceCard = e.Items.FirstOrDefault() as OperationsThreadCardViewModel;
         e.Data.SetText(_dragSourceColumnKey ?? string.Empty);
         e.Data.RequestedOperation = DataPackageOperation.Move;
     }
@@ -133,26 +145,52 @@ public sealed partial class KanbanColumnBoard : UserControl
 
         var targetColumn = ResolveColumnKey(targetList);
         if (string.IsNullOrWhiteSpace(_dragSourceColumnKey) ||
-            string.IsNullOrWhiteSpace(targetColumn) ||
-            targetColumn.Equals(_dragSourceColumnKey, StringComparison.OrdinalIgnoreCase))
+            string.IsNullOrWhiteSpace(targetColumn))
         {
-            e.AcceptedOperation = DataPackageOperation.Move;
-            e.DragUIOverride.IsGlyphVisible = false;
+            e.AcceptedOperation = DataPackageOperation.None;
             return;
         }
 
-        e.AcceptedOperation = DataPackageOperation.None;
-        e.DragUIOverride.Caption = "Status controls column";
-        e.DragUIOverride.IsContentVisible = false;
-        e.DragUIOverride.IsGlyphVisible = true;
-        CrossColumnInfoBar.IsOpen = true;
-        CrossColumnDragAttempted?.Invoke(this, EventArgs.Empty);
+        e.AcceptedOperation = DataPackageOperation.Move;
+        e.DragUIOverride.IsGlyphVisible = false;
+
+        if (targetColumn.Equals(_dragSourceColumnKey, StringComparison.OrdinalIgnoreCase))
+        {
+            e.DragUIOverride.Caption = string.Empty;
+            return;
+        }
+
+        e.DragUIOverride.Caption = $"Move to {ResolveColumnLabel(targetColumn)}";
     }
 
     private void KanbanList_Drop(object sender, DragEventArgs e)
     {
-        e.AcceptedOperation = DataPackageOperation.None;
-        CrossColumnInfoBar.IsOpen = true;
+        if (!IsReorderEnabled ||
+            sender is not ListView targetList ||
+            _dragSourceCard is null ||
+            string.IsNullOrWhiteSpace(_dragSourceColumnKey))
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+            return;
+        }
+
+        var targetColumn = ResolveColumnKey(targetList);
+        if (string.IsNullOrWhiteSpace(targetColumn))
+        {
+            e.AcceptedOperation = DataPackageOperation.None;
+            return;
+        }
+
+        if (targetColumn.Equals(_dragSourceColumnKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        e.AcceptedOperation = DataPackageOperation.Move;
+        CrossColumnInfoBar.IsOpen = false;
+        ColumnTransferRequested?.Invoke(
+            this,
+            (_dragSourceCard, _dragSourceColumnKey, targetColumn));
         CrossColumnDragAttempted?.Invoke(this, EventArgs.Empty);
     }
 
@@ -160,19 +198,34 @@ public sealed partial class KanbanColumnBoard : UserControl
     {
         if (!IsReorderEnabled || sender is not ListView listView)
         {
+            _dragSourceColumnKey = null;
+            _dragSourceCard = null;
             return;
         }
 
         var columnKey = ResolveColumnKeyInternal(listView);
-        if (string.IsNullOrWhiteSpace(columnKey) || listView.ItemsSource is not IEnumerable<OperationsThreadCardViewModel> items)
+        if (string.IsNullOrWhiteSpace(columnKey) ||
+            listView.ItemsSource is not IEnumerable<OperationsThreadCardViewModel> items)
         {
+            _dragSourceColumnKey = null;
+            _dragSourceCard = null;
             return;
         }
 
         var orderedIds = items.Select(card => card.ThreadId).ToList();
         ColumnOrderChanged?.Invoke(this, (columnKey, orderedIds));
         _dragSourceColumnKey = null;
+        _dragSourceCard = null;
     }
+
+    private static string ResolveColumnLabel(string columnKey) =>
+        columnKey switch
+        {
+            nameof(UnifiedMessengerKanbanColumn.NewInquiries) => "New",
+            nameof(UnifiedMessengerKanbanColumn.HangingLeads) => "Hanging",
+            nameof(UnifiedMessengerKanbanColumn.Resolved) => "Resolved",
+            _ => columnKey
+        };
 
     private static string? ResolveColumnKeyInternal(ListView listView) =>
         listView.Name switch

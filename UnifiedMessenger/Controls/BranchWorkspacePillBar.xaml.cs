@@ -75,8 +75,10 @@ public sealed partial class BranchWorkspacePillBar : UserControl
         panel.Children.Add(new TextBlock
         {
             Text = item.BranchLabel,
-            FontSize = 12,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            MinWidth = 0,
+            FontSize = ResolveDouble("UmFontSizeBody", 12),
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis
         });
 
         if (!string.IsNullOrWhiteSpace(item.BadgeText))
@@ -89,7 +91,7 @@ public sealed partial class BranchWorkspacePillBar : UserControl
                 Child = new TextBlock
                 {
                     Text = item.BadgeText,
-                    FontSize = 10,
+                    FontSize = ResolveDouble("UmBadgeFontSize", 10),
                     Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
                 }
             });
@@ -105,8 +107,8 @@ public sealed partial class BranchWorkspacePillBar : UserControl
                 Child = new TextBlock
                 {
                     Text = item.UrgentCount.ToString(),
-                    FontSize = 9,
-                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+                    FontSize = ResolveDouble("UmBadgeFontSize", 10) - 1,
+                    Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"]
                 }
             });
         }
@@ -185,4 +187,9 @@ public sealed partial class BranchWorkspacePillBar : UserControl
         RebuildPills();
         SelectionChanged?.Invoke(this, _selectedBranchKey);
     }
+
+    private static double ResolveDouble(string key, double fallback) =>
+        Application.Current.Resources.TryGetValue(key, out var resource) && resource is double value
+            ? value
+            : fallback;
 }

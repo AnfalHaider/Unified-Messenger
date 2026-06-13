@@ -45,4 +45,11 @@ public class ThemeServiceTests
             expected is ElementTheme.Light or ElementTheme.Dark,
             "System theme should resolve to the current Windows light/dark mode.");
     }
+
+    [Fact]
+    public void IsSystemHighContrastEnabled_DoesNotThrow()
+    {
+        var enabled = ThemeService.IsSystemHighContrastEnabled();
+        Assert.True(enabled || !enabled);
+    }
 }

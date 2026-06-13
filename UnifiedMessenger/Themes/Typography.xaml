@@ -44,7 +44,27 @@
     <Style x:Key="DashboardMetricValueStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontSize" Value="{StaticResource UmFontSizeMetricValue}" />
-        <Setter Property="Foreground" Value="{StaticResource UmBrandBlueBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="DashboardMetricTrendStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeCaption}" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Setter Property="TextWrapping" Value="WrapWholeWords" />
+    </Style>
+
+    <Style x:Key="UmBadgeLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmBadgeFontSize}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="UmBadgeLabelOnAccentStyle" TargetType="TextBlock" BasedOn="{StaticResource UmBadgeLabelStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="UmChartAxisLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeCaption}" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
     </Style>
 
     <Style x:Key="UmKanbanColumnHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
