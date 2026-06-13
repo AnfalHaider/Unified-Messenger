@@ -205,9 +205,7 @@ internal static class UiAutomationHelpers
 
     public static bool WaitForDashboardOccReady(AutomationElement window, TimeSpan timeout)
     {
-        if (WaitForMarkerOrAutomationId(
-                window,
-                null,
+        if (WaitForMarkerOrAutomationId(window, string.Empty,
                 "OccSnapshotReady",
                 timeout))
         {
