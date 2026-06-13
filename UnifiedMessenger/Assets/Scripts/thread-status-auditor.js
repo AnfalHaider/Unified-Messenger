@@ -326,13 +326,32 @@
       return null;
     }
 
-    var customerName = conversationKey.replace(/^review:/, '') || 'Customer';
+    var header = queryFirst(profile.headerSelectors, root);
+    var headerTitle = '';
+    if (header) {
+      var titleAttr = header.getAttribute && header.getAttribute('title');
+      if (titleAttr) {
+        headerTitle = normalize(titleAttr);
+        if (headerTitle && looksLikeIconLigature(headerTitle)) {
+          headerTitle = '';
+        }
+      }
+
+      if (!headerTitle) {
+        var headerText = normalize(header.textContent || header.innerText || '');
+        if (headerText && !looksLikeIconLigature(headerText)) {
+          headerTitle = headerText;
+        }
+      }
+    }
+
+    var customerName = headerTitle || conversationKey.replace(/^review:/, '') || 'Customer';
     var chatJid = typeof window.__umResolveActiveChatJid === 'function'
       ? window.__umResolveActiveChatJid()
       : '';
     if (typeof window.__umResolvePlatformConversationIdentity === 'function' && platformKey) {
       var identity = window.__umResolvePlatformConversationIdentity(platformKey, {
-        headerTitle: conversationKey,
+        headerTitle: headerTitle,
         conversationKey: conversationKey,
         chatJid: chatJid
       });
@@ -414,7 +433,10 @@
           broadcastResolved(instanceId, snapshot);
           if ((platform === 'whatsapp' || platform === 'whatsappbusiness') &&
               typeof window.__umWhatsAppDetectDeliveryStatus === 'function') {
-            var containers = document.querySelectorAll('div[data-testid="msg-container"]');
+            var root = findConversationRoot(profile);
+            var containers = root
+              ? queryAll(profile.messageContainerSelectors, root)
+              : [];
             if (containers.length) {
               var newest = containers[containers.length - 1];
               var deliveryStatus = window.__umWhatsAppDetectDeliveryStatus(newest);

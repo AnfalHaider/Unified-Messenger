@@ -283,6 +283,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
     {
         try
         {
+            if (!IsInstanceOperationalForResolve(instance.Id))
+            {
+                return;
+            }
+
             var status = root.TryGetProperty("status", out var statusElement)
                 ? statusElement.GetString()
                 : null;
@@ -520,8 +525,20 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     chatHint,
                     chatHint,
                     null);
-                MessageAnalyticsService.Instance.RecordMessageSent(instance.Id, chatHint);
                 var sentAtUtc = ParseMessageTimestamp(root);
+                if (!WhatsAppOperationalContextBuilder.IsWhatsAppPlatform(instance.Platform))
+                {
+                    MessageAnalyticsService.Instance.RecordMessageSent(
+                        instance.Id,
+                        chatHint,
+                        resolvedSentKey,
+                        sentAtUtc);
+                }
+
+                if (!IsInstanceOperationalForResolve(instance.Id))
+                {
+                    return true;
+                }
 
                 if (WhatsAppOperationalContextBuilder.IsWhatsAppPlatform(instance.Platform))
                 {
@@ -561,6 +578,13 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
     private static bool ShouldRecordPreviewForAnalytics(string platform, string title, string body) =>
         false;
+
+    private static bool IsInstanceOperationalForResolve(string instanceId)
+    {
+        var status = InstanceConnectionStatusService.Instance.GetStatus(instanceId);
+        return status is not InstanceConnectionStatus.Error
+            and not InstanceConnectionStatus.LoggedOut;
+    }
 
     private static bool TryMarkRegistered(CoreWebView2 coreWebView)
     {

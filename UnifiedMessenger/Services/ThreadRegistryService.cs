@@ -51,6 +51,8 @@ public sealed class ThreadRegistryService : IThreadRegistryService
             thread.Normalize();
             _threads[thread.ThreadId] = thread;
         }
+
+        NotifyChanged();
     }
 
     public void UpsertFromTriageItem(
@@ -100,7 +102,11 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         thread.BranchName = string.IsNullOrWhiteSpace(branch) ? thread.BranchName : branch;
         thread.CustomerName = item.CustomerName;
         thread.ConversationKey = key;
-        thread.LastMessageTime = item.TimestampUtc;
+        if (!enrichmentOnResolved || item.TimestampUtc > thread.LastMessageTime)
+        {
+            thread.LastMessageTime = item.TimestampUtc;
+        }
+
         thread.LastTriageItemId = item.Id;
         thread.IsSpamOrPromo = spam;
         thread.LastMessageKind = item.MessageKind.ToString();

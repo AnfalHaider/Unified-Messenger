@@ -539,6 +539,27 @@
     return timeNode ? normalizeText(timeNode.textContent || '') : '';
   }
 
+  function getChatRowJid(row) {
+    if (!row) {
+      return '';
+    }
+
+    var rowId = row.getAttribute && row.getAttribute('data-id');
+    if (rowId && rowId.indexOf('@') >= 0) {
+      return rowId;
+    }
+
+    var child = row.querySelector('[data-id]');
+    if (child) {
+      var childId = child.getAttribute('data-id') || '';
+      if (childId.indexOf('@') >= 0) {
+        return childId;
+      }
+    }
+
+    return '';
+  }
+
   window.__umCollectSidebarSnapshot = function () {
     var rows = document.querySelectorAll(
       '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
@@ -548,7 +569,8 @@
     for (var i = 0; i < rows.length && payloadRows.length < (backfillOptions.maxChats || 20); i++) {
       var row = rows[i];
       var title = getChatRowTitle(row);
-      if (!title) {
+      var chatJid = getChatRowJid(row);
+      if (!title && !chatJid) {
         continue;
       }
 
@@ -556,8 +578,8 @@
         'span[data-testid="last-msg-text"], span[data-testid="last-msg-status"], div[data-testid="cell-frame-secondary"] span'
       );
       payloadRows.push({
-        title: title,
-        conversationKey: title,
+        title: title || chatJid,
+        conversationKey: chatJid || title,
         preview: previewNode ? normalizeText(previewNode.textContent || '') : '',
         relativeTime: getChatRowRelativeTime(row),
         timestampUtc: new Date().toISOString()

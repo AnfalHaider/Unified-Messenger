@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Presenters;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Backfill;
 using UnifiedMessenger.ViewModels;
 
 namespace UnifiedMessenger.Controls;
@@ -72,6 +73,12 @@ public sealed partial class OperationsCommandCenter : UserControl
         _services.OccDateRangeFilter.Changed -= OnOccDateRangeFilterChanged;
         _services.OccViewMode.Changed -= OnOccViewModeChanged;
         _services.Navigation.InstanceNavigationFailed -= OnInstanceNavigationFailed;
+        if (_backfillEventsAttached)
+        {
+            BackfillSyncManager.Instance.ProgressChanged -= OnBackfillProgressChanged;
+            _backfillEventsAttached = false;
+        }
+
         StopDateRangeDebounceTimer();
     }
 

@@ -55,3 +55,8 @@ Generated\ Files/
 
 # Benchmark output
 BenchmarkDotNet.Artifacts/
+
+# Firecrawl web research output and secrets
+.firecrawl/
+.env
+.env.local

@@ -71,13 +71,23 @@ public class ZohraResolvePolicyAcceptanceTests : IDisposable
     [Fact]
     public async Task ScenarioD_DisconnectedInstanceResolveDoesNotCreatePhantomThread()
     {
-        InstanceConnectionStatusService.Instance.SetError(InstanceId, "disconnected");
+        var inboundAt = new DateTimeOffset(2026, 6, 4, 11, 0, 0, TimeSpan.Zero);
+        SeedOpenThread(Jid, DisplayName, inboundAt);
 
-        DispatchThreadResolved(DisplayName, DisplayName, DateTimeOffset.UtcNow);
+        try
+        {
+            InstanceConnectionStatusService.Instance.SetError(InstanceId, "disconnected");
 
-        await Task.Delay(100);
+            DispatchThreadResolved(DisplayName, DisplayName, inboundAt.AddMinutes(3));
 
-        Assert.Empty(ThreadRegistryService.Instance.GetAllThreads());
+            var thread = await WaitForUnresolvedThreadAsync(Jid);
+            Assert.False(thread.IsReplied);
+            Assert.Single(ThreadRegistryService.Instance.GetAllThreads());
+        }
+        finally
+        {
+            InstanceConnectionStatusService.Instance.Remove(InstanceId);
+        }
     }
 
     [Fact]
@@ -147,6 +157,25 @@ public class ZohraResolvePolicyAcceptanceTests : IDisposable
 
         var adapter = PlatformAdapterFactory.Resolve(instance.Platform);
         adapter.HandleWebMessage(json, NotificationHub.Instance, instance);
+    }
+
+    private static async Task<ThreadData> WaitForUnresolvedThreadAsync(string conversationKey)
+    {
+        var threadId = ConversationKeyResolver.BuildThreadId(InstanceId, conversationKey);
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (DateTime.UtcNow < deadline)
+        {
+            var thread = ThreadRegistryService.Instance.GetAllThreads()
+                .FirstOrDefault(t => t.ThreadId == threadId);
+            if (thread is not null && !thread.IsReplied)
+            {
+                return thread;
+            }
+
+            await Task.Delay(25);
+        }
+
+        throw new TimeoutException($"Thread '{threadId}' was unexpectedly resolved.");
     }
 
     private static async Task<ThreadData> WaitForResolvedThreadAsync(string conversationKey)
