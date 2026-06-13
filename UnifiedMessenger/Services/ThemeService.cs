@@ -44,7 +44,8 @@ public static class ThemeService
             Debug.WriteLine($"ApplyInitialLaunchTheme skipped: {ex.Message}");
         }
 
-        EnsureHighContrastWatcher();
+        // Apply HC resource overrides only; event subscription requires a live window (HRESULT 0x80070490).
+        ApplyInitialHighContrastOverrides();
     }
 
     /// <summary>
@@ -118,12 +119,34 @@ public static class ThemeService
         }
     }
 
+    private static void ApplyInitialHighContrastOverrides()
+    {
+        try
+        {
+            _accessibilitySettings ??= new AccessibilitySettings();
+            ApplyHighContrastOverrides(_accessibilitySettings.HighContrast);
+        }
+        catch (COMException ex)
+        {
+            Debug.WriteLine($"Initial high-contrast overrides skipped: {ex.Message}");
+        }
+    }
+
     private static void EnsureHighContrastWatcher()
     {
         _accessibilitySettings ??= new AccessibilitySettings();
         ApplyHighContrastOverrides(_accessibilitySettings.HighContrast);
-        _accessibilitySettings.HighContrastChanged -= OnHighContrastChanged;
-        _accessibilitySettings.HighContrastChanged += OnHighContrastChanged;
+
+        try
+        {
+            _accessibilitySettings.HighContrastChanged -= OnHighContrastChanged;
+            _accessibilitySettings.HighContrastChanged += OnHighContrastChanged;
+        }
+        catch (COMException ex)
+        {
+            // AccessibilitySettings events are unavailable before the first window is activated.
+            Debug.WriteLine($"HighContrastChanged subscription skipped: {ex.Message}");
+        }
     }
 
     private static void OnHighContrastChanged(AccessibilitySettings sender, object args)

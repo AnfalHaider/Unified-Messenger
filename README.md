@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v3.3.0 (WhatsApp Core "Lite" line)
+**Current release:** v3.3.1 (WhatsApp Core "Lite" line)
 
 ## Scope
 
