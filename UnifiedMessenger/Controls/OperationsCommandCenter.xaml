@@ -61,6 +61,23 @@
                             Style="{StaticResource UmCaptionTextStyle}"
                             Text="Updated just now" />
                         <StackPanel
+                            x:Name="BackfillStatusPanel"
+                            Orientation="Horizontal"
+                            Spacing="6"
+                            Visibility="Collapsed">
+                            <ProgressRing
+                                Width="14"
+                                Height="14"
+                                Foreground="{StaticResource UmBrandTealBrush}"
+                                IsActive="True" />
+                            <TextBlock
+                                x:Name="BackfillStatusText"
+                                FontSize="11"
+                                Foreground="{StaticResource UmBrandTealDarkBrush}"
+                                Opacity="0.9"
+                                Text="Backfill running…" />
+                        </StackPanel>
+                        <StackPanel
                             x:Name="BranchFilterChipPanel"
                             Orientation="Horizontal"
                             Spacing="{StaticResource UmSpacingSm}"

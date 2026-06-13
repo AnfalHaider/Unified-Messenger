@@ -1,5 +1,6 @@
 using System.Text.Json;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Services.Adapters;
 
@@ -22,6 +23,18 @@ internal static class WhatsAppIngressHandler
         if (AdapterMessageTypes.WhatsAppTelemetry.Equals(type, StringComparison.OrdinalIgnoreCase))
         {
             HandleTelemetry(root, instance);
+            return true;
+        }
+
+        if (AdapterMessageTypes.WhatsAppHistoryChunk.Equals(type, StringComparison.OrdinalIgnoreCase))
+        {
+            HandleHistoryChunk(root, instance);
+            return true;
+        }
+
+        if (AdapterMessageTypes.WhatsAppSidebarSnapshot.Equals(type, StringComparison.OrdinalIgnoreCase))
+        {
+            HandleSidebarSnapshot(root, instance);
             return true;
         }
 
@@ -128,6 +141,88 @@ internal static class WhatsAppIngressHandler
                 receivedKind,
                 lastReceivedAt.Value);
         }
+    }
+
+    private static void HandleSidebarSnapshot(JsonElement root, MessengerInstance instance)
+    {
+        if (!root.TryGetProperty("rows", out var rowsElement) || rowsElement.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var row in rowsElement.EnumerateArray())
+        {
+            var title = ReadOptionalString(row, "title");
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                continue;
+            }
+
+            var conversationKey = ReadOptionalString(row, "conversationKey") ?? title;
+            var capturedAt = WebMessageParser.ReadTimestampUtc(row, DateTimeOffset.UtcNow);
+
+            WhatsAppBusinessContextService.Instance.UpsertThreadContext(new WhatsAppThreadContextSnapshot
+            {
+                InstanceId = instance.Id,
+                ConversationKey = conversationKey,
+                CustomerName = title,
+                CapturedAtUtc = capturedAt
+            });
+        }
+    }
+
+    private static void HandleHistoryChunk(JsonElement root, MessengerInstance instance)
+    {
+        var conversationKey = ReadOptionalString(root, "conversationKey");
+        var body = ReadOptionalString(root, "body");
+        if (string.IsNullOrWhiteSpace(conversationKey) || string.IsNullOrWhiteSpace(body) || body.Trim().Length < 8)
+        {
+            return;
+        }
+
+        if (ReadOptionalBool(root, "isOutgoing"))
+        {
+            return;
+        }
+
+        var timestamp = WebMessageParser.ReadTimestampUtc(root, DateTimeOffset.UtcNow);
+        var customerName = ReadOptionalString(root, "customerName") ?? "Customer";
+
+        if (!BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, conversationKey, body))
+        {
+            return;
+        }
+
+        MessageAnalyticsService.Instance.RecordBackfillInbound(
+            instance.Id,
+            timestamp,
+            AppSettingsService.Instance.Settings.SlaThresholdMinutes);
+
+        MessageTriageService.Instance.Enqueue(
+            new InboundMessageSelection
+            {
+                InstanceId = instance.Id,
+                Platform = instance.Platform,
+                MessageText = body.Trim(),
+                CustomerName = customerName,
+                ConversationKey = conversationKey,
+                ConversationHint = conversationKey,
+                TimestampUtc = timestamp
+            },
+            instance.DisplayName,
+            BranchWorkspaceHelper.ResolveBranchKey(instance),
+            allowLlmInference: false,
+            skipDedupeCheck: true);
+    }
+
+    private static bool ReadOptionalBool(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var element))
+        {
+            return false;
+        }
+
+        return element.ValueKind == JsonValueKind.True;
     }
 
     private static void HandleOutgoingStatus(JsonElement root, MessengerInstance instance)

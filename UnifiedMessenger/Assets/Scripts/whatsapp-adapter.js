@@ -17,6 +17,11 @@
   var publishScheduled = false;
   var chatSnapshots = Object.create(null);
   var snapshotsInitialized = false;
+  var backfillOptions = {
+    mode: 'unread',
+    recentDays: 7,
+    maxChats: 20
+  };
   var lastUrl = location.href;
   var spaNotify = null;
   var historyHooked = false;
@@ -477,6 +482,291 @@
       });
     }
   }
+
+  function isEligibleChatForBackfill(chat) {
+    if (!chat || chat.archive) {
+      return false;
+    }
+
+    var mode = backfillOptions.mode || 'unread';
+    if (mode === 'unread') {
+      return isEligibleChat(chat);
+    }
+
+    if (mode === 'recent') {
+      var recentTs = resolveLastMessageTimestamp(chat);
+      if (!recentTs) {
+        return false;
+      }
+
+      var recentDays = backfillOptions.recentDays || 7;
+      var ageMs = Date.now() - Date.parse(recentTs);
+      return ageMs <= recentDays * 86400000;
+    }
+
+    if (mode === 'all') {
+      return !!getChatKey(chat);
+    }
+
+    return false;
+  }
+
+  window.__umSetBackfillOptions = function (options) {
+    options = options || {};
+    if (options.mode) {
+      backfillOptions.mode = String(options.mode);
+    }
+    if (options.recentDays) {
+      backfillOptions.recentDays = Math.max(1, parseInt(options.recentDays, 10) || 7);
+    }
+    if (options.maxChats) {
+      backfillOptions.maxChats = Math.max(5, parseInt(options.maxChats, 10) || 20);
+    }
+    return backfillOptions;
+  };
+
+  function getChatRowTitle(row) {
+    var titleNode = row.querySelector(
+      'span[dir="auto"][title], span[title][dir="auto"], div[role="gridcell"] span[dir="auto"]'
+    );
+    return titleNode ? normalizeText(titleNode.textContent || titleNode.getAttribute('title') || '') : '';
+  }
+
+  function getChatRowRelativeTime(row) {
+    var timeNode = row.querySelector(
+      'div[data-testid="cell-frame-secondary"] span, span[data-testid="msg-time"], aside span[dir="auto"]'
+    );
+    return timeNode ? normalizeText(timeNode.textContent || '') : '';
+  }
+
+  window.__umCollectSidebarSnapshot = function () {
+    var rows = document.querySelectorAll(
+      '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+    );
+    var payloadRows = [];
+
+    for (var i = 0; i < rows.length && payloadRows.length < (backfillOptions.maxChats || 20); i++) {
+      var row = rows[i];
+      var title = getChatRowTitle(row);
+      if (!title) {
+        continue;
+      }
+
+      var previewNode = row.querySelector(
+        'span[data-testid="last-msg-text"], span[data-testid="last-msg-status"], div[data-testid="cell-frame-secondary"] span'
+      );
+      payloadRows.push({
+        title: title,
+        conversationKey: title,
+        preview: previewNode ? normalizeText(previewNode.textContent || '') : '',
+        relativeTime: getChatRowRelativeTime(row),
+        timestampUtc: new Date().toISOString()
+      });
+    }
+
+    postMessage({
+      type: 'whatsapp-sidebar-snapshot',
+      instanceId: INSTANCE_ID,
+      platform: PLATFORM,
+      rows: payloadRows
+    });
+
+    return { ok: payloadRows.length > 0, rows: payloadRows };
+  };
+
+  function readMessageDailyAggregatesFromDb(db, callback) {
+    try {
+      if (!db.objectStoreNames.contains('message')) {
+        callback({ sent: {}, received: {} });
+        return;
+      }
+
+      var sent = Object.create(null);
+      var received = Object.create(null);
+      var txn = db.transaction('message', 'readonly');
+      var store = txn.objectStore('message');
+      var cursorReq = store.openCursor();
+
+      cursorReq.onsuccess = function (event) {
+        var cursor = event.target.result;
+        if (!cursor) {
+          callback({ sent: sent, received: received });
+          return;
+        }
+
+        var msg = cursor.value;
+        if (msg && msg.t) {
+          var day = new Date(msg.t * 1000).toISOString().slice(0, 10);
+          if (msg.fromMe) {
+            sent[day] = (sent[day] || 0) + 1;
+          } else {
+            received[day] = (received[day] || 0) + 1;
+          }
+        }
+
+        cursor.continue();
+      };
+
+      cursorReq.onerror = function () {
+        callback(null);
+      };
+    } catch (error) {
+      callback(null);
+    }
+  }
+
+  window.__umCollectMessageDailyAggregates = function () {
+    return new Promise(function (resolve) {
+      if (!window.indexedDB) {
+        resolve({ sent: {}, received: {} });
+        return;
+      }
+
+      function readFromDb(db) {
+        readMessageDailyAggregatesFromDb(db, function (result) {
+          resolve(result || { sent: {}, received: {} });
+        });
+      }
+
+      if (dbCache) {
+        readFromDb(dbCache);
+        return;
+      }
+
+      if (!indexedDB.databases) {
+        resolve({ sent: {}, received: {} });
+        return;
+      }
+
+      indexedDB.databases().then(function (databases) {
+        var hasModelStorage = databases.some(function (db) {
+          return db.name === 'model-storage';
+        });
+
+        if (!hasModelStorage) {
+          resolve({ sent: {}, received: {} });
+          return;
+        }
+
+        var request = indexedDB.open('model-storage');
+        request.onsuccess = function () {
+          dbCache = request.result;
+          readFromDb(dbCache);
+        };
+        request.onerror = function () {
+          resolve({ sent: {}, received: {} });
+        };
+      }).catch(function () {
+        resolve({ sent: {}, received: {} });
+      });
+    });
+  };
+
+  function collectVisibleHistoryMessages(conversationKey, customerName) {
+    var messages = [];
+    var containers = document.querySelectorAll('div[data-testid="msg-container"]');
+    for (var i = 0; i < containers.length; i++) {
+      var node = containers[i];
+      var isOutgoing = node.classList.contains('message-out') ||
+        !!node.querySelector('.message-out') ||
+        !!node.closest('.message-out');
+      var previewNode = node.querySelector('span.selectable-text, span.copyable-text');
+      var body = previewNode ? normalizeText(previewNode.textContent || '') : '';
+      if (!body) {
+        continue;
+      }
+
+      messages.push({
+        conversationKey: conversationKey,
+        customerName: customerName,
+        body: body,
+        timestampUtc: parseMessageTimestamp(node),
+        isOutgoing: isOutgoing
+      });
+    }
+
+    return messages;
+  }
+
+  window.__umScrollBackOpenChatHistory = function (maxIterations) {
+    maxIterations = maxIterations || 4;
+    var header = extractChatHeader();
+    if (!header || !header.title) {
+      return { ok: false, messages: [] };
+    }
+
+    var conversationKey = resolveActiveConversationKey(header) || header.title;
+    var panel = document.querySelector('#main [data-testid="conversation-panel-messages"], #main');
+    var iterations = 0;
+
+    while (panel && iterations < maxIterations) {
+      panel.scrollTop = 0;
+      iterations++;
+    }
+
+    var messages = collectVisibleHistoryMessages(conversationKey, header.title);
+    for (var i = 0; i < messages.length; i++) {
+      postMessage({
+        type: 'whatsapp-history-chunk',
+        instanceId: INSTANCE_ID,
+        platform: PLATFORM,
+        conversationKey: messages[i].conversationKey,
+        customerName: messages[i].customerName,
+        body: messages[i].body,
+        timestampUtc: messages[i].timestampUtc,
+        isOutgoing: messages[i].isOutgoing
+      });
+    }
+
+    return { ok: messages.length > 0, messages: messages };
+  };
+
+  window.__umRunDeepBackfillWalk = function (maxChats) {
+    maxChats = Math.min(maxChats || 3, 3);
+    var rows = document.querySelectorAll(
+      '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+    );
+    var collected = [];
+    var processed = 0;
+
+    for (var i = 0; i < rows.length && processed < maxChats; i++) {
+      var row = rows[i];
+      var title = getChatRowTitle(row);
+      if (!title) {
+        continue;
+      }
+
+      try {
+        row.click();
+      } catch (error) {
+        continue;
+      }
+
+      processed++;
+      var header = extractChatHeader();
+      var conversationKey = header ? resolveActiveConversationKey(header) || title : title;
+      var chunk = collectVisibleHistoryMessages(conversationKey, title);
+      for (var j = 0; j < chunk.length; j++) {
+        collected.push(chunk[j]);
+        postMessage({
+          type: 'whatsapp-history-chunk',
+          instanceId: INSTANCE_ID,
+          platform: PLATFORM,
+          conversationKey: chunk[j].conversationKey,
+          customerName: chunk[j].customerName,
+          body: chunk[j].body,
+          timestampUtc: chunk[j].timestampUtc,
+          isOutgoing: chunk[j].isOutgoing
+        });
+      }
+    }
+
+    return {
+      ok: collected.length > 0,
+      deferredNote: 'Deep backfill MVP — bounded synchronous walk only; async wait-for-#main deferred.',
+      messages: collected
+    };
+  };
 
   function isEligibleChat(chat) {
     if (!chat || chat.unreadCount <= 0 || chat.archive) {
@@ -977,7 +1267,7 @@
   }
 
   window.__umCollectBackfillCandidates = function (maxChats) {
-    maxChats = maxChats || 20;
+    maxChats = maxChats || backfillOptions.maxChats || 20;
 
     return new Promise(function (resolve) {
       readChatsFromIndexedDb(function (result) {
@@ -986,20 +1276,32 @@
           return;
         }
 
-        var candidates = [];
-        for (var i = 0; i < result.chats.length && candidates.length < maxChats; i++) {
+        var eligible = [];
+        for (var i = 0; i < result.chats.length; i++) {
           var chat = result.chats[i];
-          if (!isEligibleChat(chat)) {
+          if (!isEligibleChatForBackfill(chat)) {
             continue;
           }
 
-          var chatKey = getChatKey(chat);
+          eligible.push(chat);
+        }
+
+        eligible.sort(function (a, b) {
+          var aTs = resolveLastMessageTimestamp(a);
+          var bTs = resolveLastMessageTimestamp(b);
+          return Date.parse(bTs || 0) - Date.parse(aTs || 0);
+        });
+
+        var candidates = [];
+        for (var j = 0; j < eligible.length && candidates.length < maxChats; j++) {
+          var eligibleChat = eligible[j];
+          var chatKey = getChatKey(eligibleChat);
           if (!chatKey) {
             continue;
           }
 
-          var title = getChatTitle(chat);
-          var body = getChatPreviewBody(chat, chat.unreadCount);
+          var title = getChatTitle(eligibleChat);
+          var body = getChatPreviewBody(eligibleChat, eligibleChat.unreadCount || 1);
           if (!body || body.length < 8) {
             continue;
           }
@@ -1008,8 +1310,8 @@
             chatKey: chatKey,
             title: title,
             lastMessageBody: body,
-            lastMessageTimestamp: resolveLastMessageTimestamp(chat),
-            unreadCount: chat.unreadCount
+            lastMessageTimestamp: resolveLastMessageTimestamp(eligibleChat),
+            unreadCount: eligibleChat.unreadCount || 0
           });
         }
 

@@ -1,3 +1,5 @@
+using UnifiedMessenger.Services.Backfill;
+
 namespace UnifiedMessenger.Services;
 
 /// <summary>
@@ -9,6 +11,8 @@ public static class OperationalDataService
     {
         await MessageAnalyticsService.Instance.ClearAllDataAsync(cancellationToken).ConfigureAwait(false);
         await TriagePersistenceService.Instance.ClearAsync(cancellationToken).ConfigureAwait(false);
+        await BackfillDedupeStore.Instance.ClearAsync(cancellationToken).ConfigureAwait(false);
+        BackfillDedupeRegistry.Clear();
         NotificationHub.Instance.ClearAlerts();
         UnifiedMessengerDashboardService.Instance.NotifyChanged();
     }

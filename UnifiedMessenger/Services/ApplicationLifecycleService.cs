@@ -1,3 +1,5 @@
+using UnifiedMessenger.Services.Backfill;
+
 namespace UnifiedMessenger.Services;
 
 /// <summary>
@@ -44,6 +46,7 @@ public static class ApplicationLifecycleService
         {
             services.MessageTriage.Shutdown();
             services.StateSync.Shutdown();
+            BackfillSyncManager.Instance.Shutdown();
 
             await services.MessageTriage
                 .WaitForShutdownAsync(WorkerShutdownTimeout)

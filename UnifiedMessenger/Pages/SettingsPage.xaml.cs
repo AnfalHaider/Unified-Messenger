@@ -66,6 +66,11 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(EnableInstanceNotesTagsToggle, "Enable instance notes and tags");
         AutomationProperties.SetName(SlaThresholdBox, "SLA threshold minutes");
         AutomationProperties.SetName(DashboardUrgencyThresholdBox, "Dashboard urgency threshold");
+        AutomationProperties.SetName(EnableStartupBackfillToggle, "Enable startup backfill");
+        AutomationProperties.SetName(WhatsAppBackfillModeBox, "WhatsApp backfill mode");
+        AutomationProperties.SetName(WhatsAppBackfillMaxChatsBox, "Max chats per backfill run");
+        AutomationProperties.SetName(WhatsAppBackfillRecentDaysBox, "Recent backfill window days");
+        AutomationProperties.SetName(EnableDeepBackfillToggle, "Enable deep backfill");
         AutomationProperties.SetName(ClearAnalyticsButton, "Clear operational data");
         AutomationProperties.SetName(ExportInstancesButton, "Export instances");
         AutomationProperties.SetName(ImportBackupCheckBox, "Create backup before import");
@@ -157,6 +162,13 @@ public sealed partial class SettingsPage : Page
         EnableInstanceNotesTagsToggle.IsOn = settings.EnableInstanceNotesTags;
         RunInBackgroundOnCloseToggle.IsOn = settings.RunInBackgroundOnClose;
         DashboardUrgencyThresholdBox.Value = settings.DashboardUrgencyThreshold;
+        EnableStartupBackfillToggle.IsOn = settings.EnableStartupBackfill;
+        WhatsAppBackfillModeBox.SelectedItem = ((WhatsAppBackfillModeOption[])WhatsAppBackfillModeBox.ItemsSource!)
+            .FirstOrDefault(o => o.Mode == settings.WhatsAppBackfillMode)
+            ?? ((WhatsAppBackfillModeOption[])WhatsAppBackfillModeBox.ItemsSource!)[0];
+        WhatsAppBackfillMaxChatsBox.Value = settings.WhatsAppBackfillMaxChats;
+        WhatsAppBackfillRecentDaysBox.Value = settings.WhatsAppBackfillRecentDays;
+        EnableDeepBackfillToggle.IsOn = settings.EnableDeepBackfill;
         LaunchAtStartupToggle.IsOn = StartupTaskService.EnsureRegistrationMatchesPreference(
             settings.LaunchAtStartup);
         PromptPinToTaskbarToggle.IsOn = settings.PromptPinToTaskbar;
@@ -177,6 +189,7 @@ public sealed partial class SettingsPage : Page
         EnsureAppearanceComboBoxesInitialized();
         EnsureNotificationsComboBoxesInitialized();
         EnsureSessionComboBoxesInitialized();
+        EnsureMetricsControlsInitialized();
     }
 
     private void RefreshStoragePaths()

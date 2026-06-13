@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Backfill;
 namespace UnifiedMessenger.Services.Adapters;
 
 public interface IPlatformAdapter
@@ -248,6 +249,12 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 .ConfigureAwait(true);
 
             await ExecutePublishBadgeAsync(coreWebView).ConfigureAwait(true);
+
+            if (instance.IsProfessional &&
+                PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
+            {
+                BackfillSyncManager.Instance.Schedule(instance);
+            }
         }
         catch (Exception ex)
         {
@@ -352,6 +359,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             conversationHint,
             root.TryGetProperty("customerName", out var nameProbe) ? nameProbe.GetString() : null,
             messageText);
+
+        if (!BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, resolvedKey, messageText))
+        {
+            return true;
+        }
 
         var customerName = root.TryGetProperty("customerName", out var customerElement)
             ? customerElement.GetString() ?? "Customer"

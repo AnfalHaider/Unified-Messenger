@@ -56,6 +56,19 @@ public partial class OperationsCommandCenterViewModel : ViewModelBase
     [ObservableProperty]
     private string? _immediateQueueFooterText;
 
+    [ObservableProperty]
+    private bool _showBackfillStatus;
+
+    [ObservableProperty]
+    private string _backfillStatusText = string.Empty;
+
+    public void ApplyBackfillStatus(OccBackfillStatusPresentation status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        ShowBackfillStatus = status.ShowStatus;
+        BackfillStatusText = status.StatusText;
+    }
+
     public void ApplyShellPresentation(OccShellPresentation shell)
     {
         ArgumentNullException.ThrowIfNull(shell);

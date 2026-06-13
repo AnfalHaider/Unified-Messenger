@@ -51,6 +51,8 @@ public sealed partial class OperationsCommandCenter : UserControl
         ApplyAccessibilityTabOrder();
         WireResponsiveLayoutHelpers();
         WireKanbanKeyboardShortcuts();
+        EnsureBackfillStatusSubscription();
+        ApplyBackfillStatusUi();
     }
 
     private void WireResponsiveLayoutHelpers()
@@ -238,6 +240,7 @@ public sealed partial class OperationsCommandCenter : UserControl
             }
 
             ApplySnapshot(snapshot);
+            ApplyBackfillStatusUi();
         }
         finally
         {

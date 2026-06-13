@@ -13,4 +13,6 @@ public sealed partial class SettingsPage
     private sealed record PanelDockOption(NotificationPanelDock Dock, string Label);
 
     private sealed record StartupWarmModeOption(StartupWarmMode Mode, string Label);
+
+    private sealed record WhatsAppBackfillModeOption(WhatsAppBackfillMode Mode, string Label);
 }

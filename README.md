@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v3.3.1 (WhatsApp Core "Lite" line)
+**Current release:** v3.4.0 (WhatsApp startup backfill)
 
 ## Scope
 
@@ -14,7 +14,8 @@ This baseline is intentionally narrow:
 | Unified desktop notification feed + taskbar badge | Local AI / Ollama, auto-draft, copilot hotkeys |
 | Fixed-layout **Operations Command Center** (heuristic triage, branch pills, kanban) | OCC layout builder, platform intelligence panels, CSV export |
 | **Personal Overview** panel | Voice-note pipeline, branch pulse LLM summaries |
-| Heuristic message triage (no cloud LLM) | Backfill, benchmarks suite, multi-platform adapters |
+| Heuristic message triage (no cloud LLM) | Tier 5 message decryption, multi-platform adapters |
+| **Startup backfill** (IndexedDB + sidebar snapshot, OCC status) | Full deep backfill automation (MVP: bounded walk only) |
 | Zero-dependency local footprint (self-contained installer) | Per-platform module toggles |
 
 Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (preinstalled on most Windows 11 systems).
@@ -29,6 +30,14 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v3.4.0
+
+- **WhatsApp startup backfill (P0?P3):** Re-wired `BackfillSyncManager` + `WhatsAppBackfillProvider` after connect; IndexedDB candidate collection with unread/recent/all modes; conversation+day dedupe store; triage enqueue + `RecordBackfillInbound` + thread registry timestamps.
+- **P1 metadata:** Message-store daily sent/received aggregates (no decryption); sidebar snapshot ingress.
+- **P2 scroll-back:** Open-chat history chunk collection; OCC backfill status caption (`UmBrandTealDarkBrush`).
+- **P3 deep backfill (MVP):** Opt-in bounded sidebar walk (max 3 chats); full async automation deferred.
+- **Settings:** Startup backfill toggle, mode, max chats, recent window, deep backfill opt-in.
 
 ### What's in v3.3.0
 

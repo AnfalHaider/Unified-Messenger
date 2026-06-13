@@ -347,6 +347,32 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         NotifyChanged();
     }
 
+    /// <summary>
+    /// Merges IndexedDB daily sent/received buckets without incrementing headline sent/received totals.
+    /// </summary>
+    public void RecordBackfillDailyAggregate(
+        string instanceId,
+        IReadOnlyDictionary<string, int> receivedByDay,
+        IReadOnlyDictionary<string, int> sentByDay)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        lock (_debounceLock)
+        {
+            var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
+            MergeBackfillDailyBuckets(stats.DailyReceived, receivedByDay);
+            MergeBackfillDailyBuckets(stats.DailySent, sentByDay);
+            PruneDailyBuckets(stats.DailyReceived);
+            PruneDailyBuckets(stats.DailySent);
+        }
+
+        NotifyChanged();
+        ScheduleSave();
+    }
+
     internal void RecordBackfillSlaCandidateForTests(string instanceId, double latencyMinutes)
     {
         lock (_debounceLock)
@@ -594,6 +620,22 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             {
                 stats.SlaBreachCount = stats.ReplyLatenciesMinutes.Count(minutes => minutes > threshold);
             }
+        }
+    }
+
+    private static void MergeBackfillDailyBuckets(
+        Dictionary<string, int> target,
+        IReadOnlyDictionary<string, int> incoming)
+    {
+        foreach (var (day, count) in incoming)
+        {
+            if (count <= 0 || string.IsNullOrWhiteSpace(day))
+            {
+                continue;
+            }
+
+            target.TryGetValue(day, out var existing);
+            target[day] = Math.Max(existing, count);
         }
     }
 

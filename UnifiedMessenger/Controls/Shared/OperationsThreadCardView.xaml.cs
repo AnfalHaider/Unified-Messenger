@@ -17,7 +17,7 @@ public sealed partial class OperationsThreadCardView : UserControl
             nameof(ViewModel),
             typeof(OperationsThreadCardViewModel),
             typeof(OperationsThreadCardView),
-            new PropertyMetadata(null));
+            new PropertyMetadata(null, OnViewModelChanged));
 
     public static readonly DependencyProperty DisplayStyleProperty =
         DependencyProperty.Register(
@@ -29,6 +29,15 @@ public sealed partial class OperationsThreadCardView : UserControl
     public OperationsThreadCardView()
     {
         InitializeComponent();
+        Loaded += (_, _) => Bindings.Update();
+    }
+
+    private static void OnViewModelChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is OperationsThreadCardView card)
+        {
+            card.Bindings.Update();
+        }
     }
 
     public OperationsThreadCardViewModel? ViewModel

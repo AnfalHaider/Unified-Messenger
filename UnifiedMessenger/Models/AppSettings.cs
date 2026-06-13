@@ -3,7 +3,7 @@ namespace UnifiedMessenger.Models;
 public sealed class AppSettings
 {
     /// <summary>Lite baseline — legacy AI/OCC-layout keys are dropped on load via re-save.</summary>
-    public const int CurrentVersion = 13;
+    public const int CurrentVersion = 14;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -66,6 +66,22 @@ public sealed class AppSettings
 
     public int DashboardUrgencyThreshold { get; set; } = 30;
 
+    /// <summary>
+    /// When true, professional instances reconcile unread inbox state once after connect.
+    /// </summary>
+    public bool EnableStartupBackfill { get; set; } = true;
+
+    public WhatsAppBackfillMode WhatsAppBackfillMode { get; set; } = WhatsAppBackfillMode.Unread;
+
+    public int WhatsAppBackfillRecentDays { get; set; } = 7;
+
+    public int WhatsAppBackfillMaxChats { get; set; } = 20;
+
+    /// <summary>
+    /// Opt-in deep backfill (bounded sidebar walk). Default off — see v3.4.0 release notes.
+    /// </summary>
+    public bool EnableDeepBackfill { get; set; }
+
     public List<string> PersonalOverviewSectionOrder { get; set; } =
         PersonalOverviewLayoutDefaults.SectionOrder.ToList();
 
@@ -83,7 +99,14 @@ public sealed class AppSettings
 
         SlaThresholdMinutes = Math.Clamp(SlaThresholdMinutes, MinSlaThresholdMinutes, MaxSlaThresholdMinutes);
         DashboardUrgencyThreshold = Math.Clamp(DashboardUrgencyThreshold, 15, 50);
+        WhatsAppBackfillRecentDays = Math.Clamp(WhatsAppBackfillRecentDays, 1, 30);
+        WhatsAppBackfillMaxChats = Math.Clamp(WhatsAppBackfillMaxChats, 5, 100);
         MaxConcurrentWebViews = Math.Clamp(MaxConcurrentWebViews, 0, MaxConcurrentWebViewsCap);
+
+        if (!Enum.IsDefined(WhatsAppBackfillMode))
+        {
+            WhatsAppBackfillMode = WhatsAppBackfillMode.Unread;
+        }
 
         if (!Enum.IsDefined(ThemePreference))
         {

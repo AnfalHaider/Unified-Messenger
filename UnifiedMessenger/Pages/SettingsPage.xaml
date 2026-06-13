@@ -225,6 +225,61 @@
                             </NumberBox.Description>
                         </NumberBox>
 
+                        <ToggleSwitch
+                            x:Name="EnableStartupBackfillToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableStartupBackfillToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Enable startup backfill" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="After connect, reconcile unread WhatsApp threads into triage and analytics."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ComboBox
+                            x:Name="WhatsAppBackfillModeBox"
+                            Header="WhatsApp backfill mode"
+                            SelectionChanged="WhatsAppBackfillModeBox_SelectionChanged" />
+
+                        <NumberBox
+                            x:Name="WhatsAppBackfillMaxChatsBox"
+                            Header="Max chats per backfill run"
+                            Maximum="100"
+                            Minimum="5"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="WhatsAppBackfillMaxChatsBox_ValueChanged" />
+
+                        <NumberBox
+                            x:Name="WhatsAppBackfillRecentDaysBox"
+                            Header="Recent backfill window (days)"
+                            Maximum="30"
+                            Minimum="1"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="WhatsAppBackfillRecentDaysBox_ValueChanged" />
+
+                        <ToggleSwitch
+                            x:Name="EnableDeepBackfillToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableDeepBackfillToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Deep backfill (experimental)" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Opt-in bounded sidebar walk (max 3 chats). Full automation deferred."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
                         <Expander
                             x:Name="ExperimentalExpander"
                             Header="Experimental"
