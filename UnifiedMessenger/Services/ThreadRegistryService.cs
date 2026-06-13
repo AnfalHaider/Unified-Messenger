@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Models.Ai;
+using UnifiedMessenger.Services.Ai;
 
 namespace UnifiedMessenger.Services;
 
@@ -152,6 +154,11 @@ public sealed class ThreadRegistryService : IThreadRegistryService
                   ? item.OperationalUrgency
                   : MapOperationalUrgency(item.UrgencyScore));
         thread.NextActionSummary = ResolveNextActionSummary(nextActionSummary, item, spam);
+        thread.LastMessagePreview = item.MessagePreview;
+        if (thread.InferenceSource != TriageInferenceSource.Ollama)
+        {
+            thread.InferenceSource = item.InferenceSource;
+        }
         thread.SuggestedAction = string.IsNullOrWhiteSpace(suggestedAction)
             ? item.SuggestedAction
             : suggestedAction.Trim();
@@ -160,6 +167,32 @@ public sealed class ThreadRegistryService : IThreadRegistryService
             ? false
             : isRevenueLeakageRisk ?? (item.IsRevenueLeakageRisk || EvaluateRevenueLeakage(thread));
 
+        NotifyChanged();
+    }
+
+    public void EnrichFromAi(string threadId, string triageItemId, AiInferenceResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        if (string.IsNullOrWhiteSpace(threadId) ||
+            !_threads.TryGetValue(threadId, out var thread) ||
+            thread.IsReplied ||
+            thread.IsSpamOrPromo)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(triageItemId) &&
+            !string.Equals(thread.LastTriageItemId, triageItemId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        thread.AiIntentCategory = result.Intent;
+        thread.NextActionSummary = ConversationNoiseFilter.SanitizeSummary(result.NextAction);
+        thread.SuggestedAction = result.SuggestedAction;
+        thread.InferenceSource = TriageInferenceSource.Ollama;
+        thread.IsRevenueLeakageRisk = EvaluateRevenueLeakage(thread);
         NotifyChanged();
     }
 
@@ -192,6 +225,7 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         thread.ReplyLatencyMinutes = replyLatency;
         thread.LatencyMinutes = replyLatency;
         thread.LastMessageTime = resolvedAt;
+        AiInferenceQueue.Instance.CancelThread(thread.ThreadId);
         MessageAnalyticsService.Instance.RecordThreadReply(
             instanceId,
             thread.ConversationKey,
@@ -593,6 +627,7 @@ internal static class ThreadDataExtensions
             ? ClientSentimentLabel.Neutral
             : thread.ClientSentiment.Trim();
         thread.NextActionSummary = thread.NextActionSummary?.Trim() ?? string.Empty;
+        thread.LastMessagePreview = thread.LastMessagePreview?.Trim() ?? string.Empty;
         thread.SuggestedAction = thread.SuggestedAction?.Trim() ?? string.Empty;
         thread.UrgencyScore = Math.Clamp(thread.UrgencyScore, 1, 5);
         thread.LatencyMinutes = Math.Max(0, thread.LatencyMinutes);

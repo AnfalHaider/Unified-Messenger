@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using UnifiedMessenger.Services.Ai;
 
 namespace UnifiedMessenger.Services;
 
@@ -39,7 +40,10 @@ public sealed partial class ApplicationServices
         WhatsAppBusinessContextService? whatsAppBusinessContext = null,
         OccFilterState? occFilter = null,
         OccDateRangeFilterState? occDateRangeFilter = null,
-        OccViewModeState? occViewMode = null)
+        OccViewModeState? occViewMode = null,
+        IAiInferenceClient? aiInferenceClient = null,
+        OllamaRuntimeService? ollamaRuntime = null,
+        AiInferenceQueue? aiInferenceQueue = null)
     {
         Registry = registry ?? new InstanceRegistryService();
         SessionManager = sessionManager ?? InstanceSessionManager.Instance;
@@ -71,6 +75,9 @@ public sealed partial class ApplicationServices
         OccFilter = occFilter ?? OccFilterState.Instance;
         OccDateRangeFilter = occDateRangeFilter ?? OccDateRangeFilterState.Instance;
         OccViewMode = occViewMode ?? OccViewModeState.Instance;
+        AiInferenceClient = aiInferenceClient ?? OllamaInferenceClient.Instance;
+        OllamaRuntime = ollamaRuntime ?? OllamaRuntimeService.Instance;
+        AiInferenceQueue = aiInferenceQueue ?? AiInferenceQueue.Instance;
     }
 
     public IInstanceRegistryService Registry { get; }
@@ -132,6 +139,12 @@ public sealed partial class ApplicationServices
     public OccDateRangeFilterState OccDateRangeFilter { get; }
 
     public OccViewModeState OccViewMode { get; }
+
+    public IAiInferenceClient AiInferenceClient { get; }
+
+    public OllamaRuntimeService OllamaRuntime { get; }
+
+    public AiInferenceQueue AiInferenceQueue { get; }
 
     public void ConfigureUi(XamlRoot? xamlRoot) =>
         ConfigureUi(() => xamlRoot!);

@@ -54,6 +54,11 @@ public partial class App : Application
                 _ = services.GitHubUpdate.CheckForUpdatesAsync();
             }
 
+            if (services.AppSettings.Settings.EnableLocalAi)
+            {
+                services.OllamaRuntime.WarmupInBackground();
+            }
+
         }
         catch (Exception ex)
         {

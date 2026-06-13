@@ -39,6 +39,10 @@ public sealed class TriagePersistenceServiceTests : IDisposable
     [Fact]
     public async Task RoundTrip_PersistsTriageThreadsAndDisplayOrder()
     {
+        MessageTriageService.Instance.RestoreItems([]);
+        ThreadRegistryService.Instance.RestoreThreads([]);
+        ThreadDisplayOrderService.Instance.ResetForTests();
+
         var triageItem = new MessageTriageItem
         {
             Id = "inst-1|abc",

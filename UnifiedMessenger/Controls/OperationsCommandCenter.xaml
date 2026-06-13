@@ -59,6 +59,20 @@
                                 MinWidth="0"
                                 Style="{StaticResource UmScopeTextStyle}"
                                 Text="Showing: All Branches" />
+                            <Border
+                                x:Name="AiStatusChipPanel"
+                                Padding="8,2"
+                                Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                CornerRadius="{StaticResource UmCornerRadiusSmValue}"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    x:Name="AiStatusChipText"
+                                    MaxWidth="96"
+                                    FontSize="{StaticResource UmBadgeFontSize}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="AI offline"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Border>
                         </StackPanel>
                         <StackPanel
                             x:Name="NavigationStatusPanel"

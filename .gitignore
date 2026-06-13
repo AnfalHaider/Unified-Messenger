@@ -56,6 +56,10 @@ Generated\ Files/
 # Benchmark output
 BenchmarkDotNet.Artifacts/
 
+# Ollama runtime zips (fetched at build time; see scripts/fetch-ollama-runtime.ps1)
+third_party/ollama/*.zip
+third_party/ollama/*.sha256
+
 # Firecrawl web research output and secrets
 .firecrawl/
 .env

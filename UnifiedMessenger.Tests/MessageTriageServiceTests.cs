@@ -1,5 +1,6 @@
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Ai;
 
 namespace UnifiedMessenger.Tests;
 
@@ -48,6 +49,28 @@ public class MessageTriageServiceTests
         Assert.Equal("Critical", snapshot.UrgentQueue[0].UrgencyLabel);
         Assert.Equal(2, snapshot.PositiveCount + snapshot.NeutralCount + snapshot.NegativeCount);
         Assert.Equal(1, snapshot.PositiveCount);
+    }
+
+    [Fact]
+    public void ProcessInbound_PopulatesHeuristicSummaries()
+    {
+        var service = new MessageTriageService();
+
+        service.ProcessInboundForTests(
+            new InboundMessageSelection
+            {
+                InstanceId = "meta-1",
+                Platform = "metabusiness",
+                MessageText = "Can I book an appointment for tomorrow?",
+                CustomerName = "Sara"
+            },
+            "Depilex F-11");
+
+        var item = service.GetAllItems().Single();
+
+        Assert.Equal(TriageInferenceSource.Heuristic, item.InferenceSource);
+        Assert.Contains("Booking request", item.CoreSummary, StringComparison.OrdinalIgnoreCase);
+        Assert.False(string.IsNullOrWhiteSpace(item.NextActionSummary));
     }
 
     [Fact]

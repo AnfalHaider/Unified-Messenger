@@ -393,8 +393,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         MessageTriageService.Instance.Enqueue(
             selection,
             instance.DisplayName,
-            BranchWorkspaceHelper.ResolveBranchKey(instance),
-            skipDedupeCheck: true);
+            BranchWorkspaceHelper.ResolveBranchKey(instance));
 
         return true;
     }

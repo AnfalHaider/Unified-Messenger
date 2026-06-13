@@ -29,7 +29,7 @@ Issues that do **not** block continued delivery but prevent claiming full comple
 |----|--------|-------|
 | P-01 Canonical conversation key (WhatsApp JID) | **Resolved** | `__umResolveActiveChatJid` centralized in `adapter-core.js`; wired through adapter, context scraper, voice monitor |
 | VN-01 Voice note conversation binding | **Resolved** | Voice monitor passes resolved `chatJid` into `__umResolvePlatformConversationIdentity` |
-| VN-05 Voice script gating | **Resolved** | `EnableLocalAi && EnableVoiceNoteTranscription` in `PlatformAdapters.PrepareScript` |
+| VN-05 Voice script gating | **Deferred** | Voice pipeline out of v3.7.0 scope |
 | UI-01 AutomationIds | **Resolved** | Wave 5 — sidebar, Personal Overview, notification feed, command palette |
 | Phase 8 Bugbot / security | **Resolved** | Branch metrics, pulse coalescing, draft generation tokens, fail-closed probe |
 

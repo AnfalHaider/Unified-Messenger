@@ -16,7 +16,8 @@ internal static class OperationsThreadCardSync
             thread.IsRevenueLeakageRisk,
             thread.EstimatedValue,
             thread.WhatsAppDeliveryStatus ?? string.Empty,
-            thread.NextActionSummary ?? string.Empty);
+            thread.NextActionSummary ?? string.Empty,
+            thread.InferenceSource.ToString());
 
     public static bool ContentEquals(OperationsThreadCardViewModel existing, OperationsThreadCardViewModel incoming) =>
         existing.ThreadId.Equals(incoming.ThreadId, StringComparison.Ordinal) &&
@@ -28,5 +29,7 @@ internal static class OperationsThreadCardSync
         existing.DeliveryStatusLabel == incoming.DeliveryStatusLabel &&
         existing.SentimentLabel == incoming.SentimentLabel &&
         existing.IntentLabel == incoming.IntentLabel &&
+        existing.InferenceSourceLabel == incoming.InferenceSourceLabel &&
+        existing.ShowInferenceProgress == incoming.ShowInferenceProgress &&
         existing.BranchNameVisibility == incoming.BranchNameVisibility;
 }

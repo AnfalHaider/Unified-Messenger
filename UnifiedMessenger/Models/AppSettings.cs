@@ -2,8 +2,8 @@ namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
-    /// <summary>Lite baseline — legacy AI/OCC-layout keys are dropped on load via re-save.</summary>
-    public const int CurrentVersion = 15;
+    /// <summary>v16 adds local Ollama AI settings (EnableLocalAi, model, endpoint).</summary>
+    public const int CurrentVersion = 16;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -94,6 +94,18 @@ public sealed class AppSettings
     /// <summary>Persisted OCC view mode: Live workload or Historical report.</summary>
     public string? OccViewMode { get; set; }
 
+    /// <summary>Master toggle for on-device Ollama inference. Off by default.</summary>
+    public bool EnableLocalAi { get; set; }
+
+    /// <summary>Default local model pulled on first enable.</summary>
+    public string LocalAiModelName { get; set; } = "phi3:mini";
+
+    /// <summary>Ollama HTTP endpoint (readonly default in UI).</summary>
+    public string OllamaEndpoint { get; set; } = "http://127.0.0.1:11434/";
+
+    /// <summary>When true, bootstrap embedded Ollama or download fallback on enable.</summary>
+    public bool OllamaAutoBootstrap { get; set; } = true;
+
     public void Normalize()
     {
         if (Version < 1)
@@ -140,6 +152,24 @@ public sealed class AppSettings
         if (!Enum.IsDefined(StartupWarmMode))
         {
             StartupWarmMode = StartupWarmMode.VisibleOnly;
+        }
+
+        if (string.IsNullOrWhiteSpace(LocalAiModelName))
+        {
+            LocalAiModelName = "phi3:mini";
+        }
+
+        if (string.IsNullOrWhiteSpace(OllamaEndpoint))
+        {
+            OllamaEndpoint = "http://127.0.0.1:11434/";
+        }
+        else
+        {
+            OllamaEndpoint = OllamaEndpoint.Trim();
+            if (!OllamaEndpoint.EndsWith("/", StringComparison.Ordinal))
+            {
+                OllamaEndpoint += "/";
+            }
         }
     }
 }

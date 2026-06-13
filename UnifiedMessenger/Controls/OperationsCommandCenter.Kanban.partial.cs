@@ -20,17 +20,29 @@ public sealed partial class OperationsCommandCenter
         SyncThreadCards(
             _viewModel.NewInquiries,
             OccThreadCardPresenter
-                .BuildKanbanColumn(threadOps.AllThreads, UnifiedMessengerKanbanColumn.NewInquiries, hideBranch)
+                .BuildKanbanColumn(
+                    threadOps.AllThreads,
+                    UnifiedMessengerKanbanColumn.NewInquiries,
+                    hideBranch,
+                    _services.AiInferenceQueue)
                 .ToList());
         SyncThreadCards(
             _viewModel.HangingLeads,
             OccThreadCardPresenter
-                .BuildKanbanColumn(threadOps.AllThreads, UnifiedMessengerKanbanColumn.HangingLeads, hideBranch)
+                .BuildKanbanColumn(
+                    threadOps.AllThreads,
+                    UnifiedMessengerKanbanColumn.HangingLeads,
+                    hideBranch,
+                    _services.AiInferenceQueue)
                 .ToList());
         SyncThreadCards(
             _viewModel.Resolved,
             OccThreadCardPresenter
-                .BuildKanbanColumn(threadOps.AllThreads, UnifiedMessengerKanbanColumn.Resolved, hideBranch)
+                .BuildKanbanColumn(
+                    threadOps.AllThreads,
+                    UnifiedMessengerKanbanColumn.Resolved,
+                    hideBranch,
+                    _services.AiInferenceQueue)
                 .ToList());
 
         KanbanBoard.UpdateEmptyStates(
@@ -44,7 +56,10 @@ public sealed partial class OperationsCommandCenter
         var hideBranch = ShouldHideBranchOnCards();
         SyncThreadCards(
             _viewModel.ImmediateQueue,
-            OccThreadCardPresenter.BuildThreadCards(threadOps.ImmediateActionQueue, hideBranch));
+            OccThreadCardPresenter.BuildThreadCards(
+                threadOps.ImmediateActionQueue,
+                hideBranch,
+                _services.AiInferenceQueue));
 
         _viewModel.ApplyImmediateQueuePresentation(
             OccSnapshotPresenter.BuildImmediateQueuePresentation(threadOps));

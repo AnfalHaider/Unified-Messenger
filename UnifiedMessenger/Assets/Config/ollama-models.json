@@ -1,0 +1,22 @@
+{
+  "models": [
+    {
+      "id": "phi3:mini",
+      "displayName": "Phi-3 Mini",
+      "sizeLabel": "2.2 GB",
+      "description": "Default — fast structured summaries for support threads."
+    },
+    {
+      "id": "llama3.2:3b",
+      "displayName": "Llama 3.2 3B",
+      "sizeLabel": "2.0 GB",
+      "description": "Optional quality upgrade for longer conversations."
+    },
+    {
+      "id": "mistral:7b",
+      "displayName": "Mistral 7B",
+      "sizeLabel": "4.1 GB",
+      "description": "Advanced reasoning — slower on CPU."
+    }
+  ]
+}

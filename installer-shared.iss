@@ -5,13 +5,20 @@
 #define MyAppExeName "UnifiedMessenger.exe"
 #define MyAppPublisher "AnfalHaider"
 #define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "3.6.1"
+#define MyAppVersion "3.7.0"
 #define MyAppMutex "UnifiedMessenger_AppMutex"
+
+#define OllamaRuntimeDir "{localappdata}\UnifiedMessenger\ollama\runtime"
+#define OllamaModelsDir "{localappdata}\UnifiedMessenger\ollama\models"
 
 ; Per-user install (no elevation). Binaries only — user data stays in %LocalAppData%\UnifiedMessenger.
 #define InstallDir "{localappdata}\Programs\UnifiedMessenger"
 #define LegacyInstallDir "{localappdata}\UnifiedMessenger"
 #define UserDataDir "{localappdata}\UnifiedMessenger"
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "uninstallremoveaimodels"; Description: "Remove downloaded AI models (~2 GB+)"; GroupDescription: "Additional uninstall options:"; Flags: unchecked
 
 [Code]
 function IsPreservedRootFile(const FileName: String): Boolean;
@@ -27,7 +34,8 @@ function IsPreservedRootDir(const DirName: String): Boolean;
 begin
   Result :=
     (CompareText(DirName, 'WebView2') = 0) or
-    (CompareText(DirName, 'avatars') = 0);
+    (CompareText(DirName, 'avatars') = 0) or
+    (CompareText(DirName, 'ollama') = 0);
 end;
 
 procedure CleanAppPayload(const AppDir: String);
@@ -75,8 +83,19 @@ begin
   if CurStep = ssInstall then
   begin
     TaskKill('{#MyAppExeName}');
+    TaskKill('ollama.exe');
     CleanAppPayload(ExpandConstant('{app}'));
     if ExpandConstant('{app}') <> ExpandConstant('{#LegacyInstallDir}') then
       CleanAppPayload(ExpandConstant('{#LegacyInstallDir}'));
   end;
 end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+    TaskKill('ollama.exe');
+end;
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{#OllamaRuntimeDir}"
+Type: filesandordirs; Name: "{#OllamaModelsDir}"; Tasks: uninstallremoveaimodels

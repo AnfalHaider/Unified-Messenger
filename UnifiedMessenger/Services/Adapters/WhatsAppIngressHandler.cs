@@ -211,8 +211,7 @@ internal static class WhatsAppIngressHandler
             },
             instance.DisplayName,
             BranchWorkspaceHelper.ResolveBranchKey(instance),
-            allowLlmInference: false,
-            skipDedupeCheck: true);
+            allowLlmInference: false);
     }
 
     private static bool ReadOptionalBool(JsonElement root, string propertyName)

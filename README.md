@@ -2,21 +2,20 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v3.4.0 (WhatsApp startup backfill)
+**Current release:** v3.7.0 (settings-only Ollama download + local AI)
 
 ## Scope
 
-This baseline is intentionally narrow:
-
-| In scope | Out of scope (removed in v3.0) |
-|----------|--------------------------------|
+| In scope | Out of scope (deferred) |
+|----------|-------------------------|
 | Multi-instance WhatsApp & WhatsApp Business (WebView2 profiles) | Telegram, Slack, Discord, Meta, Google Business, custom URLs |
-| Unified desktop notification feed + taskbar badge | Local AI / Ollama, auto-draft, copilot hotkeys |
+| Unified desktop notification feed + taskbar badge | Auto-draft injection, copilot hotkeys |
 | Fixed-layout **Operations Command Center** (heuristic triage, branch pills, kanban) | OCC layout builder, platform intelligence panels, CSV export |
 | **Personal Overview** panel | Voice-note pipeline, branch pulse LLM summaries |
-| Heuristic message triage (no cloud LLM) | Tier 5 message decryption, multi-platform adapters |
+| Heuristic message triage + optional **local Ollama** enrichment (top urgent live threads) | Tier 5 message decryption, multi-platform adapters |
+| **Local AI (Ollama)** — Settings toggle, model pull, on-device summaries | Cloud LLM, auto-send replies |
 | **Startup backfill** (IndexedDB + sidebar snapshot, OCC status) | Full deep backfill automation (MVP: bounded walk only) |
-| Zero-dependency local footprint (self-contained installer) | Per-platform module toggles |
+| Lite installer (~66 MB); Ollama runtime downloaded from Settings › AI (v3.7.0) | Per-platform module toggles |
 
 Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (preinstalled on most Windows 11 systems).
 
@@ -30,6 +29,13 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v3.7.0
+
+- **Settings-only Ollama:** Lite installer (~66 MB); no embedded Ollama zip. Runtime downloads on Settings › AI enable with size disclosure and progress UI.
+- **Wave 0 UX honesty:** Thread cards show heuristic previews and source badges (Heuristic / AI / Analyzing…) instead of misleading "Awaiting AI" copy.
+- **Local Ollama AI:** Settings › AI section (enable toggle, download runtime, endpoint, model picker, test connection, pull progress); optional OCC header chip (AI ready / AI offline).
+- **Inference pipeline:** Heuristic-first triage with bounded AI enrichment for top urgent live threads via OllamaSharp (gated until runtime is running).
 
 ### What's in v3.4.0
 

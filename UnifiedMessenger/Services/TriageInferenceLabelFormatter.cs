@@ -8,6 +8,11 @@ public static class TriageInferenceLabelFormatter
         source switch
         {
             TriageInferenceSource.Heuristic => "Heuristic",
-            _ => source.ToString()
+            TriageInferenceSource.Ollama => "AI",
+            TriageInferenceSource.Analyzing => "Analyzing…",
+            _ => "Heuristic"
         };
+
+    public static bool IsActiveJob(TriageInferenceSource source) =>
+        source == TriageInferenceSource.Analyzing;
 }

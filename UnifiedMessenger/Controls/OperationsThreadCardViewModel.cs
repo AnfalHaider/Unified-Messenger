@@ -9,8 +9,12 @@ namespace UnifiedMessenger.Controls;
 
 public sealed class OperationsThreadCardViewModel
 {
-    public OperationsThreadCardViewModel(ThreadData thread, bool hideBranchName = false)
+    public OperationsThreadCardViewModel(
+        ThreadData thread,
+        bool hideBranchName = false,
+        TriageInferenceSource? inferenceSourceOverride = null)
     {
+        var inferenceSource = inferenceSourceOverride ?? thread.InferenceSource;
         InstanceId = thread.InstanceId;
         ThreadId = thread.ThreadId;
         CustomerName = thread.CustomerName;
@@ -22,8 +26,11 @@ public sealed class OperationsThreadCardViewModel
         IntentLabel = UnifiedMessengerDashboardPresentationHelper.FormatIntentLabel(thread.AiIntentCategory);
         SentimentLabel = thread.ClientSentiment;
         NextActionSummary = string.IsNullOrWhiteSpace(thread.NextActionSummary)
-            ? "Awaiting AI summary"
+            ? OperationsThreadCardPresentationHelper.BuildFallbackSummary(thread)
             : thread.NextActionSummary;
+        InferenceSourceLabel = TriageInferenceLabelFormatter.Format(inferenceSource);
+        ShowInferenceProgress = TriageInferenceLabelFormatter.IsActiveJob(inferenceSource);
+        InferenceProgressVisibility = ShowInferenceProgress ? Visibility.Visible : Visibility.Collapsed;
         UrgencyLabel = $"U{thread.UrgencyScore}";
         RevenueDisplay = thread.IsRevenueLeakageRisk && thread.EstimatedValue > 0
             ? $"{UnifiedMessengerDashboardPresentationHelper.FormatRevenue(thread.EstimatedValue)} at risk"
@@ -91,6 +98,12 @@ public sealed class OperationsThreadCardViewModel
     public string SentimentLabel { get; }
 
     public string NextActionSummary { get; }
+
+    public string InferenceSourceLabel { get; }
+
+    public bool ShowInferenceProgress { get; }
+
+    public Visibility InferenceProgressVisibility { get; }
 
     public string UrgencyLabel { get; }
 

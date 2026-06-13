@@ -37,6 +37,45 @@ public class InstallerScriptTests
         Assert.Contains("unchecked", script, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("installer.iss")]
+    [InlineData("installer-arm64.iss")]
+    public void InstallerScript_DoesNotBundleOllamaRuntime(string scriptName)
+    {
+        var script = ReadInstallerBundle(scriptName);
+
+        Assert.DoesNotContain("ai_runtime", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("extractarchive", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("ollama-windows", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("third_party\\ollama", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ExternalSize:", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallerShared_PreservesOllamaUserDataOnUpgrade()
+    {
+        var script = ReadInstallerShared();
+
+        Assert.Contains("CompareText(DirName, 'ollama')", script, StringComparison.Ordinal);
+        Assert.Contains("#define MyAppVersion \"3.7.0\"", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallerShared_RemovesRuntimeOnUninstallButKeepsModelsByDefault()
+    {
+        var script = ReadInstallerShared();
+
+        Assert.Contains("Name: \"{#OllamaRuntimeDir}\"", script, StringComparison.Ordinal);
+        Assert.Contains("Name: \"{#OllamaModelsDir}\"", script, StringComparison.Ordinal);
+        Assert.Contains("uninstallremoveaimodels", script, StringComparison.Ordinal);
+        Assert.Contains("TaskKill('ollama.exe')", script, StringComparison.Ordinal);
+    }
+
+    private static string ReadInstallerShared()
+    {
+        return File.ReadAllText(Path.Combine(FindRepoRoot(), "installer-shared.iss"));
+    }
+
     private static string ReadInstallerBundle(string scriptName)
     {
         var root = FindRepoRoot();

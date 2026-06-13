@@ -71,6 +71,13 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(WhatsAppBackfillMaxChatsBox, "Max chats per backfill run");
         AutomationProperties.SetName(WhatsAppBackfillRecentDaysBox, "Recent backfill window days");
         AutomationProperties.SetName(EnableDeepBackfillToggle, "Enable deep backfill");
+        AutomationProperties.SetName(EnableLocalAiToggle, "Enable local AI");
+        AutomationProperties.SetName(DownloadAiRuntimeButton, "Download AI runtime");
+        AutomationProperties.SetName(OllamaEndpointBox, "Ollama endpoint");
+        AutomationProperties.SetName(LocalAiModelBox, "Local AI model");
+        AutomationProperties.SetName(OllamaAutoBootstrapToggle, "Auto bootstrap Ollama runtime");
+        AutomationProperties.SetName(TestOllamaConnectionButton, "Test Ollama connection");
+        AutomationProperties.SetName(PullLocalAiModelButton, "Pull selected local AI model");
         AutomationProperties.SetName(ClearAnalyticsButton, "Clear operational data");
         AutomationProperties.SetName(ExportInstancesButton, "Export instances");
         AutomationProperties.SetName(ImportBackupCheckBox, "Create backup before import");
@@ -89,6 +96,7 @@ public sealed partial class SettingsPage : Page
         _sectionAnchors[SettingsNavigationHelper.NotificationsSectionKey] = NotificationsSection;
         _sectionAnchors[SettingsNavigationHelper.AppearanceSectionKey] = AppearanceSection;
         _sectionAnchors[SettingsNavigationHelper.SessionPerformanceSectionKey] = SessionPerformanceSection;
+        _sectionAnchors[SettingsNavigationHelper.AiSectionKey] = AiSection;
         _sectionAnchors[SettingsNavigationHelper.DataPrivacySectionKey] = DataPrivacySection;
         _sectionAnchors[SettingsNavigationHelper.KeyboardShortcutsSectionKey] = KeyboardShortcutsSection;
         _sectionAnchors[SettingsNavigationHelper.SystemSectionKey] = SystemSection;
@@ -175,9 +183,12 @@ public sealed partial class SettingsPage : Page
         EnableAutoUpdateToggle.IsOn = settings.EnableAutoUpdate;
         PromptBeforeAutoUpdateToggle.IsOn = settings.PromptBeforeAutoUpdate;
         SlaThresholdBox.Value = settings.SlaThresholdMinutes;
+        EnableLocalAiToggle.IsOn = settings.EnableLocalAi;
+        OllamaAutoBootstrapToggle.IsOn = settings.OllamaAutoBootstrap;
         _suppressToggleEvents = false;
 
         UpdateImportExportPanelVisibility(settings.EnableImportExportInstances);
+        RefreshAiSection();
         RefreshArchivedAccounts();
         RefreshStoragePaths();
         _viewModel.VersionLabel = SettingsPageHelper.BuildVersionLabel(typeof(App).Assembly.GetName().Version);
@@ -189,6 +200,7 @@ public sealed partial class SettingsPage : Page
         EnsureAppearanceComboBoxesInitialized();
         EnsureNotificationsComboBoxesInitialized();
         EnsureSessionComboBoxesInitialized();
+        EnsureAiSectionInitialized();
         EnsureMetricsControlsInitialized();
     }
 

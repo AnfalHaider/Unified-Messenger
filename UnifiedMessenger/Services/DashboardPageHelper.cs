@@ -184,7 +184,18 @@ public static class DashboardPageHelper
             return item.CoreSummary.Trim();
         }
 
-        return "Awaiting AI classification";
+        if (!string.IsNullOrWhiteSpace(item.MessagePreview))
+        {
+            return item.MessagePreview.Trim();
+        }
+
+        var intentLabel = FormatIntentLabel(item.AiIntentCategory);
+        if (!intentLabel.Equals("Inquiry", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{intentLabel} — review thread";
+        }
+
+        return "—";
     }
 
     private static string FormatIntentLabel(string? intentCategory) =>
@@ -606,7 +617,7 @@ public sealed class ExecutiveInsightCardDisplay
 
     public required string UrgencyLabel { get; init; }
 
-    public string SourceLabel { get; init; } = "Local AI";
+    public string SourceLabel { get; init; } = "Heuristic";
 
     public IReadOnlyList<ExecutiveInsightFieldDisplay> Fields { get; init; } = [];
 }

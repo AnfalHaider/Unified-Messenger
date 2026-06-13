@@ -347,6 +347,108 @@
                 </shared:SurfaceCard>
             </StackPanel>
 
+            <StackPanel x:Name="AiSection" Tag="ai" Spacing="8">
+                <shared:SectionHeaderView Title="AI" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <ToggleSwitch
+                            x:Name="EnableLocalAiToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableLocalAiToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Enable local AI" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Message text is sent to your local Ollama instance only. Nothing leaves your PC."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <StackPanel x:Name="AiAdvancedPanel" Spacing="12" Visibility="Collapsed">
+                            <TextBox
+                                x:Name="OllamaEndpointBox"
+                                Header="Ollama endpoint"
+                                IsReadOnly="True"
+                                Text="http://127.0.0.1:11434/" />
+
+                            <ComboBox
+                                x:Name="LocalAiModelBox"
+                                Header="Model"
+                                SelectionChanged="LocalAiModelBox_SelectionChanged" />
+
+                            <ToggleSwitch
+                                x:Name="OllamaAutoBootstrapToggle"
+                                OffContent="Off"
+                                OnContent="On"
+                                Toggled="OllamaAutoBootstrapToggle_Toggled">
+                                <ToggleSwitch.Header>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Auto-bootstrap Ollama runtime" />
+                                        <TextBlock
+                                            FontSize="12"
+                                            Opacity="0.65"
+                                            Text="Start embedded Ollama or download the official CLI when the engine is missing."
+                                            TextWrapping="WrapWholeWords" />
+                                    </StackPanel>
+                                </ToggleSwitch.Header>
+                            </ToggleSwitch>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button
+                                    x:Name="DownloadAiRuntimeButton"
+                                    Click="DownloadAiRuntimeButton_Click"
+                                    Content="Download AI runtime"
+                                    Visibility="Collapsed" />
+                                <Button
+                                    x:Name="TestOllamaConnectionButton"
+                                    Click="TestOllamaConnectionButton_Click"
+                                    Content="Test connection" />
+                                <Button
+                                    x:Name="PullLocalAiModelButton"
+                                    Click="PullLocalAiModelButton_Click"
+                                    Content="Pull selected model" />
+                            </StackPanel>
+
+                            <ProgressBar
+                                x:Name="AiRuntimeDownloadProgressBar"
+                                Maximum="100"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="AiRuntimeDownloadStatusText"
+                                FontSize="12"
+                                Opacity="0.75"
+                                TextWrapping="WrapWholeWords"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="AiConnectionStatusText"
+                                FontSize="12"
+                                Opacity="0.75"
+                                TextWrapping="WrapWholeWords" />
+
+                            <ProgressBar
+                                x:Name="AiModelPullProgressBar"
+                                Maximum="100"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="AiModelPullStatusText"
+                                FontSize="12"
+                                Opacity="0.75"
+                                TextWrapping="WrapWholeWords"
+                                Visibility="Collapsed" />
+                        </StackPanel>
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
             <StackPanel x:Name="DataPrivacySection" Tag="data-privacy" Spacing="8">
                 <shared:SectionHeaderView Title="DATA &amp; PRIVACY" />
                 <shared:SurfaceCard>

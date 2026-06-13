@@ -16,7 +16,7 @@ internal static class Program
             return 1;
         }
 
-        Console.WriteLine("=== Unified Messenger 3.4.0 — Backfill Release Validation ===");
+        Console.WriteLine("=== Unified Messenger 3.7.1 — Release Validation ===");
         Console.WriteLine($"Executable: {exePath}");
         Console.WriteLine();
 

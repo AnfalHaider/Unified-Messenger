@@ -1,6 +1,6 @@
 # Settings information architecture
 
-Unified Messenger settings use a left navigation rail with ten sections. Sub-pages (Local AI, About) show a breadcrumb back to Settings.
+Unified Messenger settings use a left navigation rail with sections on a single scrollable page. About opens as a sub-page.
 
 ## Primary sections
 
@@ -8,21 +8,26 @@ Unified Messenger settings use a left navigation rail with ten sections. Sub-pag
 |-------------|-------|---------|
 | `notifications` | Notifications | Toasts, badges, panel auto-open, sound, grouping |
 | `appearance` | Appearance | Theme and notification panel dock |
-| `session-performance` | Session & performance | Startup warm mode, WebView concurrency, experimental Path C toggles |
-| `professional-metrics` | Professional metrics | SLA threshold, urgency threshold, startup backfill, heuristic insights |
+| `session-performance` | Session & performance | Startup warm mode, WebView concurrency, experimental Path C toggles, SLA/backfill |
+| `ai` | AI | Enable local Ollama, endpoint, model picker, test connection, model pull |
 | `data-privacy` | Data & privacy | Clear operational telemetry; import/export when enabled |
+| `keyboard-shortcuts` | Keyboard shortcuts | Shell shortcut reference |
 | `system` | System | Background close, startup, updates |
 | `removed-accounts` | Removed accounts | Restore or permanently delete archived sidebar accounts |
 | `storage` | Storage | instances.json and WebView profile paths |
-| `local-ai` | Local AI | Link to Local AI sub-page |
 | `about` | About | Version and app details sub-page |
 
 ## Sub-pages
 
 | Route | Breadcrumb | Back action |
 |-------|------------|-------------|
-| `LocalAISettingsPage` | Settings › Local AI | `Frame.GoBack()` |
 | `AboutPage` | Settings › About | `Frame.GoBack()` |
+
+## AI section (v3.7.0)
+
+Progressive disclosure: master **Enable local AI** toggle reveals endpoint (read-only default), model dropdown, auto-bootstrap toggle, **Test connection**, and **Pull selected model** with determinate progress.
+
+Privacy copy: message text stays on-device via local Ollama only.
 
 ## Experimental features
 
@@ -43,10 +48,10 @@ Path C session options live inside an **Experimental** expander under Session & 
 
 Archived rows show display name, platform, profile folder, restore, and permanent delete. Permanent delete calls `RemovePermanentlyAsync` after a destructive confirmation.
 
-## MVVM mapping (Wave 9)
+## MVVM mapping
 
 | UI surface | ViewModel | Presenter / helper |
 |------------|-----------|-------------------|
 | Personal overview | `PersonalOverviewViewModel` | `PersonalSnapshotPresenter`, `PersonalOverviewSearchPresenter` |
 | Settings shell | `SettingsViewModel` | `SettingsNavigationHelper`, `SettingsArchivedAccountsPresenter`, `SettingsImportExportPresenter` |
-| Local AI | `LocalAISettingsViewModel` | `LocalAiSettingsPageHelper` |
+| Settings › AI | (code-behind partial) | `AiSettingsSectionHelper`, `OllamaModelPullHelper` |

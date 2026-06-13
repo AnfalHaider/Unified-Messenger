@@ -1,4 +1,5 @@
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Models.Ai;
 
 namespace UnifiedMessenger.Services;
 
@@ -22,6 +23,8 @@ public interface IThreadRegistryService
         bool? isRevenueLeakageRisk = null,
         bool? isSpamOrPromo = null,
         string? suggestedAction = null);
+
+    void EnrichFromAi(string threadId, string triageItemId, AiInferenceResult result);
 
     void MarkThreadResolved(
         string instanceId,

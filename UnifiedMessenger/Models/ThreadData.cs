@@ -39,6 +39,10 @@ public sealed class ThreadData
 
     public string NextActionSummary { get; set; } = string.Empty;
 
+    public string LastMessagePreview { get; set; } = string.Empty;
+
+    public TriageInferenceSource InferenceSource { get; set; } = TriageInferenceSource.Heuristic;
+
     public string SuggestedAction { get; set; } = string.Empty;
 
     public bool IsSpamOrPromo { get; set; }

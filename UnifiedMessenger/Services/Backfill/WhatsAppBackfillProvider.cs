@@ -121,8 +121,7 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 },
                 instance.DisplayName,
                 BranchWorkspaceHelper.ResolveBranchKey(instance),
-                allowLlmInference: false,
-                skipDedupeCheck: true);
+                allowLlmInference: false);
 
             ThreadRegistryService.Instance.UpdateLastMessageKind(
                 instance.Id,
@@ -317,8 +316,7 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 },
                 instance.DisplayName,
                 BranchWorkspaceHelper.ResolveBranchKey(instance),
-                allowLlmInference: false,
-                skipDedupeCheck: true);
+                allowLlmInference: false);
 
             processed++;
         }
@@ -386,8 +384,7 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 },
                 instance.DisplayName,
                 BranchWorkspaceHelper.ResolveBranchKey(instance),
-                allowLlmInference: false,
-                skipDedupeCheck: true);
+                allowLlmInference: false);
 
             result.TriageEnqueued++;
             processed++;

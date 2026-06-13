@@ -1,3 +1,4 @@
+using UnifiedMessenger.Services.Ai;
 using UnifiedMessenger.Services.Backfill;
 
 namespace UnifiedMessenger.Services;
@@ -45,10 +46,14 @@ public static class ApplicationLifecycleService
         try
         {
             services.MessageTriage.Shutdown();
+            services.AiInferenceQueue.Shutdown();
             services.StateSync.Shutdown();
             BackfillSyncManager.Instance.Shutdown();
 
             await services.MessageTriage
+                .WaitForShutdownAsync(WorkerShutdownTimeout)
+                .ConfigureAwait(false);
+            await services.AiInferenceQueue
                 .WaitForShutdownAsync(WorkerShutdownTimeout)
                 .ConfigureAwait(false);
             await services.StateSync
@@ -72,6 +77,15 @@ public static class ApplicationLifecycleService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Lifecycle WebView session close failed: {ex.Message}");
+        }
+
+        try
+        {
+            services.OllamaRuntime.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Lifecycle Ollama shutdown failed: {ex.Message}");
         }
     }
 
@@ -97,6 +111,8 @@ public static class ApplicationLifecycleService
             var root = ApplicationServiceProvider.Current;
             return new LifecycleServices(
                 root.MessageTriage as MessageTriageService ?? MessageTriageService.Instance,
+                root.AiInferenceQueue,
+                root.OllamaRuntime,
                 root.StateSync,
                 root.MessageAnalytics,
                 root.TriagePersistence);
@@ -104,6 +120,8 @@ public static class ApplicationLifecycleService
 
         return new LifecycleServices(
             MessageTriageService.Instance,
+            AiInferenceQueue.Instance,
+            OllamaRuntimeService.Instance,
             UnifiedMessengerStateSyncService.Instance,
             MessageAnalyticsService.Instance,
             TriagePersistenceService.Instance);
@@ -111,6 +129,8 @@ public static class ApplicationLifecycleService
 
     private readonly record struct LifecycleServices(
         MessageTriageService MessageTriage,
+        AiInferenceQueue AiInferenceQueue,
+        OllamaRuntimeService OllamaRuntime,
         UnifiedMessengerStateSyncService StateSync,
         IMessageAnalyticsService MessageAnalytics,
         TriagePersistenceService TriagePersistence);

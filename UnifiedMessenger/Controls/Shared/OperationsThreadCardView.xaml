@@ -68,6 +68,17 @@
                             Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                             Text="{x:Bind ViewModel.IntentLabel, Mode=OneWay}" />
                     </Border>
+                    <Border Style="{StaticResource UmTagBadgeStyle}">
+                        <TextBlock
+                            Style="{StaticResource UmBadgeLabelStyle}"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{x:Bind ViewModel.InferenceSourceLabel, Mode=OneWay}" />
+                    </Border>
+                    <ProgressRing
+                        Width="14"
+                        Height="14"
+                        IsActive="True"
+                        Visibility="{x:Bind ViewModel.InferenceProgressVisibility, Mode=OneWay}" />
                     <Border
                         Background="{x:Bind ViewModel.SentimentBrush, Mode=OneWay}"
                         Style="{StaticResource UmSemanticBadgeStyle}">

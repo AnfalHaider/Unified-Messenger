@@ -58,6 +58,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         WireKanbanKeyboardShortcuts();
         EnsureBackfillStatusSubscription();
         ApplyBackfillStatusUi();
+        EnsureAiStatusSubscription();
     }
 
     private void WireResponsiveLayoutHelpers()
@@ -80,6 +81,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
 
         StopDateRangeDebounceTimer();
+        ReleaseAiStatusSubscription();
     }
 
     public void ConfigureServices(ApplicationServices services)
