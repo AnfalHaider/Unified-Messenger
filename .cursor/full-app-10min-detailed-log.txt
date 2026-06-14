@@ -1,0 +1,407 @@
+=== Full app exploration (10 min, detailed) ===
+Started: 2026-06-14T15:35:39.7874167Z
+Executable: D:\Projects\Unified Messenger\UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\UnifiedMessenger.exe
+Ends at: 2026-06-14T15:45:39.7874167Z
+
+  PASS: Launch | Main window: Unified Messenger
+[CYCLE 1] 2026-06-14T15:35:40.4921750Z | view=Shell
+  PASS: OCC.Ready | OCC markers visible
+  INFO: OCC.AiChip | AI chip not found via UIA
+  INFO: OCC.StickyHeader | Sticky header scope text not found
+  INFO: OCC.TeachingTip | TeachingTip not open/detectable (expected after first visit)
+  INFO: OCC.BranchPills | No branch pills matched heuristics
+  WARN: OCC.DateRange.Pickers | From=False, To=False
+  INFO: OCC.DateRange.Help | Chart vs KPI scope caption not found
+  INFO: OCC.SLA.Display | No SLA/waiting text in UIA tree (cards may be off-screen)
+  WARN: OCC.KPI.Open threads | AutomationId=OccKpiOpenThreads — card not found in UIA tree
+  WARN: OCC.KPI.Urgent | AutomationId=OccKpiUrgent — card not found in UIA tree
+  WARN: OCC.KPI.SLA breaches | AutomationId=OccKpiSlaBreaches — card not found in UIA tree
+  WARN: OCC.KPI.Hanging leads | AutomationId=OccKpiHangingLeads — card not found in UIA tree
+  FAIL: OCC.Kanban | 0/3 kanban columns visible via UIA. 
+  INFO: OCC.Chart | Chart region not labeled in UIA
+  PASS: OCC.Scroll | Scrolled OCC content
+  WARN: OCC.FilterChip.All open | Could not click filter chip 'All open'
+  WARN: OCC.FilterChip.Urgent | Could not click filter chip 'Urgent'
+  WARN: OCC.FilterChip.SLA | Could not click filter chip 'SLA'
+  WARN: OCC.FilterChip.Hanging | Could not click filter chip 'Hanging'
+  FAIL: OCC.WorkQueue.Nav | Could not click first work-queue card via UIA
+  WARN: OCC.BoardView | Board view toggle not found via UIA
+  WARN: OCC.DateRange.HistoricalToggle | Could not toggle to Historical report
+  INFO: OCC.Historical.Banner | Historical banner not detected in UIA
+  INFO: OCC.Historical.Sync | Sync recent history button not visible (may require historical mode)
+  INFO: OCC.Historical.Reload | Reload snapshot / Refresh not found
+  WARN: OCC.ThreadCard.Badges | No Inquiry/Heuristic/Neutral badge text found in UIA
+  INFO: OCC.ThreadCard.SlaText | No 'Waiting … SLA' text detected via UIA
+  PASS: OCC.ThreadCard.MessagePreview | Message preview detected: ACTIVE ACCOUNTS section
+  INFO: OCC.AI.InferenceBadge | No Heuristic badge — AI enrichment may be off or cards not rendered
+  INFO: OCC.AI.StatusChip | AI status chip not found
+  PASS: Settings | Settings page opened
+  PASS: Settings.Notifications | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Appearance | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Session & performance | Section opened; markers: Max concurrent WebViews, SLA response threshold
+  PASS: Settings.AI | Section opened; markers: Enable local AI, Ollama endpoint, Test connection
+  PASS: Settings.Storage | Section opened; markers: instances.json, profiles, Storage
+  PASS: Settings.About | Section opened; markers: About, Unified Messenger
+  WARN: Settings.About.Version | Unified Messenger v4.2.0
+  PASS: CommandPalette | Ctrl+K command palette opened
+  PASS: Notifications | Notification Hub opened with feed panel
+  PASS: AddInstance | Add Instance flow opened
+  WARN: PersonalOverview | Personal tab not confirmed
+  INFO: PersonalOverview.OccUrgentLink | No urgent operations cross-link (zero urgent threads?)
+  PASS: Instances.WebView | Switched to instance 'Anfal WhatsAPP'. Hints: WhatsAppText,LeftDashboard
+  PASS: Sidebar | Sidebar Dashboard present
+  PASS: Sidebar | Settings present
+  PASS: Sidebar | Notification Hub present
+  Summary: pass=17 warn=14 fail=2
+
+[CYCLE 2] 2026-06-14T15:37:34.5573247Z | view=Shell
+  PASS: OCC.Ready | OCC markers visible
+  INFO: OCC.AiChip | AI chip not found via UIA
+  INFO: OCC.StickyHeader | Sticky header scope text not found
+  INFO: OCC.TeachingTip | TeachingTip not open/detectable (expected after first visit)
+  INFO: OCC.BranchPills | No branch pills matched heuristics
+  WARN: OCC.DateRange.Pickers | From=False, To=False
+  INFO: OCC.DateRange.Help | Chart vs KPI scope caption not found
+  PASS: OCC.SLA.Display | SLA UI text: SLA response threshold (minutes) | Replies slower than this count as SLA breaches on the Operations Command Center.
+  WARN: OCC.KPI.Open threads | AutomationId=OccKpiOpenThreads — card not found in UIA tree
+  PASS: OCC.KPI.Urgent | AutomationId=OccKpiUrgent; value=unreadable; enabled=True
+  PASS: OCC.KPI.SLA breaches | AutomationId=OccKpiSlaBreaches; value=unreadable; enabled=True
+  WARN: OCC.KPI.Hanging leads | AutomationId=OccKpiHangingLeads — card not found in UIA tree
+  FAIL: OCC.Kanban | 0/3 kanban columns visible via UIA. 
+  PASS: OCC.Chart | Sent
+  PASS: OCC.Scroll | Scrolled OCC content
+  WARN: OCC.FilterChip.All open | Could not click filter chip 'All open'
+  WARN: OCC.FilterChip.Urgent | Could not click filter chip 'Urgent'
+  WARN: OCC.FilterChip.SLA | Could not click filter chip 'SLA'
+  WARN: OCC.FilterChip.Hanging | Could not click filter chip 'Hanging'
+  FAIL: OCC.WorkQueue.Nav | Could not click first work-queue card via UIA
+  WARN: OCC.BoardView | Board view toggle not found via UIA
+  WARN: OCC.DateRange.HistoricalToggle | Could not toggle to Historical report
+  INFO: OCC.Historical.Banner | Historical banner not detected in UIA
+  INFO: OCC.Historical.Sync | Sync recent history button not visible (may require historical mode)
+  INFO: OCC.Historical.Reload | Reload snapshot / Refresh not found
+  WARN: OCC.ThreadCard.Badges | No Inquiry/Heuristic/Neutral badge text found in UIA
+  PASS: OCC.ThreadCard.SlaText | SLA/waiting text present on cards
+  PASS: OCC.ThreadCard.MessagePreview | Message preview detected: ACTIVE ACCOUNTS section
+  INFO: OCC.AI.InferenceBadge | No Heuristic badge — AI enrichment may be off or cards not rendered
+  INFO: OCC.AI.StatusChip | AI status chip not found
+  INFO: OCC.AI.OllamaVsHeuristic | Ollama/AI labels present but Heuristic badge not on cards
+  PASS: Settings | Settings page opened
+  PASS: Settings.Notifications | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Appearance | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Session & performance | Section opened; markers: Max concurrent WebViews, SLA response threshold
+  PASS: Settings.AI | Section opened; markers: Enable local AI, Ollama endpoint, Test connection
+  PASS: Settings.Storage | Section opened; markers: instances.json, profiles, Storage
+  PASS: Settings.About | Section opened; markers: About, Unified Messenger
+  WARN: Settings.About.Version | Unified Messenger v4.2.0
+  PASS: CommandPalette | Ctrl+K command palette opened
+  PASS: Notifications | Notification Hub opened with feed panel
+  PASS: AddInstance | Add Instance flow opened
+  WARN: PersonalOverview | Personal tab not confirmed
+  INFO: PersonalOverview.OccUrgentLink | No urgent operations cross-link (zero urgent threads?)
+  PASS: Instances.WebView | Switched to instance 'Anfal WhatsAPP'. Hints: WhatsAppText,LeftDashboard
+  PASS: Sidebar | Sidebar Dashboard present
+  PASS: Sidebar | Settings present
+  PASS: Sidebar | Notification Hub present
+  Summary: pass=22 warn=12 fail=2
+
+[CYCLE 3] 2026-06-14T15:39:33.7284270Z | view=Shell
+  PASS: OCC.Ready | OCC markers visible
+  INFO: OCC.AiChip | AI chip not found via UIA
+  INFO: OCC.StickyHeader | Sticky header scope text not found
+  INFO: OCC.TeachingTip | TeachingTip not open/detectable (expected after first visit)
+  INFO: OCC.BranchPills | No branch pills matched heuristics
+  WARN: OCC.DateRange.Pickers | From=False, To=False
+  INFO: OCC.DateRange.Help | Chart vs KPI scope caption not found
+  PASS: OCC.SLA.Display | SLA UI text: SLA response threshold (minutes) | Replies slower than this count as SLA breaches on the Operations Command Center.
+  WARN: OCC.KPI.Open threads | AutomationId=OccKpiOpenThreads — card not found in UIA tree
+  PASS: OCC.KPI.Urgent | AutomationId=OccKpiUrgent; value=unreadable; enabled=True
+  PASS: OCC.KPI.SLA breaches | AutomationId=OccKpiSlaBreaches; value=unreadable; enabled=True
+  WARN: OCC.KPI.Hanging leads | AutomationId=OccKpiHangingLeads — card not found in UIA tree
+  FAIL: OCC.Kanban | 0/3 kanban columns visible via UIA. 
+  PASS: OCC.Chart | Sent
+  PASS: OCC.Scroll | Scrolled OCC content
+  WARN: OCC.FilterChip.All open | Could not click filter chip 'All open'
+  WARN: OCC.FilterChip.Urgent | Could not click filter chip 'Urgent'
+  WARN: OCC.FilterChip.SLA | Could not click filter chip 'SLA'
+  WARN: OCC.FilterChip.Hanging | Could not click filter chip 'Hanging'
+  FAIL: OCC.WorkQueue.Nav | Could not click first work-queue card via UIA
+  WARN: OCC.BoardView | Board view toggle not found via UIA
+  WARN: OCC.DateRange.HistoricalToggle | Could not toggle to Historical report
+  INFO: OCC.Historical.Banner | Historical banner not detected in UIA
+  INFO: OCC.Historical.Sync | Sync recent history button not visible (may require historical mode)
+  INFO: OCC.Historical.Reload | Reload snapshot / Refresh not found
+  WARN: OCC.ThreadCard.Badges | No Inquiry/Heuristic/Neutral badge text found in UIA
+  PASS: OCC.ThreadCard.SlaText | SLA/waiting text present on cards
+  PASS: OCC.ThreadCard.MessagePreview | Message preview detected: ACTIVE ACCOUNTS section
+  INFO: OCC.AI.InferenceBadge | No Heuristic badge — AI enrichment may be off or cards not rendered
+  INFO: OCC.AI.StatusChip | AI status chip not found
+  INFO: OCC.AI.OllamaVsHeuristic | Ollama/AI labels present but Heuristic badge not on cards
+  PASS: Settings | Settings page opened
+  PASS: Settings.Notifications | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Appearance | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Session & performance | Section opened; markers: Max concurrent WebViews, SLA response threshold
+  PASS: Settings.AI | Section opened; markers: Enable local AI, Ollama endpoint, Test connection
+  PASS: Settings.Storage | Section opened; markers: instances.json, profiles, Storage
+  PASS: Settings.About | Section opened; markers: About, Unified Messenger
+  WARN: Settings.About.Version | Unified Messenger v4.2.0
+  PASS: CommandPalette | Ctrl+K command palette opened
+  PASS: Notifications | Notification Hub opened with feed panel
+  PASS: AddInstance | Add Instance flow opened
+  WARN: PersonalOverview | Personal tab not confirmed
+  INFO: PersonalOverview.OccUrgentLink | No urgent operations cross-link (zero urgent threads?)
+  PASS: Instances.WebView | Switched to instance 'Anfal WhatsAPP'. Hints: WhatsAppText,LeftDashboard
+  PASS: Sidebar | Sidebar Dashboard present
+  PASS: Sidebar | Settings present
+  PASS: Sidebar | Notification Hub present
+  Summary: pass=22 warn=12 fail=2
+
+[CYCLE 4] 2026-06-14T15:41:19.4070226Z | view=Shell
+  PASS: OCC.Ready | OCC markers visible
+  INFO: OCC.AiChip | AI chip not found via UIA
+  INFO: OCC.StickyHeader | Sticky header scope text not found
+  INFO: OCC.TeachingTip | TeachingTip not open/detectable (expected after first visit)
+  INFO: OCC.BranchPills | No branch pills matched heuristics
+  WARN: OCC.DateRange.Pickers | From=False, To=False
+  INFO: OCC.DateRange.Help | Chart vs KPI scope caption not found
+  PASS: OCC.SLA.Display | SLA UI text: SLA response threshold (minutes) | Replies slower than this count as SLA breaches on the Operations Command Center.
+  WARN: OCC.KPI.Open threads | AutomationId=OccKpiOpenThreads — card not found in UIA tree
+  PASS: OCC.KPI.Urgent | AutomationId=OccKpiUrgent; value=unreadable; enabled=True
+  PASS: OCC.KPI.SLA breaches | AutomationId=OccKpiSlaBreaches; value=unreadable; enabled=True
+  WARN: OCC.KPI.Hanging leads | AutomationId=OccKpiHangingLeads — card not found in UIA tree
+  FAIL: OCC.Kanban | 0/3 kanban columns visible via UIA. 
+  PASS: OCC.Chart | Sent
+  PASS: OCC.Scroll | Scrolled OCC content
+  WARN: OCC.FilterChip.All open | Could not click filter chip 'All open'
+  WARN: OCC.FilterChip.Urgent | Could not click filter chip 'Urgent'
+  WARN: OCC.FilterChip.SLA | Could not click filter chip 'SLA'
+  WARN: OCC.FilterChip.Hanging | Could not click filter chip 'Hanging'
+  FAIL: OCC.WorkQueue.Nav | Could not click first work-queue card via UIA
+  WARN: OCC.BoardView | Board view toggle not found via UIA
+  WARN: OCC.DateRange.HistoricalToggle | Could not toggle to Historical report
+  INFO: OCC.Historical.Banner | Historical banner not detected in UIA
+  INFO: OCC.Historical.Sync | Sync recent history button not visible (may require historical mode)
+  INFO: OCC.Historical.Reload | Reload snapshot / Refresh not found
+  WARN: OCC.ThreadCard.Badges | No Inquiry/Heuristic/Neutral badge text found in UIA
+  PASS: OCC.ThreadCard.SlaText | SLA/waiting text present on cards
+  PASS: OCC.ThreadCard.MessagePreview | Message preview detected: ACTIVE ACCOUNTS section
+  INFO: OCC.AI.InferenceBadge | No Heuristic badge — AI enrichment may be off or cards not rendered
+  INFO: OCC.AI.StatusChip | AI status chip not found
+  INFO: OCC.AI.OllamaVsHeuristic | Ollama/AI labels present but Heuristic badge not on cards
+  PASS: Settings | Settings page opened
+  PASS: Settings.Notifications | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Appearance | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Session & performance | Section opened; markers: Max concurrent WebViews, SLA response threshold
+  PASS: Settings.AI | Section opened; markers: Enable local AI, Ollama endpoint, Test connection
+  PASS: Settings.Storage | Section opened; markers: instances.json, profiles, Storage
+  PASS: Settings.About | Section opened; markers: About, Unified Messenger
+  WARN: Settings.About.Version | Unified Messenger v4.2.0
+  PASS: CommandPalette | Ctrl+K command palette opened
+  PASS: Notifications | Notification Hub opened with feed panel
+  PASS: AddInstance | Add Instance flow opened
+  WARN: PersonalOverview | Personal tab not confirmed
+  INFO: PersonalOverview.OccUrgentLink | No urgent operations cross-link (zero urgent threads?)
+  PASS: Instances.WebView | Switched to instance 'Anfal WhatsAPP'. Hints: WhatsAppText,LeftDashboard
+  PASS: Sidebar | Sidebar Dashboard present
+  PASS: Sidebar | Settings present
+  PASS: Sidebar | Notification Hub present
+  Summary: pass=22 warn=12 fail=2
+
+[CYCLE 5] 2026-06-14T15:42:49.1632000Z | view=Shell
+  PASS: OCC.Ready | OCC markers visible
+  INFO: OCC.AiChip | AI chip not found via UIA
+  INFO: OCC.StickyHeader | Sticky header scope text not found
+  INFO: OCC.TeachingTip | TeachingTip not open/detectable (expected after first visit)
+  INFO: OCC.BranchPills | No branch pills matched heuristics
+  WARN: OCC.DateRange.Pickers | From=False, To=False
+  INFO: OCC.DateRange.Help | Chart vs KPI scope caption not found
+  PASS: OCC.SLA.Display | SLA UI text: SLA response threshold (minutes) | Replies slower than this count as SLA breaches on the Operations Command Center.
+  WARN: OCC.KPI.Open threads | AutomationId=OccKpiOpenThreads — card not found in UIA tree
+  PASS: OCC.KPI.Urgent | AutomationId=OccKpiUrgent; value=unreadable; enabled=True
+  PASS: OCC.KPI.SLA breaches | AutomationId=OccKpiSlaBreaches; value=unreadable; enabled=True
+  WARN: OCC.KPI.Hanging leads | AutomationId=OccKpiHangingLeads — card not found in UIA tree
+  FAIL: OCC.Kanban | 0/3 kanban columns visible via UIA. 
+  PASS: OCC.Chart | Sent
+  PASS: OCC.Scroll | Scrolled OCC content
+  WARN: OCC.FilterChip.All open | Could not click filter chip 'All open'
+  WARN: OCC.FilterChip.Urgent | Could not click filter chip 'Urgent'
+  WARN: OCC.FilterChip.SLA | Could not click filter chip 'SLA'
+  WARN: OCC.FilterChip.Hanging | Could not click filter chip 'Hanging'
+  FAIL: OCC.WorkQueue.Nav | Could not click first work-queue card via UIA
+  WARN: OCC.BoardView | Board view toggle not found via UIA
+  WARN: OCC.DateRange.HistoricalToggle | Could not toggle to Historical report
+  INFO: OCC.Historical.Banner | Historical banner not detected in UIA
+  INFO: OCC.Historical.Sync | Sync recent history button not visible (may require historical mode)
+  INFO: OCC.Historical.Reload | Reload snapshot / Refresh not found
+  WARN: OCC.ThreadCard.Badges | No Inquiry/Heuristic/Neutral badge text found in UIA
+  PASS: OCC.ThreadCard.SlaText | SLA/waiting text present on cards
+  PASS: OCC.ThreadCard.MessagePreview | Message preview detected: ACTIVE ACCOUNTS section
+  INFO: OCC.AI.InferenceBadge | No Heuristic badge — AI enrichment may be off or cards not rendered
+  INFO: OCC.AI.StatusChip | AI status chip not found
+  INFO: OCC.AI.OllamaVsHeuristic | Ollama/AI labels present but Heuristic badge not on cards
+  PASS: Settings | Settings page opened
+  PASS: Settings.Notifications | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Appearance | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Session & performance | Section opened; markers: Max concurrent WebViews, SLA response threshold
+  PASS: Settings.AI | Section opened; markers: Enable local AI, Ollama endpoint, Test connection
+  PASS: Settings.Storage | Section opened; markers: instances.json, profiles, Storage
+  PASS: Settings.About | Section opened; markers: About, Unified Messenger
+  WARN: Settings.About.Version | Unified Messenger v4.2.0
+  PASS: CommandPalette | Ctrl+K command palette opened
+  PASS: Notifications | Notification Hub opened with feed panel
+  PASS: AddInstance | Add Instance flow opened
+  WARN: PersonalOverview | Personal tab not confirmed
+  INFO: PersonalOverview.OccUrgentLink | No urgent operations cross-link (zero urgent threads?)
+  PASS: Instances.WebView | Switched to instance 'Anfal WhatsAPP'. Hints: WhatsAppText,LeftDashboard
+  PASS: Sidebar | Sidebar Dashboard present
+  PASS: Sidebar | Settings present
+  PASS: Sidebar | Notification Hub present
+  Summary: pass=22 warn=12 fail=2
+
+[CYCLE 6] 2026-06-14T15:43:49.2575413Z | view=Shell
+  PASS: OCC.Ready | OCC markers visible
+  INFO: OCC.AiChip | AI chip not found via UIA
+  INFO: OCC.StickyHeader | Sticky header scope text not found
+  INFO: OCC.TeachingTip | TeachingTip not open/detectable (expected after first visit)
+  INFO: OCC.BranchPills | No branch pills matched heuristics
+  WARN: OCC.DateRange.Pickers | From=False, To=False
+  INFO: OCC.DateRange.Help | Chart vs KPI scope caption not found
+  PASS: OCC.SLA.Display | SLA UI text: SLA response threshold (minutes) | Replies slower than this count as SLA breaches on the Operations Command Center.
+  WARN: OCC.KPI.Open threads | AutomationId=OccKpiOpenThreads — card not found in UIA tree
+  PASS: OCC.KPI.Urgent | AutomationId=OccKpiUrgent; value=unreadable; enabled=True
+  PASS: OCC.KPI.SLA breaches | AutomationId=OccKpiSlaBreaches; value=unreadable; enabled=True
+  WARN: OCC.KPI.Hanging leads | AutomationId=OccKpiHangingLeads — card not found in UIA tree
+  FAIL: OCC.Kanban | 0/3 kanban columns visible via UIA. 
+  PASS: OCC.Chart | Sent
+  PASS: OCC.Scroll | Scrolled OCC content
+  WARN: OCC.FilterChip.All open | Could not click filter chip 'All open'
+  WARN: OCC.FilterChip.Urgent | Could not click filter chip 'Urgent'
+  WARN: OCC.FilterChip.SLA | Could not click filter chip 'SLA'
+  WARN: OCC.FilterChip.Hanging | Could not click filter chip 'Hanging'
+  FAIL: OCC.WorkQueue.Nav | Could not click first work-queue card via UIA
+  WARN: OCC.BoardView | Board view toggle not found via UIA
+  WARN: OCC.DateRange.HistoricalToggle | Could not toggle to Historical report
+  INFO: OCC.Historical.Banner | Historical banner not detected in UIA
+  INFO: OCC.Historical.Sync | Sync recent history button not visible (may require historical mode)
+  INFO: OCC.Historical.Reload | Reload snapshot / Refresh not found
+  WARN: OCC.ThreadCard.Badges | No Inquiry/Heuristic/Neutral badge text found in UIA
+  PASS: OCC.ThreadCard.SlaText | SLA/waiting text present on cards
+  PASS: OCC.ThreadCard.MessagePreview | Message preview detected: ACTIVE ACCOUNTS section
+  INFO: OCC.AI.InferenceBadge | No Heuristic badge — AI enrichment may be off or cards not rendered
+  INFO: OCC.AI.StatusChip | AI status chip not found
+  INFO: OCC.AI.OllamaVsHeuristic | Ollama/AI labels present but Heuristic badge not on cards
+  PASS: Settings | Settings page opened
+  PASS: Settings.Notifications | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Appearance | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Session & performance | Section opened; markers: Max concurrent WebViews, SLA response threshold
+  PASS: Settings.AI | Section opened; markers: Enable local AI, Ollama endpoint, Test connection
+  PASS: Settings.Storage | Section opened; markers: instances.json, profiles, Storage
+  PASS: Settings.About | Section opened; markers: About, Unified Messenger
+  WARN: Settings.About.Version | Unified Messenger v4.2.0
+  PASS: CommandPalette | Ctrl+K command palette opened
+  PASS: Notifications | Notification Hub opened with feed panel
+  PASS: AddInstance | Add Instance flow opened
+  WARN: PersonalOverview | Personal tab not confirmed
+  INFO: PersonalOverview.OccUrgentLink | No urgent operations cross-link (zero urgent threads?)
+  WARN: Instances.WebView | Clicked 'Anfal WhatsAPP' but instance shell not confirmed
+  PASS: Sidebar | Sidebar Dashboard present
+  PASS: Sidebar | Settings present
+  PASS: Sidebar | Notification Hub present
+  Summary: pass=21 warn=13 fail=2
+
+[CYCLE 7] 2026-06-14T15:45:02.0820984Z | view=Shell
+  PASS: OCC.Ready | OCC markers visible
+  INFO: OCC.AiChip | AI chip not found via UIA
+  INFO: OCC.StickyHeader | Sticky header scope text not found
+  INFO: OCC.TeachingTip | TeachingTip not open/detectable (expected after first visit)
+  INFO: OCC.BranchPills | No branch pills matched heuristics
+  WARN: OCC.DateRange.Pickers | From=False, To=False
+  INFO: OCC.DateRange.Help | Chart vs KPI scope caption not found
+  PASS: OCC.SLA.Display | SLA UI text: SLA response threshold (minutes) | Replies slower than this count as SLA breaches on the Operations Command Center.
+  WARN: OCC.KPI.Open threads | AutomationId=OccKpiOpenThreads — card not found in UIA tree
+  PASS: OCC.KPI.Urgent | AutomationId=OccKpiUrgent; value=unreadable; enabled=True
+  PASS: OCC.KPI.SLA breaches | AutomationId=OccKpiSlaBreaches; value=unreadable; enabled=True
+  WARN: OCC.KPI.Hanging leads | AutomationId=OccKpiHangingLeads — card not found in UIA tree
+  FAIL: OCC.Kanban | 0/3 kanban columns visible via UIA. 
+  PASS: OCC.Chart | Sent
+  PASS: OCC.Scroll | Scrolled OCC content
+  WARN: OCC.FilterChip.All open | Could not click filter chip 'All open'
+  WARN: OCC.FilterChip.Urgent | Could not click filter chip 'Urgent'
+  WARN: OCC.FilterChip.SLA | Could not click filter chip 'SLA'
+  WARN: OCC.FilterChip.Hanging | Could not click filter chip 'Hanging'
+  FAIL: OCC.WorkQueue.Nav | Could not click first work-queue card via UIA
+  WARN: OCC.BoardView | Board view toggle not found via UIA
+  WARN: OCC.DateRange.HistoricalToggle | Could not toggle to Historical report
+  INFO: OCC.Historical.Banner | Historical banner not detected in UIA
+  INFO: OCC.Historical.Sync | Sync recent history button not visible (may require historical mode)
+  INFO: OCC.Historical.Reload | Reload snapshot / Refresh not found
+  WARN: OCC.ThreadCard.Badges | No Inquiry/Heuristic/Neutral badge text found in UIA
+  PASS: OCC.ThreadCard.SlaText | SLA/waiting text present on cards
+  PASS: OCC.ThreadCard.MessagePreview | Message preview detected: ACTIVE ACCOUNTS section
+  INFO: OCC.AI.InferenceBadge | No Heuristic badge — AI enrichment may be off or cards not rendered
+  INFO: OCC.AI.StatusChip | AI status chip not found
+  INFO: OCC.AI.OllamaVsHeuristic | Ollama/AI labels present but Heuristic badge not on cards
+  PASS: Settings | Settings page opened
+  PASS: Settings.Notifications | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Appearance | Section opened; markers: NOTIFICATIONS
+  PASS: Settings.Session & performance | Section opened; markers: Max concurrent WebViews, SLA response threshold
+  PASS: Settings.AI | Section opened; markers: Enable local AI, Ollama endpoint, Test connection
+  PASS: Settings.Storage | Section opened; markers: instances.json, profiles, Storage
+  PASS: Settings.About | Section opened; markers: About, Unified Messenger
+  WARN: Settings.About.Version | Unified Messenger v4.2.0
+  Summary: pass=15 warn=11 fail=2
+
+
+=== Full app exploration summary ===
+  AddInstance: [Pass] Add Instance flow opened
+  CommandPalette: [Pass] Ctrl+K command palette opened
+  Instances.WebView: [Warn] Clicked 'Anfal WhatsAPP' but instance shell not confirmed
+  Launch: [Pass] Main window: Unified Messenger
+  Notifications: [Pass] Notification Hub opened with feed panel
+  OCC.AI.InferenceBadge: [Info] No Heuristic badge — AI enrichment may be off or cards not rendered
+  OCC.AI.OllamaVsHeuristic: [Info] Ollama/AI labels present but Heuristic badge not on cards
+  OCC.AI.StatusChip: [Info] AI status chip not found
+  OCC.AiChip: [Info] AI chip not found via UIA
+  OCC.BoardView: [Warn] Board view toggle not found via UIA
+  OCC.BranchPills: [Info] No branch pills matched heuristics
+  OCC.Chart: [Pass] Sent
+  OCC.DateRange.Help: [Info] Chart vs KPI scope caption not found
+  OCC.DateRange.HistoricalToggle: [Warn] Could not toggle to Historical report
+  OCC.DateRange.Pickers: [Warn] From=False, To=False
+  OCC.FilterChip.All open: [Warn] Could not click filter chip 'All open'
+  OCC.FilterChip.Hanging: [Warn] Could not click filter chip 'Hanging'
+  OCC.FilterChip.SLA: [Warn] Could not click filter chip 'SLA'
+  OCC.FilterChip.Urgent: [Warn] Could not click filter chip 'Urgent'
+  OCC.Historical.Banner: [Info] Historical banner not detected in UIA
+  OCC.Historical.Reload: [Info] Reload snapshot / Refresh not found
+  OCC.Historical.Sync: [Info] Sync recent history button not visible (may require historical mode)
+  OCC.Kanban: [Fail] 0/3 kanban columns visible via UIA. 
+  OCC.KPI.Hanging leads: [Warn] AutomationId=OccKpiHangingLeads — card not found in UIA tree
+  OCC.KPI.Open threads: [Warn] AutomationId=OccKpiOpenThreads — card not found in UIA tree
+  OCC.KPI.SLA breaches: [Warn] AutomationId=OccKpiSlaBreaches — card not found in UIA tree
+  OCC.KPI.Urgent: [Warn] AutomationId=OccKpiUrgent — card not found in UIA tree
+  OCC.Ready: [Pass] OCC markers visible
+  OCC.Scroll: [Pass] Scrolled OCC content
+  OCC.SLA.Display: [Pass] SLA UI text: SLA response threshold (minutes) | Replies slower than this count as SLA breaches on the Operations Command Center.
+  OCC.StickyHeader: [Info] Sticky header scope text not found
+  OCC.TeachingTip: [Info] TeachingTip not open/detectable (expected after first visit)
+  OCC.ThreadCard.Badges: [Warn] No Inquiry/Heuristic/Neutral badge text found in UIA
+  OCC.ThreadCard.MessagePreview: [Pass] Message preview detected: ACTIVE ACCOUNTS section
+  OCC.ThreadCard.SlaText: [Pass] SLA/waiting text present on cards
+  OCC.WorkQueue.Nav: [Fail] Could not click first work-queue card via UIA
+  PersonalOverview: [Warn] Personal tab not confirmed
+  PersonalOverview.OccUrgentLink: [Info] No urgent operations cross-link (zero urgent threads?)
+  Settings: [Pass] Settings page opened
+  Settings.About: [Pass] Section opened; markers: About, Unified Messenger
+  Settings.About.Version: [Warn] Unified Messenger v4.2.0
+  Settings.AI: [Pass] Section opened; markers: Enable local AI, Ollama endpoint, Test connection
+  Settings.Appearance: [Pass] Section opened; markers: NOTIFICATIONS
+  Settings.Notifications: [Pass] Section opened; markers: NOTIFICATIONS
+  Settings.Session & performance: [Pass] Section opened; markers: Max concurrent WebViews, SLA response threshold
+  Settings.Storage: [Pass] Section opened; markers: instances.json, profiles, Storage
+  Sidebar: [Pass] Sidebar Dashboard present
+
+Pass=142, Warn=86, Info=85, Fail=14, Critical=0
+Cycles completed: 6
+Duration: 10.1 min
+Finished: 2026-06-14T15:45:48.2204629Z

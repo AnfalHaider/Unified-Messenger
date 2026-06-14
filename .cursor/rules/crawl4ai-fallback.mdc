@@ -1,0 +1,15 @@
+---
+description: Use Crawl4AI when Firecrawl credits are 0
+alwaysApply: true
+---
+
+# Web research: Firecrawl → Crawl4AI fallback
+
+Before any Firecrawl scrape/search/crawl:
+
+1. Check credits: `firecrawl --status`
+2. If **Credits: 0** or a Firecrawl command fails with quota/credit errors → use the **crawl4ai** skill instead.
+3. Write output to `.crawl4ai/` using scripts in `.cursor/tools/crawl4ai/`.
+4. Do not retry Firecrawl when credits are exhausted.
+
+When credits are available again, prefer Firecrawl for web tasks.
