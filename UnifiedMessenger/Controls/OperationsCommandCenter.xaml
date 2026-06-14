@@ -36,7 +36,7 @@
                 Style="{StaticResource SubtitleTextBlockStyle}"
                 Text="No professional accounts yet" />
             <TextBlock
-                MaxWidth="420"
+                MaxWidth="{StaticResource UmEmptyStateMaxWidth}"
                 HorizontalAlignment="Center"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 Text="Add a WhatsApp instance with Workspace set to Professional."
@@ -76,13 +76,13 @@
                                 Text="Showing: All Branches" />
                             <Border
                                 x:Name="AiStatusChipPanel"
-                                Padding="8,2"
+                                Padding="{StaticResource UmAiChipPadding}"
                                 Background="{ThemeResource LayerFillColorDefaultBrush}"
                                 CornerRadius="{StaticResource UmCornerRadiusSmValue}"
                                 Visibility="Collapsed">
                                 <TextBlock
                                     x:Name="AiStatusChipText"
-                                    MaxWidth="96"
+                                    MaxWidth="{StaticResource UmChipMaxWidth}"
                                     FontSize="{StaticResource UmBadgeFontSize}"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                     Text="AI offline"
@@ -192,8 +192,8 @@
                             </Grid>
                             <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition MinWidth="140" Width="*" />
-                                    <ColumnDefinition MinWidth="140" Width="*" />
+                                    <ColumnDefinition MinWidth="{StaticResource UmDatePickerMinWidth}" Width="*" />
+                                    <ColumnDefinition MinWidth="{StaticResource UmDatePickerMinWidth}" Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <DatePicker
                                     x:Name="FromDatePicker"
@@ -224,8 +224,8 @@
                         Spacing="{StaticResource UmSpacingMd}">
                         <shared:MetricCardView
                             x:Name="OpenThreadsCard"
-                            MinWidth="140"
-                            Width="180"
+                            MinWidth="{StaticResource UmMetricCardMinWidth}"
+                            Width="{StaticResource UmMetricCardWidth}"
                             Activated="OpenThreadsCard_Activated"
                             IconGlyph="&#xE8BD;"
                             IsInteractive="True"
@@ -235,8 +235,8 @@
                             Value="0" />
                         <shared:MetricCardView
                             x:Name="UrgentCard"
-                            MinWidth="140"
-                            Width="180"
+                            MinWidth="{StaticResource UmMetricCardMinWidth}"
+                            Width="{StaticResource UmMetricCardWidth}"
                             Activated="UrgentCard_Activated"
                             IconGlyph="&#xE7BA;"
                             IsInteractive="True"
@@ -246,8 +246,8 @@
                             Value="0" />
                         <shared:MetricCardView
                             x:Name="SlaBreachesCard"
-                            MinWidth="140"
-                            Width="180"
+                            MinWidth="{StaticResource UmMetricCardMinWidth}"
+                            Width="{StaticResource UmMetricCardWidth}"
                             Activated="SlaBreachesCard_Activated"
                             IconGlyph="&#xE783;"
                             IsInteractive="True"
@@ -257,8 +257,8 @@
                             Value="0" />
                         <shared:MetricCardView
                             x:Name="HangingLeadsCard"
-                            MinWidth="140"
-                            Width="180"
+                            MinWidth="{StaticResource UmMetricCardMinWidth}"
+                            Width="{StaticResource UmMetricCardWidth}"
                             Activated="HangingLeadsCard_Activated"
                             IconGlyph="&#xE823;"
                             IsInteractive="True"
@@ -272,30 +272,40 @@
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
                     <ToggleButton
                         x:Name="FilterAllOpenChip"
+                        AutomationProperties.AutomationId="OccFilterAllOpen"
+                        AutomationProperties.Name="All open"
                         Checked="QueueFilterChip_Checked"
                         Content="All open"
                         IsChecked="True"
-                        Padding="10,4" />
+                        Padding="{StaticResource UmFilterChipPadding}" />
                     <ToggleButton
                         x:Name="FilterUrgentChip"
+                        AutomationProperties.AutomationId="OccFilterUrgent"
+                        AutomationProperties.Name="Urgent"
                         Checked="QueueFilterChip_Checked"
                         Content="Urgent"
-                        Padding="10,4" />
+                        Padding="{StaticResource UmFilterChipPadding}" />
                     <ToggleButton
                         x:Name="FilterSlaChip"
+                        AutomationProperties.AutomationId="OccFilterSla"
+                        AutomationProperties.Name="SLA"
                         Checked="QueueFilterChip_Checked"
                         Content="SLA"
-                        Padding="10,4" />
+                        Padding="{StaticResource UmFilterChipPadding}" />
                     <ToggleButton
                         x:Name="FilterHangingChip"
+                        AutomationProperties.AutomationId="OccFilterHanging"
+                        AutomationProperties.Name="Hanging"
                         Checked="QueueFilterChip_Checked"
                         Content="Hanging"
-                        Padding="10,4" />
+                        Padding="{StaticResource UmFilterChipPadding}" />
                     <ToggleButton
                         x:Name="BoardViewToggle"
+                        AutomationProperties.AutomationId="OccBoardViewToggle"
+                        AutomationProperties.Name="Board view"
                         Checked="BoardViewToggle_Changed"
                         Content="Board view"
-                        Padding="10,4"
+                        Padding="{StaticResource UmFilterChipPadding}"
                         Unchecked="BoardViewToggle_Changed" />
                 </StackPanel>
             </StackPanel>
@@ -306,35 +316,39 @@
                 VerticalScrollBarVisibility="Auto">
                 <StackPanel Padding="{StaticResource UmPaddingBottomXl}" Spacing="{StaticResource UmSpacingLg}">
                     <StackPanel x:Name="WorkQueueSection" Spacing="{StaticResource UmSpacingSm}">
-                        <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Work queue" />
+                        <TextBlock
+                            AutomationProperties.AutomationId="OccWorkQueueSectionLabel"
+                            AutomationProperties.Name="Work queue"
+                            Style="{StaticResource UmSectionLabelTextStyle}"
+                            Text="Work queue" />
                         <TextBlock
                             x:Name="WorkQueueEmptyText"
                             Style="{StaticResource UmEmptyHintTextStyle}"
                             Text="No open threads in the current scope."
                             TextAlignment="Left"
                             Visibility="Collapsed" />
-                        <ListView
+                        <ItemsRepeater
                             x:Name="WorkQueueList"
                             AutomationProperties.AutomationId="WorkQueueList"
                             AutomationProperties.Name="Operations work queue"
-                            IsItemClickEnabled="True"
-                            ItemClick="ThreadCardList_ItemClick"
-                            ItemTemplate="{StaticResource OperationsWorkQueueCardTemplate}"
-                            SelectionMode="None"
-                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                            ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                            ItemTemplate="{StaticResource OperationsWorkQueueCardTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Vertical" Spacing="8" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
                     </StackPanel>
 
                     <StackPanel x:Name="ImmediateLaneSection" Spacing="{StaticResource UmSpacingSm}" Visibility="Collapsed">
                         <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Immediate queue" />
-                        <ListView
+                        <ItemsRepeater
                             x:Name="ImmediateQueueList"
                             AutomationProperties.AutomationId="ImmediateQueueList"
                             AutomationProperties.Name="Immediate work queue"
-                            IsItemClickEnabled="True"
-                            ItemClick="ThreadCardList_ItemClick"
-                            ItemTemplate="{StaticResource OperationsImmediateCardTemplate}"
-                            SelectionMode="None" />
+                            ItemTemplate="{StaticResource OperationsImmediateCardTemplate}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Vertical" Spacing="8" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
                     </StackPanel>
 
                     <controls:KanbanColumnBoard

@@ -66,6 +66,7 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(EnableInstanceNotesTagsToggle, "Enable instance notes and tags");
         AutomationProperties.SetName(SlaThresholdBox, "SLA threshold minutes");
         AutomationProperties.SetName(DashboardUrgencyThresholdBox, "Dashboard urgency threshold");
+        AutomationProperties.SetName(OccCompactCardDensityToggle, "Compact Operations card density");
         AutomationProperties.SetName(EnableStartupBackfillToggle, "Enable startup backfill");
         AutomationProperties.SetName(WhatsAppBackfillModeBox, "WhatsApp backfill mode");
         AutomationProperties.SetName(WhatsAppBackfillMaxChatsBox, "Max chats per backfill run");
@@ -170,6 +171,7 @@ public sealed partial class SettingsPage : Page
         EnableInstanceNotesTagsToggle.IsOn = settings.EnableInstanceNotesTags;
         RunInBackgroundOnCloseToggle.IsOn = settings.RunInBackgroundOnClose;
         DashboardUrgencyThresholdBox.Value = settings.DashboardUrgencyThreshold;
+        OccCompactCardDensityToggle.IsOn = settings.OccCompactCardDensity;
         EnableStartupBackfillToggle.IsOn = settings.EnableStartupBackfill;
         WhatsAppBackfillModeBox.SelectedItem = ((WhatsAppBackfillModeOption[])WhatsAppBackfillModeBox.ItemsSource!)
             .FirstOrDefault(o => o.Mode == settings.WhatsAppBackfillMode)

@@ -39,7 +39,7 @@
 
     <Style x:Key="AccentButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource UmBrandTealBrush}" />
-        <Setter Property="Foreground" Value="White" />
+        <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
         <Setter Property="Padding" Value="14,8" />

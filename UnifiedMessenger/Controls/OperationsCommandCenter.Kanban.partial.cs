@@ -74,14 +74,6 @@ public sealed partial class OperationsCommandCenter
             card => card.ThreadId,
             OperationsThreadCardSync.ContentEquals);
 
-    private void ThreadCardList_ItemClick(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is OperationsThreadCardViewModel card)
-        {
-            NavigateToThreadCard(card);
-        }
-    }
-
     private void KanbanBoard_ColumnOrderChanged(
         object sender,
         (string ColumnKey, IReadOnlyList<string> OrderedThreadIds) e) =>

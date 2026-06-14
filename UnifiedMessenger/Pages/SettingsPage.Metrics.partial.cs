@@ -89,4 +89,15 @@ public sealed partial class SettingsPage
         await _services.AppSettings.UpdateAsync(settings =>
             settings.EnableDeepBackfill = EnableDeepBackfillToggle.IsOn);
     }
+
+    private async void OccCompactCardDensityToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents)
+        {
+            return;
+        }
+
+        await _services.AppSettings.UpdateAsync(settings =>
+            settings.OccCompactCardDensity = OccCompactCardDensityToggle.IsOn);
+    }
 }

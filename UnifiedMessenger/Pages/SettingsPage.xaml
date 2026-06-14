@@ -226,6 +226,23 @@
                         </NumberBox>
 
                         <ToggleSwitch
+                            x:Name="OccCompactCardDensityToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="OccCompactCardDensityToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Compact Operations card density" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Use tighter thread cards in the Operations Command Center work queue."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
                             x:Name="EnableStartupBackfillToggle"
                             OffContent="Off"
                             OnContent="On"

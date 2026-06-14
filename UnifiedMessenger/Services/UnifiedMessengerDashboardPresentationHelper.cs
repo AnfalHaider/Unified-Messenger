@@ -65,20 +65,40 @@ public static class UnifiedMessengerDashboardPresentationHelper
     public static string ResolveLatencyHex(string latencyColor) =>
         latencyColor switch
         {
-            "Green" => "#22C55E",
-            "Amber" => "#F59E0B",
-            _ => "#EF4444"
+            "Green" => UmSemanticColors.StatusSuccess,
+            "Amber" => UmSemanticColors.StatusWarning,
+            _ => UmSemanticColors.StatusDanger
         };
 
     public static string ResolveSentimentHex(string sentiment) =>
         sentiment switch
         {
-            ClientSentimentLabel.Positive => "#22C55E",
-            ClientSentimentLabel.Frustrated => "#F59E0B",
-            ClientSentimentLabel.Critical => "#EF4444",
-            _ => "#94A3B8"
+            ClientSentimentLabel.Positive => UmSemanticColors.StatusSuccess,
+            ClientSentimentLabel.Frustrated => UmSemanticColors.StatusWarning,
+            ClientSentimentLabel.Critical => UmSemanticColors.StatusDanger,
+            _ => UmSemanticColors.StatusMuted
         };
 
     public static string ResolveUrgencyHex(int urgencyScore) =>
-        urgencyScore >= 4 ? "#DC2626" : urgencyScore >= 3 ? "#F59E0B" : "#64748B";
+        urgencyScore >= 4
+            ? UmSemanticColors.StatusDanger
+            : urgencyScore >= 3
+                ? UmSemanticColors.StatusWarning
+                : UmSemanticColors.StatusNeutral;
+
+    public static string ResolveUrgencyBrushKey(int urgencyScore) =>
+        urgencyScore >= 4
+            ? UmSemanticBrushes.StatusDangerBrushKey
+            : urgencyScore >= 3
+                ? UmSemanticBrushes.StatusWarningBrushKey
+                : UmSemanticBrushes.StatusNeutralBrushKey;
+
+    public static string ResolveSentimentBrushKey(string sentiment) =>
+        sentiment switch
+        {
+            ClientSentimentLabel.Positive => UmSemanticBrushes.StatusSuccessBrushKey,
+            ClientSentimentLabel.Frustrated => UmSemanticBrushes.StatusWarningBrushKey,
+            ClientSentimentLabel.Critical => UmSemanticBrushes.StatusDangerBrushKey,
+            _ => UmSemanticBrushes.StatusMutedBrushKey
+        };
 }

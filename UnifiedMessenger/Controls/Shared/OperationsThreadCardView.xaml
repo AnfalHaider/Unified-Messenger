@@ -20,7 +20,7 @@
             </Grid.ColumnDefinitions>
             <Border
                 Background="{x:Bind ViewModel.CardBorderBrush, Mode=OneWay}"
-                CornerRadius="2"
+                CornerRadius="{StaticResource UmCornerRadiusXsValue}"
                 Visibility="{x:Bind SlaStripeVisibility, Mode=OneTime}" />
             <StackPanel Grid.Column="1" MinWidth="0" Spacing="{x:Bind ContentSpacing, Mode=OneTime}">
                 <Grid ColumnSpacing="{StaticResource UmSpacingSm}">
@@ -70,15 +70,19 @@
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource UmSpacingXs}" Visibility="{x:Bind TagRowVisibility, Mode=OneTime}">
                     <Border Style="{StaticResource UmTagBadgeStyle}">
                         <TextBlock
+                            MinWidth="0"
                             Style="{StaticResource UmBadgeLabelStyle}"
                             Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                            Text="{x:Bind ViewModel.IntentLabel, Mode=OneWay}" />
+                            Text="{x:Bind ViewModel.IntentLabel, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis" />
                     </Border>
                     <Border Style="{StaticResource UmTagBadgeStyle}">
                         <TextBlock
+                            MinWidth="0"
                             Style="{StaticResource UmBadgeLabelStyle}"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="{x:Bind ViewModel.InferenceSourceLabel, Mode=OneWay}" />
+                            Text="{x:Bind ViewModel.InferenceSourceLabel, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis" />
                     </Border>
                     <ProgressRing
                         Width="14"
@@ -89,8 +93,10 @@
                         Background="{x:Bind ViewModel.SentimentBrush, Mode=OneWay}"
                         Style="{StaticResource UmSemanticBadgeStyle}">
                         <TextBlock
+                            MinWidth="0"
                             Style="{StaticResource UmBadgeLabelOnAccentStyle}"
-                            Text="{x:Bind ViewModel.SentimentLabel, Mode=OneWay}" />
+                            Text="{x:Bind ViewModel.SentimentLabel, Mode=OneWay}"
+                            TextTrimming="CharacterEllipsis" />
                     </Border>
                 </StackPanel>
                 <TextBlock
@@ -114,9 +120,11 @@
                     Text="{x:Bind ViewModel.DeliveryStatusLabel, Mode=OneWay}"
                     Visibility="{x:Bind ViewModel.DeliveryStatusVisibility, Mode=OneWay}" />
                 <TextBlock
+                    MinWidth="0"
                     FontSize="{StaticResource UmBadgeFontSize}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     Text="{x:Bind ViewModel.RevenueDisplay, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
                     Visibility="{x:Bind ViewModel.RevenueVisibility, Mode=OneWay}" />
                 <TextBlock
                     FontSize="{StaticResource UmBadgeFontSize}"

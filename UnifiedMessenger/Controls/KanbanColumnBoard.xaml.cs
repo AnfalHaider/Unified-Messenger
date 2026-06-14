@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using Windows.ApplicationModel.DataTransfer;
@@ -12,12 +13,16 @@ namespace UnifiedMessenger.Controls;
 public sealed partial class KanbanColumnBoard : UserControl
 {
     private string? _dragSourceColumnKey;
-
     private OperationsThreadCardViewModel? _dragSourceCard;
+    private ScrollViewer? _parentScrollViewer;
 
     public KanbanColumnBoard()
     {
         InitializeComponent();
+        foreach (var repeater in EnumerateKanbanRepeaters())
+        {
+            repeater.ElementPrepared += KanbanRepeater_ElementPrepared;
+        }
     }
 
     public event EventHandler<OperationsThreadCardViewModel>? ItemClickRequested;
@@ -29,7 +34,8 @@ public sealed partial class KanbanColumnBoard : UserControl
     public event EventHandler<(OperationsThreadCardViewModel Card, string SourceColumnKey, string TargetColumnKey)>?
         ColumnTransferRequested;
 
-    public event EventHandler<(OperationsThreadCardViewModel Card, ListView SourceList, Point Position)>? ThreadContextMenuRequested;
+    public event EventHandler<(OperationsThreadCardViewModel Card, ItemsRepeater SourceRepeater, Point Position)>?
+        ThreadContextMenuRequested;
 
     public bool IsReorderEnabled
     {
@@ -68,11 +74,11 @@ public sealed partial class KanbanColumnBoard : UserControl
         UpdateDropZoneChrome(ResolvedColumnDropZone, resolvedCount);
     }
 
-    private static void SetColumnEmptyState(Border emptyPanel, ListView listView, int count)
+    private static void SetColumnEmptyState(Border emptyPanel, ItemsRepeater repeater, int count)
     {
         var isEmpty = count == 0;
         emptyPanel.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
-        listView.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
+        repeater.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private static void OnIsReorderEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -85,13 +91,6 @@ public sealed partial class KanbanColumnBoard : UserControl
 
     private void ApplyReorderMode(bool enabled)
     {
-        foreach (var list in EnumerateKanbanLists())
-        {
-            list.CanDragItems = enabled;
-            list.CanReorderItems = enabled;
-            list.IsSwipeEnabled = enabled;
-        }
-
         foreach (var dropZone in new[] { NewColumnDropZone, HangingColumnDropZone, ResolvedColumnDropZone })
         {
             dropZone.BorderThickness = new Thickness(1);
@@ -99,51 +98,84 @@ public sealed partial class KanbanColumnBoard : UserControl
         }
     }
 
-    private void KanbanList_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    private void KanbanRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
-        if (sender is not ListView listView)
+        if (args.Element is not FrameworkElement element)
         {
             return;
         }
 
-        if (e.OriginalSource is FrameworkElement element &&
-            element.DataContext is OperationsThreadCardViewModel card)
+        if (_parentScrollViewer is not null)
         {
-            ThreadContextMenuRequested?.Invoke(this, (card, listView, e.GetPosition(listView)));
+            ScrollInputHelper.EnableVerticalScrollBubbling(element, _parentScrollViewer);
         }
+
+        element.IsTapEnabled = true;
+        element.Tapped -= KanbanCard_Tapped;
+        element.Tapped += KanbanCard_Tapped;
+        element.RightTapped -= KanbanCard_RightTapped;
+        element.RightTapped += KanbanCard_RightTapped;
+        element.CanDrag = IsReorderEnabled;
+        element.DragStarting -= KanbanCard_DragStarting;
+        element.DragStarting += KanbanCard_DragStarting;
     }
 
-    private void KanbanList_ItemClick(object sender, ItemClickEventArgs e)
+    private void KanbanCard_Tapped(object sender, TappedRoutedEventArgs e)
     {
-        if (e.ClickedItem is OperationsThreadCardViewModel card)
+        if (sender is FrameworkElement element &&
+            element.DataContext is OperationsThreadCardViewModel card)
         {
             ItemClickRequested?.Invoke(this, card);
         }
     }
 
-    private void KanbanList_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
+    private void KanbanCard_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
-        if (!IsReorderEnabled || sender is not ListView listView)
+        if (sender is not FrameworkElement element ||
+            element.DataContext is not OperationsThreadCardViewModel card)
+        {
+            return;
+        }
+
+        var repeater = FindParentRepeater(element);
+        if (repeater is null)
+        {
+            return;
+        }
+
+        ThreadContextMenuRequested?.Invoke(this, (card, repeater, e.GetPosition(repeater)));
+    }
+
+    private void KanbanCard_DragStarting(UIElement sender, DragStartingEventArgs e)
+    {
+        if (!IsReorderEnabled || sender is not FrameworkElement element)
         {
             e.Cancel = true;
             return;
         }
 
-        _dragSourceColumnKey = ResolveColumnKey(listView);
-        _dragSourceCard = e.Items.FirstOrDefault() as OperationsThreadCardViewModel;
+        var repeater = FindParentRepeater(element);
+        if (repeater is null)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        _dragSourceColumnKey = ResolveColumnKey(repeater);
+        _dragSourceCard = element.DataContext as OperationsThreadCardViewModel;
         e.Data.SetText(_dragSourceColumnKey ?? string.Empty);
         e.Data.RequestedOperation = DataPackageOperation.Move;
     }
 
-    private void KanbanList_DragOver(object sender, DragEventArgs e)
+    private void DropZone_DragOver(object sender, DragEventArgs e)
     {
-        if (!IsReorderEnabled || sender is not ListView targetList)
+        if (!IsReorderEnabled || sender is not Border dropZone)
         {
             e.AcceptedOperation = DataPackageOperation.None;
             return;
         }
 
-        var targetColumn = ResolveColumnKey(targetList);
+        var targetColumn = ResolveColumnKeyForDropZone(dropZone);
         if (string.IsNullOrWhiteSpace(_dragSourceColumnKey) ||
             string.IsNullOrWhiteSpace(targetColumn))
         {
@@ -163,10 +195,10 @@ public sealed partial class KanbanColumnBoard : UserControl
         e.DragUIOverride.Caption = $"Move to {ResolveColumnLabel(targetColumn)}";
     }
 
-    private void KanbanList_Drop(object sender, DragEventArgs e)
+    private void DropZone_Drop(object sender, DragEventArgs e)
     {
         if (!IsReorderEnabled ||
-            sender is not ListView targetList ||
+            sender is not Border dropZone ||
             _dragSourceCard is null ||
             string.IsNullOrWhiteSpace(_dragSourceColumnKey))
         {
@@ -174,7 +206,7 @@ public sealed partial class KanbanColumnBoard : UserControl
             return;
         }
 
-        var targetColumn = ResolveColumnKey(targetList);
+        var targetColumn = ResolveColumnKeyForDropZone(dropZone);
         if (string.IsNullOrWhiteSpace(targetColumn))
         {
             e.AcceptedOperation = DataPackageOperation.None;
@@ -183,6 +215,7 @@ public sealed partial class KanbanColumnBoard : UserControl
 
         if (targetColumn.Equals(_dragSourceColumnKey, StringComparison.OrdinalIgnoreCase))
         {
+            TryPublishColumnOrder(dropZone);
             return;
         }
 
@@ -194,30 +227,6 @@ public sealed partial class KanbanColumnBoard : UserControl
         CrossColumnDragAttempted?.Invoke(this, EventArgs.Empty);
     }
 
-    private void KanbanList_DragItemsCompleted(object sender, DragItemsCompletedEventArgs e)
-    {
-        if (!IsReorderEnabled || sender is not ListView listView)
-        {
-            _dragSourceColumnKey = null;
-            _dragSourceCard = null;
-            return;
-        }
-
-        var columnKey = ResolveColumnKeyInternal(listView);
-        if (string.IsNullOrWhiteSpace(columnKey) ||
-            listView.ItemsSource is not IEnumerable<OperationsThreadCardViewModel> items)
-        {
-            _dragSourceColumnKey = null;
-            _dragSourceCard = null;
-            return;
-        }
-
-        var orderedIds = items.Select(card => card.ThreadId).ToList();
-        ColumnOrderChanged?.Invoke(this, (columnKey, orderedIds));
-        _dragSourceColumnKey = null;
-        _dragSourceCard = null;
-    }
-
     private static string ResolveColumnLabel(string columnKey) =>
         columnKey switch
         {
@@ -227,8 +236,8 @@ public sealed partial class KanbanColumnBoard : UserControl
             _ => columnKey
         };
 
-    private static string? ResolveColumnKeyInternal(ListView listView) =>
-        listView.Name switch
+    private static string? ResolveColumnKeyInternal(ItemsRepeater repeater) =>
+        repeater.Name switch
         {
             nameof(NewInquiriesList) =>
                 ThreadDisplayOrderService.GetColumnKey(UnifiedMessengerKanbanColumn.NewInquiries),
@@ -239,11 +248,58 @@ public sealed partial class KanbanColumnBoard : UserControl
             _ => null
         };
 
-    private IEnumerable<ListView> EnumerateKanbanLists()
+    private static string? ResolveColumnKeyForDropZone(Border dropZone) =>
+        dropZone.Name switch
+        {
+            nameof(NewColumnDropZone) =>
+                ThreadDisplayOrderService.GetColumnKey(UnifiedMessengerKanbanColumn.NewInquiries),
+            nameof(HangingColumnDropZone) =>
+                ThreadDisplayOrderService.GetColumnKey(UnifiedMessengerKanbanColumn.HangingLeads),
+            nameof(ResolvedColumnDropZone) =>
+                ThreadDisplayOrderService.GetColumnKey(UnifiedMessengerKanbanColumn.Resolved),
+            _ => null
+        };
+
+    private IEnumerable<ItemsRepeater> EnumerateKanbanRepeaters()
     {
         yield return NewInquiriesList;
         yield return HangingLeadsList;
         yield return ResolvedList;
+    }
+
+    private static ItemsRepeater? FindParentRepeater(DependencyObject start)
+    {
+        for (var current = start; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is ItemsRepeater repeater)
+            {
+                return repeater;
+            }
+        }
+
+        return null;
+    }
+
+    private ItemsRepeater? ResolveRepeaterForDropZone(Border dropZone) =>
+        dropZone.Name switch
+        {
+            nameof(NewColumnDropZone) => NewInquiriesList,
+            nameof(HangingColumnDropZone) => HangingLeadsList,
+            nameof(ResolvedColumnDropZone) => ResolvedList,
+            _ => null
+        };
+
+    private void TryPublishColumnOrder(Border dropZone)
+    {
+        var repeater = ResolveRepeaterForDropZone(dropZone);
+        if (repeater is null ||
+            ResolveColumnKeyForDropZone(dropZone) is not { Length: > 0 } columnKey ||
+            repeater.ItemsSourceView is not IEnumerable<OperationsThreadCardViewModel> items)
+        {
+            return;
+        }
+
+        ColumnOrderChanged?.Invoke(this, (columnKey, items.Select(card => card.ThreadId).ToList()));
     }
 
     private void UpdateDropZoneChrome(Border dropZone, int itemCount)
@@ -255,12 +311,10 @@ public sealed partial class KanbanColumnBoard : UserControl
         dropZone.MinHeight = IsReorderEnabled && itemCount == 0 ? minHeight + 40 : minHeight;
     }
 
-    public string? ResolveColumnKey(ListView listView) => ResolveColumnKeyInternal(listView);
+    public string? ResolveColumnKey(ItemsRepeater repeater) => ResolveColumnKeyInternal(repeater);
 
     public void WireScrollBubbling(ScrollViewer parentScrollViewer)
     {
-        ScrollInputHelper.EnableVerticalScrollBubbling(NewInquiriesList, parentScrollViewer);
-        ScrollInputHelper.EnableVerticalScrollBubbling(HangingLeadsList, parentScrollViewer);
-        ScrollInputHelper.EnableVerticalScrollBubbling(ResolvedList, parentScrollViewer);
+        _parentScrollViewer = parentScrollViewer;
     }
 }

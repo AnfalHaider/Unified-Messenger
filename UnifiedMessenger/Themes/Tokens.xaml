@@ -67,4 +67,40 @@
     <Thickness x:Key="UmMarginBottomSm">0,0,0,8</Thickness>
     <CornerRadius x:Key="UmCornerRadiusMdValue">8</CornerRadius>
     <CornerRadius x:Key="UmCornerRadiusSmValue">6</CornerRadius>
+    <CornerRadius x:Key="UmCornerRadiusXsValue">2</CornerRadius>
+
+    <!-- Semantic status (light theme defaults) -->
+    <Color x:Key="UmStatusSuccessColor">#22C55E</Color>
+    <Color x:Key="UmStatusWarningColor">#F59E0B</Color>
+    <Color x:Key="UmStatusDangerColor">#DC2626</Color>
+    <Color x:Key="UmStatusNeutralColor">#64748B</Color>
+    <Color x:Key="UmStatusMutedColor">#94A3B8</Color>
+    <Color x:Key="UmStatusReadColor">#2563EB</Color>
+    <Color x:Key="UmStatusDeliveredColor">#64748B</Color>
+    <Color x:Key="UmStatusSentColor">#94A3B8</Color>
+    <Color x:Key="UmStatusPendingColor">#94A3B8</Color>
+
+    <SolidColorBrush x:Key="UmStatusSuccessBrush" Color="{StaticResource UmStatusSuccessColor}" />
+    <SolidColorBrush x:Key="UmStatusWarningBrush" Color="{StaticResource UmStatusWarningColor}" />
+    <SolidColorBrush x:Key="UmStatusDangerBrush" Color="{StaticResource UmStatusDangerColor}" />
+    <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="{StaticResource UmStatusNeutralColor}" />
+    <SolidColorBrush x:Key="UmStatusMutedBrush" Color="{StaticResource UmStatusMutedColor}" />
+    <SolidColorBrush x:Key="UmStatusReadBrush" Color="{StaticResource UmStatusReadColor}" />
+    <SolidColorBrush x:Key="UmStatusDeliveredBrush" Color="{StaticResource UmStatusDeliveredColor}" />
+    <SolidColorBrush x:Key="UmStatusSentBrush" Color="{StaticResource UmStatusSentColor}" />
+    <SolidColorBrush x:Key="UmStatusPendingBrush" Color="{StaticResource UmStatusPendingColor}" />
+
+    <!-- Layout tokens (DIPs) -->
+    <x:Double x:Key="UmMetricCardWidth">180</x:Double>
+    <x:Double x:Key="UmMetricCardMinWidth">140</x:Double>
+    <x:Double x:Key="UmDatePickerMinWidth">140</x:Double>
+    <x:Double x:Key="UmChartMinWidth">200</x:Double>
+    <x:Double x:Key="UmChipMaxWidth">96</x:Double>
+    <x:Double x:Key="UmKanbanColumnMinWidth">240</x:Double>
+    <x:Double x:Key="UmKanbanBoardMinWidth">720</x:Double>
+    <x:Double x:Key="UmCornerRadiusXs">2</x:Double>
+    <x:Double x:Key="UmEmptyStateMaxWidth">420</x:Double>
+
+    <Thickness x:Key="UmFilterChipPadding">10,4</Thickness>
+    <Thickness x:Key="UmAiChipPadding">8,2</Thickness>
 </ResourceDictionary>

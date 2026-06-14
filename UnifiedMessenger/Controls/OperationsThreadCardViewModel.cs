@@ -1,9 +1,7 @@
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
-using Windows.UI;
 
 namespace UnifiedMessenger.Controls;
 
@@ -44,11 +42,13 @@ public sealed class OperationsThreadCardViewModel
         RevenueVisibility = thread.IsRevenueLeakageRisk && thread.EstimatedValue > 0
             ? Visibility.Visible
             : Visibility.Collapsed;
-        UrgencyBrush = CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveUrgencyHex(thread.UrgencyScore));
-        SentimentBrush = CreateBrush(UnifiedMessengerDashboardPresentationHelper.ResolveSentimentHex(thread.ClientSentiment));
+        UrgencyBrush = UmSemanticBrushes.Get(
+            UnifiedMessengerDashboardPresentationHelper.ResolveUrgencyBrushKey(thread.UrgencyScore));
+        SentimentBrush = UmSemanticBrushes.Get(
+            UnifiedMessengerDashboardPresentationHelper.ResolveSentimentBrushKey(thread.ClientSentiment));
         CardBorderBrush = thread.IsSlaBreached || thread.IsRevenueLeakageRisk
-            ? new SolidColorBrush(Color.FromArgb(255, 220, 38, 38))
-            : new SolidColorBrush(Colors.Transparent);
+            ? UmSemanticBrushes.StatusDanger
+            : UmSemanticBrushes.Transparent;
         CardBorderThickness = thread.IsSlaBreached || thread.IsRevenueLeakageRisk
             ? new Thickness(thread.IsSlaBreached ? 4 : 2, 1, 1, 1)
             : new Thickness(1);
@@ -59,15 +59,15 @@ public sealed class OperationsThreadCardViewModel
                 thread.LatencyMinutes,
                 slaThreshold);
         SlaBrush = thread.IsSlaBreached
-            ? new SolidColorBrush(Color.FromArgb(255, 220, 38, 38))
+            ? UmSemanticBrushes.StatusDanger
             : thread.LatencyMinutes >= slaThreshold * 0.75
-                ? new SolidColorBrush(Color.FromArgb(255, 245, 158, 11))
-                : new SolidColorBrush(Color.FromArgb(255, 100, 116, 139));
+                ? UmSemanticBrushes.StatusWarning
+                : UmSemanticBrushes.StatusNeutral;
         SlaVisibility = string.IsNullOrWhiteSpace(SlaText) ? Visibility.Collapsed : Visibility.Visible;
         BranchNameVisibility = hideBranchName ? Visibility.Collapsed : Visibility.Visible;
         DeliveryStatusLabel = WhatsAppDeliveryStatusPresentation.ResolveLabel(thread.WhatsAppDeliveryStatus);
-        DeliveryStatusBrush = CreateBrush(
-            WhatsAppDeliveryStatusPresentation.ResolveBrushHex(thread.WhatsAppDeliveryStatus));
+        DeliveryStatusBrush = UmSemanticBrushes.Get(
+            WhatsAppDeliveryStatusPresentation.ResolveBrushKey(thread.WhatsAppDeliveryStatus));
         DeliveryStatusVisibility = WhatsAppDeliveryStatusPresentation.ShouldShow(
             thread.Platform,
             thread.WhatsAppDeliveryStatus)
@@ -182,26 +182,6 @@ public sealed class OperationsThreadCardViewModel
         PlatformDefinition.NormalizePlatformId(platformId) switch
         {
             "whatsapp" or "whatsappbusiness" => "\uE8BD",
-            "metabusiness" => "\uE717",
-            "googlebusiness" => "\uE774",
-            _ => "\uE774"
+            _ => "\uE8BD"
         };
-
-    private static SolidColorBrush CreateBrush(string hex) =>
-        new(ColorFromHex(hex));
-
-    private static Color ColorFromHex(string hex)
-    {
-        hex = hex.TrimStart('#');
-        if (hex.Length != 6)
-        {
-            return Colors.Gray;
-        }
-
-        return Color.FromArgb(
-            255,
-            Convert.ToByte(hex[..2], 16),
-            Convert.ToByte(hex[2..4], 16),
-            Convert.ToByte(hex[4..6], 16));
-    }
 }

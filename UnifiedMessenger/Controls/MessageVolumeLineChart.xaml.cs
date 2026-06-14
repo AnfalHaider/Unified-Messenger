@@ -1,3 +1,4 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -11,11 +12,15 @@ namespace UnifiedMessenger.Controls;
 public sealed partial class MessageVolumeLineChart : UserControl
 {
     private const double DefaultPlotWidth = 320;
+    private const int ResizeDebounceMs = 24;
 
     private readonly MessageVolumeLineChartViewModel _viewModel = new();
     private IReadOnlyList<DailyActivityPoint>? _currentSeries;
     private string? _lastRenderedSignature;
     private bool _rangeExceedsDisplayCap;
+    private DispatcherQueueTimer? _resizeDebounceTimer;
+    private double _lastPlotWidth;
+    private double _lastPlotHeight;
 
     public MessageVolumeLineChart()
     {
@@ -62,8 +67,38 @@ public sealed partial class MessageVolumeLineChart : UserControl
         AxisEndLabel.Text = series[^1].Label;
     }
 
-    private void OnChartPlotSizeChanged(object sender, SizeChangedEventArgs e) =>
-        RenderChart();
+    private void OnChartPlotSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var width = ResolvePlotWidth();
+        var height = ResolvePlotHeight();
+        if (Math.Abs(width - _lastPlotWidth) < 0.5 && Math.Abs(height - _lastPlotHeight) < 0.5)
+        {
+            return;
+        }
+
+        _lastPlotWidth = width;
+        _lastPlotHeight = height;
+        ScheduleRenderChart();
+    }
+
+    private void ScheduleRenderChart()
+    {
+        _resizeDebounceTimer ??= CreateResizeDebounceTimer();
+        _resizeDebounceTimer.Stop();
+        _resizeDebounceTimer.Start();
+    }
+
+    private DispatcherQueueTimer CreateResizeDebounceTimer()
+    {
+        var timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(ResizeDebounceMs);
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            RenderChart();
+        };
+        return timer;
+    }
 
     private void RenderChart()
     {

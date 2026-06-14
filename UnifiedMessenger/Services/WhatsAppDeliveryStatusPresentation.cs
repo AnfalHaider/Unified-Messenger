@@ -34,4 +34,14 @@ public static class WhatsAppDeliveryStatusPresentation
             WhatsAppDeliveryStatusLabel.Pending => UmSemanticColors.StatusPending,
             _ => UmSemanticColors.Transparent
         };
+
+    public static string ResolveBrushKey(string status) =>
+        WhatsAppDeliveryStatusLabel.Normalize(status) switch
+        {
+            WhatsAppDeliveryStatusLabel.Read => "UmStatusReadBrush",
+            WhatsAppDeliveryStatusLabel.Delivered => "UmStatusDeliveredBrush",
+            WhatsAppDeliveryStatusLabel.Sent => "UmStatusSentBrush",
+            WhatsAppDeliveryStatusLabel.Pending => "UmStatusPendingBrush",
+            _ => UmSemanticBrushes.TransparentBrushKey
+        };
 }

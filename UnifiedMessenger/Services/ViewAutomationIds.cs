@@ -24,6 +24,12 @@ public static class ViewAutomationIds
     public const string ShellNotificationToggle = "ShellNotificationToggle";
 
     public const string OccSnapshotReady = "OccSnapshotReady";
+    public const string OccBoardViewToggle = "OccBoardViewToggle";
+    public const string OccFilterAllOpen = "OccFilterAllOpen";
+    public const string OccFilterUrgent = "OccFilterUrgent";
+    public const string OccFilterSla = "OccFilterSla";
+    public const string OccFilterHanging = "OccFilterHanging";
+    public const string OccWorkQueueSectionLabel = "OccWorkQueueSectionLabel";
 
     public static string SidebarInstance(string instanceId) =>
         $"SidebarInstance_{Sanitize(instanceId)}";

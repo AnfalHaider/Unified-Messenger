@@ -39,6 +39,8 @@ public sealed partial class OperationsCommandCenter : UserControl
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         WorkQueueList.ItemsSource = _viewModel.WorkQueue;
         ImmediateQueueList.ItemsSource = _viewModel.ImmediateQueue;
+        OccItemsRepeaterHelper.WireThreadCards(WorkQueueList, MainContentScrollViewer, NavigateToThreadCard);
+        OccItemsRepeaterHelper.WireThreadCards(ImmediateQueueList, MainContentScrollViewer, NavigateToThreadCard);
         KanbanBoard.BindCollections(_viewModel.NewInquiries, _viewModel.HangingLeads, _viewModel.Resolved);
         KanbanBoard.IsReorderEnabled = true;
         BranchWorkspacePillBar.SelectionChanged += OnBranchWorkspacePillSelectionChanged;
@@ -69,7 +71,6 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void WireResponsiveLayoutHelpers()
     {
         KanbanBoard.WireScrollBubbling(MainContentScrollViewer);
-        ScrollInputHelper.EnableVerticalScrollBubbling(ImmediateQueueList, MainContentScrollViewer);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
