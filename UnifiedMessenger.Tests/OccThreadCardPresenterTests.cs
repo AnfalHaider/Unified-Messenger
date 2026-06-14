@@ -9,7 +9,7 @@ namespace UnifiedMessenger.Tests;
 public class OccThreadCardPresenterTests
 {
     [Fact]
-    public void ResolveInferenceSource_UsesAnalyzingWhenQueueActive()
+    public async Task ResolveInferenceSource_UsesAnalyzingWhenQueueActive()
     {
         var settings = new AppSettings { EnableLocalAi = true };
         var registry = ThreadRegistryService.CreateForTests();
@@ -34,7 +34,7 @@ public class OccThreadCardPresenterTests
             runtimeInstallDirectory: Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
             embeddedExecutablePath: Path.Combine(Path.GetTempPath(), "missing", "ollama.exe"),
             modelsDirectory: Path.Combine(Path.GetTempPath(), "missing", "models"));
-        runtime.EnsureRunningAsync().GetAwaiter().GetResult();
+        await runtime.EnsureRunningAsync();
 
         var queue = new AiInferenceQueue(
             startBackgroundWorker: false,

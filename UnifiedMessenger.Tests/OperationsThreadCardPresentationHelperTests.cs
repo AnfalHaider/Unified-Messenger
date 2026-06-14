@@ -44,7 +44,7 @@ public class OperationsThreadCardPresentationHelperTests
     {
         var thread = CreateThread(nextActionSummary: string.Empty, preview: "Need bridal quote for Saturday");
 
-        Assert.Equal("Need bridal quote for Saturday", OperationsThreadCardPresentationHelper.BuildFallbackSummary(thread));
+        Assert.Equal("Need bridal quote for Saturday", OperationsThreadCardPresentationHelper.BuildMessagePreview(thread));
     }
 
     private static ThreadData CreateThread(

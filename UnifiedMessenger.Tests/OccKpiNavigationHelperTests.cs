@@ -80,7 +80,7 @@ public class OccKpiNavigationHelperTests
             CreateThread("c", latency: 50, urgency: 5, threadId: "c|1")
         };
 
-        var target = OccKpiNavigationHelper.ResolveTarget(OccKpiKind.NeedsAction, threads);
+        var target = OccKpiNavigationHelper.ResolveTarget(OccKpiKind.Urgent, threads);
 
         Assert.NotNull(target);
         Assert.Equal("inst-c", target!.InstanceId);

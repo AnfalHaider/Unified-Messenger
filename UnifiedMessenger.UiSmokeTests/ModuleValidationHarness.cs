@@ -48,7 +48,7 @@ internal static class ModuleValidationHarness
             if (exitCode == 0 && output.Contains("Passed!", StringComparison.Ordinal))
             {
                 var totalMatch = System.Text.RegularExpressions.Regex.Match(output, @"Total:\s+(\d+)");
-                var total = totalMatch.Success ? totalMatch.Groups[1].Value : "437";
+                var total = totalMatch.Success ? totalMatch.Groups[1].Value : "530";
                 var detail = attempt == 1
                     ? $"{total} tests passed"
                     : $"{total} tests passed (retry {attempt})";

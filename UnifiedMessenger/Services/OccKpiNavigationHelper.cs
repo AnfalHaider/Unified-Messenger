@@ -45,7 +45,7 @@ public static class OccKpiNavigationHelper
                 actionable,
                 UnifiedMessengerKanbanColumn.HangingLeads,
                 order),
-            OccKpiKind.Urgent or OccKpiKind.NeedsAction => SelectTopUrgentThread(actionable, order),
+            OccKpiKind.Urgent => SelectTopUrgentThread(actionable, order),
             OccKpiKind.SlaBreaches => SelectWorstSlaBreach(actionable),
             _ => null
         };
