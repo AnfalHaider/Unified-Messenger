@@ -13,7 +13,6 @@
   var lastPostedCount = -1;
   var dbCache = null;
   var pollTimer = null;
-  var domObserver = null;
   var publishScheduled = false;
   var chatSnapshots = Object.create(null);
   var snapshotsInitialized = false;
@@ -27,13 +26,220 @@
   var historyHooked = false;
   var originalPushState = null;
   var originalReplaceState = null;
+  var sidebarDomObserver = null;
+  var mainDomObserver = null;
+  var domWorkRafScheduled = false;
+  var domWorkPending = false;
+  var domWorkMaxWaitTimer = null;
+  var domWorkDepth = 0;
+  var tickCacheStore = null;
+  var DOM_WORK_MAX_WAIT_MS = 300;
+  var MAX_DOM_WORK_DEPTH = 3;
+  var UM_DEV = !!(window.__umDevMode || window.__umStressTestEnabled);
+  var labelDedupScratch = Object.create(null);
+  var telemetryPayloadScratch = {
+    type: 'whatsapp-telemetry',
+    instanceId: INSTANCE_ID,
+    platform: PLATFORM,
+    conversationKey: '',
+    customerName: '',
+    contactPhoneNumber: '',
+    profilePhoneNumber: '',
+    verifiedBusinessName: '',
+    businessLabels: [],
+    lastReceivedAtUtc: null,
+    lastSentAtUtc: null,
+    lastReceivedKind: 'text',
+    lastSentKind: 'text',
+    activeMessagePreview: '',
+    timestampUtc: ''
+  };
+  var outgoingPayloadScratch = {
+    type: 'whatsapp-outgoing-status',
+    instanceId: INSTANCE_ID,
+    platform: PLATFORM,
+    conversationKey: '',
+    deliveryStatus: 'pending',
+    messagePreview: '',
+    timestampUtc: ''
+  };
+  var signaturePartsScratch = ['', '', '', '', '', ''];
 
   function postMessage(payload) {
     window.__umPostMessage(payload);
   }
 
   function normalizeText(value) {
-    return String(value || '').replace(/\s+/g, ' ').trim();
+    if (value == null) {
+      return '';
+    }
+
+    var text = typeof value === 'string' ? value : String(value);
+    var start = 0;
+    var end = text.length;
+
+    while (start < end && /\s/.test(text.charAt(start))) {
+      start++;
+    }
+
+    while (end > start && /\s/.test(text.charAt(end - 1))) {
+      end--;
+    }
+
+    if (start >= end) {
+      return '';
+    }
+
+    var collapsed = '';
+    var lastWasSpace = false;
+    for (var i = start; i < end; i++) {
+      var ch = text.charAt(i);
+      if (/\s/.test(ch)) {
+        if (!lastWasSpace) {
+          collapsed += ' ';
+          lastWasSpace = true;
+        }
+      } else {
+        collapsed += ch;
+        lastWasSpace = false;
+      }
+    }
+
+    return collapsed;
+  }
+
+  function beginDomWorkTick() {
+    tickCacheStore = Object.create(null);
+  }
+
+  function endDomWorkTick() {
+    tickCacheStore = null;
+  }
+
+  function getHeaderForTick() {
+    if (!tickCacheStore) {
+      beginDomWorkTick();
+    }
+
+    if (!tickCacheStore.header) {
+      tickCacheStore.header = extractChatHeader();
+    }
+
+    return tickCacheStore.header;
+  }
+
+  function getLabelsForTick(title) {
+    if (!title) {
+      return [];
+    }
+
+    if (!tickCacheStore) {
+      beginDomWorkTick();
+    }
+
+    if (!tickCacheStore.labelsByTitle) {
+      tickCacheStore.labelsByTitle = Object.create(null);
+    }
+
+    if (!tickCacheStore.labelsByTitle[title]) {
+      tickCacheStore.labelsByTitle[title] = scrapeSidebarLabelsForTitle(title);
+    }
+
+    return tickCacheStore.labelsByTitle[title];
+  }
+
+  function getConversationKeyForTick(header) {
+    if (!tickCacheStore) {
+      beginDomWorkTick();
+    }
+
+    if (!tickCacheStore.conversationKey) {
+      tickCacheStore.conversationKey = resolveActiveConversationKey(header);
+    }
+
+    return tickCacheStore.conversationKey;
+  }
+
+  function scheduleDomWork(immediate) {
+    if (document.hidden && !immediate) {
+      return;
+    }
+
+    if (immediate) {
+      flushDomWork(true);
+      return;
+    }
+
+    if (domWorkPending) {
+      return;
+    }
+
+    domWorkPending = true;
+    domWorkRafScheduled = true;
+
+    if (!domWorkMaxWaitTimer) {
+      domWorkMaxWaitTimer = window.setTimeout(function () {
+        flushDomWork(false);
+      }, DOM_WORK_MAX_WAIT_MS);
+    }
+
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(function () {
+        flushDomWork(false);
+      });
+    } else {
+      window.setTimeout(function () {
+        flushDomWork(false);
+      }, 16);
+    }
+  }
+
+  function flushDomWork(fromImmediate) {
+    if (domWorkDepth >= MAX_DOM_WORK_DEPTH) {
+      return;
+    }
+
+    if (!fromImmediate && !domWorkPending) {
+      return;
+    }
+
+    domWorkPending = false;
+    domWorkRafScheduled = false;
+    if (domWorkMaxWaitTimer) {
+      window.clearTimeout(domWorkMaxWaitTimer);
+      domWorkMaxWaitTimer = null;
+    }
+
+    domWorkDepth++;
+    beginDomWorkTick();
+
+    try {
+      publishTelemetryImmediate();
+      publishOutgoingStatusFromDom();
+    } finally {
+      endDomWorkTick();
+      domWorkDepth--;
+    }
+  }
+
+  function disconnectDomObservers() {
+    if (sidebarDomObserver) {
+      sidebarDomObserver.disconnect();
+    }
+
+    if (mainDomObserver) {
+      mainDomObserver.disconnect();
+    }
+  }
+
+  function reconnectDomObservers() {
+    if (sidebarDomObserver) {
+      attachSidebarObserver();
+    }
+
+    if (mainDomObserver) {
+      attachMainObserver();
+    }
   }
 
   function queryFirst(selectors) {
@@ -51,10 +257,9 @@
     return null;
   }
 
-  function scrapeSidebarLabelsForTitle(chatTitle) {
-    var labels = [];
+  function findSidebarRowForTitle(chatTitle) {
     if (!chatTitle) {
-      return labels;
+      return null;
     }
 
     var rows = document.querySelectorAll(
@@ -63,46 +268,69 @@
 
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i];
-      var rowText = row.textContent || '';
-      if (rowText.indexOf(chatTitle) < 0) {
-        continue;
+      if ((row.textContent || '').indexOf(chatTitle) >= 0) {
+        return row;
+      }
+    }
+
+    return null;
+  }
+
+  function pushUniqueLabel(labels, label) {
+    if (!label || labelDedupScratch[label]) {
+      return;
+    }
+
+    labelDedupScratch[label] = true;
+    labels.push(label);
+  }
+
+  function scrapeSidebarLabelsForTitle(chatTitle) {
+    var labels = [];
+    if (!chatTitle) {
+      return labels;
+    }
+
+    var row = findSidebarRowForTitle(chatTitle);
+    if (!row) {
+      return labels;
+    }
+
+    for (var key in labelDedupScratch) {
+      if (Object.prototype.hasOwnProperty.call(labelDedupScratch, key)) {
+        delete labelDedupScratch[key];
+      }
+    }
+
+    row.querySelectorAll(
+      'span[aria-label], span[data-testid="label"], div[title], span[title]'
+    ).forEach(function (node) {
+      var label = normalizeText(node.getAttribute('aria-label') || node.getAttribute('title') || '');
+      if (!label || label.length > 48) {
+        return;
       }
 
-      row.querySelectorAll(
-        'span[aria-label], span[data-testid="label"], div[title], span[title]'
-      ).forEach(function (node) {
-        var label = normalizeText(node.getAttribute('aria-label') || node.getAttribute('title') || '');
-        if (!label || label.length > 48) {
-          return;
-        }
+      if (/unread|muted|pinned|archived|message/i.test(label)) {
+        return;
+      }
 
-        if (/unread|muted|pinned|archived|message/i.test(label)) {
-          return;
-        }
+      pushUniqueLabel(labels, label);
+    });
 
-        if (labels.indexOf(label) < 0) {
-          labels.push(label);
-        }
-      });
+    row.querySelectorAll('span[dir="auto"]').forEach(function (span) {
+      var text = normalizeText(span.textContent || '');
+      if (!text || text === chatTitle || text.length > 32) {
+        return;
+      }
 
-      row.querySelectorAll('span[dir="auto"]').forEach(function (span) {
-        var text = normalizeText(span.textContent || '');
-        if (!text || text === chatTitle || text.length > 32) {
-          return;
-        }
+      if (/^\d{1,2}:\d{2}/.test(text)) {
+        return;
+      }
 
-        if (/^\d{1,2}:\d{2}/.test(text)) {
-          return;
-        }
-
-        if (/new customer|booking|vip|pending|follow up|lead/i.test(text) &&
-            labels.indexOf(text) < 0) {
-          labels.push(text);
-        }
-      });
-
-      break;
-    }
+      if (/new customer|booking|vip|pending|follow up|lead/i.test(text)) {
+        pushUniqueLabel(labels, text);
+      }
+    });
 
     return labels;
   }
@@ -206,13 +434,19 @@
     return new Date().toISOString();
   }
 
+  function isOutgoingContainer(node) {
+    return node.classList.contains('message-out') ||
+      !!node.querySelector('.message-out') ||
+      !!node.closest('.message-out');
+  }
+
   function scanConversationTelemetry() {
-    var header = extractChatHeader();
+    var header = getHeaderForTick();
     if (!header.title) {
       return null;
     }
 
-    var conversationKey = resolveActiveConversationKey(header);
+    var conversationKey = getConversationKeyForTick(header);
     if (!conversationKey) {
       return null;
     }
@@ -224,23 +458,22 @@
     var lastSentKind = 'text';
     var activePreview = '';
 
-    for (var i = 0; i < containers.length; i++) {
+    for (var i = containers.length - 1; i >= 0 && (!lastReceivedAtUtc || !lastSentAtUtc); i--) {
       var node = containers[i];
-      var isOutgoing = node.classList.contains('message-out') ||
-        !!node.querySelector('.message-out') ||
-        !!node.closest('.message-out');
+      var isOutgoing = isOutgoingContainer(node);
       var timestamp = parseMessageTimestamp(node);
       var kind = detectMessageKind(node);
-      var previewNode = node.querySelector('span.selectable-text, span.copyable-text');
-      var preview = previewNode ? normalizeText(previewNode.textContent || '') : '';
 
       if (isOutgoing) {
-        lastSentAtUtc = timestamp;
-        lastSentKind = kind;
-      } else {
+        if (!lastSentAtUtc) {
+          lastSentAtUtc = timestamp;
+          lastSentKind = kind;
+        }
+      } else if (!lastReceivedAtUtc) {
         lastReceivedAtUtc = timestamp;
         lastReceivedKind = kind;
-        activePreview = preview || activePreview;
+        var previewNode = node.querySelector('span.selectable-text, span.copyable-text');
+        activePreview = previewNode ? normalizeText(previewNode.textContent || '') : '';
       }
     }
 
@@ -250,7 +483,7 @@
       contactPhoneNumber: header.contactPhoneNumber || '',
       profilePhoneNumber: header.profilePhoneNumber || '',
       verifiedBusinessName: header.verifiedBusinessName || '',
-      businessLabels: scrapeSidebarLabelsForTitle(header.title),
+      businessLabels: getLabelsForTick(header.title),
       lastReceivedAtUtc: lastReceivedAtUtc,
       lastSentAtUtc: lastSentAtUtc,
       lastReceivedKind: lastReceivedKind,
@@ -260,57 +493,45 @@
   }
 
   var lastTelemetrySignature = '';
-  var telemetryScheduled = false;
-  var telemetryTimer = null;
 
   function publishTelemetryImmediate() {
-    telemetryScheduled = false;
-    telemetryTimer = null;
     var telemetry = scanConversationTelemetry();
     if (!telemetry) {
       return;
     }
 
-    var signature = [
-      telemetry.conversationKey,
-      telemetry.lastReceivedAtUtc || '',
-      telemetry.lastSentAtUtc || '',
-      telemetry.lastReceivedKind,
-      telemetry.lastSentKind,
-      telemetry.activeMessagePreview
-    ].join('|');
+    signaturePartsScratch[0] = telemetry.conversationKey;
+    signaturePartsScratch[1] = telemetry.lastReceivedAtUtc || '';
+    signaturePartsScratch[2] = telemetry.lastSentAtUtc || '';
+    signaturePartsScratch[3] = telemetry.lastReceivedKind;
+    signaturePartsScratch[4] = telemetry.lastSentKind;
+    signaturePartsScratch[5] = telemetry.activeMessagePreview;
+    var signature = signaturePartsScratch.join('|');
 
     if (signature === lastTelemetrySignature) {
       return;
     }
 
     lastTelemetrySignature = signature;
-    postMessage({
-      type: 'whatsapp-telemetry',
-      instanceId: INSTANCE_ID,
-      platform: PLATFORM,
-      conversationKey: telemetry.conversationKey,
-      customerName: telemetry.customerName,
-      contactPhoneNumber: telemetry.contactPhoneNumber,
-      profilePhoneNumber: telemetry.profilePhoneNumber,
-      verifiedBusinessName: telemetry.verifiedBusinessName,
-      businessLabels: telemetry.businessLabels,
-      lastReceivedAtUtc: telemetry.lastReceivedAtUtc,
-      lastSentAtUtc: telemetry.lastSentAtUtc,
-      lastReceivedKind: telemetry.lastReceivedKind,
-      lastSentKind: telemetry.lastSentKind,
-      activeMessagePreview: telemetry.activeMessagePreview,
-      timestampUtc: new Date().toISOString()
-    });
+
+    telemetryPayloadScratch.conversationKey = telemetry.conversationKey;
+    telemetryPayloadScratch.customerName = telemetry.customerName;
+    telemetryPayloadScratch.contactPhoneNumber = telemetry.contactPhoneNumber;
+    telemetryPayloadScratch.profilePhoneNumber = telemetry.profilePhoneNumber;
+    telemetryPayloadScratch.verifiedBusinessName = telemetry.verifiedBusinessName;
+    telemetryPayloadScratch.businessLabels = telemetry.businessLabels;
+    telemetryPayloadScratch.lastReceivedAtUtc = telemetry.lastReceivedAtUtc;
+    telemetryPayloadScratch.lastSentAtUtc = telemetry.lastSentAtUtc;
+    telemetryPayloadScratch.lastReceivedKind = telemetry.lastReceivedKind;
+    telemetryPayloadScratch.lastSentKind = telemetry.lastSentKind;
+    telemetryPayloadScratch.activeMessagePreview = telemetry.activeMessagePreview;
+    telemetryPayloadScratch.timestampUtc = new Date().toISOString();
+
+    postMessage(telemetryPayloadScratch);
   }
 
   function schedulePublishTelemetry() {
-    if (telemetryScheduled) {
-      return;
-    }
-
-    telemetryScheduled = true;
-    telemetryTimer = window.setTimeout(publishTelemetryImmediate, 300);
+    scheduleDomWork(false);
   }
 
   function detectOutgoingDeliveryStatus(container) {
@@ -366,63 +587,35 @@
     return header.title || '';
   }
 
-  var lastThreadContextKey = '';
   var lastOutgoingStatusKey = '';
   var activeContextTimer = null;
-  var outgoingObserver = null;
 
-  function publishActiveThreadContext() {
-    var header = extractChatHeader();
-    if (!header.title) {
-      return;
+  function findNewestOutgoingContainer(root) {
+    var scope = root || document;
+    var containers = scope.querySelectorAll('div[data-testid="msg-container"]');
+    if (!containers.length) {
+      return null;
     }
 
-    var conversationKey = resolveActiveConversationKey(header);
-    if (!conversationKey) {
-      return;
+    for (var i = containers.length - 1; i >= 0; i--) {
+      if (isOutgoingContainer(containers[i])) {
+        return containers[i];
+      }
     }
 
-    var labels = scrapeSidebarLabelsForTitle(header.title);
-    var signature = conversationKey + '|' + labels.join(',') + '|' + header.subtitle;
-    if (signature === lastThreadContextKey) {
-      return;
-    }
-
-    lastThreadContextKey = signature;
-
-    postMessage({
-      type: 'whatsapp-thread-context',
-      instanceId: INSTANCE_ID,
-      platform: PLATFORM,
-      conversationKey: conversationKey,
-      customerName: header.title,
-      businessLabels: labels,
-      verifiedBusinessName: header.verifiedBusinessName || '',
-      profilePhoneNumber: header.profilePhoneNumber || '',
-      contactPhoneNumber: header.contactPhoneNumber || '',
-      timestampUtc: new Date().toISOString()
-    });
+    return null;
   }
 
   function publishOutgoingStatusFromDom() {
-    var containers = document.querySelectorAll('div[data-testid="msg-container"].message-out, div.message-out[data-testid="msg-container"]');
-    if (!containers.length) {
-      containers = document.querySelectorAll('div[data-testid="msg-container"]');
-    }
-
-    if (!containers.length) {
+    var mainRoot = document.querySelector('#main') ||
+      document.querySelector('[data-testid="conversation-panel-messages"]');
+    var newest = findNewestOutgoingContainer(mainRoot);
+    if (!newest) {
       return;
     }
 
-    var newest = containers[containers.length - 1];
-    if (!newest.classList.contains('message-out') &&
-        !newest.querySelector('.message-out') &&
-        !newest.closest('.message-out')) {
-      return;
-    }
-
-    var header = extractChatHeader();
-    var conversationKey = resolveActiveConversationKey(header);
+    var header = getHeaderForTick();
+    var conversationKey = getConversationKeyForTick(header);
     if (!conversationKey) {
       return;
     }
@@ -437,25 +630,23 @@
 
     lastOutgoingStatusKey = signature;
 
-    postMessage({
-      type: 'whatsapp-outgoing-status',
-      instanceId: INSTANCE_ID,
-      platform: PLATFORM,
-      conversationKey: conversationKey,
-      deliveryStatus: deliveryStatus,
-      messagePreview: preview,
-      timestampUtc: new Date().toISOString()
-    });
+    outgoingPayloadScratch.conversationKey = conversationKey;
+    outgoingPayloadScratch.deliveryStatus = deliveryStatus;
+    outgoingPayloadScratch.messagePreview = preview;
+    outgoingPayloadScratch.timestampUtc = new Date().toISOString();
+
+    postMessage(outgoingPayloadScratch);
   }
 
-  window.__umWhatsAppExtractChatHeader = extractChatHeader;
-  window.__umWhatsAppScrapeSidebarLabels = scrapeSidebarLabelsForTitle;
   window.__umWhatsAppDetectDeliveryStatus = detectOutgoingDeliveryStatus;
 
+  if (UM_DEV) {
+    window.__umWhatsAppExtractChatHeader = extractChatHeader;
+    window.__umWhatsAppScrapeSidebarLabels = scrapeSidebarLabelsForTitle;
+  }
+
   function startActiveContextMonitor() {
-    publishActiveThreadContext();
-    publishOutgoingStatusFromDom();
-    schedulePublishTelemetry();
+    scheduleDomWork(true);
 
     if (activeContextTimer) {
       return;
@@ -463,24 +654,9 @@
 
     activeContextTimer = window.setInterval(function () {
       if (!document.hidden) {
-        publishActiveThreadContext();
-        publishOutgoingStatusFromDom();
-        schedulePublishTelemetry();
+        scheduleDomWork(false);
       }
     }, 4000);
-
-    var mainRoot = document.querySelector('#main') || document.querySelector('[data-testid="conversation-panel-messages"]');
-    if (mainRoot && !outgoingObserver) {
-      outgoingObserver = new MutationObserver(function () {
-        publishOutgoingStatusFromDom();
-      });
-      outgoingObserver.observe(mainRoot, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['data-icon', 'aria-label', 'class']
-      });
-    }
   }
 
   function isEligibleChatForBackfill(chat) {
@@ -689,9 +865,7 @@
     var containers = document.querySelectorAll('div[data-testid="msg-container"]');
     for (var i = 0; i < containers.length; i++) {
       var node = containers[i];
-      var isOutgoing = node.classList.contains('message-out') ||
-        !!node.querySelector('.message-out') ||
-        !!node.closest('.message-out');
+      var isOutgoing = isOutgoingContainer(node);
       var previewNode = node.querySelector('span.selectable-text, span.copyable-text');
       var body = previewNode ? normalizeText(previewNode.textContent || '') : '';
       if (!body) {
@@ -855,40 +1029,34 @@
       return '';
     }
 
-    var rows = document.querySelectorAll(
-      '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+    var row = findSidebarRowForTitle(chatTitle);
+    if (!row) {
+      return '';
+    }
+
+    var subtitle = row.querySelector(
+      'span[data-testid="last-msg-text"], ' +
+        'span[data-testid="last-msg-status"], ' +
+        'div[data-testid="cell-frame-secondary"] span, ' +
+        'span[dir="ltr"]:last-of-type, ' +
+        'span[dir="auto"]:last-of-type, ' +
+        'div._ak8k span'
     );
-    for (var i = 0; i < rows.length; i++) {
-      var row = rows[i];
-      var rowText = row.textContent || '';
-      if (rowText.indexOf(chatTitle) < 0) {
+    if (subtitle && subtitle.textContent) {
+      return subtitle.textContent.trim();
+    }
+
+    var secondaryCells = row.querySelectorAll(
+      '[data-testid="cell-frame-secondary"] span, [role="gridcell"] span'
+    );
+    for (var j = secondaryCells.length - 1; j >= 0; j--) {
+      var cellText = normalizeText(secondaryCells[j].textContent || '');
+      if (!cellText || cellText === chatTitle) {
         continue;
       }
 
-      var subtitle = row.querySelector(
-        'span[data-testid="last-msg-text"], ' +
-          'span[data-testid="last-msg-status"], ' +
-          'div[data-testid="cell-frame-secondary"] span, ' +
-          'span[dir="ltr"]:last-of-type, ' +
-          'span[dir="auto"]:last-of-type, ' +
-          'div._ak8k span'
-      );
-      if (subtitle && subtitle.textContent) {
-        return subtitle.textContent.trim();
-      }
-
-      var secondaryCells = row.querySelectorAll(
-        '[data-testid="cell-frame-secondary"] span, [role="gridcell"] span'
-      );
-      for (var j = secondaryCells.length - 1; j >= 0; j--) {
-        var cellText = normalizeText(secondaryCells[j].textContent || '');
-        if (!cellText || cellText === chatTitle) {
-          continue;
-        }
-
-        if (cellText.length <= 200) {
-          return cellText;
-        }
+      if (cellText.length <= 200) {
+        return cellText;
       }
     }
 
@@ -1114,37 +1282,62 @@
 
   window.__unifiedMessengerPublishBadge = publishBadgeCountImmediate;
 
-  function observeDom() {
-    if (domObserver) {
+  function attachSidebarObserver() {
+    var sidebarRoots = [
+      document.querySelector('#pane-side'),
+      document.querySelector('#side'),
+      document.querySelector('[data-testid="chat-list"]')
+    ].filter(Boolean);
+
+    if (!sidebarRoots.length) {
       return;
     }
 
-    var roots = [
-      document.querySelector('#pane-side'),
-      document.querySelector('#side'),
-      document.querySelector('[data-testid="chat-list"]'),
-      document.querySelector('#main')
-    ].filter(Boolean);
-
-    if (!roots.length) {
-      roots = [document.body || document.documentElement];
+    if (!sidebarDomObserver) {
+      sidebarDomObserver = new MutationObserver(function () {
+        schedulePublishBadgeCount();
+      });
+    } else {
+      sidebarDomObserver.disconnect();
     }
 
-    domObserver = new MutationObserver(function () {
-      schedulePublishBadgeCount();
-      publishActiveThreadContext();
-      schedulePublishTelemetry();
-    });
-
-    roots.forEach(function (root) {
-      domObserver.observe(root, {
+    sidebarRoots.forEach(function (root) {
+      sidebarDomObserver.observe(root, {
         childList: true,
         subtree: true,
         characterData: true,
         attributes: true,
-        attributeFilter: ['aria-label', 'data-testid', 'title', 'class', 'data-icon']
+        attributeFilter: ['aria-label', 'data-testid', 'title', 'class']
       });
     });
+  }
+
+  function attachMainObserver() {
+    var mainRoot = document.querySelector('#main') ||
+      document.querySelector('[data-testid="conversation-panel-messages"]');
+    if (!mainRoot) {
+      return;
+    }
+
+    if (!mainDomObserver) {
+      mainDomObserver = new MutationObserver(function () {
+        scheduleDomWork(false);
+      });
+    } else {
+      mainDomObserver.disconnect();
+    }
+
+    mainDomObserver.observe(mainRoot, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-icon', 'aria-label', 'class', 'data-testid']
+    });
+  }
+
+  function observeDom() {
+    attachSidebarObserver();
+    attachMainObserver();
   }
 
   function hookSpaNavigation() {
@@ -1201,9 +1394,14 @@
   }
 
   function onVisibilityChange() {
-    if (!document.hidden) {
-      publishBadgeCountImmediate();
+    if (document.hidden) {
+      disconnectDomObservers();
+      return;
     }
+
+    reconnectDomObservers();
+    publishBadgeCountImmediate();
+    scheduleDomWork(true);
   }
 
   function startPolling() {
@@ -1225,28 +1423,25 @@
       pollTimer = null;
     }
 
-    if (domObserver) {
-      domObserver.disconnect();
-      domObserver = null;
-    }
-
-    if (outgoingObserver) {
-      outgoingObserver.disconnect();
-      outgoingObserver = null;
-    }
+    disconnectDomObservers();
+    sidebarDomObserver = null;
+    mainDomObserver = null;
 
     if (activeContextTimer) {
       window.clearInterval(activeContextTimer);
       activeContextTimer = null;
     }
 
-    if (telemetryTimer) {
-      window.clearTimeout(telemetryTimer);
-      telemetryTimer = null;
+    if (domWorkMaxWaitTimer) {
+      window.clearTimeout(domWorkMaxWaitTimer);
+      domWorkMaxWaitTimer = null;
     }
 
-    telemetryScheduled = false;
+    domWorkRafScheduled = false;
+    domWorkPending = false;
+    domWorkDepth = 0;
     lastTelemetrySignature = '';
+    lastOutgoingStatusKey = '';
 
     unhookSpaNavigation();
     document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -1406,6 +1601,48 @@
   });
   window.__umPublishReady(INSTANCE_ID, PLATFORM, ADAPTER_ID);
   window.__umStartHeartbeat(INSTANCE_ID, PLATFORM, ADAPTER_ID, 30000);
+
+  window.__umStressTestDomFlood = function (count) {
+    if (!UM_DEV && !window.__umStressTestEnabled) {
+      return { ok: false, reason: 'dev-only' };
+    }
+
+    count = Math.max(1, Math.min(parseInt(count, 10) || 5000, 10000));
+    var root = document.querySelector('#main') ||
+      document.querySelector('[data-testid="conversation-panel-messages"]') ||
+      document.body;
+    if (!root) {
+      return { ok: false, reason: 'no-root' };
+    }
+
+    var intervalMs = 2000 / count;
+    var mutations = 0;
+    var startedAt = Date.now();
+    var floodTimer = window.setInterval(function () {
+      if (mutations >= count) {
+        window.clearInterval(floodTimer);
+        return;
+      }
+
+      mutations++;
+      var span = document.createElement('span');
+      span.textContent = 'x' + mutations;
+      span.setAttribute('data-icon', mutations % 4 === 0 ? 'msg-dblcheck-ack' : 'msg-check');
+      root.appendChild(span);
+      if (mutations % 3 === 0) {
+        span.remove();
+      }
+    }, intervalMs);
+
+    return {
+      ok: true,
+      target: count,
+      intervalMs: intervalMs,
+      root: root.id || root.tagName,
+      startedAtUtc: new Date(startedAt).toISOString()
+    };
+  };
+
   hookSpaNavigation();
   observeDom();
   startPolling();
