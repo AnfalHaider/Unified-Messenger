@@ -308,8 +308,8 @@ internal static class OccDetailedExploration
 
         if (pills.Count > 1)
         {
-            var target = pills.First(p => !p.Contains("All", StringComparison.OrdinalIgnoreCase));
-            if (UiAutomationHelpers.ClickByName(window, target))
+            var target = pills.First(p => p is not null && !p.Contains("All", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(target) && UiAutomationHelpers.ClickByName(window, target))
             {
                 Thread.Sleep(600);
                 Record("OCC.BranchPills.Filter", "Pass", $"Selected branch pill '{target}'");

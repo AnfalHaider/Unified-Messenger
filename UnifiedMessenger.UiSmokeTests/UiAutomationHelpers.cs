@@ -133,15 +133,94 @@ internal static class UiAutomationHelpers
 
     public static void SendEscape() => Keyboard.Press(VirtualKeyShort.ESCAPE);
 
-    public static IReadOnlyList<string> SampleNames(AutomationElement root, int max = 20)
+    public static IReadOnlyList<string> SampleNames(AutomationElement root, int max = 20) =>
+        SafeTextNames(root, max: max);
+
+    /// <summary>Enumerate Text control names without throwing on unsupported UIA Name property.</summary>
+    public static IReadOnlyList<string> SafeTextNames(
+        AutomationElement root,
+        Func<string, bool>? predicate = null,
+        int max = 20)
     {
-        var condition = root.ConditionFactory.ByControlType(ControlType.Text);
-        return root.FindAllDescendants(condition)
-            .Select(element => element.Name)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(max)
-            .ToList();
+        var results = new List<string>();
+        try
+        {
+            foreach (var element in root.FindAllDescendants(root.ConditionFactory.ByControlType(ControlType.Text)))
+            {
+                var name = SafeName(element);
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                if (predicate is not null && !predicate(name))
+                {
+                    continue;
+                }
+
+                if (results.Contains(name, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                results.Add(name);
+                if (results.Count >= max)
+                {
+                    break;
+                }
+            }
+        }
+        catch
+        {
+            // Stale UIA tree during navigation.
+        }
+
+        return results;
+    }
+
+    public static string? SafeAutomationId(AutomationElement element)
+    {
+        try
+        {
+            return element.AutomationId;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static bool SafeIsEnabled(AutomationElement element)
+    {
+        try
+        {
+            return element.IsEnabled;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Enumerate descendants without aborting when individual nodes throw.</summary>
+    public static IEnumerable<AutomationElement> SafeDescendants(
+        AutomationElement root,
+        ControlType controlType)
+    {
+        AutomationElement[] elements;
+        try
+        {
+            elements = root.FindAllDescendants(root.ConditionFactory.ByControlType(controlType));
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (var element in elements)
+        {
+            yield return element;
+        }
     }
 
     public static AutomationElement? FindDialog(AutomationElement scope, string titleFragment)

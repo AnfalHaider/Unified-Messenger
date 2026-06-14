@@ -60,7 +60,8 @@ BenchmarkDotNet.Artifacts/
 third_party/ollama/*.zip
 third_party/ollama/*.sha256
 
-# Firecrawl web research output and secrets
+# Firecrawl / Crawl4AI web research output and secrets
 .firecrawl/
+.crawl4ai/
 .env
 .env.local

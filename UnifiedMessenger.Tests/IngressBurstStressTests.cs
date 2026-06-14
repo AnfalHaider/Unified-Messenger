@@ -14,6 +14,36 @@ namespace UnifiedMessenger.Tests;
 public class IngressBurstStressTests
 {
     [Fact]
+    public void IngressService_BadgeCountBurst_CoalescesQueueDepth()
+    {
+        var instance = new MessengerInstance
+        {
+            Id = "ingress-coalesce-wa",
+            DisplayName = "Ingress Coalesce",
+            Platform = "whatsapp",
+            ProfileName = "ingress-coalesce-wa"
+        };
+
+        var ingress = new WebMessageIngressService();
+
+        for (var i = 0; i < 500; i++)
+        {
+            var payload = $$"""
+                {
+                  "type": "badge-count",
+                  "instanceId": "ingress-coalesce-wa",
+                  "count": {{i % 50}}
+                }
+                """;
+            ingress.Enqueue(payload, instance);
+        }
+
+        Assert.True(
+            ingress.PendingCount <= 2,
+            $"Coalescing should collapse badge-count bursts (pending={ingress.PendingCount})");
+    }
+
+    [Fact]
     public void BadgeCountBurst_500Messages_LatestCountWinsWithoutThrow()
     {
         var hub = NotificationHub.CreateForTests();

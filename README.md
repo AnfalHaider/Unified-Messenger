@@ -87,7 +87,7 @@ All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github
 - **Dashboard overhaul:** OCC date-range filtering, message-volume trend chart, deeper WhatsApp telemetry ingress.
 - **Sidebar UX:** Compact status labels, WhatsApp-focused instance list, improved truncation and tooltips.
 - **Workspace purge:** Removed legacy multi-platform adapters, Ollama/AI stack, and obsolete tests/docs.
-- **530** unit tests (x64, Release); trimmed UiSmoke harness (sidebar, OCC, Personal, settings, notifications).
+- **534** unit tests (x64, Release); trimmed UiSmoke harness (sidebar, OCC, Personal, settings, notifications).
 
 ## Architecture
 

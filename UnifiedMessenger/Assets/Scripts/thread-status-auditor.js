@@ -11,8 +11,6 @@
    * Design notes (2026 DOM drift):
    * - Prefer data-testid / aria-label over hashed CSS classes.
    * - WhatsApp: data-testid="msg-container" + .message-out (stable hallmarks).
-   * - Meta Business Suite: volatile DOM — aria-label "You sent" + BizInbox panel.
-   * - Google Business Profile: legacy chat ended Jul 2024; audit review owner replies.
    *
    * Performance: scoped MutationObserver + debounced rAF + low-frequency fallback
    * poll so background WebView tabs still converge when timers are throttled.
@@ -60,48 +58,6 @@
         '#main header span[title]'
       ],
       isOutgoingMessage: isWhatsAppOutgoing
-    },
-    metabusiness: {
-      pollMs: 5000,
-      conversationRootSelectors: [
-        '[data-pagelet="BizInbox"]',
-        '[data-pagelet*="inbox" i]',
-        '[role="main"]',
-        'main'
-      ],
-      messageContainerSelectors: [
-        '[data-testid*="message"]',
-        '[role="row"]',
-        '[role="article"]'
-      ],
-      headerSelectors: [
-        '[aria-label*="Conversation" i]',
-        'header h1',
-        'header h2',
-        '[role="heading"]'
-      ],
-      isOutgoingMessage: isMetaOutgoing
-    },
-    googlebusiness: {
-      pollMs: 6000,
-      conversationRootSelectors: [
-        '[role="main"]',
-        'main',
-        '[data-review-id]',
-        '[role="article"]'
-      ],
-      messageContainerSelectors: [
-        '[data-review-id]',
-        '[role="article"]',
-        '[aria-label*="review" i]'
-      ],
-      headerSelectors: [
-        '[data-review-id]',
-        'h1',
-        'h2',
-        '[role="heading"]'
-      ],
-      isOutgoingMessage: isGoogleOwnerReply
     }
   };
 
@@ -177,19 +133,12 @@
       }
     }
 
-    var reviewId = '';
-    var reviewNode = queryFirst(['[data-review-id]'], root);
-    if (reviewNode) {
-      reviewId = reviewNode.getAttribute('data-review-id') || '';
-    }
-
     var platformId = snapshotPlatform(profile);
     var chatJid = typeof window.__umResolveActiveChatJid === 'function'
       ? window.__umResolveActiveChatJid()
       : '';
     if (typeof window.__umResolvePlatformConversationIdentity === 'function') {
       return window.__umResolvePlatformConversationIdentity(platformId, {
-        reviewId: reviewId,
         headerTitle: headerTitle,
         chatJid: chatJid
       }).conversationKey;
@@ -197,28 +146,15 @@
 
     if (typeof window.__umResolveConversationKey === 'function') {
       return window.__umResolveConversationKey(platformId, {
-        reviewId: reviewId,
         headerTitle: headerTitle,
         chatJid: chatJid
       });
-    }
-
-    if (reviewId) {
-      return 'review:' + reviewId;
     }
 
     return headerTitle || '';
   }
 
   function snapshotPlatform(profile) {
-    if (profile === PLATFORM_PROFILES.metabusiness) {
-      return 'metabusiness';
-    }
-
-    if (profile === PLATFORM_PROFILES.googlebusiness) {
-      return 'googlebusiness';
-    }
-
     if (profile === PLATFORM_PROFILES.whatsappbusiness) {
       return 'whatsappbusiness';
     }
@@ -246,59 +182,6 @@
 
     var dataId = container.getAttribute && container.getAttribute('data-id');
     if (dataId && /^true_/.test(dataId)) {
-      return true;
-    }
-
-    return false;
-  }
-
-  function isMetaOutgoing(container) {
-    if (!container) {
-      return false;
-    }
-
-    var aria = container.getAttribute && container.getAttribute('aria-label');
-    if (aria && /you sent|sent by you|your message|outgoing/i.test(aria)) {
-      return true;
-    }
-
-    if (container.closest) {
-      var outgoingAncestor = container.closest('[class*="outgoing" i], [data-testid*="outgoing" i]');
-      if (outgoingAncestor) {
-        return true;
-      }
-    }
-
-    var className = container.className ? String(container.className) : '';
-    if (/outgoing/i.test(className)) {
-      return true;
-    }
-
-    var text = normalize(container.textContent || '');
-    if (/^you sent\b/i.test(text)) {
-      return true;
-    }
-
-    return false;
-  }
-
-  function isGoogleOwnerReply(container) {
-    if (!container) {
-      return false;
-    }
-
-    var aria = container.getAttribute && container.getAttribute('aria-label');
-    if (aria && /your reply|owner response|replied by owner|business reply/i.test(aria)) {
-      return true;
-    }
-
-    var text = normalize(container.textContent || '');
-    if (/your reply|owner response|replied to this review|response from the owner/i.test(text)) {
-      return true;
-    }
-
-    if (container.querySelector &&
-      container.querySelector('[aria-label*="your reply" i], [aria-label*="owner" i]')) {
       return true;
     }
 
@@ -345,7 +228,7 @@
       }
     }
 
-    var customerName = headerTitle || conversationKey.replace(/^review:/, '') || 'Customer';
+    var customerName = headerTitle || conversationKey || 'Customer';
     var chatJid = typeof window.__umResolveActiveChatJid === 'function'
       ? window.__umResolveActiveChatJid()
       : '';

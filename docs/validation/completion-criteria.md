@@ -12,7 +12,7 @@ Assessment as of v3.2.0 (Ultimate Product Audit remediation).
 | 6 | OCC code-behind &lt; 400 lines | **Pass** | Main file + partials (`DateRange`, `Kanban`, `Keyboard`) |
 | 7 | Refresh coordinator ≤1 rebuild per burst | **Pass** | `PerformanceValidationHelper` + debounce tests |
 | 8 | CI release uses CI artifacts; smoke in CI | **Pass** | `.github/workflows/build.yml` `package` + `ui-smoke` |
-| 9 | Unit tests green; UiSmoke green | **Pass** (unit) / **CI** (smoke) | 530 unit tests (v4.1.0); smoke WARN tier (hard fail only on Fail) |
+| 9 | Unit tests green; UiSmoke green | **Pass** (unit) / **CI** (smoke) | 534 unit tests (v4.2.0); smoke WARN tier (hard fail only on Fail) |
 | 10 | Accessibility pass on dashboards | **Pass** (automated) | Tab order + AutomationProperties; OCC `Alt+Up/Down` reorder unit-tested |
 | 11 | Legacy dead code removed or ticketed | **Pass** | GlobalHotkey, multi-platform handshake profiles, `AwaitingLocalAi` removed |
 | 12 | Re-audit: no new significant issues | **Pass** | v3.2.0 persistence + doc reconciliation |

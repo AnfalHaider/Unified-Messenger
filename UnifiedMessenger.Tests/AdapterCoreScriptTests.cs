@@ -94,4 +94,16 @@ public class AdapterCoreScriptTests
         Assert.Contains("__umResolveActiveChatJid", script, StringComparison.Ordinal);
         Assert.Contains("conversation-info-header", script, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void AdapterCoreScript_IsWhatsAppOnly_NoLegacyPlatformArms()
+    {
+        var script = ReadAdapterCoreScript();
+
+        Assert.DoesNotContain("metabusiness", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("googlebusiness", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("meta:msg:", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("reviewId", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("BizInbox", script, StringComparison.OrdinalIgnoreCase);
+    }
 }

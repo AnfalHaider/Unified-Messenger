@@ -9,7 +9,7 @@ internal static class Program
     public static int Main(string[] args)
     {
         var repoRoot = FindRepoRoot();
-        var exploreMinutes = ParseExploreMinutes(args, out var occOnly, out var fullApp, out var postImpl, out var filteredArgs);
+        var exploreMinutes = ParseExploreMinutes(args, out var occOnly, out var fullApp, out var postImpl, out var detailed, out var filteredArgs);
         var exePath = ResolveExecutablePath(filteredArgs, repoRoot);
         if (!File.Exists(exePath))
         {
@@ -20,8 +20,19 @@ internal static class Program
         if (fullApp && exploreMinutes > 0)
         {
             StopExistingInstances();
-            var logName = postImpl ? "full-app-post-implementation-log.txt" : null;
-            return FullAppExploration.Run(exePath, exploreMinutes, logName);
+            string? logName = null;
+            string? summaryName = null;
+            if (detailed)
+            {
+                logName = "full-app-10min-detailed-log.txt";
+                summaryName = "full-app-10min-detailed-summary.md";
+            }
+            else if (postImpl)
+            {
+                logName = "full-app-post-implementation-log.txt";
+            }
+
+            return FullAppExploration.Run(exePath, exploreMinutes, logName, summaryName);
         }
 
         if (occOnly && exploreMinutes > 0)
@@ -130,6 +141,7 @@ internal static class Program
         out bool occOnly,
         out bool fullApp,
         out bool postImpl,
+        out bool detailed,
         out string[] filteredArgs)
     {
         var list = new List<string>();
@@ -137,11 +149,18 @@ internal static class Program
         occOnly = false;
         fullApp = false;
         postImpl = false;
+        detailed = false;
         for (var i = 0; i < args.Length; i++)
         {
             if (args[i].Equals("--full-app", StringComparison.OrdinalIgnoreCase))
             {
                 fullApp = true;
+                continue;
+            }
+
+            if (args[i].Equals("--detailed", StringComparison.OrdinalIgnoreCase))
+            {
+                detailed = true;
                 continue;
             }
 
