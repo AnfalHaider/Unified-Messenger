@@ -38,6 +38,7 @@ public sealed partial class ApplicationServices
         InstanceWebViewRegistry? webViewRegistry = null,
         ResourceMonitorService? resourceMonitor = null,
         WhatsAppBusinessContextService? whatsAppBusinessContext = null,
+        OccQueueFilterState? occQueueFilter = null,
         OccFilterState? occFilter = null,
         OccDateRangeFilterState? occDateRangeFilter = null,
         OccViewModeState? occViewMode = null,
@@ -73,6 +74,7 @@ public sealed partial class ApplicationServices
         ResourceMonitor = resourceMonitor ?? ResourceMonitorService.Instance;
         WhatsAppBusinessContext = whatsAppBusinessContext ?? WhatsAppBusinessContextService.Instance;
         OccFilter = occFilter ?? OccFilterState.Instance;
+        OccQueueFilter = occQueueFilter ?? OccQueueFilterState.Instance;
         OccDateRangeFilter = occDateRangeFilter ?? OccDateRangeFilterState.Instance;
         OccViewMode = occViewMode ?? OccViewModeState.Instance;
         AiInferenceClient = aiInferenceClient ?? OllamaInferenceClient.Instance;
@@ -135,6 +137,8 @@ public sealed partial class ApplicationServices
     public WhatsAppBusinessContextService WhatsAppBusinessContext { get; }
 
     public OccFilterState OccFilter { get; }
+
+    public OccQueueFilterState OccQueueFilter { get; }
 
     public OccDateRangeFilterState OccDateRangeFilter { get; }
 

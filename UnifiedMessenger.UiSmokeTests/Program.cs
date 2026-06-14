@@ -9,11 +9,31 @@ internal static class Program
     public static int Main(string[] args)
     {
         var repoRoot = FindRepoRoot();
-        var exePath = ResolveExecutablePath(args, repoRoot);
+        var exploreMinutes = ParseExploreMinutes(args, out var occOnly, out var fullApp, out var postImpl, out var filteredArgs);
+        var exePath = ResolveExecutablePath(filteredArgs, repoRoot);
         if (!File.Exists(exePath))
         {
             Console.Error.WriteLine($"FAIL: executable not found at {exePath}");
             return 1;
+        }
+
+        if (fullApp && exploreMinutes > 0)
+        {
+            StopExistingInstances();
+            var logName = postImpl ? "full-app-post-implementation-log.txt" : null;
+            return FullAppExploration.Run(exePath, exploreMinutes, logName);
+        }
+
+        if (occOnly && exploreMinutes > 0)
+        {
+            StopExistingInstances();
+            return OccDetailedExploration.Run(exePath, exploreMinutes);
+        }
+
+        if (exploreMinutes > 0)
+        {
+            StopExistingInstances();
+            return InstalledAppExploration.Run(exePath, exploreMinutes);
         }
 
         Console.WriteLine("=== Unified Messenger 3.7.1 — Release Validation ===");
@@ -105,11 +125,68 @@ internal static class Program
         }
     }
 
+    private static int ParseExploreMinutes(
+        string[] args,
+        out bool occOnly,
+        out bool fullApp,
+        out bool postImpl,
+        out string[] filteredArgs)
+    {
+        var list = new List<string>();
+        var minutes = 0;
+        occOnly = false;
+        fullApp = false;
+        postImpl = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i].Equals("--full-app", StringComparison.OrdinalIgnoreCase))
+            {
+                fullApp = true;
+                continue;
+            }
+
+            if (args[i].Equals("--post-impl", StringComparison.OrdinalIgnoreCase))
+            {
+                postImpl = true;
+                continue;
+            }
+
+            if (args[i].Equals("--occ-only", StringComparison.OrdinalIgnoreCase))
+            {
+                occOnly = true;
+                continue;
+            }
+
+            if (args[i].Equals("--explore", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length &&
+                int.TryParse(args[i + 1], out var parsed) && parsed > 0)
+            {
+                minutes = parsed;
+                i++;
+                continue;
+            }
+
+            list.Add(args[i]);
+        }
+
+        filteredArgs = list.ToArray();
+        return minutes;
+    }
+
     private static string ResolveExecutablePath(string[] args, string repoRoot)
     {
         if (args.Length > 0 && File.Exists(args[0]))
         {
             return Path.GetFullPath(args[0]);
+        }
+
+        var installed = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Programs",
+            "UnifiedMessenger",
+            "UnifiedMessenger.exe");
+        if (File.Exists(installed))
+        {
+            return installed;
         }
 
         return Path.Combine(

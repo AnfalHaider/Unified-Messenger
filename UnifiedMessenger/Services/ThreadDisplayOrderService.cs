@@ -13,6 +13,8 @@ public sealed class ThreadDisplayOrderService
 
     public const string ImmediateColumnKey = "Immediate";
 
+    public const string WorkQueueColumnKey = "WorkQueue";
+
     private static readonly Lazy<ThreadDisplayOrderService> LazyInstance =
         new(() => new ThreadDisplayOrderService());
 
@@ -198,6 +200,12 @@ public sealed class ThreadDisplayOrderService
             threads,
             ImmediateColumnKey,
             thread => thread.UrgencyScore * 1_000_000L + thread.LatencyMinutes);
+
+    public List<ThreadData> SortWorkQueue(IEnumerable<ThreadData> threads) =>
+        SortThreads(
+            threads,
+            WorkQueueColumnKey,
+            thread => thread.UrgencyScore * 1_000_000L + thread.LatencyMinutes + thread.LastMessageTime.UtcTicks * 1e-12);
 
     internal void ResetForTests()
     {

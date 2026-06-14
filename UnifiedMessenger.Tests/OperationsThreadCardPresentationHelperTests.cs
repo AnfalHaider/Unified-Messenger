@@ -6,30 +6,45 @@ namespace UnifiedMessenger.Tests;
 public class OperationsThreadCardPresentationHelperTests
 {
     [Fact]
+    public void BuildMessagePreview_UsesLastMessagePreview()
+    {
+        var thread = CreateThread(preview: "Need bridal quote for Saturday");
+
+        Assert.Equal("Need bridal quote for Saturday", OperationsThreadCardPresentationHelper.BuildMessagePreview(thread));
+    }
+
+    [Fact]
+    public void BuildMessagePreview_UsesPlaceholderForInquiryWithoutPreview()
+    {
+        var thread = CreateThread();
+
+        Assert.Equal(
+            OperationsThreadCardPresentationHelper.NoMessageCapturedPlaceholder,
+            OperationsThreadCardPresentationHelper.BuildMessagePreview(thread));
+    }
+
+    [Fact]
+    public void BuildMessagePreview_DoesNotReturnEmDash()
+    {
+        var thread = CreateThread();
+
+        Assert.DoesNotContain("—", OperationsThreadCardPresentationHelper.BuildMessagePreview(thread));
+    }
+
+    [Fact]
+    public void BuildOpsHint_UsesNextActionSummary()
+    {
+        var thread = CreateThread(nextActionSummary: "Reply with availability");
+
+        Assert.Equal("Reply with availability", OperationsThreadCardPresentationHelper.BuildOpsHint(thread));
+    }
+
+    [Fact]
     public void BuildFallbackSummary_UsesMessagePreviewWhenSummaryMissing()
     {
         var thread = CreateThread(nextActionSummary: string.Empty, preview: "Need bridal quote for Saturday");
 
         Assert.Equal("Need bridal quote for Saturday", OperationsThreadCardPresentationHelper.BuildFallbackSummary(thread));
-    }
-
-    [Fact]
-    public void BuildFallbackSummary_UsesSuggestedActionBeforePreview()
-    {
-        var thread = CreateThread(
-            nextActionSummary: string.Empty,
-            preview: "Need quote",
-            suggestedAction: "Reply");
-
-        Assert.Equal("Suggested: Reply", OperationsThreadCardPresentationHelper.BuildFallbackSummary(thread));
-    }
-
-    [Fact]
-    public void BuildFallbackSummary_DoesNotUseAwaitingAiCopy()
-    {
-        var thread = CreateThread();
-
-        Assert.DoesNotContain("Awaiting AI", OperationsThreadCardPresentationHelper.BuildFallbackSummary(thread));
     }
 
     private static ThreadData CreateThread(

@@ -32,15 +32,25 @@ public sealed class OccStatusKpiPresentation
 
     public string ResponseRate { get; init; } = "—";
 
-    public string ImmediateActionCount { get; init; } = "0";
+    public string UrgentCount { get; init; } = "0";
+
+    public string? UrgentTooltip { get; init; }
+
+    public string? UrgentSubtext { get; init; }
+
+    public string? SlaBreachesTooltip { get; init; }
+
+    public string? OpenThreadsSubtext { get; init; }
 
     public string PeakHour { get; init; } = "—";
 
     public string DailyTrend { get; init; } = "—";
 
-    public string? ImmediateActionTooltip { get; init; }
+    [Obsolete("Use UrgentCount")]
+    public string ImmediateActionCount => UrgentCount;
 
-    public string? SlaBreachesTooltip { get; init; }
+    [Obsolete("Use UrgentTooltip")]
+    public string? ImmediateActionTooltip => UrgentTooltip;
 }
 
 public sealed class OccPillBarPresentation
@@ -57,6 +67,13 @@ public sealed class OccImmediateQueuePresentation
     public bool ShowFooter { get; init; }
 
     public string? FooterText { get; init; }
+}
+
+public sealed class OccWorkQueuePresentation
+{
+    public bool ShowEmptyState { get; init; }
+
+    public string EmptyHint { get; init; } = "No threads match this filter.";
 }
 
 public static class OccSnapshotPresenter
@@ -77,17 +94,17 @@ public static class OccSnapshotPresenter
     {
         ArgumentNullException.ThrowIfNull(status);
 
-        string? tooltip = null;
-        if (status.ImmediateActionTotal > status.ImmediateActionQueueCount &&
-            status.ImmediateActionQueueCount > 0)
+        var slaThreshold = OperationalThresholds.GetSlaThresholdMinutes();
+        string? overlapSubtext = null;
+        if (status.OpenThreadCount == status.SlaBreachesNumeric &&
+            status.OpenThreadCount > status.UrgentTotal &&
+            status.OpenThreadCount > 0)
         {
-            tooltip =
-                $"{status.ImmediateActionTotal} urgent threads in scope. The action lane shows the top {status.ImmediateActionQueueCount}.";
+            overlapSubtext = $"All open exceed SLA ({slaThreshold}m)";
         }
-        else
-        {
-            tooltip = "All urgent threads in scope. The action lane shows the top 24 by urgency.";
-        }
+
+        var urgentTooltip =
+            "Urgent threads (high urgency or critical sentiment), excluding SLA-only breaches.";
 
         return new OccStatusKpiPresentation
         {
@@ -99,10 +116,14 @@ public static class OccSnapshotPresenter
             SlaBreaches = status.SlaBreaches,
             SlaThresholdSubtext = status.SlaThresholdSubtext,
             ResponseRate = status.ResponseRate,
-            ImmediateActionCount = status.ImmediateActionTotal.ToString(),
+            UrgentCount = status.UrgentTotal.ToString(),
             PeakHour = status.PeakHour,
             DailyTrend = status.DailyTrend,
-            ImmediateActionTooltip = tooltip,
+            UrgentTooltip = urgentTooltip,
+            UrgentSubtext = overlapSubtext is not null && status.UrgentTotal < status.OpenThreadCount
+                ? $"{status.UrgentTotal} high-urgency (excl. SLA-only)"
+                : null,
+            OpenThreadsSubtext = overlapSubtext,
             SlaBreachesTooltip = status.SlaBreachesNumeric <= 0
                 ? "No SLA breaches in live workload."
                 : "Open the worst SLA breach by wait time."
@@ -139,6 +160,28 @@ public static class OccSnapshotPresenter
             FooterText = showFooter
                 ? $"Showing top {shownCount} of {totalCount} urgent threads"
                 : null
+        };
+    }
+
+    public static OccWorkQueuePresentation BuildWorkQueuePresentation(
+        IReadOnlyList<ThreadData> queue,
+        OccQueueFilter filter)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+
+        var emptyHint = filter switch
+        {
+            OccQueueFilter.Urgent => "No urgent threads in the current scope.",
+            OccQueueFilter.SlaBreach => "No SLA breaches in the current scope.",
+            OccQueueFilter.Hanging => "No hanging leads in the current scope.",
+            OccQueueFilter.Resolved => "No resolved threads in the current scope.",
+            _ => "No open threads in the current scope."
+        };
+
+        return new OccWorkQueuePresentation
+        {
+            ShowEmptyState = queue.Count == 0,
+            EmptyHint = emptyHint
         };
     }
 

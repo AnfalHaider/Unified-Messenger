@@ -7,7 +7,7 @@ public static class TriageInferenceLabelFormatter
     public static string Format(TriageInferenceSource source) =>
         source switch
         {
-            TriageInferenceSource.Heuristic => "Heuristic",
+            TriageInferenceSource.Heuristic => "Rules",
             TriageInferenceSource.Ollama => "AI",
             TriageInferenceSource.Analyzing => "Analyzing…",
             _ => "Heuristic"

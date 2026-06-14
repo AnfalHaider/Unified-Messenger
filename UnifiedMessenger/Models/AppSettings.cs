@@ -2,8 +2,8 @@ namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
-    /// <summary>v16 adds local Ollama AI settings (EnableLocalAi, model, endpoint).</summary>
-    public const int CurrentVersion = 16;
+    /// <summary>v17 adds OCC unified queue, board view, and compact card density settings.</summary>
+    public const int CurrentVersion = 17;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -93,6 +93,18 @@ public sealed class AppSettings
 
     /// <summary>Persisted OCC view mode: Live workload or Historical report.</summary>
     public string? OccViewMode { get; set; }
+
+    /// <summary>When true, kanban board view is expanded below the unified work queue.</summary>
+    public bool OccBoardViewExpanded { get; set; }
+
+    /// <summary>Migration hint: v3.7 upgraders default board expanded on first v4 load.</summary>
+    public bool? OccDefaultBoardViewExpanded { get; set; }
+
+    /// <summary>When true, user has seen the unified queue TeachingTip.</summary>
+    public bool OccQueueTeachingTipSeen { get; set; }
+
+    /// <summary>Compact thread card density in Operations Command Center.</summary>
+    public bool OccCompactCardDensity { get; set; }
 
     /// <summary>Master toggle for on-device Ollama inference. Off by default.</summary>
     public bool EnableLocalAi { get; set; }

@@ -156,6 +156,15 @@ public sealed partial class PersonalOverviewPanel : UserControl
             ? Visibility.Visible
             : Visibility.Collapsed;
 
+        var urgentOpsCount = _services.ThreadRegistry.GetAllThreads()
+            .Count(thread => thread.IsUrgent && !thread.IsReplied && !thread.IsSpamOrPromo);
+        OperationsUrgentLink.Content = urgentOpsCount == 1
+            ? "1 urgent in Operations"
+            : $"{urgentOpsCount} urgent in Operations";
+        OperationsUrgentLink.Visibility = urgentOpsCount > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         RecentActivityEmptyTitle.Text = _viewModel.ActivityEmptyTitle;
         RecentActivityEmptyText.Text = _viewModel.ActivityEmptyHint;
         RecentActivityEmptyIcon.Glyph = _viewModel.ActivityEmptyIconGlyph;
@@ -272,6 +281,9 @@ public sealed partial class PersonalOverviewPanel : UserControl
             _services.Navigation.OpenInstance(_viewModel.QuickActionInstanceId);
         }
     }
+
+    private void OperationsUrgentLink_Click(object sender, RoutedEventArgs e) =>
+        _services.Navigation.RequestOccUrgentQueueFilter();
 
     private void RecentActivityList_ItemClick(object sender, ItemClickEventArgs e)
     {

@@ -61,4 +61,10 @@ internal static class WebViewScriptBuilder
 
         return $"window[{serializedName}]({serializedArgs});";
     }
+
+    public static string BuildIifeFunctionCall(string functionName, IReadOnlyList<object?> arguments)
+    {
+        var inner = BuildFunctionCall(functionName, arguments);
+        return $"(function(){{return {inner.TrimEnd(';')};}})();";
+    }
 }

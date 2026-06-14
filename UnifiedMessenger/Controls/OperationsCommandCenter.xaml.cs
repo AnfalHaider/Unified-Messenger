@@ -37,11 +37,13 @@ public sealed partial class OperationsCommandCenter : UserControl
     {
         InitializeComponent();
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        WorkQueueList.ItemsSource = _viewModel.WorkQueue;
         ImmediateQueueList.ItemsSource = _viewModel.ImmediateQueue;
         KanbanBoard.BindCollections(_viewModel.NewInquiries, _viewModel.HangingLeads, _viewModel.Resolved);
         KanbanBoard.IsReorderEnabled = true;
         BranchWorkspacePillBar.SelectionChanged += OnBranchWorkspacePillSelectionChanged;
         _services.OccFilter.Changed += OnOccFilterStateChanged;
+        _services.OccQueueFilter.Changed += OnOccQueueFilterChanged;
         _services.OccDateRangeFilter.Changed += OnOccDateRangeFilterChanged;
         _services.OccViewMode.Changed += OnOccViewModeChanged;
         _services.Navigation.InstanceNavigationFailed += OnInstanceNavigationFailed;
@@ -59,6 +61,9 @@ public sealed partial class OperationsCommandCenter : UserControl
         EnsureBackfillStatusSubscription();
         ApplyBackfillStatusUi();
         EnsureAiStatusSubscription();
+        EnsureOccLayoutSettings();
+        SyncQueueFilterChips();
+        EnsureQueueTeachingTip();
     }
 
     private void WireResponsiveLayoutHelpers()
@@ -71,6 +76,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     {
         BranchWorkspacePillBar.SelectionChanged -= OnBranchWorkspacePillSelectionChanged;
         _services.OccFilter.Changed -= OnOccFilterStateChanged;
+        _services.OccQueueFilter.Changed -= OnOccQueueFilterChanged;
         _services.OccDateRangeFilter.Changed -= OnOccDateRangeFilterChanged;
         _services.OccViewMode.Changed -= OnOccViewModeChanged;
         _services.Navigation.InstanceNavigationFailed -= OnInstanceNavigationFailed;
@@ -142,7 +148,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     }
 
     public void RequestImmediateLaneFocus() =>
-        ImmediateLaneSection?.StartBringIntoView();
+        WorkQueueSection?.StartBringIntoView();
 
     public void ApplyAccessibilityTabOrder()
     {
@@ -313,6 +319,7 @@ public sealed partial class OperationsCommandCenter : UserControl
         ApplyStatusKpis(OccSnapshotPresenter.BuildStatusKpis(snapshot.Status));
         ApplyScopeLabel(snapshot.ScopeLabel, null);
         ApplyKanban(threadOps);
+        ApplyWorkQueue(threadOps);
         ApplyImmediateQueue(threadOps);
         ApplyAnalyticsTrends(snapshot.AnalyticsTrends);
         MarkSnapshotReadyForAutomation();
@@ -342,7 +349,7 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void ApplyShellUi()
     {
         EmptyStatePanel.Visibility = _viewModel.ShowEmptyState ? Visibility.Visible : Visibility.Collapsed;
-        MainContentScrollViewer.Visibility = _viewModel.ShowMainContent ? Visibility.Visible : Visibility.Collapsed;
+        MainContentRoot.Visibility = _viewModel.ShowMainContent ? Visibility.Visible : Visibility.Collapsed;
         NotifyHeaderStatusChanged();
         ApplyBranchFilterChip();
     }
@@ -361,18 +368,20 @@ public sealed partial class OperationsCommandCenter : UserControl
     private void ApplyStatusKpis(OccStatusKpiPresentation kpis)
     {
         OpenThreadsCard.Value = kpis.OpenThreadCount;
+        OpenThreadsCard.Subtext = kpis.OpenThreadsSubtext ?? string.Empty;
         HangingLeadsCard.Value = kpis.HangingLeadCount;
-        ImmediateActionCard.Value = kpis.ImmediateActionCount;
+        UrgentCard.Value = kpis.UrgentCount;
+        UrgentCard.Subtext = kpis.UrgentSubtext ?? string.Empty;
         SlaBreachesCard.Value = kpis.SlaBreaches;
 
         OpenThreadsCard.IsEnabled = ParseKpiCount(kpis.OpenThreadCount) > 0;
         HangingLeadsCard.IsEnabled = ParseKpiCount(kpis.HangingLeadCount) > 0;
-        ImmediateActionCard.IsEnabled = ParseKpiCount(kpis.ImmediateActionCount) > 0;
+        UrgentCard.IsEnabled = ParseKpiCount(kpis.UrgentCount) > 0;
         SlaBreachesCard.IsEnabled = ParseKpiCount(kpis.SlaBreaches) > 0;
 
-        if (!string.IsNullOrWhiteSpace(kpis.ImmediateActionTooltip))
+        if (!string.IsNullOrWhiteSpace(kpis.UrgentTooltip))
         {
-            ImmediateActionCard.NavigationTooltip = kpis.ImmediateActionTooltip;
+            UrgentCard.NavigationTooltip = kpis.UrgentTooltip;
         }
 
         SlaBreachesCard.NavigationTooltip = ParseKpiCount(kpis.SlaBreaches) > 0

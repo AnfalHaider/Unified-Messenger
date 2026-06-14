@@ -1,13 +1,12 @@
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Controls;
 
 public sealed partial class OperationsCommandCenter
 {
-    private DispatcherQueueTimer? _navigationStatusTimer;
-
     private void OnInstanceNavigationFailed(object? sender, InstanceNavigationFailedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(e.Message))
@@ -15,27 +14,56 @@ public sealed partial class OperationsCommandCenter
             return;
         }
 
-        _dispatcherQueue.TryEnqueue(() => ShowNavigationStatus(e.Message));
+        _dispatcherQueue.TryEnqueue(() => ShowNavigationStatus(e.Message, isError: true));
     }
 
-    private void ShowNavigationStatus(string message)
+    private void ShowNavigationStatus(string message, bool isError = true)
     {
-        NavigationStatusPanel.Visibility = Visibility.Visible;
-        NavigationStatusText.Text = message;
-
-        _navigationStatusTimer ??= _dispatcherQueue.CreateTimer();
-        _navigationStatusTimer.Interval = TimeSpan.FromSeconds(8);
-        _navigationStatusTimer.Tick -= OnNavigationStatusTimerTick;
-        _navigationStatusTimer.Tick += OnNavigationStatusTimerTick;
-        _navigationStatusTimer.Stop();
-        _navigationStatusTimer.Start();
+        NavigationStatusInfoBar.Message = message;
+        NavigationStatusInfoBar.Severity = isError
+            ? Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error
+            : Microsoft.UI.Xaml.Controls.InfoBarSeverity.Informational;
+        NavigationStatusInfoBar.IsOpen = true;
     }
 
-    private void OnNavigationStatusTimerTick(DispatcherQueueTimer sender, object args)
+    private void NavigationStatusInfoBar_Closed(InfoBar sender, InfoBarClosedEventArgs args)
     {
-        sender.Tick -= OnNavigationStatusTimerTick;
-        sender.Stop();
-        NavigationStatusPanel.Visibility = Visibility.Collapsed;
-        NavigationStatusText.Text = string.Empty;
+        NavigationStatusInfoBar.IsOpen = false;
+        NavigationStatusInfoBar.Message = string.Empty;
+    }
+
+    private async void NavigateToThreadCard(OperationsThreadCardViewModel card)
+    {
+        if (string.IsNullOrWhiteSpace(card.InstanceId))
+        {
+            return;
+        }
+
+        SetWorkspaceLoadingVisible(true);
+        try
+        {
+            var result = await ConversationNavigationCoordinator.NavigateToThreadAsync(
+                _services.SessionManager,
+                _services.Registry,
+                _services.ThreadRegistry,
+                _services.Navigation,
+                card.InstanceId,
+                card.ConversationKey,
+                card.CustomerName,
+                card.ThreadId).ConfigureAwait(true);
+
+            if (!string.IsNullOrWhiteSpace(result.StatusMessage) && result.IsFailure)
+            {
+                ShowNavigationStatus(result.StatusMessage, isError: true);
+            }
+            else if (!string.IsNullOrWhiteSpace(result.StatusMessage))
+            {
+                ShowNavigationStatus(result.StatusMessage, isError: false);
+            }
+        }
+        finally
+        {
+            SetWorkspaceLoadingVisible(false);
+        }
     }
 }

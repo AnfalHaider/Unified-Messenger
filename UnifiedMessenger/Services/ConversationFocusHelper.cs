@@ -4,7 +4,9 @@ namespace UnifiedMessenger.Services;
 
 public static class ConversationFocusHelper
 {
-    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(500);
+
+    private const int MaxAttempts = 5;
 
     public static bool ParseScriptBoolean(string? raw)
     {
@@ -32,11 +34,11 @@ public static class ConversationFocusHelper
             return false;
         }
 
-        var script = WebViewScriptBuilder.BuildFunctionCall(
+        var script = WebViewScriptBuilder.BuildIifeFunctionCall(
             "__umFocusConversation",
             [instance.Platform, conversationKey.Trim(), customerName ?? string.Empty]);
 
-        for (var attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 0; attempt < MaxAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -49,7 +51,7 @@ public static class ConversationFocusHelper
                 return true;
             }
 
-            if (attempt < 2)
+            if (attempt < MaxAttempts - 1)
             {
                 await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
             }

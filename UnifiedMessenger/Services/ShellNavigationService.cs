@@ -27,6 +27,8 @@ public sealed class ShellNavigationService : INavigationService
 
     public event EventHandler? OccImmediateLaneFocusRequested;
 
+    public event EventHandler? OccUrgentQueueFilterRequested;
+
     public event EventHandler<string?>? SettingsOpenRequested;
 
     public event EventHandler<InstanceNavigationFailedEventArgs>? InstanceNavigationFailed;
@@ -95,6 +97,9 @@ public sealed class ShellNavigationService : INavigationService
 
     public void RequestOccImmediateLaneFocus() =>
         OccImmediateLaneFocusRequested?.Invoke(this, EventArgs.Empty);
+
+    public void RequestOccUrgentQueueFilter() =>
+        OccUrgentQueueFilterRequested?.Invoke(this, EventArgs.Empty);
 
     public void RequestOpenSettings(string? sectionKey = null) =>
         SettingsOpenRequested?.Invoke(this, sectionKey);

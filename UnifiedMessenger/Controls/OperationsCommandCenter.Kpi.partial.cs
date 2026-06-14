@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml.Input;
+using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Controls;
@@ -11,13 +12,13 @@ public sealed partial class OperationsCommandCenter
     private void HangingLeadsCard_Activated(object sender, TappedRoutedEventArgs e) =>
         NavigateKpi(OccKpiKind.HangingLeads);
 
-    private void ImmediateActionCard_Activated(object sender, TappedRoutedEventArgs e) =>
-        NavigateKpi(OccKpiKind.NeedsAction);
+    private void UrgentCard_Activated(object sender, TappedRoutedEventArgs e) =>
+        NavigateKpi(OccKpiKind.Urgent);
 
     private void SlaBreachesCard_Activated(object sender, TappedRoutedEventArgs e) =>
         NavigateKpi(OccKpiKind.SlaBreaches);
 
-    private void NavigateKpi(OccKpiKind kind)
+    private async void NavigateKpi(OccKpiKind kind)
     {
         var threads = _snapshot.ThreadOperations.AllThreads;
         var target = OccKpiNavigationHelper.ResolveTarget(kind, threads);
@@ -26,9 +27,22 @@ public sealed partial class OperationsCommandCenter
             return;
         }
 
-        _services.Navigation.OpenInstance(
-            target.InstanceId,
-            target.ConversationKey,
-            target.CustomerName);
+        SetWorkspaceLoadingVisible(true);
+        try
+        {
+            await ConversationNavigationCoordinator.NavigateToThreadAsync(
+                _services.SessionManager,
+                _services.Registry,
+                _services.ThreadRegistry,
+                _services.Navigation,
+                target.InstanceId,
+                target.ConversationKey,
+                target.CustomerName,
+                target.ThreadId).ConfigureAwait(true);
+        }
+        finally
+        {
+            SetWorkspaceLoadingVisible(false);
+        }
     }
 }

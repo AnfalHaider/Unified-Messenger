@@ -63,9 +63,6 @@ public sealed partial class OperationsCommandCenter
 
         _viewModel.ApplyImmediateQueuePresentation(
             OccSnapshotPresenter.BuildImmediateQueuePresentation(threadOps));
-        ImmediateQueueEmptyText.Visibility = _viewModel.ShowImmediateQueueEmpty
-            ? Visibility.Visible
-            : Visibility.Collapsed;
     }
 
     private static void SyncThreadCards(
@@ -79,13 +76,9 @@ public sealed partial class OperationsCommandCenter
 
     private void ThreadCardList_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is OperationsThreadCardViewModel card &&
-            !string.IsNullOrWhiteSpace(card.InstanceId))
+        if (e.ClickedItem is OperationsThreadCardViewModel card)
         {
-            _services.Navigation.OpenInstance(
-                card.InstanceId,
-                card.ConversationKey,
-                card.CustomerName);
+            NavigateToThreadCard(card);
         }
     }
 
@@ -117,10 +110,7 @@ public sealed partial class OperationsCommandCenter
 
         if (!string.IsNullOrWhiteSpace(card.InstanceId))
         {
-            _services.Navigation.OpenInstance(
-                card.InstanceId,
-                card.ConversationKey,
-                card.CustomerName);
+            NavigateToThreadCard(card);
         }
     }
 

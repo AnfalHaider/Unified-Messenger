@@ -6,7 +6,7 @@ namespace UnifiedMessenger.Tests;
 public class TriageInferenceLabelFormatterTests
 {
     [Theory]
-    [InlineData(TriageInferenceSource.Heuristic, "Heuristic")]
+    [InlineData(TriageInferenceSource.Heuristic, "Rules")]
     [InlineData(TriageInferenceSource.Ollama, "AI")]
     [InlineData(TriageInferenceSource.Analyzing, "Analyzing…")]
     public void Format_MapsInferenceSources(TriageInferenceSource source, string expected) =>

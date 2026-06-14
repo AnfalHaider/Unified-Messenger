@@ -247,7 +247,7 @@ public static class BranchWorkspaceHelper
                     OpenCount: group.Count(entry =>
                         !entry.thread.IsReplied && !entry.thread.IsSpamOrPromo),
                     ImmediateCount: group.Count(entry =>
-                        entry.thread.IsImmediateAction && !entry.thread.IsReplied)),
+                        entry.thread.IsUrgent && !entry.thread.IsReplied)),
                 StringComparer.OrdinalIgnoreCase);
     }
 

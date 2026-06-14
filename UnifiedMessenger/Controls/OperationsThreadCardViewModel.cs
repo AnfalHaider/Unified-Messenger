@@ -12,7 +12,8 @@ public sealed class OperationsThreadCardViewModel
     public OperationsThreadCardViewModel(
         ThreadData thread,
         bool hideBranchName = false,
-        TriageInferenceSource? inferenceSourceOverride = null)
+        TriageInferenceSource? inferenceSourceOverride = null,
+        bool compactDensity = false)
     {
         var inferenceSource = inferenceSourceOverride ?? thread.InferenceSource;
         InstanceId = thread.InstanceId;
@@ -21,13 +22,18 @@ public sealed class OperationsThreadCardViewModel
         ConversationKey = thread.ConversationKey;
         BranchName = thread.BranchName;
         InstanceDisplayName = thread.InstanceDisplayName;
+        MessagePreview = OperationsThreadCardPresentationHelper.BuildMessagePreview(thread);
+        OpsHint = OperationsThreadCardPresentationHelper.BuildOpsHint(thread);
+        var opsHintDistinct = !string.IsNullOrWhiteSpace(OpsHint) &&
+                              !OpsHint.Equals(MessagePreview, StringComparison.OrdinalIgnoreCase) &&
+                              !OpsHint.Contains(MessagePreview, StringComparison.OrdinalIgnoreCase);
+        OpsHintVisibility = opsHintDistinct ? Visibility.Visible : Visibility.Collapsed;
+        RelativeTime = OperationsThreadCardPresentationHelper.BuildRelativeTime(thread.LastMessageTime);
+        MetadataRow = BuildMetadataRow(thread, hideBranchName);
         InboxLabel = BuildInboxLabel(thread);
         PlatformGlyph = ResolvePlatformGlyph(thread.Platform);
         IntentLabel = UnifiedMessengerDashboardPresentationHelper.FormatIntentLabel(thread.AiIntentCategory);
         SentimentLabel = thread.ClientSentiment;
-        NextActionSummary = string.IsNullOrWhiteSpace(thread.NextActionSummary)
-            ? OperationsThreadCardPresentationHelper.BuildFallbackSummary(thread)
-            : thread.NextActionSummary;
         InferenceSourceLabel = TriageInferenceLabelFormatter.Format(inferenceSource);
         ShowInferenceProgress = TriageInferenceLabelFormatter.IsActiveJob(inferenceSource);
         InferenceProgressVisibility = ShowInferenceProgress ? Visibility.Visible : Visibility.Collapsed;
@@ -69,7 +75,10 @@ public sealed class OperationsThreadCardViewModel
             : Visibility.Collapsed;
         LastMessageTimeUtc = thread.LastMessageTime;
         LastMessageKind = thread.LastMessageKind;
+        CompactDensity = compactDensity;
     }
+
+    public bool CompactDensity { get; }
 
     public DateTimeOffset LastMessageTimeUtc { get; }
 
@@ -89,6 +98,16 @@ public sealed class OperationsThreadCardViewModel
 
     public string InstanceDisplayName { get; }
 
+    public string MessagePreview { get; }
+
+    public string OpsHint { get; }
+
+    public Visibility OpsHintVisibility { get; }
+
+    public string RelativeTime { get; }
+
+    public string MetadataRow { get; }
+
     public string InboxLabel { get; }
 
     public string PlatformGlyph { get; }
@@ -96,8 +115,6 @@ public sealed class OperationsThreadCardViewModel
     public string IntentLabel { get; }
 
     public string SentimentLabel { get; }
-
-    public string NextActionSummary { get; }
 
     public string InferenceSourceLabel { get; }
 
@@ -130,6 +147,25 @@ public sealed class OperationsThreadCardViewModel
     public SolidColorBrush DeliveryStatusBrush { get; }
 
     public Visibility DeliveryStatusVisibility { get; }
+
+    private static string BuildMetadataRow(ThreadData thread, bool hideBranchName)
+    {
+        var platform = PlatformDefinition.FindById(thread.Platform)?.DisplayName ?? thread.Platform;
+        var parts = new List<string> { platform };
+
+        if (!string.IsNullOrWhiteSpace(thread.InstanceDisplayName))
+        {
+            parts.Add(thread.InstanceDisplayName);
+        }
+
+        if (!hideBranchName && !string.IsNullOrWhiteSpace(thread.BranchName))
+        {
+            parts.Add(thread.BranchName.Trim());
+        }
+
+        parts.Add(OperationsThreadCardPresentationHelper.BuildRelativeTime(thread.LastMessageTime));
+        return string.Join(" · ", parts);
+    }
 
     private static string BuildInboxLabel(ThreadData thread)
     {

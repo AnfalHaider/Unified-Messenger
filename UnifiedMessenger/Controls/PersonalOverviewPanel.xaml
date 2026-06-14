@@ -152,12 +152,20 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" MinWidth="0" />
                 </Grid.ColumnDefinitions>
-                <Button
-                    x:Name="OpenBusiestInboxButton"
-                    AutomationProperties.Name="Open busiest personal inbox"
-                    Click="OpenBusiestInboxButton_Click"
-                    Content="Open busiest inbox"
-                    Visibility="Collapsed" />
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
+                    <Button
+                        x:Name="OpenBusiestInboxButton"
+                        AutomationProperties.Name="Open busiest personal inbox"
+                        Click="OpenBusiestInboxButton_Click"
+                        Content="Open busiest inbox"
+                        Visibility="Collapsed" />
+                    <HyperlinkButton
+                        x:Name="OperationsUrgentLink"
+                        AutomationProperties.Name="View urgent operations threads"
+                        Click="OperationsUrgentLink_Click"
+                        Content="Urgent in Operations"
+                        Visibility="Collapsed" />
+                </StackPanel>
                 <TextBlock
                     x:Name="PersonalLastUpdatedText"
                     Grid.Column="1"
@@ -231,7 +239,7 @@
                             x:Name="RecentActivityList"
                             Grid.Row="1"
                             AutomationProperties.AutomationId="PersonalRecentActivity"
-                            AutomationProperties.Name="Recent personal activity"
+                            AutomationProperties.Name="Personal activity feed"
                             IsItemClickEnabled="True"
                             ItemClick="RecentActivityList_ItemClick"
                             MaxHeight="420"

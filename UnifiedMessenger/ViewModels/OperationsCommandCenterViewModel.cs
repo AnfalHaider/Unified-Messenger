@@ -11,6 +11,8 @@ public partial class OperationsCommandCenterViewModel : ViewModelBase
 
     public ObservableCollection<OperationsThreadCardViewModel> ImmediateQueue { get; } = [];
 
+    public ObservableCollection<OperationsThreadCardViewModel> WorkQueue { get; } = [];
+
     public ObservableCollection<OperationsThreadCardViewModel> NewInquiries { get; } = [];
 
     public ObservableCollection<OperationsThreadCardViewModel> HangingLeads { get; } = [];

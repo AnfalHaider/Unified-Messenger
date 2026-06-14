@@ -17,26 +17,29 @@ public static class OccThreadCardPresenter
     public static IReadOnlyList<OperationsThreadCardViewModel> BuildThreadCards(
         IEnumerable<ThreadData> threads,
         bool hideBranchName = false,
-        AiInferenceQueue? inferenceQueue = null) =>
+        AiInferenceQueue? inferenceQueue = null,
+        bool compactDensity = false) =>
         threads
-            .Select(thread => BuildThreadCard(thread, hideBranchName, inferenceQueue))
+            .Select(thread => BuildThreadCard(thread, hideBranchName, inferenceQueue, compactDensity))
             .ToList();
 
     public static OperationsThreadCardViewModel BuildThreadCard(
         ThreadData thread,
         bool hideBranchName = false,
-        AiInferenceQueue? inferenceQueue = null)
+        AiInferenceQueue? inferenceQueue = null,
+        bool compactDensity = false)
     {
         var source = ResolveInferenceSource(thread, inferenceQueue);
-        return new OperationsThreadCardViewModel(thread, hideBranchName, source);
+        return new OperationsThreadCardViewModel(thread, hideBranchName, source, compactDensity);
     }
 
     public static IEnumerable<OperationsThreadCardViewModel> BuildKanbanColumn(
         IEnumerable<ThreadData> allThreads,
         UnifiedMessengerKanbanColumn column,
         bool hideBranchName = false,
-        AiInferenceQueue? inferenceQueue = null) =>
-        BuildThreadCards(FilterKanbanColumn(allThreads, column), hideBranchName, inferenceQueue);
+        AiInferenceQueue? inferenceQueue = null,
+        bool compactDensity = false) =>
+        BuildThreadCards(FilterKanbanColumn(allThreads, column), hideBranchName, inferenceQueue, compactDensity);
 
     internal static TriageInferenceSource ResolveInferenceSource(
         ThreadData thread,

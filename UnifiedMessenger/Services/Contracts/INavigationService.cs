@@ -20,6 +20,8 @@ public interface INavigationService
 
     event EventHandler? OccImmediateLaneFocusRequested;
 
+    event EventHandler? OccUrgentQueueFilterRequested;
+
     event EventHandler<string?>? SettingsOpenRequested;
 
     event EventHandler<InstanceNavigationFailedEventArgs>? InstanceNavigationFailed;
@@ -41,6 +43,8 @@ public interface INavigationService
     void RequestOccBranchFilter(string? branchKey);
 
     void RequestOccImmediateLaneFocus();
+
+    void RequestOccUrgentQueueFilter();
 
     void RequestOpenSettings(string? sectionKey = null);
 

@@ -66,6 +66,10 @@ public sealed partial class OperationsThreadCardView : UserControl
 
     public Visibility TagRowVisibility { get; private set; } = Visibility.Collapsed;
 
+    public double PreviewFontSize { get; private set; } = 12;
+
+    public int PreviewMaxLines { get; private set; } = 2;
+
     public double SummaryFontSize { get; private set; } = 11;
 
     public bool IsSummaryBold { get; private set; }
@@ -98,6 +102,8 @@ public sealed partial class OperationsThreadCardView : UserControl
             UrgencyBadgePadding = ResolveThickness("UmPaddingBadge", new Thickness(6, 2, 6, 2));
             UrgencyBadgeFontSize = 11;
             TagRowVisibility = Visibility.Visible;
+            PreviewFontSize = 13;
+            PreviewMaxLines = 2;
             SummaryFontSize = 12;
             IsSummaryBold = true;
             SummaryMaxLines = 0;
@@ -113,6 +119,8 @@ public sealed partial class OperationsThreadCardView : UserControl
             UrgencyBadgePadding = ResolveThickness("UmPaddingBadge", new Thickness(6, 2, 6, 2));
             UrgencyBadgeFontSize = 10;
             TagRowVisibility = Visibility.Visible;
+            PreviewFontSize = 12;
+            PreviewMaxLines = 2;
             SummaryFontSize = 11;
             IsSummaryBold = false;
             SummaryMaxLines = 2;

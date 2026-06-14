@@ -6,8 +6,11 @@ public enum OccKpiKind
 {
     OpenThreads,
     HangingLeads,
-    NeedsAction,
-    SlaBreaches
+    Urgent,
+    SlaBreaches,
+
+    [Obsolete("Use OccKpiKind.Urgent")]
+    NeedsAction = Urgent
 }
 
 public sealed class OccKpiNavigationTarget
@@ -17,6 +20,8 @@ public sealed class OccKpiNavigationTarget
     public string? ConversationKey { get; init; }
 
     public string? CustomerName { get; init; }
+
+    public string? ThreadId { get; init; }
 }
 
 public static class OccKpiNavigationHelper
@@ -40,7 +45,7 @@ public static class OccKpiNavigationHelper
                 actionable,
                 UnifiedMessengerKanbanColumn.HangingLeads,
                 order),
-            OccKpiKind.NeedsAction => SelectTopImmediateQueueThread(actionable, order),
+            OccKpiKind.Urgent or OccKpiKind.NeedsAction => SelectTopUrgentThread(actionable, order),
             OccKpiKind.SlaBreaches => SelectWorstSlaBreach(actionable),
             _ => null
         };
@@ -56,7 +61,8 @@ public static class OccKpiNavigationHelper
             ConversationKey = string.IsNullOrWhiteSpace(selected.ConversationKey)
                 ? null
                 : selected.ConversationKey,
-            CustomerName = selected.CustomerName
+            CustomerName = selected.CustomerName,
+            ThreadId = selected.ThreadId
         };
     }
 
@@ -78,11 +84,11 @@ public static class OccKpiNavigationHelper
                 column)
             .FirstOrDefault();
 
-    private static ThreadData? SelectTopImmediateQueueThread(
+    private static ThreadData? SelectTopUrgentThread(
         IReadOnlyList<ThreadData> threads,
         ThreadDisplayOrderService displayOrder) =>
         displayOrder
-            .SortImmediateQueue(threads.Where(thread => thread.IsImmediateAction && !thread.IsReplied))
+            .SortWorkQueue(threads.Where(thread => thread.IsUrgent && !thread.IsReplied))
             .FirstOrDefault();
 
     private static ThreadData? SelectWorstSlaBreach(IReadOnlyList<ThreadData> threads) =>

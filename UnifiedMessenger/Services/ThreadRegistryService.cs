@@ -182,12 +182,6 @@ public sealed class ThreadRegistryService : IThreadRegistryService
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(triageItemId) &&
-            !string.Equals(thread.LastTriageItemId, triageItemId, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
         thread.AiIntentCategory = result.Intent;
         thread.NextActionSummary = ConversationNoiseFilter.SanitizeSummary(result.NextAction);
         thread.SuggestedAction = result.SuggestedAction;

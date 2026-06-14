@@ -100,6 +100,12 @@ public static class OccDateRangeFilterHelper
         return $"{branchScope} · {modeLabel} · {rangeLabel}";
     }
 
+    public static string FormatChartRangeLabel(DateTimeOffset? fromUtc, DateTimeOffset? toUtc) =>
+        FormatRangeLabel(fromUtc, toUtc);
+
+    public static string FormatHistoricalRangeLabel(DateTimeOffset? fromUtc, DateTimeOffset? toUtc) =>
+        FormatRangeLabel(fromUtc, toUtc);
+
     public static string FormatRangeLabel(DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
     {
         if (fromUtc is null && toUtc is null)

@@ -12,6 +12,8 @@ public sealed class UnifiedMessengerDashboardSnapshot
 
     public IReadOnlyList<ThreadData> ImmediateActionQueue { get; init; } = [];
 
+    public IReadOnlyList<ThreadData> WorkQueue { get; init; } = [];
+
     public IReadOnlyList<ThreadData> AllThreads { get; init; } = [];
 
     public IReadOnlyList<string> BranchNames { get; init; } = [];
@@ -22,7 +24,12 @@ public sealed class UnifiedMessengerDashboardSnapshot
 
     public int ImmediateActionCount { get; init; }
 
-    /// <summary>Total urgent threads in scope (same value as <see cref="ImmediateActionCount"/>).</summary>
+    public int UrgentCount { get; init; }
+
+    /// <summary>Total urgent threads in scope (same value as <see cref="UrgentCount"/>).</summary>
+    public int UrgentTotal => UrgentCount;
+
+    /// <summary>Total immediate-action threads including SLA-only (legacy).</summary>
     public int ImmediateActionTotal => ImmediateActionCount;
 
     /// <summary>Threads shown in the immediate action lane (capped at display limit).</summary>
@@ -55,6 +62,8 @@ public sealed class UnifiedMessengerThreadMetrics
     public int HangingLeadCount { get; init; }
 
     public int ImmediateActionCount { get; init; }
+
+    public int UrgentCount { get; init; }
 
     public int ImmediateActionQueueCount { get; init; }
 

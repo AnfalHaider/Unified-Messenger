@@ -10,6 +10,12 @@
     mc:Ignorable="d">
 
     <UserControl.Resources>
+        <DataTemplate x:Key="OperationsWorkQueueCardTemplate" x:DataType="controls:OperationsThreadCardViewModel">
+            <shared:OperationsThreadCardView
+                Margin="{StaticResource UmMarginBottomSm}"
+                DisplayStyle="Immediate"
+                ViewModel="{Binding}" />
+        </DataTemplate>
         <DataTemplate x:Key="OperationsImmediateCardTemplate" x:DataType="controls:OperationsThreadCardViewModel">
             <shared:OperationsThreadCardView
                 Margin="{StaticResource UmMarginBottomSm}"
@@ -42,8 +48,17 @@
                 Content="Add instance" />
         </StackPanel>
 
-        <ScrollViewer x:Name="MainContentScrollViewer" VerticalScrollBarVisibility="Auto">
-            <StackPanel Padding="{StaticResource UmPaddingBottomXl}" Spacing="{StaticResource UmSpacingLg}">
+        <Grid x:Name="MainContentRoot" Visibility="Visible">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel
+                x:Name="StickyOccHeader"
+                Grid.Row="0"
+                Padding="{StaticResource UmPaddingBottomSm}"
+                Spacing="{StaticResource UmSpacingMd}">
                 <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" MinWidth="0" />
@@ -74,21 +89,13 @@
                                     TextTrimming="CharacterEllipsis" />
                             </Border>
                         </StackPanel>
-                        <StackPanel
-                            x:Name="NavigationStatusPanel"
-                            Orientation="Horizontal"
-                            Spacing="6"
-                            Visibility="Collapsed">
-                            <FontIcon
-                                FontSize="12"
-                                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                                Glyph="&#xE783;" />
-                            <TextBlock
-                                x:Name="NavigationStatusText"
-                                FontSize="11"
-                                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
+                        <InfoBar
+                            x:Name="NavigationStatusInfoBar"
+                            IsClosable="True"
+                            IsOpen="False"
+                            Severity="Error"
+                            Title="Navigation"
+                            Closed="NavigationStatusInfoBar_Closed" />
                         <StackPanel
                             x:Name="BranchFilterChipPanel"
                             Orientation="Horizontal"
@@ -117,6 +124,29 @@
 
                 <controls:BranchWorkspacePillBar x:Name="BranchWorkspacePillBar" />
 
+                <InfoBar
+                    x:Name="HistoricalDataBanner"
+                    IsClosable="False"
+                    IsOpen="False"
+                    Severity="Informational"
+                    Title="Historical report" />
+                <StackPanel
+                    x:Name="HistoricalActionButtons"
+                    Orientation="Horizontal"
+                    Spacing="{StaticResource UmSpacingSm}"
+                    Visibility="Collapsed">
+                    <Button
+                        x:Name="SyncRecentHistoryButton"
+                        Click="SyncRecentHistoryButton_Click"
+                        Content="Sync recent history"
+                        Style="{StaticResource SubtleButtonStyle}" />
+                    <Button
+                        x:Name="ReloadSnapshotButton"
+                        Click="ReloadSnapshotButton_Click"
+                        Content="Reload snapshot"
+                        Style="{StaticResource SubtleButtonStyle}" />
+                </StackPanel>
+
                 <shared:SurfaceCard>
                     <shared:SurfaceCard.CardBody>
                         <StackPanel Spacing="{StaticResource UmSpacingMd}">
@@ -137,6 +167,12 @@
                                     Toggled="OccViewModeToggle_Toggled"
                                     VerticalAlignment="Center" />
                             </Grid>
+                            <TextBlock
+                                x:Name="DateRangeScopeCaption"
+                                Style="{StaticResource UmCaptionTextStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="Chart uses the date range. Toggle above switches KPI and queue scope."
+                                TextWrapping="WrapWholeWords" />
                             <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition MinWidth="0" Width="*" />
@@ -146,7 +182,6 @@
                                     Grid.Column="0"
                                     Style="{StaticResource UmCaptionTextStyle}"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    Text="Chart uses the date range. Toggle above switches KPI and queue scope."
                                     TextWrapping="WrapWholeWords" />
                                 <Button
                                     Grid.Column="1"
@@ -199,26 +234,15 @@
                             NavigationTooltip="Open the highest-latency unreplied thread"
                             Value="0" />
                         <shared:MetricCardView
-                            x:Name="HangingLeadsCard"
+                            x:Name="UrgentCard"
                             MinWidth="140"
                             Width="180"
-                            Activated="HangingLeadsCard_Activated"
-                            IconGlyph="&#xE823;"
-                            IsInteractive="True"
-                            Label="Hanging leads"
-                            MetricAutomationId="OccKpiHangingLeads"
-                            NavigationTooltip="Open the top hanging-lead thread"
-                            Value="0" />
-                        <shared:MetricCardView
-                            x:Name="ImmediateActionCard"
-                            MinWidth="140"
-                            Width="180"
-                            Activated="ImmediateActionCard_Activated"
+                            Activated="UrgentCard_Activated"
                             IconGlyph="&#xE7BA;"
                             IsInteractive="True"
-                            Label="Needs action"
-                            MetricAutomationId="OccKpiNeedsAction"
-                            NavigationTooltip="Open the top immediate-queue thread"
+                            Label="Urgent"
+                            MetricAutomationId="OccKpiUrgent"
+                            NavigationTooltip="Open the top urgent thread (excludes SLA-only)"
                             Value="0" />
                         <shared:MetricCardView
                             x:Name="SlaBreachesCard"
@@ -231,35 +255,103 @@
                             MetricAutomationId="OccKpiSlaBreaches"
                             NavigationTooltip="Open the worst SLA breach by wait time"
                             Value="0" />
+                        <shared:MetricCardView
+                            x:Name="HangingLeadsCard"
+                            MinWidth="140"
+                            Width="180"
+                            Activated="HangingLeadsCard_Activated"
+                            IconGlyph="&#xE823;"
+                            IsInteractive="True"
+                            Label="Hanging leads"
+                            MetricAutomationId="OccKpiHangingLeads"
+                            NavigationTooltip="Open the top hanging-lead thread"
+                            Value="0" />
                     </StackPanel>
                 </ScrollViewer>
 
-                <StackPanel x:Name="ImmediateLaneSection" Spacing="{StaticResource UmSpacingSm}">
-                    <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Immediate queue" />
-                    <TextBlock
-                        x:Name="ImmediateQueueEmptyText"
-                        Style="{StaticResource UmEmptyHintTextStyle}"
-                        Text="No urgent threads in the current scope."
-                        TextAlignment="Left"
-                        Visibility="Collapsed" />
-                    <ListView
-                        x:Name="ImmediateQueueList"
-                        IsItemClickEnabled="True"
-                        ItemClick="ThreadCardList_ItemClick"
-                        ItemTemplate="{StaticResource OperationsImmediateCardTemplate}"
-                        SelectionMode="None"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
+                    <ToggleButton
+                        x:Name="FilterAllOpenChip"
+                        Checked="QueueFilterChip_Checked"
+                        Content="All open"
+                        IsChecked="True"
+                        Padding="10,4" />
+                    <ToggleButton
+                        x:Name="FilterUrgentChip"
+                        Checked="QueueFilterChip_Checked"
+                        Content="Urgent"
+                        Padding="10,4" />
+                    <ToggleButton
+                        x:Name="FilterSlaChip"
+                        Checked="QueueFilterChip_Checked"
+                        Content="SLA"
+                        Padding="10,4" />
+                    <ToggleButton
+                        x:Name="FilterHangingChip"
+                        Checked="QueueFilterChip_Checked"
+                        Content="Hanging"
+                        Padding="10,4" />
+                    <ToggleButton
+                        x:Name="BoardViewToggle"
+                        Checked="BoardViewToggle_Changed"
+                        Content="Board view"
+                        Padding="10,4"
+                        Unchecked="BoardViewToggle_Changed" />
                 </StackPanel>
-
-                <controls:KanbanColumnBoard
-                    x:Name="KanbanBoard"
-                    ColumnOrderChanged="KanbanBoard_ColumnOrderChanged"
-                    ColumnTransferRequested="KanbanBoard_ColumnTransferRequested"
-                    CrossColumnDragAttempted="KanbanBoard_CrossColumnDragAttempted"
-                    ItemClickRequested="KanbanBoard_ItemClickRequested" />
             </StackPanel>
-        </ScrollViewer>
+
+            <ScrollViewer
+                x:Name="MainContentScrollViewer"
+                Grid.Row="1"
+                VerticalScrollBarVisibility="Auto">
+                <StackPanel Padding="{StaticResource UmPaddingBottomXl}" Spacing="{StaticResource UmSpacingLg}">
+                    <StackPanel x:Name="WorkQueueSection" Spacing="{StaticResource UmSpacingSm}">
+                        <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Work queue" />
+                        <TextBlock
+                            x:Name="WorkQueueEmptyText"
+                            Style="{StaticResource UmEmptyHintTextStyle}"
+                            Text="No open threads in the current scope."
+                            TextAlignment="Left"
+                            Visibility="Collapsed" />
+                        <ListView
+                            x:Name="WorkQueueList"
+                            AutomationProperties.AutomationId="WorkQueueList"
+                            AutomationProperties.Name="Operations work queue"
+                            IsItemClickEnabled="True"
+                            ItemClick="ThreadCardList_ItemClick"
+                            ItemTemplate="{StaticResource OperationsWorkQueueCardTemplate}"
+                            SelectionMode="None"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="ImmediateLaneSection" Spacing="{StaticResource UmSpacingSm}" Visibility="Collapsed">
+                        <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Text="Immediate queue" />
+                        <ListView
+                            x:Name="ImmediateQueueList"
+                            AutomationProperties.AutomationId="ImmediateQueueList"
+                            AutomationProperties.Name="Immediate work queue"
+                            IsItemClickEnabled="True"
+                            ItemClick="ThreadCardList_ItemClick"
+                            ItemTemplate="{StaticResource OperationsImmediateCardTemplate}"
+                            SelectionMode="None" />
+                    </StackPanel>
+
+                    <controls:KanbanColumnBoard
+                        x:Name="KanbanBoard"
+                        ColumnOrderChanged="KanbanBoard_ColumnOrderChanged"
+                        ColumnTransferRequested="KanbanBoard_ColumnTransferRequested"
+                        CrossColumnDragAttempted="KanbanBoard_CrossColumnDragAttempted"
+                        ItemClickRequested="KanbanBoard_ItemClickRequested"
+                        Visibility="Collapsed" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <TeachingTip
+            x:Name="QueueUxTeachingTip"
+            Title="Unified work queue"
+            Subtitle="One sortable queue replaces the old immediate lane. Use filter chips for Urgent, SLA, or Hanging. Board view is optional." />
 
         <Grid
             x:Name="WorkspaceLoadingOverlay"

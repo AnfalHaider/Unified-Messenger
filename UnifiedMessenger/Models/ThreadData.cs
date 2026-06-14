@@ -69,12 +69,20 @@ public sealed class ThreadData
         !IsReplied &&
         LatencyMinutes > OperationalThresholds.GetSlaThresholdMinutes();
 
+    /// <summary>
+    /// High-urgency threads (urgency or critical sentiment) excluding SLA-only breaches.
+    /// Used for the Urgent KPI and filter chip.
+    /// </summary>
+    public bool IsUrgent =>
+        !IsSpamOrPromo &&
+        !IsReplied &&
+        (UrgencyScore >= 4 ||
+         ClientSentiment.Equals(ClientSentimentLabel.Critical, StringComparison.OrdinalIgnoreCase));
+
     public bool IsImmediateAction =>
         !IsSpamOrPromo &&
         !IsReplied &&
-        (IsSlaBreached ||
-         UrgencyScore >= 4 ||
-         ClientSentiment.Equals(ClientSentimentLabel.Critical, StringComparison.OrdinalIgnoreCase));
+        (IsSlaBreached || IsUrgent);
 
     public UnifiedMessengerKanbanColumn KanbanColumn =>
         IsReplied || IsSpamOrPromo

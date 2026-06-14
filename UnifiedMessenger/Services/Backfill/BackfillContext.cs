@@ -16,5 +16,13 @@ public sealed class BackfillContext
 
     public bool EnableDeepBackfill { get; init; }
 
+    public DateTimeOffset? FromUtc { get; init; }
+
+    public DateTimeOffset? ToUtc { get; init; }
+
+    public bool EnableUrgentLlmInference { get; init; }
+
+    public int MaxUrgentLlmPerInstance { get; init; } = 5;
+
     public bool IsBackfill => true;
 }

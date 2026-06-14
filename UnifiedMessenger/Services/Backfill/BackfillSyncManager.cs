@@ -159,7 +159,9 @@ public sealed class BackfillSyncManager
                 BackfillMode = settings.WhatsAppBackfillMode,
                 BackfillRecentDays = settings.WhatsAppBackfillRecentDays,
                 BackfillMaxChats = settings.WhatsAppBackfillMaxChats,
-                EnableDeepBackfill = settings.EnableDeepBackfill
+                EnableDeepBackfill = settings.EnableDeepBackfill,
+                EnableUrgentLlmInference = settings.EnableLocalAi,
+                MaxUrgentLlmPerInstance = 5
             };
 
             result = await provider.RunAsync(context, timeoutCts.Token).ConfigureAwait(false);

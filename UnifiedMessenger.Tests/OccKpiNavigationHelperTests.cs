@@ -39,6 +39,38 @@ public class OccKpiNavigationHelperTests
     }
 
     [Fact]
+    public void ResolveTarget_Urgent_PicksUrgentQueueLeader()
+    {
+        var threads = new[]
+        {
+            CreateThread("a", latency: 10, urgency: 3, threadId: "a|1"),
+            CreateThread("b", latency: 5, urgency: 5, threadId: "b|1"),
+            CreateThread("c", latency: 50, urgency: 5, threadId: "c|1")
+        };
+
+        var target = OccKpiNavigationHelper.ResolveTarget(OccKpiKind.Urgent, threads);
+
+        Assert.NotNull(target);
+        Assert.Equal("inst-c", target!.InstanceId);
+    }
+
+    [Fact]
+    public void ResolveTarget_Urgent_ExcludesSlaOnlyThreads()
+    {
+        AppSettingsService.Instance.Settings.SlaThresholdMinutes = 15;
+        var threads = new[]
+        {
+            CreateThread("a", latency: 40, urgency: 2, threadId: "a|1"),
+            CreateThread("b", latency: 5, urgency: 5, threadId: "b|1")
+        };
+
+        var target = OccKpiNavigationHelper.ResolveTarget(OccKpiKind.Urgent, threads);
+
+        Assert.NotNull(target);
+        Assert.Equal("inst-b", target!.InstanceId);
+    }
+
+    [Fact]
     public void ResolveTarget_NeedsAction_PicksImmediateQueueLeader()
     {
         var threads = new[]

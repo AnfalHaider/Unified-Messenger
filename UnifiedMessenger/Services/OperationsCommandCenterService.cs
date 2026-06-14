@@ -147,7 +147,8 @@ public sealed class OperationsCommandCenterService
         {
             OpenThreadCount = threadOperations.OpenThreadCount,
             HangingLeadCount = threadOperations.HangingLeadCount,
-            ImmediateActionCount = threadOperations.ImmediateActionTotal,
+            ImmediateActionCount = threadOperations.ImmediateActionCount,
+            UrgentCount = threadOperations.UrgentCount,
             ImmediateActionQueueCount = threadOperations.ImmediateActionQueue.Count,
             TotalRevenueAtRisk = threadOperations.TotalRevenueAtRisk,
             AverageReplyTime = display.AverageReplyTime,

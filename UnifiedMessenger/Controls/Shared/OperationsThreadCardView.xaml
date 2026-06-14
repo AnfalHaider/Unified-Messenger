@@ -12,8 +12,7 @@
         Background="{ThemeResource LayerFillColorDefaultBrush}"
         BorderBrush="{x:Bind ViewModel.CardBorderBrush, Mode=OneWay}"
         BorderThickness="{x:Bind ViewModel.CardBorderThickness, Mode=OneWay}"
-        CornerRadius="{StaticResource UmCornerRadiusMdValue}"
-        ToolTipService.ToolTip="{x:Bind ViewModel.NextActionSummary, Mode=OneWay}">
+        CornerRadius="{StaticResource UmCornerRadiusMdValue}">
         <Grid ColumnSpacing="{StaticResource UmSpacingSm}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -55,12 +54,19 @@
                     </Border>
                 </Grid>
                 <TextBlock
-                    Style="{StaticResource UmCaptionTextStyle}"
-                    Text="{x:Bind ViewModel.InboxLabel, Mode=OneWay}" />
+                    FontSize="{x:Bind PreviewFontSize, Mode=OneTime}"
+                    FontWeight="SemiBold"
+                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                    MaxLines="{x:Bind PreviewMaxLines, Mode=OneTime}"
+                    Text="{x:Bind ViewModel.MessagePreview, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="WrapWholeWords" />
                 <TextBlock
                     Style="{StaticResource UmCaptionTextStyle}"
-                    Text="{x:Bind ViewModel.BranchName, Mode=OneWay}"
-                    Visibility="{x:Bind ViewModel.BranchNameVisibility, Mode=OneWay}" />
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.MetadataRow, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource UmSpacingXs}" Visibility="{x:Bind TagRowVisibility, Mode=OneTime}">
                     <Border Style="{StaticResource UmTagBadgeStyle}">
                         <TextBlock
@@ -88,14 +94,13 @@
                     </Border>
                 </StackPanel>
                 <TextBlock
-                    FontSize="{x:Bind SummaryFontSize, Mode=OneTime}"
-                    FontWeight="{x:Bind SummaryFontWeight, Mode=OneTime}"
-                    Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                    MaxLines="{x:Bind SummaryMaxLines, Mode=OneTime}"
-                    Opacity="{StaticResource UmOpacityHint}"
-                    Text="{x:Bind ViewModel.NextActionSummary, Mode=OneWay}"
+                    FontSize="{StaticResource UmBadgeFontSize}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    MaxLines="2"
+                    Text="{x:Bind ViewModel.OpsHint, Mode=OneWay}"
                     TextTrimming="CharacterEllipsis"
-                    TextWrapping="WrapWholeWords" />
+                    TextWrapping="WrapWholeWords"
+                    Visibility="{x:Bind ViewModel.OpsHintVisibility, Mode=OneWay}" />
                 <TextBlock
                     FontSize="{StaticResource UmBadgeFontSize}"
                     FontWeight="SemiBold"

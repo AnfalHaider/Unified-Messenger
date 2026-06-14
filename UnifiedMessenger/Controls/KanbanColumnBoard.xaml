@@ -37,6 +37,7 @@
             <StackPanel
                 x:Name="NewColumnPanel"
                 Grid.Column="0"
+                AutomationProperties.AutomationId="OccKanbanNew"
                 AutomationProperties.Name="Kanban column: New inquiries"
                 Spacing="{StaticResource UmSpacingXs}">
                 <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="New" />
@@ -83,6 +84,7 @@
             <StackPanel
                 x:Name="HangingColumnPanel"
                 Grid.Column="1"
+                AutomationProperties.AutomationId="OccKanbanHanging"
                 AutomationProperties.Name="Kanban column: Hanging leads"
                 Spacing="{StaticResource UmSpacingXs}">
                 <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="Hanging" />
@@ -129,6 +131,7 @@
             <StackPanel
                 x:Name="ResolvedColumnPanel"
                 Grid.Column="2"
+                AutomationProperties.AutomationId="OccKanbanResolved"
                 AutomationProperties.Name="Kanban column: Resolved threads"
                 Spacing="{StaticResource UmSpacingXs}">
                 <TextBlock Style="{StaticResource UmKanbanColumnHeaderStyle}" Text="Resolved" />

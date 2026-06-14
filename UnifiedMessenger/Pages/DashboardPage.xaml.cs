@@ -67,6 +67,7 @@ public sealed partial class DashboardPage : Page
         var navigation = _services.Navigation;
         navigation.OccBranchFilterRequested += OnOccBranchFilterRequested;
         navigation.OccImmediateLaneFocusRequested += OnOccImmediateLaneFocusRequested;
+        navigation.OccUrgentQueueFilterRequested += OnOccUrgentQueueFilterRequested;
 
         _services.AdapterHealth.Changed += OnPersonalDataChanged;
         _services.ConnectionStatus.Changed += OnPersonalDataChanged;
@@ -97,6 +98,7 @@ public sealed partial class DashboardPage : Page
         var navigation = _services.Navigation;
         navigation.OccBranchFilterRequested -= OnOccBranchFilterRequested;
         navigation.OccImmediateLaneFocusRequested -= OnOccImmediateLaneFocusRequested;
+        navigation.OccUrgentQueueFilterRequested -= OnOccUrgentQueueFilterRequested;
 
         _services.AdapterHealth.Changed -= OnPersonalDataChanged;
         _services.ConnectionStatus.Changed -= OnPersonalDataChanged;
@@ -176,6 +178,15 @@ public sealed partial class DashboardPage : Page
         {
             DashboardTabs.SelectedIndex = 0;
             OperationsCommandCenterPanel.RequestImmediateLaneFocus();
+        });
+    }
+
+    private void OnOccUrgentQueueFilterRequested(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            DashboardTabs.SelectedIndex = 0;
+            OperationsCommandCenterPanel.SelectUrgentQueueFilter();
         });
     }
 

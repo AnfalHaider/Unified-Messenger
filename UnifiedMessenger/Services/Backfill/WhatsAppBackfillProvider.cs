@@ -53,6 +53,7 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
             .ConfigureAwait(false);
 
         var payload = ParseCollectResponse(raw);
+        var urgentLlmCount = 0;
         if (payload?.Candidates is null || payload.Candidates.Count == 0)
         {
             result.HistoryChunksProcessed = await ProcessOpenChatHistoryAsync(instance, result, context, cancellationToken)
@@ -108,6 +109,10 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
             result.AnalyticsInboundRecorded++;
             result.SlaCandidatesRecorded += CountSlaFromBackfill(timestamp, context.SlaThresholdMinutes);
 
+            var allowLlm = context.EnableUrgentLlmInference &&
+                           urgentLlmCount < context.MaxUrgentLlmPerInstance &&
+                           IsUrgentBackfillCandidate(body);
+
             MessageTriageService.Instance.Enqueue(
                 new InboundMessageSelection
                 {
@@ -121,7 +126,12 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 },
                 instance.DisplayName,
                 BranchWorkspaceHelper.ResolveBranchKey(instance),
-                allowLlmInference: false);
+                allowLlmInference: allowLlm);
+
+            if (allowLlm)
+            {
+                urgentLlmCount++;
+            }
 
             ThreadRegistryService.Instance.UpdateLastMessageKind(
                 instance.Id,
@@ -143,6 +153,20 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
 
         await CommitBaselineAsync(instance.Id, cancellationToken).ConfigureAwait(false);
         return result.ToResult();
+    }
+
+    private static bool IsUrgentBackfillCandidate(string messageBody)
+    {
+        if (string.IsNullOrWhiteSpace(messageBody))
+        {
+            return false;
+        }
+
+        var lower = messageBody.ToLowerInvariant();
+        return lower.Contains("urgent", StringComparison.Ordinal) ||
+               lower.Contains("asap", StringComparison.Ordinal) ||
+               lower.Contains("emergency", StringComparison.Ordinal) ||
+               lower.Contains('?') && lower.Length >= 12;
     }
 
     private static async Task BroadcastBackfillOptionsAsync(

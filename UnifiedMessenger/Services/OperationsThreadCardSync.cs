@@ -16,13 +16,16 @@ internal static class OperationsThreadCardSync
             thread.IsRevenueLeakageRisk,
             thread.EstimatedValue,
             thread.WhatsAppDeliveryStatus ?? string.Empty,
+            thread.LastMessagePreview ?? string.Empty,
             thread.NextActionSummary ?? string.Empty,
             thread.InferenceSource.ToString());
 
     public static bool ContentEquals(OperationsThreadCardViewModel existing, OperationsThreadCardViewModel incoming) =>
         existing.ThreadId.Equals(incoming.ThreadId, StringComparison.Ordinal) &&
         existing.CustomerName == incoming.CustomerName &&
-        existing.NextActionSummary == incoming.NextActionSummary &&
+        existing.MessagePreview == incoming.MessagePreview &&
+        existing.OpsHint == incoming.OpsHint &&
+        existing.MetadataRow == incoming.MetadataRow &&
         existing.UrgencyLabel == incoming.UrgencyLabel &&
         existing.SlaText == incoming.SlaText &&
         existing.RevenueDisplay == incoming.RevenueDisplay &&

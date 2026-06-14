@@ -43,7 +43,12 @@ public sealed class OperationsStatusSnapshot
 
     public int ImmediateActionCount { get; init; }
 
-    /// <summary>Total urgent threads in scope (same value as <see cref="ImmediateActionCount"/>).</summary>
+    public int UrgentCount { get; init; }
+
+    /// <summary>Total urgent threads in scope (excludes SLA-only).</summary>
+    public int UrgentTotal => UrgentCount;
+
+    /// <summary>Total immediate-action threads including SLA-only (legacy).</summary>
     public int ImmediateActionTotal => ImmediateActionCount;
 
     /// <summary>Threads shown in the immediate action lane (capped at display limit).</summary>
