@@ -110,14 +110,14 @@ public class MessageAnalyticsServiceBranchFilterTests : IDisposable
         {
             Id = "f11",
             DisplayName = "Depilex F-11",
-            Platform = "googlebusiness",
+            Platform = "whatsappbusiness",
             Category = WorkspaceCategory.Professional
         },
         new MessengerInstance
         {
             Id = "d12",
             DisplayName = "Depilex D-12",
-            Platform = "metabusiness",
+            Platform = "whatsapp",
             Category = WorkspaceCategory.Professional
         }
     ];

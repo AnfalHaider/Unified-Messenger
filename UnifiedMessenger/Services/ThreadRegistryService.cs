@@ -15,6 +15,8 @@ public sealed class ThreadRegistryService : IThreadRegistryService
 
     private readonly object _sortedCacheGate = new();
     private IReadOnlyList<ThreadData>? _sortedThreadsCache;
+    private long _mutationVersion;
+    private long _sortedCacheVersion = -1;
 
     public static ThreadRegistryService Instance => LazyInstance.Value;
 
@@ -26,7 +28,8 @@ public sealed class ThreadRegistryService : IThreadRegistryService
     {
         lock (_sortedCacheGate)
         {
-            if (_sortedThreadsCache is not null)
+            var version = Volatile.Read(ref _mutationVersion);
+            if (_sortedThreadsCache is not null && _sortedCacheVersion == version)
             {
                 return _sortedThreadsCache;
             }
@@ -34,6 +37,7 @@ public sealed class ThreadRegistryService : IThreadRegistryService
             _sortedThreadsCache = _threads.Values
                 .OrderByDescending(thread => thread.LastMessageTime)
                 .ToList();
+            _sortedCacheVersion = version;
 
             return _sortedThreadsCache;
         }
@@ -479,7 +483,6 @@ public sealed class ThreadRegistryService : IThreadRegistryService
             return;
         }
 
-        InvalidateSortedCache();
         if (raiseChanged)
         {
             Changed?.Invoke(this, EventArgs.Empty);
@@ -598,12 +601,13 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         lock (_sortedCacheGate)
         {
             _sortedThreadsCache = null;
+            _sortedCacheVersion = -1;
         }
     }
 
     private void NotifyChanged()
     {
-        InvalidateSortedCache();
+        Interlocked.Increment(ref _mutationVersion);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

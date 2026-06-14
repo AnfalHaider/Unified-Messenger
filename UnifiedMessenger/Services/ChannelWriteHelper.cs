@@ -4,7 +4,8 @@ namespace UnifiedMessenger.Services;
 
 internal static class ChannelWriteHelper
 {
-    public static bool TryWriteWithDropLog<T>(
+    public static bool TryWriteWithDropOldest<T>(
+        ChannelReader<T> reader,
         ChannelWriter<T> writer,
         T item,
         string channelName)
@@ -14,9 +15,14 @@ internal static class ChannelWriteHelper
             return true;
         }
 
-        System.Diagnostics.Debug.WriteLine(
-            $"[{channelName}] channel full — dropped oldest item to enqueue new work.");
+        if (reader.TryRead(out _))
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[{channelName}] channel full — dropped oldest item to enqueue new work.");
+            return writer.TryWrite(item);
+        }
 
-        return writer.TryWrite(item);
+        System.Diagnostics.Debug.WriteLine($"[{channelName}] channel full — enqueue rejected.");
+        return false;
     }
 }

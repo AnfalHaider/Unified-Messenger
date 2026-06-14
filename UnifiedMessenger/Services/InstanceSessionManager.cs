@@ -155,10 +155,6 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             {
                 await CloseSessionAsync(previousInstanceId).ConfigureAwait(true);
             }
-            else
-            {
-                await TrySuspendSessionAsync(previousInstanceId).ConfigureAwait(true);
-            }
         }
 
         SessionInitializing?.Invoke(this, new InstanceSessionEventArgs(instance));
@@ -243,15 +239,15 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
     public Task HideVisibleSessionAsync() =>
         UiThreadRunner.RunAsync(HideVisibleSessionCoreAsync);
 
-    private async Task HideVisibleSessionCoreAsync()
+    private Task HideVisibleSessionCoreAsync()
     {
         if (_visibleInstanceId is not null && _sessions.TryGetValue(_visibleInstanceId, out var current))
         {
             SetSessionVisualState(_visibleInstanceId, current.WebView, isForeground: false);
-            await TrySuspendSessionAsync(_visibleInstanceId).ConfigureAwait(true);
         }
 
         _visibleInstanceId = null;
+        return Task.CompletedTask;
     }
 
     public Task CloseSessionAsync(string instanceId) =>
@@ -557,6 +553,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
     private async Task DisposeSessionEntryCoreAsync(string instanceId, SessionEntry entry, bool unregister)
     {
         DetachMessageHandler(entry);
+        DetachNavigationHandler(entry);
 
         if (_host?.Children.Contains(entry.WebView) == true)
         {
@@ -589,6 +586,16 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         }
 
         await Task.CompletedTask;
+    }
+
+    private static void DetachNavigationHandler(SessionEntry entry)
+    {
+        if (entry.WebView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        PlatformNavigationHooks.Detach(entry.WebView.CoreWebView2);
     }
 
     private static void DetachMessageHandler(SessionEntry entry)
@@ -657,7 +664,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             var adapter = PlatformAdapterFactory.Resolve(instance.Platform);
             TypedEventHandler<CoreWebView2, CoreWebView2WebMessageReceivedEventArgs> messageHandler = (_, args) =>
             {
-                adapter.HandleWebMessage(args.WebMessageAsJson, NotificationHub.Instance, instance);
+                WebMessageIngressService.Instance.Enqueue(args.WebMessageAsJson, instance);
             };
 
             coreWebView.WebMessageReceived += messageHandler;

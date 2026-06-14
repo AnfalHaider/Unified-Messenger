@@ -14,11 +14,11 @@ public class MessageTriageServiceTests
         {
             new MessengerInstance
             {
-                Id = "meta-1",
+                Id = "wa-1",
                 DisplayName = "Depilex F-11",
-                ProfileName = "meta-1",
-                Platform = "metabusiness",
-                StartUrl = "https://business.facebook.com",
+                ProfileName = "wa-1",
+                Platform = "whatsapp",
+                StartUrl = "https://web.whatsapp.com",
                 Category = WorkspaceCategory.Professional
             }
         };
@@ -26,8 +26,8 @@ public class MessageTriageServiceTests
         service.ProcessInboundForTests(
             new InboundMessageSelection
             {
-                InstanceId = "meta-1",
-                Platform = "metabusiness",
+                InstanceId = "wa-1",
+                Platform = "whatsapp",
                 MessageText = "Thanks for the great service yesterday!",
                 CustomerName = "Ali"
             },
@@ -36,8 +36,8 @@ public class MessageTriageServiceTests
         service.ProcessInboundForTests(
             new InboundMessageSelection
             {
-                InstanceId = "meta-1",
-                Platform = "metabusiness",
+                InstanceId = "wa-1",
+                Platform = "whatsapp",
                 MessageText = "I need to cancel my booking immediately, this is urgent.",
                 CustomerName = "Sara"
             },
@@ -59,8 +59,8 @@ public class MessageTriageServiceTests
         service.ProcessInboundForTests(
             new InboundMessageSelection
             {
-                InstanceId = "meta-1",
-                Platform = "metabusiness",
+                InstanceId = "wa-1",
+                Platform = "whatsapp",
                 MessageText = "Can I book an appointment for tomorrow?",
                 CustomerName = "Sara"
             },
@@ -82,7 +82,7 @@ public class MessageTriageServiceTests
             new InboundMessageSelection
             {
                 InstanceId = "branch-a",
-                Platform = "metabusiness",
+                Platform = "whatsapp",
                 MessageText = "I need to cancel my booking immediately, this is urgent."
             },
             "Branch A");
@@ -91,7 +91,7 @@ public class MessageTriageServiceTests
             new InboundMessageSelection
             {
                 InstanceId = "branch-b",
-                Platform = "metabusiness",
+                Platform = "whatsapp",
                 MessageText = "Refund my payment now, terrible service."
             },
             "Branch B");
@@ -103,7 +103,7 @@ public class MessageTriageServiceTests
                 Id = "branch-a",
                 DisplayName = "Branch A",
                 ProfileName = "branch-a",
-                Platform = "metabusiness",
+                Platform = "whatsapp",
                 StartUrl = "https://example.com",
                 Category = WorkspaceCategory.Professional
             }

@@ -98,7 +98,7 @@ public sealed class AiInferenceQueue : IDisposable
             EnqueuedAtUtc = DateTimeOffset.UtcNow
         };
 
-        _ = ChannelWriteHelper.TryWriteWithDropLog(_signal.Writer, threadId, "AiInference");
+        _ = ChannelWriteHelper.TryWriteWithDropOldest(_signal.Reader, _signal.Writer, threadId, "AiInference");
         Changed?.Invoke(this, EventArgs.Empty);
         return true;
     }

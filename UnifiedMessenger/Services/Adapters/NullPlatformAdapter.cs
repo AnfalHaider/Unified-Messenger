@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using UnifiedMessenger.Models;
 
@@ -21,6 +22,10 @@ internal sealed class NullPlatformAdapter : IPlatformAdapter
         Task.CompletedTask;
 
     public void HandleWebMessage(string messageJson, NotificationHub hub, MessengerInstance instance)
+    {
+    }
+
+    public void HandleParsedWebMessage(JsonElement root, NotificationHub hub, MessengerInstance instance)
     {
     }
 }

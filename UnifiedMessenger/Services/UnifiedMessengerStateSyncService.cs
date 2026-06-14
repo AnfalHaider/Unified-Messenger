@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Threading.Channels;
 using UnifiedMessenger.Models;
 
@@ -43,6 +44,7 @@ public sealed class UnifiedMessengerStateSyncService
             SingleWriter = false
         });
 
+    private readonly ConcurrentQueue<UnifiedMessengerSyncEvent> _overflow = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _worker;
 
@@ -57,7 +59,7 @@ public sealed class UnifiedMessengerStateSyncService
 
     public static UnifiedMessengerStateSyncService Instance => LazyInstance.Value;
 
-    public int PendingCount => _channel.Reader.Count;
+    public int PendingCount => _channel.Reader.Count + _overflow.Count;
 
     public void EnqueueThreadResolved(
         string instanceId,
@@ -83,23 +85,12 @@ public sealed class UnifiedMessengerStateSyncService
             Platform = platform
         };
 
-        _ = EnqueueAsync(syncEvent);
-    }
+        if (_channel.Writer.TryWrite(syncEvent))
+        {
+            return;
+        }
 
-    private async Task EnqueueAsync(UnifiedMessengerSyncEvent syncEvent)
-    {
-        try
-        {
-            await _channel.Writer.WriteAsync(syncEvent, _cts.Token).ConfigureAwait(false);
-        }
-        catch (ChannelClosedException)
-        {
-            // shutdown
-        }
-        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
-        {
-            // shutdown
-        }
+        _overflow.Enqueue(syncEvent);
     }
 
     internal async Task ProcessEventForTestsAsync(UnifiedMessengerSyncEvent syncEvent)
@@ -116,6 +107,7 @@ public sealed class UnifiedMessengerStateSyncService
                 try
                 {
                     await ProcessEventAsync(syncEvent).ConfigureAwait(false);
+                    DrainOverflow();
                 }
                 catch (Exception ex)
                 {
@@ -126,6 +118,18 @@ public sealed class UnifiedMessengerStateSyncService
         catch (OperationCanceledException)
         {
             // shutdown
+        }
+    }
+
+    private void DrainOverflow()
+    {
+        while (_overflow.TryDequeue(out var syncEvent))
+        {
+            if (!_channel.Writer.TryWrite(syncEvent))
+            {
+                _overflow.Enqueue(syncEvent);
+                break;
+            }
         }
     }
 

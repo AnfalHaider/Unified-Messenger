@@ -88,7 +88,7 @@ public class ThreadDisplayOrderServiceTests
         {
             ThreadId = threadId,
             InstanceId = "inst-1",
-            Platform = "metabusiness",
+            Platform = "whatsapp",
             CustomerName = threadId,
             LastMessageTime = lastMessageTime
         };

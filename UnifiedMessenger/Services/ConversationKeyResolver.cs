@@ -11,17 +11,11 @@ namespace UnifiedMessenger.Services;
 /// Platform conventions:
 /// <list type="bullet">
 /// <item>WhatsApp / WhatsApp Business — chat JID (e.g. <c>1234567890@c.us</c>)</item>
-/// <item>Google Business — <c>review:{reviewId}</c></item>
-/// <item>Meta Business — normalized conversation header title (same as thread-status-auditor)</item>
 /// <item>Fallback — trimmed customer name, then message preview prefix</item>
 /// </list>
 /// </remarks>
 public static class ConversationKeyResolver
 {
-    public const string ReviewKeyPrefix = "review:";
-
-    public const string MetaMessageKeyPrefix = "meta:msg:";
-
     public static string Resolve(
         string platform,
         string? conversationKey = null,
@@ -29,11 +23,11 @@ public static class ConversationKeyResolver
         string? customerName = null,
         string? messagePreview = null)
     {
-        var normalizedPlatform = PlatformDefinition.NormalizePlatformId(platform);
+        _ = PlatformDefinition.NormalizePlatformId(platform);
 
         if (!string.IsNullOrWhiteSpace(conversationKey))
         {
-            var explicitKey = NormalizeExplicitKey(conversationKey, normalizedPlatform);
+            var explicitKey = NormalizeExplicitKey(conversationKey);
             if (!string.IsNullOrWhiteSpace(explicitKey))
             {
                 return explicitKey;
@@ -42,7 +36,7 @@ public static class ConversationKeyResolver
 
         if (!string.IsNullOrWhiteSpace(conversationHint))
         {
-            var hintKey = NormalizeHintOrFallback(normalizedPlatform, conversationHint.Trim());
+            var hintKey = NormalizeHintOrFallback(conversationHint.Trim());
             if (!string.IsNullOrWhiteSpace(hintKey))
             {
                 return hintKey;
@@ -52,7 +46,7 @@ public static class ConversationKeyResolver
         if (!string.IsNullOrWhiteSpace(customerName))
         {
             var nameKey = CollapseWhitespace(customerName);
-            if (!IsGenericConversationLabel(nameKey, normalizedPlatform))
+            if (!IsGenericConversationLabel(nameKey))
             {
                 return nameKey;
             }
@@ -61,19 +55,13 @@ public static class ConversationKeyResolver
         if (!string.IsNullOrWhiteSpace(messagePreview))
         {
             var preview = messagePreview.Trim();
-            if (normalizedPlatform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase) &&
-                preview.Length >= 8)
-            {
-                return BuildMetaMessageFingerprint(preview);
-            }
-
             return preview.Length <= 48 ? preview : preview[..48].Trim();
         }
 
         return "unknown";
     }
 
-    public static bool IsGenericConversationLabel(string? value, string? platform = null)
+    public static bool IsGenericConversationLabel(string? value)
     {
         var trimmed = CollapseWhitespace(value ?? string.Empty);
         if (string.IsNullOrWhiteSpace(trimmed))
@@ -84,25 +72,10 @@ public static class ConversationKeyResolver
         var normalized = trimmed.ToLowerInvariant();
         return normalized switch
         {
-            "inbox" or "messages" or "message requests" or "messenger" or "meta business inbox"
-                or "meta business suite" or "all messages" or "unread" or "archived" or "spam"
-                or "business inbox" or "customer messages" => true,
-            _ when normalized.StartsWith("meta business", StringComparison.Ordinal) => true,
+            "inbox" or "messages" or "message requests" or "all messages" or "unread" or "archived" or "spam"
+                => true,
             _ => false
         };
-    }
-
-    internal static string BuildMetaMessageFingerprint(string messagePreview)
-    {
-        var normalized = CollapseWhitespace(messagePreview);
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return "unknown";
-        }
-
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(normalized))).ToLowerInvariant();
-        return MetaMessageKeyPrefix + hash[..12];
     }
 
     public static string BuildThreadId(string instanceId, string conversationKey)
@@ -116,15 +89,6 @@ public static class ConversationKeyResolver
         return $"{instanceId.Trim()}|{key}";
     }
 
-    public static string BuildReviewKey(string reviewId) =>
-        string.IsNullOrWhiteSpace(reviewId)
-            ? string.Empty
-            : ReviewKeyPrefix + reviewId.Trim();
-
-    public static bool IsReviewKey(string? conversationKey) =>
-        !string.IsNullOrWhiteSpace(conversationKey) &&
-        conversationKey.StartsWith(ReviewKeyPrefix, StringComparison.OrdinalIgnoreCase);
-
     public static bool IsWhatsAppJid(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) || !value.Contains('@', StringComparison.Ordinal))
@@ -137,7 +101,7 @@ public static class ConversationKeyResolver
                value.EndsWith("@s.whatsapp.net", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static string NormalizeExplicitKey(string conversationKey, string? platform = null)
+    internal static string NormalizeExplicitKey(string conversationKey)
     {
         var trimmed = CollapseWhitespace(conversationKey);
         if (string.IsNullOrWhiteSpace(trimmed))
@@ -145,61 +109,29 @@ public static class ConversationKeyResolver
             return string.Empty;
         }
 
-        if (trimmed.StartsWith(ReviewKeyPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return ReviewKeyPrefix + trimmed[ReviewKeyPrefix.Length..].Trim();
-        }
-
-        if (trimmed.StartsWith(MetaMessageKeyPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return MetaMessageKeyPrefix + trimmed[MetaMessageKeyPrefix.Length..].Trim().ToLowerInvariant();
-        }
-
         if (IsWhatsAppJid(trimmed))
         {
             return trimmed;
         }
 
-        if (platform?.Equals("metabusiness", StringComparison.OrdinalIgnoreCase) == true &&
-            IsGenericConversationLabel(trimmed, platform))
-        {
-            return string.Empty;
-        }
-
         return trimmed;
     }
 
-    private static string NormalizeHintOrFallback(string platform, string conversationHint)
+    private static string NormalizeHintOrFallback(string conversationHint)
     {
-        if (conversationHint.StartsWith(ReviewKeyPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return NormalizeExplicitKey(conversationHint, platform);
-        }
-
-        if (conversationHint.StartsWith(MetaMessageKeyPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return NormalizeExplicitKey(conversationHint, platform);
-        }
-
         if (IsWhatsAppJid(conversationHint))
         {
             return conversationHint;
         }
 
-        var collapsed = CollapseWhitespace(conversationHint);
-        if (platform.Equals("metabusiness", StringComparison.OrdinalIgnoreCase) &&
-            IsGenericConversationLabel(collapsed, platform))
-        {
-            return string.Empty;
-        }
-
-        return collapsed;
+        return CollapseWhitespace(conversationHint);
     }
 
     public static bool Matches(string? expected, string? actual, string? platform = null)
     {
-        var expectedKey = NormalizeExplicitKey(expected ?? string.Empty, platform);
-        var actualKey = NormalizeExplicitKey(actual ?? string.Empty, platform);
+        _ = platform;
+        var expectedKey = NormalizeExplicitKey(expected ?? string.Empty);
+        var actualKey = NormalizeExplicitKey(actual ?? string.Empty);
 
         if (string.IsNullOrWhiteSpace(expectedKey) || string.IsNullOrWhiteSpace(actualKey))
         {

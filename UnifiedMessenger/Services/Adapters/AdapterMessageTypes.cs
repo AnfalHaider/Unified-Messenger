@@ -17,17 +17,9 @@ public static class AdapterMessageTypes
 
     public const string MessageSent = "message-sent";
 
-    public const string MetaInboundMessage = "meta-inbound-message";
-
-    public const string GoogleReviewSnapshot = "google-review-snapshot";
-
-    public const string GoogleReviewAlert = "google-review-alert";
-
     public const string InboundMessageSelected = "inbound-message-selected";
 
     public const string DashboardScrapeStatus = "dashboard-scrape-status";
-
-    public const string MetaTelemetrySnapshot = "meta-telemetry-snapshot";
 
     public const string UpdateThreadStatus = "update-thread-status";
 
@@ -58,12 +50,8 @@ public static class AdapterMessageTypes
 
     public static bool IsKnownType(string? type) =>
         IsStandardType(type) ||
-        MetaInboundMessage.Equals(type, StringComparison.OrdinalIgnoreCase) ||
-        GoogleReviewSnapshot.Equals(type, StringComparison.OrdinalIgnoreCase) ||
-        GoogleReviewAlert.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         InboundMessageSelected.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
-        MetaTelemetrySnapshot.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         UpdateThreadStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         WhatsAppThreadContext.Equals(type, StringComparison.OrdinalIgnoreCase) ||
         WhatsAppOutgoingStatus.Equals(type, StringComparison.OrdinalIgnoreCase) ||

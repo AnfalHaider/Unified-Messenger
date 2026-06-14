@@ -35,7 +35,7 @@ public class UnifiedMessengerDashboardDisplayOrderTests
             {
                 Id = "inst-1",
                 Category = WorkspaceCategory.Professional,
-                Platform = "metabusiness",
+                Platform = "whatsapp",
                 DisplayName = "Meta"
             }
         ]);
@@ -57,7 +57,7 @@ public class UnifiedMessengerDashboardDisplayOrderTests
         {
             ThreadId = threadId,
             InstanceId = "inst-1",
-            Platform = "metabusiness",
+            Platform = "whatsapp",
             CustomerName = threadId,
             LastMessageTime = lastMessageTime,
             IsReplied = isReplied,

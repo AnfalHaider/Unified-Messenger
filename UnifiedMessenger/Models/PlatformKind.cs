@@ -5,8 +5,6 @@ namespace UnifiedMessenger.Models;
 /// </summary>
 public enum PlatformKind
 {
-    Meta,
-    Google,
     WhatsApp,
     WhatsAppBusiness,
     Generic
@@ -17,8 +15,6 @@ public static class PlatformKindExtensions
     public static string ToPlatformId(this PlatformKind kind) =>
         kind switch
         {
-            PlatformKind.Meta => "metabusiness",
-            PlatformKind.Google => "googlebusiness",
             PlatformKind.WhatsApp => "whatsapp",
             PlatformKind.WhatsAppBusiness => "whatsappbusiness",
             _ => "generic"
@@ -29,8 +25,6 @@ public static class PlatformKindExtensions
         var normalized = PlatformDefinition.NormalizePlatformId(platformId);
         return normalized switch
         {
-            "metabusiness" => PlatformKind.Meta,
-            "googlebusiness" => PlatformKind.Google,
             "whatsapp" => PlatformKind.WhatsApp,
             "whatsappbusiness" => PlatformKind.WhatsAppBusiness,
             _ => PlatformKind.Generic

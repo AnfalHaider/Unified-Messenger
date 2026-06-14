@@ -14,6 +14,8 @@ public interface IPlatformAdapter
     Task RegisterAsync(CoreWebView2 coreWebView, MessengerInstance instance, CancellationToken cancellationToken = default);
 
     void HandleWebMessage(string messageJson, NotificationHub hub, MessengerInstance instance);
+
+    void HandleParsedWebMessage(JsonElement root, NotificationHub hub, MessengerInstance instance);
 }
 
 public abstract class BasePlatformAdapter : IPlatformAdapter
@@ -163,8 +165,25 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         try
         {
             using var document = WebMessageParser.Parse(messageJson);
-            var root = document.RootElement;
+            HandleParsedWebMessage(document.RootElement, hub, instance);
+        }
+        catch (JsonException ex)
+        {
+            Debug.WriteLine($"WebMessage parse failed: {ex.Message} | Raw: {messageJson}");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WebMessage handling failed: {ex.Message} | Raw: {messageJson}");
+        }
+    }
 
+    public void HandleParsedWebMessage(JsonElement root, NotificationHub hub, MessengerInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(hub);
+        ArgumentNullException.ThrowIfNull(instance);
+
+        try
+        {
             if (!WebMessageParser.MatchesInstance(root, instance))
             {
                 return;
@@ -208,30 +227,18 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
             HandleCustomMessage(type, root, hub, instance);
         }
-        catch (JsonException ex)
-        {
-            Debug.WriteLine($"WebMessage parse failed: {ex.Message} | Raw: {messageJson}");
-        }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WebMessage handling failed: {ex.Message} | Raw: {messageJson}");
+            Debug.WriteLine($"WebMessage handling failed: {ex.Message}");
         }
     }
 
     protected virtual void RegisterNavigationHooks(CoreWebView2 coreWebView, MessengerInstance instance)
     {
-        coreWebView.NavigationCompleted += (sender, args) =>
-        {
-            if (!args.IsSuccess)
-            {
-                InstanceConnectionStatusService.Instance.SetError(
-                    instance.Id,
-                    args.WebErrorStatus.ToString());
-                return;
-            }
-
-            _ = UiThreadRunner.RunAsync(() => OnNavigationCompletedAsync(coreWebView, instance));
-        };
+        PlatformNavigationHooks.Attach(
+            coreWebView,
+            instance,
+            () => OnNavigationCompletedAsync(coreWebView, instance));
     }
 
     private async Task OnNavigationCompletedAsync(CoreWebView2 coreWebView, MessengerInstance instance)

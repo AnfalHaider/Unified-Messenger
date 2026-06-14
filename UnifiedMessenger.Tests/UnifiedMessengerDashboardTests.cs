@@ -363,7 +363,7 @@ public class UnifiedMessengerDashboardServiceTests : IDisposable
             Id = $"{instanceId}|test",
             InstanceId = instanceId,
             InstanceDisplayName = "Depilex DHA-2",
-            Platform = "metabusiness",
+            Platform = "whatsapp",
             MessagePreview = preview,
             CustomerName = customer,
             UrgencyScore = 90,

@@ -18,10 +18,9 @@ public class AdapterMessageTypesTests
 
     [Theory]
     [InlineData("badge-count", true)]
-    [InlineData("google-review-snapshot", true)]
+    [InlineData("whatsapp-sidebar-snapshot", true)]
     [InlineData("inbound-message-selected", true)]
     [InlineData("dashboard-scrape-status", true)]
-    [InlineData("meta-telemetry-snapshot", true)]
     [InlineData("update-thread-status", true)]
     [InlineData("unknown-type", false)]
     public void IsKnownType_ClassifiesSupportedMessages(string type, bool expected)

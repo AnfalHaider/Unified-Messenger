@@ -65,7 +65,8 @@ public sealed class MessageTriageService : IMessageTriageService
             return;
         }
 
-        _ = ChannelWriteHelper.TryWriteWithDropLog(
+        _ = ChannelWriteHelper.TryWriteWithDropOldest(
+            _channel.Reader,
             _channel.Writer,
             new MessageTriageRequest
             {

@@ -17,7 +17,7 @@ public class BackfillSyncManagerTests : IDisposable
     [Theory]
     [InlineData("whatsapp", true)]
     [InlineData("whatsappbusiness", true)]
-    [InlineData("metabusiness", false)]
+    [InlineData("slack", false)]
     public void WhatsAppBackfillProvider_CanBackfillWhatsAppPlatforms(string platform, bool expected)
     {
         var provider = new WhatsAppBackfillProvider();

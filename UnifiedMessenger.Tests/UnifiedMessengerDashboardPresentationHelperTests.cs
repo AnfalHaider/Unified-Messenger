@@ -26,6 +26,6 @@ public class UnifiedMessengerDashboardPresentationHelperTests
     {
         Assert.Equal("#22C55E", UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex("Green"));
         Assert.Equal("#F59E0B", UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex("Amber"));
-        Assert.Equal("#EF4444", UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex("Red"));
+        Assert.Equal("#DC2626", UnifiedMessengerDashboardPresentationHelper.ResolveLatencyHex("Red"));
     }
 }

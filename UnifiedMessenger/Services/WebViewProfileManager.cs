@@ -52,11 +52,19 @@ public sealed partial class WebViewProfileManager : IWebViewProfileManager
 
             Directory.CreateDirectory(UserDataFolder);
 
+            // Shared browser process flags — see WebView2 browser feature flags (V8 scavenger cap).
+            // Documented in STAGE3-Core-Architect-changelog.md.
+            var environmentOptions = new CoreWebView2EnvironmentOptions
+            {
+                AdditionalBrowserArguments =
+                    "--js-flags=--scavenger_max_new_space_capacity_mb=32"
+            };
+
             _sharedEnvironment = await CoreWebView2Environment
                 .CreateWithOptionsAsync(
                     browserExecutableFolder: null,
                     userDataFolder: UserDataFolder,
-                    options: null)
+                    options: environmentOptions)
                 .AsTask()
                 .ConfigureAwait(false);
 
