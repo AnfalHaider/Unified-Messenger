@@ -63,6 +63,7 @@
     <Color x:Key="UmModalOverlayColor">#66000000</Color>
     <SolidColorBrush x:Key="UmModalOverlayBrush" Color="{StaticResource UmModalOverlayColor}" />
     <SolidColorBrush x:Key="UmTransparentBrush" Color="#00000000" />
+    <Thickness x:Key="UmPaddingBottomSm">0,0,0,8</Thickness>
     <Thickness x:Key="UmPaddingBottomXl">0,0,0,24</Thickness>
     <Thickness x:Key="UmMarginBottomSm">0,0,0,8</Thickness>
     <CornerRadius x:Key="UmCornerRadiusMdValue">8</CornerRadius>

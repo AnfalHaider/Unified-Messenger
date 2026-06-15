@@ -57,7 +57,7 @@ public class InstallerScriptTests
         var script = ReadInstallerShared();
 
         Assert.Contains("CompareText(DirName, 'ollama')", script, StringComparison.Ordinal);
-        Assert.Contains("#define MyAppVersion \"4.2.0\"", script, StringComparison.Ordinal);
+        Assert.Contains("#define MyAppVersion \"4.2.1\"", script, StringComparison.Ordinal);
     }
 
     [Fact]
