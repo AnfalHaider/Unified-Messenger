@@ -128,13 +128,10 @@ public sealed partial class SettingsPage
             return;
         }
 
-        _viewModel.CreateImportBackup = ImportBackupCheckBox.IsChecked == true;
         var confirm = new ContentDialog
         {
             Title = "Import instances?",
-            Content = SettingsImportExportPresenter.BuildImportDialogContent(
-                importSummary,
-                _viewModel.CreateImportBackup),
+            Content = SettingsImportExportPresenter.BuildImportDialogContent(importSummary),
             PrimaryButtonText = "Import",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
@@ -148,12 +145,6 @@ public sealed partial class SettingsPage
 
         try
         {
-            if (_viewModel.CreateImportBackup && File.Exists(_registry.StorePath))
-            {
-                var backupPath = SettingsPageHelper.BuildImportBackupPath(_registry.StorePath);
-                File.Copy(_registry.StorePath, backupPath, overwrite: true);
-            }
-
             var result = await _registry.ImportInstancesAsync(file.Path);
             RefreshArchivedAccounts();
             RefreshStoragePaths();

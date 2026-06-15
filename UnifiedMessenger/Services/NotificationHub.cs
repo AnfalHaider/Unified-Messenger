@@ -197,7 +197,7 @@ public sealed class NotificationHub : INotificationHubService
     {
         ArgumentNullException.ThrowIfNull(alert);
 
-        if (string.IsNullOrWhiteSpace(alert.InstanceId) || IsInstanceMuted(alert.InstanceId))
+        if (string.IsNullOrWhiteSpace(alert.InstanceId))
         {
             return;
         }

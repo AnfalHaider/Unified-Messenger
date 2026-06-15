@@ -27,7 +27,4 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _profilesPath = string.Empty;
-
-    [ObservableProperty]
-    private bool _createImportBackup = true;
 }

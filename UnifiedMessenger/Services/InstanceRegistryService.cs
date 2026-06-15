@@ -222,8 +222,18 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         }
     }
 
-    public MessengerInstance? FindById(string instanceId) =>
-        _store.Instances.FirstOrDefault(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+    public MessengerInstance? FindById(string instanceId)
+    {
+        _gate.Wait();
+        try
+        {
+            return _store.Instances.FirstOrDefault(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
 
     public async Task UpdateInstanceCategoryAsync(
         string instanceId,
@@ -492,6 +502,11 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            if (File.Exists(_storePath))
+            {
+                File.Copy(_storePath, _storePath + ".bak", overwrite: true);
+            }
+
             _store = imported;
             MigrateStoreIfNeeded();
             NormalizeStore(ensureUniqueIdentifiers: true);

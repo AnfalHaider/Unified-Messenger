@@ -36,7 +36,6 @@ public sealed partial class SettingsPage : Page
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         EnsureComboBoxesInitialized();
-        ImportBackupCheckBox.IsChecked = _viewModel.CreateImportBackup;
         ApplySettingsAccessibilityNames();
         AccessibilityTabOrderHelper.ApplyTabIndex(SectionNavList, AccessibilityTabOrderHelper.SettingsSectionNav);
         AccessibilityTabOrderHelper.ApplyTabIndex(SettingsScrollViewer, AccessibilityTabOrderHelper.SettingsContent);
@@ -81,7 +80,6 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(PullLocalAiModelButton, "Pull selected local AI model");
         AutomationProperties.SetName(ClearAnalyticsButton, "Clear operational data");
         AutomationProperties.SetName(ExportInstancesButton, "Export instances");
-        AutomationProperties.SetName(ImportBackupCheckBox, "Create backup before import");
         AutomationProperties.SetName(ImportInstancesButton, "Import instances");
         AutomationProperties.SetName(RunInBackgroundOnCloseToggle, "Run in background on close");
         AutomationProperties.SetName(LaunchAtStartupToggle, "Launch at startup");

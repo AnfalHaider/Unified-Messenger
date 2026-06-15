@@ -24,11 +24,10 @@ public static class SettingsImportExportPresenter
         Environment.NewLine + Environment.NewLine +
         $"Registry file: {summary.StorePath}";
 
-    public static string BuildImportDialogContent(SettingsImportSummary summary, bool createBackup) =>
+    public static string BuildImportDialogContent(SettingsImportSummary summary) =>
         SettingsPageHelper.BuildImportConfirmationMessage(
             summary.ActiveCount,
-            summary.ArchivedCount,
-            createBackup);
+            summary.ArchivedCount);
 
     public static SettingsImportSummary BuildImportSummary(string sourcePath, InstanceStore imported) =>
         new(

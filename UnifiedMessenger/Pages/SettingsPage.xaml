@@ -491,10 +491,6 @@
                                 HorizontalAlignment="Left"
                                 Click="ExportInstancesButton_Click"
                                 Content="Export instances.json" />
-                            <CheckBox
-                                x:Name="ImportBackupCheckBox"
-                                Content="Create backup before import"
-                                IsChecked="True" />
                             <Button
                                 x:Name="ImportInstancesButton"
                                 HorizontalAlignment="Left"

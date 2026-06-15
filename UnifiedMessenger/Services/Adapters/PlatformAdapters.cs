@@ -329,10 +329,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
     }
 
-    protected static void HandleDashboardScrapeStatus(JsonElement root, MessengerInstance instance)
-    {
-    }
-
     protected static bool TryHandleInboundMessageSelected(
         string? type,
         JsonElement root,
@@ -478,13 +474,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                     previewCustomerName,
                     body);
 
-                if (ShouldRecordPreviewForAnalytics(instance.Platform, title, body))
-                {
-                    MessageAnalyticsService.Instance.RecordMessageReceived(
-                        instance.Id,
-                        resolvedPreviewKey);
-                }
-
                 hub.AddAlert(NotificationAlert.Create(
                     instance.Id,
                     instance.DisplayName,
@@ -581,9 +570,6 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                 return false;
         }
     }
-
-    private static bool ShouldRecordPreviewForAnalytics(string platform, string title, string body) =>
-        false;
 
     private static bool IsInstanceOperationalForResolve(string instanceId)
     {

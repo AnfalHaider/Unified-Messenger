@@ -73,21 +73,13 @@ public static class SettingsPageHelper
         $"This export includes {activeCount} active and {archivedCount} archived account(s). " +
         "Login sessions stay on this device; only instance metadata is exported.";
 
-    public static string BuildImportConfirmationMessage(
-        int activeCount,
-        int archivedCount,
-        bool createBackup) =>
-        $"This replaces your current instance list with {activeCount} active and {archivedCount} archived account(s) from the selected file." +
-        (createBackup
-            ? " A backup of your current registry will be saved alongside the existing file."
-            : " No backup will be created.");
+    public static string BuildImportConfirmationMessage(int activeCount, int archivedCount) =>
+        $"This replaces your current instance list with {activeCount} active and {archivedCount} archived account(s) from the selected file. " +
+        "A backup of your current registry will be saved automatically.";
 
     public static string BuildPermanentDeleteConfirmation(string? displayName) =>
         $"Permanently delete \"{DeleteInstanceDialogHelper.NormalizeDisplayName(displayName)}\"? " +
         "This removes the account from the registry and deletes its WebView profile data. This cannot be undone.";
-
-    public static string BuildImportBackupPath(string storePath) =>
-        $"{storePath}.bak";
 
     public static string FormatCommaSeparatedList(IEnumerable<string>? values) =>
         values is null
