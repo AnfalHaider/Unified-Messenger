@@ -52,7 +52,7 @@ public sealed class AppSettings
 
     public StartupWarmMode StartupWarmMode { get; set; } = StartupWarmMode.VisibleOnly;
 
-    public bool EnableLazyWebViewLoading { get; set; }
+    public bool EnableLazyWebViewLoading { get; set; } = true;
 
     public bool EnablePerInstanceSleepUnload { get; set; }
 

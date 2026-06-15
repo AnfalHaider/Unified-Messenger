@@ -299,13 +299,13 @@
 
                         <Expander
                             x:Name="ExperimentalExpander"
-                            Header="Experimental"
-                            IsExpanded="False">
+                            Header="Advanced options"
+                            IsExpanded="True">
                             <StackPanel Spacing="12">
                                 <TextBlock
                                     FontSize="12"
                                     Opacity="0.65"
-                                    Text="Path C session options. Behavior may change in future releases."
+                                    Text="Opt-in features and memory management options. Changes take effect immediately."
                                     TextWrapping="WrapWholeWords" />
 
                         <ToggleSwitch
@@ -314,7 +314,14 @@
                             OnContent="On"
                             Toggled="EnableLazyWebViewLoadingToggle_Toggled">
                             <ToggleSwitch.Header>
-                                <TextBlock Text="Enable lazy WebView loading" />
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Lazy WebView loading" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Load non-visible instances in the background after startup instead of all at once."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
 
@@ -324,7 +331,14 @@
                             OnContent="On"
                             Toggled="EnablePerInstanceSleepUnloadToggle_Toggled">
                             <ToggleSwitch.Header>
-                                <TextBlock Text="Enable per-instance sleep unload" />
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Sleep unload inactive instances" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Unload the WebView of instances not used for a while to reduce memory usage."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
 
@@ -334,7 +348,14 @@
                             OnContent="On"
                             Toggled="EnableEditInstanceMetadataToggle_Toggled">
                             <ToggleSwitch.Header>
-                                <TextBlock Text="Enable edit instance metadata" />
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Edit instance metadata" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Adds an 'Edit instance metadata' option to the instance context menu for changing display name, URL, platform, notes, and branch tag."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
 
@@ -344,7 +365,14 @@
                             OnContent="On"
                             Toggled="EnableImportExportInstancesToggle_Toggled">
                             <ToggleSwitch.Header>
-                                <TextBlock Text="Enable import / export instances" />
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Import and export instance registry" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Shows import and export controls in Data &amp; Privacy to back up or migrate your instance list between devices."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
 
@@ -354,7 +382,14 @@
                             OnContent="On"
                             Toggled="EnableInstanceNotesTagsToggle_Toggled">
                             <ToggleSwitch.Header>
-                                <TextBlock Text="Enable instance notes and tags" />
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Instance notes and branch tags" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Allows attaching free-text notes and a branch tag to each instance for team or multi-workspace setups."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
                             </StackPanel>

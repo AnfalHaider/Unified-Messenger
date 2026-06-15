@@ -152,8 +152,7 @@ public sealed class AppSettingsService : IAppSettingsService
         new()
         {
             MaxConcurrentWebViews = 6,
-            StartupWarmMode = StartupWarmMode.VisibleOnly,
-            EnableLazyWebViewLoading = true
+            StartupWarmMode = StartupWarmMode.VisibleOnly
         };
 
     private void BackupCorruptFile()

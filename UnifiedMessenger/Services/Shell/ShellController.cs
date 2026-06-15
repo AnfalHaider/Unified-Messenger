@@ -193,6 +193,7 @@ public sealed class ShellController
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"WebView environment warmup failed: {ex}");
+            AppLogger.LogError("Shell.WebView", ex);
         }
 
         var instances = _services.Registry.Instances.ToList();
@@ -730,6 +731,7 @@ public sealed class ShellController
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Taskbar pin request failed: {ex.Message}");
+            AppLogger.LogWarning("Shell.TaskbarPin", ex.Message);
             await _services.Dialog.ShowErrorAsync(
                 "Could not pin to taskbar",
                 "Right-click the taskbar icon and choose Pin to taskbar.");

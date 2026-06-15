@@ -121,6 +121,34 @@ public sealed class AppNotificationService : IAppNotificationService
         }
     }
 
+    public void ShowInfoToast(string title, string body, string? instanceId = null)
+    {
+        if (!_registered)
+        {
+            return;
+        }
+
+        try
+        {
+            var builder = new AppNotificationBuilder()
+                .AddArgument("action", "openInstance")
+                .AddArgument("instanceId", instanceId ?? string.Empty)
+                .AddText(title)
+                .AddText(body);
+
+            if (!string.IsNullOrWhiteSpace(instanceId))
+            {
+                builder.SetTag($"info-{instanceId}");
+            }
+
+            AppNotificationManager.Default.Show(builder.BuildNotification());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Info toast failed: {ex.Message}");
+        }
+    }
+
     public bool TryHandleLaunchActivation()
     {
         try

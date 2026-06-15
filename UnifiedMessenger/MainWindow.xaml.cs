@@ -313,6 +313,18 @@ public sealed partial class MainWindow : Window, IShellUiHost
     {
         _services.ConnectionStatus.SetError(e.Instance.Id, e.Error.Message);
         e.Instance.Status = InstanceConnectionStatus.Error;
+
+        AppLogger.LogError($"Session.{e.Instance.Id}", e.Error);
+
+        if (!_shell.IsTrackingStartupWarm &&
+            _services.AppSettings.Settings.EnableBackgroundToasts)
+        {
+            _services.AppNotification.ShowInfoToast(
+                $"{e.Instance.DisplayName} — Connection failed",
+                e.Error.Message,
+                e.Instance.Id);
+        }
+
         DispatcherQueue.TryEnqueue(() =>
         {
             WorkspaceSidebar.UpdateInstanceHealth(e.Instance.Id, e.Instance);

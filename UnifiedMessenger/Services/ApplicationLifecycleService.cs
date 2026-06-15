@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using UnifiedMessenger.Services.Ai;
 using UnifiedMessenger.Services.Backfill;
 
@@ -30,7 +31,8 @@ public static class ApplicationLifecycleService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Lifecycle shutdown on close failed: {ex.Message}");
+            Debug.WriteLine($"Lifecycle shutdown on close failed: {ex.Message}");
+            AppLogger.LogError("Lifecycle.Shutdown", ex);
         }
     }
 
@@ -62,7 +64,8 @@ public static class ApplicationLifecycleService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Lifecycle worker shutdown failed: {ex.Message}");
+            Debug.WriteLine($"Lifecycle worker shutdown failed: {ex.Message}");
+            AppLogger.LogError("Lifecycle", ex);
         }
 
         await FlushPersistentStateAsync(cancellationToken).ConfigureAwait(false);
@@ -76,7 +79,8 @@ public static class ApplicationLifecycleService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Lifecycle WebView session close failed: {ex.Message}");
+            Debug.WriteLine($"Lifecycle WebView session close failed: {ex.Message}");
+            AppLogger.LogError("Lifecycle.Sessions", ex);
         }
 
         try
@@ -85,7 +89,8 @@ public static class ApplicationLifecycleService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Lifecycle Ollama shutdown failed: {ex.Message}");
+            Debug.WriteLine($"Lifecycle Ollama shutdown failed: {ex.Message}");
+            AppLogger.LogError("Lifecycle.Ollama", ex);
         }
     }
 
@@ -100,7 +105,8 @@ public static class ApplicationLifecycleService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Lifecycle flush failed: {ex.Message}");
+            Debug.WriteLine($"Lifecycle flush failed: {ex.Message}");
+            AppLogger.LogError("Lifecycle.Flush", ex);
         }
     }
 

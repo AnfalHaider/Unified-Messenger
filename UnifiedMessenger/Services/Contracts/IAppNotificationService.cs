@@ -12,5 +12,7 @@ public interface IAppNotificationService
 
     void ShowAlertToast(NotificationAlert alert, MessengerInstance? instance = null);
 
+    void ShowInfoToast(string title, string body, string? instanceId = null);
+
     bool TryHandleLaunchActivation();
 }

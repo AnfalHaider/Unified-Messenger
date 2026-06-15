@@ -19,7 +19,9 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _ = LaunchAsync(args);
+        LaunchAsync(args).ContinueWith(
+            t => AppLogger.LogError("App.OnLaunched", t.Exception!),
+            TaskContinuationOptions.OnlyOnFaulted);
     }
 
     private async Task LaunchAsync(LaunchActivatedEventArgs args)
@@ -63,7 +65,7 @@ public partial class App : Application
         catch (Exception ex)
         {
             Debug.WriteLine($"Application launch failed: {ex}");
-            StartupDiagnostics.Log($"Application launch failed: {ex}");
+            AppLogger.LogError("App.Launch", ex);
             NativeDialogService.ShowError(
                 "Unified Messenger",
                 $"The application could not start.\n\n{ex.Message}");
