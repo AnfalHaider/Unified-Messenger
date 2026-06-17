@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.7.0 (oversight redesign foundation — Command center dashboard, Workspace Management with per-location SLA + business hours, drill-down to accounts)
+**Current release:** v4.8.0 (Command center as default home — date-windowed on-time, per-account location rollup, IndexedDB-direct backfill with stable keys + answered-thread reconciliation)
 
 ## Scope
 
@@ -29,6 +29,13 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.0
+
+- **Command center is now the default landing tab**, with auto-refresh (20s) and per-row 7-day activity sparklines.
+- **Date-windowed on-time** (Today / Last 7 days / All time, default Today): responsiveness is measured over conversations active in the window — including messages that arrived before the account was connected today — while older open conversations are surfaced as carried backlog ("from history") instead of saturating the number.
+- **Per-account location rollup:** By-location groups each account into exactly one location (no more split accounts) and never leaks a raw branch id / instance GUID as a location name.
+- **Robust backfill from IndexedDB:** history is read straight from WhatsApp Web's local `model-storage` (stable chat JIDs for every conversation, no DOM walking), replacing the bounded 3-chat DOM scroll. **Reconciliation** migrates legacy title-keyed threads to their stable JID and marks conversations whose last message is from you as **answered**, so on-time reflects what was actually replied. `OversightWindow` + `ReconcileConversationKey` (new unit tests).
 
 ### What's in v4.7.0
 
