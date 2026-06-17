@@ -860,6 +860,199 @@
     });
   };
 
+  // --- IndexedDB-direct history (robust backfill) -------------------------------------------------
+  // Reads conversation history straight from WhatsApp Web's local 'model-storage' DB instead of
+  // scrolling/clicking the DOM. Gives stable chat JIDs (conversation keys) for ALL chats, with last
+  // inbound body/timestamp and direction — no UI automation, lower ban risk, far more complete.
+
+  function umSerializeJidLike(value) {
+    if (!value) {
+      return '';
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (value._serialized) {
+      return value._serialized;
+    }
+    if (typeof value.id === 'string') {
+      return value.id;
+    }
+    return '';
+  }
+
+  function umChatJidFromMessage(value, primaryKey) {
+    // Serialized message id format: "<fromMe>_<chatJid>_<msgId>" — the JID is the stable chat key.
+    var key = typeof primaryKey === 'string' ? primaryKey : umSerializeJidLike(value && value.id);
+    if (key && key.indexOf('_') >= 0) {
+      var parts = key.split('_');
+      if (parts.length >= 2 && parts[1].indexOf('@') >= 0) {
+        return parts[1];
+      }
+    }
+
+    // Fallback: derive from from/to by direction (1:1 chats).
+    var fromMe = value && value.fromMe;
+    var jid = fromMe ? umSerializeJidLike(value && value.to) : umSerializeJidLike(value && value.from);
+    return jid && jid.indexOf('@') >= 0 ? jid : '';
+  }
+
+  function umMessageBody(value) {
+    if (!value) {
+      return '';
+    }
+    if (typeof value.body === 'string' && value.body) {
+      return value.body;
+    }
+    if (typeof value.caption === 'string' && value.caption) {
+      return value.caption;
+    }
+    if (typeof value.text === 'string' && value.text) {
+      return value.text;
+    }
+    return '';
+  }
+
+  window.__umCollectConversationHistoryFromDb = function (maxChats) {
+    maxChats = maxChats || 50;
+    return new Promise(function (resolve) {
+      function fail() {
+        resolve({ ok: false, conversations: [] });
+      }
+
+      if (!window.indexedDB) {
+        fail();
+        return;
+      }
+
+      function cursorMessages(db) {
+        try {
+          if (!db.objectStoreNames.contains('message')) {
+            fail();
+            return;
+          }
+
+          var byChat = Object.create(null);
+          var txn = db.transaction('message', 'readonly');
+          var cursorReq = txn.objectStore('message').openCursor();
+
+          cursorReq.onsuccess = function (event) {
+            var cursor = event.target.result;
+            if (!cursor) {
+              enrichAndResolve(db, byChat);
+              return;
+            }
+
+            var v = cursor.value;
+            if (v && v.t) {
+              var jid = umChatJidFromMessage(v, cursor.primaryKey);
+              if (jid) {
+                var rec = byChat[jid] ||
+                  (byChat[jid] = { inboundCount: 0, lastT: 0, lastFromMe: false, lastInboundBody: '', lastInboundT: 0 });
+                if (v.t >= rec.lastT) {
+                  rec.lastT = v.t;
+                  rec.lastFromMe = !!v.fromMe;
+                }
+                if (!v.fromMe) {
+                  rec.inboundCount++;
+                  if (v.t >= rec.lastInboundT) {
+                    rec.lastInboundT = v.t;
+                    rec.lastInboundBody = umMessageBody(v);
+                  }
+                }
+              }
+            }
+
+            cursor.continue();
+          };
+
+          cursorReq.onerror = fail;
+        } catch (error) {
+          fail();
+        }
+      }
+
+      function enrichAndResolve(db, byChat) {
+        var titles = Object.create(null);
+        var unread = Object.create(null);
+
+        function emit() {
+          var keys = Object.keys(byChat).filter(function (jid) {
+            return byChat[jid].lastInboundT > 0;
+          });
+          keys.sort(function (a, b) {
+            return byChat[b].lastInboundT - byChat[a].lastInboundT;
+          });
+
+          var conversations = [];
+          for (var i = 0; i < keys.length && conversations.length < maxChats; i++) {
+            var jid = keys[i];
+            var rec = byChat[jid];
+            conversations.push({
+              conversationKey: jid,
+              customerName: titles[jid] || jid,
+              lastInboundBody: rec.lastInboundBody,
+              lastInboundTimestampUtc: new Date(rec.lastInboundT * 1000).toISOString(),
+              lastMessageFromMe: rec.lastFromMe,
+              unreadCount: unread[jid] || 0,
+              inboundCount: rec.inboundCount
+            });
+          }
+
+          resolve({ ok: conversations.length > 0, conversations: conversations });
+        }
+
+        try {
+          if (!db.objectStoreNames.contains('chat')) {
+            emit();
+            return;
+          }
+
+          var q = db.transaction('chat', 'readonly').objectStore('chat').getAll();
+          q.onsuccess = function (event) {
+            var chats = event.target.result || [];
+            for (var k = 0; k < chats.length; k++) {
+              var key = getChatKey(chats[k]);
+              if (!key) {
+                continue;
+              }
+              titles[key] = getChatTitle(chats[k]);
+              unread[key] = chats[k].unreadCount || 0;
+            }
+            emit();
+          };
+          q.onerror = emit;
+        } catch (error) {
+          emit();
+        }
+      }
+
+      if (dbCache) {
+        cursorMessages(dbCache);
+        return;
+      }
+
+      if (!indexedDB.databases) {
+        fail();
+        return;
+      }
+
+      indexedDB.databases().then(function (databases) {
+        if (!databases.some(function (d) { return d.name === 'model-storage'; })) {
+          fail();
+          return;
+        }
+
+        var request = indexedDB.open('model-storage');
+        request.onsuccess = function () {
+          dbCache = request.result;
+          cursorMessages(dbCache);
+        };
+        request.onerror = fail;
+      }).catch(fail);
+    });
+  };
+
   function collectVisibleHistoryMessages(conversationKey, customerName) {
     var messages = [];
     var containers = document.querySelectorAll('div[data-testid="msg-container"]');

@@ -143,7 +143,12 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
             result.TriageEnqueued++;
         }
 
-        result.HistoryChunksProcessed = await ProcessOpenChatHistoryAsync(instance, result, context, cancellationToken)
+        // Primary, robust source: read every conversation's history from local IndexedDB (stable keys).
+        result.HistoryChunksProcessed = await ProcessIndexedDbConversationsAsync(instance, result, context, cancellationToken)
+            .ConfigureAwait(false);
+
+        // DOM fallback: only the currently-open chat (covers builds where the DB read returns nothing).
+        result.HistoryChunksProcessed += await ProcessOpenChatHistoryAsync(instance, result, context, cancellationToken)
             .ConfigureAwait(false);
 
         if (context.EnableDeepBackfill)
@@ -269,6 +274,91 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         }
 
         return count;
+    }
+
+    /// <summary>
+    /// Robust history source: reads conversation history straight from WhatsApp Web's local
+    /// 'model-storage' IndexedDB (stable chat JIDs for every chat) instead of scrolling/clicking the
+    /// DOM. Each conversation yields its last inbound message with a stable conversation key, so the
+    /// command-center drill-down can focus the right chat and history survives restarts.
+    /// </summary>
+    private static async Task<int> ProcessIndexedDbConversationsAsync(
+        MessengerInstance instance,
+        BackfillAccumulator result,
+        BackfillContext context,
+        CancellationToken cancellationToken)
+    {
+        var raw = await InstanceSessionManager.Instance
+            .TryExecuteScriptOnInstanceAsync(
+                instance.Id,
+                $"window.__umCollectConversationHistoryFromDb && window.__umCollectConversationHistoryFromDb({context.BackfillMaxChats})")
+            .ConfigureAwait(false);
+
+        var payload = ParseJsonRoot(raw);
+        if (payload is null || !payload.Value.TryGetProperty("conversations", out var conversations) ||
+            conversations.ValueKind != JsonValueKind.Array)
+        {
+            return 0;
+        }
+
+        var processed = 0;
+        foreach (var conversation in conversations.EnumerateArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var body = ReadString(conversation, "lastInboundBody");
+            var conversationKey = ReadString(conversation, "conversationKey");
+            if (string.IsNullOrWhiteSpace(body) || string.IsNullOrWhiteSpace(conversationKey) ||
+                body.Trim().Length < 8)
+            {
+                continue;
+            }
+
+            var timestamp = ParseTimestamp(ReadString(conversation, "lastInboundTimestampUtc"));
+            if (!await BackfillDedupeStore.Instance
+                    .TryAcceptForDayAsync(instance.Id, instance.Platform, conversationKey, timestamp, cancellationToken)
+                    .ConfigureAwait(false))
+            {
+                result.TriageSkippedDuplicate++;
+                continue;
+            }
+
+            if (!BackfillDedupeRegistry.TryAccept(instance.Id, instance.Platform, conversationKey, body))
+            {
+                result.TriageSkippedDuplicate++;
+                continue;
+            }
+
+            MessageAnalyticsService.Instance.RecordBackfillInbound(instance.Id, timestamp, context.SlaThresholdMinutes);
+            result.AnalyticsInboundRecorded++;
+
+            MessageTriageService.Instance.Enqueue(
+                new InboundMessageSelection
+                {
+                    InstanceId = instance.Id,
+                    Platform = instance.Platform,
+                    MessageText = body.Trim(),
+                    CustomerName = ReadString(conversation, "customerName") ?? "Customer",
+                    ConversationKey = conversationKey,
+                    ConversationHint = conversationKey,
+                    TimestampUtc = timestamp
+                },
+                instance.DisplayName,
+                BranchWorkspaceHelper.ResolveBranchKey(instance),
+                allowLlmInference: false,
+                isBackfilled: true);
+
+            ThreadRegistryService.Instance.UpdateLastMessageKind(
+                instance.Id,
+                conversationKey,
+                InboundMessageKind.Text,
+                timestamp);
+
+            result.TriageEnqueued++;
+            processed++;
+        }
+
+        return processed;
     }
 
     private static async Task<int> ProcessOpenChatHistoryAsync(
