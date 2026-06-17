@@ -955,27 +955,31 @@
               return;
             }
 
-            diag.scanned++;
-            var v = cursor.value;
-            if (v && v.t) {
-              diag.withT++;
-              var jid = umChatJidFromMessage(v, cursor.primaryKey);
-              if (jid) {
-                diag.jids++;
-                var rec = byChat[jid] ||
-                  (byChat[jid] = { inboundCount: 0, lastT: 0, lastFromMe: false, lastInboundBody: '', lastInboundT: 0 });
-                if (v.t >= rec.lastT) {
-                  rec.lastT = v.t;
-                  rec.lastFromMe = !!v.fromMe;
-                }
-                if (!v.fromMe) {
-                  rec.inboundCount++;
-                  if (v.t >= rec.lastInboundT) {
-                    rec.lastInboundT = v.t;
-                    rec.lastInboundBody = umMessageBody(v);
+            try {
+              diag.scanned++;
+              var v = cursor.value;
+              if (v && v.t) {
+                diag.withT++;
+                var jid = umChatJidFromMessage(v, cursor.primaryKey);
+                if (jid) {
+                  diag.jids++;
+                  var rec = byChat[jid] ||
+                    (byChat[jid] = { inboundCount: 0, lastT: 0, lastFromMe: false, lastInboundBody: '', lastInboundT: 0 });
+                  if (v.t >= rec.lastT) {
+                    rec.lastT = v.t;
+                    rec.lastFromMe = !!v.fromMe;
+                  }
+                  if (!v.fromMe) {
+                    rec.inboundCount++;
+                    if (v.t >= rec.lastInboundT) {
+                      rec.lastInboundT = v.t;
+                      rec.lastInboundBody = umMessageBody(v);
+                    }
                   }
                 }
               }
+            } catch (recordError) {
+              // Never let one malformed record hang the whole scan.
             }
 
             cursor.continue();

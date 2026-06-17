@@ -417,7 +417,7 @@ public sealed partial class CommandCenterPanel : UserControl
                 "window.__umStartDbConversationScan ? window.__umStartDbConversationScan(50) : 'NOFN'")
             .ConfigureAwait(true);
 
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < 50; attempt++) // up to ~15s
         {
             await Task.Delay(300).ConfigureAwait(true);
             var raw = await InstanceSessionManager.Instance
@@ -457,6 +457,6 @@ public sealed partial class CommandCenterPanel : UserControl
             }
         }
 
-        return "timeout (no result in 6s)";
+        return "timeout (no result in 15s)";
     }
 }

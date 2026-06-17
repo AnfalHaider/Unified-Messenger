@@ -297,7 +297,7 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
             .ConfigureAwait(false);
 
         JsonElement? payload = null;
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < 50; attempt++) // up to ~15s
         {
             await Task.Delay(300, cancellationToken).ConfigureAwait(false);
             var raw = await InstanceSessionManager.Instance
