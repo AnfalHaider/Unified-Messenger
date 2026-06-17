@@ -977,7 +977,10 @@
                 }
                 diag.withTs++;
 
-                var fromMe = last ? !!last.fromMe : false;
+                // Direction when lastMessage is persisted; otherwise use WhatsApp's own unread marker as
+                // the answered proxy: 0 unread = caught up (treat as answered), >0 = awaiting reply.
+                var unread = ch.unreadCount || 0;
+                var fromMe = last ? !!last.fromMe : (unread === 0);
                 var body = last ? (last.body || last.caption || last.text || '') : '';
                 var iso = new Date(t * 1000).toISOString();
 
