@@ -30,7 +30,16 @@ public sealed class OversightEntityHealth
 
     public int OpenCount { get; init; }
 
-    /// <summary>Share of actionable threads replied within (or still inside) the SLA, 0–100.</summary>
+    /// <summary>
+    /// Number of LIVE (non-backfilled) threads the on-time % is computed over. 0 means there is no
+    /// live responsiveness data yet — the UI should say "no live data" rather than show a misleading %.
+    /// </summary>
+    public int MeasuredCount { get; init; }
+
+    /// <summary>Open threads carried over from history (backfilled) — shown separately, not as breaches.</summary>
+    public int HistoricalOpenCount { get; init; }
+
+    /// <summary>Share of LIVE actionable threads replied within (or still inside) the SLA, 0–100.</summary>
     public int OnTimePercent { get; init; } = 100;
 
     public int UrgentCount { get; init; }

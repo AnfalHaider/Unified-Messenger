@@ -194,13 +194,16 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private StackPanel BuildRowContent(OversightEntityHealth entity, bool clickable = false)
     {
-        var statusBrush = entity.OnTimePercent >= 90
-            ? Brush("SystemFillColorSuccessBrush")
-            : entity.OnTimePercent >= 70
-                ? Brush("SystemFillColorCautionBrush")
-                : Brush("SystemFillColorCriticalBrush");
         var secondary = Brush("TextFillColorSecondaryBrush");
         var danger = Brush("SystemFillColorCriticalBrush");
+        var hasLiveData = entity.MeasuredCount > 0;
+        var statusBrush = !hasLiveData
+            ? secondary
+            : entity.OnTimePercent >= 90
+                ? Brush("SystemFillColorSuccessBrush")
+                : entity.OnTimePercent >= 70
+                    ? Brush("SystemFillColorCautionBrush")
+                    : Brush("SystemFillColorCriticalBrush");
 
         var row = new StackPanel
         {
@@ -230,7 +233,7 @@ public sealed partial class CommandCenterPanel : UserControl
 
         row.Children.Add(new TextBlock
         {
-            Text = $"{entity.OnTimePercent}% on time",
+            Text = hasLiveData ? $"{entity.OnTimePercent}% on time" : "no live data yet",
             Foreground = statusBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Width = 110
@@ -256,9 +259,14 @@ public sealed partial class CommandCenterPanel : UserControl
         ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
         row.Children.Add(sparkline);
 
+        var freshness = entity.IsStale
+            ? "stale — reconnect"
+            : entity.HistoricalOpenCount > 0
+                ? $"synced · {entity.HistoricalOpenCount} from history"
+                : "synced";
         row.Children.Add(new TextBlock
         {
-            Text = entity.IsStale ? "stale — reconnect" : "synced",
+            Text = freshness,
             FontSize = 12,
             Foreground = secondary,
             VerticalAlignment = VerticalAlignment.Center

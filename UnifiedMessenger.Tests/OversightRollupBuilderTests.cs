@@ -17,7 +17,8 @@ public class OversightRollupBuilderTests
         double latency,
         double replyLatency = 0,
         bool dropped = false,
-        bool spam = false) =>
+        bool spam = false,
+        bool backfilled = false) =>
         new()
         {
             ThreadId = Guid.NewGuid().ToString("N"),
@@ -30,7 +31,8 @@ public class OversightRollupBuilderTests
             LatencyMinutes = latency,
             ReplyLatencyMinutes = replyLatency,
             IsRevenueLeakageRisk = dropped,
-            IsSpamOrPromo = spam
+            IsSpamOrPromo = spam,
+            IsBackfilled = backfilled
         };
 
     private static readonly List<MessengerInstance> Instances =
@@ -119,6 +121,45 @@ public class OversightRollupBuilderTests
         Assert.Equal("a", loc.DisplayName); // InstanceDisplayName fallback
         Assert.DoesNotContain(guid, loc.Key);
         Assert.Equal(2, loc.OpenCount);
+    }
+
+    [Fact]
+    public void OnTime_ExcludesBackfilledThreads_AndReportsNoLiveData()
+    {
+        // Only backfilled history for this account — no live responsiveness to measure.
+        var threads = new List<ThreadData>
+        {
+            T("a", "F-11", replied: true, urgency: 1, latency: 9000, replyLatency: 9000, backfilled: true),
+            T("a", "F-11", replied: false, urgency: 1, latency: 9000, backfilled: true),
+            T("a", "F-11", replied: false, urgency: 1, latency: 9000, backfilled: true)
+        };
+
+        var snap = OversightRollupBuilder.Build(threads, Instances, OversightGrouping.ByInstance, _ => 15);
+
+        var a = snap.Entities.Single();
+        Assert.Equal(0, a.MeasuredCount);          // nothing live to measure
+        Assert.Equal(2, a.HistoricalOpenCount);    // two open, both from history
+        Assert.Equal(100, a.OnTimePercent);        // not a misleading 0% — UI renders "no live data yet"
+    }
+
+    [Fact]
+    public void OnTime_MixedLiveAndBackfilled_MeasuresOnlyLive()
+    {
+        var threads = new List<ThreadData>
+        {
+            // Live: one replied on time, one open within SLA → 100% of the 2 live threads.
+            T("a", "F-11", replied: true, urgency: 1, latency: 5, replyLatency: 5),
+            T("a", "F-11", replied: false, urgency: 1, latency: 1),
+            // Backfilled replied with huge latency must NOT drag the live number down.
+            T("a", "F-11", replied: true, urgency: 1, latency: 9000, replyLatency: 9000, backfilled: true)
+        };
+
+        var a = OversightRollupBuilder
+            .Build(threads, Instances, OversightGrouping.ByInstance, _ => 15)
+            .Entities.Single();
+
+        Assert.Equal(2, a.MeasuredCount);
+        Assert.Equal(100, a.OnTimePercent);
     }
 
     [Fact]

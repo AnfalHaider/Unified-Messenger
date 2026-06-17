@@ -57,12 +57,19 @@ public static class OversightRollupBuilder
             var threshold = slaThresholdMinutes(
                 grouping == OversightGrouping.ByLocation ? group.Key : FirstBranch(list));
 
-            var onTimeCount = replied.Count(t => t.ReplyLatencyMinutes <= threshold)
-                + open.Count(t => !t.IsSlaBreached);
-            var rateDenominator = replied.Count + open.Count;
-            var onTimePercent = rateDenominator > 0
-                ? (int)Math.Round((double)onTimeCount / rateDenominator * 100)
+            // On-time % measures LIVE responsiveness only: exclude backfilled threads (their inbound
+            // timestamps predate this session and may already be answered on the phone), mirroring the
+            // SLA-breach exclusion in ThreadData. Otherwise historical reply-latency saturates the metric.
+            var measuredReplied = replied.Where(t => !t.IsBackfilled).ToList();
+            var measuredOpen = open.Where(t => !t.IsBackfilled).ToList();
+            var measuredCount = measuredReplied.Count + measuredOpen.Count;
+
+            var onTimeCount = measuredReplied.Count(t => t.ReplyLatencyMinutes <= threshold)
+                + measuredOpen.Count(t => !t.IsSlaBreached);
+            var onTimePercent = measuredCount > 0
+                ? (int)Math.Round((double)onTimeCount / measuredCount * 100)
                 : 100;
+            var historicalOpenCount = open.Count(t => t.IsBackfilled);
 
             var instanceIds = list
                 .Select(t => t.InstanceId)
@@ -87,6 +94,8 @@ public static class OversightRollupBuilder
                 Kind = grouping == OversightGrouping.ByLocation ? OversightEntityKind.Location : OversightEntityKind.Instance,
                 AccountCount = grouping == OversightGrouping.ByLocation ? Math.Max(1, instanceIds.Count) : 1,
                 OpenCount = open.Count,
+                MeasuredCount = measuredCount,
+                HistoricalOpenCount = historicalOpenCount,
                 OnTimePercent = onTimePercent,
                 UrgentCount = open.Count(t => t.IsUrgent),
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
