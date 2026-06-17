@@ -305,11 +305,10 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         foreach (var conversation in conversations.EnumerateArray())
         {
             cancellationToken.ThrowIfCancellationRequested();
+            result.DbConversationsFound++;
 
-            var body = ReadString(conversation, "lastInboundBody");
             var conversationKey = ReadString(conversation, "conversationKey");
-            if (string.IsNullOrWhiteSpace(body) || string.IsNullOrWhiteSpace(conversationKey) ||
-                body.Trim().Length < 8)
+            if (string.IsNullOrWhiteSpace(conversationKey))
             {
                 continue;
             }
@@ -317,12 +316,17 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
             var customerName = ReadString(conversation, "customerName") ?? "Customer";
             var lastMessageFromMe = ReadBool(conversation, "lastMessageFromMe");
 
-            // Reconciliation: migrate any legacy title-keyed thread for this customer to the stable JID
-            // so we update it in place instead of creating a duplicate, and so drill-down has a real key.
-            ThreadRegistryService.Instance.ReconcileConversationKey(instance.Id, conversationKey, customerName);
+            // Reconciliation runs regardless of whether we extracted a body: migrate any legacy
+            // title-keyed thread for this customer to the stable JID so we update it in place (no
+            // duplicate) and drill-down gets a real key.
+            if (ThreadRegistryService.Instance.ReconcileConversationKey(instance.Id, conversationKey, customerName))
+            {
+                result.KeysMigrated++;
+            }
 
             // If the conversation's last message is from us, the customer was answered (often on the
             // phone, before we started watching). Mark it replied so it stops counting as a breach.
+            // This does NOT need an inbound body, so it happens before the body check below.
             if (lastMessageFromMe)
             {
                 var resolvedAt = ParseTimestamp(ReadString(conversation, "lastActivityTimestampUtc"));
@@ -332,7 +336,14 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                     customerName,
                     resolvedAt,
                     instance.Platform);
-                result.TriageSkippedDuplicate++;
+                result.AnsweredReconciled++;
+                continue;
+            }
+
+            // Awaiting-reply path needs an actual inbound body to triage.
+            var body = ReadString(conversation, "lastInboundBody");
+            if (string.IsNullOrWhiteSpace(body) || body.Trim().Length < 8)
+            {
                 continue;
             }
 
@@ -694,6 +705,12 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
 
         public int HistoryChunksProcessed { get; set; }
 
+        public int DbConversationsFound { get; set; }
+
+        public int AnsweredReconciled { get; set; }
+
+        public int KeysMigrated { get; set; }
+
         public BackfillResult ToResult(string? error = null) =>
             new()
             {
@@ -704,6 +721,9 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 DailyAggregateDaysMerged = DailyAggregateDaysMerged,
                 SidebarRowsCaptured = SidebarRowsCaptured,
                 HistoryChunksProcessed = HistoryChunksProcessed,
+                DbConversationsFound = DbConversationsFound,
+                AnsweredReconciled = AnsweredReconciled,
+                KeysMigrated = KeysMigrated,
                 ErrorMessage = error
             };
     }

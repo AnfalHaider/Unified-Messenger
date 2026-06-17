@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Backfill;
 using Windows.Foundation;
 
 namespace UnifiedMessenger.Controls;
@@ -361,4 +362,70 @@ public sealed partial class CommandCenterPanel : UserControl
     private void OnGroupToggled(object sender, RoutedEventArgs e) => Render();
 
     private void OnRefresh(object sender, RoutedEventArgs e) => Render();
+
+    private bool _resyncInProgress;
+
+    /// <summary>
+    /// Deterministically re-runs history backfill for every professional account (force), then reports
+    /// what the IndexedDB read returned and how much was reconciled — so reconciliation no longer
+    /// depends on auto-trigger timing, and the result is observable.
+    /// </summary>
+    private async void OnResyncHistory(object sender, RoutedEventArgs e)
+    {
+        if (_services is null || _resyncInProgress)
+        {
+            return;
+        }
+
+        var pros = _services.Registry.Instances.Where(instance => instance.IsProfessional).ToList();
+        if (pros.Count == 0)
+        {
+            return;
+        }
+
+        _resyncInProgress = true;
+        ResyncButton.IsEnabled = false;
+        AttentionBanner.Visibility = Visibility.Visible;
+        AttentionText.Text = "Re-syncing history from each account…";
+
+        foreach (var instance in pros)
+        {
+            BackfillSyncManager.Instance.Schedule(instance, force: true);
+        }
+
+        var ids = pros.Select(p => p.Id).ToList();
+        for (var i = 0; i < 60; i++) // up to ~30s
+        {
+            await Task.Delay(500);
+            var allDone = ids.All(id => BackfillSyncManager.Instance.GetState(id)
+                is BackfillSyncState.Completed or BackfillSyncState.Failed or BackfillSyncState.Skipped);
+            if (allDone)
+            {
+                break;
+            }
+        }
+
+        int found = 0, answered = 0, migrated = 0;
+        foreach (var id in ids)
+        {
+            var result = BackfillSyncManager.Instance.GetLastResult(id);
+            if (result is null)
+            {
+                continue;
+            }
+
+            found += result.DbConversationsFound;
+            answered += result.AnsweredReconciled;
+            migrated += result.KeysMigrated;
+        }
+
+        Render();
+
+        // Set the banner AFTER Render so the diagnostic isn't overwritten by the needs-attention summary.
+        AttentionBanner.Visibility = Visibility.Visible;
+        AttentionText.Text =
+            $"Re-sync done · {found} conversations read · {answered} marked answered · {migrated} keys migrated across {pros.Count} account(s).";
+        ResyncButton.IsEnabled = true;
+        _resyncInProgress = false;
+    }
 }

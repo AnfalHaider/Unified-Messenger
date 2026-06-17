@@ -46,6 +46,11 @@
                     OffContent="By account"
                     OnContent="By location"
                     Toggled="OnGroupToggled" />
+                <Button
+                    x:Name="ResyncButton"
+                    Click="OnResyncHistory"
+                    Content="Re-sync history"
+                    ToolTipService.ToolTip="Re-read history from each account and reconcile answered conversations" />
                 <Button Click="OnRefresh" Content="Refresh" />
             </StackPanel>
         </Grid>
