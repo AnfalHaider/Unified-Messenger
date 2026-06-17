@@ -919,22 +919,31 @@
   function umDbConversationsPromise(maxChats) {
     maxChats = maxChats || 50;
     return new Promise(function (resolve) {
-      function fail() {
-        resolve({ ok: false, conversations: [] });
+      var diag = { stage: 'start', dbNames: [], stores: [], scanned: 0, withT: 0, jids: 0, chats: 0 };
+
+      function done(conversations) {
+        resolve({ ok: conversations.length > 0, conversations: conversations, diag: diag });
+      }
+
+      function fail(stage) {
+        diag.stage = stage || diag.stage;
+        resolve({ ok: false, conversations: [], diag: diag });
       }
 
       if (!window.indexedDB) {
-        fail();
+        fail('no-indexeddb');
         return;
       }
 
       function cursorMessages(db) {
         try {
+          diag.stores = Array.prototype.slice.call(db.objectStoreNames);
           if (!db.objectStoreNames.contains('message')) {
-            fail();
+            fail('no-message-store');
             return;
           }
 
+          diag.stage = 'cursor';
           var byChat = Object.create(null);
           var txn = db.transaction('message', 'readonly');
           var cursorReq = txn.objectStore('message').openCursor();
@@ -946,10 +955,13 @@
               return;
             }
 
+            diag.scanned++;
             var v = cursor.value;
             if (v && v.t) {
+              diag.withT++;
               var jid = umChatJidFromMessage(v, cursor.primaryKey);
               if (jid) {
+                diag.jids++;
                 var rec = byChat[jid] ||
                   (byChat[jid] = { inboundCount: 0, lastT: 0, lastFromMe: false, lastInboundBody: '', lastInboundT: 0 });
                 if (v.t >= rec.lastT) {
@@ -969,9 +981,9 @@
             cursor.continue();
           };
 
-          cursorReq.onerror = fail;
+          cursorReq.onerror = function () { fail('cursor-error'); };
         } catch (error) {
-          fail();
+          fail('cursor-exception');
         }
       }
 
@@ -1003,7 +1015,8 @@
             });
           }
 
-          resolve({ ok: conversations.length > 0, conversations: conversations });
+          diag.stage = 'done';
+          done(conversations);
         }
 
         try {
@@ -1015,6 +1028,7 @@
           var q = db.transaction('chat', 'readonly').objectStore('chat').getAll();
           q.onsuccess = function (event) {
             var chats = event.target.result || [];
+            diag.chats = chats.length;
             for (var k = 0; k < chats.length; k++) {
               var key = getChatKey(chats[k]);
               if (!key) {
@@ -1037,13 +1051,15 @@
       }
 
       if (!indexedDB.databases) {
-        fail();
+        fail('no-databases-api');
         return;
       }
 
       indexedDB.databases().then(function (databases) {
-        if (!databases.some(function (d) { return d.name === 'model-storage'; })) {
-          fail();
+        diag.dbNames = (databases || []).map(function (d) { return d.name; });
+        diag.stage = 'list-dbs';
+        if (!diag.dbNames.some(function (n) { return n === 'model-storage'; })) {
+          fail('no-model-storage');
           return;
         }
 
@@ -1052,8 +1068,8 @@
           dbCache = request.result;
           cursorMessages(dbCache);
         };
-        request.onerror = fail;
-      }).catch(fail);
+        request.onerror = function () { fail('open-error'); };
+      }).catch(function () { fail('databases-rejected'); });
     });
   }
 

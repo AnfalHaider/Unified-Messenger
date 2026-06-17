@@ -25,6 +25,9 @@ public sealed class BackfillResult
     /// <summary>Legacy title-keyed threads migrated to a stable JID (diagnostic).</summary>
     public int KeysMigrated { get; init; }
 
+    /// <summary>Compact stage trace from the IndexedDB read (which DBs/stores it saw, records scanned).</summary>
+    public string? DbDiagnostic { get; init; }
+
     public string? ErrorMessage { get; init; }
 
     public bool IsScrapeOnly { get; init; }

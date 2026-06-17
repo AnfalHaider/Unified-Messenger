@@ -319,6 +319,11 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
             }
         }
 
+        if (payload is not null && payload.Value.TryGetProperty("diag", out var diag))
+        {
+            result.DbDiagnostic = BuildDiagString(diag);
+        }
+
         if (payload is null || !payload.Value.TryGetProperty("conversations", out var conversations) ||
             conversations.ValueKind != JsonValueKind.Array)
         {
@@ -684,6 +689,20 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         }
     }
 
+    private static string BuildDiagString(JsonElement diag)
+    {
+        string Arr(string name) =>
+            diag.TryGetProperty(name, out var a) && a.ValueKind == JsonValueKind.Array
+                ? string.Join("|", a.EnumerateArray().Select(e => e.GetString()).Where(s => !string.IsNullOrEmpty(s)))
+                : string.Empty;
+        int Num(string name) =>
+            diag.TryGetProperty(name, out var n) && n.TryGetInt32(out var v) ? v : 0;
+        var stage = diag.TryGetProperty("stage", out var s) ? s.GetString() : "?";
+
+        return $"stage={stage} dbs=[{Arr("dbNames")}] stores=[{Arr("stores")}] " +
+               $"scanned={Num("scanned")} withT={Num("withT")} jids={Num("jids")} chats={Num("chats")}";
+    }
+
     private static string? ReadString(JsonElement element, string property) =>
         element.TryGetProperty(property, out var valueElement)
             ? valueElement.GetString()
@@ -735,9 +754,12 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
 
         public int KeysMigrated { get; set; }
 
+        public string? DbDiagnostic { get; set; }
+
         public BackfillResult ToResult(string? error = null) =>
             new()
             {
+                DbDiagnostic = DbDiagnostic,
                 TriageEnqueued = TriageEnqueued,
                 TriageSkippedDuplicate = TriageSkippedDuplicate,
                 AnalyticsInboundRecorded = AnalyticsInboundRecorded,

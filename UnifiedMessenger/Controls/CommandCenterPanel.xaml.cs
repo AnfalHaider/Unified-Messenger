@@ -406,6 +406,7 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         int found = 0, answered = 0, migrated = 0;
+        string? firstDiag = null;
         foreach (var id in ids)
         {
             var result = BackfillSyncManager.Instance.GetLastResult(id);
@@ -417,14 +418,21 @@ public sealed partial class CommandCenterPanel : UserControl
             found += result.DbConversationsFound;
             answered += result.AnsweredReconciled;
             migrated += result.KeysMigrated;
+            firstDiag ??= result.DbDiagnostic;
         }
 
         Render();
 
         // Set the banner AFTER Render so the diagnostic isn't overwritten by the needs-attention summary.
         AttentionBanner.Visibility = Visibility.Visible;
-        AttentionText.Text =
+        var summary =
             $"Re-sync done · {found} conversations read · {answered} marked answered · {migrated} keys migrated across {pros.Count} account(s).";
+        if (found == 0 && !string.IsNullOrWhiteSpace(firstDiag))
+        {
+            summary += $"  [{firstDiag}]";
+        }
+
+        AttentionText.Text = summary;
         ResyncButton.IsEnabled = true;
         _resyncInProgress = false;
     }
