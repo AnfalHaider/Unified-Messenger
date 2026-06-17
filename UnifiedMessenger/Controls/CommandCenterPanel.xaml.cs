@@ -445,15 +445,23 @@ public sealed partial class CommandCenterPanel : UserControl
             {
                 using var doc = JsonDocument.Parse(JsonSerializer.Deserialize<string>(raw) ?? "");
                 var root = doc.RootElement;
-                var count = root.TryGetProperty("conversations", out var c) && c.ValueKind == JsonValueKind.Array
-                    ? c.GetArrayLength()
-                    : 0;
-                var diag = root.TryGetProperty("diag", out var d) ? d.ToString() : "(no diag)";
-                return $"{count} convos · {diag}";
+                if (!root.TryGetProperty("diag", out var diag))
+                {
+                    return "no diag";
+                }
+
+                int Num(string name) =>
+                    diag.TryGetProperty(name, out var n) && n.TryGetInt32(out var v) ? v : 0;
+
+                var active = Num("active");
+                var caughtUp = Num("caughtUp");
+                var awaiting = Num("awaiting");
+                var pct = active > 0 ? (int)Math.Round(100.0 * caughtUp / active) : 100;
+                return $"{pct}% caught up ({caughtUp}/{active}, {awaiting} awaiting)";
             }
             catch
             {
-                return "parse-fail: " + (raw.Length > 120 ? raw[..120] : raw);
+                return "parse-fail";
             }
         }
 

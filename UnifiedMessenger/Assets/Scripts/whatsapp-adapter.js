@@ -919,7 +919,7 @@
   function umDbConversationsPromise(maxChats) {
     maxChats = maxChats || 50;
     return new Promise(function (resolve) {
-      var diag = { stage: 'start', dbNames: [], stores: [], chats: 0, withTs: 0, withLastMsg: 0 };
+      var diag = { stage: 'start', dbNames: [], stores: [], chats: 0, withTs: 0, withLastMsg: 0, active: 0, caughtUp: 0, awaiting: 0 };
 
       function done(conversations) {
         resolve({ ok: conversations.length > 0, conversations: conversations, diag: diag });
@@ -983,6 +983,10 @@
                 var fromMe = last ? !!last.fromMe : (unread === 0);
                 var body = last ? (last.body || last.caption || last.text || '') : '';
                 var iso = new Date(t * 1000).toISOString();
+
+                // Unread-based oversight signal, computed over ALL active chats (not just the capped list).
+                diag.active++;
+                if (unread > 0) { diag.awaiting++; } else { diag.caughtUp++; }
 
                 conversations.push({
                   conversationKey: jid,
