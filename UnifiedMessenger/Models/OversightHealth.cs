@@ -13,6 +13,14 @@ public enum OversightEntityKind
     Location
 }
 
+/// <summary>Date scope for the command center. On-time is measured over conversations active in the window.</summary>
+public enum OversightWindow
+{
+    Today,
+    Week,
+    All
+}
+
 /// <summary>
 /// One health card in the oversight command center — an account or a location — with the glanceable
 /// numbers the dashboard surfaces (on-time %, urgent, dropped, freshness).

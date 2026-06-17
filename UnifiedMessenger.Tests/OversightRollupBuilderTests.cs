@@ -18,7 +18,8 @@ public class OversightRollupBuilderTests
         double replyLatency = 0,
         bool dropped = false,
         bool spam = false,
-        bool backfilled = false) =>
+        bool backfilled = false,
+        DateTimeOffset? lastMessage = null) =>
         new()
         {
             ThreadId = Guid.NewGuid().ToString("N"),
@@ -32,7 +33,8 @@ public class OversightRollupBuilderTests
             ReplyLatencyMinutes = replyLatency,
             IsRevenueLeakageRisk = dropped,
             IsSpamOrPromo = spam,
-            IsBackfilled = backfilled
+            IsBackfilled = backfilled,
+            LastMessageTime = lastMessage ?? DateTimeOffset.UtcNow
         };
 
     private static readonly List<MessengerInstance> Instances =
@@ -124,42 +126,49 @@ public class OversightRollupBuilderTests
     }
 
     [Fact]
-    public void OnTime_ExcludesBackfilledThreads_AndReportsNoLiveData()
+    public void OnTime_WindowScopesToActiveConversations_OlderBecomesHistory()
     {
-        // Only backfilled history for this account — no live responsiveness to measure.
+        var now = DateTimeOffset.UtcNow;
+        var windowStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero); // start of today (UTC)
+
         var threads = new List<ThreadData>
         {
-            T("a", "F-11", replied: true, urgency: 1, latency: 9000, replyLatency: 9000, backfilled: true),
-            T("a", "F-11", replied: false, urgency: 1, latency: 9000, backfilled: true),
-            T("a", "F-11", replied: false, urgency: 1, latency: 9000, backfilled: true)
-        };
-
-        var snap = OversightRollupBuilder.Build(threads, Instances, OversightGrouping.ByInstance, _ => 15);
-
-        var a = snap.Entities.Single();
-        Assert.Equal(0, a.MeasuredCount);          // nothing live to measure
-        Assert.Equal(2, a.HistoricalOpenCount);    // two open, both from history
-        Assert.Equal(100, a.OnTimePercent);        // not a misleading 0% — UI renders "no live data yet"
-    }
-
-    [Fact]
-    public void OnTime_MixedLiveAndBackfilled_MeasuresOnlyLive()
-    {
-        var threads = new List<ThreadData>
-        {
-            // Live: one replied on time, one open within SLA → 100% of the 2 live threads.
-            T("a", "F-11", replied: true, urgency: 1, latency: 5, replyLatency: 5),
-            T("a", "F-11", replied: false, urgency: 1, latency: 1),
-            // Backfilled replied with huge latency must NOT drag the live number down.
-            T("a", "F-11", replied: true, urgency: 1, latency: 9000, replyLatency: 9000, backfilled: true)
+            // Active today, open, inside SLA → the only measured thread, on time.
+            T("a", "F-11", replied: false, urgency: 1, latency: 1, lastMessage: now),
+            // Open but last active 3 days ago → carried backlog, excluded from today's on-time.
+            T("a", "F-11", replied: false, urgency: 1, latency: 9000, lastMessage: now.AddDays(-3))
         };
 
         var a = OversightRollupBuilder
-            .Build(threads, Instances, OversightGrouping.ByInstance, _ => 15)
+            .Build(threads, Instances, OversightGrouping.ByInstance, _ => 15, windowStartUtc: windowStart)
+            .Entities.Single();
+
+        Assert.Equal(1, a.MeasuredCount);          // only today's conversation
+        Assert.Equal(100, a.OnTimePercent);        // it's within SLA
+        Assert.Equal(1, a.HistoricalOpenCount);    // the 3-day-old open is "from history"
+    }
+
+    [Fact]
+    public void OnTime_WindowIncludesPreConnectMessagesFromToday()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var windowStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+
+        // A backfilled conversation that arrived earlier today (before the account was connected) is
+        // still "today" — it counts toward the window, not just live post-connect traffic.
+        var threads = new List<ThreadData>
+        {
+            T("a", "F-11", replied: true, urgency: 1, latency: 5, replyLatency: 5, backfilled: true, lastMessage: now),
+            T("a", "F-11", replied: false, urgency: 1, latency: 1, lastMessage: now)
+        };
+
+        var a = OversightRollupBuilder
+            .Build(threads, Instances, OversightGrouping.ByInstance, _ => 15, windowStartUtc: windowStart)
             .Entities.Single();
 
         Assert.Equal(2, a.MeasuredCount);
         Assert.Equal(100, a.OnTimePercent);
+        Assert.Equal(0, a.HistoricalOpenCount);
     }
 
     [Fact]

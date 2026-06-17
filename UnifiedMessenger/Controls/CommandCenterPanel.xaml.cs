@@ -15,6 +15,17 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private ApplicationServices? _services;
     private DispatcherTimer? _autoRefreshTimer;
+    private string _emptyStateWindowLabel = "today";
+
+    private OversightWindow SelectedWindow() =>
+        ((WindowSelector?.SelectedItem as ComboBoxItem)?.Tag as string) switch
+        {
+            "Week" => OversightWindow.Week,
+            "All" => OversightWindow.All,
+            _ => OversightWindow.Today
+        };
+
+    private void OnWindowChanged(object sender, SelectionChangedEventArgs e) => Render();
 
     public CommandCenterPanel()
     {
@@ -59,12 +70,20 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         var grouping = GroupToggle.IsOn ? OversightGrouping.ByLocation : OversightGrouping.ByInstance;
+        var window = SelectedWindow();
         var instances = _services.Registry.Instances.Where(instance => instance.IsProfessional).ToList();
-        var snapshot = _services.Oversight.BuildSnapshot(grouping, instances);
+        var snapshot = _services.Oversight.BuildSnapshot(grouping, instances, window);
 
+        var windowLabel = window switch
+        {
+            OversightWindow.Today => "today",
+            OversightWindow.Week => "the last 7 days",
+            _ => "all time"
+        };
         SubtitleText.Text = grouping == OversightGrouping.ByLocation
-            ? "Rolled up by location"
-            : "Per account · group into locations in Workspace management (Ctrl+K)";
+            ? $"Rolled up by location · on-time for {windowLabel}"
+            : $"Per account · on-time for {windowLabel} · group into locations (Ctrl+K)";
+        _emptyStateWindowLabel = windowLabel;
 
         if (snapshot.TotalUrgent > 0 || snapshot.TotalDropped > 0)
         {
@@ -233,7 +252,7 @@ public sealed partial class CommandCenterPanel : UserControl
 
         row.Children.Add(new TextBlock
         {
-            Text = hasLiveData ? $"{entity.OnTimePercent}% on time" : "no live data yet",
+            Text = hasLiveData ? $"{entity.OnTimePercent}% on time" : $"no activity {_emptyStateWindowLabel}",
             Foreground = statusBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Width = 110

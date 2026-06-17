@@ -19,9 +19,20 @@ public sealed class OversightService
 
     public OversightCommandCenterSnapshot BuildSnapshot(
         OversightGrouping grouping,
-        IReadOnlyList<MessengerInstance> professionalInstances)
+        IReadOnlyList<MessengerInstance> professionalInstances,
+        OversightWindow window = OversightWindow.Today)
     {
         ArgumentNullException.ThrowIfNull(professionalInstances);
+
+        // Date window in the operator's local day. On-time is measured over conversations active in
+        // the window (today by default — including messages that arrived before connecting today).
+        var nowLocal = DateTimeOffset.Now;
+        DateTimeOffset? windowStart = window switch
+        {
+            OversightWindow.Today => new DateTimeOffset(nowLocal.Date, nowLocal.Offset),
+            OversightWindow.Week => new DateTimeOffset(nowLocal.Date.AddDays(-6), nowLocal.Offset),
+            _ => null
+        };
 
         var allowed = professionalInstances
             .Select(instance => instance.Id)
@@ -52,6 +63,8 @@ public sealed class OversightService
                 != InstanceConnectionStatus.Connected,
             nowUtc: null,
             locationForInstance: instanceId =>
-                locationByInstance.TryGetValue(instanceId, out var location) ? location : string.Empty);
+                locationByInstance.TryGetValue(instanceId, out var location) ? location : string.Empty,
+            windowStartUtc: windowStart,
+            windowEndUtc: null);
     }
 }

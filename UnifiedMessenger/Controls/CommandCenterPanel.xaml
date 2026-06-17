@@ -31,6 +31,15 @@
                 Orientation="Horizontal"
                 Spacing="10"
                 VerticalAlignment="Center">
+                <ComboBox
+                    x:Name="WindowSelector"
+                    MinWidth="110"
+                    SelectionChanged="OnWindowChanged"
+                    ToolTipService.ToolTip="On-time is measured over conversations active in this date range">
+                    <ComboBoxItem Content="Today" IsSelected="True" Tag="Today" />
+                    <ComboBoxItem Content="Last 7 days" Tag="Week" />
+                    <ComboBoxItem Content="All time" Tag="All" />
+                </ComboBox>
                 <ToggleSwitch
                     x:Name="GroupToggle"
                     MinWidth="0"

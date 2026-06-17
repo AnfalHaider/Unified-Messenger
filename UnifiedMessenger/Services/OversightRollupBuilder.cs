@@ -17,7 +17,9 @@ public static class OversightRollupBuilder
         Func<string?, double> slaThresholdMinutes,
         Func<string, bool>? isStale = null,
         DateTimeOffset? nowUtc = null,
-        Func<string, string>? locationForInstance = null)
+        Func<string, string>? locationForInstance = null,
+        DateTimeOffset? windowStartUtc = null,
+        DateTimeOffset? windowEndUtc = null)
     {
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(instances);
@@ -30,6 +32,10 @@ public static class OversightRollupBuilder
             .ToDictionary(g => g.Key, g => g.First().DisplayName, StringComparer.OrdinalIgnoreCase);
 
         var actionable = threads.Where(t => !t.IsSpamOrPromo).ToList();
+
+        bool InWindow(ThreadData thread) =>
+            (windowStartUtc is null || thread.LastMessageTime >= windowStartUtc.Value) &&
+            (windowEndUtc is null || thread.LastMessageTime <= windowEndUtc.Value);
 
         // Group locations PER INSTANCE (each account lands in exactly one location) rather than per
         // thread — a single account's threads can carry inconsistent BranchName values, which would
@@ -57,11 +63,12 @@ public static class OversightRollupBuilder
             var threshold = slaThresholdMinutes(
                 grouping == OversightGrouping.ByLocation ? group.Key : FirstBranch(list));
 
-            // On-time % measures LIVE responsiveness only: exclude backfilled threads (their inbound
-            // timestamps predate this session and may already be answered on the phone), mirroring the
-            // SLA-breach exclusion in ThreadData. Otherwise historical reply-latency saturates the metric.
-            var measuredReplied = replied.Where(t => !t.IsBackfilled).ToList();
-            var measuredOpen = open.Where(t => !t.IsBackfilled).ToList();
+            // On-time % measures responsiveness within the selected date window (default: today),
+            // including conversations that arrived before the account was connected today. Open
+            // conversations OLDER than the window are carried backlog ("from history") — surfaced
+            // separately rather than saturating today's number.
+            var measuredReplied = replied.Where(InWindow).ToList();
+            var measuredOpen = open.Where(InWindow).ToList();
             var measuredCount = measuredReplied.Count + measuredOpen.Count;
 
             var onTimeCount = measuredReplied.Count(t => t.ReplyLatencyMinutes <= threshold)
@@ -69,7 +76,9 @@ public static class OversightRollupBuilder
             var onTimePercent = measuredCount > 0
                 ? (int)Math.Round((double)onTimeCount / measuredCount * 100)
                 : 100;
-            var historicalOpenCount = open.Count(t => t.IsBackfilled);
+            var historicalOpenCount = windowStartUtc is null
+                ? 0
+                : open.Count(t => t.LastMessageTime < windowStartUtc.Value);
 
             var instanceIds = list
                 .Select(t => t.InstanceId)
