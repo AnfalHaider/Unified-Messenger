@@ -19,7 +19,8 @@ public static class OversightRollupBuilder
         DateTimeOffset? nowUtc = null,
         Func<string, string>? locationForInstance = null,
         DateTimeOffset? windowStartUtc = null,
-        DateTimeOffset? windowEndUtc = null)
+        DateTimeOffset? windowEndUtc = null,
+        Func<string, (int Active, int CaughtUp)?>? chatSnapshot = null)
     {
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(instances);
@@ -85,6 +86,29 @@ public static class OversightRollupBuilder
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            // Prefer WhatsApp's own unread signal when we have it: on-time = caught-up % across this
+            // entity's instances. Reliable for every chat, no name matching or message history needed.
+            if (chatSnapshot is not null)
+            {
+                var snapActive = 0;
+                var snapCaught = 0;
+                foreach (var id in instanceIds)
+                {
+                    if (chatSnapshot(id) is { } snap)
+                    {
+                        snapActive += snap.Active;
+                        snapCaught += snap.CaughtUp;
+                    }
+                }
+
+                if (snapActive > 0)
+                {
+                    measuredCount = snapActive;
+                    onTimePercent = (int)Math.Round((double)snapCaught / snapActive * 100);
+                    historicalOpenCount = 0;
+                }
+            }
 
             var stale = isStale is not null
                 && instanceIds.Count > 0

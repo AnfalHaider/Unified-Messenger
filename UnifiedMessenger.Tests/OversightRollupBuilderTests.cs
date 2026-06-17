@@ -172,6 +172,25 @@ public class OversightRollupBuilderTests
     }
 
     [Fact]
+    public void ChatSnapshot_OverridesOnTimeWithCaughtUpPercent()
+    {
+        // Thread-based view would read 0% (an old unreplied breach), but the unread snapshot says the
+        // account is 95% caught up — the snapshot wins.
+        var threads = new List<ThreadData>
+        {
+            T("a", "F-11", replied: false, urgency: 1, latency: 9000)
+        };
+
+        var entity = OversightRollupBuilder
+            .Build(threads, Instances, OversightGrouping.ByInstance, _ => 15,
+                chatSnapshot: id => id == "a" ? (100, 95) : null)
+            .Entities.Single();
+
+        Assert.Equal(95, entity.OnTimePercent);
+        Assert.Equal(100, entity.MeasuredCount);
+    }
+
+    [Fact]
     public void Stale_WhenAllInstanceConnectionsStale()
     {
         var snap = OversightRollupBuilder.Build(

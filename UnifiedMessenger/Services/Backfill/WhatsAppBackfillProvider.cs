@@ -322,6 +322,15 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         if (payload is not null && payload.Value.TryGetProperty("diag", out var diag))
         {
             result.DbDiagnostic = BuildDiagString(diag);
+
+            // Cache WhatsApp's unread-based caught-up snapshot — the command center's primary on-time source.
+            var active = diag.TryGetProperty("active", out var a) && a.TryGetInt32(out var av) ? av : 0;
+            if (active > 0)
+            {
+                var caughtUp = diag.TryGetProperty("caughtUp", out var c) && c.TryGetInt32(out var cv) ? cv : 0;
+                var awaiting = diag.TryGetProperty("awaiting", out var w) && w.TryGetInt32(out var wv) ? wv : 0;
+                OversightChatSnapshotService.Instance.Update(instance.Id, active, caughtUp, awaiting, DateTimeOffset.UtcNow);
+            }
         }
 
         if (payload is null || !payload.Value.TryGetProperty("conversations", out var conversations) ||

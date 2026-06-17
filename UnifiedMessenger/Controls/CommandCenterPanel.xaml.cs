@@ -456,6 +456,12 @@ public sealed partial class CommandCenterPanel : UserControl
                 var active = Num("active");
                 var caughtUp = Num("caughtUp");
                 var awaiting = Num("awaiting");
+                if (active > 0)
+                {
+                    OversightChatSnapshotService.Instance.Update(
+                        instance.Id, active, caughtUp, awaiting, DateTimeOffset.UtcNow);
+                }
+
                 var pct = active > 0 ? (int)Math.Round(100.0 * caughtUp / active) : 100;
                 return $"{pct}% caught up ({caughtUp}/{active}, {awaiting} awaiting)";
             }

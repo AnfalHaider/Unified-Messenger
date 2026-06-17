@@ -65,6 +65,10 @@ public sealed class OversightService
             locationForInstance: instanceId =>
                 locationByInstance.TryGetValue(instanceId, out var location) ? location : string.Empty,
             windowStartUtc: windowStart,
-            windowEndUtc: null);
+            windowEndUtc: null,
+            chatSnapshot: instanceId =>
+                OversightChatSnapshotService.Instance.TryGet(instanceId, out var snap)
+                    ? (snap.Active, snap.CaughtUp)
+                    : null);
     }
 }
