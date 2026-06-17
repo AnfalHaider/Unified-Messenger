@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="UnifiedMessenger.Controls.CommandCenterPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid Padding="20,16" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="2">
+                <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Command center" />
+                <TextBlock
+                    x:Name="SubtitleText"
+                    FontSize="12"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+            <StackPanel
+                Grid.Column="1"
+                Orientation="Horizontal"
+                Spacing="10"
+                VerticalAlignment="Center">
+                <ToggleSwitch
+                    x:Name="GroupToggle"
+                    MinWidth="0"
+                    OffContent="By account"
+                    OnContent="By location"
+                    Toggled="OnGroupToggled" />
+                <Button Click="OnRefresh" Content="Refresh" />
+            </StackPanel>
+        </Grid>
+
+        <Border
+            x:Name="AttentionBanner"
+            Grid.Row="1"
+            Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+            CornerRadius="8"
+            Padding="12,10"
+            Visibility="Collapsed">
+            <TextBlock x:Name="AttentionText" TextWrapping="WrapWholeWords" />
+        </Border>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="CardsHost" Spacing="8" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

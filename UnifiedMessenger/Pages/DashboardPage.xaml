@@ -87,6 +87,10 @@
             <TabViewItem Header="Personal Overview" AutomationProperties.AutomationId="DashboardPersonalTab" AutomationProperties.Name="Personal Overview Tab" IsClosable="False">
                 <controls:PersonalOverviewPanel x:Name="PersonalOverviewPanel" />
             </TabViewItem>
+
+            <TabViewItem Header="Command center" AutomationProperties.AutomationId="DashboardCommandCenterTab" AutomationProperties.Name="Command Center Tab" IsClosable="False">
+                <controls:CommandCenterPanel x:Name="CommandCenterPanel" />
+            </TabViewItem>
         </TabView>
     </Grid>
 </Page>

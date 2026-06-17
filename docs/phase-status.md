@@ -18,7 +18,7 @@
 | Personal/Professional scope | ◑ | `WorkspaceCategory` + OCC/Personal tabs exist — **not** a top-level scope switch with separate rails |
 | Command center (L0) — **backend engine** | ✅ | **Increment 2 (2026-06-16):** `OversightRollupBuilder` produces per-entity health (account *or* location) — on-time %, urgent, dropped, freshness, worst-first sort, needs-attention summary; works in ByInstance/ByLocation. Pure + 4 unit tests. |
 | Command center (L0) — **live bridge** | ✅ | **Increment 3 (2026-06-16):** `OversightService.BuildSnapshot(grouping, instances)` wires the rollup to live threads + per-location SLA + connection-status freshness; registered in DI as `_services.Oversight`. Startup smoke clean. |
-| Command center (L0) — **UI** (health-card grid, group-by switch) | ☐ | binds to `_services.Oversight`; needs XAML |
+| Command center (L0) — **UI** (health rows, group-by switch, needs-attention banner) | ◑ | **Increment 6 (2026-06-16):** `CommandCenterPanel` — a new Dashboard tab binding to `_services.Oversight`; imperatively renders per-entity health rows (on-time %, urgent, dropped, freshness), needs-attention banner, By-account↔By-location toggle, Refresh. Added as 3rd tab (OCC stays index 0). Build + smoke green. **Pending: user visual verification.** **By-location rows are collapsible accordions** revealing member accounts (Increment 6b). Card-grid polish, sparklines, drill-down, auto-refresh, and cleanup of unresolved branch keys (raw-id locations) deferred. |
 | Worst-first + needs-attention + freshness/stale (logic) | ✅ | in the rollup snapshot (Increment 2) |
 | Per-card sparklines (UI) | ☐ | needs a small chart component |
 | Workspace rail IA | ◑ | `WorkspaceSidebar` is a **flat instance list**, not a per-location rail |

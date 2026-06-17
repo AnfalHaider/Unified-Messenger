@@ -80,7 +80,8 @@ public static class OversightRollupBuilder
                 UrgentCount = open.Count(t => t.IsUrgent),
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
                 IsStale = stale,
-                LastActivityUtc = list.Count > 0 ? list.Max(t => t.LastMessageTime) : null
+                LastActivityUtc = list.Count > 0 ? list.Max(t => t.LastMessageTime) : null,
+                MemberInstanceIds = instanceIds
             });
         }
 

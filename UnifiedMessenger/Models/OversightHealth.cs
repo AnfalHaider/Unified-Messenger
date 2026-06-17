@@ -40,6 +40,9 @@ public sealed class OversightEntityHealth
     public bool IsStale { get; init; }
 
     public DateTimeOffset? LastActivityUtc { get; init; }
+
+    /// <summary>Instance ids rolled into this entity — used to expand a location into its accounts.</summary>
+    public IReadOnlyList<string> MemberInstanceIds { get; init; } = [];
 }
 
 /// <summary>
