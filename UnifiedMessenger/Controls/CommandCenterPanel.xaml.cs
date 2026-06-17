@@ -105,7 +105,7 @@ public sealed partial class CommandCenterPanel : UserControl
 
         foreach (var member in members)
         {
-            content.Children.Add(BuildRowContent(member));
+            content.Children.Add(BuildRow(member));
         }
 
         return new Expander
@@ -117,17 +117,28 @@ public sealed partial class CommandCenterPanel : UserControl
         };
     }
 
-    private Border BuildRow(OversightEntityHealth entity) =>
-        new()
+    private Border BuildRow(OversightEntityHealth entity)
+    {
+        var clickable = entity.Kind == OversightEntityKind.Instance;
+        var border = new Border
         {
+            Background = Brush("CardBackgroundFillColorDefaultBrush"),
             BorderBrush = Brush("CardStrokeColorDefaultBrush"),
             BorderThickness = new Thickness(0.5),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(14, 11, 14, 11),
-            Child = BuildRowContent(entity)
+            Child = BuildRowContent(entity, clickable)
         };
 
-    private StackPanel BuildRowContent(OversightEntityHealth entity)
+        if (clickable)
+        {
+            border.Tapped += (_, _) => _services?.Navigation.OpenInstance(entity.Key);
+        }
+
+        return border;
+    }
+
+    private StackPanel BuildRowContent(OversightEntityHealth entity, bool clickable = false)
     {
         var statusBrush = entity.OnTimePercent >= 90
             ? Brush("SystemFillColorSuccessBrush")
@@ -194,6 +205,17 @@ public sealed partial class CommandCenterPanel : UserControl
             Foreground = secondary,
             VerticalAlignment = VerticalAlignment.Center
         });
+
+        if (clickable)
+        {
+            row.Children.Add(new FontIcon
+            {
+                Glyph = "",
+                FontSize = 13,
+                Foreground = secondary,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
 
         return row;
     }
