@@ -98,6 +98,30 @@ public class OversightRollupBuilderTests
     }
 
     [Fact]
+    public void ByLocation_PerInstanceResolver_DemotesGuidKeyToFriendlyName_AndKeepsAccountWhole()
+    {
+        // One account ("a") whose threads carry inconsistent branch values, including a raw GUID.
+        var guid = Guid.NewGuid().ToString();
+        var threads = new List<ThreadData>
+        {
+            T("a", "General", replied: false, urgency: 5, latency: 100),
+            T("a", guid, replied: false, urgency: 1, latency: 100)
+        };
+
+        // Per-instance resolver returns the GUID (as a real instance.BranchKey would).
+        var snap = OversightRollupBuilder.Build(
+            threads, Instances, OversightGrouping.ByLocation, _ => 15,
+            locationForInstance: _ => guid);
+
+        // Account stays whole in ONE location, and the GUID never reaches the UI.
+        Assert.Single(snap.Entities);
+        var loc = snap.Entities[0];
+        Assert.Equal("a", loc.DisplayName); // InstanceDisplayName fallback
+        Assert.DoesNotContain(guid, loc.Key);
+        Assert.Equal(2, loc.OpenCount);
+    }
+
+    [Fact]
     public void Stale_WhenAllInstanceConnectionsStale()
     {
         var snap = OversightRollupBuilder.Build(

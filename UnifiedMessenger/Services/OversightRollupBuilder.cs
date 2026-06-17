@@ -16,7 +16,8 @@ public static class OversightRollupBuilder
         OversightGrouping grouping,
         Func<string?, double> slaThresholdMinutes,
         Func<string, bool>? isStale = null,
-        DateTimeOffset? nowUtc = null)
+        DateTimeOffset? nowUtc = null,
+        Func<string, string>? locationForInstance = null)
     {
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(instances);
@@ -30,8 +31,15 @@ public static class OversightRollupBuilder
 
         var actionable = threads.Where(t => !t.IsSpamOrPromo).ToList();
 
+        // Group locations PER INSTANCE (each account lands in exactly one location) rather than per
+        // thread — a single account's threads can carry inconsistent BranchName values, which would
+        // otherwise split one account across buckets and leak raw branch ids as location names.
+        Func<ThreadData, string> locationKey = locationForInstance is not null
+            ? t => Friendly(locationForInstance(t.InstanceId), t)
+            : LocationKey;
+
         var groups = grouping == OversightGrouping.ByLocation
-            ? actionable.GroupBy(LocationKey, StringComparer.OrdinalIgnoreCase)
+            ? actionable.GroupBy(locationKey, StringComparer.OrdinalIgnoreCase)
             : actionable.GroupBy(t => t.InstanceId, StringComparer.OrdinalIgnoreCase);
 
         var entities = new List<OversightEntityHealth>();
@@ -134,6 +142,23 @@ public static class OversightRollupBuilder
         }
 
         return buckets;
+    }
+
+    /// <summary>
+    /// Final guard against a raw branch id (GUID) reaching the UI as a location name: if the resolved
+    /// key is empty or parses as a GUID, fall back to the account's display name (so a lone unassigned
+    /// account becomes its own friendly location instead of "28100b95…").
+    /// </summary>
+    private static string Friendly(string? key, ThreadData thread)
+    {
+        if (!string.IsNullOrWhiteSpace(key) && !Guid.TryParse(key, out _))
+        {
+            return key.Trim();
+        }
+
+        return !string.IsNullOrWhiteSpace(thread.InstanceDisplayName)
+            ? thread.InstanceDisplayName
+            : "Unassigned";
     }
 
     private static string LocationKey(ThreadData thread) =>
