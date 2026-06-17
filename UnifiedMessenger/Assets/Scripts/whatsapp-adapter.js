@@ -919,7 +919,7 @@
   function umDbConversationsPromise(maxChats) {
     maxChats = maxChats || 50;
     return new Promise(function (resolve) {
-      var diag = { stage: 'start', dbNames: [], stores: [], scanned: 0, withT: 0, jids: 0, chats: 0 };
+      var diag = { stage: 'start', dbNames: [], stores: [], chats: 0, withTs: 0, withLastMsg: 0 };
 
       function done(conversations) {
         resolve({ ok: conversations.length > 0, conversations: conversations, diag: diag });
@@ -935,122 +935,86 @@
         return;
       }
 
-      function cursorMessages(db) {
+      // Read the 'chat' store with a single bounded getAll. The 'message' store can be huge and
+      // cursoring it record-by-record causes the read transaction to auto-abort mid-scan (a hang).
+      // The chat store gives us, per conversation: stable JID, title, unreadCount, last activity, and
+      // (when persisted) lastMessage with direction/body — everything oversight needs.
+      function readChats(db) {
         try {
           diag.stores = Array.prototype.slice.call(db.objectStoreNames);
-          if (!db.objectStoreNames.contains('message')) {
-            fail('no-message-store');
-            return;
-          }
-
-          diag.stage = 'cursor';
-          var byChat = Object.create(null);
-          var txn = db.transaction('message', 'readonly');
-          var cursorReq = txn.objectStore('message').openCursor();
-
-          cursorReq.onsuccess = function (event) {
-            var cursor = event.target.result;
-            if (!cursor) {
-              enrichAndResolve(db, byChat);
-              return;
-            }
-
-            try {
-              diag.scanned++;
-              var v = cursor.value;
-              if (v && v.t) {
-                diag.withT++;
-                var jid = umChatJidFromMessage(v, cursor.primaryKey);
-                if (jid) {
-                  diag.jids++;
-                  var rec = byChat[jid] ||
-                    (byChat[jid] = { inboundCount: 0, lastT: 0, lastFromMe: false, lastInboundBody: '', lastInboundT: 0 });
-                  if (v.t >= rec.lastT) {
-                    rec.lastT = v.t;
-                    rec.lastFromMe = !!v.fromMe;
-                  }
-                  if (!v.fromMe) {
-                    rec.inboundCount++;
-                    if (v.t >= rec.lastInboundT) {
-                      rec.lastInboundT = v.t;
-                      rec.lastInboundBody = umMessageBody(v);
-                    }
-                  }
-                }
-              }
-            } catch (recordError) {
-              // Never let one malformed record hang the whole scan.
-            }
-
-            cursor.continue();
-          };
-
-          cursorReq.onerror = function () { fail('cursor-error'); };
-        } catch (error) {
-          fail('cursor-exception');
-        }
-      }
-
-      function enrichAndResolve(db, byChat) {
-        var titles = Object.create(null);
-        var unread = Object.create(null);
-
-        function emit() {
-          var keys = Object.keys(byChat).filter(function (jid) {
-            return byChat[jid].lastInboundT > 0;
-          });
-          keys.sort(function (a, b) {
-            return byChat[b].lastInboundT - byChat[a].lastInboundT;
-          });
-
-          var conversations = [];
-          for (var i = 0; i < keys.length && conversations.length < maxChats; i++) {
-            var jid = keys[i];
-            var rec = byChat[jid];
-            conversations.push({
-              conversationKey: jid,
-              customerName: titles[jid] || jid,
-              lastInboundBody: rec.lastInboundBody,
-              lastInboundTimestampUtc: new Date(rec.lastInboundT * 1000).toISOString(),
-              lastActivityTimestampUtc: new Date(rec.lastT * 1000).toISOString(),
-              lastMessageFromMe: rec.lastFromMe,
-              unreadCount: unread[jid] || 0,
-              inboundCount: rec.inboundCount
-            });
-          }
-
-          diag.stage = 'done';
-          done(conversations);
-        }
-
-        try {
           if (!db.objectStoreNames.contains('chat')) {
-            emit();
+            fail('no-chat-store');
             return;
           }
 
-          var q = db.transaction('chat', 'readonly').objectStore('chat').getAll();
-          q.onsuccess = function (event) {
+          diag.stage = 'getall-chat';
+          var req = db.transaction('chat', 'readonly').objectStore('chat').getAll(null, 1000);
+
+          req.onsuccess = function (event) {
             var chats = event.target.result || [];
             diag.chats = chats.length;
-            for (var k = 0; k < chats.length; k++) {
-              var key = getChatKey(chats[k]);
-              if (!key) {
-                continue;
+            var conversations = [];
+
+            for (var i = 0; i < chats.length; i++) {
+              try {
+                var ch = chats[i];
+                if (!ch || ch.archive) {
+                  continue;
+                }
+                var jid = getChatKey(ch);
+                if (!jid) {
+                  continue;
+                }
+
+                var last = ch.lastMessage || null;
+                if (last) {
+                  diag.withLastMsg++;
+                }
+
+                var t = (last && last.t) || ch.t || 0;
+                if (!t) {
+                  continue;
+                }
+                diag.withTs++;
+
+                var fromMe = last ? !!last.fromMe : false;
+                var body = last ? (last.body || last.caption || last.text || '') : '';
+                var iso = new Date(t * 1000).toISOString();
+
+                conversations.push({
+                  conversationKey: jid,
+                  customerName: getChatTitle(ch),
+                  lastInboundBody: fromMe ? '' : body,
+                  lastInboundTimestampUtc: iso,
+                  lastActivityTimestampUtc: iso,
+                  lastMessageFromMe: fromMe,
+                  unreadCount: ch.unreadCount || 0,
+                  inboundCount: ch.unreadCount || 0
+                });
+              } catch (rowError) {
+                // Skip a malformed chat record rather than failing the whole read.
               }
-              titles[key] = getChatTitle(chats[k]);
-              unread[key] = chats[k].unreadCount || 0;
             }
-            emit();
+
+            conversations.sort(function (a, b) {
+              return new Date(b.lastActivityTimestampUtc) - new Date(a.lastActivityTimestampUtc);
+            });
+            if (conversations.length > maxChats) {
+              conversations = conversations.slice(0, maxChats);
+            }
+
+            diag.stage = 'done';
+            done(conversations);
           };
-          q.onerror = emit;
+
+          req.onerror = function () { fail('getall-chat-error'); };
         } catch (error) {
-          emit();
+          fail('chat-exception');
         }
       }
 
       if (dbCache) {
-        cursorMessages(dbCache);
+        readChats(dbCache);
         return;
       }
 
@@ -1070,7 +1034,7 @@
         var request = indexedDB.open('model-storage');
         request.onsuccess = function () {
           dbCache = request.result;
-          cursorMessages(dbCache);
+          readChats(dbCache);
         };
         request.onerror = function () { fail('open-error'); };
       }).catch(function () { fail('databases-rejected'); });
