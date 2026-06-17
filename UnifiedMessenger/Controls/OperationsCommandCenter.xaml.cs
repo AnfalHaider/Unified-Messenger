@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,7 +13,7 @@ namespace UnifiedMessenger.Controls;
 public sealed partial class OperationsCommandCenter : UserControl
 {
     private readonly OperationsCommandCenterViewModel _viewModel = new();
-    private ApplicationServices _services = new();
+    private ApplicationServices _services = ApplicationServiceProvider.Current;
     private DispatcherQueue _dispatcherQueue = null!;
     private IEnumerable<MessengerInstance> _professionalInstances = [];
     private OperationsCommandCenterSnapshot _snapshot = OperationsCommandCenterSnapshot.Empty;
@@ -394,7 +394,7 @@ public sealed partial class OperationsCommandCenter : UserControl
 
     private static int ParseKpiCount(string value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value == "—")
+        if (string.IsNullOrWhiteSpace(value) || value == "â€”")
         {
             return 0;
         }
@@ -496,3 +496,5 @@ public sealed partial class OperationsCommandCenter : UserControl
         }
     }
 }
+
+

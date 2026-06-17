@@ -2,7 +2,7 @@
 
 #include "installer-shared.iss"
 
-#define PublishDir "UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-arm64\publish"
+#define PublishDir "UnifiedMessenger\bin\ARM64\Release\net8.0-windows10.0.19041.0\win-arm64\publish"
 
 [Setup]
 AppId={{A7B3C4D5-E6F7-4890-ABCD-EF1234567890}}

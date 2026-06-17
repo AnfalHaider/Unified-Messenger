@@ -7,8 +7,8 @@
 
   window.__unifiedMessengerAdapterInstalled = true;
 
-  var INSTANCE_ID = __INSTANCE_ID__;
-  var PLATFORM = __PLATFORM__;
+  var INSTANCE_ID = (window.__umConfig && window.__umConfig.instanceId) || '';
+  var PLATFORM = (window.__umConfig && window.__umConfig.platform) || 'whatsapp';
   var ADAPTER_ID = 'whatsapp';
   var lastPostedCount = -1;
   var dbCache = null;

@@ -16,11 +16,15 @@ public class AdapterCoreScriptTests
     }
 
     [Fact]
-    public void AdapterCoreScript_ContainsMutedBadgePlaceholder()
+    public void AdapterCoreScript_ReadsMutedBadgesFromConfig()
     {
         var script = ReadAdapterCoreScript();
 
-        Assert.Contains("__INCLUDE_MUTED_BADGES__", script, StringComparison.Ordinal);
+        // Token substitution was replaced with structured config injection (M3.1).
+        // The script must NOT contain the old placeholder and must read from __umConfig instead.
+        Assert.DoesNotContain("__INCLUDE_MUTED_BADGES__", script, StringComparison.Ordinal);
+        Assert.Contains("__umConfig", script, StringComparison.Ordinal);
+        Assert.Contains("includeMutedBadges", script, StringComparison.Ordinal);
         Assert.Contains("__umShouldIncludeMutedBadges", script, StringComparison.Ordinal);
     }
 

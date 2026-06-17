@@ -64,6 +64,12 @@ public sealed class OperationsStatusSnapshot
 
     public int SlaBreachesNumeric { get; init; }
 
+    /// <summary>Live threads approaching the SLA threshold but not yet breached.</summary>
+    public int SlaAtRiskCount { get; init; }
+
+    /// <summary>Open threads reconstructed from history (excluded from SLA timing).</summary>
+    public int HistoricalOpenCount { get; init; }
+
     public string SlaThresholdSubtext { get; init; } = string.Empty;
 
     public string ResponseRate { get; init; } = "—";

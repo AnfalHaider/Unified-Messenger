@@ -7,6 +7,14 @@ public static class OperationalMetricsHelper
     public static int CountActiveSlaBreaches(IEnumerable<ThreadData> threads) =>
         threads.Count(thread => thread.IsSlaBreached);
 
+    /// <summary>Live threads approaching the SLA threshold but not yet breached.</summary>
+    public static int CountSlaAtRisk(IEnumerable<ThreadData> threads) =>
+        threads.Count(thread => thread.IsSlaAtRisk);
+
+    /// <summary>Open threads reconstructed from history (excluded from SLA timing).</summary>
+    public static int CountHistoricalOpen(IEnumerable<ThreadData> threads) =>
+        threads.Count(thread => thread.IsHistoricalOpen);
+
     public static IReadOnlyList<OperationalHighlightItem> BuildHighlights(
         IReadOnlyList<MessengerInstance> instances,
         IReadOnlyList<ThreadData> threads,

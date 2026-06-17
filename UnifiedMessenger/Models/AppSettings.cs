@@ -85,6 +85,12 @@ public sealed class AppSettings
     public List<string> PersonalOverviewSectionOrder { get; set; } =
         PersonalOverviewLayoutDefaults.SectionOrder.ToList();
 
+    /// <summary>
+    /// Per-location (workspace) overrides for the Professional scope — display name, SLA threshold,
+    /// and business hours. Empty by default; absence means "use global threshold, 24/7 clock".
+    /// </summary>
+    public List<WorkspaceProfile> WorkspaceProfiles { get; set; } = [];
+
     /// <summary>Persisted OCC chart date range (local calendar date, yyyy-MM-dd).</summary>
     public string? OccDateRangeFromLocal { get; set; }
 
@@ -182,6 +188,12 @@ public sealed class AppSettings
             {
                 OllamaEndpoint += "/";
             }
+        }
+
+        WorkspaceProfiles ??= [];
+        foreach (var profile in WorkspaceProfiles)
+        {
+            profile.Normalize();
         }
     }
 }

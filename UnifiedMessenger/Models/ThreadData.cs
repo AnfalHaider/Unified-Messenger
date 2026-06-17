@@ -64,10 +64,36 @@ public sealed class ThreadData
 
     public bool HasUnreadVoiceNote { get; set; }
 
+    /// <summary>
+    /// True when this thread was reconstructed from historical message backfill rather than
+    /// observed live after connect. Backfilled threads are excluded from SLA timing because their
+    /// original inbound timestamps predate this session and may already have been answered on the
+    /// phone — counting them as breaches saturates the SLA metric (see UI/UX audit, finding F1/Q4).
+    /// </summary>
+    public bool IsBackfilled { get; set; }
+
     public bool IsSlaBreached =>
         !IsSpamOrPromo &&
         !IsReplied &&
-        LatencyMinutes > OperationalThresholds.GetSlaThresholdMinutes();
+        !IsBackfilled &&
+        LatencyMinutes > OperationalThresholds.GetSlaThresholdMinutes(BranchName);
+
+    /// <summary>
+    /// Approaching the SLA threshold (≥50% of the budget) but not yet breached. Gives the operator a
+    /// warning window before a technical breach, per SLA-dashboard best practice.
+    /// </summary>
+    public bool IsSlaAtRisk =>
+        !IsSpamOrPromo &&
+        !IsReplied &&
+        !IsBackfilled &&
+        !IsSlaBreached &&
+        LatencyMinutes >= OperationalThresholds.GetSlaThresholdMinutes(BranchName) * 0.5;
+
+    /// <summary>Open thread carried over from history (not spam, not replied, backfilled).</summary>
+    public bool IsHistoricalOpen =>
+        !IsSpamOrPromo &&
+        !IsReplied &&
+        IsBackfilled;
 
     /// <summary>
     /// High-urgency threads (urgency or critical sentiment) excluding SLA-only breaches.

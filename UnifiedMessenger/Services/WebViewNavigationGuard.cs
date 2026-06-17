@@ -34,12 +34,15 @@ public static class WebViewNavigationGuard
         WebViewAllowlists.AddOrUpdate(coreWebView, allowlist);
         coreWebView.NavigationStarting -= OnNavigationStarting;
         coreWebView.NavigationStarting += OnNavigationStarting;
+        coreWebView.NewWindowRequested -= OnNewWindowRequested;
+        coreWebView.NewWindowRequested += OnNewWindowRequested;
     }
 
     public static void Detach(CoreWebView2 coreWebView)
     {
         ArgumentNullException.ThrowIfNull(coreWebView);
         coreWebView.NavigationStarting -= OnNavigationStarting;
+        coreWebView.NewWindowRequested -= OnNewWindowRequested;
         WebViewAllowlists.Remove(coreWebView);
     }
 
@@ -167,6 +170,30 @@ public static class WebViewNavigationGuard
         {
             args.Cancel = true;
             System.Diagnostics.Debug.WriteLine($"Blocked WebView navigation to disallowed URI: {args.Uri}");
+        }
+    }
+
+    private static void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs args)
+    {
+        // Always suppress popup windows. If the target URL is in the allow-list, navigate the
+        // current WebView frame instead; otherwise discard silently.
+        args.Handled = true;
+
+        if (sender is not CoreWebView2 coreWebView)
+        {
+            return;
+        }
+
+        WebViewAllowlists.TryGetValue(coreWebView, out var allowlist);
+        var effectiveAllowlist = (IReadOnlySet<string>?)allowlist ?? DefaultAllowedHosts;
+
+        if (IsAllowedNavigationUri(args.Uri, effectiveAllowlist))
+        {
+            coreWebView.Navigate(args.Uri);
+        }
+        else
+        {
+            AppLogger.LogWarning("WebView.Nav", $"Blocked new-window request to disallowed URI: {args.Uri}");
         }
     }
 }

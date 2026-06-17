@@ -7,7 +7,7 @@
 
   window.__unifiedMessengerCore = true;
   window.__umRecentPreviews = Object.create(null);
-  window.__umIncludeMutedBadges = __INCLUDE_MUTED_BADGES__;
+  window.__umIncludeMutedBadges = !!(window.__umConfig && window.__umConfig.includeMutedBadges);
   window.__umRuntimeDisposables = [];
 
   var previewPruneCounter = 0;

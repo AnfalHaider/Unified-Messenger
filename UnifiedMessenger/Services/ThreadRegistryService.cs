@@ -115,6 +115,16 @@ public sealed class ThreadRegistryService : IThreadRegistryService
 
         thread.LastTriageItemId = item.Id;
         thread.IsSpamOrPromo = spam;
+        // A live (non-backfill) inbound promotes a historical thread to live SLA tracking; a brand-new
+        // thread inherits the source of its first message. Backfill never overrides an existing live thread.
+        if (!item.IsBackfilled)
+        {
+            thread.IsBackfilled = false;
+        }
+        else if (!threadExisted)
+        {
+            thread.IsBackfilled = true;
+        }
         thread.LastMessageKind = item.MessageKind.ToString();
         if (item.MessageKind == InboundMessageKind.VoiceNote)
         {
@@ -142,7 +152,7 @@ public sealed class ThreadRegistryService : IThreadRegistryService
             thread.ReplyLatencyMinutes = 0;
             thread.LatencyMinutes = spam
                 ? 0
-                : Math.Max(0, (now - thread.FirstInboundAtUtc).TotalMinutes);
+                : ComputeOpenLatencyMinutes(thread, now);
         }
 
         thread.AiIntentCategory = aiIntentCategory
@@ -445,6 +455,25 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         NotifyChanged();
     }
 
+    /// <summary>
+    /// Minutes an open thread has been waiting, honouring its location's business hours when configured
+    /// (the SLA clock pauses outside working hours). Falls back to raw elapsed time otherwise.
+    /// </summary>
+    private static double ComputeOpenLatencyMinutes(ThreadData thread, DateTimeOffset now)
+    {
+        var inboundAt = thread.FirstInboundAtUtc == default
+            ? thread.LastMessageTime
+            : thread.FirstInboundAtUtc;
+
+        var profile = OperationalThresholds.FindProfile(thread.BranchName);
+        if (profile?.Hours is { Enabled: true } hours)
+        {
+            return Math.Max(0, BusinessHoursCalculator.ElapsedBusinessMinutes(inboundAt, now, hours));
+        }
+
+        return Math.Max(0, (now - inboundAt).TotalMinutes);
+    }
+
     public void RefreshOperationalFlags(bool raiseChanged = true) =>
         RefreshOperationalFlagsCore(raiseChanged);
 
@@ -460,10 +489,7 @@ public sealed class ThreadRegistryService : IThreadRegistryService
                 continue;
             }
 
-            var inboundAt = thread.FirstInboundAtUtc == default
-                ? thread.LastMessageTime
-                : thread.FirstInboundAtUtc;
-            var latency = Math.Max(0, (now - inboundAt).TotalMinutes);
+            var latency = ComputeOpenLatencyMinutes(thread, now);
             if (Math.Abs(thread.LatencyMinutes - latency) > 0.5)
             {
                 thread.LatencyMinutes = latency;

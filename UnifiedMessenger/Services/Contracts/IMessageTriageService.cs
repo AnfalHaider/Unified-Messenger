@@ -10,7 +10,8 @@ public interface IMessageTriageService
         InboundMessageSelection selection,
         string? instanceDisplayName = null,
         string? branchKey = null,
-        bool allowLlmInference = true);
+        bool allowLlmInference = true,
+        bool isBackfilled = false);
 
     IReadOnlyList<MessageTriageItem> GetAllItems();
 

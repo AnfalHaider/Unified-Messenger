@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -26,6 +27,8 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
     private static readonly ConditionalWeakTable<CoreWebView2, object> RegisteredHosts = new();
     private static readonly Dictionary<string, string> ScriptTemplates = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object ScriptCacheLock = new();
+    private static readonly ConcurrentDictionary<string, int> ScrapeFailureCounts = new(StringComparer.OrdinalIgnoreCase);
+    private const int ScrapeFailureLogThreshold = 3;
 
     protected abstract string ScriptFileName { get; }
 
@@ -48,26 +51,20 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             return;
         }
 
-        var coreScript = PrepareScript(
-            await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false),
-            instance);
-        var handshakeScript = PrepareScript(
-            await LoadScriptTemplateAsync("connection-handshake.js", cancellationToken).ConfigureAwait(false),
-            instance);
-        var adapterScript = PrepareScript(
-            await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
-            instance);
+        var configScript = BuildConfigScript(instance);
+        var coreScript = await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false);
+        var handshakeScript = await LoadScriptTemplateAsync("connection-handshake.js", cancellationToken).ConfigureAwait(false);
+        var adapterScript = await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false);
         var additionalScripts = new List<string>(AdditionalScriptFileNames.Count);
         foreach (var additionalScript in AdditionalScriptFileNames)
         {
-            additionalScripts.Add(PrepareScript(
-                await LoadScriptTemplateAsync(additionalScript, cancellationToken).ConfigureAwait(false),
-                instance));
+            additionalScripts.Add(await LoadScriptTemplateAsync(additionalScript, cancellationToken).ConfigureAwait(false));
         }
 
         await UiThreadRunner.RunAsync(async () =>
         {
             coreWebView.Settings.IsWebMessageEnabled = true;
+            await AddDocumentCreatedScriptAsync(coreWebView, configScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, handshakeScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
@@ -93,18 +90,13 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
         try
         {
-            var coreScript = PrepareScript(
-                await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false),
-                instance);
-            var adapterScript = PrepareScript(
-                await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false),
-                instance);
+            var configScript = BuildConfigScript(instance);
+            var coreScript = await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false);
+            var adapterScript = await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false);
             var additionalScripts = new List<string>();
             foreach (var additionalScript in AdditionalScriptFileNames)
             {
-                additionalScripts.Add(PrepareScript(
-                    await LoadScriptTemplateAsync(additionalScript, cancellationToken).ConfigureAwait(false),
-                    instance));
+                additionalScripts.Add(await LoadScriptTemplateAsync(additionalScript, cancellationToken).ConfigureAwait(false));
             }
 
             var settingsScript = BuildAdapterSettingsScript();
@@ -116,6 +108,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                         "if (window.__umResetAdapterRuntime) { window.__umResetAdapterRuntime(); }",
                         cancellationToken)
                     .ConfigureAwait(true);
+                await ExecuteScriptSafeAsync(coreWebView, configScript, cancellationToken).ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
 
@@ -216,6 +209,12 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             if (AdapterMessageTypes.UpdateThreadStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
             {
                 HandleUpdateThreadStatus(root, instance);
+                return;
+            }
+
+            if (AdapterMessageTypes.DashboardScrapeStatus.Equals(type, StringComparison.OrdinalIgnoreCase))
+            {
+                HandleDashboardScrapeStatus(root, instance);
                 return;
             }
 
@@ -326,6 +325,29 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         {
             Debug.WriteLine(
                 $"Thread status update failed for {instance.Id}: {ex.Message}");
+        }
+    }
+
+    private static void HandleDashboardScrapeStatus(JsonElement root, MessengerInstance instance)
+    {
+        var success = root.TryGetProperty("success", out var successEl) && successEl.ValueKind == JsonValueKind.True;
+        var instanceKey = instance.Id;
+
+        if (success)
+        {
+            if (ScrapeFailureCounts.TryRemove(instanceKey, out var recovered) && recovered >= ScrapeFailureLogThreshold)
+            {
+                AppLogger.LogInfo($"Adapter.{instanceKey}", "Scrape recovered after consecutive failures.");
+            }
+            return;
+        }
+
+        var count = ScrapeFailureCounts.AddOrUpdate(instanceKey, 1, (_, prev) => prev + 1);
+        if (count == ScrapeFailureLogThreshold)
+        {
+            var context = root.TryGetProperty("context", out var ctxEl) ? ctxEl.GetString() ?? "unknown" : "unknown";
+            var detail = root.TryGetProperty("detail", out var detailEl) ? detailEl.GetString() ?? string.Empty : string.Empty;
+            AppLogger.LogWarning($"Adapter.{instanceKey}", $"Scrape failing consistently [{context}]: {detail}");
         }
     }
 
@@ -603,19 +625,19 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             .ConfigureAwait(true);
     }
 
-    private static string PrepareScript(string script, MessengerInstance instance)
+    private static string BuildConfigScript(MessengerInstance instance)
     {
-        var includeMutedBadges = AppSettingsService.Instance.Settings.IncludeMutedChatBadges;
-        return script
-            .Replace("__INSTANCE_ID__", JsonSerializer.Serialize(instance.Id), StringComparison.Ordinal)
-            .Replace(
-                "__PLATFORM__",
-                JsonSerializer.Serialize(PlatformDefinition.NormalizePlatformId(instance.Platform)),
-                StringComparison.Ordinal)
-            .Replace("__INCLUDE_MUTED_BADGES__", includeMutedBadges ? "true" : "false", StringComparison.Ordinal)
-            .Replace("__NOTIFICATIONS_MUTED__", instance.NotificationsMuted ? "true" : "false", StringComparison.Ordinal)
-            .Replace("__ENABLE_VOICE_NOTES__", "false", StringComparison.Ordinal)
-            .Replace("__VOICE_NOTE_MAX_SECONDS__", "60", StringComparison.Ordinal);
+        var settings = AppSettingsService.Instance.Settings;
+        var config = JsonSerializer.Serialize(new
+        {
+            instanceId = instance.Id,
+            platform = PlatformDefinition.NormalizePlatformId(instance.Platform),
+            includeMutedBadges = settings.IncludeMutedChatBadges,
+            notificationsMuted = instance.NotificationsMuted,
+            enableVoiceNotes = false,
+            voiceNoteMaxSeconds = 60
+        });
+        return $"window.__umConfig = {config};";
     }
 
     private static async Task<string> LoadScriptTemplateAsync(

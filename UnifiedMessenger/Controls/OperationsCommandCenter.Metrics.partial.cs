@@ -186,5 +186,11 @@ public sealed partial class OperationsCommandCenter
             _services.OccDateRangeFilter.FromUtc,
             _services.OccDateRangeFilter.ToUtc);
         MessageVolumeChart.ApplySeries(trends.WeeklyActivity, exceedsCap);
+
+        // P1-1: surface a clear "Sync message history" CTA only when the volume trend is empty,
+        // so the most prominent panel offers a next step instead of a dead-end empty state.
+        SyncHistoryCtaButton.Visibility = trends.HasMessageVolume
+            ? Microsoft.UI.Xaml.Visibility.Collapsed
+            : Microsoft.UI.Xaml.Visibility.Visible;
     }
 }

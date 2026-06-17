@@ -1,4 +1,4 @@
-using Microsoft.UI.Dispatching;
+﻿using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
@@ -16,7 +16,7 @@ public sealed partial class PersonalOverviewPanel : UserControl
 
     private readonly PersonalOverviewViewModel _viewModel = new();
 
-    private ApplicationServices _services = new();
+    private ApplicationServices _services = ApplicationServiceProvider.Current;
 
     private IEnumerable<MessengerInstance> _personalInstances = [];
     private DispatcherQueueTimer? _refreshDebounceTimer;
@@ -301,3 +301,5 @@ public sealed partial class PersonalOverviewPanel : UserControl
         }
     }
 }
+
+

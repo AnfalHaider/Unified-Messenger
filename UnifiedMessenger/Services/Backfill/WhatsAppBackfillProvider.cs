@@ -126,7 +126,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 },
                 instance.DisplayName,
                 BranchWorkspaceHelper.ResolveBranchKey(instance),
-                allowLlmInference: allowLlm);
+                allowLlmInference: allowLlm,
+                isBackfilled: true);
 
             if (allowLlm)
             {
@@ -340,7 +341,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 },
                 instance.DisplayName,
                 BranchWorkspaceHelper.ResolveBranchKey(instance),
-                allowLlmInference: false);
+                allowLlmInference: false,
+                isBackfilled: true);
 
             processed++;
         }
@@ -408,7 +410,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 },
                 instance.DisplayName,
                 BranchWorkspaceHelper.ResolveBranchKey(instance),
-                allowLlmInference: false);
+                allowLlmInference: false,
+                isBackfilled: true);
 
             result.TriageEnqueued++;
             processed++;

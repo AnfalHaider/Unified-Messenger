@@ -81,7 +81,8 @@ public static class HeuristicTriageProcessor
             SuggestedAction = isSpam ? "Ignore" : SuggestHeuristicAction(intent, urgency),
             IsSpamOrPromo = isSpam,
             CustomerIntent = intent,
-            MessageKind = request.MessageKind
+            MessageKind = request.MessageKind,
+            IsBackfilled = request.IsBackfilled
         };
 
         return new HeuristicTriageResult
@@ -203,4 +204,7 @@ public sealed class MessageTriageRequest
     public InboundMessageKind MessageKind { get; init; } = InboundMessageKind.Text;
 
     public bool AllowLlmInference { get; init; } = true;
+
+    /// <summary>True when this message arrived via historical backfill rather than a live observation.</summary>
+    public bool IsBackfilled { get; init; }
 }

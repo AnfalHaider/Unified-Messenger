@@ -1,3 +1,5 @@
+> ⚠️ **Superseded by [MASTER-PLAN.md](../MASTER-PLAN.md)** (2026-06-16). Historical pass record; the master plan is the living source of truth.
+
 # Ultimate Audit Program — completion criteria
 
 Assessment as of v3.2.0 (Ultimate Product Audit remediation).

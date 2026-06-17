@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -13,7 +13,7 @@ public sealed partial class SettingsPage : Page
 {
     private readonly SettingsViewModel _viewModel = new();
 
-    private ApplicationServices _services = new();
+    private ApplicationServices _services = ApplicationServiceProvider.Current;
     private IInstanceRegistryService? _registry;
     private bool _suppressToggleEvents;
 
@@ -271,3 +271,5 @@ public sealed partial class SettingsPage : Page
         await dialog.ShowAsync();
     }
 }
+
+

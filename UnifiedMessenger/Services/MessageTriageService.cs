@@ -55,7 +55,8 @@ public sealed class MessageTriageService : IMessageTriageService
         InboundMessageSelection selection,
         string? instanceDisplayName = null,
         string? branchKey = null,
-        bool allowLlmInference = true)
+        bool allowLlmInference = true,
+        bool isBackfilled = false)
     {
         ArgumentNullException.ThrowIfNull(selection);
 
@@ -80,7 +81,8 @@ public sealed class MessageTriageService : IMessageTriageService
                 ConversationHint = selection.ConversationHint,
                 TimestampUtc = selection.TimestampUtc,
                 MessageKind = selection.MessageKind,
-                AllowLlmInference = allowLlmInference
+                AllowLlmInference = allowLlmInference,
+                IsBackfilled = isBackfilled
             },
             "MessageTriage");
     }
@@ -210,7 +212,8 @@ public sealed class MessageTriageService : IMessageTriageService
             CustomerIntent = existing.CustomerIntent,
             EstimatedValue = existing.EstimatedValue,
             IsRevenueLeakageRisk = existing.IsRevenueLeakageRisk,
-            MessageKind = existing.MessageKind
+            MessageKind = existing.MessageKind,
+            IsBackfilled = existing.IsBackfilled
         };
 
         _items[triageItemId] = enriched;

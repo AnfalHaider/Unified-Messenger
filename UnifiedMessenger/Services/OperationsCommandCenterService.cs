@@ -69,6 +69,8 @@ public sealed class OperationsCommandCenterService
         var analytics = telemetry.Snapshot;
         var display = telemetry.Display;
         var activeSlaBreaches = OperationalMetricsHelper.CountActiveSlaBreaches(threadOperations.AllThreads);
+        var slaAtRisk = OperationalMetricsHelper.CountSlaAtRisk(threadOperations.AllThreads);
+        var historicalOpen = OperationalMetricsHelper.CountHistoricalOpen(threadOperations.AllThreads);
 
         return new OperationsCommandCenterSnapshot
         {
@@ -78,7 +80,7 @@ public sealed class OperationsCommandCenterService
             SelectedBranchKey = normalizedBranchKey,
             FilteredInstances = filteredInstances,
             ThreadOperations = threadOperations,
-            Status = BuildStatusSnapshot(threadOperations, analytics, display, activeSlaBreaches),
+            Status = BuildStatusSnapshot(threadOperations, analytics, display, activeSlaBreaches, slaAtRisk, historicalOpen),
             AnalyticsTrends = new OperationsAnalyticsTrendSnapshot
             {
                 WeeklyActivity = analytics.WeeklyActivity,
@@ -130,19 +132,25 @@ public sealed class OperationsCommandCenterService
             toUtc);
 
         var activeSlaBreaches = OperationalMetricsHelper.CountActiveSlaBreaches(threadOperations.AllThreads);
+        var slaAtRisk = OperationalMetricsHelper.CountSlaAtRisk(threadOperations.AllThreads);
+        var historicalOpen = OperationalMetricsHelper.CountHistoricalOpen(threadOperations.AllThreads);
 
         return BuildStatusSnapshot(
             threadOperations,
             telemetry.Snapshot,
             telemetry.Display,
-            activeSlaBreaches);
+            activeSlaBreaches,
+            slaAtRisk,
+            historicalOpen);
     }
 
     private static OperationsStatusSnapshot BuildStatusSnapshot(
         UnifiedMessengerDashboardSnapshot threadOperations,
         ProfessionalAnalyticsSnapshot analytics,
         ProfessionalDashboardDisplay display,
-        int activeSlaBreaches) =>
+        int activeSlaBreaches,
+        int slaAtRisk,
+        int historicalOpen) =>
         new()
         {
             OpenThreadCount = threadOperations.OpenThreadCount,
@@ -155,6 +163,8 @@ public sealed class OperationsCommandCenterService
             AverageReplyTimeSubtext = display.AverageReplyTimeSubtext,
             SlaBreaches = activeSlaBreaches > 0 ? activeSlaBreaches.ToString() : "—",
             SlaBreachesNumeric = activeSlaBreaches,
+            SlaAtRiskCount = slaAtRisk,
+            HistoricalOpenCount = historicalOpen,
             SlaThresholdSubtext = display.SlaThresholdSubtext,
             ResponseRate = display.ResponseRate,
             PeakHour = analytics.PeakHourDisplay,

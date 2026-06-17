@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -16,7 +16,7 @@ namespace UnifiedMessenger.Controls;
 public sealed partial class WorkspaceSidebar : Grid
 {
     private readonly WorkspaceSidebarViewModel _viewModel = new();
-    private ApplicationServices _services = new();
+    private ApplicationServices _services = ApplicationServiceProvider.Current;
     private readonly Dictionary<string, Border> _instanceRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, InfoBadge> _instanceBadges = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Ellipse> _instanceStatusDots = new(StringComparer.OrdinalIgnoreCase);
@@ -909,3 +909,5 @@ public sealed partial class WorkspaceSidebar : Grid
             ? value
             : fallback;
 }
+
+

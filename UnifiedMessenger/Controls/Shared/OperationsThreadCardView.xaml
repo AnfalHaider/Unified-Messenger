@@ -128,8 +128,8 @@
                     Visibility="{x:Bind ViewModel.RevenueVisibility, Mode=OneWay}" />
                 <TextBlock
                     FontSize="{StaticResource UmBadgeFontSize}"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="Click to open thread"
+                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                    Text="Open chat &#x2192;"
                     Visibility="{x:Bind ClickHintVisibility, Mode=OneTime}" />
             </StackPanel>
         </Grid>

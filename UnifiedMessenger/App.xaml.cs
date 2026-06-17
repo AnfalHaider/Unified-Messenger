@@ -80,10 +80,12 @@ public partial class App : Application
 
         if (eventArgs.Exception is null)
         {
+            AppLogger.LogError("App.UnhandledException", new Exception(eventArgs.Message ?? "Unknown unhandled exception"));
             return;
         }
 
         Debug.WriteLine(eventArgs.Exception.ToString());
+        AppLogger.LogError("App.UnhandledException", eventArgs.Exception);
 
         // Leave Handled=false so the process can terminate on non-recoverable faults.
     }

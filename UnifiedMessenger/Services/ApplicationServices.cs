@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Services.Ai;
 
@@ -5,81 +6,55 @@ namespace UnifiedMessenger.Services;
 
 /// <summary>
 /// Composition root for shell-scoped services (core product only).
+/// Constructed by the DI container built in <see cref="ServiceRegistration.AddApplicationServices"/>.
 /// </summary>
 public sealed partial class ApplicationServices
 {
-    public static ApplicationServices CreateDefault() => new();
-
-    public ApplicationServices(
-        IInstanceRegistryService? registry = null,
-        IInstanceSessionManager? sessionManager = null,
-        INavigationService? navigation = null,
-        INotificationHubService? notificationHub = null,
-        IAppSettingsService? appSettings = null,
-        IThreadRegistryService? threadRegistry = null,
-        IMessageTriageService? messageTriage = null,
-        IMessageAnalyticsService? messageAnalytics = null,
-        IWebViewScriptGateway? webViewScriptGateway = null,
-        IGitHubUpdateService? gitHubUpdate = null,
-        IDialogService? dialog = null,
-        IWebViewProfileManager? webViewProfileManager = null,
-        ISystemTrayService? systemTray = null,
-        IAppNotificationService? appNotification = null,
-        ITaskbarBadgeService? taskbarBadge = null,
-        AdapterHealthMonitor? adapterHealth = null,
-        InstanceConnectionStatusService? connectionStatus = null,
-        OperationsCommandCenterService? operationsCommandCenter = null,
-        UnifiedMessengerDashboardService? dashboard = null,
-        PersonalDashboardService? personalDashboard = null,
-        DashboardRefreshCoordinator? dashboardRefresh = null,
-        UnifiedMessengerStateSyncService? stateSync = null,
-        ThreadDisplayOrderService? threadDisplayOrder = null,
-        TriagePersistenceService? triagePersistence = null,
-        InstanceWebViewRegistry? webViewRegistry = null,
-        ResourceMonitorService? resourceMonitor = null,
-        WhatsAppBusinessContextService? whatsAppBusinessContext = null,
-        OccQueueFilterState? occQueueFilter = null,
-        OccFilterState? occFilter = null,
-        OccDateRangeFilterState? occDateRangeFilter = null,
-        OccViewModeState? occViewMode = null,
-        IAiInferenceClient? aiInferenceClient = null,
-        OllamaRuntimeService? ollamaRuntime = null,
-        AiInferenceQueue? aiInferenceQueue = null)
+    public static ApplicationServices CreateDefault()
     {
-        Registry = registry ?? new InstanceRegistryService();
-        SessionManager = sessionManager ?? InstanceSessionManager.Instance;
-        Navigation = navigation ?? ShellNavigationService.Instance;
-        NotificationHub = notificationHub ?? global::UnifiedMessenger.Services.NotificationHub.Instance;
-        AppSettings = appSettings ?? AppSettingsService.Instance;
-        ThreadRegistry = threadRegistry ?? ThreadRegistryService.Instance;
-        MessageTriage = messageTriage ?? MessageTriageService.Instance;
-        MessageAnalytics = messageAnalytics ?? MessageAnalyticsService.Instance;
-        WebViewScriptGateway = webViewScriptGateway ?? global::UnifiedMessenger.Services.WebViewScriptGateway.Instance;
-        GitHubUpdate = gitHubUpdate ?? GitHubUpdateService.Instance;
-        Dialog = dialog ?? new WinUiDialogService();
-        WebViewProfileManager = webViewProfileManager ?? global::UnifiedMessenger.Services.WebViewProfileManager.Instance;
-        SystemTray = systemTray ?? SystemTrayService.Instance;
-        AppNotification = appNotification ?? AppNotificationService.Instance;
-        TaskbarBadge = taskbarBadge ?? TaskbarBadgeService.Instance;
-        AdapterHealth = adapterHealth ?? AdapterHealthMonitor.Instance;
-        ConnectionStatus = connectionStatus ?? InstanceConnectionStatusService.Instance;
-        OperationsCommandCenter = operationsCommandCenter ?? OperationsCommandCenterService.Instance;
-        Dashboard = dashboard ?? UnifiedMessengerDashboardService.Instance;
-        PersonalDashboard = personalDashboard ?? PersonalDashboardService.Instance;
-        DashboardRefresh = dashboardRefresh ?? DashboardRefreshCoordinator.Instance;
-        StateSync = stateSync ?? UnifiedMessengerStateSyncService.Instance;
-        ThreadDisplayOrder = threadDisplayOrder ?? ThreadDisplayOrderService.Instance;
-        TriagePersistence = triagePersistence ?? TriagePersistenceService.Instance;
-        WebViewRegistry = webViewRegistry ?? InstanceWebViewRegistry.Instance;
-        ResourceMonitor = resourceMonitor ?? ResourceMonitorService.Instance;
-        WhatsAppBusinessContext = whatsAppBusinessContext ?? WhatsAppBusinessContextService.Instance;
-        OccFilter = occFilter ?? OccFilterState.Instance;
-        OccQueueFilter = occQueueFilter ?? OccQueueFilterState.Instance;
-        OccDateRangeFilter = occDateRangeFilter ?? OccDateRangeFilterState.Instance;
-        OccViewMode = occViewMode ?? OccViewModeState.Instance;
-        AiInferenceClient = aiInferenceClient ?? OllamaInferenceClient.Instance;
-        OllamaRuntime = ollamaRuntime ?? OllamaRuntimeService.Instance;
-        AiInferenceQueue = aiInferenceQueue ?? AiInferenceQueue.Instance;
+        var provider = new ServiceCollection()
+            .AddApplicationServices()
+            .BuildServiceProvider();
+        return provider.GetRequiredService<ApplicationServices>();
+    }
+
+    public ApplicationServices(IServiceProvider provider)
+    {
+        Registry = provider.GetRequiredService<IInstanceRegistryService>();
+        SessionManager = provider.GetRequiredService<IInstanceSessionManager>();
+        Navigation = provider.GetRequiredService<INavigationService>();
+        NotificationHub = provider.GetRequiredService<INotificationHubService>();
+        AppSettings = provider.GetRequiredService<IAppSettingsService>();
+        ThreadRegistry = provider.GetRequiredService<IThreadRegistryService>();
+        MessageTriage = provider.GetRequiredService<IMessageTriageService>();
+        MessageAnalytics = provider.GetRequiredService<IMessageAnalyticsService>();
+        WebViewScriptGateway = provider.GetRequiredService<IWebViewScriptGateway>();
+        GitHubUpdate = provider.GetRequiredService<IGitHubUpdateService>();
+        Dialog = provider.GetRequiredService<IDialogService>();
+        WebViewProfileManager = provider.GetRequiredService<IWebViewProfileManager>();
+        SystemTray = provider.GetRequiredService<ISystemTrayService>();
+        AppNotification = provider.GetRequiredService<IAppNotificationService>();
+        TaskbarBadge = provider.GetRequiredService<ITaskbarBadgeService>();
+        AdapterHealth = provider.GetRequiredService<AdapterHealthMonitor>();
+        ConnectionStatus = provider.GetRequiredService<InstanceConnectionStatusService>();
+        OperationsCommandCenter = provider.GetRequiredService<OperationsCommandCenterService>();
+        Oversight = provider.GetRequiredService<OversightService>();
+        Dashboard = provider.GetRequiredService<UnifiedMessengerDashboardService>();
+        PersonalDashboard = provider.GetRequiredService<PersonalDashboardService>();
+        DashboardRefresh = provider.GetRequiredService<DashboardRefreshCoordinator>();
+        StateSync = provider.GetRequiredService<UnifiedMessengerStateSyncService>();
+        ThreadDisplayOrder = provider.GetRequiredService<ThreadDisplayOrderService>();
+        TriagePersistence = provider.GetRequiredService<TriagePersistenceService>();
+        WebViewRegistry = provider.GetRequiredService<InstanceWebViewRegistry>();
+        ResourceMonitor = provider.GetRequiredService<ResourceMonitorService>();
+        WhatsAppBusinessContext = provider.GetRequiredService<WhatsAppBusinessContextService>();
+        OccQueueFilter = provider.GetRequiredService<OccQueueFilterState>();
+        OccFilter = provider.GetRequiredService<OccFilterState>();
+        OccDateRangeFilter = provider.GetRequiredService<OccDateRangeFilterState>();
+        OccViewMode = provider.GetRequiredService<OccViewModeState>();
+        AiInferenceClient = provider.GetRequiredService<IAiInferenceClient>();
+        OllamaRuntime = provider.GetRequiredService<OllamaRuntimeService>();
+        AiInferenceQueue = provider.GetRequiredService<AiInferenceQueue>();
     }
 
     public IInstanceRegistryService Registry { get; }
@@ -117,6 +92,8 @@ public sealed partial class ApplicationServices
     public InstanceConnectionStatusService ConnectionStatus { get; }
 
     public OperationsCommandCenterService OperationsCommandCenter { get; }
+
+    public OversightService Oversight { get; }
 
     public UnifiedMessengerDashboardService Dashboard { get; }
 

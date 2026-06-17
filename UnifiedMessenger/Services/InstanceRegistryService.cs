@@ -776,6 +776,21 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
                 throw new ArgumentException("Custom URL must be a valid http or https address.", nameof(customUrl));
             }
 
+            // For platforms with a fixed default URL, the custom URL must share the same host to prevent
+            // a crafted import from redirecting a known-platform instance to an arbitrary site.
+            if (!string.IsNullOrWhiteSpace(platform.DefaultUrl) &&
+                Uri.TryCreate(platform.DefaultUrl, UriKind.Absolute, out var defaultUri))
+            {
+                var expectedHost = defaultUri.Host;
+                if (!uri.Host.Equals(expectedHost, StringComparison.OrdinalIgnoreCase) &&
+                    !uri.Host.EndsWith("." + expectedHost, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArgumentException(
+                        $"Start URL host must match the expected platform host ({expectedHost}).",
+                        nameof(customUrl));
+                }
+            }
+
             return trimmed;
         }
 

@@ -44,8 +44,8 @@ public sealed partial class MessageVolumeLineChart : UserControl
         if (_viewModel.ShowEmptyHint)
         {
             EmptyHintText.Text = IsHistoricalMode
-                ? "Historical volume appears after message history is synced for the selected period."
-                : "Volume appears after WhatsApp message history is synced. KPI cards show your live queue.";
+                ? "Historical volume appears once message history is synced for this period. History syncs automatically as accounts connect — adjust depth in Settings ▸ Data."
+                : "Your live queue and KPI cards are ready below. The volume trend fills in automatically as message history syncs in the background.";
         }
 
         UpdateAxisLabels(series);

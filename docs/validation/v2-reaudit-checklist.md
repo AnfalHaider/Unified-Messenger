@@ -1,3 +1,5 @@
+> ⚠️ **Superseded by [MASTER-PLAN.md](../MASTER-PLAN.md)** (2026-06-16). Historical; the master plan is the living source of truth.
+
 # v2.0 Re-audit checklist
 
 Assessment after v2.0 roadmap implementation (June 2026).

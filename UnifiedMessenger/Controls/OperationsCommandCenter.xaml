@@ -147,72 +147,6 @@
                         Style="{StaticResource SubtleButtonStyle}" />
                 </StackPanel>
 
-                <shared:SurfaceCard>
-                    <shared:SurfaceCard.CardBody>
-                        <StackPanel Spacing="{StaticResource UmSpacingMd}">
-                            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition MinWidth="0" Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock
-                                    Style="{StaticResource UmSectionLabelTextStyle}"
-                                    Text="DATE RANGE" />
-                                <ToggleSwitch
-                                    x:Name="OccViewModeToggle"
-                                    Grid.Column="1"
-                                    AutomationProperties.Name="Operations view mode"
-                                    OffContent="Live workload"
-                                    OnContent="Historical report"
-                                    Toggled="OccViewModeToggle_Toggled"
-                                    VerticalAlignment="Center" />
-                            </Grid>
-                            <TextBlock
-                                x:Name="DateRangeScopeCaption"
-                                Style="{StaticResource UmCaptionTextStyle}"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Chart uses the date range. Toggle above switches KPI and queue scope."
-                                TextWrapping="WrapWholeWords" />
-                            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition MinWidth="0" Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock
-                                    Grid.Column="0"
-                                    Style="{StaticResource UmCaptionTextStyle}"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    TextWrapping="WrapWholeWords" />
-                                <Button
-                                    Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    Click="ClearDateRangeButton_Click"
-                                    Content="Clear Filter"
-                                    Style="{StaticResource SubtleButtonStyle}" />
-                            </Grid>
-                            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition MinWidth="{StaticResource UmDatePickerMinWidth}" Width="*" />
-                                    <ColumnDefinition MinWidth="{StaticResource UmDatePickerMinWidth}" Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <DatePicker
-                                    x:Name="FromDatePicker"
-                                    Grid.Column="0"
-                                    AutomationProperties.Name="From date"
-                                    DateChanged="DateRangePicker_DateChanged"
-                                    Header="From" />
-                                <DatePicker
-                                    x:Name="ToDatePicker"
-                                    Grid.Column="1"
-                                    AutomationProperties.Name="To date"
-                                    DateChanged="DateRangePicker_DateChanged"
-                                    Header="To" />
-                            </Grid>
-                            <controls:MessageVolumeLineChart x:Name="MessageVolumeChart" />
-                        </StackPanel>
-                    </shared:SurfaceCard.CardBody>
-                </shared:SurfaceCard>
-
                 <ScrollViewer
                     HorizontalScrollBarVisibility="Auto"
                     HorizontalScrollMode="Enabled"
@@ -268,6 +202,82 @@
                             Value="0" />
                     </StackPanel>
                 </ScrollViewer>
+
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                        <StackPanel Spacing="{StaticResource UmSpacingMd}">
+                            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition MinWidth="0" Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Style="{StaticResource UmSectionLabelTextStyle}"
+                                    Text="DATE RANGE" />
+                                <ToggleSwitch
+                                    x:Name="OccViewModeToggle"
+                                    Grid.Column="1"
+                                    AutomationProperties.Name="Operations view mode"
+                                    Header="View mode"
+                                    OffContent="Live workload"
+                                    OnContent="Historical report"
+                                    Toggled="OccViewModeToggle_Toggled"
+                                    VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock
+                                x:Name="DateRangeScopeCaption"
+                                Style="{StaticResource UmCaptionTextStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="Chart uses the date range. Toggle above switches KPI and queue scope."
+                                TextWrapping="WrapWholeWords" />
+                            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition MinWidth="0" Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Style="{StaticResource UmCaptionTextStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    TextWrapping="WrapWholeWords" />
+                                <Button
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="ClearDateRangeButton_Click"
+                                    Content="Clear Filter"
+                                    Style="{StaticResource SubtleButtonStyle}" />
+                            </Grid>
+                            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition MinWidth="{StaticResource UmDatePickerMinWidth}" Width="*" />
+                                    <ColumnDefinition MinWidth="{StaticResource UmDatePickerMinWidth}" Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <DatePicker
+                                    x:Name="FromDatePicker"
+                                    Grid.Column="0"
+                                    AutomationProperties.Name="From date"
+                                    DateChanged="DateRangePicker_DateChanged"
+                                    Header="From" />
+                                <DatePicker
+                                    x:Name="ToDatePicker"
+                                    Grid.Column="1"
+                                    AutomationProperties.Name="To date"
+                                    DateChanged="DateRangePicker_DateChanged"
+                                    Header="To" />
+                            </Grid>
+                            <controls:MessageVolumeLineChart x:Name="MessageVolumeChart" />
+                            <Button
+                                x:Name="SyncHistoryCtaButton"
+                                HorizontalAlignment="Left"
+                                AutomationProperties.Name="Sync message history"
+                                Click="SyncRecentHistoryButton_Click"
+                                Content="Sync message history"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                ToolTipService.ToolTip="Pull recent WhatsApp history to populate the volume trend"
+                                Visibility="Collapsed" />
+                        </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
 
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
                     <ToggleButton

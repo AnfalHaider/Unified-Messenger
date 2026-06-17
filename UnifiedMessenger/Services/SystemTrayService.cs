@@ -33,9 +33,17 @@ public sealed class SystemTrayService : ISystemTrayService
 
         _trayIcon = new TaskbarIcon
         {
-            ToolTipText = "Unified Messenger",
-            IconSource = CreateIconSource("AppIcon.ico")
+            ToolTipText = "Unified Messenger"
         };
+
+        // Only assign an icon source when the file is actually present. H.NotifyIcon loads
+        // the icon on a background dispatcher post; a missing file would throw there as an
+        // unhandled exception and terminate the process.
+        var iconSource = CreateIconSource("AppIcon.ico");
+        if (iconSource is not null)
+        {
+            _trayIcon.IconSource = iconSource;
+        }
 
         var menu = new MenuFlyout();
         var openItem = new MenuFlyoutItem { Text = "Open" };
@@ -92,12 +100,17 @@ public sealed class SystemTrayService : ISystemTrayService
         _window = null;
     }
 
-    private static ImageSource CreateIconSource(string fileName)
+    private static ImageSource? CreateIconSource(string fileName)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Assets", fileName);
         if (!File.Exists(path))
         {
-            path = ApplicationPaths.TryResolveAppIconFilePath() ?? path;
+            path = ApplicationPaths.TryResolveAppIconFilePath();
+        }
+
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        {
+            return null;
         }
 
         return new BitmapImage(new Uri(path));

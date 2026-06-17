@@ -101,6 +101,9 @@ public sealed partial class OperationsCommandCenter
 
     private void SyncQueueFilterChips()
     {
+        if (FilterAllOpenChip is null || FilterUrgentChip is null || FilterSlaChip is null || FilterHangingChip is null)
+            return;
+
         _suppressQueueFilterEvents = true;
         try
         {

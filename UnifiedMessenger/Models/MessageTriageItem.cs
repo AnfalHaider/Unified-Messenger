@@ -52,6 +52,9 @@ public sealed class MessageTriageItem
 
     public InboundMessageKind MessageKind { get; init; } = InboundMessageKind.Text;
 
+    /// <summary>True when reconstructed from historical backfill rather than observed live (excluded from SLA).</summary>
+    public bool IsBackfilled { get; init; }
+
     public string UrgencyLabel => UrgencyScore switch
     {
         >= 80 => "Critical",

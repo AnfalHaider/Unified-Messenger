@@ -1,3 +1,5 @@
+> ⚠️ **Superseded by [MASTER-PLAN.md](../MASTER-PLAN.md)** (2026-06-16). Open items folded into the master backlog (§5); the master plan is the living source of truth.
+
 # Remaining issues log (Wave 12 re-audit)
 
 Issues that do **not** block continued delivery but prevent claiming full completion criterion #6 and release tagging until resolved or explicitly accepted.

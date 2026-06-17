@@ -95,13 +95,27 @@ public static class OccSnapshotPresenter
         ArgumentNullException.ThrowIfNull(status);
 
         var slaThreshold = OperationalThresholds.GetSlaThresholdMinutes();
-        string? overlapSubtext = null;
-        if (status.OpenThreadCount == status.SlaBreachesNumeric &&
-            status.OpenThreadCount > status.UrgentTotal &&
-            status.OpenThreadCount > 0)
+
+        // SLA subtext: surface the at-risk warning window (best practice) and fall back to the threshold.
+        string slaSubtext;
+        if (status.SlaAtRiskCount > 0)
         {
-            overlapSubtext = $"All open exceed SLA ({slaThreshold}m)";
+            slaSubtext = $"{status.SlaAtRiskCount} approaching · threshold {slaThreshold}m";
         }
+        else if (!string.IsNullOrEmpty(status.SlaThresholdSubtext))
+        {
+            slaSubtext = status.SlaThresholdSubtext;
+        }
+        else
+        {
+            slaSubtext = $"Threshold: {slaThreshold} min";
+        }
+
+        // Open-threads subtext now honestly distinguishes live vs. carried-over history instead of the
+        // misleading "All open exceed SLA" copy (see UI/UX audit finding F1/Q4).
+        string? openThreadsSubtext = status.HistoricalOpenCount > 0
+            ? $"{status.HistoricalOpenCount} carried over from history"
+            : null;
 
         var urgentTooltip =
             "Urgent threads (high urgency or critical sentiment), excluding SLA-only breaches.";
@@ -114,18 +128,18 @@ public static class OccSnapshotPresenter
             AverageReplyTime = status.AverageReplyTime,
             AverageReplyTimeSubtext = status.AverageReplyTimeSubtext,
             SlaBreaches = status.SlaBreaches,
-            SlaThresholdSubtext = status.SlaThresholdSubtext,
+            SlaThresholdSubtext = slaSubtext,
             ResponseRate = status.ResponseRate,
             UrgentCount = status.UrgentTotal.ToString(),
             PeakHour = status.PeakHour,
             DailyTrend = status.DailyTrend,
             UrgentTooltip = urgentTooltip,
-            UrgentSubtext = overlapSubtext is not null && status.UrgentTotal < status.OpenThreadCount
-                ? $"{status.UrgentTotal} high-urgency (excl. SLA-only)"
-                : null,
-            OpenThreadsSubtext = overlapSubtext,
+            UrgentSubtext = null,
+            OpenThreadsSubtext = openThreadsSubtext,
             SlaBreachesTooltip = status.SlaBreachesNumeric <= 0
-                ? "No SLA breaches in live workload."
+                ? status.HistoricalOpenCount > 0
+                    ? "No live SLA breaches. Historical threads are excluded from SLA timing."
+                    : "No SLA breaches in live workload."
                 : "Open the worst SLA breach by wait time."
         };
     }

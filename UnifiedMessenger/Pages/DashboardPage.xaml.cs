@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Models;
@@ -8,7 +8,7 @@ namespace UnifiedMessenger.Pages;
 
 public sealed partial class DashboardPage : Page
 {
-    private ApplicationServices _services = new();
+    private ApplicationServices _services = ApplicationServiceProvider.Current;
     private IInstanceRegistryService? _registry;
     private DispatcherTimer? _resourceTimer;
     private long _dashboardTabSelectionCallbackToken;
@@ -244,3 +244,5 @@ public sealed partial class DashboardPage : Page
     private IEnumerable<MessengerInstance> PersonalInstances =>
         _registry?.Instances.Where(i => !i.IsProfessional) ?? [];
 }
+
+

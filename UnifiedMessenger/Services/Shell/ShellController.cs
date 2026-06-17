@@ -690,6 +690,19 @@ public sealed class ShellController
 
     private async Task MaybePromptPinToTaskbarAsync()
     {
+        try
+        {
+            await MaybePromptPinToTaskbarCoreAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Taskbar pin prompt failed: {ex.Message}");
+            AppLogger.LogWarning("Shell.TaskbarPin", ex.Message);
+        }
+    }
+
+    private async Task MaybePromptPinToTaskbarCoreAsync()
+    {
         var settings = _services.AppSettings.Settings;
         if (!settings.PromptPinToTaskbar || settings.HasPromptedPinToTaskbar)
         {
@@ -738,3 +751,4 @@ public sealed class ShellController
         }
     }
 }
+

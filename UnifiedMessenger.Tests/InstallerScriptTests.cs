@@ -57,7 +57,8 @@ public class InstallerScriptTests
         var script = ReadInstallerShared();
 
         Assert.Contains("CompareText(DirName, 'ollama')", script, StringComparison.Ordinal);
-        Assert.Contains("#define MyAppVersion \"4.2.1\"", script, StringComparison.Ordinal);
+        // Version-agnostic: assert a version is defined (don't pin an outdated literal that breaks on every bump).
+        Assert.Matches(@"#define\s+MyAppVersion\s+""\d+\.\d+\.\d+""", script);
     }
 
     [Fact]

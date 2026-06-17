@@ -1,3 +1,5 @@
+> ⚠️ **Superseded by [MASTER-PLAN.md](../MASTER-PLAN.md)** (2026-06-16). Historical; the master plan is the living source of truth.
+
 # Wave 11 validation checklist
 
 ## Automated gates (CI)

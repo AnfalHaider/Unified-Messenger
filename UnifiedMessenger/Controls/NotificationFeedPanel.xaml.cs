@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Presenters;
@@ -9,7 +9,7 @@ namespace UnifiedMessenger.Controls;
 
 public sealed partial class NotificationFeedPanel : UserControl
 {
-    private ApplicationServices _services = new();
+    private ApplicationServices _services = ApplicationServiceProvider.Current;
     private INotificationHubService _hub;
 
     public NotificationFeedViewModel ViewModel { get; } = new();
@@ -133,3 +133,5 @@ public sealed partial class NotificationFeedPanel : UserControl
         AlertClicked?.Invoke(this, alert);
     }
 }
+
+

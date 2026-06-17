@@ -424,8 +424,8 @@
     });
   };
 
-  var INSTANCE_ID = __INSTANCE_ID__;
-  var PLATFORM = __PLATFORM__;
+  var INSTANCE_ID = (window.__umConfig && window.__umConfig.instanceId) || '';
+  var PLATFORM = (window.__umConfig && window.__umConfig.platform) || 'whatsapp';
 
   if (INSTANCE_ID && INSTANCE_ID.indexOf('__INSTANCE') === -1) {
     window.__umInstallThreadStatusAuditor(INSTANCE_ID, PLATFORM);

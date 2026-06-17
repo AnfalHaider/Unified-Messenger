@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v3.7.0 (settings-only Ollama download + local AI)
+**Current release:** v4.6.0 (P1 UX pass — KPI-first OCC layout, empty-state CTA, clearer view-mode, non-color SLA cues, action affordance; builds on v4.5.0 SLA integrity)
 
 ## Scope
 
@@ -29,6 +29,24 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.6.0
+
+- **P1 UX pass (UI/UX audit):** KPI strip now sits **above** the date-range/volume card (work surfaces sooner); the empty volume panel shows a **"Sync message history" CTA** instead of a dead end; the Live/Historical control has an explicit **"View mode"** label; thread cards add **non-color SLA glyphs** (⚠ breached / ⏱ approaching) for WCAG 1.4.1; and the card action reads **"Open chat →"**. All five P1 items shipped and verified.
+
+### What's in v4.5.0
+
+- **SLA metric integrity (UI/UX audit P0-3):** Backfilled/historical threads are no longer counted as SLA breaches — the SLA clock applies only to threads observed live after connect. Added an **at-risk** warning window (≥50% of the threshold) and a **carried-over-from-history** count, so the OCC headline numbers reflect the real live workload instead of reading "all open exceed SLA". Decision recorded: the app stays on WhatsApp Web and **does not use Meta/WhatsApp APIs**.
+- **CI asset guard:** the build now fails if runtime assets (`Assets\AppIcon.ico`, branding) are missing from output, preventing the class of bug behind the v4.4.0 tray crash.
+- **Empty-state copy:** clearer, directional guidance on the message-volume panel.
+- See `docs/ui-ux-research-and-recommendations.md` for the full audit and the sequenced remainder.
+
+### What's in v4.4.0
+
+- **Launch-stability hardening:** fixed three startup/early-runtime crashes — a filter-chip null-reference during OCC XAML load, a taskbar-pin WinRT call that is unavailable in unpackaged builds, and a fatal tray-icon load when bundled assets were missing.
+- **Asset packaging fix:** `AppIcon.ico` and brand wordmark images are now copied to the publish/install output (`CopyToOutputDirectory`); the sidebar wordmark and tray icon render correctly.
+- **Update integrity:** installer verification now performs full Authenticode policy validation via `WinVerifyTrust` (chain + trust, not signature-presence only), with an optional publisher pin and existing SHA-256 sidecar check.
+- **Installer path fix:** `installer.iss` / `installer-arm64.iss` read publish output from `bin\<Platform>\Release\...`, preventing stale XBF/DLL packaging.
 
 ### What's in v3.7.0
 
@@ -127,11 +145,13 @@ dotnet build UnifiedMessenger.sln -c Release -p:Platform=x64
 ### 2. Publish + installer
 
 ```powershell
-dotnet publish UnifiedMessenger\UnifiedMessenger.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish
+dotnet publish UnifiedMessenger\UnifiedMessenger.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o UnifiedMessenger\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-ARM64: repeat with `-r win-arm64` and `installer-arm64.iss`.
+> Note: `installer.iss` / `installer-arm64.iss` read the publish output from `bin\<Platform>\Release\...\publish` (i.e. `bin\x64\Release\...` and `bin\ARM64\Release\...`). Keep the `-o` path above in sync with the installer's `PublishDir`, or omit `-o` and let `-p:Platform=x64` place the output there automatically.
+
+ARM64: repeat with `-r win-arm64`, `-p:Platform=ARM64`, the matching `bin\ARM64\Release\...` output path, and `installer-arm64.iss`.
 
 Outputs land in `dist\`:
 
@@ -147,8 +167,8 @@ dotnet test UnifiedMessenger.Tests\UnifiedMessenger.Tests.csproj -p:Platform=x64
 ### 4. UI smoke validation (optional)
 
 ```powershell
-dotnet publish UnifiedMessenger\UnifiedMessenger.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish
-dotnet run --project UnifiedMessenger.UiSmokeTests\UnifiedMessenger.UiSmokeTests.csproj -c Release -- "UnifiedMessenger\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\UnifiedMessenger.exe"
+dotnet publish UnifiedMessenger\UnifiedMessenger.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -o UnifiedMessenger\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish
+dotnet run --project UnifiedMessenger.UiSmokeTests\UnifiedMessenger.UiSmokeTests.csproj -c Release -- "UnifiedMessenger\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish\UnifiedMessenger.exe"
 ```
 
 ## CI/CD

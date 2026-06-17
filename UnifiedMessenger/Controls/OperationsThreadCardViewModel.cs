@@ -53,11 +53,20 @@ public sealed class OperationsThreadCardViewModel
             ? new Thickness(thread.IsSlaBreached ? 4 : 2, 1, 1, 1)
             : new Thickness(1);
         var slaThreshold = OperationalThresholds.GetSlaThresholdMinutes();
-        SlaText = thread.IsReplied || thread.IsSpamOrPromo
+        var slaCountdown = thread.IsReplied || thread.IsSpamOrPromo
             ? string.Empty
             : UnifiedMessengerDashboardPresentationHelper.FormatSlaCountdown(
                 thread.LatencyMinutes,
                 slaThreshold);
+        // P1-5: pair the color with a non-color glyph so SLA status is perceivable without color (WCAG 1.4.1):
+        //   ⚠ breached · ⏱ approaching · (none) within budget.
+        SlaText = string.IsNullOrEmpty(slaCountdown)
+            ? string.Empty
+            : thread.IsSlaBreached
+                ? $"⚠ {slaCountdown}"
+                : thread.IsSlaAtRisk
+                    ? $"⏱ {slaCountdown}"
+                    : slaCountdown;
         SlaBrush = thread.IsSlaBreached
             ? UmSemanticBrushes.StatusDanger
             : thread.LatencyMinutes >= slaThreshold * 0.75
