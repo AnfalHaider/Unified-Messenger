@@ -85,7 +85,12 @@ public sealed partial class DashboardPage : Page
         };
         _resourceTimer.Tick += OnResourceTimerTick;
         _resourceTimer.Start();
+
+        // Land on the oversight command center by default — it's the L0 "who's waiting, where" home.
+        DashboardTabs.SelectedItem = CommandCenterTab;
     }
+
+    private bool IsCommandCenterTabSelected => ReferenceEquals(DashboardTabs.SelectedItem, CommandCenterTab);
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
@@ -122,6 +127,12 @@ public sealed partial class DashboardPage : Page
         DispatcherQueue.TryEnqueue(() =>
         {
             UpdateDashboardOccHeaderStatus();
+            if (IsCommandCenterTabSelected)
+            {
+                CommandCenterPanel.Render();
+                return;
+            }
+
             if (!IsOperationsCommandCenterTabSelected || _registry is null)
             {
                 return;

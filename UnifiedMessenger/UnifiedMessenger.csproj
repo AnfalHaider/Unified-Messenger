@@ -119,7 +119,9 @@
        build error instead of a runtime crash. -->
   <Target Name="VerifyRuntimeAssetsPresent" AfterTargets="Build;Publish">
     <PropertyGroup>
-      <_AssetCheckDir Condition="'$(PublishDir)' != ''">$(PublishDir)</_AssetCheckDir>
+      <!-- Use PublishDir only when actually publishing. It has a non-empty SDK default (OutDir\publish\)
+           even on a plain build/test, so guard on Exists() to fall back to OutDir for non-publish builds. -->
+      <_AssetCheckDir Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)')">$(PublishDir)</_AssetCheckDir>
       <_AssetCheckDir Condition="'$(_AssetCheckDir)' == ''">$(OutDir)</_AssetCheckDir>
     </PropertyGroup>
     <Error Condition="!Exists('$(_AssetCheckDir)Assets\AppIcon.ico')"

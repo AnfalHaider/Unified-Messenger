@@ -43,6 +43,13 @@ public sealed class OversightEntityHealth
 
     /// <summary>Instance ids rolled into this entity — used to expand a location into its accounts.</summary>
     public IReadOnlyList<string> MemberInstanceIds { get; init; } = [];
+
+    /// <summary>
+    /// Recent-activity sparkline: 7 buckets (oldest → newest, one per day ending today) counting
+    /// actionable threads last active that day. A glanceable trend, derived from live threads — no
+    /// historical store required.
+    /// </summary>
+    public IReadOnlyList<int> TrendCounts { get; init; } = [];
 }
 
 /// <summary>

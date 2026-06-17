@@ -15,11 +15,14 @@ public static class OversightRollupBuilder
         IReadOnlyList<MessengerInstance> instances,
         OversightGrouping grouping,
         Func<string?, double> slaThresholdMinutes,
-        Func<string, bool>? isStale = null)
+        Func<string, bool>? isStale = null,
+        DateTimeOffset? nowUtc = null)
     {
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(instances);
         ArgumentNullException.ThrowIfNull(slaThresholdMinutes);
+
+        var today = (nowUtc ?? DateTimeOffset.UtcNow).UtcDateTime.Date;
 
         var nameByInstance = instances
             .GroupBy(i => i.Id, StringComparer.OrdinalIgnoreCase)
@@ -81,7 +84,8 @@ public static class OversightRollupBuilder
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
                 IsStale = stale,
                 LastActivityUtc = list.Count > 0 ? list.Max(t => t.LastMessageTime) : null,
-                MemberInstanceIds = instanceIds
+                MemberInstanceIds = instanceIds,
+                TrendCounts = BuildTrend(list, today)
             });
         }
 
@@ -109,6 +113,27 @@ public static class OversightRollupBuilder
             WorstEntityKey = worst?.Key,
             AttentionSummary = summary
         };
+    }
+
+    private const int TrendDays = 7;
+
+    /// <summary>
+    /// Bucket actionable threads into the last <see cref="TrendDays"/> days by their last-activity day
+    /// (oldest → newest). Threads outside the window are ignored; the result is always 7 values.
+    /// </summary>
+    private static IReadOnlyList<int> BuildTrend(IReadOnlyList<ThreadData> list, DateTime today)
+    {
+        var buckets = new int[TrendDays];
+        foreach (var thread in list)
+        {
+            var daysAgo = (today - thread.LastMessageTime.UtcDateTime.Date).Days;
+            if (daysAgo is >= 0 and < TrendDays)
+            {
+                buckets[TrendDays - 1 - daysAgo]++;
+            }
+        }
+
+        return buckets;
     }
 
     private static string LocationKey(ThreadData thread) =>

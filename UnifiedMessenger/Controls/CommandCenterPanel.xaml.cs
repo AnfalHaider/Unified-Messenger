@@ -5,17 +5,22 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using Windows.Foundation;
 
 namespace UnifiedMessenger.Controls;
 
 public sealed partial class CommandCenterPanel : UserControl
 {
+    private const int AutoRefreshSeconds = 20;
+
     private ApplicationServices? _services;
+    private DispatcherTimer? _autoRefreshTimer;
 
     public CommandCenterPanel()
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -26,7 +31,25 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         Render();
+
+        // Keep the oversight numbers live without a manual Refresh click. Lightweight: rebuilds from the
+        // in-memory thread registry, no I/O. Stopped on unload so it never ticks for a detached panel.
+        _autoRefreshTimer ??= new DispatcherTimer { Interval = TimeSpan.FromSeconds(AutoRefreshSeconds) };
+        _autoRefreshTimer.Tick += OnAutoRefreshTick;
+        _autoRefreshTimer.Start();
     }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_autoRefreshTimer is not null)
+        {
+            _autoRefreshTimer.Tick -= OnAutoRefreshTick;
+            _autoRefreshTimer.Stop();
+            _autoRefreshTimer = null;
+        }
+    }
+
+    private void OnAutoRefreshTick(object? sender, object e) => Render();
 
     public void Render()
     {
@@ -229,6 +252,10 @@ public sealed partial class CommandCenterPanel : UserControl
             Width = 90
         });
 
+        var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);
+        ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
+        row.Children.Add(sparkline);
+
         row.Children.Add(new TextBlock
         {
             Text = entity.IsStale ? "stale — reconnect" : "synced",
@@ -249,6 +276,54 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         return row;
+    }
+
+    /// <summary>
+    /// A compact 7-day activity sparkline derived from <see cref="OversightEntityHealth.TrendCounts"/>.
+    /// Falls back to a flat baseline when there is no recent activity to plot.
+    /// </summary>
+    private FrameworkElement BuildSparkline(IReadOnlyList<int> counts, Brush stroke)
+    {
+        const double width = 64;
+        const double height = 18;
+
+        var host = new Grid
+        {
+            Width = width,
+            Height = height,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        if (counts is null || counts.Count < 2 || counts.All(c => c == 0))
+        {
+            host.Children.Add(new Rectangle
+            {
+                Height = 1,
+                Fill = Brush("TextFillColorDisabledBrush"),
+                Opacity = 0.6,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            return host;
+        }
+
+        var max = Math.Max(1, counts.Max());
+        var step = width / (counts.Count - 1);
+        var points = new PointCollection();
+        for (var i = 0; i < counts.Count; i++)
+        {
+            var x = i * step;
+            var y = (height - 1) - (counts[i] / (double)max) * (height - 2);
+            points.Add(new Point(x, y));
+        }
+
+        host.Children.Add(new Polyline
+        {
+            Points = points,
+            Stroke = stroke,
+            StrokeThickness = 1.5,
+            StrokeLineJoin = PenLineJoin.Round
+        });
+        return host;
     }
 
     private static Brush Brush(string key) =>
