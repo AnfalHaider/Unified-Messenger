@@ -993,6 +993,7 @@
               customerName: titles[jid] || jid,
               lastInboundBody: rec.lastInboundBody,
               lastInboundTimestampUtc: new Date(rec.lastInboundT * 1000).toISOString(),
+              lastActivityTimestampUtc: new Date(rec.lastT * 1000).toISOString(),
               lastMessageFromMe: rec.lastFromMe,
               unreadCount: unread[jid] || 0,
               inboundCount: rec.inboundCount

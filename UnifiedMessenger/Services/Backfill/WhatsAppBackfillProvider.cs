@@ -314,6 +314,28 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                 continue;
             }
 
+            var customerName = ReadString(conversation, "customerName") ?? "Customer";
+            var lastMessageFromMe = ReadBool(conversation, "lastMessageFromMe");
+
+            // Reconciliation: migrate any legacy title-keyed thread for this customer to the stable JID
+            // so we update it in place instead of creating a duplicate, and so drill-down has a real key.
+            ThreadRegistryService.Instance.ReconcileConversationKey(instance.Id, conversationKey, customerName);
+
+            // If the conversation's last message is from us, the customer was answered (often on the
+            // phone, before we started watching). Mark it replied so it stops counting as a breach.
+            if (lastMessageFromMe)
+            {
+                var resolvedAt = ParseTimestamp(ReadString(conversation, "lastActivityTimestampUtc"));
+                ThreadRegistryService.Instance.MarkThreadResolved(
+                    instance.Id,
+                    conversationKey,
+                    customerName,
+                    resolvedAt,
+                    instance.Platform);
+                result.TriageSkippedDuplicate++;
+                continue;
+            }
+
             var timestamp = ParseTimestamp(ReadString(conversation, "lastInboundTimestampUtc"));
             if (!await BackfillDedupeStore.Instance
                     .TryAcceptForDayAsync(instance.Id, instance.Platform, conversationKey, timestamp, cancellationToken)
@@ -338,7 +360,7 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                     InstanceId = instance.Id,
                     Platform = instance.Platform,
                     MessageText = body.Trim(),
-                    CustomerName = ReadString(conversation, "customerName") ?? "Customer",
+                    CustomerName = customerName,
                     ConversationKey = conversationKey,
                     ConversationHint = conversationKey,
                     TimestampUtc = timestamp

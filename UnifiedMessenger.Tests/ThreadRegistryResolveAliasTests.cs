@@ -73,6 +73,32 @@ public class ThreadRegistryResolveAliasTests
         Assert.Empty(registry.GetAllThreads());
     }
 
+    [Fact]
+    public void ReconcileConversationKey_MigratesTitleKeyedThreadToJid()
+    {
+        var registry = ThreadRegistryService.CreateForTests();
+        registry.UpsertFromTriageItem(CreateItem(DisplayName), DisplayName, "DHA-2");
+
+        var migrated = registry.ReconcileConversationKey(InstanceId, Jid, DisplayName);
+
+        Assert.True(migrated);
+        var thread = Assert.Single(registry.GetAllThreads());
+        Assert.Equal(Jid, thread.ConversationKey);
+        Assert.Equal(DisplayName, thread.CustomerName);
+    }
+
+    [Fact]
+    public void ReconcileConversationKey_NoOp_WhenStableKeyedThreadAlreadyExists()
+    {
+        var registry = ThreadRegistryService.CreateForTests();
+        registry.UpsertFromTriageItem(CreateItem(DisplayName), Jid, "DHA-2");
+
+        var migrated = registry.ReconcileConversationKey(InstanceId, Jid, DisplayName);
+
+        Assert.False(migrated);
+        Assert.Single(registry.GetAllThreads());
+    }
+
     private static MessageTriageItem CreateItem(string customer) =>
         new()
         {

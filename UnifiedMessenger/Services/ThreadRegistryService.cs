@@ -243,6 +243,63 @@ public sealed class ThreadRegistryService : IThreadRegistryService
         NotifyChanged();
     }
 
+    /// <summary>
+    /// Backfill reconciliation: migrate a thread that was created with a fragile title-based key to its
+    /// stable WhatsApp JID (discovered from IndexedDB), matching by customer name within the instance.
+    /// This prevents a JID-keyed duplicate from being created alongside the legacy title-keyed thread,
+    /// and gives the command-center drill-down a real key to focus on. No-op if a JID-keyed thread
+    /// already exists or no title-keyed match is found.
+    /// </summary>
+    public bool ReconcileConversationKey(
+        string instanceId,
+        string stableKey,
+        string? customerName)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId) ||
+            string.IsNullOrWhiteSpace(stableKey) ||
+            !ConversationKeyResolver.IsWhatsAppJid(stableKey) ||
+            string.IsNullOrWhiteSpace(customerName))
+        {
+            return false;
+        }
+
+        var newThreadId = ConversationKeyResolver.BuildThreadId(instanceId, stableKey);
+        if (_threads.ContainsKey(newThreadId))
+        {
+            return false; // already stable-keyed
+        }
+
+        var name = customerName.Trim();
+        foreach (var candidate in _threads.Values)
+        {
+            if (!candidate.InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (candidate.ConversationKey.Equals(stableKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return false; // a thread already carries this stable key
+            }
+
+            if (!candidate.CustomerName.Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var oldThreadId = candidate.ThreadId;
+            candidate.ConversationKey = stableKey;
+            candidate.ThreadId = newThreadId;
+            _threads.TryRemove(oldThreadId, out _);
+            _threads[newThreadId] = candidate;
+            InvalidateSortedCache();
+            NotifyChanged();
+            return true;
+        }
+
+        return false;
+    }
+
     public bool TryGetUnrepliedThread(
         string instanceId,
         string? conversationKey,
