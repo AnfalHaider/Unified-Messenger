@@ -411,66 +411,72 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private static async Task<string> ProbeInstanceDbAsync(MessengerInstance instance)
     {
-        await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
-                instance.Id,
-                "window.__umStartDbConversationScan ? window.__umStartDbConversationScan(50) : 'NOFN'")
-            .ConfigureAwait(true);
-
-        for (var attempt = 0; attempt < 50; attempt++) // up to ~15s
+        // The JS scan self-settles via a watchdog, so a still-loading page yields a 'watchdog-timeout'
+        // diag rather than hanging. Retry a couple of rounds so an account whose WhatsApp Web is mid-load
+        // succeeds once it's ready.
+        var lastNote = "no result";
+        for (var round = 0; round < 3; round++)
         {
-            await Task.Delay(300).ConfigureAwait(true);
-            var raw = await InstanceSessionManager.Instance
+            var start = await InstanceSessionManager.Instance
                 .TryExecuteScriptOnInstanceAsync(
                     instance.Id,
-                    "window.__umGetDbConversationResult ? window.__umGetDbConversationResult() : 'NOFN'")
+                    "window.__umStartDbConversationScan ? window.__umStartDbConversationScan(2000) : 'NOFN'")
                 .ConfigureAwait(true);
 
-            if (string.IsNullOrWhiteSpace(raw) || raw == "null")
-            {
-                return "null-exec (webview not ready?)";
-            }
-
-            if (raw.Contains("NOFN"))
+            if (start is not null && start.Contains("NOFN"))
             {
                 return "scan fn missing (script not injected)";
             }
 
-            if (raw == "\"\"")
+            for (var attempt = 0; attempt < 36; attempt++) // ~11s, watchdog settles by 8s
             {
-                continue; // not ready yet
-            }
+                await Task.Delay(300).ConfigureAwait(true);
+                var raw = await InstanceSessionManager.Instance
+                    .TryExecuteScriptOnInstanceAsync(
+                        instance.Id,
+                        "window.__umGetDbConversationResult ? window.__umGetDbConversationResult() : 'NOFN'")
+                    .ConfigureAwait(true);
 
-            try
-            {
-                using var doc = JsonDocument.Parse(JsonSerializer.Deserialize<string>(raw) ?? "");
-                var root = doc.RootElement;
-                if (!root.TryGetProperty("diag", out var diag))
+                if (string.IsNullOrWhiteSpace(raw) || raw == "null" || raw == "\"\"")
                 {
-                    return "no diag";
+                    continue; // not settled yet
                 }
 
-                int Num(string name) =>
-                    diag.TryGetProperty(name, out var n) && n.TryGetInt32(out var v) ? v : 0;
-
-                var active = Num("active");
-                var caughtUp = Num("caughtUp");
-                var awaiting = Num("awaiting");
-                if (active > 0)
+                try
                 {
-                    OversightChatSnapshotService.Instance.Update(
-                        instance.Id, active, caughtUp, awaiting, DateTimeOffset.UtcNow);
-                }
+                    using var doc = JsonDocument.Parse(JsonSerializer.Deserialize<string>(raw) ?? "");
+                    var root = doc.RootElement;
+                    var stage = root.TryGetProperty("diag", out var diag) &&
+                                diag.TryGetProperty("stage", out var s) ? s.GetString() : "?";
 
-                var pct = active > 0 ? (int)Math.Round(100.0 * caughtUp / active) : 100;
-                return $"{pct}% caught up ({caughtUp}/{active}, {awaiting} awaiting)";
-            }
-            catch
-            {
-                return "parse-fail";
+                    int Num(string name) =>
+                        diag.TryGetProperty(name, out var n) && n.TryGetInt32(out var v) ? v : 0;
+
+                    var active = Num("active");
+                    if (stage == "done" || active > 0)
+                    {
+                        var caughtUp = Num("caughtUp");
+                        var awaiting = Num("awaiting");
+                        if (active > 0)
+                        {
+                            OversightChatSnapshotService.Instance.Update(
+                                instance.Id, active, caughtUp, awaiting, DateTimeOffset.UtcNow);
+                        }
+
+                        var pct = active > 0 ? (int)Math.Round(100.0 * caughtUp / active) : 100;
+                        return $"{pct}% caught up ({caughtUp}/{active}, {awaiting} awaiting)";
+                    }
+
+                    lastNote = $"not ready ({stage})";
+                    break; // settled but unusable (e.g. watchdog-timeout) → retry the whole scan
+                }
+                catch
+                {
+                    return "parse-fail";
+                }
             }
         }
 
-        return "timeout (no result in 15s)";
+        return lastNote + " — open this account once to finish loading";
     }
 }

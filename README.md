@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.1 (Command center caught-up metric — per-account on-time derived from WhatsApp's own unread signal, read directly from the chat store)
+**Current release:** v4.8.2 (Command center caught-up metric — per-account status from WhatsApp's own unread signal; resilient first-load probe)
 
 ## Scope
 
@@ -29,6 +29,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.2
+
+- **Cleaner command center:** removed the now-inert date-window selector (caught-up % is a live signal, so the window didn't change it) and relabeled the headline to "caught up".
+- **Resilient first-load probe:** the IndexedDB scan now self-settles via a watchdog and the Re-sync probe retries, so an account whose WhatsApp Web is still loading no longer shows a hard timeout — it resolves on a later pass.
 
 ### What's in v4.8.1
 

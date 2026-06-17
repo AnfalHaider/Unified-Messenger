@@ -34,6 +34,7 @@
                 <ComboBox
                     x:Name="WindowSelector"
                     MinWidth="110"
+                    Visibility="Collapsed"
                     SelectionChanged="OnWindowChanged"
                     ToolTipService.ToolTip="On-time is measured over conversations active in this date range">
                     <ComboBoxItem Content="Today" IsSelected="True" Tag="Today" />

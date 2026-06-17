@@ -1056,11 +1056,21 @@
   // Host-friendly start + poll API (works around ExecuteScriptAsync not awaiting promises).
   window.__umStartDbConversationScan = function (maxChats) {
     window.__umDbConversationsResult = null;
-    umDbConversationsPromise(maxChats).then(function (res) {
-      window.__umDbConversationsResult = res || { ok: false, conversations: [] };
-    }).catch(function () {
-      window.__umDbConversationsResult = { ok: false, conversations: [] };
-    });
+    var settled = false;
+    function settle(res) {
+      if (!settled) {
+        settled = true;
+        window.__umDbConversationsResult = res || { ok: false, conversations: [], diag: { stage: 'empty' } };
+      }
+    }
+
+    umDbConversationsPromise(maxChats)
+      .then(settle)
+      .catch(function () { settle({ ok: false, conversations: [], diag: { stage: 'promise-error' } }); });
+
+    // Watchdog: on a still-loading page indexedDB.open can block indefinitely, so always settle so the
+    // host poll gets a result (and can retry) instead of hanging.
+    setTimeout(function () { settle({ ok: false, conversations: [], diag: { stage: 'watchdog-timeout' } }); }, 8000);
     return true;
   };
 
