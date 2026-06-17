@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.6.0 (P1 UX pass — KPI-first OCC layout, empty-state CTA, clearer view-mode, non-color SLA cues, action affordance; builds on v4.5.0 SLA integrity)
+**Current release:** v4.7.0 (oversight redesign foundation — Command center dashboard, Workspace Management with per-location SLA + business hours, drill-down to accounts)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.7.0
+
+- **Oversight redesign foundation (master plan Phase 1):** a new **Command center** dashboard tab showing per-account / per-location health (on-time %, urgent, dropped, freshness) sorted worst-first, with a needs-attention banner, By-account↔By-location toggle, and collapsible location accordions revealing member accounts. **Workspace Management** (`Ctrl+K → Manage workspaces`) sets per-location SLA targets + business hours (the SLA clock pauses outside working hours). **Drill-down:** click an account row to open its WhatsApp view. Backed by `OversightRollupBuilder` + `OversightService` (11 new unit tests). See `docs/MASTER-PLAN.md`.
 
 ### What's in v4.6.0
 
