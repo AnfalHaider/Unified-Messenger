@@ -43,5 +43,6 @@ public enum CommandPaletteAction
     RefreshOcc,
     FilterBranch,
     OpenImmediateQueue,
-    OpenThread
+    OpenThread,
+    ManageWorkspaces
 }

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentDialog
+    x:Class="UnifiedMessenger.Dialogs.WorkspaceManagementDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="Workspace management"
+    DefaultButton="Primary"
+    PrimaryButtonText="Save"
+    SecondaryButtonText="Close"
+    PrimaryButtonClick="OnSave"
+    Title="Workspace management">
+
+    <StackPanel MinWidth="380" Spacing="12">
+        <TextBlock
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="Set per-location response targets and business hours. Locations come from your professional accounts; the SLA clock pauses outside business hours."
+            TextWrapping="WrapWholeWords" />
+
+        <ComboBox
+            x:Name="LocationCombo"
+            Header="Location"
+            HorizontalAlignment="Stretch"
+            SelectionChanged="OnLocationChanged" />
+
+        <StackPanel x:Name="EditorPanel" Spacing="12">
+            <NumberBox
+                x:Name="SlaBox"
+                Header="On-time target (minutes)"
+                Minimum="5"
+                Maximum="120"
+                SmallChange="5"
+                SpinButtonPlacementMode="Inline" />
+
+            <ToggleSwitch
+                x:Name="HoursToggle"
+                Header="Business hours"
+                OffContent="Always on (24/7)"
+                OnContent="Limited hours" />
+
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TimePicker
+                    x:Name="OpenPicker"
+                    Grid.Column="0"
+                    ClockIdentifier="24HourClock"
+                    Header="Opens" />
+                <TimePicker
+                    x:Name="ClosePicker"
+                    Grid.Column="1"
+                    ClockIdentifier="24HourClock"
+                    Header="Closes" />
+            </Grid>
+
+            <TextBlock
+                FontSize="12"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                Text="Working days: Monday to Saturday."
+                TextWrapping="WrapWholeWords" />
+        </StackPanel>
+
+        <TextBlock
+            x:Name="EmptyHint"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="No professional locations yet. Add a professional account first."
+            TextWrapping="WrapWholeWords"
+            Visibility="Collapsed" />
+    </StackPanel>
+</ContentDialog>

@@ -82,6 +82,11 @@ public sealed class ShellController
             VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
             () => _chrome.SetNotificationPanelVisible(!_chrome.NotificationPanelVisible),
             canUseGlobalShortcuts);
+        keyboardShortcuts.Register(
+            VirtualKey.W,
+            VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
+            () => _ = ShowWorkspaceManagementAsync(),
+            canUseGlobalShortcuts);
         keyboardShortcuts.RegisterIndexedShortcuts(
             VirtualKey.Number1,
             9,
@@ -166,6 +171,9 @@ public sealed class ShellController
                         selection.CustomerName);
                 }
 
+                break;
+            case CommandPaletteAction.ManageWorkspaces:
+                await ShowWorkspaceManagementAsync();
                 break;
         }
     }
@@ -303,6 +311,17 @@ public sealed class ShellController
         _ui.NotificationPanel.Refresh(_services.NotificationHub, _services.Registry.Instances);
         _ = _services.TaskbarBadge.SyncBadgeAsync(_services.NotificationHub.TotalUnreadCount);
         _navigation.RefreshDashboardIfVisible();
+    }
+
+    public async Task ShowWorkspaceManagementAsync()
+    {
+        var dialog = new WorkspaceManagementDialog(
+            _services.Registry.Instances,
+            _services.AppSettings.Settings.WorkspaceProfiles)
+        {
+            XamlRoot = _ui.XamlRoot
+        };
+        await dialog.ShowAsync();
     }
 
     public async Task ShowAddInstanceDialogAsync()

@@ -92,6 +92,14 @@ public sealed class ShellCommandPaletteCoordinator
                 Category = "Operations",
                 IconGlyph = "\uE7BA",
                 Selection = new CommandPaletteSelection { Action = CommandPaletteAction.OpenImmediateQueue }
+            },
+            new()
+            {
+                Title = "Manage workspaces",
+                Subtitle = "Locations, business hours, and SLA targets",
+                Category = "Operations",
+                IconGlyph = "\uE707",
+                Selection = new CommandPaletteSelection { Action = CommandPaletteAction.ManageWorkspaces }
             }
         };
 
