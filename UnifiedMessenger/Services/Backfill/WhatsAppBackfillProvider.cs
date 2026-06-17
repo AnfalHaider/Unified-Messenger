@@ -288,13 +288,37 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         BackfillContext context,
         CancellationToken cancellationToken)
     {
-        var raw = await InstanceSessionManager.Instance
+        // Start the async IndexedDB scan, then poll the synchronous getter — ExecuteScriptAsync does not
+        // await JS promises, so a pending promise would serialize to "{}".
+        await InstanceSessionManager.Instance
             .TryExecuteScriptOnInstanceAsync(
                 instance.Id,
-                $"window.__umCollectConversationHistoryFromDb && window.__umCollectConversationHistoryFromDb({context.BackfillMaxChats})")
+                $"window.__umStartDbConversationScan && window.__umStartDbConversationScan({context.BackfillMaxChats})")
             .ConfigureAwait(false);
 
-        var payload = ParseJsonRoot(raw);
+        JsonElement? payload = null;
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            await Task.Delay(300, cancellationToken).ConfigureAwait(false);
+            var raw = await InstanceSessionManager.Instance
+                .TryExecuteScriptOnInstanceAsync(
+                    instance.Id,
+                    "window.__umGetDbConversationResult ? window.__umGetDbConversationResult() : ''")
+                .ConfigureAwait(false);
+
+            // Empty string (or its JSON-encoded form) means "not ready yet" — keep polling.
+            if (string.IsNullOrWhiteSpace(raw) || raw == "\"\"" || raw == "null")
+            {
+                continue;
+            }
+
+            payload = ParseJsonRoot(raw);
+            if (payload is not null)
+            {
+                break;
+            }
+        }
+
         if (payload is null || !payload.Value.TryGetProperty("conversations", out var conversations) ||
             conversations.ValueKind != JsonValueKind.Array)
         {

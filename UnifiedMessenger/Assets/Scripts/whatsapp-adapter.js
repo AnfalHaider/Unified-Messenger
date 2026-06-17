@@ -913,7 +913,10 @@
     return '';
   }
 
-  window.__umCollectConversationHistoryFromDb = function (maxChats) {
+  // ExecuteScriptAsync does NOT await JS promises (a pending promise serializes to "{}"), so the async
+  // IndexedDB read can't be returned directly. Instead we start the scan, stash the result on a global,
+  // and let the host poll __umGetDbConversationResult() (a synchronous getter) until it's ready.
+  function umDbConversationsPromise(maxChats) {
     maxChats = maxChats || 50;
     return new Promise(function (resolve) {
       function fail() {
@@ -1052,6 +1055,28 @@
         request.onerror = fail;
       }).catch(fail);
     });
+  }
+
+  // Back-compat: still expose the promise form for any direct caller/tests.
+  window.__umCollectConversationHistoryFromDb = function (maxChats) {
+    return umDbConversationsPromise(maxChats);
+  };
+
+  // Host-friendly start + poll API (works around ExecuteScriptAsync not awaiting promises).
+  window.__umStartDbConversationScan = function (maxChats) {
+    window.__umDbConversationsResult = null;
+    umDbConversationsPromise(maxChats).then(function (res) {
+      window.__umDbConversationsResult = res || { ok: false, conversations: [] };
+    }).catch(function () {
+      window.__umDbConversationsResult = { ok: false, conversations: [] };
+    });
+    return true;
+  };
+
+  window.__umGetDbConversationResult = function () {
+    return window.__umDbConversationsResult
+      ? JSON.stringify(window.__umDbConversationsResult)
+      : '';
   };
 
   function collectVisibleHistoryMessages(conversationKey, customerName) {
