@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -386,54 +387,76 @@ public sealed partial class CommandCenterPanel : UserControl
         _resyncInProgress = true;
         ResyncButton.IsEnabled = false;
         AttentionBanner.Visibility = Visibility.Visible;
-        AttentionText.Text = "Re-syncing history from each account…";
+        AttentionText.Text = "Probing each account's local history…";
 
+        // Direct diagnostic: run the IndexedDB scan straight on each webview and read the raw result,
+        // bypassing the backfill pipeline so we isolate whether the read itself works.
+        var parts = new List<string>();
         foreach (var instance in pros)
         {
+            var line = await ProbeInstanceDbAsync(instance);
+            parts.Add($"{instance.DisplayName}: {line}");
+
+            // Also kick off the real backfill so reconciliation still happens when the read works.
             BackfillSyncManager.Instance.Schedule(instance, force: true);
-        }
-
-        var ids = pros.Select(p => p.Id).ToList();
-        for (var i = 0; i < 60; i++) // up to ~30s
-        {
-            await Task.Delay(500);
-            var allDone = ids.All(id => BackfillSyncManager.Instance.GetState(id)
-                is BackfillSyncState.Completed or BackfillSyncState.Failed or BackfillSyncState.Skipped);
-            if (allDone)
-            {
-                break;
-            }
-        }
-
-        int found = 0, answered = 0, migrated = 0;
-        string? firstDiag = null;
-        foreach (var id in ids)
-        {
-            var result = BackfillSyncManager.Instance.GetLastResult(id);
-            if (result is null)
-            {
-                continue;
-            }
-
-            found += result.DbConversationsFound;
-            answered += result.AnsweredReconciled;
-            migrated += result.KeysMigrated;
-            firstDiag ??= result.DbDiagnostic;
         }
 
         Render();
 
-        // Set the banner AFTER Render so the diagnostic isn't overwritten by the needs-attention summary.
         AttentionBanner.Visibility = Visibility.Visible;
-        var summary =
-            $"Re-sync done · {found} conversations read · {answered} marked answered · {migrated} keys migrated across {pros.Count} account(s).";
-        if (found == 0 && !string.IsNullOrWhiteSpace(firstDiag))
-        {
-            summary += $"  [{firstDiag}]";
-        }
-
-        AttentionText.Text = summary;
+        AttentionText.Text = "Probe · " + string.Join("   |   ", parts);
         ResyncButton.IsEnabled = true;
         _resyncInProgress = false;
+    }
+
+    private static async Task<string> ProbeInstanceDbAsync(MessengerInstance instance)
+    {
+        await InstanceSessionManager.Instance
+            .TryExecuteScriptOnInstanceAsync(
+                instance.Id,
+                "window.__umStartDbConversationScan ? window.__umStartDbConversationScan(50) : 'NOFN'")
+            .ConfigureAwait(true);
+
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            await Task.Delay(300).ConfigureAwait(true);
+            var raw = await InstanceSessionManager.Instance
+                .TryExecuteScriptOnInstanceAsync(
+                    instance.Id,
+                    "window.__umGetDbConversationResult ? window.__umGetDbConversationResult() : 'NOFN'")
+                .ConfigureAwait(true);
+
+            if (string.IsNullOrWhiteSpace(raw) || raw == "null")
+            {
+                return "null-exec (webview not ready?)";
+            }
+
+            if (raw.Contains("NOFN"))
+            {
+                return "scan fn missing (script not injected)";
+            }
+
+            if (raw == "\"\"")
+            {
+                continue; // not ready yet
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(JsonSerializer.Deserialize<string>(raw) ?? "");
+                var root = doc.RootElement;
+                var count = root.TryGetProperty("conversations", out var c) && c.ValueKind == JsonValueKind.Array
+                    ? c.GetArrayLength()
+                    : 0;
+                var diag = root.TryGetProperty("diag", out var d) ? d.ToString() : "(no diag)";
+                return $"{count} convos · {diag}";
+            }
+            catch
+            {
+                return "parse-fail: " + (raw.Length > 120 ? raw[..120] : raw);
+            }
+        }
+
+        return "timeout (no result in 6s)";
     }
 }
