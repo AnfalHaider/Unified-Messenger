@@ -132,10 +132,41 @@ public sealed partial class CommandCenterPanel : UserControl
 
         if (clickable)
         {
-            border.Tapped += (_, _) => _services?.Navigation.OpenInstance(entity.Key);
+            border.Tapped += (_, _) => OpenAccount(entity.Key);
         }
 
         return border;
+    }
+
+    /// <summary>
+    /// Drill-down: open the account focused on its worst-waiting open conversation (most overdue),
+    /// so the user lands directly on the customer who has waited longest. Falls back to just opening
+    /// the account when there is no open thread.
+    /// </summary>
+    private void OpenAccount(string instanceId)
+    {
+        if (_services is null || string.IsNullOrWhiteSpace(instanceId))
+        {
+            return;
+        }
+
+        var worst = _services.ThreadRegistry.GetAllThreads()
+            .Where(thread =>
+                string.Equals(thread.InstanceId, instanceId, StringComparison.OrdinalIgnoreCase)
+                && !thread.IsReplied
+                && !thread.IsSpamOrPromo)
+            .OrderByDescending(thread => thread.IsSlaBreached)
+            .ThenByDescending(thread => thread.LatencyMinutes)
+            .FirstOrDefault();
+
+        if (worst is not null && !string.IsNullOrWhiteSpace(worst.ConversationKey))
+        {
+            _services.Navigation.OpenInstance(instanceId, worst.ConversationKey, worst.CustomerName);
+        }
+        else
+        {
+            _services.Navigation.OpenInstance(instanceId);
+        }
     }
 
     private StackPanel BuildRowContent(OversightEntityHealth entity, bool clickable = false)
