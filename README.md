@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.0 (Command center as default home — date-windowed on-time, per-account location rollup, IndexedDB-direct backfill with stable keys + answered-thread reconciliation)
+**Current release:** v4.8.1 (Command center caught-up metric — per-account on-time derived from WhatsApp's own unread signal, read directly from the chat store)
 
 ## Scope
 
@@ -29,6 +29,12 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.1
+
+- **Trustworthy on-time = "caught up %":** the command center now derives each account's headline number from **WhatsApp's own unread marker**, read directly from the chat store in local IndexedDB (chats with no unread customer message = caught up). This needs no message history and no fragile name matching, so it reflects reality even when the app's reconstructed thread list is stale — fixing the misleading near-0% readings.
+- **Why:** WhatsApp Web (multi-device) keeps only a small recent cache in the `message` store and does not persist per-chat `lastMessage`, but `unreadCount` is reliable for every chat. Reading the `chat` store with a single bounded `getAll` also avoids the long-cursor read-transaction hang that the `message` store caused.
+- **Manual "Re-sync history"** button refreshes the snapshot on demand; the regular startup backfill keeps it current. Also fixes a WebView2 plumbing bug (ExecuteScriptAsync does not await promises) that made the IndexedDB read silently return nothing.
 
 ### What's in v4.8.0
 

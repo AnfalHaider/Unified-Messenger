@@ -83,8 +83,8 @@ public sealed partial class CommandCenterPanel : UserControl
             _ => "all time"
         };
         SubtitleText.Text = grouping == OversightGrouping.ByLocation
-            ? $"Rolled up by location · on-time for {windowLabel}"
-            : $"Per account · on-time for {windowLabel} · group into locations (Ctrl+K)";
+            ? "Rolled up by location · % of chats caught up (live)"
+            : "Per account · % of chats caught up (live) · group into locations (Ctrl+K)";
         _emptyStateWindowLabel = windowLabel;
 
         if (snapshot.TotalUrgent > 0 || snapshot.TotalDropped > 0)
@@ -254,7 +254,7 @@ public sealed partial class CommandCenterPanel : UserControl
 
         row.Children.Add(new TextBlock
         {
-            Text = hasLiveData ? $"{entity.OnTimePercent}% on time" : $"no activity {_emptyStateWindowLabel}",
+            Text = hasLiveData ? $"{entity.OnTimePercent}% caught up" : $"no activity {_emptyStateWindowLabel}",
             Foreground = statusBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Width = 110
