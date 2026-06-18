@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.6 (Command center awaiting-reply list is an inline accordion under each account card — expand to see and open the waiting customers)
+**Current release:** v4.8.7 (Awaiting-reply list shows the phone number for unsaved contacts instead of a generic "New message")
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.7
+
+- **Readable names in the awaiting list:** unsaved WhatsApp contacts (which the chat store titles generically as "New message") now show the **phone number derived from the chat JID** (e.g. "+92332…"), so every waiting customer is identifiable.
 
 ### What's in v4.8.6
 

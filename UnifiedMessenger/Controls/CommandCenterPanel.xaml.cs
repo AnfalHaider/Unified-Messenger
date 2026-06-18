@@ -198,6 +198,34 @@ public sealed partial class CommandCenterPanel : UserControl
     /// The accordion body for an account/location: the actual customers awaiting a reply (across its
     /// instances), worst-first, each a click-through to that WhatsApp conversation.
     /// </summary>
+    /// <summary>
+    /// A readable label for a waiting chat: WhatsApp's saved contact name when present, otherwise the
+    /// phone number derived from the chat JID (unsaved numbers surface as a generic "New message" title).
+    /// </summary>
+    private static string FriendlyChatName(string? name, string? conversationKey)
+    {
+        if (!string.IsNullOrWhiteSpace(name) &&
+            !name.Equals("New message", StringComparison.OrdinalIgnoreCase))
+        {
+            return name;
+        }
+
+        var key = conversationKey ?? string.Empty;
+        if (key.Contains("@g.us", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.IsNullOrWhiteSpace(name) ? "Group chat" : name!;
+        }
+
+        var at = key.IndexOf('@');
+        var local = at > 0 ? key[..at] : key;
+        if (local.Length >= 6 && local.All(char.IsDigit))
+        {
+            return "+" + local;
+        }
+
+        return !string.IsNullOrWhiteSpace(name) ? name! : (string.IsNullOrWhiteSpace(key) ? "Unknown" : key);
+    }
+
     private FrameworkElement BuildAwaitingPanel(OversightEntityHealth entity)
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
@@ -230,7 +258,7 @@ public sealed partial class CommandCenterPanel : UserControl
             var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
             line.Children.Add(new TextBlock
             {
-                Text = string.IsNullOrWhiteSpace(chat.CustomerName) ? chat.ConversationKey : chat.CustomerName,
+                Text = FriendlyChatName(chat.CustomerName, chat.ConversationKey),
                 VerticalAlignment = VerticalAlignment.Center,
                 MaxWidth = 260,
                 TextTrimming = TextTrimming.CharacterEllipsis
