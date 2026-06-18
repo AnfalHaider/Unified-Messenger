@@ -29,6 +29,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private SidebarMenuPlan? _currentPlan;
     private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
     private bool _isCompact;
+    private bool _isDragging;
 
     // Scope switch (Shell IA): remembers the last Refresh args so a scope change can re-render.
     private SidebarScope _scope = SidebarScope.All;
@@ -123,8 +124,12 @@ public sealed partial class WorkspaceSidebar : Grid
         var effectiveScope = hasMixed ? _scope : SidebarScope.All;
 
         var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instanceList, effectiveScope);
-        if (_currentPlan is not null &&
-            WorkspaceSidebarMenuPlanner.HasSameStructure(_currentPlan, plan))
+
+        // Never restructure the menu mid-drag: removing/re-inserting MenuStack children while an OLE
+        // drag loop is live (the dragged row is one of them) freezes the app. Do safe content-only
+        // updates now; the structural rebuild happens on the next Refresh after the drag ends.
+        if (_isDragging ||
+            (_currentPlan is not null && WorkspaceSidebarMenuPlanner.HasSameStructure(_currentPlan, plan)))
         {
             ApplyInstanceContentUpdates(plan);
             ApplySelectionVisuals();
@@ -608,7 +613,13 @@ public sealed partial class WorkspaceSidebar : Grid
         row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
         row.KeyDown += (sender, e) => InstanceRow_KeyDown(sender, e, instanceId, instance, row);
         row.CanDrag = true;
-        row.DragStarting += (_, e) => InstanceRow_DragStarting(e, instanceId, instance.DisplayName);
+        row.DragStarting += (_, e) =>
+        {
+            _isDragging = true;
+            InstanceRow_DragStarting(e, instanceId, instance.DisplayName);
+        };
+        // Cleared when the drag operation this row started finishes (drop, cancel, or escape).
+        row.DropCompleted += (_, _) => _isDragging = false;
         ToolTipService.SetToolTip(
             row,
             WorkspaceSidebarHelper.ComposeInstanceTooltip(
@@ -959,7 +970,11 @@ public sealed partial class WorkspaceSidebar : Grid
 
             // Defer the reorder (and its re-render) to the next dispatcher tick so the drag-drop
             // operation fully completes before the dragged element is removed from the visual tree.
-            DispatcherQueue.TryEnqueue(() => InstanceReorderRequested?.Invoke(this, (sourceId, targetId!)));
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                _isDragging = false; // ensure the post-reorder Refresh is allowed to restructure
+                InstanceReorderRequested?.Invoke(this, (sourceId, targetId!));
+            });
         }
         catch
         {
