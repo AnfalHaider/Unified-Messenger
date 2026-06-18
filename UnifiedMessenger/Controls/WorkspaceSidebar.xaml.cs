@@ -611,6 +611,7 @@ public sealed partial class WorkspaceSidebar : Grid
             PlatformBrandingHelper.GetAccentBrush(instance));
 
         row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
+        row.Tapped += (_, _) => InstanceRequested?.Invoke(this, instanceId);
         row.KeyDown += (sender, e) => InstanceRow_KeyDown(sender, e, instanceId, instance, row);
         row.CanDrag = true;
         row.DragStarting += (_, e) =>
@@ -641,13 +642,13 @@ public sealed partial class WorkspaceSidebar : Grid
         MessengerInstance instance,
         Border row)
     {
+        // Right-click → context menu. Left-click navigation is handled on Tapped (not PointerPressed):
+        // navigating on press triggers a heavy WebView switch the instant a drag begins, which freezes
+        // the drag. Tapped fires only on a click without a drag, so dragging no longer navigates.
         if (e.GetCurrentPoint(row).Properties.IsRightButtonPressed)
         {
             InstanceContextRequested?.Invoke(this, (instanceId, instance, row));
-            return;
         }
-
-        InstanceRequested?.Invoke(this, instanceId);
     }
 
     private void InstanceRow_KeyDown(

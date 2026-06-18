@@ -406,6 +406,14 @@ public sealed class ShellController
             flyout.Items.Add(locationItem);
         }
 
+        var moveUpItem = new MenuFlyoutItem { Text = "Move up" };
+        moveUpItem.Click += (_, _) => _ = ReorderInstanceByDirectionAsync(args.InstanceId, -1);
+        flyout.Items.Add(moveUpItem);
+
+        var moveDownItem = new MenuFlyoutItem { Text = "Move down" };
+        moveDownItem.Click += (_, _) => _ = ReorderInstanceByDirectionAsync(args.InstanceId, 1);
+        flyout.Items.Add(moveDownItem);
+
         var renameItem = new MenuFlyoutItem { Text = "Rename instance..." };
         renameItem.Click += (_, _) => _ = RenameInstanceAsync(args.InstanceId);
         flyout.Items.Add(renameItem);
@@ -481,6 +489,21 @@ public sealed class ShellController
         catch (Exception ex)
         {
             await _services.Dialog.ShowErrorAsync("Could not update memory tier", ex.Message);
+        }
+    }
+
+    private async Task ReorderInstanceByDirectionAsync(string instanceId, int direction)
+    {
+        try
+        {
+            await _services.Registry.MoveInstanceAsync(instanceId, direction);
+            _chrome.RebuildInstanceNavigation();
+            _chrome.UpdateShellChromeSelection();
+            _navigation.RefreshDashboardIfVisible();
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not move instance", ex.Message);
         }
     }
 
