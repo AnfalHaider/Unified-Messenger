@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.9.3 (Audit fixes — location accordions keep their open state across auto-refresh; per-instance scan serialization)
+**Current release:** v4.10.0 (Shell IA, step 1 — sidebar groups accounts into Professional / Personal scopes)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.10.0
+
+- **Shell IA (step 1) — scope-grouped sidebar:** the account list now splits into **Professional** and **Personal** sections (when both exist) instead of one flat "Active accounts" list, making the Personal/Professional scope first-class in navigation. A single-scope setup keeps one clean header. Foundation for the location rail and scope switch.
 
 ### What's in v4.9.3
 

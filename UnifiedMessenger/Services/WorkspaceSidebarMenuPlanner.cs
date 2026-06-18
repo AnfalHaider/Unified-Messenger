@@ -28,6 +28,10 @@ public static class WorkspaceSidebarMenuPlanner
 
     public const string ActiveAccountsHeaderKey = "header:active-accounts";
 
+    public const string ProfessionalHeaderKey = "header:professional";
+
+    public const string PersonalHeaderKey = "header:personal";
+
     public const string ActiveAccountsEmptyKey = "empty:active-accounts";
 
     public static SidebarMenuPlan BuildPlan(IEnumerable<MessengerInstance> instances)
@@ -55,21 +59,44 @@ public static class WorkspaceSidebarMenuPlanner
             return new SidebarMenuPlan { Entries = entries };
         }
 
-        entries.Add(new SidebarMenuEntry(
-            ActiveAccountsHeaderKey,
-            SidebarMenuEntryKind.SectionHeader,
-            SectionTitle: "ACTIVE ACCOUNTS"));
-
         var (professional, personal) = WorkspaceSidebarHelper.PartitionInstances(enabledInstances);
-        foreach (var instance in professional.Concat(personal))
+        var professionalList = professional.ToList();
+        var personalList = personal.ToList();
+
+        // Scope-first navigation: group accounts under "Professional" and "Personal" headers (only the
+        // groups that have accounts). A single mixed list collapses to one header so the structure stays
+        // clean when the owner runs only one scope.
+        if (professionalList.Count > 0 && personalList.Count > 0)
+        {
+            AddSection(entries, ProfessionalHeaderKey, "PROFESSIONAL", professionalList);
+            AddSection(entries, PersonalHeaderKey, "PERSONAL", personalList);
+        }
+        else
         {
             entries.Add(new SidebarMenuEntry(
-                instance.Id.Trim(),
-                SidebarMenuEntryKind.Instance,
-                Instance: instance));
+                ActiveAccountsHeaderKey,
+                SidebarMenuEntryKind.SectionHeader,
+                SectionTitle: "ACTIVE ACCOUNTS"));
+            foreach (var instance in professionalList.Concat(personalList))
+            {
+                entries.Add(new SidebarMenuEntry(instance.Id.Trim(), SidebarMenuEntryKind.Instance, Instance: instance));
+            }
         }
 
         return new SidebarMenuPlan { Entries = entries };
+    }
+
+    private static void AddSection(
+        List<SidebarMenuEntry> entries,
+        string headerKey,
+        string title,
+        IReadOnlyList<MessengerInstance> instances)
+    {
+        entries.Add(new SidebarMenuEntry(headerKey, SidebarMenuEntryKind.SectionHeader, SectionTitle: title));
+        foreach (var instance in instances)
+        {
+            entries.Add(new SidebarMenuEntry(instance.Id.Trim(), SidebarMenuEntryKind.Instance, Instance: instance));
+        }
     }
 
     public static bool HasSameStructure(SidebarMenuPlan? previous, SidebarMenuPlan current)
