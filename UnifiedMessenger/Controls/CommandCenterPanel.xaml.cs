@@ -116,6 +116,48 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private void OnAutoRefreshTick(object? sender, object e) => Render();
 
+    private bool _digestShown;
+
+    /// <summary>
+    /// Once per session, when snapshots have loaded, summarize what's awaiting since the operator was last
+    /// here (and stamp "last seen" now). Returns false until there's data or if already shown.
+    /// </summary>
+    private bool TryBuildDigestBanner(IReadOnlyList<MessengerInstance> instances, out string text)
+    {
+        text = string.Empty;
+        if (_digestShown)
+        {
+            return false;
+        }
+
+        var ids = instances.Select(i => i.Id).Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
+        var lastSeen = AppSettingsService.Instance.Settings.OversightLastSeenUtc;
+        var digest = OversightChatSnapshotService.Instance.BuildDigest(ids, lastSeen);
+        if (!digest.HasData)
+        {
+            return false; // snapshots not loaded yet — try again on the next refresh
+        }
+
+        _digestShown = true;
+        _ = AppSettingsService.Instance.UpdateAsync(s => s.OversightLastSeenUtc = DateTimeOffset.UtcNow);
+
+        if (digest.TotalAwaiting == 0)
+        {
+            text = "All caught up — no customers are waiting on a reply.";
+            return true;
+        }
+
+        var since = lastSeen is { } s ? $"Since {s.ToLocalTime():MMM d, h:mm tt}: " : "Waiting now: ";
+        var accountWord = digest.AccountsWithAwaiting == 1 ? "account" : "accounts";
+        text = $"{since}{digest.NewAwaiting} new awaiting reply · {digest.TotalAwaiting} total across {digest.AccountsWithAwaiting} {accountWord}";
+        if (digest.OldestActivityUtc is { } oldest)
+        {
+            text += $" · oldest since {oldest.ToLocalTime():MMM d, h:mm tt}";
+        }
+
+        return true;
+    }
+
     public void Render()
     {
         if (_services is null)
@@ -141,12 +183,17 @@ public sealed partial class CommandCenterPanel : UserControl
             : $"Per account · caught up among chats active {windowLabel} · group into locations (Ctrl+K)";
         _emptyStateWindowLabel = windowLabel;
 
-        if (snapshot.TotalUrgent > 0 || snapshot.TotalDropped > 0)
+        if (TryBuildDigestBanner(instances, out var digestText))
+        {
+            AttentionText.Text = digestText;
+            AttentionBanner.Visibility = Visibility.Visible;
+        }
+        else if (snapshot.TotalUrgent > 0 || snapshot.TotalDropped > 0)
         {
             AttentionText.Text = snapshot.AttentionSummary;
             AttentionBanner.Visibility = Visibility.Visible;
         }
-        else
+        else if (!_resyncInProgress)
         {
             AttentionBanner.Visibility = Visibility.Collapsed;
         }

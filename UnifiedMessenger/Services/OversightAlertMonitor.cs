@@ -29,7 +29,9 @@ public sealed class OversightAlertMonitor
     {
     }
 
-    public int Threshold { get; set; } = DefaultAwaitingThreshold;
+    /// <summary>Awaiting-reply count that triggers an alert; 0 disables. Read from settings each pass.</summary>
+    public int Threshold =>
+        AppSettingsService.Instance.Settings.OversightAwaitingAlertThreshold;
 
     public void Start(IInstanceRegistryService registry, DispatcherQueue ui)
     {
@@ -78,9 +80,15 @@ public sealed class OversightAlertMonitor
                     continue;
                 }
 
+                var threshold = Threshold;
+                if (threshold <= 0)
+                {
+                    continue; // alerts disabled — snapshot still refreshed above
+                }
+
                 var awaiting = result.Value.Awaiting;
                 var alreadyAlerted = _alerted.TryGetValue(instance.Id, out var a) && a;
-                var (fire, alerted) = Evaluate(awaiting, Threshold, alreadyAlerted);
+                var (fire, alerted) = Evaluate(awaiting, threshold, alreadyAlerted);
                 _alerted[instance.Id] = alerted;
 
                 if (!fire)

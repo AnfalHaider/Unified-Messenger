@@ -16,6 +16,20 @@
             Text="Set per-location response targets and business hours. Locations come from your professional accounts; the SLA clock pauses outside business hours."
             TextWrapping="WrapWholeWords" />
 
+        <TextBlock Text="Alerts" FontWeight="SemiBold" />
+        <NumberBox
+            x:Name="AlertThresholdBox"
+            Header="Alert when awaiting reply reaches (0 = off)"
+            Minimum="0"
+            Maximum="1000"
+            SmallChange="1"
+            SpinButtonPlacementMode="Inline" />
+        <TextBlock
+            FontSize="12"
+            Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+            Text="A desktop toast appears when an account crosses this many customers awaiting a reply (checked every few minutes)."
+            TextWrapping="WrapWholeWords" />
+
         <ComboBox
             x:Name="LocationCombo"
             Header="Location"

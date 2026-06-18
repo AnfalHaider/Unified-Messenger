@@ -25,7 +25,7 @@ public static class OversightSnapshotReader
                 "window.__umStartDbConversationScan ? window.__umStartDbConversationScan(2000) : 'NOFN'")
             .ConfigureAwait(false);
 
-        for (var attempt = 0; attempt < 36; attempt++) // ~11s; the scan self-settles via an 8s watchdog
+        for (var attempt = 0; attempt < 75; attempt++) // ~22s; the scan self-settles via a 20s watchdog
         {
             await Task.Delay(300).ConfigureAwait(false);
             var raw = await InstanceSessionManager.Instance

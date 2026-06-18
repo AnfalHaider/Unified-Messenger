@@ -1125,8 +1125,9 @@
       .catch(function () { settle({ ok: false, conversations: [], diag: { stage: 'promise-error' } }); });
 
     // Watchdog: on a still-loading page indexedDB.open can block indefinitely, so always settle so the
-    // host poll gets a result (and can retry) instead of hanging.
-    setTimeout(function () { settle({ ok: false, conversations: [], diag: { stage: 'watchdog-timeout' } }); }, 8000);
+    // host poll gets a result (and can retry) instead of hanging. 20s gives a busy account's chat-store
+    // getAll (thousands of records) time to finish before we give up.
+    setTimeout(function () { settle({ ok: false, conversations: [], diag: { stage: 'watchdog-timeout' } }); }, 20000);
     return true;
   };
 

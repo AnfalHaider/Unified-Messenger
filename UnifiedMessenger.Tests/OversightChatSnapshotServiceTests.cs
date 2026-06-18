@@ -63,6 +63,39 @@ public class OversightChatSnapshotServiceTests
     }
 
     [Fact]
+    public void BuildDigest_CountsNewTotalAndOldest()
+    {
+        var svc = OversightChatSnapshotService.Instance;
+        var now = DateTimeOffset.UtcNow;
+        var id = "inst-" + Guid.NewGuid().ToString("N");
+
+        svc.Update(id, new[]
+        {
+            new OversightChatSnapshotService.ChatEntry("a", "A", 2, now),               // awaiting, new
+            new OversightChatSnapshotService.ChatEntry("b", "B", 1, now.AddDays(-2)),   // awaiting, old (oldest)
+            new OversightChatSnapshotService.ChatEntry("c", "C", 0, now),               // caught up
+        }, now);
+
+        var digest = svc.BuildDigest(new[] { id }, now.AddDays(-1));
+
+        Assert.True(digest.HasData);
+        Assert.Equal(2, digest.TotalAwaiting);
+        Assert.Equal(1, digest.NewAwaiting);          // only "a" arrived since yesterday
+        Assert.Equal(1, digest.AccountsWithAwaiting);
+        Assert.Equal(now.AddDays(-2), digest.OldestActivityUtc);
+    }
+
+    [Fact]
+    public void BuildDigest_NoSnapshot_HasDataFalse()
+    {
+        var digest = OversightChatSnapshotService.Instance
+            .BuildDigest(new[] { "missing-" + Guid.NewGuid().ToString("N") }, null);
+
+        Assert.False(digest.HasData);
+        Assert.Equal(0, digest.TotalAwaiting);
+    }
+
+    [Fact]
     public void TryGetWindowed_NoSnapshot_ReturnsFalse()
     {
         Assert.False(OversightChatSnapshotService.Instance

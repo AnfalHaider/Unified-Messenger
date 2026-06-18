@@ -112,6 +112,15 @@ public sealed class AppSettings
     /// <summary>Compact thread card density in Operations Command Center.</summary>
     public bool OccCompactCardDensity { get; set; }
 
+    /// <summary>
+    /// Command-center alert: raise a desktop toast when an account's awaiting-reply count reaches this
+    /// many. 0 disables the alert. Default 5.
+    /// </summary>
+    public int OversightAwaitingAlertThreshold { get; set; } = 5;
+
+    /// <summary>Last time the operator viewed the command center — used for the "since you were here" digest.</summary>
+    public DateTimeOffset? OversightLastSeenUtc { get; set; }
+
     /// <summary>Master toggle for on-device Ollama inference. Off by default.</summary>
     public bool EnableLocalAi { get; set; }
 
@@ -141,6 +150,7 @@ public sealed class AppSettings
         WhatsAppBackfillRecentDays = Math.Clamp(WhatsAppBackfillRecentDays, 1, 30);
         WhatsAppBackfillMaxChats = Math.Clamp(WhatsAppBackfillMaxChats, 5, 100);
         MaxConcurrentWebViews = Math.Clamp(MaxConcurrentWebViews, 0, MaxConcurrentWebViewsCap);
+        OversightAwaitingAlertThreshold = Math.Clamp(OversightAwaitingAlertThreshold, 0, 1000);
 
         if (!Enum.IsDefined(WhatsAppBackfillMode))
         {

@@ -16,6 +16,7 @@ public sealed partial class WorkspaceManagementDialog : ContentDialog
         IReadOnlyList<WorkspaceProfile> existing)
     {
         InitializeComponent();
+        AlertThresholdBox.Value = AppSettingsService.Instance.Settings.OversightAwaitingAlertThreshold;
         _profiles = WorkspaceManagementHelper.BuildEditableProfiles(instances, existing);
 
         if (_profiles.Count == 0)
@@ -95,7 +96,12 @@ public sealed partial class WorkspaceManagementDialog : ContentDialog
                 SaveEditorInto(_profiles[_currentIndex]);
             }
 
-            await AppSettingsService.Instance.UpdateAsync(settings => settings.WorkspaceProfiles = _profiles);
+            var threshold = double.IsNaN(AlertThresholdBox.Value) ? 0 : (int)Math.Round(AlertThresholdBox.Value);
+            await AppSettingsService.Instance.UpdateAsync(settings =>
+            {
+                settings.WorkspaceProfiles = _profiles;
+                settings.OversightAwaitingAlertThreshold = threshold;
+            });
         }
         finally
         {

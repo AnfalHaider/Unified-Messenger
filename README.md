@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.9.1 (Custom From/To date range on the command center + more robust message-preview scrape)
+**Current release:** v4.9.2 ("Since you were last here" digest + configurable alert threshold + hardened chat-store read for busy accounts)
 
 ## Scope
 
@@ -29,6 +29,12 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.9.2
+
+- **"Since you were last here" digest (A):** once per session, the command center summarizes what's waiting — *"Since Jun 18, 9:14 AM: 7 new awaiting reply · 21 total across 2 accounts · oldest since…"* — using a persisted last-seen timestamp. (`OversightChatSnapshotService.BuildDigest`.)
+- **Hardened chat-store read (B):** the IndexedDB scan watchdog now allows 20s (was 8s) so a busy account's `getAll` over thousands of chats completes instead of timing out into "syncing…".
+- **Configurable alert threshold (C):** Workspace management (Ctrl+K) now has an **"Alert when awaiting reply reaches N"** setting (0 = off, default 5); the background monitor reads it each pass.
 
 ### What's in v4.9.1
 

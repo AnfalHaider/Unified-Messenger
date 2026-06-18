@@ -18,6 +18,14 @@ public sealed class OversightChatSnapshotService
         DateTimeOffset LastActivityUtc,
         string Preview = "");
 
+    /// <summary>"Since you were last here" summary across a set of instances.</summary>
+    public readonly record struct OversightDigest(
+        int NewAwaiting,
+        int TotalAwaiting,
+        int AccountsWithAwaiting,
+        DateTimeOffset? OldestActivityUtc,
+        bool HasData);
+
     private sealed record InstanceChats(IReadOnlyList<ChatEntry> Chats, DateTimeOffset CapturedAtUtc);
 
     private static readonly Lazy<OversightChatSnapshotService> LazyInstance = new(() => new OversightChatSnapshotService());
@@ -74,6 +82,56 @@ public sealed class OversightChatSnapshotService
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Summarize awaiting state across instances for the "since you were last here" digest: how many are
+    /// awaiting in total, how many arrived since <paramref name="sinceUtc"/>, across how many accounts, and
+    /// the oldest waiting activity. <c>HasData</c> is false until at least one instance has a snapshot.
+    /// </summary>
+    public OversightDigest BuildDigest(IEnumerable<string> instanceIds, DateTimeOffset? sinceUtc)
+    {
+        var total = 0;
+        var fresh = 0;
+        var accounts = 0;
+        var hasData = false;
+        DateTimeOffset? oldest = null;
+
+        foreach (var id in instanceIds ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(id) || !_byInstance.TryGetValue(id.Trim(), out var snap))
+            {
+                continue;
+            }
+
+            hasData = true;
+            var awaitingHere = 0;
+            foreach (var chat in snap.Chats)
+            {
+                if (chat.Unread <= 0)
+                {
+                    continue;
+                }
+
+                awaitingHere++;
+                total++;
+                if (sinceUtc is null || chat.LastActivityUtc > sinceUtc.Value)
+                {
+                    fresh++;
+                }
+                if (oldest is null || chat.LastActivityUtc < oldest.Value)
+                {
+                    oldest = chat.LastActivityUtc;
+                }
+            }
+
+            if (awaitingHere > 0)
+            {
+                accounts++;
+            }
+        }
+
+        return new OversightDigest(fresh, total, accounts, oldest, hasData);
     }
 
     private static bool InWindow(DateTimeOffset when, DateTimeOffset? startUtc, DateTimeOffset? endUtc) =>
