@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.9.2 ("Since you were last here" digest + configurable alert threshold + hardened chat-store read for busy accounts)
+**Current release:** v4.9.3 (Audit fixes — location accordions keep their open state across auto-refresh; per-instance scan serialization)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.9.3
+
+- **Audit fixes:** By-location accordions now keep their expanded/collapsed state across the 20s auto-refresh (instance rows already did; locations didn't). The IndexedDB scan is now serialized per instance, so the background monitor and a manual Re-sync can't clobber each other's shared result.
 
 ### What's in v4.9.2
 

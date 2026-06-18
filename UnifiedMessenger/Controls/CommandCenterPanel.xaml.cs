@@ -253,13 +253,28 @@ public sealed partial class CommandCenterPanel : UserControl
             content.Children.Add(BuildRow(member));
         }
 
-        return new Expander
+        var expander = new Expander
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Header = BuildRowContent(location),
             Content = content
         };
+        TrackExpansion(expander, location.Key);
+        return expander;
+    }
+
+    // Auto-refresh rebuilds the rows; without this, every refresh would snap open accordions shut.
+    private void TrackExpansion(Expander expander, string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        expander.IsExpanded = _expandedKeys.Contains(key);
+        expander.Expanding += (_, _) => _expandedKeys.Add(key);
+        expander.Collapsed += (_, _) => _expandedKeys.Remove(key);
     }
 
     private FrameworkElement BuildRow(OversightEntityHealth entity)

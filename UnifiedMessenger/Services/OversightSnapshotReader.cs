@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using UnifiedMessenger.Models;
 
@@ -12,6 +13,10 @@ public static class OversightSnapshotReader
 {
     public readonly record struct RefreshResult(int Active, int CaughtUp, int Awaiting);
 
+    // One scan per instance at a time — the manual Re-sync probe and the background monitor share the
+    // single window.__umDbConversationsResult global, so concurrent scans would clobber each other.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.OrdinalIgnoreCase);
+
     public static async Task<RefreshResult?> RefreshAsync(MessengerInstance instance)
     {
         if (instance is null || string.IsNullOrWhiteSpace(instance.Id))
@@ -19,6 +24,20 @@ public static class OversightSnapshotReader
             return null;
         }
 
+        var gate = Gates.GetOrAdd(instance.Id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return await RunScanAsync(instance).ConfigureAwait(false);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static async Task<RefreshResult?> RunScanAsync(MessengerInstance instance)
+    {
         await InstanceSessionManager.Instance
             .TryExecuteScriptOnInstanceAsync(
                 instance.Id,

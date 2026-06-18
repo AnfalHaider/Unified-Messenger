@@ -5,7 +5,7 @@
 #define MyAppExeName "UnifiedMessenger.exe"
 #define MyAppPublisher "AnfalHaider"
 #define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "4.9.2"
+#define MyAppVersion "4.9.3"
 #define MyAppMutex "UnifiedMessenger_AppMutex"
 
 #define OllamaRuntimeDir "{localappdata}\UnifiedMessenger\ollama\runtime"
