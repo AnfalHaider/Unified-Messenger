@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.7 (Awaiting-reply list shows the phone number for unsaved contacts instead of a generic "New message")
+**Current release:** v4.8.8 (Awaiting-list click-through reliably focuses the chat by JID; honest labels for privacy-id contacts)
 
 ## Scope
 
@@ -29,6 +29,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.8
+
+- **Click-through focus fixed:** opening a chat from the awaiting list now matches the sidebar row by its **`data-id` (JID)** rather than the visible title — so chats whose internal id never appears in the title text (especially WhatsApp `@lid` privacy ids) focus correctly instead of failing with "could not focus the requested chat".
+- **Honest contact labels:** only real phone ids (`@c.us`) render as a `+number`; WhatsApp privacy ids (`@lid`) show "Unsaved contact" instead of a fake 15-digit "number".
 
 ### What's in v4.8.7
 

@@ -160,12 +160,38 @@
     var name = window.__umCollapseWhitespace(customerName || '');
 
     if (platformKey === 'whatsapp' || platformKey === 'whatsappbusiness') {
-      var jidNeedle = key.toLowerCase();
+      var keyLower = key.toLowerCase();
+      // Bare id without the @c.us / @lid suffix, for looser matching against the row's data-id.
+      var at = keyLower.indexOf('@');
+      var bareId = at > 0 ? keyLower.slice(0, at) : keyLower;
+
+      // 1) Most reliable: match a sidebar row by its data-id (the chat JID). The JID never appears in
+      //    the visible title text (especially for @lid privacy ids), so title matching alone fails.
+      if (bareId) {
+        var rows = document.querySelectorAll(
+          '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+        );
+        for (var r = 0; r < rows.length; r++) {
+          var idEl = rows[r].querySelector('[data-id]');
+          var did = ((idEl && idEl.getAttribute('data-id')) ||
+            (rows[r].getAttribute && rows[r].getAttribute('data-id')) || '').toLowerCase();
+          if (did && (did.indexOf(keyLower) >= 0 || did.indexOf(bareId) >= 0)) {
+            var target = rows[r].querySelector('span[title]') || idEl || rows[r];
+            target.click();
+            return true;
+          }
+        }
+      }
+
+      // 2) Fall back to a visible title containing the JID text or a real name. "New message" is the
+      //    generic placeholder for unsaved contacts, so it must not be used to match.
+      var nameLower = name.toLowerCase();
+      var ignoreName = !nameLower || nameLower === 'new message';
       var titles = document.querySelectorAll('#pane-side span[title], #side span[title], header span[title]');
       for (var t = 0; t < titles.length; t++) {
-        var title = window.__umCollapseWhitespace(titles[t].getAttribute('title') || titles[t].textContent || '');
-        if (title.toLowerCase().indexOf(jidNeedle) >= 0 ||
-            (name && title.toLowerCase().indexOf(name.toLowerCase()) >= 0)) {
+        var title = window.__umCollapseWhitespace(titles[t].getAttribute('title') || titles[t].textContent || '').toLowerCase();
+        if ((keyLower && title.indexOf(keyLower) >= 0) ||
+            (!ignoreName && title.indexOf(nameLower) >= 0)) {
           titles[t].click();
           return true;
         }

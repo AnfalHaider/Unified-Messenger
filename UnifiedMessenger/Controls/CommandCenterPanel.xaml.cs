@@ -216,14 +216,18 @@ public sealed partial class CommandCenterPanel : UserControl
             return string.IsNullOrWhiteSpace(name) ? "Group chat" : name!;
         }
 
+        // Only @c.us / @s.whatsapp.net ids are real phone numbers. @lid is a WhatsApp privacy id, not a
+        // dialable number, so don't present it as one.
         var at = key.IndexOf('@');
         var local = at > 0 ? key[..at] : key;
-        if (local.Length >= 6 && local.All(char.IsDigit))
+        var isPhoneJid = key.Contains("@c.us", StringComparison.OrdinalIgnoreCase) ||
+                         key.Contains("@s.whatsapp.net", StringComparison.OrdinalIgnoreCase);
+        if (isPhoneJid && local.Length is >= 6 and <= 15 && local.All(char.IsDigit))
         {
             return "+" + local;
         }
 
-        return !string.IsNullOrWhiteSpace(name) ? name! : (string.IsNullOrWhiteSpace(key) ? "Unknown" : key);
+        return "Unsaved contact";
     }
 
     private FrameworkElement BuildAwaitingPanel(OversightEntityHealth entity)
