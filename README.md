@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.12.0 (Shell IA, step 3 — assign accounts to a location + location rail in the sidebar)
+**Current release:** v4.12.1 (Hotfix — drag-to-reorder no longer crashes; hardened both drag-drop surfaces)
 
 ## Scope
 
@@ -29,6 +29,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.12.1
+
+- **Drag-reorder crash fixed:** dragging a sidebar account to reposition it crashed natively because the reorder rebuilt the menu — removing the dragged element — *synchronously inside the drop event*. The reorder is now **deferred to the next dispatcher tick** so the drag-drop operation completes first. Both handlers are also exception-guarded.
+- **Same class fixed on the OCC kanban board:** its drag-over accessed `DragUIOverride` without a null check and fired transfer/re-render events synchronously in the drop — now null-guarded, exception-safe, and deferred.
 
 ### What's in v4.12.0
 

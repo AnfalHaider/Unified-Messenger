@@ -924,26 +924,47 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private void MenuStack_DragOver(object sender, DragEventArgs e)
     {
-        e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
-        e.DragUIOverride.Caption = "Reorder account";
+        try
+        {
+            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
+            if (e.DragUIOverride is not null)
+            {
+                e.DragUIOverride.Caption = "Reorder account";
+            }
+        }
+        catch
+        {
+            // Drag UI overrides are best-effort; never let one crash the drag.
+        }
     }
 
     private async void MenuStack_Drop(object sender, DragEventArgs e)
     {
-        if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+        // async void — must never throw, and must NOT mutate the visual tree synchronously: rebuilding
+        // the menu (removing the dragged row) while the drop event is still on the stack crashes natively.
+        try
         {
-            return;
-        }
+            if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+            {
+                return;
+            }
 
-        var sourceId = (await e.DataView.GetTextAsync()).Trim();
-        var position = e.GetPosition(MenuStack);
-        var targetId = ResolveDropTargetInstanceId(position);
-        if (!WorkspaceSidebarHelper.ShouldAcceptReorder(sourceId, targetId))
+            var sourceId = (await e.DataView.GetTextAsync()).Trim();
+            var position = e.GetPosition(MenuStack);
+            var targetId = ResolveDropTargetInstanceId(position);
+            if (!WorkspaceSidebarHelper.ShouldAcceptReorder(sourceId, targetId))
+            {
+                return;
+            }
+
+            // Defer the reorder (and its re-render) to the next dispatcher tick so the drag-drop
+            // operation fully completes before the dragged element is removed from the visual tree.
+            DispatcherQueue.TryEnqueue(() => InstanceReorderRequested?.Invoke(this, (sourceId, targetId!)));
+        }
+        catch
         {
-            return;
+            // A failed drop should be a no-op, never a crash.
         }
-
-        InstanceReorderRequested?.Invoke(this, (sourceId, targetId!));
     }
 
     private string? ResolveDropTargetInstanceId(Point position)

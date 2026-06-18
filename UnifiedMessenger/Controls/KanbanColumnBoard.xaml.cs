@@ -184,47 +184,60 @@ public sealed partial class KanbanColumnBoard : UserControl
         }
 
         e.AcceptedOperation = DataPackageOperation.Move;
-        e.DragUIOverride.IsGlyphVisible = false;
-
-        if (targetColumn.Equals(_dragSourceColumnKey, StringComparison.OrdinalIgnoreCase))
+        if (e.DragUIOverride is null)
         {
-            e.DragUIOverride.Caption = string.Empty;
             return;
         }
 
-        e.DragUIOverride.Caption = $"Move to {ResolveColumnLabel(targetColumn)}";
+        e.DragUIOverride.IsGlyphVisible = false;
+        e.DragUIOverride.Caption = targetColumn.Equals(_dragSourceColumnKey, StringComparison.OrdinalIgnoreCase)
+            ? string.Empty
+            : $"Move to {ResolveColumnLabel(targetColumn)}";
     }
 
     private void DropZone_Drop(object sender, DragEventArgs e)
     {
-        if (!IsReorderEnabled ||
-            sender is not Border dropZone ||
-            _dragSourceCard is null ||
-            string.IsNullOrWhiteSpace(_dragSourceColumnKey))
+        // Never throw out of a drop handler, and don't re-render the board synchronously while the drop
+        // event is on the stack (removing the dragged card mid-drop can crash natively) — defer it.
+        try
         {
-            e.AcceptedOperation = DataPackageOperation.None;
-            return;
-        }
+            if (!IsReorderEnabled ||
+                sender is not Border dropZone ||
+                _dragSourceCard is null ||
+                string.IsNullOrWhiteSpace(_dragSourceColumnKey))
+            {
+                e.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
 
-        var targetColumn = ResolveColumnKeyForDropZone(dropZone);
-        if (string.IsNullOrWhiteSpace(targetColumn))
+            var targetColumn = ResolveColumnKeyForDropZone(dropZone);
+            if (string.IsNullOrWhiteSpace(targetColumn))
+            {
+                e.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            if (targetColumn.Equals(_dragSourceColumnKey, StringComparison.OrdinalIgnoreCase))
+            {
+                var zone = dropZone;
+                DispatcherQueue.TryEnqueue(() => TryPublishColumnOrder(zone));
+                return;
+            }
+
+            e.AcceptedOperation = DataPackageOperation.Move;
+            CrossColumnInfoBar.IsOpen = false;
+            var card = _dragSourceCard;
+            var sourceColumn = _dragSourceColumnKey;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                ColumnTransferRequested?.Invoke(this, (card, sourceColumn, targetColumn));
+                CrossColumnDragAttempted?.Invoke(this, EventArgs.Empty);
+            });
+        }
+        catch
         {
-            e.AcceptedOperation = DataPackageOperation.None;
-            return;
+            // A failed drop is a no-op, never a crash.
         }
-
-        if (targetColumn.Equals(_dragSourceColumnKey, StringComparison.OrdinalIgnoreCase))
-        {
-            TryPublishColumnOrder(dropZone);
-            return;
-        }
-
-        e.AcceptedOperation = DataPackageOperation.Move;
-        CrossColumnInfoBar.IsOpen = false;
-        ColumnTransferRequested?.Invoke(
-            this,
-            (_dragSourceCard, _dragSourceColumnKey, targetColumn));
-        CrossColumnDragAttempted?.Invoke(this, EventArgs.Empty);
     }
 
     private static string ResolveColumnLabel(string columnKey) =>
