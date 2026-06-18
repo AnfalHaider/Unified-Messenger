@@ -80,6 +80,7 @@ public static class OversightRollupBuilder
             var historicalOpenCount = windowStartUtc is null
                 ? 0
                 : open.Count(t => t.LastMessageTime < windowStartUtc.Value);
+            var awaitingCount = measuredOpen.Count;
 
             var instanceIds = list
                 .Select(t => t.InstanceId)
@@ -111,6 +112,7 @@ public static class OversightRollupBuilder
                     measuredCount = snapActive;
                     onTimePercent = snapActive > 0 ? (int)Math.Round((double)snapCaught / snapActive * 100) : 100;
                     historicalOpenCount = 0;
+                    awaitingCount = Math.Max(0, snapActive - snapCaught);
                 }
             }
 
@@ -133,6 +135,7 @@ public static class OversightRollupBuilder
                 OpenCount = open.Count,
                 MeasuredCount = measuredCount,
                 HistoricalOpenCount = historicalOpenCount,
+                AwaitingCount = awaitingCount,
                 OnTimePercent = onTimePercent,
                 UrgentCount = open.Count(t => t.IsUrgent),
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),

@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.3 (Command center caught-up metric with a working date filter — scoped to chats active in Today / Last 7 days / All time)
+**Current release:** v4.8.4 (Command center shows the exact "N awaiting reply" count alongside caught-up %, scoped to the date window)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.4
+
+- **Exact "N awaiting reply" count** next to each account's caught-up % — the number of chats with unread customer messages (not yet responded to) within the selected date window. Replaces the stale thread-based urgent/dropped columns with the actionable number that matches the metric.
 
 ### What's in v4.8.3
 

@@ -260,20 +260,18 @@ public sealed partial class CommandCenterPanel : UserControl
             Width = 110
         });
 
+        var awaitingText = !hasLiveData
+            ? "—"
+            : entity.AwaitingCount == 1
+                ? "1 awaiting reply"
+                : $"{entity.AwaitingCount} awaiting reply";
         row.Children.Add(new TextBlock
         {
-            Text = $"{entity.UrgentCount} urgent",
-            Foreground = entity.UrgentCount > 0 ? danger : secondary,
+            Text = awaitingText,
+            Foreground = entity.AwaitingCount > 0 ? danger : secondary,
+            FontWeight = entity.AwaitingCount > 0 ? FontWeights.SemiBold : FontWeights.Normal,
             VerticalAlignment = VerticalAlignment.Center,
-            Width = 80
-        });
-
-        row.Children.Add(new TextBlock
-        {
-            Text = $"{entity.DroppedCount} dropped",
-            Foreground = entity.DroppedCount > 0 ? danger : secondary,
-            VerticalAlignment = VerticalAlignment.Center,
-            Width = 90
+            Width = 170
         });
 
         var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);

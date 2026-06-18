@@ -188,6 +188,7 @@ public class OversightRollupBuilderTests
 
         Assert.Equal(95, entity.OnTimePercent);
         Assert.Equal(100, entity.MeasuredCount);
+        Assert.Equal(5, entity.AwaitingCount); // 100 active − 95 caught up
     }
 
     [Fact]

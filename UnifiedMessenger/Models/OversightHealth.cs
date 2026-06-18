@@ -47,6 +47,9 @@ public sealed class OversightEntityHealth
     /// <summary>Open threads carried over from history (backfilled) — shown separately, not as breaches.</summary>
     public int HistoricalOpenCount { get; init; }
 
+    /// <summary>Exact number of chats awaiting a reply (unread &gt; 0) within the window — customers not yet responded to.</summary>
+    public int AwaitingCount { get; init; }
+
     /// <summary>Share of LIVE actionable threads replied within (or still inside) the SLA, 0–100.</summary>
     public int OnTimePercent { get; init; } = 100;
 
