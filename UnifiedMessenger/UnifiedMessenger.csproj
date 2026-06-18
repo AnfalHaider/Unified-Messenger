@@ -26,10 +26,10 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 
     <!-- Versioning (keep in sync with app.manifest assemblyIdentity and installer.iss). -->
-    <Version>4.8.5</Version>
-    <AssemblyVersion>4.8.5.0</AssemblyVersion>
-    <FileVersion>4.8.5.0</FileVersion>
-    <ApplicationDisplayVersion>4.8.5</ApplicationDisplayVersion>
+    <Version>4.8.6</Version>
+    <AssemblyVersion>4.8.6.0</AssemblyVersion>
+    <FileVersion>4.8.6.0</FileVersion>
+    <ApplicationDisplayVersion>4.8.6</ApplicationDisplayVersion>
     <NoWarn>$(NoWarn);CS9057</NoWarn>
 
     <!-- Match host CPU for local `dotnet run`; use README publish commands for shipping. -->
