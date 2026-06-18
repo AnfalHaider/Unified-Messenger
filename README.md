@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.11.1 (Hotfix — scope switch no longer crashes startup)
+**Current release:** v4.12.0 (Shell IA, step 3 — assign accounts to a location + location rail in the sidebar)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.12.0
+
+- **Shell IA (step 3) — location rail:** right-click a professional account → **"Set location…"** to assign it a location (pick an existing one or type a new name; "Clear" to remove). Accounts sharing a location now appear under a **location sub-header** in the sidebar (single-account locations stay flat so the rail isn't cluttered) — and they already roll up together in the command center's By-location view. New lightweight `UpdateInstanceBranchKeyAsync` (metadata only, no session reload).
 
 ### What's in v4.11.1
 

@@ -399,6 +399,13 @@ public sealed class ShellController
         moveItem.Click += (_, _) => _ = ToggleInstanceCategoryAsync(args.InstanceId);
         flyout.Items.Add(moveItem);
 
+        if (args.Instance.IsProfessional)
+        {
+            var locationItem = new MenuFlyoutItem { Text = "Set location..." };
+            locationItem.Click += (_, _) => _ = SetInstanceLocationAsync(args.InstanceId);
+            flyout.Items.Add(locationItem);
+        }
+
         var renameItem = new MenuFlyoutItem { Text = "Rename instance..." };
         renameItem.Click += (_, _) => _ = RenameInstanceAsync(args.InstanceId);
         flyout.Items.Add(renameItem);
@@ -474,6 +481,76 @@ public sealed class ShellController
         catch (Exception ex)
         {
             await _services.Dialog.ShowErrorAsync("Could not update memory tier", ex.Message);
+        }
+    }
+
+    private async Task SetInstanceLocationAsync(string instanceId)
+    {
+        var instance = _services.Registry.FindById(instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        var existing = _services.Registry.Instances
+            .Where(i => i.IsProfessional && !string.IsNullOrWhiteSpace(i.BranchKey))
+            .Select(i => i.BranchKey!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var combo = new ComboBox
+        {
+            IsEditable = true,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            PlaceholderText = "Location name (e.g. Islamabad)",
+            Header = "Location"
+        };
+        foreach (var location in existing)
+        {
+            combo.Items.Add(location);
+        }
+        combo.Text = instance.BranchKey ?? string.Empty;
+
+        var panel = new StackPanel { Spacing = 8, MinWidth = 320 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Group this account under a location. Accounts that share a location appear together in " +
+                   "the sidebar and roll up together in the command center.",
+            TextWrapping = TextWrapping.WrapWholeWords
+        });
+        panel.Children.Add(combo);
+
+        var dialog = new ContentDialog
+        {
+            Title = $"Set location — {instance.DisplayName}",
+            Content = panel,
+            PrimaryButtonText = "Save",
+            SecondaryButtonText = "Clear",
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = _ui.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.None)
+        {
+            return;
+        }
+
+        var newLocation = result == ContentDialogResult.Secondary || string.IsNullOrWhiteSpace(combo.Text)
+            ? null
+            : combo.Text.Trim();
+
+        try
+        {
+            await _services.Registry.UpdateInstanceBranchKeyAsync(instanceId, newLocation);
+            _chrome.RebuildInstanceNavigation();
+            _navigation.RefreshDashboardIfVisible();
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not set location", ex.Message);
         }
     }
 

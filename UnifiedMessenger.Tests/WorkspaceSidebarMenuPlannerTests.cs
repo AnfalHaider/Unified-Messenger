@@ -6,15 +6,34 @@ namespace UnifiedMessenger.Tests;
 
 public class WorkspaceSidebarMenuPlannerTests
 {
-    private static MessengerInstance Inst(string id, bool professional) =>
+    private static MessengerInstance Inst(string id, bool professional, string? branchKey = null) =>
         new()
         {
             Id = id,
             DisplayName = id,
             ProfileName = id,
             Platform = "whatsapp",
-            Category = professional ? WorkspaceCategory.Professional : WorkspaceCategory.Personal
+            Category = professional ? WorkspaceCategory.Professional : WorkspaceCategory.Personal,
+            BranchKey = branchKey
         };
+
+    [Fact]
+    public void BuildPlan_ProfessionalWithSharedLocation_AddsLocationSubHeader()
+    {
+        var plan = WorkspaceSidebarMenuPlanner.BuildPlan(new[]
+        {
+            Inst("a", professional: true, branchKey: "Islamabad"),
+            Inst("b", professional: true, branchKey: "Islamabad"),
+            Inst("c", professional: true) // its own location → no sub-header
+        });
+
+        var keys = plan.Entries.Select(e => e.Key).ToList();
+        Assert.Contains("loc:islamabad", keys);                 // shared location grouped
+        Assert.Contains("a", keys);
+        Assert.Contains("b", keys);
+        Assert.Contains("c", keys);
+        Assert.DoesNotContain(keys, k => k.StartsWith("loc:", StringComparison.Ordinal) && k != "loc:islamabad");
+    }
 
     [Fact]
     public void BuildPlan_MixedScopes_SplitsIntoProfessionalAndPersonalSections()

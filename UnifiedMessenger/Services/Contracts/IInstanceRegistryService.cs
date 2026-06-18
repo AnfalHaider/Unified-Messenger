@@ -43,6 +43,13 @@ public interface IInstanceRegistryService
         string displayName,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Assign (or clear, when null/empty) the account's location/workspace key. Metadata only —
+    /// does not reload the session.</summary>
+    Task UpdateInstanceBranchKeyAsync(
+        string instanceId,
+        string? branchKey,
+        CancellationToken cancellationToken = default);
+
     Task UpdateInstanceNotificationsMutedAsync(
         string instanceId,
         bool isMuted,

@@ -94,19 +94,16 @@ public static class WorkspaceSidebarMenuPlanner
         // clean when the owner runs only one scope.
         if (professionalList.Count > 0 && personalList.Count > 0)
         {
-            AddSection(entries, ProfessionalHeaderKey, "PROFESSIONAL", professionalList);
+            AddProfessionalSection(entries, ProfessionalHeaderKey, "PROFESSIONAL", professionalList);
             AddSection(entries, PersonalHeaderKey, "PERSONAL", personalList);
+        }
+        else if (personalList.Count == 0)
+        {
+            AddProfessionalSection(entries, ActiveAccountsHeaderKey, "ACTIVE ACCOUNTS", professionalList);
         }
         else
         {
-            entries.Add(new SidebarMenuEntry(
-                ActiveAccountsHeaderKey,
-                SidebarMenuEntryKind.SectionHeader,
-                SectionTitle: "ACTIVE ACCOUNTS"));
-            foreach (var instance in professionalList.Concat(personalList))
-            {
-                entries.Add(new SidebarMenuEntry(instance.Id.Trim(), SidebarMenuEntryKind.Instance, Instance: instance));
-            }
+            AddSection(entries, ActiveAccountsHeaderKey, "ACTIVE ACCOUNTS", personalList);
         }
 
         return new SidebarMenuPlan { Entries = entries };
@@ -120,6 +117,41 @@ public static class WorkspaceSidebarMenuPlanner
     {
         entries.Add(new SidebarMenuEntry(headerKey, SidebarMenuEntryKind.SectionHeader, SectionTitle: title));
         foreach (var instance in instances)
+        {
+            entries.Add(new SidebarMenuEntry(instance.Id.Trim(), SidebarMenuEntryKind.Instance, Instance: instance));
+        }
+    }
+
+    /// <summary>
+    /// The professional scope becomes a location rail: accounts assigned to the same location appear
+    /// under a location sub-header (only when a location has 2+ accounts, so single-account locations
+    /// stay flat and the rail isn't cluttered). Order: grouped locations first, then ungrouped accounts.
+    /// </summary>
+    private static void AddProfessionalSection(
+        List<SidebarMenuEntry> entries,
+        string headerKey,
+        string title,
+        IReadOnlyList<MessengerInstance> professional)
+    {
+        entries.Add(new SidebarMenuEntry(headerKey, SidebarMenuEntryKind.SectionHeader, SectionTitle: title));
+
+        var groups = professional
+            .GroupBy(BranchWorkspaceHelper.ResolveBranchKey, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var group in groups.Where(g => g.Count() >= 2))
+        {
+            entries.Add(new SidebarMenuEntry(
+                $"loc:{group.Key.ToLowerInvariant()}",
+                SidebarMenuEntryKind.SectionHeader,
+                SectionTitle: group.Key));
+            foreach (var instance in group)
+            {
+                entries.Add(new SidebarMenuEntry(instance.Id.Trim(), SidebarMenuEntryKind.Instance, Instance: instance));
+            }
+        }
+
+        foreach (var instance in groups.Where(g => g.Count() < 2).SelectMany(g => g))
         {
             entries.Add(new SidebarMenuEntry(instance.Id.Trim(), SidebarMenuEntryKind.Instance, Instance: instance));
         }

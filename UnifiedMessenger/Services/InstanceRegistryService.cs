@@ -295,6 +295,33 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         }
     }
 
+    public async Task UpdateInstanceBranchKeyAsync(
+        string instanceId,
+        string? branchKey,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = string.IsNullOrWhiteSpace(branchKey) ? null : branchKey.Trim();
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var instance = FindById(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
+
+            if (string.Equals(instance.BranchKey, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            instance.BranchKey = normalized;
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task UpdateInstanceNotificationsMutedAsync(
         string instanceId,
         bool muted,
