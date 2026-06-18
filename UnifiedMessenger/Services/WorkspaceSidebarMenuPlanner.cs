@@ -10,6 +10,14 @@ public enum SidebarMenuEntryKind
     Instance
 }
 
+/// <summary>Which scope of accounts the sidebar shows.</summary>
+public enum SidebarScope
+{
+    All,
+    Professional,
+    Personal
+}
+
 public sealed record SidebarMenuEntry(
     string Key,
     SidebarMenuEntryKind Kind,
@@ -34,12 +42,30 @@ public static class WorkspaceSidebarMenuPlanner
 
     public const string ActiveAccountsEmptyKey = "empty:active-accounts";
 
-    public static SidebarMenuPlan BuildPlan(IEnumerable<MessengerInstance> instances)
+    public static SidebarMenuPlan BuildPlan(
+        IEnumerable<MessengerInstance> instances,
+        SidebarScope scope = SidebarScope.All)
     {
         ArgumentNullException.ThrowIfNull(instances);
 
-        var enabledInstances = PlatformModuleSettingsHelper.FilterEnabledInstances(instances).ToList();
+        var enabledInstances = FilterScope(PlatformModuleSettingsHelper.FilterEnabledInstances(instances), scope).ToList();
         return BuildWhatsAppFocusPlan(enabledInstances);
+    }
+
+    /// <summary>Filter accounts to the chosen scope. Pure; used by the sidebar scope switch.</summary>
+    public static IEnumerable<MessengerInstance> FilterScope(IEnumerable<MessengerInstance> instances, SidebarScope scope) =>
+        scope switch
+        {
+            SidebarScope.Professional => instances.Where(i => i.IsProfessional),
+            SidebarScope.Personal => instances.Where(i => !i.IsProfessional),
+            _ => instances
+        };
+
+    /// <summary>True when both scopes have accounts — i.e. the scope switch is worth showing.</summary>
+    public static bool HasMixedScopes(IEnumerable<MessengerInstance> instances)
+    {
+        var enabled = PlatformModuleSettingsHelper.FilterEnabledInstances(instances).ToList();
+        return enabled.Any(i => i.IsProfessional) && enabled.Any(i => !i.IsProfessional);
     }
 
     private static SidebarMenuPlan BuildWhatsAppFocusPlan(IReadOnlyList<MessengerInstance> enabledInstances)

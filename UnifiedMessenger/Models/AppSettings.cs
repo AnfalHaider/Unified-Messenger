@@ -121,6 +121,9 @@ public sealed class AppSettings
     /// <summary>Last time the operator viewed the command center — used for the "since you were here" digest.</summary>
     public DateTimeOffset? OversightLastSeenUtc { get; set; }
 
+    /// <summary>Sidebar scope filter: "All", "Professional", or "Personal".</summary>
+    public string SidebarScopeFilter { get; set; } = "All";
+
     /// <summary>Master toggle for on-device Ollama inference. Off by default.</summary>
     public bool EnableLocalAi { get; set; }
 

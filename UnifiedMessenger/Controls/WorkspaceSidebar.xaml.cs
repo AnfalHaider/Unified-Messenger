@@ -29,6 +29,16 @@ public sealed partial class WorkspaceSidebar : Grid
     private SidebarMenuPlan? _currentPlan;
     private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
     private bool _isCompact;
+
+    // Scope switch (Shell IA): remembers the last Refresh args so a scope change can re-render.
+    private SidebarScope _scope = SidebarScope.All;
+    private bool _scopeInitialized;
+    private bool _suppressScopeChange;
+    private IReadOnlyList<MessengerInstance> _lastInstances = [];
+    private string? _lastSelectedInstanceId;
+    private bool _lastDashboardSelected;
+    private bool _lastSettingsSelected;
+    private bool _lastNotificationHubSelected;
     private int _nextSidebarTabIndex = AccessibilityTabOrderHelper.SidebarMenuBase;
 
     public WorkspaceSidebarViewModel ViewModel => _viewModel;
@@ -87,6 +97,14 @@ public sealed partial class WorkspaceSidebar : Grid
     {
         ArgumentNullException.ThrowIfNull(instances);
 
+        var instanceList = instances as IReadOnlyList<MessengerInstance> ?? instances.ToList();
+        _lastInstances = instanceList;
+        _lastSelectedInstanceId = selectedInstanceId;
+        _lastDashboardSelected = dashboardSelected;
+        _lastSettingsSelected = settingsSelected;
+        _lastNotificationHubSelected = notificationHubSelected;
+        EnsureScopeInitialized();
+
         _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
             dashboardSelected,
             selectedInstanceId,
@@ -98,7 +116,13 @@ public sealed partial class WorkspaceSidebar : Grid
             settingsSelected,
             notificationHubSelected);
 
-        var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instances);
+        // The scope switch only applies (and shows) when both scopes have accounts; otherwise it would
+        // hide the user's only scope.
+        var hasMixed = WorkspaceSidebarMenuPlanner.HasMixedScopes(instanceList);
+        ScopeFilterCombo.Visibility = hasMixed ? Visibility.Visible : Visibility.Collapsed;
+        var effectiveScope = hasMixed ? _scope : SidebarScope.All;
+
+        var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instanceList, effectiveScope);
         if (_currentPlan is not null &&
             WorkspaceSidebarMenuPlanner.HasSameStructure(_currentPlan, plan))
         {
@@ -112,6 +136,58 @@ public sealed partial class WorkspaceSidebar : Grid
         _currentPlan = plan;
         ApplySelectionVisuals();
         ApplyCompactDisplay();
+    }
+
+    private void EnsureScopeInitialized()
+    {
+        if (_scopeInitialized)
+        {
+            return;
+        }
+
+        _scopeInitialized = true;
+        _scope = ParseScope(AppSettingsService.Instance.Settings.SidebarScopeFilter);
+
+        _suppressScopeChange = true;
+        ScopeFilterCombo.SelectedIndex = _scope switch
+        {
+            SidebarScope.Professional => 1,
+            SidebarScope.Personal => 2,
+            _ => 0
+        };
+        _suppressScopeChange = false;
+    }
+
+    private static SidebarScope ParseScope(string? value) => value switch
+    {
+        "Professional" => SidebarScope.Professional,
+        "Personal" => SidebarScope.Personal,
+        _ => SidebarScope.All
+    };
+
+    private void ScopeFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressScopeChange)
+        {
+            return;
+        }
+
+        _scope = ((ScopeFilterCombo.SelectedItem as ComboBoxItem)?.Tag as string) switch
+        {
+            "Professional" => SidebarScope.Professional,
+            "Personal" => SidebarScope.Personal,
+            _ => SidebarScope.All
+        };
+
+        _ = AppSettingsService.Instance.UpdateAsync(s => s.SidebarScopeFilter = _scope.ToString());
+
+        // Re-render with the cached args so the filter takes effect immediately.
+        Refresh(
+            _lastInstances,
+            _lastSelectedInstanceId,
+            _lastDashboardSelected,
+            _lastSettingsSelected,
+            _lastNotificationHubSelected);
     }
 
     private void ApplyInstanceContentUpdates(SidebarMenuPlan plan)

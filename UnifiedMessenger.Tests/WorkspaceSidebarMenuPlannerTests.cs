@@ -37,6 +37,24 @@ public class WorkspaceSidebarMenuPlannerTests
     }
 
     [Fact]
+    public void FilterScope_AndHasMixedScopes()
+    {
+        var instances = new[]
+        {
+            Inst("pro1", professional: true),
+            Inst("per1", professional: false)
+        };
+
+        Assert.True(WorkspaceSidebarMenuPlanner.HasMixedScopes(instances));
+        Assert.Single(WorkspaceSidebarMenuPlanner.FilterScope(instances, SidebarScope.Professional));
+        Assert.Single(WorkspaceSidebarMenuPlanner.FilterScope(instances, SidebarScope.Personal));
+        Assert.Equal(2, WorkspaceSidebarMenuPlanner.FilterScope(instances, SidebarScope.All).Count());
+
+        var proOnly = new[] { Inst("pro1", professional: true) };
+        Assert.False(WorkspaceSidebarMenuPlanner.HasMixedScopes(proOnly));
+    }
+
+    [Fact]
     public void BuildPlan_SingleScope_UsesOneActiveAccountsHeader()
     {
         var plan = WorkspaceSidebarMenuPlanner.BuildPlan(new[]
