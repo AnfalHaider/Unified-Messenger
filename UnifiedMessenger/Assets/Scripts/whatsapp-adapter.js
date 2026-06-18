@@ -923,30 +923,47 @@
     return m ? m[1] : '';
   }
 
-  function umBuildDomPreviewMap() {
-    var map = Object.create(null);
+  function umBuildDomPreviewMaps() {
+    var byId = Object.create(null);
+    var byTitle = Object.create(null);
     var rows = document.querySelectorAll(
       '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
     );
     for (var i = 0; i < rows.length; i++) {
-      var idEl = rows[i].querySelector('[data-id]');
+      var row = rows[i];
+      var idEl = row.querySelector('[data-id]');
       var did = (idEl && idEl.getAttribute('data-id')) ||
-        (rows[i].getAttribute && rows[i].getAttribute('data-id')) || '';
-      var key = umDigits(did);
-      if (!key) {
+        (row.getAttribute && row.getAttribute('data-id')) || '';
+
+      var titleEl = row.querySelector('span[title]');
+      var title = titleEl ? normalizeText(titleEl.getAttribute('title') || titleEl.textContent || '') : '';
+
+      // The last-message line lives in the secondary cell; fall back to known last-msg spans.
+      var sec = row.querySelector('div[data-testid="cell-frame-secondary"]');
+      var preview = sec ? normalizeText(sec.textContent || '') : '';
+      if (!preview) {
+        var span = row.querySelector(
+          'span[data-testid="last-msg-text"], span[data-testid="last-msg-status"], div._ak8k span'
+        );
+        preview = span ? normalizeText(span.textContent || '') : '';
+      }
+      if (preview && title && preview === title) {
+        preview = ''; // don't echo the title as a "preview"
+      }
+      preview = preview ? preview.slice(0, 90) : '';
+      if (!preview) {
         continue;
       }
-      var span = rows[i].querySelector(
-        'span[data-testid="last-msg-text"], div[data-testid="cell-frame-secondary"] span, span[dir="ltr"], span[dir="auto"]'
-      );
-      if (span) {
-        var txt = normalizeText(span.textContent || '');
-        if (txt) {
-          map[key] = txt.slice(0, 90);
-        }
+
+      var key = umDigits(did);
+      if (key) {
+        byId[key] = preview;
+      }
+      if (title) {
+        byTitle[title.toLowerCase()] = preview;
       }
     }
-    return map;
+    return { byId: byId, byTitle: byTitle };
   }
 
   function umDbConversationsPromise(maxChats) {
@@ -987,7 +1004,7 @@
             var chats = event.target.result || [];
             diag.chats = chats.length;
             var conversations = [];
-            var previewMap = umBuildDomPreviewMap();
+            var previewMaps = umBuildDomPreviewMaps();
 
             for (var i = 0; i < chats.length; i++) {
               try {
@@ -1016,7 +1033,10 @@
                 var unread = ch.unreadCount || 0;
                 var fromMe = last ? !!last.fromMe : (unread === 0);
                 var body = last ? (last.body || last.caption || last.text || '') : '';
-                var preview = body || previewMap[umDigits(jid)] || '';
+                var chatTitleForPreview = getChatTitle(ch);
+                var preview = body ||
+                  previewMaps.byId[umDigits(jid)] ||
+                  previewMaps.byTitle[(chatTitleForPreview || '').toLowerCase()] || '';
                 var iso = new Date(t * 1000).toISOString();
 
                 // Unread-based oversight signal, computed over ALL active chats (not just the capped list).

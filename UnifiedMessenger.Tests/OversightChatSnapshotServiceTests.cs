@@ -38,6 +38,31 @@ public class OversightChatSnapshotServiceTests
     }
 
     [Fact]
+    public void TryGetWindowed_RespectsWindowEnd()
+    {
+        var svc = OversightChatSnapshotService.Instance;
+        var now = DateTimeOffset.UtcNow;
+        var id = "inst-" + Guid.NewGuid().ToString("N");
+
+        svc.Update(id, new[]
+        {
+            new OversightChatSnapshotService.ChatEntry("a", "A", 1, now.AddDays(-10)), // before range
+            new OversightChatSnapshotService.ChatEntry("b", "B", 1, now.AddDays(-5)),  // inside range
+            new OversightChatSnapshotService.ChatEntry("c", "C", 0, now),              // after range
+        }, now);
+
+        var start = now.AddDays(-7);
+        var end = now.AddDays(-2);
+
+        Assert.True(svc.TryGetWindowed(id, start, out var active, out _, end));
+        Assert.Equal(1, active); // only "b" falls in [start, end]
+
+        var awaiting = svc.GetAwaiting(id, start, end);
+        var only = Assert.Single(awaiting);
+        Assert.Equal("b", only.ConversationKey);
+    }
+
+    [Fact]
     public void TryGetWindowed_NoSnapshot_ReturnsFalse()
     {
         Assert.False(OversightChatSnapshotService.Instance

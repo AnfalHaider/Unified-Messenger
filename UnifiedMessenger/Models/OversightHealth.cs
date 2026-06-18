@@ -18,7 +18,8 @@ public enum OversightWindow
 {
     Today,
     Week,
-    All
+    All,
+    Custom
 }
 
 /// <summary>

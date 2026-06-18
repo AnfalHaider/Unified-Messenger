@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.9.0 (Proactive awaiting-reply desktop alerts + a glimpse of each waiting chat's last message)
+**Current release:** v4.9.1 (Custom From/To date range on the command center + more robust message-preview scrape)
 
 ## Scope
 
@@ -29,6 +29,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.9.1
+
+- **Custom date range:** the command-center window selector adds **"Custom range"**, revealing **From/To** calendar pickers. Caught-up % and the awaiting list are then scoped to chats active in that range (To is inclusive through end-of-day). `OversightWindow.Custom` + `windowEndUtc` plumbed through the snapshot queries.
+- **More robust message preview:** the awaiting-list glimpse now scrapes the sidebar's secondary cell with broader selectors and falls back to matching by chat **title** when the row `data-id` doesn't line up with the chat id — so previews show for more chats.
 
 ### What's in v4.9.0
 

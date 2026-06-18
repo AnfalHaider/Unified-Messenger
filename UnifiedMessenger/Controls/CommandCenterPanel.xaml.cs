@@ -24,20 +24,61 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             "Week" => OversightWindow.Week,
             "All" => OversightWindow.All,
+            "Custom" => OversightWindow.Custom,
             _ => OversightWindow.Today
         };
 
-    private void OnWindowChanged(object sender, SelectionChangedEventArgs e) => Render();
+    private void OnWindowChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var custom = SelectedWindow() == OversightWindow.Custom;
+        if (FromDatePicker is not null)
+        {
+            FromDatePicker.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+        }
+        if (ToDatePicker is not null)
+        {
+            ToDatePicker.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+        }
 
-    private DateTimeOffset? WindowStart()
+        Render();
+    }
+
+    private void OnCustomDateChanged(CalendarDatePicker sender, CalendarDatePickerDateChangedEventArgs args) => Render();
+
+    private static string DescribeCustomRange(DateTimeOffset? start, DateTimeOffset? end)
+    {
+        if (start is null && end is null)
+        {
+            return "the selected range";
+        }
+
+        var from = start is { } s ? s.ToString("MMM d") : "earliest";
+        var to = end is { } e ? e.ToString("MMM d") : "now";
+        return $"{from} – {to}";
+    }
+
+    /// <summary>The selected window's [start, end] in absolute time. Custom uses the From/To pickers
+    /// (To is inclusive through end-of-day).</summary>
+    private (DateTimeOffset? Start, DateTimeOffset? End) WindowRange()
     {
         var nowLocal = DateTimeOffset.Now;
-        return SelectedWindow() switch
+        switch (SelectedWindow())
         {
-            OversightWindow.Today => new DateTimeOffset(nowLocal.Date, nowLocal.Offset),
-            OversightWindow.Week => new DateTimeOffset(nowLocal.Date.AddDays(-6), nowLocal.Offset),
-            _ => null
-        };
+            case OversightWindow.Today:
+                return (new DateTimeOffset(nowLocal.Date, nowLocal.Offset), null);
+            case OversightWindow.Week:
+                return (new DateTimeOffset(nowLocal.Date.AddDays(-6), nowLocal.Offset), null);
+            case OversightWindow.Custom:
+                DateTimeOffset? start = FromDatePicker?.Date is { } f
+                    ? new DateTimeOffset(f.Date, f.Offset)
+                    : null;
+                DateTimeOffset? end = ToDatePicker?.Date is { } t
+                    ? new DateTimeOffset(t.Date, t.Offset).AddDays(1).AddTicks(-1)
+                    : null;
+                return (start, end);
+            default:
+                return (null, null);
+        }
     }
 
     public CommandCenterPanel()
@@ -84,13 +125,15 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var grouping = GroupToggle.IsOn ? OversightGrouping.ByLocation : OversightGrouping.ByInstance;
         var window = SelectedWindow();
+        var (rangeStart, rangeEnd) = WindowRange();
         var instances = _services.Registry.Instances.Where(instance => instance.IsProfessional).ToList();
-        var snapshot = _services.Oversight.BuildSnapshot(grouping, instances, window);
+        var snapshot = _services.Oversight.BuildSnapshot(grouping, instances, window, rangeStart, rangeEnd);
 
         var windowLabel = window switch
         {
             OversightWindow.Today => "today",
             OversightWindow.Week => "the last 7 days",
+            OversightWindow.Custom => DescribeCustomRange(rangeStart, rangeEnd),
             _ => "all time"
         };
         SubtitleText.Text = grouping == OversightGrouping.ByLocation
@@ -233,10 +276,10 @@ public sealed partial class CommandCenterPanel : UserControl
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
         var danger = Brush("SystemFillColorCriticalBrush");
-        var windowStart = WindowStart();
+        var (windowStart, windowEnd) = WindowRange();
 
         var items = entity.MemberInstanceIds
-            .SelectMany(id => OversightChatSnapshotService.Instance.GetAwaiting(id, windowStart)
+            .SelectMany(id => OversightChatSnapshotService.Instance.GetAwaiting(id, windowStart, windowEnd)
                 .Select(chat => (InstanceId: id, Chat: chat)))
             .OrderByDescending(x => x.Chat.Unread)
             .ThenByDescending(x => x.Chat.LastActivityUtc)

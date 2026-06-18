@@ -31,6 +31,18 @@
                 Orientation="Horizontal"
                 Spacing="10"
                 VerticalAlignment="Center">
+                <CalendarDatePicker
+                    x:Name="FromDatePicker"
+                    MinWidth="130"
+                    DateChanged="OnCustomDateChanged"
+                    PlaceholderText="From"
+                    Visibility="Collapsed" />
+                <CalendarDatePicker
+                    x:Name="ToDatePicker"
+                    MinWidth="130"
+                    DateChanged="OnCustomDateChanged"
+                    PlaceholderText="To"
+                    Visibility="Collapsed" />
                 <ComboBox
                     x:Name="WindowSelector"
                     MinWidth="110"
@@ -39,6 +51,7 @@
                     <ComboBoxItem Content="Today" IsSelected="True" Tag="Today" />
                     <ComboBoxItem Content="Last 7 days" Tag="Week" />
                     <ComboBoxItem Content="All time" Tag="All" />
+                    <ComboBoxItem Content="Custom range" Tag="Custom" />
                 </ComboBox>
                 <ToggleSwitch
                     x:Name="GroupToggle"

@@ -45,7 +45,12 @@ public sealed class OversightChatSnapshotService
     /// Active = chats whose last activity is within the window (or all chats when <paramref name="windowStartUtc"/>
     /// is null); CaughtUp = those with no unread. Returns false when there is no snapshot for the instance.
     /// </summary>
-    public bool TryGetWindowed(string instanceId, DateTimeOffset? windowStartUtc, out int active, out int caughtUp)
+    public bool TryGetWindowed(
+        string instanceId,
+        DateTimeOffset? windowStartUtc,
+        out int active,
+        out int caughtUp,
+        DateTimeOffset? windowEndUtc = null)
     {
         active = 0;
         caughtUp = 0;
@@ -56,7 +61,7 @@ public sealed class OversightChatSnapshotService
 
         foreach (var chat in snap.Chats)
         {
-            if (windowStartUtc is not null && chat.LastActivityUtc < windowStartUtc.Value)
+            if (!InWindow(chat.LastActivityUtc, windowStartUtc, windowEndUtc))
             {
                 continue;
             }
@@ -71,11 +76,18 @@ public sealed class OversightChatSnapshotService
         return true;
     }
 
+    private static bool InWindow(DateTimeOffset when, DateTimeOffset? startUtc, DateTimeOffset? endUtc) =>
+        (startUtc is null || when >= startUtc.Value) &&
+        (endUtc is null || when <= endUtc.Value);
+
     /// <summary>
     /// The chats awaiting a reply (unread &gt; 0) within the window, worst-first (most unread, then most
     /// recent). Used to populate the click-through "awaiting" list. Empty when there is no snapshot.
     /// </summary>
-    public IReadOnlyList<ChatEntry> GetAwaiting(string instanceId, DateTimeOffset? windowStartUtc)
+    public IReadOnlyList<ChatEntry> GetAwaiting(
+        string instanceId,
+        DateTimeOffset? windowStartUtc,
+        DateTimeOffset? windowEndUtc = null)
     {
         if (string.IsNullOrWhiteSpace(instanceId) || !_byInstance.TryGetValue(instanceId.Trim(), out var snap))
         {
@@ -83,8 +95,7 @@ public sealed class OversightChatSnapshotService
         }
 
         return snap.Chats
-            .Where(c => c.Unread > 0 &&
-                        (windowStartUtc is null || c.LastActivityUtc >= windowStartUtc.Value))
+            .Where(c => c.Unread > 0 && InWindow(c.LastActivityUtc, windowStartUtc, windowEndUtc))
             .OrderByDescending(c => c.Unread)
             .ThenByDescending(c => c.LastActivityUtc)
             .ToList();
