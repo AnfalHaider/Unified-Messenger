@@ -55,9 +55,8 @@ public sealed partial class WorkspaceSidebar : Grid
         InitializeComponent();
         ApplyBrandWordmarkForTheme();
         ActualThemeChanged += (_, _) => ApplyBrandWordmarkForTheme();
-        MenuStack.AllowDrop = true;
-        MenuStack.DragOver += MenuStack_DragOver;
-        MenuStack.Drop += MenuStack_Drop;
+        // Drag-to-reorder disabled (froze the app) — reorder is via the right-click Move up/down menu.
+        MenuStack.AllowDrop = false;
         Unloaded += OnUnloaded;
     }
 
@@ -613,14 +612,9 @@ public sealed partial class WorkspaceSidebar : Grid
         row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
         row.Tapped += (_, _) => InstanceRequested?.Invoke(this, instanceId);
         row.KeyDown += (sender, e) => InstanceRow_KeyDown(sender, e, instanceId, instance, row);
-        row.CanDrag = true;
-        row.DragStarting += (_, e) =>
-        {
-            _isDragging = true;
-            InstanceRow_DragStarting(e, instanceId, instance.DisplayName);
-        };
-        // Cleared when the drag operation this row started finishes (drop, cancel, or escape).
-        row.DropCompleted += (_, _) => _isDragging = false;
+        // Drag-to-reorder is disabled: dragging a row inside the scrolling menu reliably freezes the app
+        // (a WinUI drag-in-ScrollViewer issue). Reorder via the right-click "Move up / Move down" menu.
+        row.CanDrag = false;
         ToolTipService.SetToolTip(
             row,
             WorkspaceSidebarHelper.ComposeInstanceTooltip(

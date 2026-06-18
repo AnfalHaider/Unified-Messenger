@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.12.3 (Drag no longer triggers a WebView switch on press; reliable Move up/down reorder)
+**Current release:** v4.12.4 (Sidebar drag-reorder removed to stop the freeze; reorder via right-click Move up/down)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.12.4
+
+- **Sidebar drag-reorder removed:** dragging a row inside the scrolling menu reliably froze the app (a WinUI drag-in-ScrollViewer issue that three targeted fixes couldn't resolve). Drag is disabled (`CanDrag=false`, drop target off). **Reorder accounts via the right-click "Move up / Move down" menu** (added in 4.12.3) — reliable and freeze-free.
 
 ### What's in v4.12.3
 
