@@ -167,7 +167,9 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private void ScopeFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_suppressScopeChange)
+        // Ignore selection events until the sidebar has had its first real Refresh (the combo can fire
+        // during construction/initialization before _services and cached args are ready).
+        if (_suppressScopeChange || !_scopeInitialized)
         {
             return;
         }

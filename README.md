@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.11.0 (Shell IA, step 2 — Personal/Professional scope switch in the sidebar)
+**Current release:** v4.11.1 (Hotfix — scope switch no longer crashes startup)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.11.1
+
+- **Startup-crash hotfix:** the new scope-switch ComboBox fired its `SelectionChanged` during `InitializeComponent` (from an initial `IsSelected`), which ran the sidebar render before services were ready and crashed startup ("Cannot create instance of type WorkspaceSidebar"). The initial selection is removed and the handler is guarded until the sidebar's first real refresh.
 
 ### What's in v4.11.0
 

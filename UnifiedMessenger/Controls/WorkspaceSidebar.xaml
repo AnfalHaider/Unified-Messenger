@@ -47,7 +47,7 @@
                 SelectionChanged="ScopeFilterCombo_SelectionChanged"
                 ToolTipService.ToolTip="Filter accounts by scope"
                 Visibility="Collapsed">
-                <ComboBoxItem Content="All accounts" IsSelected="True" Tag="All" />
+                <ComboBoxItem Content="All accounts" Tag="All" />
                 <ComboBoxItem Content="Professional" Tag="Professional" />
                 <ComboBoxItem Content="Personal" Tag="Personal" />
             </ComboBox>
