@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.4 (Command center shows the exact "N awaiting reply" count alongside caught-up %, scoped to the date window)
+**Current release:** v4.8.5 (Command center "awaiting reply" count is click-through — opens a list of the actual waiting customers, each linking to its chat)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.5
+
+- **"Awaiting reply" is now click-through:** clicking the count opens a flyout listing the actual customers waiting (name + unread count, worst-first), scoped to the date window and aggregated across a location's accounts. Click any entry to jump straight into that WhatsApp conversation. The snapshot now keeps each chat's JID + name for this.
 
 ### What's in v4.8.4
 

@@ -14,9 +14,9 @@ public class OversightChatSnapshotServiceTests
 
         svc.Update(id, new[]
         {
-            new OversightChatSnapshotService.ChatEntry(0, now),                 // today, caught up
-            new OversightChatSnapshotService.ChatEntry(2, now),                 // today, awaiting
-            new OversightChatSnapshotService.ChatEntry(0, now.AddDays(-3)),     // older, caught up
+            new OversightChatSnapshotService.ChatEntry("jid-a", "A", 0, now),              // today, caught up
+            new OversightChatSnapshotService.ChatEntry("jid-b", "B", 2, now),              // today, awaiting
+            new OversightChatSnapshotService.ChatEntry("jid-c", "C", 0, now.AddDays(-3)),  // older, caught up
         }, now);
 
         var windowStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero); // start of today
@@ -29,6 +29,12 @@ public class OversightChatSnapshotServiceTests
         Assert.True(svc.TryGetWindowed(id, null, out var allActive, out var allCaught));
         Assert.Equal(3, allActive);
         Assert.Equal(2, allCaught);
+
+        // The awaiting list within today is just chat B.
+        var awaiting = svc.GetAwaiting(id, windowStart);
+        var only = Assert.Single(awaiting);
+        Assert.Equal("jid-b", only.ConversationKey);
+        Assert.Equal(2, only.Unread);
     }
 
     [Fact]

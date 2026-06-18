@@ -29,6 +29,17 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private void OnWindowChanged(object sender, SelectionChangedEventArgs e) => Render();
 
+    private DateTimeOffset? WindowStart()
+    {
+        var nowLocal = DateTimeOffset.Now;
+        return SelectedWindow() switch
+        {
+            OversightWindow.Today => new DateTimeOffset(nowLocal.Date, nowLocal.Offset),
+            OversightWindow.Week => new DateTimeOffset(nowLocal.Date.AddDays(-6), nowLocal.Offset),
+            _ => null
+        };
+    }
+
     public CommandCenterPanel()
     {
         InitializeComponent();
@@ -213,6 +224,97 @@ public sealed partial class CommandCenterPanel : UserControl
         }
     }
 
+    /// <summary>
+    /// Show the actual customers awaiting a reply for this entity (across its instances), worst-first.
+    /// Clicking one opens that conversation in its WhatsApp view.
+    /// </summary>
+    private void ShowAwaitingFlyout(OversightEntityHealth entity, FrameworkElement anchor)
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var windowStart = WindowStart();
+        var items = entity.MemberInstanceIds
+            .SelectMany(id => OversightChatSnapshotService.Instance.GetAwaiting(id, windowStart)
+                .Select(chat => (InstanceId: id, Chat: chat)))
+            .OrderByDescending(x => x.Chat.Unread)
+            .ThenByDescending(x => x.Chat.LastActivityUtc)
+            .Take(100)
+            .ToList();
+
+        var secondary = Brush("TextFillColorSecondaryBrush");
+        var danger = Brush("SystemFillColorCriticalBrush");
+
+        var panel = new StackPanel { MinWidth = 300, Spacing = 1 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"Awaiting reply · {items.Count}",
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(8, 4, 8, 8)
+        });
+
+        var flyout = new Flyout();
+
+        if (items.Count == 0)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "No chats awaiting a reply.",
+                Foreground = secondary,
+                Margin = new Thickness(8, 0, 8, 8)
+            });
+        }
+
+        foreach (var (instanceId, chat) in items)
+        {
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+            line.Children.Add(new TextBlock
+            {
+                Text = string.IsNullOrWhiteSpace(chat.CustomerName) ? chat.ConversationKey : chat.CustomerName,
+                VerticalAlignment = VerticalAlignment.Center,
+                MaxWidth = 220,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            line.Children.Add(new TextBlock
+            {
+                Text = chat.Unread == 1 ? "1 unread" : $"{chat.Unread} unread",
+                Foreground = danger,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var item = new Button
+            {
+                Content = line,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Padding = new Thickness(8, 6, 8, 6),
+                CornerRadius = new CornerRadius(6)
+            };
+
+            var capturedInstanceId = instanceId;
+            var capturedChat = chat;
+            item.Click += (_, _) =>
+            {
+                flyout.Hide();
+                _services.Navigation.OpenInstance(capturedInstanceId, capturedChat.ConversationKey, capturedChat.CustomerName);
+            };
+            panel.Children.Add(item);
+        }
+
+        flyout.Content = new ScrollViewer
+        {
+            Content = panel,
+            MaxHeight = 420,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        flyout.ShowAt(anchor);
+    }
+
     private StackPanel BuildRowContent(OversightEntityHealth entity, bool clickable = false)
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
@@ -265,14 +367,40 @@ public sealed partial class CommandCenterPanel : UserControl
             : entity.AwaitingCount == 1
                 ? "1 awaiting reply"
                 : $"{entity.AwaitingCount} awaiting reply";
-        row.Children.Add(new TextBlock
+
+        if (entity.AwaitingCount > 0)
         {
-            Text = awaitingText,
-            Foreground = entity.AwaitingCount > 0 ? danger : secondary,
-            FontWeight = entity.AwaitingCount > 0 ? FontWeights.SemiBold : FontWeights.Normal,
-            VerticalAlignment = VerticalAlignment.Center,
-            Width = 170
-        });
+            // Clickable → flyout listing the actual waiting customers; click one to open the chat.
+            var awaitingButton = new Button
+            {
+                Content = new TextBlock
+                {
+                    Text = awaitingText,
+                    Foreground = danger,
+                    FontWeight = FontWeights.SemiBold
+                },
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                Width = 170,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTipService.SetToolTip(awaitingButton, "Show the customers waiting on a reply");
+            awaitingButton.Click += (sender, _) => ShowAwaitingFlyout(entity, (FrameworkElement)sender);
+            row.Children.Add(awaitingButton);
+        }
+        else
+        {
+            row.Children.Add(new TextBlock
+            {
+                Text = awaitingText,
+                Foreground = secondary,
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 170
+            });
+        }
 
         var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);
         ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
@@ -419,9 +547,11 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             var unread = c.TryGetProperty("unreadCount", out var u) && u.TryGetInt32(out var uv) ? uv : 0;
             var ts = c.TryGetProperty("lastActivityTimestampUtc", out var t) ? t.GetString() : null;
+            var key = c.TryGetProperty("conversationKey", out var k) ? k.GetString() ?? "" : "";
+            var name = c.TryGetProperty("customerName", out var n) ? n.GetString() ?? "" : "";
             if (DateTimeOffset.TryParse(ts, out var when))
             {
-                list.Add(new OversightChatSnapshotService.ChatEntry(unread, when.ToUniversalTime()));
+                list.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when.ToUniversalTime()));
             }
         }
 

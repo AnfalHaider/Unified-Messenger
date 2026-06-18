@@ -11,7 +11,11 @@ namespace UnifiedMessenger.Services;
 /// </summary>
 public sealed class OversightChatSnapshotService
 {
-    public readonly record struct ChatEntry(int Unread, DateTimeOffset LastActivityUtc);
+    public readonly record struct ChatEntry(
+        string ConversationKey,
+        string CustomerName,
+        int Unread,
+        DateTimeOffset LastActivityUtc);
 
     private sealed record InstanceChats(IReadOnlyList<ChatEntry> Chats, DateTimeOffset CapturedAtUtc);
 
@@ -64,5 +68,24 @@ public sealed class OversightChatSnapshotService
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// The chats awaiting a reply (unread &gt; 0) within the window, worst-first (most unread, then most
+    /// recent). Used to populate the click-through "awaiting" list. Empty when there is no snapshot.
+    /// </summary>
+    public IReadOnlyList<ChatEntry> GetAwaiting(string instanceId, DateTimeOffset? windowStartUtc)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId) || !_byInstance.TryGetValue(instanceId.Trim(), out var snap))
+        {
+            return [];
+        }
+
+        return snap.Chats
+            .Where(c => c.Unread > 0 &&
+                        (windowStartUtc is null || c.LastActivityUtc >= windowStartUtc.Value))
+            .OrderByDescending(c => c.Unread)
+            .ThenByDescending(c => c.LastActivityUtc)
+            .ToList();
     }
 }
