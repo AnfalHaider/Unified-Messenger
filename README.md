@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.9 (Header and awaiting list always agree — accounts whose chat data hasn't loaded show "syncing…" instead of stale numbers)
+**Current release:** v4.9.0 (Proactive awaiting-reply desktop alerts + a glimpse of each waiting chat's last message)
 
 ## Scope
 
@@ -29,6 +29,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.9.0
+
+- **Proactive awaiting-reply alerts:** a background monitor re-reads each connected professional account's unread snapshot every ~3 minutes and raises a **desktop toast** when an account's awaiting-reply count crosses a threshold (default 5) — edge-triggered so it won't spam. This also keeps the command-center numbers fresh between manual re-syncs. (`OversightAlertMonitor` + `OversightSnapshotReader`.)
+- **Message glimpse in the awaiting list:** each waiting chat now shows a one-line preview of its last message (scraped from the sidebar, since WhatsApp Web doesn't persist `lastMessage` in the chat store), so you can triage who to answer first without opening each chat.
 
 ### What's in v4.8.9
 

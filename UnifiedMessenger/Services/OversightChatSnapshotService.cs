@@ -15,7 +15,8 @@ public sealed class OversightChatSnapshotService
         string ConversationKey,
         string CustomerName,
         int Unread,
-        DateTimeOffset LastActivityUtc);
+        DateTimeOffset LastActivityUtc,
+        string Preview = "");
 
     private sealed record InstanceChats(IReadOnlyList<ChatEntry> Chats, DateTimeOffset CapturedAtUtc);
 

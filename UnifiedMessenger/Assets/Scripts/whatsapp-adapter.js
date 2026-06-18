@@ -916,6 +916,39 @@
   // ExecuteScriptAsync does NOT await JS promises (a pending promise serializes to "{}"), so the async
   // IndexedDB read can't be returned directly. Instead we start the scan, stash the result on a global,
   // and let the host poll __umGetDbConversationResult() (a synchronous getter) until it's ready.
+  // Last-message preview is NOT persisted in the chat store (lastMessage is a runtime model), but the
+  // sidebar DOM renders it. Build a map of chat-id digits → preview text once, then look up per chat.
+  function umDigits(value) {
+    var m = String(value || '').match(/(\d{5,})/);
+    return m ? m[1] : '';
+  }
+
+  function umBuildDomPreviewMap() {
+    var map = Object.create(null);
+    var rows = document.querySelectorAll(
+      '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+    );
+    for (var i = 0; i < rows.length; i++) {
+      var idEl = rows[i].querySelector('[data-id]');
+      var did = (idEl && idEl.getAttribute('data-id')) ||
+        (rows[i].getAttribute && rows[i].getAttribute('data-id')) || '';
+      var key = umDigits(did);
+      if (!key) {
+        continue;
+      }
+      var span = rows[i].querySelector(
+        'span[data-testid="last-msg-text"], div[data-testid="cell-frame-secondary"] span, span[dir="ltr"], span[dir="auto"]'
+      );
+      if (span) {
+        var txt = normalizeText(span.textContent || '');
+        if (txt) {
+          map[key] = txt.slice(0, 90);
+        }
+      }
+    }
+    return map;
+  }
+
   function umDbConversationsPromise(maxChats) {
     maxChats = maxChats || 50;
     return new Promise(function (resolve) {
@@ -954,6 +987,7 @@
             var chats = event.target.result || [];
             diag.chats = chats.length;
             var conversations = [];
+            var previewMap = umBuildDomPreviewMap();
 
             for (var i = 0; i < chats.length; i++) {
               try {
@@ -982,6 +1016,7 @@
                 var unread = ch.unreadCount || 0;
                 var fromMe = last ? !!last.fromMe : (unread === 0);
                 var body = last ? (last.body || last.caption || last.text || '') : '';
+                var preview = body || previewMap[umDigits(jid)] || '';
                 var iso = new Date(t * 1000).toISOString();
 
                 // Unread-based oversight signal, computed over ALL active chats (not just the capped list).
@@ -995,6 +1030,7 @@
                   lastInboundTimestampUtc: iso,
                   lastActivityTimestampUtc: iso,
                   lastMessageFromMe: fromMe,
+                  lastMessagePreview: preview,
                   unreadCount: ch.unreadCount || 0,
                   inboundCount: ch.unreadCount || 0
                 });

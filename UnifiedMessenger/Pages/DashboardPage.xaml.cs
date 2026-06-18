@@ -51,6 +51,13 @@ public sealed partial class DashboardPage : Page
             PersonalOverviewPanel.ConfigureServices(_services);
         }
 
+        if (_registry is not null)
+        {
+            // Background oversight: periodically refresh the unread snapshot and toast when an account
+            // crosses the awaiting-reply threshold.
+            OversightAlertMonitor.Instance.Start(_registry, DispatcherQueue);
+        }
+
         RefreshAll();
     }
 

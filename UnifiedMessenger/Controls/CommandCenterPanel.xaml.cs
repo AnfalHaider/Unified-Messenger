@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -261,15 +260,15 @@ public sealed partial class CommandCenterPanel : UserControl
 
         foreach (var (instanceId, chat) in items)
         {
-            var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-            line.Children.Add(new TextBlock
+            var topLine = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+            topLine.Children.Add(new TextBlock
             {
                 Text = FriendlyChatName(chat.CustomerName, chat.ConversationKey),
                 VerticalAlignment = VerticalAlignment.Center,
                 MaxWidth = 260,
                 TextTrimming = TextTrimming.CharacterEllipsis
             });
-            line.Children.Add(new TextBlock
+            topLine.Children.Add(new TextBlock
             {
                 Text = chat.Unread == 1 ? "1 unread" : $"{chat.Unread} unread",
                 Foreground = danger,
@@ -277,9 +276,24 @@ public sealed partial class CommandCenterPanel : UserControl
                 VerticalAlignment = VerticalAlignment.Center
             });
 
+            var column = new StackPanel { Spacing = 1 };
+            column.Children.Add(topLine);
+            if (!string.IsNullOrWhiteSpace(chat.Preview))
+            {
+                // A glimpse of the last message (scraped from the sidebar preview).
+                column.Children.Add(new TextBlock
+                {
+                    Text = chat.Preview,
+                    Foreground = secondary,
+                    FontSize = 12,
+                    MaxWidth = 360,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+            }
+
             var item = new Button
             {
-                Content = line,
+                Content = column,
                 Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
                 BorderThickness = new Thickness(0),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -489,90 +503,20 @@ public sealed partial class CommandCenterPanel : UserControl
         _resyncInProgress = false;
     }
 
-    private static List<OversightChatSnapshotService.ChatEntry> ParseChatEntries(JsonElement root)
-    {
-        var list = new List<OversightChatSnapshotService.ChatEntry>();
-        if (!root.TryGetProperty("conversations", out var convs) || convs.ValueKind != JsonValueKind.Array)
-        {
-            return list;
-        }
-
-        foreach (var c in convs.EnumerateArray())
-        {
-            var unread = c.TryGetProperty("unreadCount", out var u) && u.TryGetInt32(out var uv) ? uv : 0;
-            var ts = c.TryGetProperty("lastActivityTimestampUtc", out var t) ? t.GetString() : null;
-            var key = c.TryGetProperty("conversationKey", out var k) ? k.GetString() ?? "" : "";
-            var name = c.TryGetProperty("customerName", out var n) ? n.GetString() ?? "" : "";
-            if (DateTimeOffset.TryParse(ts, out var when))
-            {
-                list.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when.ToUniversalTime()));
-            }
-        }
-
-        return list;
-    }
-
     private static async Task<string> ProbeInstanceDbAsync(MessengerInstance instance)
     {
-        // The JS scan self-settles via a watchdog, so a still-loading page yields a 'watchdog-timeout'
-        // diag rather than hanging. Retry a couple of rounds so an account whose WhatsApp Web is mid-load
-        // succeeds once it's ready.
-        var lastNote = "no result";
+        // Retry a couple of rounds: a still-loading account settles with a non-'done' diag (the reader
+        // returns null), and succeeds once its WhatsApp Web is ready.
         for (var round = 0; round < 3; round++)
         {
-            var start = await InstanceSessionManager.Instance
-                .TryExecuteScriptOnInstanceAsync(
-                    instance.Id,
-                    "window.__umStartDbConversationScan ? window.__umStartDbConversationScan(2000) : 'NOFN'")
-                .ConfigureAwait(true);
-
-            if (start is not null && start.Contains("NOFN"))
+            var result = await OversightSnapshotReader.RefreshAsync(instance).ConfigureAwait(true);
+            if (result is { } r)
             {
-                return "scan fn missing (script not injected)";
-            }
-
-            for (var attempt = 0; attempt < 36; attempt++) // ~11s, watchdog settles by 8s
-            {
-                await Task.Delay(300).ConfigureAwait(true);
-                var raw = await InstanceSessionManager.Instance
-                    .TryExecuteScriptOnInstanceAsync(
-                        instance.Id,
-                        "window.__umGetDbConversationResult ? window.__umGetDbConversationResult() : 'NOFN'")
-                    .ConfigureAwait(true);
-
-                if (string.IsNullOrWhiteSpace(raw) || raw == "null" || raw == "\"\"")
-                {
-                    continue; // not settled yet
-                }
-
-                try
-                {
-                    using var doc = JsonDocument.Parse(JsonSerializer.Deserialize<string>(raw) ?? "");
-                    var root = doc.RootElement;
-                    var stage = root.TryGetProperty("diag", out var diag) &&
-                                diag.TryGetProperty("stage", out var s) ? s.GetString() : "?";
-
-                    if (stage == "done")
-                    {
-                        var chats = ParseChatEntries(root);
-                        OversightChatSnapshotService.Instance.Update(instance.Id, chats, DateTimeOffset.UtcNow);
-
-                        var total = chats.Count;
-                        var caughtUp = chats.Count(c => c.Unread <= 0);
-                        var pct = total > 0 ? (int)Math.Round(100.0 * caughtUp / total) : 100;
-                        return $"{pct}% caught up ({caughtUp}/{total}, {total - caughtUp} awaiting)";
-                    }
-
-                    lastNote = $"not ready ({stage})";
-                    break; // settled but unusable (e.g. watchdog-timeout) → retry the whole scan
-                }
-                catch
-                {
-                    return "parse-fail";
-                }
+                var pct = r.Active > 0 ? (int)Math.Round(100.0 * r.CaughtUp / r.Active) : 100;
+                return $"{pct}% caught up ({r.CaughtUp}/{r.Active}, {r.Awaiting} awaiting)";
             }
         }
 
-        return lastNote + " — open this account once to finish loading";
+        return "still loading — open this account once to finish loading";
     }
 }
