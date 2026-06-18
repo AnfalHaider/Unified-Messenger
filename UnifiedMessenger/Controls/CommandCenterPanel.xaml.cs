@@ -250,7 +250,9 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             panel.Children.Add(new TextBlock
             {
-                Text = "No chats awaiting a reply.",
+                Text = entity.HasChatData
+                    ? "No chats awaiting a reply."
+                    : "Still syncing this account — open it once if its WhatsApp Web is loading.",
                 Foreground = secondary,
                 Margin = new Thickness(4, 2, 4, 4)
             });
@@ -335,15 +337,20 @@ public sealed partial class CommandCenterPanel : UserControl
             TextTrimming = TextTrimming.CharacterEllipsis
         });
 
+        var statusText = !entity.HasChatData
+            ? "syncing…"
+            : hasLiveData
+                ? $"{entity.OnTimePercent}% caught up"
+                : $"no activity {_emptyStateWindowLabel}";
         row.Children.Add(new TextBlock
         {
-            Text = hasLiveData ? $"{entity.OnTimePercent}% caught up" : $"no activity {_emptyStateWindowLabel}",
+            Text = statusText,
             Foreground = statusBrush,
             VerticalAlignment = VerticalAlignment.Center,
             Width = 110
         });
 
-        var awaitingText = !hasLiveData
+        var awaitingText = !entity.HasChatData || !hasLiveData
             ? "—"
             : entity.AwaitingCount == 1
                 ? "1 awaiting reply"

@@ -50,6 +50,13 @@ public sealed class OversightEntityHealth
     /// <summary>Exact number of chats awaiting a reply (unread &gt; 0) within the window — customers not yet responded to.</summary>
     public int AwaitingCount { get; init; }
 
+    /// <summary>
+    /// True when we have WhatsApp's unread chat data for this entity. False means the chat-store read
+    /// hasn't landed yet (e.g. the account's WhatsApp Web is still loading) — the UI shows "syncing…"
+    /// rather than stale thread-based numbers that the awaiting list can't back up.
+    /// </summary>
+    public bool HasChatData { get; init; } = true;
+
     /// <summary>Share of LIVE actionable threads replied within (or still inside) the SLA, 0–100.</summary>
     public int OnTimePercent { get; init; } = 100;
 

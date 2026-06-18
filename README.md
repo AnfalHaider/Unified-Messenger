@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.8 (Awaiting-list click-through reliably focuses the chat by JID; honest labels for privacy-id contacts)
+**Current release:** v4.8.9 (Header and awaiting list always agree — accounts whose chat data hasn't loaded show "syncing…" instead of stale numbers)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.9
+
+- **Header and awaiting list can no longer disagree:** previously an account whose chat-store read hadn't landed showed thread-based numbers in the header ("21 awaiting reply") while the accordion — driven only by the unread snapshot — was empty. Now an account with no chat data reads **"syncing…"** with a matching empty list, so the headline always reflects the actual waiting customers.
 
 ### What's in v4.8.8
 

@@ -192,6 +192,26 @@ public class OversightRollupBuilderTests
     }
 
     [Fact]
+    public void ChatSnapshot_Absent_MarksSyncingAndZeroes()
+    {
+        // Snapshot provider returns null (chat-store read hasn't landed): the entity must not fall back
+        // to stale thread numbers — it reads as "syncing" with zeroed counts so the header matches the
+        // (empty) awaiting list.
+        var threads = new List<ThreadData>
+        {
+            T("a", "F-11", replied: false, urgency: 1, latency: 9000)
+        };
+
+        var entity = OversightRollupBuilder
+            .Build(threads, Instances, OversightGrouping.ByInstance, _ => 15, chatSnapshot: _ => null)
+            .Entities.Single();
+
+        Assert.False(entity.HasChatData);
+        Assert.Equal(0, entity.MeasuredCount);
+        Assert.Equal(0, entity.AwaitingCount);
+    }
+
+    [Fact]
     public void Stale_WhenAllInstanceConnectionsStale()
     {
         var snap = OversightRollupBuilder.Build(

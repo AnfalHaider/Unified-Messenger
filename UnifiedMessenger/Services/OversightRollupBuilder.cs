@@ -92,6 +92,7 @@ public static class OversightRollupBuilder
             // entity's instances, over chats active in the window. Reliable for every chat, no name
             // matching or message history needed. Authoritative when a snapshot exists — so an account
             // with no chats active in the window reads "no activity", not a stale thread-breach number.
+            var hasChatData = true;
             if (chatSnapshot is not null)
             {
                 var hasSnapshot = false;
@@ -107,12 +108,21 @@ public static class OversightRollupBuilder
                     }
                 }
 
+                hasChatData = hasSnapshot;
                 if (hasSnapshot)
                 {
                     measuredCount = snapActive;
                     onTimePercent = snapActive > 0 ? (int)Math.Round((double)snapCaught / snapActive * 100) : 100;
                     historicalOpenCount = 0;
                     awaitingCount = Math.Max(0, snapActive - snapCaught);
+                }
+                else
+                {
+                    // No unread data yet — don't show stale thread numbers the awaiting list can't back up.
+                    measuredCount = 0;
+                    onTimePercent = 100;
+                    historicalOpenCount = 0;
+                    awaitingCount = 0;
                 }
             }
 
@@ -136,6 +146,7 @@ public static class OversightRollupBuilder
                 MeasuredCount = measuredCount,
                 HistoricalOpenCount = historicalOpenCount,
                 AwaitingCount = awaitingCount,
+                HasChatData = hasChatData,
                 OnTimePercent = onTimePercent,
                 UrgentCount = open.Count(t => t.IsUrgent),
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
