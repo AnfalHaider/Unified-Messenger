@@ -83,8 +83,8 @@ public sealed partial class CommandCenterPanel : UserControl
             _ => "all time"
         };
         SubtitleText.Text = grouping == OversightGrouping.ByLocation
-            ? "Rolled up by location · % of chats caught up (live)"
-            : "Per account · % of chats caught up (live) · group into locations (Ctrl+K)";
+            ? $"Rolled up by location · caught up among chats active {windowLabel}"
+            : $"Per account · caught up among chats active {windowLabel} · group into locations (Ctrl+K)";
         _emptyStateWindowLabel = windowLabel;
 
         if (snapshot.TotalUrgent > 0 || snapshot.TotalDropped > 0)
@@ -409,6 +409,27 @@ public sealed partial class CommandCenterPanel : UserControl
         _resyncInProgress = false;
     }
 
+    private static List<OversightChatSnapshotService.ChatEntry> ParseChatEntries(JsonElement root)
+    {
+        var list = new List<OversightChatSnapshotService.ChatEntry>();
+        if (!root.TryGetProperty("conversations", out var convs) || convs.ValueKind != JsonValueKind.Array)
+        {
+            return list;
+        }
+
+        foreach (var c in convs.EnumerateArray())
+        {
+            var unread = c.TryGetProperty("unreadCount", out var u) && u.TryGetInt32(out var uv) ? uv : 0;
+            var ts = c.TryGetProperty("lastActivityTimestampUtc", out var t) ? t.GetString() : null;
+            if (DateTimeOffset.TryParse(ts, out var when))
+            {
+                list.Add(new OversightChatSnapshotService.ChatEntry(unread, when.ToUniversalTime()));
+            }
+        }
+
+        return list;
+    }
+
     private static async Task<string> ProbeInstanceDbAsync(MessengerInstance instance)
     {
         // The JS scan self-settles via a watchdog, so a still-loading page yields a 'watchdog-timeout'
@@ -449,22 +470,15 @@ public sealed partial class CommandCenterPanel : UserControl
                     var stage = root.TryGetProperty("diag", out var diag) &&
                                 diag.TryGetProperty("stage", out var s) ? s.GetString() : "?";
 
-                    int Num(string name) =>
-                        diag.TryGetProperty(name, out var n) && n.TryGetInt32(out var v) ? v : 0;
-
-                    var active = Num("active");
-                    if (stage == "done" || active > 0)
+                    if (stage == "done")
                     {
-                        var caughtUp = Num("caughtUp");
-                        var awaiting = Num("awaiting");
-                        if (active > 0)
-                        {
-                            OversightChatSnapshotService.Instance.Update(
-                                instance.Id, active, caughtUp, awaiting, DateTimeOffset.UtcNow);
-                        }
+                        var chats = ParseChatEntries(root);
+                        OversightChatSnapshotService.Instance.Update(instance.Id, chats, DateTimeOffset.UtcNow);
 
-                        var pct = active > 0 ? (int)Math.Round(100.0 * caughtUp / active) : 100;
-                        return $"{pct}% caught up ({caughtUp}/{active}, {awaiting} awaiting)";
+                        var total = chats.Count;
+                        var caughtUp = chats.Count(c => c.Unread <= 0);
+                        var pct = total > 0 ? (int)Math.Round(100.0 * caughtUp / total) : 100;
+                        return $"{pct}% caught up ({caughtUp}/{total}, {total - caughtUp} awaiting)";
                     }
 
                     lastNote = $"not ready ({stage})";

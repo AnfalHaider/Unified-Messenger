@@ -67,8 +67,8 @@ public sealed class OversightService
             windowStartUtc: windowStart,
             windowEndUtc: null,
             chatSnapshot: instanceId =>
-                OversightChatSnapshotService.Instance.TryGet(instanceId, out var snap)
-                    ? (snap.Active, snap.CaughtUp)
+                OversightChatSnapshotService.Instance.TryGetWindowed(instanceId, windowStart, out var active, out var caughtUp)
+                    ? (active, caughtUp)
                     : null);
     }
 }

@@ -88,24 +88,28 @@ public static class OversightRollupBuilder
                 .ToList();
 
             // Prefer WhatsApp's own unread signal when we have it: on-time = caught-up % across this
-            // entity's instances. Reliable for every chat, no name matching or message history needed.
+            // entity's instances, over chats active in the window. Reliable for every chat, no name
+            // matching or message history needed. Authoritative when a snapshot exists — so an account
+            // with no chats active in the window reads "no activity", not a stale thread-breach number.
             if (chatSnapshot is not null)
             {
+                var hasSnapshot = false;
                 var snapActive = 0;
                 var snapCaught = 0;
                 foreach (var id in instanceIds)
                 {
                     if (chatSnapshot(id) is { } snap)
                     {
+                        hasSnapshot = true;
                         snapActive += snap.Active;
                         snapCaught += snap.CaughtUp;
                     }
                 }
 
-                if (snapActive > 0)
+                if (hasSnapshot)
                 {
                     measuredCount = snapActive;
-                    onTimePercent = (int)Math.Round((double)snapCaught / snapActive * 100);
+                    onTimePercent = snapActive > 0 ? (int)Math.Round((double)snapCaught / snapActive * 100) : 100;
                     historicalOpenCount = 0;
                 }
             }

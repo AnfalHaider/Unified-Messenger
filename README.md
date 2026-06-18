@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.8.2 (Command center caught-up metric — per-account status from WhatsApp's own unread signal; resilient first-load probe)
+**Current release:** v4.8.3 (Command center caught-up metric with a working date filter — scoped to chats active in Today / Last 7 days / All time)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.8.3
+
+- **The date filter now works on the caught-up metric.** The chat-store snapshot keeps each chat's last-activity time, so Today / Last 7 days / All time scope the % to conversations *active in that window* (e.g. "of the chats active today, how many are caught up"). An account with no chats active in the window reads "no activity" rather than a stale number.
 
 ### What's in v4.8.2
 

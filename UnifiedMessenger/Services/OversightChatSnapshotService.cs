@@ -3,44 +3,66 @@ using System.Collections.Concurrent;
 namespace UnifiedMessenger.Services;
 
 /// <summary>
-/// Holds the latest unread-based oversight snapshot per instance, read directly from WhatsApp Web's
-/// chat store: how many active chats are caught up (no unread) vs awaiting a reply. This is WhatsApp's
-/// own "needs attention" signal — reliable for every chat, no message history or name matching needed —
-/// and is the command center's primary on-time source when present.
+/// Holds the latest unread-based oversight data per instance, read directly from WhatsApp Web's chat
+/// store: for each active chat, its unread count and last-activity time. This is WhatsApp's own "needs
+/// attention" signal — reliable for every chat, no message history or name matching needed — and is the
+/// command center's primary on-time source. Storing per-chat last-activity lets the date window scope
+/// the metric: "of the chats active in the window, how many are caught up (no unread)".
 /// </summary>
 public sealed class OversightChatSnapshotService
 {
-    public readonly record struct ChatSnapshot(int Active, int CaughtUp, int Awaiting, DateTimeOffset CapturedAtUtc);
+    public readonly record struct ChatEntry(int Unread, DateTimeOffset LastActivityUtc);
+
+    private sealed record InstanceChats(IReadOnlyList<ChatEntry> Chats, DateTimeOffset CapturedAtUtc);
 
     private static readonly Lazy<OversightChatSnapshotService> LazyInstance = new(() => new OversightChatSnapshotService());
 
     public static OversightChatSnapshotService Instance => LazyInstance.Value;
 
-    private readonly ConcurrentDictionary<string, ChatSnapshot> _byInstance =
+    private readonly ConcurrentDictionary<string, InstanceChats> _byInstance =
         new(StringComparer.OrdinalIgnoreCase);
 
     private OversightChatSnapshotService()
     {
     }
 
-    public void Update(string instanceId, int active, int caughtUp, int awaiting, DateTimeOffset capturedAtUtc)
+    public void Update(string instanceId, IReadOnlyList<ChatEntry> chats, DateTimeOffset capturedAtUtc)
     {
-        if (string.IsNullOrWhiteSpace(instanceId))
+        if (string.IsNullOrWhiteSpace(instanceId) || chats is null)
         {
             return;
         }
 
-        _byInstance[instanceId.Trim()] = new ChatSnapshot(active, caughtUp, awaiting, capturedAtUtc);
+        _byInstance[instanceId.Trim()] = new InstanceChats(chats, capturedAtUtc);
     }
 
-    public bool TryGet(string instanceId, out ChatSnapshot snapshot)
+    /// <summary>
+    /// Active = chats whose last activity is within the window (or all chats when <paramref name="windowStartUtc"/>
+    /// is null); CaughtUp = those with no unread. Returns false when there is no snapshot for the instance.
+    /// </summary>
+    public bool TryGetWindowed(string instanceId, DateTimeOffset? windowStartUtc, out int active, out int caughtUp)
     {
-        if (!string.IsNullOrWhiteSpace(instanceId))
+        active = 0;
+        caughtUp = 0;
+        if (string.IsNullOrWhiteSpace(instanceId) || !_byInstance.TryGetValue(instanceId.Trim(), out var snap))
         {
-            return _byInstance.TryGetValue(instanceId.Trim(), out snapshot);
+            return false;
         }
 
-        snapshot = default;
-        return false;
+        foreach (var chat in snap.Chats)
+        {
+            if (windowStartUtc is not null && chat.LastActivityUtc < windowStartUtc.Value)
+            {
+                continue;
+            }
+
+            active++;
+            if (chat.Unread <= 0)
+            {
+                caughtUp++;
+            }
+        }
+
+        return true;
     }
 }

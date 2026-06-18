@@ -322,21 +322,27 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         if (payload is not null && payload.Value.TryGetProperty("diag", out var diag))
         {
             result.DbDiagnostic = BuildDiagString(diag);
-
-            // Cache WhatsApp's unread-based caught-up snapshot — the command center's primary on-time source.
-            var active = diag.TryGetProperty("active", out var a) && a.TryGetInt32(out var av) ? av : 0;
-            if (active > 0)
-            {
-                var caughtUp = diag.TryGetProperty("caughtUp", out var c) && c.TryGetInt32(out var cv) ? cv : 0;
-                var awaiting = diag.TryGetProperty("awaiting", out var w) && w.TryGetInt32(out var wv) ? wv : 0;
-                OversightChatSnapshotService.Instance.Update(instance.Id, active, caughtUp, awaiting, DateTimeOffset.UtcNow);
-            }
         }
 
         if (payload is null || !payload.Value.TryGetProperty("conversations", out var conversations) ||
             conversations.ValueKind != JsonValueKind.Array)
         {
             return 0;
+        }
+
+        // Cache WhatsApp's unread-based caught-up snapshot (per-chat unread + last activity) — the command
+        // center's primary on-time source; the date window scopes it by last activity at render time.
+        var chatEntries = new List<OversightChatSnapshotService.ChatEntry>();
+        foreach (var conversation in conversations.EnumerateArray())
+        {
+            var unread = conversation.TryGetProperty("unreadCount", out var uEl) && uEl.TryGetInt32(out var uv) ? uv : 0;
+            var when = ParseTimestamp(ReadString(conversation, "lastActivityTimestampUtc"));
+            chatEntries.Add(new OversightChatSnapshotService.ChatEntry(unread, when));
+        }
+
+        if (chatEntries.Count > 0)
+        {
+            OversightChatSnapshotService.Instance.Update(instance.Id, chatEntries, DateTimeOffset.UtcNow);
         }
 
         var processed = 0;
