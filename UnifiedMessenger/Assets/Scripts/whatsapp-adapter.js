@@ -952,17 +952,24 @@
       var did = (idEl && idEl.getAttribute('data-id')) ||
         (row.getAttribute && row.getAttribute('data-id')) || '';
 
-      var titleEl = row.querySelector('span[title]');
+      // Title: the contact name, or the phone number for unsaved contacts.
+      var titleEl = row.querySelector('div[data-testid="cell-frame-primary"] span[title], span[title]');
       var title = titleEl ? normalizeText(titleEl.getAttribute('title') || titleEl.textContent || '') : '';
-
-      var sec = row.querySelector('div[data-testid="cell-frame-secondary"]');
-      var preview = sec ? normalizeText(sec.textContent || '') : '';
-      if (!preview) {
-        var span = row.querySelector(
-          'span[data-testid="last-msg-text"], span[data-testid="last-msg-status"], div._ak8k span'
-        );
-        preview = span ? normalizeText(span.textContent || '') : '';
+      if (!title) {
+        var primary = row.querySelector('div[data-testid="cell-frame-primary"]');
+        if (primary) {
+          title = normalizeText((primary.textContent || '').split('\n')[0]);
+        }
       }
+
+      // Preview: the message text only — target the text span and strip icon-token noise
+      // (e.g. "ic-imagePhoto", "wds-ic-readYou", "ic-push-pin") that leaks from icon elements.
+      var sec = row.querySelector('div[data-testid="cell-frame-secondary"]') || row;
+      var textEl = sec.querySelector(
+        'span[data-testid="last-msg-text"], span[dir="ltr"], span[dir="auto"]'
+      );
+      var preview = textEl ? normalizeText(textEl.textContent || '') : '';
+      preview = preview.replace(/\b(?:wds-)?ic-[\w-]+/g, '').replace(/\s{2,}/g, ' ').trim();
       if (preview && title && preview === title) {
         preview = '';
       }
@@ -1028,6 +1035,16 @@
                 }
                 var jid = getChatKey(ch);
                 if (!jid) {
+                  continue;
+                }
+
+                // Oversight is about 1:1 customer conversations — skip groups, broadcasts, newsletters,
+                // and status (internal team groups like "Team Anfal" / "Daily Branch Status" are groups).
+                var jidLower = jid.toLowerCase();
+                if (jidLower.indexOf('@g.us') >= 0 ||
+                    jidLower.indexOf('@broadcast') >= 0 ||
+                    jidLower.indexOf('@newsletter') >= 0 ||
+                    jidLower.indexOf('status@') >= 0) {
                   continue;
                 }
 

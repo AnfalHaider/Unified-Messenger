@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.13.1 (Command center: awaiting = replied-based not read-based; phone numbers for unsaved contacts; no more accordion flashing)
+**Current release:** v4.13.2 (Awaiting list: skip internal groups, clean message previews, better unsaved-contact names)
 
 ## Scope
 
@@ -29,6 +29,12 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.13.2
+
+- **Groups/broadcasts excluded from oversight:** the replied-based "awaiting" introduced in 4.13.1 wrongly counted internal team groups (e.g. "Team Anfal", "Daily Branch Status") and broadcasts as awaiting a reply. Oversight now skips `@g.us` / `@broadcast` / `@newsletter` / status chats — only 1:1 customer conversations count.
+- **Clean message previews:** the sidebar preview scrape now targets the message-text span and strips icon-token noise (`ic-imagePhoto`, `wds-ic-readYou`, `ic-push-pin`).
+- **Better unsaved-contact names:** broader title extraction (primary cell + title attribute) so unsaved 1:1 chats show their number/name more often instead of "Unsaved contact".
 
 ### What's in v4.13.1
 
