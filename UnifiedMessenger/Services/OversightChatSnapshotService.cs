@@ -16,7 +16,8 @@ public sealed class OversightChatSnapshotService
         string CustomerName,
         int Unread,
         DateTimeOffset LastActivityUtc,
-        string Preview = "");
+        string Preview = "",
+        bool IsAwaiting = false);
 
     /// <summary>"Since you were last here" summary across a set of instances.</summary>
     public readonly record struct OversightDigest(
@@ -75,7 +76,7 @@ public sealed class OversightChatSnapshotService
             }
 
             active++;
-            if (chat.Unread <= 0)
+            if (!chat.IsAwaiting)
             {
                 caughtUp++;
             }
@@ -108,7 +109,7 @@ public sealed class OversightChatSnapshotService
             var awaitingHere = 0;
             foreach (var chat in snap.Chats)
             {
-                if (chat.Unread <= 0)
+                if (!chat.IsAwaiting)
                 {
                     continue;
                 }
@@ -153,7 +154,7 @@ public sealed class OversightChatSnapshotService
         }
 
         return snap.Chats
-            .Where(c => c.Unread > 0 && InWindow(c.LastActivityUtc, windowStartUtc, windowEndUtc))
+            .Where(c => c.IsAwaiting && InWindow(c.LastActivityUtc, windowStartUtc, windowEndUtc))
             .OrderByDescending(c => c.Unread)
             .ThenByDescending(c => c.LastActivityUtc)
             .ToList();

@@ -339,7 +339,11 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
             var when = ParseTimestamp(ReadString(conversation, "lastActivityTimestampUtc"));
             var key = ReadString(conversation, "conversationKey") ?? string.Empty;
             var name = ReadString(conversation, "customerName") ?? string.Empty;
-            chatEntries.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when));
+            var preview = ReadString(conversation, "lastMessagePreview") ?? string.Empty;
+            var awaiting = conversation.TryGetProperty("awaiting", out var awEl)
+                ? awEl.ValueKind == JsonValueKind.True
+                : unread > 0;
+            chatEntries.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when, preview, awaiting));
         }
 
         if (chatEntries.Count > 0)

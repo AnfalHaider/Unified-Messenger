@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.13.0 (Shell IA complete — command center is the home, Work Queue page, Workspace Management in Settings, guided onboarding)
+**Current release:** v4.13.1 (Command center: awaiting = replied-based not read-based; phone numbers for unsaved contacts; no more accordion flashing)
 
 ## Scope
 
@@ -29,6 +29,12 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.13.1
+
+- **"Awaiting" now means not-replied, not just unread:** a chat where the **customer had the last word** counts as awaiting even after you open/read it. Derived from the last-message **direction** (the sidebar's sent-tick), falling back to the unread marker only when the chat isn't rendered. Fixes "it says caught up even though I haven't replied."
+- **Phone numbers for unsaved contacts:** 1:1 chats with no saved name now show the number from the sidebar (was "Unsaved contact").
+- **No more accordion flashing:** the command center skips its card rebuild when nothing changed (render change-detection), so the 20s auto-refresh no longer makes the lists flicker.
 
 ### What's in v4.13.0
 

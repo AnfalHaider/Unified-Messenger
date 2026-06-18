@@ -923,7 +923,24 @@
     return m ? m[1] : '';
   }
 
-  function umBuildDomPreviewMaps() {
+  // True when the chat's LAST message is outgoing (we replied): WhatsApp renders a delivery/read tick
+  // icon in the row's last-message line for outgoing messages. Absent for an incoming last message.
+  function umRowLastFromMe(row) {
+    var iconEl = row.querySelector(
+      'span[data-testid="last-msg-status"] [data-icon], [data-icon^="msg-"], [data-icon^="status-"]'
+    );
+    if (iconEl) {
+      var ic = (iconEl.getAttribute('data-icon') || '').toLowerCase();
+      if (ic.indexOf('check') >= 0 || ic.indexOf('dblcheck') >= 0 || ic.indexOf('read') >= 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Per-rendered-chat hints from the sidebar DOM: the display title (shows the phone number for unsaved
+  // contacts), a last-message preview, and whether we had the last word.
+  function umBuildDomChatHints() {
     var byId = Object.create(null);
     var byTitle = Object.create(null);
     var rows = document.querySelectorAll(
@@ -938,7 +955,6 @@
       var titleEl = row.querySelector('span[title]');
       var title = titleEl ? normalizeText(titleEl.getAttribute('title') || titleEl.textContent || '') : '';
 
-      // The last-message line lives in the secondary cell; fall back to known last-msg spans.
       var sec = row.querySelector('div[data-testid="cell-frame-secondary"]');
       var preview = sec ? normalizeText(sec.textContent || '') : '';
       if (!preview) {
@@ -948,19 +964,17 @@
         preview = span ? normalizeText(span.textContent || '') : '';
       }
       if (preview && title && preview === title) {
-        preview = ''; // don't echo the title as a "preview"
+        preview = '';
       }
       preview = preview ? preview.slice(0, 90) : '';
-      if (!preview) {
-        continue;
-      }
 
+      var hint = { title: title, preview: preview, lastFromMe: umRowLastFromMe(row), present: true };
       var key = umDigits(did);
       if (key) {
-        byId[key] = preview;
+        byId[key] = hint;
       }
       if (title) {
-        byTitle[title.toLowerCase()] = preview;
+        byTitle[title.toLowerCase()] = hint;
       }
     }
     return { byId: byId, byTitle: byTitle };
@@ -1004,7 +1018,7 @@
             var chats = event.target.result || [];
             diag.chats = chats.length;
             var conversations = [];
-            var previewMaps = umBuildDomPreviewMaps();
+            var domHints = umBuildDomChatHints();
 
             for (var i = 0; i < chats.length; i++) {
               try {
@@ -1028,31 +1042,43 @@
                 }
                 diag.withTs++;
 
-                // Direction when lastMessage is persisted; otherwise use WhatsApp's own unread marker as
-                // the answered proxy: 0 unread = caught up (treat as answered), >0 = awaiting reply.
                 var unread = ch.unreadCount || 0;
-                var fromMe = last ? !!last.fromMe : (unread === 0);
                 var body = last ? (last.body || last.caption || last.text || '') : '';
-                var chatTitleForPreview = getChatTitle(ch);
-                var preview = body ||
-                  previewMaps.byId[umDigits(jid)] ||
-                  previewMaps.byTitle[(chatTitleForPreview || '').toLowerCase()] || '';
+                var name = getChatTitle(ch);
+
+                // Look up the sidebar DOM hint (rendered chats only) by stable id, then by title.
+                var hint = domHints.byId[umDigits(jid)] ||
+                  (name ? domHints.byTitle[name.toLowerCase()] : null) || null;
+
+                // Unsaved contacts have no chat-store name ("New message"); the sidebar shows their phone
+                // number — use it.
+                if ((!name || name === 'New message') && hint && hint.title) {
+                  name = hint.title;
+                }
+
+                // Awaiting = the CUSTOMER had the last word (we haven't replied), even if the message was
+                // opened/read. Use the DOM's last-message direction when the chat is rendered; otherwise
+                // fall back to the unread marker.
+                var fromMe = last ? !!last.fromMe : (hint ? hint.lastFromMe : (unread === 0));
+                var awaiting = hint ? !hint.lastFromMe : (unread > 0);
+
+                var preview = body || (hint && hint.preview) || '';
                 var iso = new Date(t * 1000).toISOString();
 
-                // Unread-based oversight signal, computed over ALL active chats (not just the capped list).
                 diag.active++;
-                if (unread > 0) { diag.awaiting++; } else { diag.caughtUp++; }
+                if (awaiting) { diag.awaiting++; } else { diag.caughtUp++; }
 
                 conversations.push({
                   conversationKey: jid,
-                  customerName: getChatTitle(ch),
+                  customerName: name,
                   lastInboundBody: fromMe ? '' : body,
                   lastInboundTimestampUtc: iso,
                   lastActivityTimestampUtc: iso,
                   lastMessageFromMe: fromMe,
+                  awaiting: awaiting,
                   lastMessagePreview: preview,
-                  unreadCount: ch.unreadCount || 0,
-                  inboundCount: ch.unreadCount || 0
+                  unreadCount: unread,
+                  inboundCount: unread
                 });
               } catch (rowError) {
                 // Skip a malformed chat record rather than failing the whole read.

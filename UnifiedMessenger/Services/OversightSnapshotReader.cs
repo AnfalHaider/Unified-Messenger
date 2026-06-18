@@ -107,9 +107,12 @@ public static class OversightSnapshotReader
             var key = c.TryGetProperty("conversationKey", out var k) ? k.GetString() ?? "" : "";
             var name = c.TryGetProperty("customerName", out var n) ? n.GetString() ?? "" : "";
             var preview = c.TryGetProperty("lastMessagePreview", out var p) ? p.GetString() ?? "" : "";
+            var awaiting = c.TryGetProperty("awaiting", out var a)
+                ? a.ValueKind == JsonValueKind.True
+                : unread > 0;
             if (DateTimeOffset.TryParse(ts, out var when))
             {
-                list.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when.ToUniversalTime(), preview));
+                list.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when.ToUniversalTime(), preview, awaiting));
             }
         }
 

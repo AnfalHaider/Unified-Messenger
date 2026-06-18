@@ -5,6 +5,11 @@ namespace UnifiedMessenger.Tests;
 
 public class OversightChatSnapshotServiceTests
 {
+    // awaiting = the customer had the last word (we haven't replied).
+    private static OversightChatSnapshotService.ChatEntry Chat(
+        string key, string name, int unread, DateTimeOffset when, bool awaiting) =>
+        new(key, name, unread, when, Preview: "", IsAwaiting: awaiting);
+
     [Fact]
     public void TryGetWindowed_ScopesActiveByLastActivity()
     {
@@ -14,9 +19,9 @@ public class OversightChatSnapshotServiceTests
 
         svc.Update(id, new[]
         {
-            new OversightChatSnapshotService.ChatEntry("jid-a", "A", 0, now),              // today, caught up
-            new OversightChatSnapshotService.ChatEntry("jid-b", "B", 2, now),              // today, awaiting
-            new OversightChatSnapshotService.ChatEntry("jid-c", "C", 0, now.AddDays(-3)),  // older, caught up
+            Chat("jid-a", "A", 0, now, awaiting: false),              // today, caught up
+            Chat("jid-b", "B", 2, now, awaiting: true),               // today, awaiting
+            Chat("jid-c", "C", 0, now.AddDays(-3), awaiting: false),  // older, caught up
         }, now);
 
         var windowStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero); // start of today
@@ -46,9 +51,9 @@ public class OversightChatSnapshotServiceTests
 
         svc.Update(id, new[]
         {
-            new OversightChatSnapshotService.ChatEntry("a", "A", 1, now.AddDays(-10)), // before range
-            new OversightChatSnapshotService.ChatEntry("b", "B", 1, now.AddDays(-5)),  // inside range
-            new OversightChatSnapshotService.ChatEntry("c", "C", 0, now),              // after range
+            Chat("a", "A", 1, now.AddDays(-10), awaiting: true), // before range
+            Chat("b", "B", 1, now.AddDays(-5), awaiting: true),  // inside range
+            Chat("c", "C", 0, now, awaiting: false),             // after range
         }, now);
 
         var start = now.AddDays(-7);
@@ -71,9 +76,9 @@ public class OversightChatSnapshotServiceTests
 
         svc.Update(id, new[]
         {
-            new OversightChatSnapshotService.ChatEntry("a", "A", 2, now),               // awaiting, new
-            new OversightChatSnapshotService.ChatEntry("b", "B", 1, now.AddDays(-2)),   // awaiting, old (oldest)
-            new OversightChatSnapshotService.ChatEntry("c", "C", 0, now),               // caught up
+            Chat("a", "A", 2, now, awaiting: true),               // awaiting, new
+            Chat("b", "B", 1, now.AddDays(-2), awaiting: true),   // awaiting, old (oldest)
+            Chat("c", "C", 0, now, awaiting: false),              // caught up
         }, now);
 
         var digest = svc.BuildDigest(new[] { id }, now.AddDays(-1));

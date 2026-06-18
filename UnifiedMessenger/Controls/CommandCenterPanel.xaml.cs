@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -117,6 +118,27 @@ public sealed partial class CommandCenterPanel : UserControl
     private void OnAutoRefreshTick(object? sender, object e) => Render();
 
     private bool _digestShown;
+    private string _lastRenderSignature = string.Empty;
+
+    private static string BuildRenderSignature(
+        OversightGrouping grouping,
+        OversightWindow window,
+        DateTimeOffset? start,
+        DateTimeOffset? end,
+        OversightCommandCenterSnapshot snapshot)
+    {
+        var sb = new StringBuilder();
+        sb.Append((int)grouping).Append('|').Append((int)window).Append('|')
+            .Append(start?.UtcTicks ?? 0).Append('|').Append(end?.UtcTicks ?? 0).Append('|');
+        foreach (var e in snapshot.Entities)
+        {
+            sb.Append(e.Key).Append(',').Append(e.OnTimePercent).Append(',').Append(e.AwaitingCount)
+                .Append(',').Append(e.MeasuredCount).Append(',').Append(e.HasChatData ? 1 : 0)
+                .Append(',').Append(e.HistoricalOpenCount).Append(',').Append(e.IsStale ? 1 : 0).Append(';');
+        }
+
+        return sb.ToString();
+    }
 
     /// <summary>
     /// Once per session, when snapshots have loaded, summarize what's awaiting since the operator was last
@@ -170,6 +192,15 @@ public sealed partial class CommandCenterPanel : UserControl
         var (rangeStart, rangeEnd) = WindowRange();
         var instances = _services.Registry.Instances.Where(instance => instance.IsProfessional).ToList();
         var snapshot = _services.Oversight.BuildSnapshot(grouping, instances, window, rangeStart, rangeEnd);
+
+        // Change-detection: the 20s auto-refresh re-renders constantly; rebuilding the card list when the
+        // data is identical makes the accordions flash. Skip the rebuild when nothing changed.
+        var signature = BuildRenderSignature(grouping, window, rangeStart, rangeEnd, snapshot);
+        if (signature == _lastRenderSignature)
+        {
+            return;
+        }
+        _lastRenderSignature = signature;
 
         var windowLabel = window switch
         {
