@@ -13,6 +13,8 @@ public static class SettingsNavigationHelper
 
     public const string AiSectionKey = "ai";
 
+    public const string WorkspaceManagementSectionKey = "workspace-management";
+
     public const string DataPrivacySectionKey = "data-privacy";
 
     public const string KeyboardShortcutsSectionKey = "keyboard-shortcuts";
@@ -31,6 +33,7 @@ public static class SettingsNavigationHelper
         new() { Key = AppearanceSectionKey, Label = "Appearance" },
         new() { Key = SessionPerformanceSectionKey, Label = "Session & performance" },
         new() { Key = AiSectionKey, Label = "AI" },
+        new() { Key = WorkspaceManagementSectionKey, Label = "Workspace management" },
         new() { Key = DataPrivacySectionKey, Label = "Data & privacy" },
         new() { Key = KeyboardShortcutsSectionKey, Label = "Keyboard shortcuts" },
         new() { Key = SystemSectionKey, Label = "System" },

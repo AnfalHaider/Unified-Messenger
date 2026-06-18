@@ -69,7 +69,8 @@ public sealed class ShellChromeCoordinator
             selection.SelectedInstanceId,
             selection.IsDashboardSelected,
             selection.IsSettingsSelected,
-            NotificationPanelVisible);
+            NotificationPanelVisible,
+            selection.IsWorkQueueSelected);
 
         foreach (var instance in _services.Registry.Instances)
         {
@@ -96,7 +97,8 @@ public sealed class ShellChromeCoordinator
             selection.IsDashboardSelected,
             selection.SelectedInstanceId,
             selection.IsSettingsSelected,
-            NotificationPanelVisible);
+            NotificationPanelVisible,
+            selection.IsWorkQueueSelected);
 
         var notificationSelected = NotificationPanelVisible;
         _ui.NotificationToggleButton.Background = notificationSelected

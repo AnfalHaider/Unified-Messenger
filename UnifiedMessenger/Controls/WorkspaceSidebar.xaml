@@ -84,10 +84,30 @@
         </Button>
 
         <Button
+            x:Name="WorkQueueButton"
+            AutomationProperties.AutomationId="SidebarWorkQueue"
+            AutomationProperties.Name="Work Queue"
+            TabIndex="91"
+            HorizontalAlignment="Stretch"
+            Click="WorkQueueButton_Click"
+            Style="{StaticResource SubtleButtonStyle}"
+            ToolTipService.ToolTip="Work Queue — Operations Command Center">
+            <StackPanel x:Name="WorkQueueContent" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
+                <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE7C3;" />
+                <TextBlock
+                    x:Name="WorkQueueLabel"
+                    MinWidth="0"
+                    Style="{StaticResource UmBodyTextStyle}"
+                    Text="Work Queue"
+                    TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Button>
+
+        <Button
             x:Name="NotificationsButton"
             AutomationProperties.AutomationId="SidebarNotifications"
             AutomationProperties.Name="Notification Hub"
-            TabIndex="91"
+            TabIndex="92"
             HorizontalAlignment="Stretch"
             Click="NotificationsButton_Click"
             Style="{StaticResource SubtleButtonStyle}"
@@ -125,7 +145,7 @@
             x:Name="SettingsButton"
             AutomationProperties.AutomationId="SidebarSettings"
             AutomationProperties.Name="Settings"
-            TabIndex="92"
+            TabIndex="93"
             HorizontalAlignment="Stretch"
             Click="SettingsButton_Click"
             Style="{StaticResource SubtleButtonStyle}"

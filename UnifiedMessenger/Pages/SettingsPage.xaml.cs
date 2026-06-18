@@ -78,6 +78,7 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(OllamaAutoBootstrapToggle, "Auto bootstrap Ollama runtime");
         AutomationProperties.SetName(TestOllamaConnectionButton, "Test Ollama connection");
         AutomationProperties.SetName(PullLocalAiModelButton, "Pull selected local AI model");
+        AutomationProperties.SetName(OpenWorkspaceManagerButton, "Open workspace manager");
         AutomationProperties.SetName(ClearAnalyticsButton, "Clear operational data");
         AutomationProperties.SetName(ExportInstancesButton, "Export instances");
         AutomationProperties.SetName(ImportInstancesButton, "Import instances");
@@ -96,6 +97,7 @@ public sealed partial class SettingsPage : Page
         _sectionAnchors[SettingsNavigationHelper.AppearanceSectionKey] = AppearanceSection;
         _sectionAnchors[SettingsNavigationHelper.SessionPerformanceSectionKey] = SessionPerformanceSection;
         _sectionAnchors[SettingsNavigationHelper.AiSectionKey] = AiSection;
+        _sectionAnchors[SettingsNavigationHelper.WorkspaceManagementSectionKey] = WorkspaceManagementSection;
         _sectionAnchors[SettingsNavigationHelper.DataPrivacySectionKey] = DataPrivacySection;
         _sectionAnchors[SettingsNavigationHelper.KeyboardShortcutsSectionKey] = KeyboardShortcutsSection;
         _sectionAnchors[SettingsNavigationHelper.SystemSectionKey] = SystemSection;
@@ -191,6 +193,7 @@ public sealed partial class SettingsPage : Page
         RefreshAiSection();
         RefreshArchivedAccounts();
         RefreshStoragePaths();
+        RefreshWorkspaceManagementSummary();
         _viewModel.VersionLabel = SettingsPageHelper.BuildVersionLabel(typeof(App).Assembly.GetName().Version);
         VersionText.Text = _viewModel.VersionLabel;
     }
@@ -210,6 +213,49 @@ public sealed partial class SettingsPage : Page
         _viewModel.ProfilesPath = WebViewProfileManager.Instance.UserDataFolder;
         InstancesPathText.Text = _viewModel.InstancesStorePath;
         ProfilesPathText.Text = _viewModel.ProfilesPath;
+    }
+
+    private void RefreshWorkspaceManagementSummary()
+    {
+        if (_registry is null || WorkspaceProfilesSummaryText is null)
+        {
+            return;
+        }
+
+        var instances = _registry.Instances;
+        var profiles = _services.AppSettings.Settings.WorkspaceProfiles;
+        var totalProfessional = instances.Count(i => i.IsProfessional);
+        var locationCount = instances
+            .Where(i => i.IsProfessional && !string.IsNullOrWhiteSpace(i.BranchKey))
+            .Select(i => i.BranchKey!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        var configuredCount = profiles.Count;
+
+        var instanceWord = totalProfessional == 1 ? "professional account" : "professional accounts";
+        var locationWord = locationCount == 1 ? "location" : "locations";
+        var configuredWord = configuredCount == 1 ? "profile configured" : "profiles configured";
+
+        WorkspaceProfilesSummaryText.Text = totalProfessional == 0
+            ? "No professional accounts yet. Add a professional account to set up workspace locations and SLA thresholds."
+            : $"{totalProfessional} {instanceWord} · {locationCount} {locationWord} · {configuredCount} {configuredWord}";
+    }
+
+    private async void OpenWorkspaceManagerButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_registry is null)
+        {
+            return;
+        }
+
+        var dialog = new UnifiedMessenger.Dialogs.WorkspaceManagementDialog(
+            _registry.Instances,
+            _services.AppSettings.Settings.WorkspaceProfiles)
+        {
+            XamlRoot = XamlRoot
+        };
+        await dialog.ShowAsync();
+        RefreshWorkspaceManagementSummary();
     }
 
     private void SectionNavList_ItemClick(object sender, ItemClickEventArgs e)

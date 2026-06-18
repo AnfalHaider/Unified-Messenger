@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         _services.SessionManager.AttachHost(InstanceWebViewHost);
 
         WorkspaceSidebar.DashboardRequested += (_, _) => _ = _shell.Navigation.ShowDashboardAsync();
+        WorkspaceSidebar.WorkQueueRequested += (_, _) => _ = _shell.Navigation.ShowWorkQueueAsync();
         WorkspaceSidebar.InstanceRequested += (_, id) => _ = _shell.Navigation.SelectInstanceAsync(id);
         WorkspaceSidebar.AddInstanceRequested += (_, _) => _ = _shell.ShowAddInstanceDialogAsync();
         WorkspaceSidebar.NotificationsRequested += (_, _) =>
@@ -127,6 +128,9 @@ public sealed partial class MainWindow : Window, IShellUiHost
             });
         nav.AddInstanceRequested += OnAddInstanceRequested;
         nav.SettingsOpenRequested += OnSettingsOpenRequested;
+        nav.OccBranchFilterRequested += OnOccBranchFilterRequested;
+        nav.OccImmediateLaneFocusRequested += OnOccImmediateLaneFocusRequested;
+        nav.OccUrgentQueueFilterRequested += OnOccUrgentQueueFilterRequested;
 
         _services.NotificationHub.Changed += OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested += OnToastActivationRequested;
@@ -146,10 +150,43 @@ public sealed partial class MainWindow : Window, IShellUiHost
     private void OnSettingsOpenRequested(object? sender, string? sectionKey) =>
         DispatcherQueue.TryEnqueue(() => _ = _shell.Navigation.ShowSettingsAsync(sectionKey));
 
+    private void OnOccBranchFilterRequested(object? sender, string? branchKey)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await _shell.Navigation.ShowWorkQueueAsync();
+            (_shell.Navigation.ContentFrame.Content as Pages.WorkQueuePage)
+                ?.SelectWorkspaceBranch(branchKey, forceRefresh: true);
+        });
+    }
+
+    private void OnOccImmediateLaneFocusRequested(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await _shell.Navigation.ShowWorkQueueAsync();
+            (_shell.Navigation.ContentFrame.Content as Pages.WorkQueuePage)
+                ?.RequestImmediateLaneFocus();
+        });
+    }
+
+    private void OnOccUrgentQueueFilterRequested(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            await _shell.Navigation.ShowWorkQueueAsync();
+            (_shell.Navigation.ContentFrame.Content as Pages.WorkQueuePage)
+                ?.SelectUrgentQueueFilter();
+        });
+    }
+
     private void DetachShellHandlers()
     {
         _services.Navigation.AddInstanceRequested -= OnAddInstanceRequested;
         _services.Navigation.SettingsOpenRequested -= OnSettingsOpenRequested;
+        _services.Navigation.OccBranchFilterRequested -= OnOccBranchFilterRequested;
+        _services.Navigation.OccImmediateLaneFocusRequested -= OnOccImmediateLaneFocusRequested;
+        _services.Navigation.OccUrgentQueueFilterRequested -= OnOccUrgentQueueFilterRequested;
         _services.NotificationHub.Changed -= OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested -= OnToastActivationRequested;
         _services.AdapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;

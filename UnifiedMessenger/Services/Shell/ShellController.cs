@@ -46,7 +46,8 @@ public sealed class ShellController
             () => new ShellSelectionState(
                 _navigation.IsDashboardSelected,
                 _navigation.IsSettingsSelected,
-                _navigation.SelectedInstanceId));
+                _navigation.SelectedInstanceId,
+                _navigation.IsWorkQueueSelected));
         _navigation.BindChrome(_chrome);
         _commandPalette = new ShellCommandPaletteCoordinator(services);
     }
@@ -86,6 +87,11 @@ public sealed class ShellController
             VirtualKey.W,
             VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
             () => _ = ShowWorkspaceManagementAsync(),
+            canUseGlobalShortcuts);
+        keyboardShortcuts.Register(
+            VirtualKey.Q,
+            VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
+            () => _ = _navigation.ShowWorkQueueAsync(),
             canUseGlobalShortcuts);
         keyboardShortcuts.RegisterIndexedShortcuts(
             VirtualKey.Number1,
@@ -797,14 +803,36 @@ public sealed class ShellController
 
     private async Task MaybeShowWorkspaceOnboardingAsync()
     {
-        var settings = _services.AppSettings.Settings;
-        if (settings.HasCompletedWorkspaceOnboarding)
+        if (_services.AppSettings.Settings.HasCompletedWorkspaceOnboarding)
         {
             return;
         }
 
-        await FirstRunOnboardingHelper.TryShowAsync(_ui.XamlRoot).ConfigureAwait(true);
-        await _services.AppSettings.UpdateAsync(s => s.HasCompletedWorkspaceOnboarding = true).ConfigureAwait(true);
+        try
+        {
+            var result = await FirstRunOnboardingHelper.TryShowAsync(_ui.XamlRoot).ConfigureAwait(true);
+            if (!result.WasSkipped)
+            {
+                if (result.AddAccount)
+                {
+                    await ShowAddInstanceDialogAsync().ConfigureAwait(true);
+                }
+
+                if (result.ConfigureLocations || result.ConfigureHoursSla)
+                {
+                    await ShowWorkspaceManagementAsync().ConfigureAwait(true);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // A wizard hiccup must never crash startup or nag every launch.
+            AppLogger.LogWarning("Shell.Onboarding", ex.Message);
+        }
+        finally
+        {
+            await _services.AppSettings.UpdateAsync(s => s.HasCompletedWorkspaceOnboarding = true).ConfigureAwait(true);
+        }
     }
 
     private async Task MaybePromptPinToTaskbarAsync()

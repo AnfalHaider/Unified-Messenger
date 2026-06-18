@@ -501,6 +501,31 @@
                 </shared:SurfaceCard>
             </StackPanel>
 
+            <StackPanel x:Name="WorkspaceManagementSection" Tag="workspace-management" Spacing="8">
+                <shared:SectionHeaderView Title="WORKSPACE MANAGEMENT" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Configure locations, SLA thresholds, and operating hours for professional inboxes."
+                            TextWrapping="WrapWholeWords" />
+                        <TextBlock
+                            x:Name="WorkspaceProfilesSummaryText"
+                            FontSize="12"
+                            Opacity="0.8"
+                            TextWrapping="WrapWholeWords" />
+                        <Button
+                            x:Name="OpenWorkspaceManagerButton"
+                            HorizontalAlignment="Left"
+                            Click="OpenWorkspaceManagerButton_Click"
+                            Content="Open workspace manager" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
             <StackPanel x:Name="DataPrivacySection" Tag="data-privacy" Spacing="8">
                 <shared:SectionHeaderView Title="DATA &amp; PRIVACY" />
                 <shared:SurfaceCard>

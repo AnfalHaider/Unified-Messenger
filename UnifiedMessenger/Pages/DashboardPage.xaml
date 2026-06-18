@@ -14,56 +14,15 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Spacing="4">
-            <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" MinWidth="0" />
-                </Grid.ColumnDefinitions>
-                <TextBlock
-                    x:Name="WelcomeTitle"
-                    AutomationProperties.Name="Welcome back"
-                    Style="{StaticResource TitleTextBlockStyle}"
-                    Text="Welcome back"
-                    VerticalAlignment="Center" />
-                <StackPanel
-                    x:Name="DashboardOccStatusRow"
-                    Grid.Column="1"
-                    HorizontalAlignment="Right"
-                    Orientation="Horizontal"
-                    Spacing="{StaticResource UmSpacingSm}"
-                    VerticalAlignment="Center"
-                    Visibility="Collapsed">
-                    <TextBlock
-                        x:Name="DashboardLastRefreshedText"
-                        Style="{StaticResource UmCaptionTextStyle}" />
-                    <TextBlock
-                        x:Name="DashboardOccStatusSeparator"
-                        Style="{StaticResource UmCaptionTextStyle}"
-                        Text="·"
-                        Visibility="Collapsed" />
-                    <StackPanel
-                        x:Name="DashboardBackfillStatusPanel"
-                        Orientation="Horizontal"
-                        Spacing="6"
-                        Visibility="Collapsed">
-                        <ProgressRing
-                            Width="14"
-                            Height="14"
-                            Foreground="{StaticResource UmBrandTealBrush}"
-                            IsActive="True" />
-                        <TextBlock
-                            x:Name="DashboardBackfillStatusText"
-                            FontSize="11"
-                            Foreground="{StaticResource UmBrandTealDarkBrush}"
-                            MaxWidth="280"
-                            Opacity="0.9"
-                            Style="{StaticResource UmEllipsisTextStyle}" />
-                    </StackPanel>
-                </StackPanel>
-            </Grid>
+            <TextBlock
+                x:Name="WelcomeTitle"
+                AutomationProperties.Name="Welcome back"
+                Style="{StaticResource TitleTextBlockStyle}"
+                Text="Welcome back" />
             <TextBlock
                 x:Name="WelcomeSubtitle"
                 Opacity="0.7"
@@ -71,26 +30,21 @@
                 TextWrapping="WrapWholeWords" />
         </StackPanel>
 
-        <TabView
-            x:Name="DashboardTabs"
-            Grid.Row="1"
-            AutomationProperties.Name="Dashboard tabs"
-            TabIndex="10"
-            TabWidthMode="Equal"
-            CanDragTabs="False"
-            CanReorderTabs="False"
-            IsAddTabButtonVisible="False">
-            <TabViewItem Header="Operations Command Center" AutomationProperties.AutomationId="DashboardOccTab" AutomationProperties.Name="Operations Command Center Tab" IsClosable="False">
-                <controls:OperationsCommandCenter x:Name="OperationsCommandCenterPanel" />
-            </TabViewItem>
+        <controls:CommandCenterPanel
+            x:Name="CommandCenterPanel"
+            Grid.Row="1" />
 
-            <TabViewItem Header="Personal Overview" AutomationProperties.AutomationId="DashboardPersonalTab" AutomationProperties.Name="Personal Overview Tab" IsClosable="False">
-                <controls:PersonalOverviewPanel x:Name="PersonalOverviewPanel" />
-            </TabViewItem>
-
-            <TabViewItem x:Name="CommandCenterTab" Header="Command center" AutomationProperties.AutomationId="DashboardCommandCenterTab" AutomationProperties.Name="Command Center Tab" IsClosable="False">
-                <controls:CommandCenterPanel x:Name="CommandCenterPanel" />
-            </TabViewItem>
-        </TabView>
+        <Expander
+            x:Name="PersonalOverviewExpander"
+            Grid.Row="2"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Stretch"
+            Header="Personal overview"
+            AutomationProperties.Name="Personal overview"
+            AutomationProperties.AutomationId="DashboardPersonalOverviewExpander">
+            <controls:PersonalOverviewPanel
+                x:Name="PersonalOverviewPanel"
+                MaxHeight="480" />
+        </Expander>
     </Grid>
 </Page>

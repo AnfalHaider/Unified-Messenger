@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Pages;
+using UnifiedMessenger.Services;
 using UnifiedMessenger.ViewModels;
 
 namespace UnifiedMessenger.Services.Shell;
@@ -29,7 +30,11 @@ public sealed class ShellNavigationCoordinator
 
     public bool IsSettingsSelected { get; private set; }
 
+    public bool IsWorkQueueSelected { get; private set; }
+
     public string? SelectedInstanceId { get; private set; }
+
+    public Frame ContentFrame => _ui.ContentFrame;
 
     public void RefreshDashboardIfVisible()
     {
@@ -39,10 +44,36 @@ public sealed class ShellNavigationCoordinator
         }
     }
 
+    public async Task ShowWorkQueueAsync()
+    {
+        IsDashboardSelected = false;
+        IsSettingsSelected = false;
+        IsWorkQueueSelected = true;
+        SelectedInstanceId = null;
+
+        await _services.SessionManager.HideVisibleSessionAsync();
+        _ui.InstanceWebViewHost.Visibility = Visibility.Collapsed;
+        SetInstanceLoading(false, null);
+        _ui.ContentFrame.Visibility = Visibility.Visible;
+
+        // Do not re-navigate if already on WorkQueuePage — avoids reloading the OCC mid-operation.
+        if (_ui.ContentFrame.Content is not WorkQueuePage)
+        {
+            var navArgs = PageServices.CreateRegistryArgs(_services);
+            NavigateShellFrame(typeof(WorkQueuePage), navArgs);
+        }
+
+        ActiveWorkspaceContext.SetDashboardVisible();
+        _ui.AppTitleBar.Subtitle = "Work Queue";
+        UpdateBackToDashboardLink(false);
+        _chrome?.UpdateShellChromeSelection();
+    }
+
     public async Task ShowDashboardAsync()
     {
         IsDashboardSelected = true;
         IsSettingsSelected = false;
+        IsWorkQueueSelected = false;
         SelectedInstanceId = null;
 
         await _services.SessionManager.HideVisibleSessionAsync();
@@ -62,6 +93,7 @@ public sealed class ShellNavigationCoordinator
     {
         IsDashboardSelected = false;
         IsSettingsSelected = true;
+        IsWorkQueueSelected = false;
         SelectedInstanceId = null;
 
         await _services.SessionManager.HideVisibleSessionAsync();
@@ -150,6 +182,7 @@ public sealed class ShellNavigationCoordinator
         SelectedInstanceId = instanceId;
         IsDashboardSelected = false;
         IsSettingsSelected = false;
+        IsWorkQueueSelected = false;
         ActiveWorkspaceContext.SetActiveInstance(instanceId);
         _chrome?.UpdateShellChromeSelection();
         _ui.ContentFrame.Visibility = Visibility.Collapsed;

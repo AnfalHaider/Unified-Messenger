@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.12.4 (Sidebar drag-reorder removed to stop the freeze; reorder via right-click Move up/down)
+**Current release:** v4.13.0 (Shell IA complete — command center is the home, Work Queue page, Workspace Management in Settings, guided onboarding)
 
 ## Scope
 
@@ -29,6 +29,13 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.13.0
+
+- **Command center is the home surface (L0):** the Dashboard now *is* the command center (full width), with Personal Overview in a collapsible Expander.
+- **Work Queue (L1):** the Operations Command Center moved to a dedicated **Work Queue** page with its own sidebar button (`Ctrl+Shift+Q`), header status, and refresh; its branch-filter / lane-focus / urgent-queue navigation commands route here.
+- **Workspace Management in Settings:** a "Workspace management" section with a live summary and an "Open workspace manager" button (still reachable via `Ctrl+K`).
+- **Guided cold-start onboarding:** a 4-step first-run wizard (Welcome → Add account → Set locations → Hours/SLA) with per-step skip, then optional follow-up dialogs. Hardened so a wizard hiccup never crashes startup or nags on every launch.
 
 ### What's in v4.12.4
 

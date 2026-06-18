@@ -40,6 +40,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private bool _lastDashboardSelected;
     private bool _lastSettingsSelected;
     private bool _lastNotificationHubSelected;
+    private bool _lastWorkQueueSelected;
     private int _nextSidebarTabIndex = AccessibilityTabOrderHelper.SidebarMenuBase;
 
     public WorkspaceSidebarViewModel ViewModel => _viewModel;
@@ -77,6 +78,8 @@ public sealed partial class WorkspaceSidebar : Grid
 
     public event EventHandler? DashboardRequested;
 
+    public event EventHandler? WorkQueueRequested;
+
     public event EventHandler<string>? InstanceRequested;
 
     public event EventHandler? AddInstanceRequested;
@@ -93,7 +96,8 @@ public sealed partial class WorkspaceSidebar : Grid
         string? selectedInstanceId,
         bool dashboardSelected,
         bool settingsSelected = false,
-        bool notificationHubSelected = false)
+        bool notificationHubSelected = false,
+        bool workQueueSelected = false)
     {
         ArgumentNullException.ThrowIfNull(instances);
 
@@ -103,13 +107,15 @@ public sealed partial class WorkspaceSidebar : Grid
         _lastDashboardSelected = dashboardSelected;
         _lastSettingsSelected = settingsSelected;
         _lastNotificationHubSelected = notificationHubSelected;
+        _lastWorkQueueSelected = workQueueSelected;
         EnsureScopeInitialized();
 
         _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
             dashboardSelected,
             selectedInstanceId,
             settingsSelected,
-            notificationHubSelected);
+            notificationHubSelected,
+            workQueueSelected);
         _viewModel.ApplySelection(
             dashboardSelected,
             selectedInstanceId,
@@ -193,7 +199,8 @@ public sealed partial class WorkspaceSidebar : Grid
             _lastSelectedInstanceId,
             _lastDashboardSelected,
             _lastSettingsSelected,
-            _lastNotificationHubSelected);
+            _lastNotificationHubSelected,
+            _lastWorkQueueSelected);
     }
 
     private void ApplyInstanceContentUpdates(SidebarMenuPlan plan)
@@ -337,6 +344,7 @@ public sealed partial class WorkspaceSidebar : Grid
         var labelVisibility = _isCompact ? Visibility.Collapsed : Visibility.Visible;
         BrandWordmarkImage.Visibility = labelVisibility;
         AddInstanceLabel.Visibility = labelVisibility;
+        WorkQueueLabel.Visibility = labelVisibility;
         NotificationsLabel.Visibility = labelVisibility;
         SettingsLabel.Visibility = labelVisibility;
 
@@ -363,13 +371,15 @@ public sealed partial class WorkspaceSidebar : Grid
         bool dashboardSelected,
         string? instanceId,
         bool settingsSelected = false,
-        bool notificationHubSelected = false)
+        bool notificationHubSelected = false,
+        bool workQueueSelected = false)
     {
         _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
             dashboardSelected,
             instanceId,
             settingsSelected,
-            notificationHubSelected);
+            notificationHubSelected,
+            workQueueSelected);
         _viewModel.ApplySelection(
             dashboardSelected,
             instanceId,
@@ -856,6 +866,11 @@ public sealed partial class WorkspaceSidebar : Grid
         }
 
         ApplyFooterButtonSelection(
+            WorkQueueButton,
+            WorkspaceSidebarHelper.IsSelectionMatch(
+                _selectedKey,
+                WorkspaceSidebarHelper.WorkQueueSelectionKey));
+        ApplyFooterButtonSelection(
             NotificationsButton,
             WorkspaceSidebarHelper.IsSelectionMatch(
                 _selectedKey,
@@ -863,6 +878,13 @@ public sealed partial class WorkspaceSidebar : Grid
         ApplyFooterButtonSelection(
             SettingsButton,
             WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, WorkspaceSidebarHelper.SettingsSelectionKey));
+        UpdateFooterButtonAccessibility(
+            WorkQueueButton,
+            "Work Queue",
+            WorkspaceSidebarHelper.IsSelectionMatch(
+                _selectedKey,
+                WorkspaceSidebarHelper.WorkQueueSelectionKey),
+            badgeCount: 0);
         UpdateFooterButtonAccessibility(
             NotificationsButton,
             "Notification Hub",
@@ -921,6 +943,9 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private void AddInstanceButton_Click(object sender, RoutedEventArgs e) =>
         AddInstanceRequested?.Invoke(this, EventArgs.Empty);
+
+    private void WorkQueueButton_Click(object sender, RoutedEventArgs e) =>
+        WorkQueueRequested?.Invoke(this, EventArgs.Empty);
 
     private void NotificationsButton_Click(object sender, RoutedEventArgs e) =>
         NotificationsRequested?.Invoke(this, EventArgs.Empty);

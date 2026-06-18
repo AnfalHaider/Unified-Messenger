@@ -12,11 +12,14 @@ public static class WorkspaceSidebarHelper
 
     public const string NotificationHubSelectionKey = "notifications";
 
+    public const string WorkQueueSelectionKey = "work-queue";
+
     public static string ResolveSelectionKey(
         bool dashboardSelected,
         string? instanceId,
         bool settingsSelected = false,
-        bool notificationHubSelected = false)
+        bool notificationHubSelected = false,
+        bool workQueueSelected = false)
     {
         if (notificationHubSelected)
         {
@@ -26,6 +29,11 @@ public static class WorkspaceSidebarHelper
         if (settingsSelected)
         {
             return SettingsSelectionKey;
+        }
+
+        if (workQueueSelected)
+        {
+            return WorkQueueSelectionKey;
         }
 
         if (dashboardSelected || string.IsNullOrWhiteSpace(instanceId))
