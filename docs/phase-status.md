@@ -1,7 +1,12 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-06-18 · **Baseline:** v4.8.9 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-06-18 · **Baseline:** v4.13.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
+
+> **Session 3 update (v4.9.0 → v4.13.0): Phase 1 is effectively complete; Phase 3 oversight features added.**
+> - **Shell IA done (v4.10.0–v4.13.0):** sidebar groups by Professional/Personal scope with a **scope switch**; professional accounts form a **location rail** (right-click → "Set location…"); the **command center is the L0 home** (full-width, Personal Overview in an Expander); the OCC became a dedicated **Work Queue (L1)** page (sidebar button, Ctrl+Shift+Q); Workspace Management is discoverable in **Settings**; a **4-step guided onboarding** wizard runs on first launch.
+> - **Phase 3 (v4.9.0–v4.9.2):** proactive **threshold alerts** (configurable, edge-triggered) + **"since you were last here" digest** + **custom From/To date range**.
+> - **Known constraints/decisions:** sidebar **drag-reorder removed** (froze the app — WinUI drag-in-ScrollViewer); reorder is via right-click **Move up/down**. Awaiting-list **message preview** is DOM-scraped (only covers chats rendered in the sidebar). Busy accounts' chat-store read can be slow (F-11) — tied to the instance-lifecycle work below.
 
 > **Session 2 update (v4.7.0 → v4.8.9):** the **command center (L0)** is now built and shipped — it's the default Dashboard tab with auto-refresh, sparklines, per-account/By-location rollup (no raw-id leak), a date window (Today/7d/All), and a click-through **awaiting-reply** accordion that opens the actual waiting chat.
 >
@@ -19,20 +24,21 @@
 | Analytics baseline, no-AI (Tier 0) | ✅ | `HeuristicTriageProcessor` (keyword urgency/sentiment) |
 | SLA integrity (exclude backfilled, at-risk) | ✅ | shipped v4.5.0 (`ThreadData.IsSlaBreached/IsSlaAtRisk`) |
 | L1 WhatsApp metrics + work queue | ✅ | OCC KPIs + work queue (`OperationsCommandCenterService`) |
-| Personal/Professional scope | ◑ | `WorkspaceCategory` + OCC/Personal tabs exist — **not** a top-level scope switch with separate rails |
+| Personal/Professional scope | ✅ | **v4.11.0:** sidebar scope switch (All / Professional / Personal, persisted, shown only when both scopes exist) + scope-grouped sections |
 | Command center (L0) — **backend engine** | ✅ | **Increment 2 (2026-06-16):** `OversightRollupBuilder` produces per-entity health (account *or* location) — on-time %, urgent, dropped, freshness, worst-first sort, needs-attention summary; works in ByInstance/ByLocation. Pure + 4 unit tests. |
 | Command center (L0) — **live bridge** | ✅ | **Increment 3 (2026-06-16):** `OversightService.BuildSnapshot(grouping, instances)` wires the rollup to live threads + per-location SLA + connection-status freshness; registered in DI as `_services.Oversight`. Startup smoke clean. |
 | Command center (L0) — **UI** | ✅ | **v4.7.0→v4.8.9:** `CommandCenterPanel` is the **default** Dashboard tab. Per-account & **By-location** rollup (per-instance location, no GUID leak); **auto-refresh** (20s); per-row **7-day sparkline**; **date window** Today/7d/All (`OversightWindow`, scoped by chat last-activity); **caught-up %** headline + exact **"N awaiting reply"**; **awaiting accordion** under each card listing the actual waiting customers (name or phone, "Unsaved contact" for `@lid`), each **click-through** to the chat (focus by `data-id` JID); **"syncing…"** state when an account's chat data hasn't loaded so header and list never disagree; manual **Re-sync history**. |
 | Worst-first + needs-attention + freshness/stale (logic) | ✅ | in the rollup snapshot (Increment 2) |
 | Per-card sparklines (UI) | ✅ | v4.7.0 — `BuildSparkline`, 7-day trend |
 | Caught-up % from WhatsApp unread (chat store) | ✅ | **NEW (v4.8.1+):** `OversightChatSnapshotService` + IndexedDB `chat`-store read; primary on-time source, windowed by last activity |
-| Workspace rail IA | ◑ | `WorkspaceSidebar` is a **flat instance list**, not a per-location rail |
-| Locations as first-class | ◑ | "branches" exist (`BranchKey`, `BranchWorkspaceHelper`, `ActiveWorkspaceContext`) — need promoting to workspaces |
+| Workspace rail IA | ✅ | **v4.10.0–v4.12.0:** scope-grouped sidebar + per-location sub-headers (location rail) for professional accounts |
+| Locations as first-class | ✅ | **v4.12.0:** "Set location…" assigns `BranchKey`; accounts sharing a location group in the rail and roll up in the command center |
 | Workspace Management — **data layer** (per-location SLA + business hours) | ✅ | **Increment 1 (2026-06-16):** `WorkspaceProfile`/`BusinessHours` models, persisted in `AppSettings.WorkspaceProfiles`; `BusinessHoursCalculator` (SLA clock pauses outside hours); per-location threshold via `OperationalThresholds.GetSlaThresholdMinutes(locationKey)`; wired into the SLA clock. Backward-compatible (no profiles → identical). 5 new unit tests; 48/48 green. |
 | Workspace Management — **UI** (per-location hours + SLA editor) | ◑ | **Increment 4 (2026-06-16):** `WorkspaceManagementDialog` (ContentDialog) edits per-location SLA + business hours; launched via the **command palette** (Ctrl+K → "Manage workspaces") and **Ctrl+Shift+W** (low-blast-radius — a dialog, not a SettingsPage rewrite). `WorkspaceManagementHelper` derives locations from professional accounts (2 tests). Build + 11 tests + startup smoke green. **Pending: visual verification by user** (sandbox blocks UI rendering check). Instance-assignment UI deferred. |
 | WhatsApp history backfill (robust) | ✅* | **R-1 done (v4.8.x), reframed:** reads conversation state straight from local IndexedDB (`chat`-store `getAll`, stable JIDs) instead of DOM-walking; promise start/poll + watchdog; reconciliation marks answered chats. *Honest limit: WhatsApp Web only reliably exposes **current unread state**, not deep reply-latency history — so the metric is unread-based, not latency-based.* |
 | Instance lifecycle (connected-but-light, stale, sane default cap) | ◑ | sessions + `MemoryUsageTargetLevel.Low` + LRU ✅; **default cap = 0 (unbounded)**, stale marking, orphan-handler fix ☐ |
-| First-run onboarding | ◑ | `FirstRunOnboardingHelper` (Personal/Professional) — not the 4-step guided cold-start |
+| First-run onboarding | ✅ | **v4.13.0:** 4-step guided cold-start wizard (Welcome → Add account → Set locations → Hours/SLA), per-step skip, exception-guarded |
+| Command center as L0 home + Work Queue (L1) | ✅ | **v4.13.0:** Dashboard *is* the command center; OCC moved to a dedicated Work Queue page (sidebar button, Ctrl+Shift+Q, nav-command routing) |
 
 ## Phase 2 — AI tiers
 
@@ -52,8 +58,8 @@
 |---|---|---|
 | Time range (Today/Week/Date), weekly charts | ✅ | command center **Today / Last 7 days / All time** selector, scoped by chat last-activity (v4.8.3); weekly sparkline per row |
 | Notifications infra | ◑ | `AppNotificationService` + `NotificationHub` send **message** toasts |
-| Proactive **threshold** alerts (waiting > X / on-time < Y) | ☐ | net-new (feasible via `ToastNotificationManagerCompat`) |
-| "Since you last opened" digest | ☐ | net-new |
+| Proactive **threshold** alerts (waiting > X / on-time < Y) | ✅ | **v4.9.0/4.9.2:** `OversightAlertMonitor` toasts when an account's awaiting-reply count crosses a configurable threshold (edge-triggered) |
+| "Since you last opened" digest | ✅ | **v4.9.2:** `BuildDigest` summarizes new-since-last-seen / total awaiting on first command-center view per session |
 | Search + cards/list density at scale | ◑ | command-palette search ✅, `OccCompactCardDensity` ✅; entity/rail search + list-density ☐ |
 | Generic-URL webview instances | ☐ | `PlatformDefinition` is WhatsApp-only |
 
@@ -82,15 +88,18 @@
 - **Partial (◑):** everything that exists as "branches + OCC tabs + flat sidebar" but must become "locations + command center + workspace rail," plus AI-strip UX, time-range, search/density, onboarding, backfill robustness, instance lifecycle.
 - **Not started (☐):** the workspace-rail IA, Workspace Management (business hours + per-location SLA), channel-aware dashboards, **Google reviews / Telegram / Meta / generic-URL channels**, "since you last opened" digest, threshold alerts, Tier-1 ONNX, tone analysis, and the WebView2 memory/abstraction work.
 
-## Recommended execution order — **updated 2026-06-18 (post v4.8.9)**
+## What's left — **updated 2026-06-18 (post v4.13.0)**
 
-Done: data/settings layer (Workspace Management), command-center backend **and** UI (steps 1–2 + most of the L0 surface), date window, sparklines, backfill robustness (unread-based), location rollup.
+**Phase 1 (WhatsApp oversight foundation): essentially complete.** Command center home, caught-up metric + awaiting list + drill-down, date window, sparklines, location rail + scope switch, Workspace Management (data + Settings), unread-based backfill, 4-step onboarding, Work Queue. **Only remaining Phase-1/cross-cutting gap: instance lifecycle (#1 below).**
 
-Next, lowest-risk / highest-value first:
-1. **Proactive threshold alerts (Phase 3) — recommended.** Desktop toast when an account's "N awaiting" (or oldest wait) crosses a threshold. Small step on top of `OversightChatSnapshotService` (we already compute awaiting per account); delivers the core "oversight without watching" promise. Notifications infra (`AppNotificationService`/`NotificationHub`) already exists.
-2. **"Since you last opened" digest (Phase 3)** — same data source; summarize new awaiting since last session.
-3. **Shell IA (higher XAML risk):** promote the command center from a tab to the home surface; workspace rail + Personal↔Professional scope switch.
-4. **Instance lifecycle / WebView2 (cross-cutting RED):** stale-marking + session cap + orphan handler — addresses the "Connecting… → syncing…" timeout seen on busy accounts (e.g. F-11).
-5. **Phase 2 AI-strip UX + Tier-1 ONNX; Phase 4 Google reviews; Phase 5 Telegram → Meta.**
+**Phase 3: alerts + digest + date ranges done.** Remaining: search/density at scale ◑, generic-URL webview instances ☐.
+
+Remaining work, highest-leverage first:
+1. **Instance lifecycle / WebView2 memory (cross-cutting RED).** Default session cap (currently 0 = unbounded), stale-marking, orphan-handler. Directly addresses the "Connecting… → syncing…" slowness on busy accounts (F-11) and post-suspend RAM. **The biggest remaining quality/robustness item.**
+2. **Phase 2 — AI tiers.** AI assessment/recommendation strips on command-center/OCC cards (Tier 2 Ollama exists); Tier-1 lightweight ONNX; outbound staff-reply tone/quality.
+3. **Phase 3 leftovers.** Generic-URL webview instances (non-WhatsApp, no dashboard data); entity/rail search + list-density at scale.
+4. **Phase 4 — Google Business reviews channel** (embed web UI, scrape ratings/% responded/unanswered, reply-from-web).
+5. **Phase 5 — Telegram, then Meta** (isolated per-channel adapters).
+6. **Polish/cleanup.** Remove dead drag code; make the awaiting-list preview more reliable (or a bounded message-store read); optional true drag-reorder via `ListView.CanReorderItems`; contrast remediation; CI stress fixtures.
 
 Each step ships green and is reversible.
