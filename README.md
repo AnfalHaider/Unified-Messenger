@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.15.0 (Command center insight strips — plain-language "needs attention" summaries per account, on-device and instant)
+**Current release:** v4.16.0 (Instance lifecycle hardening — idle personal sessions auto-close to reclaim RAM; professional accounts stay live for oversight)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.16.0
+
+- **Idle-session reaper (track C — lifecycle/memory hardening):** the WebView concurrency cap was only enforced when a *new* account was opened, so briefly-visited accounts stayed live and held RAM indefinitely. A 1-minute timer now closes any non-visible session that's sat idle past `IdleSessionReapMinutes` (default 20). **Professional accounts are exempt** — they stay live so background oversight keeps reading them — and the **visible** account is never reaped. Closing a session doesn't sign it out (the profile's on-disk data persists); it reloads, still signed in, on next open. Set the minutes to 0 to disable. Complements the existing per-instance LRU cap, memory tiers, low background memory target, and 90s stale-adapter recovery.
 
 ### What's in v4.15.0
 

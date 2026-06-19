@@ -56,6 +56,13 @@ public sealed class AppSettings
 
     public bool EnablePerInstanceSleepUnload { get; set; }
 
+    /// <summary>
+    /// Minutes a non-visible, non-professional WebView may sit idle before it is closed to reclaim RAM
+    /// (it reloads — still signed in — on next open). Professional accounts are exempt so background
+    /// oversight keeps reading them. 0 disables idle reaping. Clamped to [0, 240].
+    /// </summary>
+    public int IdleSessionReapMinutes { get; set; } = 20;
+
     public bool EnableEditInstanceMetadata { get; set; }
 
     public bool EnableImportExportInstances { get; set; }
@@ -153,6 +160,7 @@ public sealed class AppSettings
         WhatsAppBackfillRecentDays = Math.Clamp(WhatsAppBackfillRecentDays, 1, 30);
         WhatsAppBackfillMaxChats = Math.Clamp(WhatsAppBackfillMaxChats, 5, 100);
         MaxConcurrentWebViews = Math.Clamp(MaxConcurrentWebViews, 0, MaxConcurrentWebViewsCap);
+        IdleSessionReapMinutes = Math.Clamp(IdleSessionReapMinutes, 0, 240);
         OversightAwaitingAlertThreshold = Math.Clamp(OversightAwaitingAlertThreshold, 0, 1000);
 
         if (!Enum.IsDefined(WhatsAppBackfillMode))

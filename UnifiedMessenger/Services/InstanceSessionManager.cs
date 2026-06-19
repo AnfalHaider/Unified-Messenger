@@ -21,6 +21,12 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
     private readonly Dictionary<string, SessionEntry> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _recentAccessOrder = new();
     private readonly Dictionary<string, LinkedListNode<string>> _accessNodes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTimeOffset> _lastAccessUtc = new(StringComparer.OrdinalIgnoreCase);
+
+    // The cap is only enforced when a *new* session is created; without this, a handful of briefly-visited
+    // accounts stay live (holding RAM) indefinitely. This timer closes idle non-visible personal sessions.
+    private static readonly TimeSpan IdleReapInterval = TimeSpan.FromMinutes(1);
+    private Timer? _idleReapTimer;
 
     private Grid? _host;
     private string? _visibleInstanceId;
@@ -46,6 +52,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
     {
         _host = host;
         UiThreadRunner.Register(host.DispatcherQueue);
+        _idleReapTimer ??= new Timer(_ => _ = ReapIdleSessionsAsync(), null, IdleReapInterval, IdleReapInterval);
     }
 
     public void SyncInstance(MessengerInstance instance)
@@ -453,6 +460,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
 
         var node = _recentAccessOrder.AddFirst(instanceId);
         _accessNodes[instanceId] = node;
+        _lastAccessUtc[instanceId] = DateTimeOffset.UtcNow;
     }
 
     private void RemoveAccessTracking(string instanceId)
@@ -464,6 +472,47 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         else
         {
             _recentAccessOrder.Remove(instanceId);
+        }
+
+        _lastAccessUtc.Remove(instanceId);
+    }
+
+    private Task ReapIdleSessionsAsync() => UiThreadRunner.RunAsync(ReapIdleSessionsCoreAsync);
+
+    /// <summary>
+    /// Closes non-visible sessions that have sat idle past the configured TTL, to reclaim RAM. Professional
+    /// accounts are exempt — they must stay live so background oversight keeps reading them. Closing a
+    /// session does not sign it out (the profile's on-disk data persists); it reloads on next open.
+    /// </summary>
+    private async Task ReapIdleSessionsCoreAsync()
+    {
+        var minutes = AppSettingsService.Instance.Settings.IdleSessionReapMinutes;
+        if (minutes <= 0)
+        {
+            return;
+        }
+
+        var ttl = TimeSpan.FromMinutes(minutes);
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var instanceId in _sessions.Keys.ToList())
+        {
+            if (instanceId.Equals(_visibleInstanceId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (_instanceLookup.TryGetValue(instanceId, out var instance) && instance.IsProfessional)
+            {
+                continue;
+            }
+
+            if (!_lastAccessUtc.TryGetValue(instanceId, out var lastAccess) || now - lastAccess < ttl)
+            {
+                continue;
+            }
+
+            await CloseSessionCoreAsync(instanceId).ConfigureAwait(true);
         }
     }
 
