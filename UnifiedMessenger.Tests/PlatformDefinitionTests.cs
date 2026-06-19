@@ -43,10 +43,22 @@ public class PlatformDefinitionTests
     {
         var ids = PlatformDefinition.All.Select(p => p.Id).ToList();
 
-        Assert.Equal(3, ids.Count);
+        Assert.Equal(4, ids.Count);
         Assert.Contains("whatsapp", ids);
         Assert.Contains("whatsappbusiness", ids);
+        Assert.Contains("googlebusiness", ids);
         Assert.Contains("generic", ids);
+    }
+
+    [Fact]
+    public void GoogleBusiness_IsRegisteredAsEmbeddableChannel()
+    {
+        var google = PlatformDefinition.FindById("googlebusiness");
+
+        Assert.NotNull(google);
+        Assert.Equal("Google Business", google!.DisplayName);
+        Assert.Equal("googlebusiness", PlatformDefinition.NormalizePlatformId("googlebusiness"));
+        Assert.False(string.IsNullOrWhiteSpace(google.DefaultUrl));
     }
 
     [Fact]

@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.19.0 (Generic web-page instances — monitor any website in its own tab; completes Phase 3)
+**Current release:** v4.20.0 (Google Business reviews channel — embed your reviews console as a first-class monitored channel)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.20.0
+
+- **Google Business reviews channel (Phase 4 — embed slice):** "Add account" now offers **Google Business**, a branded channel that loads your Google Business reviews console (`business.google.com`) in its own isolated session — reviews one click away alongside your messaging accounts. **Scope note:** this is the *embed* slice. Automatic review-metric scraping (star rating, % responded, unanswered count surfaced in oversight) is the planned next step — it needs a live, logged-in Google Business account to build and tune the DOM reader against, so it ships separately rather than as unverified code. For now the channel routes to the no-op adapter (no oversight metrics).
 
 ### What's in v4.19.0
 

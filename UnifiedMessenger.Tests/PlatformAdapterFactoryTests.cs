@@ -9,6 +9,7 @@ public class PlatformAdapterFactoryTests
     [InlineData("whatsapp", "whatsapp")]
     [InlineData("whatsappbusiness", "whatsappbusiness")]
     [InlineData("generic", "generic")]
+    [InlineData("googlebusiness", "generic")]
     [InlineData("telegram", "whatsapp")]
     [InlineData("unknown", "whatsapp")]
     [InlineData(" WhatsApp ", "whatsapp")]

@@ -34,6 +34,18 @@ public sealed class PlatformDefinition
         },
         new PlatformDefinition
         {
+            // Google Business reviews, embedded as a first-class channel. Routes to the NullPlatformAdapter
+            // for now (no metric scraping yet \u2014 a GoogleBusinessAdapter that reads rating / % responded /
+            // unanswered from the embedded DOM is future work that needs a live logged-in account to tune).
+            Id = "googlebusiness",
+            DisplayName = "Google Business",
+            Description = "Google Business reviews \u2014 embedded. (Review metrics scraping is planned.)",
+            DefaultUrl = "https://business.google.com/",
+            IconGlyph = "",
+            AccentColor = "#4285F4"
+        },
+        new PlatformDefinition
+        {
             // A generic web page monitored in its own tab. No adapter scraping and no oversight data \u2014
             // ResolveEnabledAdapter routes "generic" to the NullPlatformAdapter. DefaultUrl is intentionally
             // empty so the user-supplied URL isn't host-restricted (ResolveStartUrl skips the host-match
