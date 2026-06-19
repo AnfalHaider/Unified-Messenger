@@ -502,18 +502,37 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
                 continue;
             }
 
-            if (_instanceLookup.TryGetValue(instanceId, out var instance) && instance.IsProfessional)
-            {
-                continue;
-            }
+            var isProfessional = _instanceLookup.TryGetValue(instanceId, out var instance) && instance.IsProfessional;
+            DateTimeOffset? lastAccess = _lastAccessUtc.TryGetValue(instanceId, out var stamp) ? stamp : null;
 
-            if (!_lastAccessUtc.TryGetValue(instanceId, out var lastAccess) || now - lastAccess < ttl)
+            if (!IsReapEligible(isVisible: false, isProfessional, lastAccess, now, ttl))
             {
                 continue;
             }
 
             await CloseSessionCoreAsync(instanceId).ConfigureAwait(true);
         }
+    }
+
+    /// <summary>
+    /// Pure idle-reap eligibility decision (unit-testable). A session may be closed only when it is not the
+    /// visible one, not a professional account (those stay live for background oversight), and has been
+    /// idle at least <paramref name="ttl"/>. A null <paramref name="lastAccess"/> is treated as never-touched
+    /// and therefore not eligible (we only reap sessions we've actually seen accessed).
+    /// </summary>
+    internal static bool IsReapEligible(
+        bool isVisible,
+        bool isProfessional,
+        DateTimeOffset? lastAccess,
+        DateTimeOffset now,
+        TimeSpan ttl)
+    {
+        if (isVisible || isProfessional || lastAccess is not { } last)
+        {
+            return false;
+        }
+
+        return now - last >= ttl;
     }
 
     public void ApplyAppWindowState(bool isAppActive)

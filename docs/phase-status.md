@@ -1,7 +1,12 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-06-18 · **Baseline:** v4.13.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-06-19 · **Baseline:** v4.16.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
+
+> **Session 4 update (v4.14.0 → v4.16.0): command-center polish + insight strips + instance-lifecycle memory hardening.**
+> - **v4.14.0 (track A):** command-center visual polish — each account is a proper card (rounded border, surface background, status-colored accent bar), a large prominent caught-up %, clearer awaiting labels ("needs reply" for read-but-unanswered).
+> - **v4.15.0 (track B):** per-account **insight strips** — a one-line "Needs attention — N customers waiting · M unread · oldest X ago" summary (amber when mostly caught up, red when behind; quiet accounts show no strip). Deliberately a **deterministic on-device heuristic** (instant, zero-cost, no cloud/API/AI-runtime dependency); optional local-AI enhancement can layer on later.
+> - **v4.16.0 (track C):** **idle-session reaper** — the LRU cap only fired on new-session creation, so briefly-visited accounts stayed live and held RAM. A 1-minute timer now closes non-visible sessions idle past `IdleSessionReapMinutes` (default 20, 0=off). **Professional accounts are exempt** (background oversight keeps reading them); the visible account is never reaped; closing preserves the on-disk profile (reloads still signed in). Layers on the existing LRU cap, memory tiers, Low background memory target, lazy/visible-only warm, and 90s `AdapterHealthMonitor` stale-recovery.
 
 > **Session 3 update (v4.9.0 → v4.13.0): Phase 1 is effectively complete; Phase 3 oversight features added.**
 > - **Shell IA done (v4.10.0–v4.13.0):** sidebar groups by Professional/Personal scope with a **scope switch**; professional accounts form a **location rail** (right-click → "Set location…"); the **command center is the L0 home** (full-width, Personal Overview in an Expander); the OCC became a dedicated **Work Queue (L1)** page (sidebar button, Ctrl+Shift+Q); Workspace Management is discoverable in **Settings**; a **4-step guided onboarding** wizard runs on first launch.
@@ -49,7 +54,7 @@
 | Graceful no-AI degradation | ✅ | dashboard works on heuristic alone |
 | AI source badges | ✅ | Heuristic / AI / Analyzing chips |
 | Tier 1 lightweight (ONNX/Windows ML) | ☐ | net-new |
-| Additive "assessment / recommendation" strips | ◑ | next-action/summary exist; the card insight-strip UX ☐ |
+| Additive "assessment / recommendation" strips | ✅ (heuristic) | **v4.15.0:** per-account command-center insight strips (`CommandCenterPanel.BuildInsightStrip`) — deterministic on-device heuristic. Optional Ollama-generated phrasing still ☐. |
 | Tone / quality (analyze outbound staff replies) | ☐ | net-new; Tier-2 feasible (research confirmed) |
 
 ## Phase 3 — Oversight depth & scale
@@ -88,18 +93,19 @@
 - **Partial (◑):** everything that exists as "branches + OCC tabs + flat sidebar" but must become "locations + command center + workspace rail," plus AI-strip UX, time-range, search/density, onboarding, backfill robustness, instance lifecycle.
 - **Not started (☐):** the workspace-rail IA, Workspace Management (business hours + per-location SLA), channel-aware dashboards, **Google reviews / Telegram / Meta / generic-URL channels**, "since you last opened" digest, threshold alerts, Tier-1 ONNX, tone analysis, and the WebView2 memory/abstraction work.
 
-## What's left — **updated 2026-06-18 (post v4.13.0)**
+## What's left — **updated 2026-06-19 (post v4.16.0)**
 
-**Phase 1 (WhatsApp oversight foundation): essentially complete.** Command center home, caught-up metric + awaiting list + drill-down, date window, sparklines, location rail + scope switch, Workspace Management (data + Settings), unread-based backfill, 4-step onboarding, Work Queue. **Only remaining Phase-1/cross-cutting gap: instance lifecycle (#1 below).**
+**Phase 1 (WhatsApp oversight foundation): complete.** Command center home, caught-up metric + awaiting list + drill-down, date window, sparklines, location rail + scope switch, Workspace Management (data + Settings), unread-based backfill, 4-step onboarding, Work Queue. The former cross-cutting gap (instance lifecycle / WebView2 memory) is now **closed** as of v4.16.0.
 
 **Phase 3: alerts + digest + date ranges done.** Remaining: search/density at scale ◑, generic-URL webview instances ☐.
 
+~~1. **Instance lifecycle / WebView2 memory.**~~ **DONE (v4.16.0 + prior).** Session cap defaults to 6 with LRU eviction (not unbounded); `AdapterHealthMonitor` marks adapters stale at 90s and `MainWindow.OnAdapterStaleDetected` runs the orphan/recovery handler; per-instance memory tiers + Low background memory target; v4.16.0 added the time-based idle-session reaper (closes idle non-visible personal sessions, professional-exempt). Addresses F-11 slowness + post-suspend RAM.
+
 Remaining work, highest-leverage first:
-1. **Instance lifecycle / WebView2 memory (cross-cutting RED).** Default session cap (currently 0 = unbounded), stale-marking, orphan-handler. Directly addresses the "Connecting… → syncing…" slowness on busy accounts (F-11) and post-suspend RAM. **The biggest remaining quality/robustness item.**
-2. **Phase 2 — AI tiers.** AI assessment/recommendation strips on command-center/OCC cards (Tier 2 Ollama exists); Tier-1 lightweight ONNX; outbound staff-reply tone/quality.
-3. **Phase 3 leftovers.** Generic-URL webview instances (non-WhatsApp, no dashboard data); entity/rail search + list-density at scale.
-4. **Phase 4 — Google Business reviews channel** (embed web UI, scrape ratings/% responded/unanswered, reply-from-web).
-5. **Phase 5 — Telegram, then Meta** (isolated per-channel adapters).
-6. **Polish/cleanup.** Remove dead drag code; make the awaiting-list preview more reliable (or a bounded message-store read); optional true drag-reorder via `ListView.CanReorderItems`; contrast remediation; CI stress fixtures.
+1. **Phase 2 — deeper AI tiers.** Insight strips ship as a heuristic (v4.15.0); next is optional **Ollama-generated** per-account summaries (background-cached, heuristic fallback when AI off) and **outbound staff-reply tone/quality**. Tier-1 lightweight ONNX still net-new.
+2. **Phase 3 leftovers.** Generic-URL webview instances (non-WhatsApp, no dashboard data); entity/rail search + list-density at scale.
+3. **Phase 4 — Google Business reviews channel** (embed web UI, scrape ratings/% responded/unanswered, reply-from-web).
+4. **Phase 5 — Telegram, then Meta** (isolated per-channel adapters).
+5. **Polish/cleanup.** Remove dead drag code; make the awaiting-list preview more reliable (or a bounded message-store read); optional true drag-reorder via `ListView.CanReorderItems`; contrast remediation; CI stress fixtures.
 
 Each step ships green and is reversible.

@@ -42,6 +42,62 @@ public class InstanceSessionManagerTests
         Assert.Null(manager.SelectLruEvictionCandidate("visible-only"));
     }
 
+    private static readonly DateTimeOffset Now = new(2026, 6, 19, 12, 0, 0, TimeSpan.Zero);
+    private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(20);
+
+    [Fact]
+    public void IsReapEligible_ReapsIdleNonVisiblePersonalSession()
+    {
+        var lastAccess = Now - TimeSpan.FromMinutes(21);
+
+        Assert.True(InstanceSessionManager.IsReapEligible(
+            isVisible: false, isProfessional: false, lastAccess, Now, Ttl));
+    }
+
+    [Fact]
+    public void IsReapEligible_KeepsSessionIdleLessThanTtl()
+    {
+        var lastAccess = Now - TimeSpan.FromMinutes(19);
+
+        Assert.False(InstanceSessionManager.IsReapEligible(
+            isVisible: false, isProfessional: false, lastAccess, Now, Ttl));
+    }
+
+    [Fact]
+    public void IsReapEligible_NeverReapsVisibleSession()
+    {
+        var lastAccess = Now - TimeSpan.FromHours(5);
+
+        Assert.False(InstanceSessionManager.IsReapEligible(
+            isVisible: true, isProfessional: false, lastAccess, Now, Ttl));
+    }
+
+    [Fact]
+    public void IsReapEligible_NeverReapsProfessionalAccount()
+    {
+        // Professional accounts stay live so background oversight keeps reading them.
+        var lastAccess = Now - TimeSpan.FromHours(5);
+
+        Assert.False(InstanceSessionManager.IsReapEligible(
+            isVisible: false, isProfessional: true, lastAccess, Now, Ttl));
+    }
+
+    [Fact]
+    public void IsReapEligible_DoesNotReapNeverAccessedSession()
+    {
+        Assert.False(InstanceSessionManager.IsReapEligible(
+            isVisible: false, isProfessional: false, lastAccess: null, Now, Ttl));
+    }
+
+    [Fact]
+    public void IsReapEligible_ReapsExactlyAtTtlBoundary()
+    {
+        var lastAccess = Now - Ttl;
+
+        Assert.True(InstanceSessionManager.IsReapEligible(
+            isVisible: false, isProfessional: false, lastAccess, Now, Ttl));
+    }
+
     [Fact]
     public void SyncInstance_PreservesMemoryTierLookupAfterAccessTracking()
     {
