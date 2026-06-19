@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.14.0 (Command center visual polish — card chrome, prominent caught-up %, status accent, clearer awaiting labels)
+**Current release:** v4.15.0 (Command center insight strips — plain-language "needs attention" summaries per account, on-device and instant)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.15.0
+
+- **Command center insight strips (track B):** any account that needs attention now shows a one-line, plain-language summary under its health row — e.g. *"Needs attention — 5 customers are waiting on a reply · 3 unread · oldest 2 hrs ago."* The strip is **amber** when the account is still mostly caught up and **red** when it's falling behind; fully caught-up accounts stay quiet (no strip). It's a **deterministic, on-device heuristic** — instant, no cloud, no API, no AI runtime required, so it always works at zero cost. (Optional local-AI enhancement can layer on top later.)
 
 ### What's in v4.14.0
 

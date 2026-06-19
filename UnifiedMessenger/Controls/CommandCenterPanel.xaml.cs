@@ -288,7 +288,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Header = BuildRowContent(location),
+            Header = BuildHeader(location),
             Content = content
         };
         TrackExpansion(expander, location.Key);
@@ -322,7 +322,7 @@ public sealed partial class CommandCenterPanel : UserControl
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16, 10, 16, 12),
-            Header = BuildRowContent(entity),
+            Header = BuildHeader(entity),
             Content = BuildAwaitingPanel(entity),
             IsExpanded = _expandedKeys.Contains(entity.Key)
         };
@@ -451,6 +451,108 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         return panel;
+    }
+
+    /// <summary>
+    /// The accordion header: the health row, plus (when the account needs attention) an insight strip —
+    /// a plain-language, on-device summary of what's waiting. Heuristic and instant: no cloud, no API, no
+    /// AI runtime required, so it's always available at zero cost.
+    /// </summary>
+    private FrameworkElement BuildHeader(OversightEntityHealth entity)
+    {
+        var strip = BuildInsightStrip(entity);
+        if (strip is null)
+        {
+            return BuildRowContent(entity);
+        }
+
+        var stack = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
+        stack.Children.Add(BuildRowContent(entity));
+        stack.Children.Add(strip);
+        return stack;
+    }
+
+    private static string RelativeAge(DateTimeOffset whenUtc)
+    {
+        var span = DateTimeOffset.UtcNow - whenUtc;
+        if (span < TimeSpan.Zero)
+        {
+            span = TimeSpan.Zero;
+        }
+
+        if (span.TotalMinutes < 1)
+        {
+            return "just now";
+        }
+        if (span.TotalMinutes < 60)
+        {
+            var m = (int)Math.Round(span.TotalMinutes);
+            return m == 1 ? "1 min ago" : $"{m} min ago";
+        }
+        if (span.TotalHours < 24)
+        {
+            var h = (int)Math.Round(span.TotalHours);
+            return h == 1 ? "1 hr ago" : $"{h} hrs ago";
+        }
+
+        var d = (int)Math.Round(span.TotalDays);
+        return d == 1 ? "1 day ago" : $"{d} days ago";
+    }
+
+    /// <summary>
+    /// A one-line attention summary for an account/location, styled like an info strip. Returns null when
+    /// there's nothing to flag (still syncing, no activity, or fully caught up) so quiet accounts stay quiet.
+    /// </summary>
+    private FrameworkElement? BuildInsightStrip(OversightEntityHealth entity)
+    {
+        var hasLiveData = entity.MeasuredCount > 0;
+        if (!entity.HasChatData || !hasLiveData || entity.AwaitingCount == 0)
+        {
+            return null;
+        }
+
+        // Light scan of the awaiting list (in-memory) to make the insight specific: how many are unread
+        // vs read-but-unanswered, and how long the longest-waiting customer has been waiting.
+        var (windowStart, windowEnd) = WindowRange();
+        var awaiting = entity.MemberInstanceIds
+            .SelectMany(id => OversightChatSnapshotService.Instance.GetAwaiting(id, windowStart, windowEnd))
+            .ToList();
+        var unreadCount = awaiting.Count(c => c.Unread > 0);
+        DateTimeOffset? oldest = awaiting.Count > 0 ? awaiting.Min(c => c.LastActivityUtc) : null;
+
+        var customerWord = entity.AwaitingCount == 1 ? "customer is" : "customers are";
+        var sb = new StringBuilder();
+        sb.Append("Needs attention — ").Append(entity.AwaitingCount).Append(' ').Append(customerWord)
+            .Append(" waiting on a reply");
+        if (unreadCount > 0)
+        {
+            sb.Append(" · ").Append(unreadCount).Append(" unread");
+        }
+        if (oldest is { } o)
+        {
+            sb.Append(" · oldest ").Append(RelativeAge(o));
+        }
+        sb.Append('.');
+
+        // Caution (amber) when still mostly caught up, critical (red) when falling behind.
+        var caution = entity.OnTimePercent >= 70;
+        var bg = Brush(caution ? "SystemFillColorCautionBackgroundBrush" : "SystemFillColorCriticalBackgroundBrush");
+        var fg = Brush(caution ? "SystemFillColorCautionBrush" : "SystemFillColorCriticalBrush");
+
+        return new Border
+        {
+            Background = bg,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 6, 10, 6),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = new TextBlock
+            {
+                Text = sb.ToString(),
+                Foreground = fg,
+                FontSize = 12,
+                TextWrapping = TextWrapping.WrapWholeWords
+            }
+        };
     }
 
     private StackPanel BuildRowContent(OversightEntityHealth entity)
