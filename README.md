@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.17.0 (Optional local-AI insight strips — Ollama-phrased "needs attention" lines, on-device, with instant heuristic fallback)
+**Current release:** v4.18.0 (Command center scale — filter accounts/locations by name + a compact density mode for many accounts)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.18.0
+
+- **Command-center filter + density (Phase 3 — scale):** a **filter box** in the command-center toolbar narrows the cards to accounts/locations whose name matches as you type (in By-location view, a location shows if its own name matches — all members — or only the members that match). A **Compact / Comfortable** toggle switches to denser rows (tighter padding, smaller %, sparkline and freshness label hidden) so a multi-location owner with many accounts can see more at once. No data changes — purely how the existing oversight rows are filtered and laid out.
 
 ### What's in v4.17.0
 

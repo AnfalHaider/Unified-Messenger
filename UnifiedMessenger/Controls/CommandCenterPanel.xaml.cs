@@ -120,6 +120,26 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private bool _digestShown;
     private string _lastRenderSignature = string.Empty;
+    private string _searchQuery = string.Empty;
+    private bool _compact;
+
+    private void OnSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        _searchQuery = sender.Text?.Trim() ?? string.Empty;
+        _lastRenderSignature = string.Empty; // search isn't part of the data signature — force the rebuild
+        Render();
+    }
+
+    private void OnDensityToggled(object sender, RoutedEventArgs e)
+    {
+        _compact = DensityToggle.IsOn;
+        _lastRenderSignature = string.Empty;
+        Render();
+    }
+
+    private bool MatchesSearch(string? text) =>
+        string.IsNullOrWhiteSpace(_searchQuery) ||
+        (!string.IsNullOrWhiteSpace(text) && text.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase));
 
     private static string BuildRenderSignature(
         OversightGrouping grouping,
@@ -231,6 +251,7 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         CardsHost.Children.Clear();
+        CardsHost.Spacing = _compact ? 4 : 8;
         if (snapshot.Entities.Count == 0)
         {
             CardsHost.Children.Add(new TextBlock
@@ -242,6 +263,7 @@ public sealed partial class CommandCenterPanel : UserControl
             return;
         }
 
+        var renderedCount = 0;
         if (grouping == OversightGrouping.ByLocation)
         {
             var instanceSnapshot = _services.Oversight.BuildSnapshot(OversightGrouping.ByInstance, instances);
@@ -255,15 +277,44 @@ public sealed partial class CommandCenterPanel : UserControl
                     .Where(byInstanceId.ContainsKey)
                     .Select(id => byInstanceId[id])
                     .ToList();
-                CardsHost.Children.Add(BuildExpander(location, members));
+
+                // A location matches if its own name matches (show all members) or any member matches
+                // (show just the matching members). Non-matching locations are dropped entirely.
+                var locationMatches = MatchesSearch(location.DisplayName);
+                var visibleMembers = locationMatches
+                    ? members
+                    : members.Where(m => MatchesSearch(m.DisplayName)).ToList();
+                if (!locationMatches && visibleMembers.Count == 0)
+                {
+                    continue;
+                }
+
+                CardsHost.Children.Add(BuildExpander(location, visibleMembers));
+                renderedCount++;
             }
         }
         else
         {
             foreach (var entity in snapshot.Entities)
             {
+                if (!MatchesSearch(entity.DisplayName))
+                {
+                    continue;
+                }
+
                 CardsHost.Children.Add(BuildRow(entity));
+                renderedCount++;
             }
+        }
+
+        if (renderedCount == 0)
+        {
+            CardsHost.Children.Add(new TextBlock
+            {
+                Text = $"No accounts or locations match “{_searchQuery}”.",
+                Foreground = Brush("TextFillColorSecondaryBrush"),
+                TextWrapping = TextWrapping.WrapWholeWords
+            });
         }
     }
 
@@ -322,7 +373,7 @@ public sealed partial class CommandCenterPanel : UserControl
             BorderBrush = Brush("CardStrokeColorDefaultBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(16, 10, 16, 12),
+            Padding = _compact ? new Thickness(14, 4, 14, 6) : new Thickness(16, 10, 16, 12),
             Header = BuildHeader(entity),
             Content = BuildAwaitingPanel(entity),
             IsExpanded = _expandedKeys.Contains(entity.Key)
@@ -676,7 +727,7 @@ public sealed partial class CommandCenterPanel : UserControl
             pctCell.Children.Add(new TextBlock
             {
                 Text = $"{entity.OnTimePercent}%",
-                FontSize = 23,
+                FontSize = _compact ? 18 : 23,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = statusBrush,
                 VerticalAlignment = VerticalAlignment.Center
@@ -708,23 +759,26 @@ public sealed partial class CommandCenterPanel : UserControl
             Width = 170
         });
 
-        var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);
-        ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
-        row.Children.Add(sparkline);
-
-        var freshness = entity.IsStale
-            ? "stale — reconnect"
-            : entity.HistoricalOpenCount > 0
-                ? $"synced · {entity.HistoricalOpenCount} from history"
-                : "synced";
-        row.Children.Add(new TextBlock
+        // Compact mode drops the sparkline + freshness label to keep many rows short.
+        if (!_compact)
         {
-            Text = freshness,
-            FontSize = 12,
-            Foreground = secondary,
-            VerticalAlignment = VerticalAlignment.Center
-        });
+            var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);
+            ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
+            row.Children.Add(sparkline);
 
+            var freshness = entity.IsStale
+                ? "stale — reconnect"
+                : entity.HistoricalOpenCount > 0
+                    ? $"synced · {entity.HistoricalOpenCount} from history"
+                    : "synced";
+            row.Children.Add(new TextBlock
+            {
+                Text = freshness,
+                FontSize = 12,
+                Foreground = secondary,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
 
         return row;
     }
