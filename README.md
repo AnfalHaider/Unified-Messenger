@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.13.2 (Awaiting list: skip internal groups, clean message previews, better unsaved-contact names)
+**Current release:** v4.14.0 (Command center visual polish — card chrome, prominent caught-up %, status accent, clearer awaiting labels)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.14.0
+
+- **Command center visual polish (track A):** each account is now a proper **card** (rounded border, surface background) with a **status-colored accent bar**, a **large prominent caught-up %**, a 15px account name, and clearer awaiting labels ("needs reply" for read-but-unanswered chats instead of "0 unread").
 
 ### What's in v4.13.2
 

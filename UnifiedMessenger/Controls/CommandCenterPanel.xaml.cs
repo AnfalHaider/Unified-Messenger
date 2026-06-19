@@ -317,7 +317,11 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(12, 4, 12, 10),
+            Background = Brush("CardBackgroundFillColorDefaultBrush"),
+            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16, 10, 16, 12),
             Header = BuildRowContent(entity),
             Content = BuildAwaitingPanel(entity),
             IsExpanded = _expandedKeys.Contains(entity.Key)
@@ -406,7 +410,8 @@ public sealed partial class CommandCenterPanel : UserControl
             });
             topLine.Children.Add(new TextBlock
             {
-                Text = chat.Unread == 1 ? "1 unread" : $"{chat.Unread} unread",
+                // Read-but-not-replied chats are awaiting with 0 unread — label them clearly.
+                Text = chat.Unread > 0 ? (chat.Unread == 1 ? "1 unread" : $"{chat.Unread} unread") : "needs reply",
                 Foreground = danger,
                 FontSize = 12,
                 VerticalAlignment = VerticalAlignment.Center
@@ -468,11 +473,12 @@ public sealed partial class CommandCenterPanel : UserControl
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        row.Children.Add(new Ellipse
+        row.Children.Add(new Border
         {
-            Width = 9,
-            Height = 9,
-            Fill = entity.IsStale ? danger : Brush("SystemFillColorSuccessBrush"),
+            Width = 4,
+            Height = 28,
+            CornerRadius = new CornerRadius(2),
+            Background = entity.IsStale ? danger : statusBrush,
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -482,23 +488,50 @@ public sealed partial class CommandCenterPanel : UserControl
                 ? $"{entity.DisplayName}  ({entity.AccountCount})"
                 : entity.DisplayName,
             FontWeight = FontWeights.SemiBold,
+            FontSize = 15,
             VerticalAlignment = VerticalAlignment.Center,
-            Width = 170,
+            Width = 180,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
 
-        var statusText = !entity.HasChatData
-            ? "syncing…"
-            : hasLiveData
-                ? $"{entity.OnTimePercent}% caught up"
-                : $"no activity {_emptyStateWindowLabel}";
-        row.Children.Add(new TextBlock
+        // Prominent caught-up %: big number + small label (or a plain state when no live data).
+        if (!entity.HasChatData || !hasLiveData)
         {
-            Text = statusText,
-            Foreground = statusBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            Width = 110
-        });
+            row.Children.Add(new TextBlock
+            {
+                Text = !entity.HasChatData ? "syncing…" : $"no activity {_emptyStateWindowLabel}",
+                Foreground = secondary,
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 140
+            });
+        }
+        else
+        {
+            var pctCell = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 5,
+                Width = 140,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            pctCell.Children.Add(new TextBlock
+            {
+                Text = $"{entity.OnTimePercent}%",
+                FontSize = 23,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = statusBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            pctCell.Children.Add(new TextBlock
+            {
+                Text = "caught up",
+                FontSize = 12,
+                Foreground = secondary,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+            row.Children.Add(pctCell);
+        }
 
         var awaitingText = !entity.HasChatData || !hasLiveData
             ? "—"
