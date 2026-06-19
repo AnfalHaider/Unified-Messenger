@@ -31,6 +31,19 @@ public sealed class PlatformDefinition
             DefaultUrl = "https://web.whatsapp.com/",
             IconGlyph = "\uE8BD",
             AccentColor = "#128C7E"
+        },
+        new PlatformDefinition
+        {
+            // A generic web page monitored in its own tab. No adapter scraping and no oversight data \u2014
+            // ResolveEnabledAdapter routes "generic" to the NullPlatformAdapter. DefaultUrl is intentionally
+            // empty so the user-supplied URL isn't host-restricted (ResolveStartUrl skips the host-match
+            // guard when DefaultUrl is blank) and so a custom URL is required.
+            Id = "generic",
+            DisplayName = "Web page",
+            Description = "Any website \u2014 monitored in a tab. No oversight metrics.",
+            DefaultUrl = string.Empty,
+            IconGlyph = "\uE774",
+            AccentColor = "#6B7280"
         }
     ];
 

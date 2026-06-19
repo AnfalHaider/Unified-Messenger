@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.18.0 (Command center scale — filter accounts/locations by name + a compact density mode for many accounts)
+**Current release:** v4.19.0 (Generic web-page instances — monitor any website in its own tab; completes Phase 3)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.19.0
+
+- **Generic web-page instances (Phase 3):** "Add account" now offers a **Web page** platform — enter any http/https URL and it's monitored in its own isolated WebView tab (own profile/session), just like a messaging account. No adapter scraping and **no oversight metrics** (it routes to the no-op adapter), so it's a lightweight way to keep a dashboard, booking page, or web tool one click away. The plumbing (custom-URL field, no-op adapter, generic chrome CSS) was already present; this registers the `generic` platform so it's selectable and no longer collapses to WhatsApp.
 
 ### What's in v4.18.0
 

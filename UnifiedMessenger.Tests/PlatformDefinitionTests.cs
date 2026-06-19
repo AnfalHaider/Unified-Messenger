@@ -39,12 +39,26 @@ public class PlatformDefinitionTests
     }
 
     [Fact]
-    public void All_ContainsOnlyWhatsAppPlatforms()
+    public void All_ContainsWhatsAppFamilyAndGeneric()
     {
         var ids = PlatformDefinition.All.Select(p => p.Id).ToList();
 
-        Assert.Equal(2, ids.Count);
+        Assert.Equal(3, ids.Count);
         Assert.Contains("whatsapp", ids);
         Assert.Contains("whatsappbusiness", ids);
+        Assert.Contains("generic", ids);
+    }
+
+    [Fact]
+    public void Generic_IsRegisteredWithEmptyDefaultUrl()
+    {
+        // The generic web-page platform must round-trip through Find/Normalize (so it isn't collapsed to
+        // whatsapp) and must have a blank DefaultUrl so ResolveStartUrl accepts any user-supplied host.
+        var generic = PlatformDefinition.FindById("generic");
+
+        Assert.NotNull(generic);
+        Assert.Equal("Web page", generic!.DisplayName);
+        Assert.Equal(string.Empty, generic.DefaultUrl);
+        Assert.Equal("generic", PlatformDefinition.NormalizePlatformId("generic"));
     }
 }

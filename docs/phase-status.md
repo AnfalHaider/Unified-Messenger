@@ -103,7 +103,7 @@
 
 Remaining work, highest-leverage first:
 1. **Phase 2 — deeper AI tiers.** ✅ Insight strips now have optional Ollama-phrased lines (v4.17.0, heuristic fallback). Remaining: **outbound staff-reply tone/quality** scoring; Tier-1 lightweight ONNX (net-new).
-2. **Phase 3 leftovers.** ✅ Command-center entity search + compact density (v4.18.0). Remaining: generic-URL webview instances (non-WhatsApp, no dashboard data); sidebar-rail search/density at scale.
+2. **Phase 3 leftovers.** ✅ Command-center entity search + compact density (v4.18.0); ✅ generic-URL webview instances (v4.19.0 — `generic` platform → NullPlatformAdapter, no oversight data). Remaining: sidebar-rail search/density at very large account counts.
 3. **Phase 4 — Google Business reviews channel** (embed web UI, scrape ratings/% responded/unanswered, reply-from-web).
 4. **Phase 5 — Telegram, then Meta** (isolated per-channel adapters).
 5. **Polish/cleanup.** Remove dead drag code; make the awaiting-list preview more reliable (or a bounded message-store read); optional true drag-reorder via `ListView.CanReorderItems`; contrast remediation; CI stress fixtures.
