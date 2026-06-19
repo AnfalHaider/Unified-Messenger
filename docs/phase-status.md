@@ -54,7 +54,7 @@
 | Graceful no-AI degradation | ✅ | dashboard works on heuristic alone |
 | AI source badges | ✅ | Heuristic / AI / Analyzing chips |
 | Tier 1 lightweight (ONNX/Windows ML) | ☐ | net-new |
-| Additive "assessment / recommendation" strips | ✅ (heuristic) | **v4.15.0:** per-account command-center insight strips (`CommandCenterPanel.BuildInsightStrip`) — deterministic on-device heuristic. Optional Ollama-generated phrasing still ☐. |
+| Additive "assessment / recommendation" strips | ✅ | **v4.15.0:** per-account command-center insight strips (`CommandCenterPanel.BuildInsightStrip`) — deterministic on-device heuristic. **v4.17.0:** optional Ollama-phrased line (`OversightInsightService`, ✦ AI tag, counts-only prompt, heuristic fallback). |
 | Tone / quality (analyze outbound staff replies) | ☐ | net-new; Tier-2 feasible (research confirmed) |
 
 ## Phase 3 — Oversight depth & scale
@@ -102,7 +102,7 @@
 ~~1. **Instance lifecycle / WebView2 memory.**~~ **DONE (v4.16.0 + prior).** Session cap defaults to 6 with LRU eviction (not unbounded); `AdapterHealthMonitor` marks adapters stale at 90s and `MainWindow.OnAdapterStaleDetected` runs the orphan/recovery handler; per-instance memory tiers + Low background memory target; v4.16.0 added the time-based idle-session reaper (closes idle non-visible personal sessions, professional-exempt). Addresses F-11 slowness + post-suspend RAM.
 
 Remaining work, highest-leverage first:
-1. **Phase 2 — deeper AI tiers.** Insight strips ship as a heuristic (v4.15.0); next is optional **Ollama-generated** per-account summaries (background-cached, heuristic fallback when AI off) and **outbound staff-reply tone/quality**. Tier-1 lightweight ONNX still net-new.
+1. **Phase 2 — deeper AI tiers.** ✅ Insight strips now have optional Ollama-phrased lines (v4.17.0, heuristic fallback). Remaining: **outbound staff-reply tone/quality** scoring; Tier-1 lightweight ONNX (net-new).
 2. **Phase 3 leftovers.** Generic-URL webview instances (non-WhatsApp, no dashboard data); entity/rail search + list-density at scale.
 3. **Phase 4 — Google Business reviews channel** (embed web UI, scrape ratings/% responded/unanswered, reply-from-web).
 4. **Phase 5 — Telegram, then Meta** (isolated per-channel adapters).

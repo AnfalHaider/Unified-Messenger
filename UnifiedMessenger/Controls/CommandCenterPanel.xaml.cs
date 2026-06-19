@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Ai;
 using UnifiedMessenger.Services.Backfill;
 using Windows.Foundation;
 
@@ -520,6 +521,8 @@ public sealed partial class CommandCenterPanel : UserControl
         var unreadCount = awaiting.Count(c => c.Unread > 0);
         DateTimeOffset? oldest = awaiting.Count > 0 ? awaiting.Min(c => c.LastActivityUtc) : null;
 
+        var oldestText = oldest is { } o ? RelativeAge(o) : "unknown";
+
         var customerWord = entity.AwaitingCount == 1 ? "customer is" : "customers are";
         var sb = new StringBuilder();
         sb.Append("Needs attention — ").Append(entity.AwaitingCount).Append(' ').Append(customerWord)
@@ -528,16 +531,66 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             sb.Append(" · ").Append(unreadCount).Append(" unread");
         }
-        if (oldest is { } o)
+        if (oldest is { } ot)
         {
-            sb.Append(" · oldest ").Append(RelativeAge(o));
+            sb.Append(" · oldest ").Append(RelativeAge(ot));
         }
         sb.Append('.');
+        var heuristicText = sb.ToString();
+
+        // Optional local-AI enhancement: when EnableLocalAi is on and the Ollama runtime is reachable, swap the
+        // heuristic line for a model-phrased one. It's cached per account by a state signature; until it lands
+        // (or if AI is off/unreachable) we show the heuristic, so this never blocks or regresses the strip.
+        var displayText = heuristicText;
+        var isAi = false;
+        if (AppSettingsService.Instance.Settings.EnableLocalAi)
+        {
+            var signature = $"{entity.AwaitingCount}|{unreadCount}|{entity.OnTimePercent}|{oldest?.UtcTicks ?? 0}";
+            var cached = OversightInsightService.Instance.TryGet(entity.Key, signature);
+            if (cached is not null)
+            {
+                displayText = cached;
+                isAi = true;
+            }
+            else
+            {
+                var facts = new OversightInsightFacts(
+                    entity.DisplayName, entity.AwaitingCount, unreadCount, entity.OnTimePercent, oldestText);
+                OversightInsightService.Instance.Request(entity.Key, signature, facts, OnInsightReady);
+            }
+        }
 
         // Caution (amber) when still mostly caught up, critical (red) when falling behind.
         var caution = entity.OnTimePercent >= 70;
         var bg = Brush(caution ? "SystemFillColorCautionBackgroundBrush" : "SystemFillColorCriticalBackgroundBrush");
         var fg = Brush(caution ? "SystemFillColorCautionBrush" : "SystemFillColorCriticalBrush");
+
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        if (isAi)
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "✦ AI",
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = fg,
+                Opacity = 0.85,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 1, 0, 0)
+            });
+        }
+        content.Children.Add(new TextBlock
+        {
+            Text = displayText,
+            Foreground = fg,
+            FontSize = 12,
+            TextWrapping = TextWrapping.WrapWholeWords
+        });
 
         return new Border
         {
@@ -545,14 +598,18 @@ public sealed partial class CommandCenterPanel : UserControl
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 6, 10, 6),
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Child = new TextBlock
-            {
-                Text = sb.ToString(),
-                Foreground = fg,
-                FontSize = 12,
-                TextWrapping = TextWrapping.WrapWholeWords
-            }
+            Child = content
         };
+    }
+
+    // The local-AI insight landed for some account; force a one-shot re-render so it swaps in for the heuristic.
+    private void OnInsightReady()
+    {
+        DispatcherQueue?.TryEnqueue(() =>
+        {
+            _lastRenderSignature = string.Empty;
+            Render();
+        });
     }
 
     private StackPanel BuildRowContent(OversightEntityHealth entity)

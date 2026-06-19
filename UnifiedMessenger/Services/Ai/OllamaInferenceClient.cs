@@ -108,6 +108,55 @@ public sealed class OllamaInferenceClient : IAiInferenceClient, IDisposable
         return AiInferenceResult.TryParse(builder.ToString());
     }
 
+    /// <summary>
+    /// Free-form single-shot completion (no JSON schema). Returns the trimmed text, or null on any failure
+    /// so callers can fall back gracefully. Used for short oversight insight lines.
+    /// </summary>
+    public async Task<string?> GenerateTextAsync(
+        string prompt,
+        string systemPrompt,
+        string modelName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(prompt) || string.IsNullOrWhiteSpace(modelName))
+        {
+            return null;
+        }
+
+        try
+        {
+            var endpoint = OllamaOptions.NormalizeEndpoint(_endpointProvider());
+            using var apiClient = new OllamaApiClient(new Uri(endpoint));
+
+            var request = new GenerateRequest
+            {
+                Model = modelName.Trim(),
+                Prompt = prompt,
+                System = systemPrompt,
+                Stream = false
+            };
+
+            var builder = new StringBuilder();
+            await foreach (var chunk in apiClient
+                               .GenerateAsync(request, cancellationToken)
+                               .ConfigureAwait(false))
+            {
+                if (!string.IsNullOrWhiteSpace(chunk?.Response))
+                {
+                    builder.Append(chunk.Response);
+                }
+            }
+
+            var text = builder.ToString().Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Ollama text generation failed: {ex.Message}");
+            return null;
+        }
+    }
+
     private static string BuildSystemPrompt() =>
         """
         You classify inbound customer support messages for a salon and wellness business.

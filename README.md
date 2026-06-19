@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.16.0 (Instance lifecycle hardening — idle personal sessions auto-close to reclaim RAM; professional accounts stay live for oversight)
+**Current release:** v4.17.0 (Optional local-AI insight strips — Ollama-phrased "needs attention" lines, on-device, with instant heuristic fallback)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.17.0
+
+- **Local-AI insight strips (Phase 2):** when **Settings → AI** is enabled and the on-device Ollama runtime is reachable, each "needs attention" strip is re-phrased by the local model (`phi3:mini` by default) into a natural one-line assessment + next step, marked with a small **✦ AI** tag. It's **fully on-device** — only aggregate counts (waiting/unread/oldest-wait/caught-up %) are sent to the local model, never customer names or message text. Generation is background, cached per account by a state signature, and serialized so a burst of accounts doesn't hammer the runtime. If AI is off, still loading, or unreachable, the strip shows the instant **heuristic** line from v4.15.0 — so it never blocks or regresses.
 
 ### What's in v4.16.0
 
