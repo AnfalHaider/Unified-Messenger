@@ -8,7 +8,6 @@ using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Ai;
 using UnifiedMessenger.Services.Backfill;
-using Windows.Foundation;
 
 namespace UnifiedMessenger.Controls;
 
@@ -122,6 +121,7 @@ public sealed partial class CommandCenterPanel : UserControl
     private string _lastRenderSignature = string.Empty;
     private string _searchQuery = string.Empty;
     private bool _compact;
+    private string? _worstEntityFirstInstanceId;
 
     private void OnSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
@@ -208,7 +208,7 @@ public sealed partial class CommandCenterPanel : UserControl
             return;
         }
 
-        var grouping = GroupToggle.IsOn ? OversightGrouping.ByLocation : OversightGrouping.ByInstance;
+        var grouping = GroupByLocationButton.IsChecked == true ? OversightGrouping.ByLocation : OversightGrouping.ByInstance;
         var window = SelectedWindow();
         var (rangeStart, rangeEnd) = WindowRange();
         var instances = _services.Registry.Instances.Where(instance => instance.IsProfessional).ToList();
@@ -230,24 +230,44 @@ public sealed partial class CommandCenterPanel : UserControl
             OversightWindow.Custom => DescribeCustomRange(rangeStart, rangeEnd),
             _ => "all time"
         };
+        // "Define locations" CTA: shown only in ByInstance mode when no locations have been set up.
+        var hasLocations = AppSettingsService.Instance.Settings.WorkspaceProfiles.Count > 0;
+        LocationCtaBanner.Visibility = grouping == OversightGrouping.ByInstance && !hasLocations
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         SubtitleText.Text = grouping == OversightGrouping.ByLocation
             ? $"Rolled up by location · caught up among chats active {windowLabel}"
             : $"Per account · caught up among chats active {windowLabel} · group into locations (Ctrl+K)";
         _emptyStateWindowLabel = windowLabel;
 
+        // Resolve the worst entity's first instance id for the Jump button.
+        _worstEntityFirstInstanceId = null;
+        if (!string.IsNullOrWhiteSpace(snapshot.WorstEntityKey))
+        {
+            var worst = snapshot.Entities.FirstOrDefault(e =>
+                string.Equals(e.Key, snapshot.WorstEntityKey, StringComparison.OrdinalIgnoreCase));
+            _worstEntityFirstInstanceId = worst?.MemberInstanceIds.FirstOrDefault();
+        }
+
         if (TryBuildDigestBanner(instances, out var digestText))
         {
             AttentionText.Text = digestText;
             AttentionBanner.Visibility = Visibility.Visible;
+            AttentionJumpButton.Visibility = Visibility.Collapsed;
         }
         else if (snapshot.TotalUrgent > 0 || snapshot.TotalDropped > 0)
         {
             AttentionText.Text = snapshot.AttentionSummary;
             AttentionBanner.Visibility = Visibility.Visible;
+            AttentionJumpButton.Visibility = _worstEntityFirstInstanceId is not null
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
         else if (!_resyncInProgress)
         {
             AttentionBanner.Visibility = Visibility.Collapsed;
+            AttentionJumpButton.Visibility = Visibility.Collapsed;
         }
 
         CardsHost.Children.Clear();
@@ -611,10 +631,11 @@ public sealed partial class CommandCenterPanel : UserControl
             }
         }
 
-        // Caution (amber) when still mostly caught up, critical (red) when falling behind.
-        var caution = entity.OnTimePercent >= 70;
-        var bg = Brush(caution ? "SystemFillColorCautionBackgroundBrush" : "SystemFillColorCriticalBackgroundBrush");
-        var fg = Brush(caution ? "SystemFillColorCautionBrush" : "SystemFillColorCriticalBrush");
+        // Dark neutral surface — severity is already communicated via the % color in the card header.
+        // A consistent dark strip looks more premium than alternating amber/red backgrounds.
+        var bg = Brush("ControlSolidFillColorDefaultBrush");
+        var fg = Brush("TextFillColorPrimaryBrush");
+        var badge = Brush("SystemFillColorCautionBrush");
 
         var content = new StackPanel
         {
@@ -622,19 +643,16 @@ public sealed partial class CommandCenterPanel : UserControl
             Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        if (isAi)
+        content.Children.Add(new TextBlock
         {
-            content.Children.Add(new TextBlock
-            {
-                Text = "✦ AI",
-                FontSize = 10,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = fg,
-                Opacity = 0.85,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, 1, 0, 0)
-            });
-        }
+            Text = isAi ? "✦ AI" : "✦",
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = badge,
+            Opacity = 0.9,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 1, 0, 0)
+        });
         content.Children.Add(new TextBlock
         {
             Text = displayText,
@@ -646,8 +664,10 @@ public sealed partial class CommandCenterPanel : UserControl
         return new Border
         {
             Background = bg,
+            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(10, 6, 10, 6),
+            Padding = new Thickness(10, 7, 10, 7),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Child = content
         };
@@ -676,158 +696,254 @@ public sealed partial class CommandCenterPanel : UserControl
                     ? Brush("SystemFillColorCautionBrush")
                     : Brush("SystemFillColorCriticalBrush");
 
-        var row = new StackPanel
+        var card = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 16,
-            VerticalAlignment = VerticalAlignment.Center
+            Spacing = _compact ? 4 : 8,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
 
-        row.Children.Add(new Border
+        // ── Top row: accent bar + avatar circle + name + awaiting badge ──────────────────────
+        var topRow = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        // Status accent bar
+        topRow.Children.Add(new Border
         {
             Width = 4,
-            Height = 28,
+            Height = 24,
             CornerRadius = new CornerRadius(2),
             Background = entity.IsStale ? danger : statusBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0)
+        });
+
+        // Avatar: colored circle with initials
+        var accentColor = ResolveEntityAccentColor(entity);
+        var avatarBrush = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(accentColor));
+        var initials = PlatformBrandingHelper.GetInitials(entity.DisplayName);
+        var avatar = new Grid
+        {
+            Width = 28,
+            Height = 28,
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(avatar, 1);
+        avatar.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 28, Height = 28, Fill = avatarBrush });
+        avatar.Children.Add(new TextBlock
+        {
+            Text = initials,
+            FontSize = 10,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        row.Children.Add(new TextBlock
+        // Account name (with location count when grouped)
+        var nameText = entity.Kind == OversightEntityKind.Location
+            ? $"{entity.DisplayName}  ({entity.AccountCount})"
+            : entity.DisplayName;
+        var nameBlock = new TextBlock
         {
-            Text = entity.Kind == OversightEntityKind.Location
-                ? $"{entity.DisplayName}  ({entity.AccountCount})"
-                : entity.DisplayName,
+            Text = nameText,
             FontWeight = FontWeights.SemiBold,
-            FontSize = 15,
+            FontSize = 14,
             VerticalAlignment = VerticalAlignment.Center,
-            Width = 180,
             TextTrimming = TextTrimming.CharacterEllipsis
-        });
+        };
+        Grid.SetColumn(nameBlock, 2);
 
-        // Prominent caught-up %: big number + small label (or a plain state when no live data).
+        // Awaiting badge (right-aligned)
+        var awaitingText = !entity.HasChatData || !hasLiveData
+            ? "—"
+            : entity.AwaitingCount == 1
+                ? "1 awaiting"
+                : $"{entity.AwaitingCount} awaiting";
+        var awaitingBlock = new TextBlock
+        {
+            Text = awaitingText,
+            Foreground = entity.AwaitingCount > 0 ? danger : secondary,
+            FontWeight = entity.AwaitingCount > 0 ? FontWeights.SemiBold : FontWeights.Normal,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(awaitingBlock, 3);
+
+        topRow.Children.Add(avatar);
+        topRow.Children.Add(nameBlock);
+        topRow.Children.Add(awaitingBlock);
+        card.Children.Add(topRow);
+
+        if (_compact)
+        {
+            return card;
+        }
+
+        // ── Metric row: large % hero + sparkline ──────────────────────────────────────────────
+        var metricRow = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+        metricRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        metricRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
         if (!entity.HasChatData || !hasLiveData)
         {
-            row.Children.Add(new TextBlock
+            var stateBlock = new TextBlock
             {
                 Text = !entity.HasChatData ? "syncing…" : $"no activity {_emptyStateWindowLabel}",
                 Foreground = secondary,
-                VerticalAlignment = VerticalAlignment.Center,
-                Width = 140
-            });
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(stateBlock, 0);
+            metricRow.Children.Add(stateBlock);
         }
         else
         {
-            var pctCell = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 5,
-                Width = 140,
-                VerticalAlignment = VerticalAlignment.Center
-            };
+            var pctCell = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
             pctCell.Children.Add(new TextBlock
             {
                 Text = $"{entity.OnTimePercent}%",
-                FontSize = _compact ? 18 : 23,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = statusBrush,
-                VerticalAlignment = VerticalAlignment.Center
+                FontSize = 28,
+                FontWeight = FontWeights.Bold,
+                Foreground = statusBrush
             });
             pctCell.Children.Add(new TextBlock
             {
                 Text = "caught up",
                 FontSize = 12,
                 Foreground = secondary,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 4, 0, 0)
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 0, 4)
             });
-            row.Children.Add(pctCell);
+            Grid.SetColumn(pctCell, 0);
+            metricRow.Children.Add(pctCell);
         }
 
-        var awaitingText = !entity.HasChatData || !hasLiveData
-            ? "—"
-            : entity.AwaitingCount == 1
-                ? "1 awaiting reply"
-                : $"{entity.AwaitingCount} awaiting reply";
+        var sparklineHost = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Spacing = 4 };
+        var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);
+        ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
+        sparklineHost.Children.Add(sparkline);
 
-        // Plain text — expand the row (accordion) to see and open the actual waiting customers.
-        row.Children.Add(new TextBlock
+        var freshnessText = entity.IsStale
+            ? "stale — reconnect"
+            : entity.HistoricalOpenCount > 0
+                ? $"synced · {entity.HistoricalOpenCount} from history"
+                : "synced";
+        sparklineHost.Children.Add(new TextBlock
         {
-            Text = awaitingText,
-            Foreground = entity.AwaitingCount > 0 ? danger : secondary,
-            FontWeight = entity.AwaitingCount > 0 ? FontWeights.SemiBold : FontWeights.Normal,
-            VerticalAlignment = VerticalAlignment.Center,
-            Width = 170
+            Text = freshnessText,
+            FontSize = 10,
+            Foreground = entity.IsStale ? danger : secondary,
+            HorizontalAlignment = HorizontalAlignment.Right
         });
+        Grid.SetColumn(sparklineHost, 1);
+        metricRow.Children.Add(sparklineHost);
+        card.Children.Add(metricRow);
 
-        // Compact mode drops the sparkline + freshness label to keep many rows short.
-        if (!_compact)
+        // ── Sub-metrics row: urgent + dropped ────────────────────────────────────────────────
+        if (hasLiveData && (entity.UrgentCount > 0 || entity.DroppedCount > 0))
         {
-            var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);
-            ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
-            row.Children.Add(sparkline);
-
-            var freshness = entity.IsStale
-                ? "stale — reconnect"
-                : entity.HistoricalOpenCount > 0
-                    ? $"synced · {entity.HistoricalOpenCount} from history"
-                    : "synced";
-            row.Children.Add(new TextBlock
+            var subMetrics = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
+            if (entity.UrgentCount > 0)
             {
-                Text = freshness,
-                FontSize = 12,
-                Foreground = secondary,
-                VerticalAlignment = VerticalAlignment.Center
-            });
+                subMetrics.Children.Add(BuildSubMetric(entity.UrgentCount, "urgent", danger));
+            }
+            if (entity.DroppedCount > 0)
+            {
+                subMetrics.Children.Add(BuildSubMetric(entity.DroppedCount, "dropped", danger));
+            }
+            card.Children.Add(subMetrics);
         }
 
-        return row;
+        return card;
     }
 
     /// <summary>
-    /// A compact 7-day activity sparkline derived from <see cref="OversightEntityHealth.TrendCounts"/>.
-    /// Falls back to a flat baseline when there is no recent activity to plot.
+    /// Resolves a hex accent color for an entity's avatar. For ByInstance entities the instance
+    /// AccentColor is used directly; for ByLocation entities the first member instance's color is used.
+    /// Falls back to the platform-branding default (#6B7280) when no match is found.
     /// </summary>
-    private FrameworkElement BuildSparkline(IReadOnlyList<int> counts, Brush stroke)
+    private string ResolveEntityAccentColor(OversightEntityHealth entity)
     {
-        const double width = 64;
-        const double height = 18;
-
-        var host = new Grid
+        if (_services is null)
         {
-            Width = width,
-            Height = height,
-            VerticalAlignment = VerticalAlignment.Center
+            return PlatformBrandingHelper.DefaultAccentHex;
+        }
+
+        var instanceId = entity.Kind == OversightEntityKind.Instance
+            ? entity.Key
+            : entity.MemberInstanceIds.FirstOrDefault();
+
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return PlatformBrandingHelper.DefaultAccentHex;
+        }
+
+        var instance = _services.Registry.Instances
+            .FirstOrDefault(i => string.Equals(i.Id, instanceId, StringComparison.OrdinalIgnoreCase));
+        return instance?.AccentColor ?? PlatformBrandingHelper.DefaultAccentHex;
+    }
+
+    private static StackPanel BuildSubMetric(int count, string label, Brush foreground)
+    {
+        var cell = new StackPanel { Orientation = Orientation.Vertical, Spacing = 0 };
+        cell.Children.Add(new TextBlock
+        {
+            Text = count.ToString(),
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = foreground
+        });
+        cell.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 10,
+            Foreground = foreground,
+            Opacity = 0.75
+        });
+        return cell;
+    }
+
+    /// <summary>
+    /// A compact 7-day bar-chart sparkline. Seven vertical bars, color-matched to the account's
+    /// status brush, with rounded tops. Falls back to flat stubs when there is no recent activity.
+    /// </summary>
+    private static FrameworkElement BuildSparkline(IReadOnlyList<int> counts, Brush fill)
+    {
+        const double barWidth = 6;
+        const double barGap = 3;
+        const double maxH = 20;
+
+        var host = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = barGap,
+            VerticalAlignment = VerticalAlignment.Center,
+            Height = maxH
         };
 
-        if (counts is null || counts.Count < 2 || counts.All(c => c == 0))
+        var hasCounts = counts is { Count: >= 1 } && counts.Any(c => c > 0);
+        var max = hasCounts ? Math.Max(1, counts.Max()) : 1;
+
+        for (var i = 0; i < 7; i++)
         {
+            var value = (counts is not null && i < counts.Count) ? counts[i] : 0;
+            var barH = hasCounts ? Math.Max(2, value / (double)max * (maxH - 2)) : 2;
             host.Children.Add(new Rectangle
             {
-                Height = 1,
-                Fill = Brush("TextFillColorDisabledBrush"),
-                Opacity = 0.6,
-                VerticalAlignment = VerticalAlignment.Center
+                Width = barWidth,
+                Height = barH,
+                Fill = hasCounts ? fill : Brush("TextFillColorDisabledBrush"),
+                Opacity = hasCounts ? 0.85 : 0.35,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                RadiusX = 1.5,
+                RadiusY = 1.5
             });
-            return host;
         }
 
-        var max = Math.Max(1, counts.Max());
-        var step = width / (counts.Count - 1);
-        var points = new PointCollection();
-        for (var i = 0; i < counts.Count; i++)
-        {
-            var x = i * step;
-            var y = (height - 1) - (counts[i] / (double)max) * (height - 2);
-            points.Add(new Point(x, y));
-        }
-
-        host.Children.Add(new Polyline
-        {
-            Points = points,
-            Stroke = stroke,
-            StrokeThickness = 1.5,
-            StrokeLineJoin = PenLineJoin.Round
-        });
         return host;
     }
 
@@ -836,7 +952,32 @@ public sealed partial class CommandCenterPanel : UserControl
             ? brush
             : new SolidColorBrush(Microsoft.UI.Colors.Gray);
 
-    private void OnGroupToggled(object sender, RoutedEventArgs e) => Render();
+    private void OnAttentionJump(object sender, RoutedEventArgs e)
+    {
+        if (_worstEntityFirstInstanceId is not null)
+        {
+            _services?.Navigation.OpenInstance(_worstEntityFirstInstanceId, null, null);
+        }
+    }
+
+    private void OnGroupByAccountClick(object sender, RoutedEventArgs e)
+    {
+        GroupByAccountButton.IsChecked = true;
+        GroupByLocationButton.IsChecked = false;
+        _lastRenderSignature = string.Empty;
+        Render();
+    }
+
+    private void OnGroupByLocationClick(object sender, RoutedEventArgs e)
+    {
+        GroupByLocationButton.IsChecked = true;
+        GroupByAccountButton.IsChecked = false;
+        _lastRenderSignature = string.Empty;
+        Render();
+    }
+
+    private void OnDefineLocations(object sender, RoutedEventArgs e) =>
+        _services?.Navigation.RequestOpenSettings(Services.SettingsNavigationHelper.WorkspaceManagementSectionKey);
 
     private void OnRefresh(object sender, RoutedEventArgs e) => Render();
 

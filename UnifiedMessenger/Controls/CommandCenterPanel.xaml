@@ -12,6 +12,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -54,12 +55,28 @@
                     <ComboBoxItem Content="All time" Tag="All" />
                     <ComboBoxItem Content="Custom range" Tag="Custom" />
                 </ComboBox>
-                <ToggleSwitch
-                    x:Name="GroupToggle"
-                    MinWidth="0"
-                    OffContent="By account"
-                    OnContent="By location"
-                    Toggled="OnGroupToggled" />
+                <Border
+                    CornerRadius="6"
+                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    Padding="2">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                        <ToggleButton
+                            x:Name="GroupByAccountButton"
+                            Content="By account"
+                            IsChecked="True"
+                            Click="OnGroupByAccountClick"
+                            Padding="10,4"
+                            CornerRadius="4" />
+                        <ToggleButton
+                            x:Name="GroupByLocationButton"
+                            Content="By location"
+                            IsChecked="False"
+                            Click="OnGroupByLocationClick"
+                            Padding="10,4"
+                            CornerRadius="4" />
+                    </StackPanel>
+                </Border>
                 <Button
                     x:Name="ResyncButton"
                     Click="OnResyncHistory"
@@ -92,16 +109,57 @@
         </Grid>
 
         <Border
-            x:Name="AttentionBanner"
+            x:Name="LocationCtaBanner"
             Grid.Row="2"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="14,10"
+            Visibility="Collapsed">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="13">
+                    <Run>Group accounts into </Run><Run FontWeight="SemiBold">locations</Run><Run> to oversee a whole branch at once.</Run>
+                </TextBlock>
+                <Button
+                    x:Name="DefineLocationsButton"
+                    Grid.Column="1"
+                    Content="Define locations ↗"
+                    Click="OnDefineLocations"
+                    VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <Border
+            x:Name="AttentionBanner"
+            Grid.Row="3"
             Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
             CornerRadius="8"
             Padding="12,10"
             Visibility="Collapsed">
-            <TextBlock x:Name="AttentionText" TextWrapping="WrapWholeWords" />
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="AttentionText" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+                <Button
+                    x:Name="AttentionJumpButton"
+                    Grid.Column="1"
+                    Content="Jump"
+                    Click="OnAttentionJump"
+                    Visibility="Collapsed"
+                    VerticalAlignment="Center" />
+            </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
             <StackPanel x:Name="CardsHost" Spacing="8" />
         </ScrollViewer>
     </Grid>

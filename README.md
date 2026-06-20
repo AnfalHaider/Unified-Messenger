@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.21.0 (Telegram + Meta Messenger embed channels — Phase 5 embed slice)
+**Current release:** v4.22.0 (command-center visual modernization — vertical cards, bar sparklines, urgent/dropped sub-metrics, Jump button)
 
 ## Scope
 
@@ -29,6 +29,17 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.22.0
+
+- **Command-center visual modernization:** three coordinated improvements to make the dashboard closer to the designed target:
+  - **Vertical card layout:** each account card now shows a colored avatar circle (initials + account accent color), a large bold caught-up %, and the sparkline stacked naturally rather than as a fixed-width horizontal row.
+  - **Bar-chart sparklines:** the 7-day activity trend is now a bar chart (colored vertical bars, rounded tops) instead of a line polyline — more readable at a glance and color-matched to each account's health status.
+  - **Urgent + dropped sub-metrics:** `UrgentCount` and `DroppedCount` were already computed in the oversight engine but never surfaced in the UI. They now appear as compact "N urgent / N dropped" labels under the % when non-zero.
+  - **Jump button on the needs-attention banner:** when urgent customers are waiting, the banner now shows a "Jump" button that navigates directly to the most critical account's WebView.
+  - **"Define locations" CTA:** when no workspace profiles are configured and the dashboard is in per-account mode, a one-line prompt offers a direct link to the Workspace Management settings section.
+  - **Segmented grouping control:** the "By account / By location" toggle switch is replaced by two adjacent toggle buttons that read as a segmented control.
+  - **Insight strip dark restyle:** the AI/heuristic insight strip uses a dark neutral surface (consistent regardless of alert severity) with an amber ✦ badge — severity is already communicated through the % color in the card header.
 
 ### What's in v4.21.0
 

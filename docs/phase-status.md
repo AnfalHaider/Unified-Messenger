@@ -102,10 +102,47 @@
 ~~1. **Instance lifecycle / WebView2 memory.**~~ **DONE (v4.16.0 + prior).** Session cap defaults to 6 with LRU eviction (not unbounded); `AdapterHealthMonitor` marks adapters stale at 90s and `MainWindow.OnAdapterStaleDetected` runs the orphan/recovery handler; per-instance memory tiers + Low background memory target; v4.16.0 added the time-based idle-session reaper (closes idle non-visible personal sessions, professional-exempt). Addresses F-11 slowness + post-suspend RAM.
 
 Remaining work, highest-leverage first:
+0. **UI/UX modernization (v4.22–4.24, cross-cutting).** ☐ Three-increment visual redesign tracked below. Highest priority — the product works but the dashboard doesn't look or feel premium compared to the proposed design.
 1. **Phase 2 — deeper AI tiers.** ✅ Insight strips now have optional Ollama-phrased lines (v4.17.0, heuristic fallback). Remaining: **outbound staff-reply tone/quality** scoring; Tier-1 lightweight ONNX (net-new).
-2. **Phase 3 leftovers.** ✅ Command-center entity search + compact density (v4.18.0); ✅ generic-URL webview instances (v4.19.0 — `generic` platform → NullPlatformAdapter, no oversight data). Remaining: sidebar-rail search/density at very large account counts.
-3. **Phase 4 — Google Business reviews channel.** ◑ Embed slice done (v4.20.0 — `googlebusiness` platform loads the reviews console as a branded channel). Remaining: the metric-scraping adapter (star rating / % responded / unanswered into oversight) — needs a live logged-in account to build/tune the DOM reader.
-4. **Phase 5 — Telegram, then Meta.** ◑ Embed slice done (v4.21.0 — Telegram + Messenger channels selectable). Remaining: metric-scraping adapters (unread/awaiting from DOM) — needs live logged-in accounts to tune.
-5. **Polish/cleanup.** Remove dead drag code; make the awaiting-list preview more reliable (or a bounded message-store read); optional true drag-reorder via `ListView.CanReorderItems`; contrast remediation; CI stress fixtures.
+2. **Phase 3 leftovers.** ✅ Command-center entity search + compact density (v4.18.0); ✅ generic-URL webview instances (v4.19.0). Remaining: sidebar-rail search/density at very large account counts.
+3. **Phase 4 — Google Business reviews channel.** ◑ Embed slice done (v4.20.0). Remaining: metric-scraping adapter — needs live logged-in account.
+4. **Phase 5 — Telegram, then Meta.** ◑ Embed slice done (v4.21.0). Remaining: metric-scraping adapters — needs live logged-in accounts.
+5. **Polish/cleanup.** Remove dead drag code; awaiting-list preview reliability; contrast remediation; CI stress fixtures.
+
+## UI/UX Modernization Plan (v4.22–v4.24)
+
+**Reference:** Proposed mockup screenshot shared 2026-06-20. Goal: make the live UI match the proposed design.
+
+### Gap analysis (current → proposed)
+
+| Element | Current | Proposed | Increment |
+|---|---|---|---|
+| Sparklines | Line polyline 64×18 | Colored vertical bar chart | v4.22.0 |
+| Sub-metrics | None per card | urgent + dropped counts | v4.22.0 |
+| Needs-attention banner | Text only | Text + **Jump** button | v4.22.0 |
+| AI insight strip style | Amber/red background | Dark neutral surface | v4.22.0 |
+| Card layout | Horizontal row expander | Vertical card: avatar, large %, bar chart, sub-metrics, strip | v4.23.0 |
+| Account avatar in card | None | Colored circle with initials | v4.23.0 |
+| Group mode control | ToggleSwitch | Segmented "Group: none ∣ By location" buttons | v4.24.0 |
+| Scope toggle | Sidebar dropdown | "Professional ∣ Personal" in title bar | v4.24.0 |
+| Sidebar default | Pinned expanded (320px) | Compact icon rail (56px) | v4.24.0 |
+| Locations CTA | None | Banner when no locations defined | v4.24.0 |
+
+### v4.22.0 — Quick wins (Increment 52)
+- `BuildSparkline` → 7 vertical `Rectangle` bars, color-matched, rounded tops
+- `BuildRowContent` → urgent + dropped sub-metrics row after awaiting count
+- Attention banner → add `Jump` `Button`; on click navigate to worst entity's first member instance
+- `BuildInsightStrip` → replace amber/red `SystemFillColor*BackgroundBrush` with dark neutral surface (`ControlSolidFillColorDefaultBrush` with slight accent tint)
+
+### v4.23.0 — Vertical card layout (Increment 53)
+- `BuildRowContent` → restructure to vertical card: avatar circle top-left, account name, status dot; large colored % hero; bar sparkline + freshness; urgent/dropped row; AI strip at card bottom
+- Avatar via `PlatformBrandingHelper.GetInitials` + accent color per instance (needs lookup from registry)
+- Expander still wraps the whole card; awaiting list expands below
+
+### v4.24.0 — Shell modernization (Increment 54)
+- Replace `GroupToggle` ToggleSwitch → two `ToggleButton`s ("By account" / "By location") styled as a segmented control
+- Move `ScopeFilterCombo` out of sidebar → `SelectorBar` in `TitleBar.RightHeader` (Professional ∣ Personal ∣ All)
+- `AppSettings.SidebarPinnedExpanded` default `false` (compact on first run); existing users keep their persisted value
+- Add "Define locations ↗" CTA border in `CommandCenterPanel` when `ByInstance` mode and no locations defined
 
 Each step ships green and is reversible.
