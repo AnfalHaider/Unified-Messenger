@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.24.1 (shell modernization — title-bar scope selector + AI toggle, compact sidebar default; locations-CTA spacing fix)
+**Current release:** v4.25.0 (WCAG 1.4.1 — shape-distinct status glyph on command-center cards)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.25.0
+
+- **WCAG 1.4.1 — non-color status cue:** each command-center card now shows a shape-distinct status glyph (✓ on track / ⚠ needs attention / ⨯ behind) next to the caught-up %, so health is communicated by **shape, not colour alone**. The glyph carries an accessible name and tooltip. Closes the §9 "colour + icon + text (never colour alone)" principle for the L0 cards (comfortable density).
 
 ### What's in v4.24.0
 

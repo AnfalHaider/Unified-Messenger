@@ -803,6 +803,21 @@ public sealed partial class CommandCenterPanel : UserControl
         else
         {
             var pctCell = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+
+            // WCAG 1.4.1: status must not be conveyed by colour alone. A shape-distinct glyph
+            // (check / warning / error) encodes health independently of the % colour.
+            var (statusGlyph, statusLabel) = StatusGlyph(entity.OnTimePercent);
+            var glyphIcon = new FontIcon
+            {
+                Glyph = statusGlyph,
+                FontSize = 16,
+                Foreground = statusBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTipService.SetToolTip(glyphIcon, statusLabel);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(glyphIcon, statusLabel);
+            pctCell.Children.Add(glyphIcon);
+
             pctCell.Children.Add(new TextBlock
             {
                 Text = $"{entity.OnTimePercent}%",
@@ -886,6 +901,17 @@ public sealed partial class CommandCenterPanel : UserControl
             .FirstOrDefault(i => string.Equals(i.Id, instanceId, StringComparison.OrdinalIgnoreCase));
         return instance?.AccentColor ?? PlatformBrandingHelper.DefaultAccentHex;
     }
+
+    /// <summary>
+    /// A shape-distinct status glyph (Segoe Fluent Icons) + accessible label for an on-time %, so health
+    /// is communicated by shape, not colour alone (WCAG 1.4.1). Thresholds mirror the status-colour bands.
+    /// </summary>
+    private static (string Glyph, string Label) StatusGlyph(int onTimePercent) => onTimePercent switch
+    {
+        >= 90 => ("", "On track"),        // CheckMark
+        >= 70 => ("", "Needs attention"), // Warning
+        _ => ("", "Behind"),              // ErrorBadge
+    };
 
     private static StackPanel BuildSubMetric(int count, string label, Brush foreground)
     {
