@@ -14,5 +14,10 @@ public enum ShellViewState
     /// <summary>
     /// Notification hub panel is open; underlying page state is preserved.
     /// </summary>
-    NotificationHub
+    NotificationHub,
+
+    /// <summary>
+    /// Work queue page is active.
+    /// </summary>
+    WorkQueue
 }

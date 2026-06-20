@@ -1,5 +1,6 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Controls;
 using UnifiedMessenger.Dialogs;
@@ -396,31 +397,39 @@ public sealed class ShellController
         (string InstanceId, MessengerInstance Instance, FrameworkElement Anchor) args)
     {
         var flyout = new MenuFlyout();
+
         var moveItem = new MenuFlyoutItem
         {
             Text = args.Instance.IsProfessional
                 ? "Move to Personal workspace"
                 : "Move to Professional workspace"
         };
+        AutomationProperties.SetName(moveItem, args.Instance.IsProfessional
+            ? "Move instance to Personal workspace"
+            : "Move instance to Professional workspace");
         moveItem.Click += (_, _) => _ = ToggleInstanceCategoryAsync(args.InstanceId);
         flyout.Items.Add(moveItem);
 
         if (args.Instance.IsProfessional)
         {
             var locationItem = new MenuFlyoutItem { Text = "Set location..." };
+            AutomationProperties.SetName(locationItem, "Set instance location");
             locationItem.Click += (_, _) => _ = SetInstanceLocationAsync(args.InstanceId);
             flyout.Items.Add(locationItem);
         }
 
         var moveUpItem = new MenuFlyoutItem { Text = "Move up" };
+        AutomationProperties.SetName(moveUpItem, "Move instance up in sidebar");
         moveUpItem.Click += (_, _) => _ = ReorderInstanceByDirectionAsync(args.InstanceId, -1);
         flyout.Items.Add(moveUpItem);
 
         var moveDownItem = new MenuFlyoutItem { Text = "Move down" };
+        AutomationProperties.SetName(moveDownItem, "Move instance down in sidebar");
         moveDownItem.Click += (_, _) => _ = ReorderInstanceByDirectionAsync(args.InstanceId, 1);
         flyout.Items.Add(moveDownItem);
 
-        var renameItem = new MenuFlyoutItem { Text = "Rename instance..." };
+        var renameItem = new MenuFlyoutItem { Text = "Rename instance...", AccessKey = "R" };
+        AutomationProperties.SetName(renameItem, "Rename instance");
         renameItem.Click += (_, _) => _ = RenameInstanceAsync(args.InstanceId);
         flyout.Items.Add(renameItem);
 
@@ -428,25 +437,34 @@ public sealed class ShellController
         {
             Text = args.Instance.NotificationsMuted
                 ? "Unmute notifications"
-                : "Mute notifications"
+                : "Mute notifications",
+            AccessKey = "M"
         };
+        AutomationProperties.SetName(muteItem, args.Instance.NotificationsMuted
+            ? "Unmute instance notifications"
+            : "Mute instance notifications");
         muteItem.Click += (_, _) => _ = ToggleInstanceMuteAsync(args.InstanceId);
         flyout.Items.Add(muteItem);
 
         flyout.Items.Add(BuildMemoryTierSubmenu(args.InstanceId, args.Instance.MemoryTier));
 
         var refreshItem = new MenuFlyoutItem { Text = "Refresh WebView" };
+        AutomationProperties.SetName(refreshItem, "Refresh instance WebView");
         refreshItem.Click += (_, _) => _ = _services.SessionManager.ReloadSessionAsync(args.InstanceId);
         flyout.Items.Add(refreshItem);
 
         if (_services.AppSettings.Settings.EnableEditInstanceMetadata)
         {
             var editItem = new MenuFlyoutItem { Text = "Edit instance metadata..." };
+            AutomationProperties.SetName(editItem, "Edit instance metadata");
             editItem.Click += (_, _) => _ = EditInstanceMetadataAsync(args.InstanceId);
             flyout.Items.Add(editItem);
         }
 
-        var removeItem = new MenuFlyoutItem { Text = "Remove instance..." };
+        flyout.Items.Add(new MenuFlyoutSeparator());
+
+        var removeItem = new MenuFlyoutItem { Text = "Remove instance...", AccessKey = "X" };
+        AutomationProperties.SetName(removeItem, "Remove instance permanently");
         removeItem.Click += (_, _) => _ = DeleteInstanceAsync(args.InstanceId);
         flyout.Items.Add(removeItem);
 
@@ -456,14 +474,17 @@ public sealed class ShellController
     private MenuFlyoutSubItem BuildMemoryTierSubmenu(string instanceId, MemoryTierPreference currentTier)
     {
         var submenu = new MenuFlyoutSubItem { Text = "Memory tier" };
+        AutomationProperties.SetName(submenu, "Memory tier submenu");
         foreach (var tier in new[] { MemoryTierPreference.Low, MemoryTierPreference.Normal, MemoryTierPreference.High })
         {
+            var label = WorkspaceSidebarHelper.FormatMemoryTierLabel(tier);
             var item = new RadioMenuFlyoutItem
             {
-                Text = WorkspaceSidebarHelper.FormatMemoryTierLabel(tier),
+                Text = label,
                 IsChecked = tier == currentTier,
                 Tag = tier
             };
+            AutomationProperties.SetName(item, $"Set memory tier to {label}");
             item.Click += (_, _) => _ = UpdateInstanceMemoryTierAsync(instanceId, tier);
             submenu.Items.Add(item);
         }
@@ -528,36 +549,8 @@ public sealed class ShellController
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var combo = new ComboBox
+        var dialog = new SetLocationDialog(instance.DisplayName, instance.BranchKey, existing)
         {
-            IsEditable = true,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            PlaceholderText = "Location name (e.g. Islamabad)",
-            Header = "Location"
-        };
-        foreach (var location in existing)
-        {
-            combo.Items.Add(location);
-        }
-        combo.Text = instance.BranchKey ?? string.Empty;
-
-        var panel = new StackPanel { Spacing = 8, MinWidth = 320 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = "Group this account under a location. Accounts that share a location appear together in " +
-                   "the sidebar and roll up together in the command center.",
-            TextWrapping = TextWrapping.WrapWholeWords
-        });
-        panel.Children.Add(combo);
-
-        var dialog = new ContentDialog
-        {
-            Title = $"Set location — {instance.DisplayName}",
-            Content = panel,
-            PrimaryButtonText = "Save",
-            SecondaryButtonText = "Clear",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Primary,
             XamlRoot = _ui.XamlRoot
         };
 
@@ -567,13 +560,9 @@ public sealed class ShellController
             return;
         }
 
-        var newLocation = result == ContentDialogResult.Secondary || string.IsNullOrWhiteSpace(combo.Text)
-            ? null
-            : combo.Text.Trim();
-
         try
         {
-            await _services.Registry.UpdateInstanceBranchKeyAsync(instanceId, newLocation);
+            await _services.Registry.UpdateInstanceBranchKeyAsync(instanceId, dialog.SelectedLocation);
             _chrome.RebuildInstanceNavigation();
             _navigation.RefreshDashboardIfVisible();
         }
@@ -768,16 +757,7 @@ public sealed class ShellController
 
     private async Task<bool> ConfirmPermanentDeleteAsync(string? displayName)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "Permanently delete account?",
-            Content = SettingsPageHelper.BuildPermanentDeleteConfirmation(displayName),
-            PrimaryButtonText = "Delete permanently",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = _ui.XamlRoot
-        };
-
+        var dialog = new ConfirmPermanentDeleteDialog(displayName) { XamlRoot = _ui.XamlRoot };
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
@@ -786,18 +766,7 @@ public sealed class ShellController
         cancellationToken.ThrowIfCancellationRequested();
         var current = result.CurrentVersion?.ToString() ?? "unknown";
         var latest = result.LatestVersion?.ToString() ?? "unknown";
-        var dialog = new ContentDialog
-        {
-            Title = "Install update?",
-            Content =
-                $"A newer version ({latest}) is available. You are running {current}.\n\n" +
-                "Unified Messenger will download the installer, verify its signature, and restart to apply the update.",
-            PrimaryButtonText = "Install now",
-            CloseButtonText = "Not now",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = _ui.XamlRoot
-        };
-
+        var dialog = new AutoUpdateDialog(current, latest) { XamlRoot = _ui.XamlRoot };
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
@@ -868,15 +837,7 @@ public sealed class ShellController
             return;
         }
 
-        var dialog = new ContentDialog
-        {
-            Title = "Pin Unified Messenger?",
-            Content = "Pin this app to your taskbar for quick access to all your messaging accounts.",
-            PrimaryButtonText = "Pin to taskbar",
-            CloseButtonText = "Not now",
-            XamlRoot = _ui.XamlRoot
-        };
-
+        var dialog = new PinToTaskbarDialog { XamlRoot = _ui.XamlRoot };
         var result = await dialog.ShowAsync();
         await _services.AppSettings.UpdateAsync(s => s.HasPromptedPinToTaskbar = true);
         if (result != ContentDialogResult.Primary)

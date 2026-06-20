@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.22.0 (command-center visual modernization — vertical cards, bar sparklines, urgent/dropped sub-metrics, Jump button)
+**Current release:** v4.23.0 (shell IA foundation — WorkQueue view state, location/delete/update/taskbar-pin dialogs, sidebar drag-freeze fix)
 
 ## Scope
 
@@ -29,6 +29,18 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.23.0
+
+- **Shell IA foundation:** core state and dialog infrastructure for the oversight-foundation branch:
+  - `ShellViewState.WorkQueue` — new enum case; `WorkspaceSidebarHelper`, `WorkspaceSidebarViewModel`, and `MainWindowViewModel` all track work-queue selected state correctly so the sidebar selection ring follows navigation.
+  - **SetLocationDialog** — `IsProfessional` accounts can now be grouped under named locations via the context-menu "Set location…" entry; existing locations auto-populate the editable combo.
+  - **ConfirmPermanentDeleteDialog** — safety confirmation before permanent instance removal (replaces an inline `ContentDialog` build in `ShellController`).
+  - **AutoUpdateDialog** — prompt shown by `GitHubUpdateService` when a newer installer version is detected; user can install now or defer.
+  - **PinToTaskbarDialog** — one-time nudge (respects `HasPromptedPinToTaskbar` setting) to pin the app for quick access.
+  - **MainWindow event-handler refactor:** all inline lambdas in `AttachShellHandlers` / `DetachShellHandlers` are now named methods so the detach pass actually removes the correct delegate (previously the detach was a no-op because lambda identity doesn't match).
+  - **Sidebar drag-reorder removed:** OLE drag-in-ScrollViewer causes a WinUI freeze; the drag loop code and `_isDragging` guard have been removed. The `InstanceReorderRequested` event stub is preserved with `#pragma warning disable CS0067` for future re-wiring.
+  - **ScopeFilterCombo compact-mode fix:** the scope filter combo was shown unconditionally in compact sidebar mode; it now follows the same `_isCompact` guard as other labels.
 
 ### What's in v4.22.0
 

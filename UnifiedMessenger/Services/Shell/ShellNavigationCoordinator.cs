@@ -44,12 +44,16 @@ public sealed class ShellNavigationCoordinator
         }
     }
 
-    public async Task ShowWorkQueueAsync()
+    public async Task<WorkQueuePage?> ShowWorkQueueAsync()
     {
         IsDashboardSelected = false;
         IsSettingsSelected = false;
         IsWorkQueueSelected = true;
         SelectedInstanceId = null;
+
+        _viewModel.IsDashboardSelected = false;
+        _viewModel.IsSettingsSelected = false;
+        _viewModel.IsWorkQueueSelected = true;
 
         await _services.SessionManager.HideVisibleSessionAsync();
         _ui.InstanceWebViewHost.Visibility = Visibility.Collapsed;
@@ -67,6 +71,8 @@ public sealed class ShellNavigationCoordinator
         _ui.AppTitleBar.Subtitle = "Work Queue";
         UpdateBackToDashboardLink(false);
         _chrome?.UpdateShellChromeSelection();
+
+        return _ui.ContentFrame.Content as WorkQueuePage;
     }
 
     public async Task ShowDashboardAsync()
@@ -75,6 +81,10 @@ public sealed class ShellNavigationCoordinator
         IsSettingsSelected = false;
         IsWorkQueueSelected = false;
         SelectedInstanceId = null;
+
+        _viewModel.IsDashboardSelected = true;
+        _viewModel.IsSettingsSelected = false;
+        _viewModel.IsWorkQueueSelected = false;
 
         await _services.SessionManager.HideVisibleSessionAsync();
         _ui.InstanceWebViewHost.Visibility = Visibility.Collapsed;
@@ -95,6 +105,10 @@ public sealed class ShellNavigationCoordinator
         IsSettingsSelected = true;
         IsWorkQueueSelected = false;
         SelectedInstanceId = null;
+
+        _viewModel.IsDashboardSelected = false;
+        _viewModel.IsSettingsSelected = true;
+        _viewModel.IsWorkQueueSelected = false;
 
         await _services.SessionManager.HideVisibleSessionAsync();
         _ui.InstanceWebViewHost.Visibility = Visibility.Collapsed;
@@ -183,6 +197,9 @@ public sealed class ShellNavigationCoordinator
         IsDashboardSelected = false;
         IsSettingsSelected = false;
         IsWorkQueueSelected = false;
+        _viewModel.IsDashboardSelected = false;
+        _viewModel.IsSettingsSelected = false;
+        _viewModel.IsWorkQueueSelected = false;
         ActiveWorkspaceContext.SetActiveInstance(instanceId);
         _chrome?.UpdateShellChromeSelection();
         _ui.ContentFrame.Visibility = Visibility.Collapsed;
@@ -234,6 +251,10 @@ public sealed class ShellNavigationCoordinator
 
     private void NavigateShellFrame(Type pageType, object? parameter)
     {
+        // Intentionally clear the back stack on every top-level navigation.
+        // This app uses a custom sidebar rail for top-level navigation rather than
+        // the Frame's built-in back navigation. Sub-page back (e.g. AboutPage → SettingsPage)
+        // works because NavigateToAboutPage pushes SettingsPage→AboutPage without clearing first.
         while (_ui.ContentFrame.CanGoBack)
         {
             _ui.ContentFrame.GoBack();

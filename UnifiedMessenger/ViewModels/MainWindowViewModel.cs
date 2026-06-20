@@ -12,6 +12,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool _isSettingsSelected;
 
     [ObservableProperty]
+    private bool _isWorkQueueSelected;
+
+    [ObservableProperty]
     private string? _selectedInstanceId;
 
     [ObservableProperty]

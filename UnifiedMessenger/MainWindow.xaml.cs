@@ -113,19 +113,11 @@ public sealed partial class MainWindow : Window, IShellUiHost
     private void AttachShellHandlers()
     {
         var nav = _services.Navigation;
-        nav.InstanceNavigationRequested += (_, request) =>
-            DispatcherQueue.TryEnqueue(() => _ = _shell.Navigation.NavigateToInstanceAsync(request));
-        nav.DashboardRefreshRequested += (_, _) =>
-            DispatcherQueue.TryEnqueue(_shell.Navigation.RefreshDashboardIfVisible);
+        nav.InstanceNavigationRequested += OnInstanceNavigationRequested;
+        nav.DashboardRefreshRequested += OnDashboardRefreshRequested;
         nav.ArchivedInstanceRestoreRequested += OnArchivedInstanceRestoreRequested;
-        nav.LayoutRefreshRequested += (_, _) =>
-            DispatcherQueue.TryEnqueue(_shell.Chrome.ApplyNotificationPanelDockLayout);
-        nav.InstanceRegistryRefreshRequested += (_, _) =>
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                _shell.Chrome.RebuildInstanceNavigation();
-                _shell.Navigation.RefreshDashboardIfVisible();
-            });
+        nav.LayoutRefreshRequested += OnLayoutRefreshRequested;
+        nav.InstanceRegistryRefreshRequested += OnInstanceRegistryRefreshRequested;
         nav.AddInstanceRequested += OnAddInstanceRequested;
         nav.SettingsOpenRequested += OnSettingsOpenRequested;
         nav.OccBranchFilterRequested += OnOccBranchFilterRequested;
@@ -134,13 +126,12 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
         _services.NotificationHub.Changed += OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested += OnToastActivationRequested;
-        _services.AdapterHealth.Changed += (_, _) => DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+        _services.AdapterHealth.Changed += OnAdapterHealthChanged;
         _services.AdapterHealth.AdapterStaleDetected += OnAdapterStaleDetected;
         _services.ConnectionStatus.Changed += OnConnectionStatusChanged;
         _services.SessionManager.SessionInitializing += OnSessionInitializing;
         _services.SessionManager.SessionFailed += OnSessionFailed;
-        _services.MessageAnalytics.Changed += (_, _) =>
-            DispatcherQueue.TryEnqueue(_shell.Navigation.RefreshDashboardIfVisible);
+        _services.MessageAnalytics.Changed += OnMessageAnalyticsChanged;
         _services.AppSettings.Changed += OnAppSettingsChanged;
     }
 
@@ -150,49 +141,77 @@ public sealed partial class MainWindow : Window, IShellUiHost
     private void OnSettingsOpenRequested(object? sender, string? sectionKey) =>
         DispatcherQueue.TryEnqueue(() => _ = _shell.Navigation.ShowSettingsAsync(sectionKey));
 
+    private void OnInstanceNavigationRequested(object? sender, InstanceNavigationRequest request) =>
+        DispatcherQueue.TryEnqueue(() => _ = _shell.Navigation.NavigateToInstanceAsync(request));
+
+    private void OnDashboardRefreshRequested(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(_shell.Navigation.RefreshDashboardIfVisible);
+
+    private void OnLayoutRefreshRequested(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(_shell.Chrome.ApplyNotificationPanelDockLayout);
+
+    private void OnInstanceRegistryRefreshRequested(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _shell.Chrome.RebuildInstanceNavigation();
+            _shell.Navigation.RefreshDashboardIfVisible();
+        });
+
+    private void OnAdapterHealthChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(RefreshAdapterHealthIndicators);
+
+    private void OnMessageAnalyticsChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(_shell.Navigation.RefreshDashboardIfVisible);
+
     private void OnOccBranchFilterRequested(object? sender, string? branchKey)
     {
-        DispatcherQueue.TryEnqueue(async () =>
+        TryEnqueueSafe(async () =>
         {
-            await _shell.Navigation.ShowWorkQueueAsync();
-            (_shell.Navigation.ContentFrame.Content as Pages.WorkQueuePage)
-                ?.SelectWorkspaceBranch(branchKey, forceRefresh: true);
-        });
+            var page = await _shell.Navigation.ShowWorkQueueAsync();
+            page?.SelectWorkspaceBranch(branchKey, forceRefresh: true);
+        }, nameof(OnOccBranchFilterRequested));
     }
 
     private void OnOccImmediateLaneFocusRequested(object? sender, EventArgs e)
     {
-        DispatcherQueue.TryEnqueue(async () =>
+        TryEnqueueSafe(async () =>
         {
-            await _shell.Navigation.ShowWorkQueueAsync();
-            (_shell.Navigation.ContentFrame.Content as Pages.WorkQueuePage)
-                ?.RequestImmediateLaneFocus();
-        });
+            var page = await _shell.Navigation.ShowWorkQueueAsync();
+            page?.RequestImmediateLaneFocus();
+        }, nameof(OnOccImmediateLaneFocusRequested));
     }
 
     private void OnOccUrgentQueueFilterRequested(object? sender, EventArgs e)
     {
-        DispatcherQueue.TryEnqueue(async () =>
+        TryEnqueueSafe(async () =>
         {
-            await _shell.Navigation.ShowWorkQueueAsync();
-            (_shell.Navigation.ContentFrame.Content as Pages.WorkQueuePage)
-                ?.SelectUrgentQueueFilter();
-        });
+            var page = await _shell.Navigation.ShowWorkQueueAsync();
+            page?.SelectUrgentQueueFilter();
+        }, nameof(OnOccUrgentQueueFilterRequested));
     }
 
     private void DetachShellHandlers()
     {
-        _services.Navigation.AddInstanceRequested -= OnAddInstanceRequested;
-        _services.Navigation.SettingsOpenRequested -= OnSettingsOpenRequested;
-        _services.Navigation.OccBranchFilterRequested -= OnOccBranchFilterRequested;
-        _services.Navigation.OccImmediateLaneFocusRequested -= OnOccImmediateLaneFocusRequested;
-        _services.Navigation.OccUrgentQueueFilterRequested -= OnOccUrgentQueueFilterRequested;
+        var nav = _services.Navigation;
+        nav.InstanceNavigationRequested -= OnInstanceNavigationRequested;
+        nav.DashboardRefreshRequested -= OnDashboardRefreshRequested;
+        nav.ArchivedInstanceRestoreRequested -= OnArchivedInstanceRestoreRequested;
+        nav.LayoutRefreshRequested -= OnLayoutRefreshRequested;
+        nav.InstanceRegistryRefreshRequested -= OnInstanceRegistryRefreshRequested;
+        nav.AddInstanceRequested -= OnAddInstanceRequested;
+        nav.SettingsOpenRequested -= OnSettingsOpenRequested;
+        nav.OccBranchFilterRequested -= OnOccBranchFilterRequested;
+        nav.OccImmediateLaneFocusRequested -= OnOccImmediateLaneFocusRequested;
+        nav.OccUrgentQueueFilterRequested -= OnOccUrgentQueueFilterRequested;
+
         _services.NotificationHub.Changed -= OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested -= OnToastActivationRequested;
+        _services.AdapterHealth.Changed -= OnAdapterHealthChanged;
         _services.AdapterHealth.AdapterStaleDetected -= OnAdapterStaleDetected;
         _services.ConnectionStatus.Changed -= OnConnectionStatusChanged;
         _services.SessionManager.SessionInitializing -= OnSessionInitializing;
         _services.SessionManager.SessionFailed -= OnSessionFailed;
+        _services.MessageAnalytics.Changed -= OnMessageAnalyticsChanged;
         _services.AppSettings.Changed -= OnAppSettingsChanged;
     }
 
@@ -207,7 +226,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     private void OnArchivedInstanceRestoreRequested(object? sender, string instanceId)
     {
-        DispatcherQueue.TryEnqueue(async () =>
+        TryEnqueueSafe(async () =>
         {
             try
             {
@@ -217,7 +236,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
             {
                 await _services.Dialog.ShowErrorAsync("Could not restore account", ex.Message);
             }
-        });
+        }, nameof(OnArchivedInstanceRestoreRequested));
     }
 
     private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
@@ -315,7 +334,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
             var instance = _services.Registry.FindById(e.InstanceId);
             if (instance is not null)
             {
-                instance.Status = e.Status;
+                _services.ConnectionStatus.MirrorStatusToInstance(instance);
                 WorkspaceSidebar.UpdateInstanceHealth(e.InstanceId, instance);
                 _shell.Navigation.RefreshDashboardIfVisible();
                 return;
@@ -387,6 +406,21 @@ public sealed partial class MainWindow : Window, IShellUiHost
             ThemeService.Apply(_services.AppSettings.Settings.ThemePreference);
             _shell.Chrome.ApplyNotificationPanelDockLayout();
             _ = _services.SessionManager.BroadcastAdapterSettingsAsync();
+        });
+    }
+
+    private void TryEnqueueSafe(Func<Task> asyncAction, string operationName = "")
+    {
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                await asyncAction();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] TryEnqueueSafe error in '{operationName}': {ex}");
+            }
         });
     }
 

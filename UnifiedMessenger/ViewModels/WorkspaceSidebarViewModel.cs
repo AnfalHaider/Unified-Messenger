@@ -15,12 +15,14 @@ public partial class WorkspaceSidebarViewModel : ViewModelBase
         bool dashboardSelected,
         string? instanceId,
         bool settingsSelected,
-        bool notificationHubSelected = false) =>
+        bool notificationHubSelected = false,
+        bool workQueueSelected = false) =>
         SelectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
             dashboardSelected,
             instanceId,
             settingsSelected,
-            notificationHubSelected);
+            notificationHubSelected,
+            workQueueSelected);
 
     public void ApplyNotificationHubBadge(int totalUnread) =>
         NotificationHubBadgeCount = WorkspaceSidebarHelper.ClampBadgeCount(totalUnread);

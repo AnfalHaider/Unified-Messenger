@@ -48,7 +48,8 @@ public static class WorkspaceSidebarHelper
         bool dashboardSelected,
         string? instanceId,
         bool settingsSelected,
-        bool notificationHubOpen)
+        bool notificationHubOpen,
+        bool workQueueSelected = false)
     {
         if (notificationHubOpen)
         {
@@ -58,6 +59,11 @@ public static class WorkspaceSidebarHelper
         if (settingsSelected)
         {
             return ShellViewState.Settings;
+        }
+
+        if (workQueueSelected)
+        {
+            return ShellViewState.WorkQueue;
         }
 
         if (!dashboardSelected && !string.IsNullOrWhiteSpace(instanceId))

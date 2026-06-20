@@ -102,6 +102,15 @@ public sealed partial class DashboardPage : Page
 
     public void RefreshAll()
     {
+        var hour = DateTime.Now.Hour;
+        WelcomeTitle.Text = hour switch
+        {
+            < 12 => "Good morning",
+            < 17 => "Good afternoon",
+            < 21 => "Good evening",
+            _ => "Welcome back"
+        };
+
         if (_registry is null)
         {
             WelcomeSubtitle.Text = "Add an account to start receiving unified notifications.";

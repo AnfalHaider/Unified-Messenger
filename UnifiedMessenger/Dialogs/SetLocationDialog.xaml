@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentDialog
+    x:Class="UnifiedMessenger.Dialogs.SetLocationDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="Set instance location"
+    DefaultButton="Primary"
+    PrimaryButtonText="Save"
+    SecondaryButtonText="Clear"
+    CloseButtonText="Cancel">
+
+    <StackPanel MinWidth="320" Spacing="8">
+        <TextBlock
+            Text="Group this account under a location. Accounts that share a location appear together in the sidebar and roll up together in the command center."
+            TextWrapping="WrapWholeWords" />
+        <ComboBox
+            x:Name="LocationCombo"
+            Header="Location"
+            IsEditable="True"
+            HorizontalAlignment="Stretch"
+            PlaceholderText="Location name (e.g. Islamabad)" />
+    </StackPanel>
+</ContentDialog>

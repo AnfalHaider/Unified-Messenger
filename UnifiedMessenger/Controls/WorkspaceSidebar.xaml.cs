@@ -8,7 +8,6 @@ using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.ViewModels;
-using Windows.Foundation;
 using Windows.System;
 
 namespace UnifiedMessenger.Controls;
@@ -29,7 +28,6 @@ public sealed partial class WorkspaceSidebar : Grid
     private SidebarMenuPlan? _currentPlan;
     private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
     private bool _isCompact;
-    private bool _isDragging;
 
     // Scope switch (Shell IA): remembers the last Refresh args so a scope change can re-render.
     private SidebarScope _scope = SidebarScope.All;
@@ -42,6 +40,13 @@ public sealed partial class WorkspaceSidebar : Grid
     private bool _lastNotificationHubSelected;
     private bool _lastWorkQueueSelected;
     private int _nextSidebarTabIndex = AccessibilityTabOrderHelper.SidebarMenuBase;
+
+    private static readonly Thickness s_compactRowPadding = new(6, 8, 4, 8);
+    private static readonly Thickness s_normalRowPadding = new(10, 10, 8, 10);
+
+    private const string FooterWorkQueueLabel = "Work Queue";
+    private const string FooterNotificationHubLabel = "Notification Hub";
+    private const string FooterSettingsLabel = "Settings";
 
     public WorkspaceSidebarViewModel ViewModel => _viewModel;
 
@@ -74,7 +79,11 @@ public sealed partial class WorkspaceSidebar : Grid
         BrandWordmarkImage.Source = new BitmapImage(new Uri(assetPath));
     }
 
+    // Drag reorder is disabled (WinUI drag-in-ScrollViewer freeze bug); this event is subscribed externally
+    // and will be re-wired when drag is re-enabled.
+#pragma warning disable CS0067
     public event EventHandler<(string SourceInstanceId, string TargetInstanceId)>? InstanceReorderRequested;
+#pragma warning restore CS0067
 
     public event EventHandler? DashboardRequested;
 
@@ -120,7 +129,8 @@ public sealed partial class WorkspaceSidebar : Grid
             dashboardSelected,
             selectedInstanceId,
             settingsSelected,
-            notificationHubSelected);
+            notificationHubSelected,
+            workQueueSelected);
 
         // The scope switch only applies (and shows) when both scopes have accounts; otherwise it would
         // hide the user's only scope.
@@ -130,11 +140,7 @@ public sealed partial class WorkspaceSidebar : Grid
 
         var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instanceList, effectiveScope);
 
-        // Never restructure the menu mid-drag: removing/re-inserting MenuStack children while an OLE
-        // drag loop is live (the dragged row is one of them) freezes the app. Do safe content-only
-        // updates now; the structural rebuild happens on the next Refresh after the drag ends.
-        if (_isDragging ||
-            (_currentPlan is not null && WorkspaceSidebarMenuPlanner.HasSameStructure(_currentPlan, plan)))
+        if (_currentPlan is not null && WorkspaceSidebarMenuPlanner.HasSameStructure(_currentPlan, plan))
         {
             ApplyInstanceContentUpdates(plan);
             ApplySelectionVisuals();
@@ -344,6 +350,8 @@ public sealed partial class WorkspaceSidebar : Grid
         var labelVisibility = _isCompact ? Visibility.Collapsed : Visibility.Visible;
         BrandWordmarkImage.Visibility = labelVisibility;
         AddInstanceLabel.Visibility = labelVisibility;
+        ScopeFilterCombo.Visibility = _isCompact ? Visibility.Collapsed
+            : WorkspaceSidebarMenuPlanner.HasMixedScopes(_lastInstances) ? Visibility.Visible : Visibility.Collapsed;
         WorkQueueLabel.Visibility = labelVisibility;
         NotificationsLabel.Visibility = labelVisibility;
         SettingsLabel.Visibility = labelVisibility;
@@ -358,12 +366,12 @@ public sealed partial class WorkspaceSidebar : Grid
 
         foreach (var row in _instanceRows.Values)
         {
-            row.Padding = _isCompact ? new Thickness(6, 8, 4, 8) : new Thickness(10, 10, 8, 10);
+            row.Padding = _isCompact ? s_compactRowPadding : s_normalRowPadding;
         }
 
         if (_dashboardRow is not null)
         {
-            _dashboardRow.Padding = _isCompact ? new Thickness(6, 8, 4, 8) : new Thickness(10, 10, 8, 10);
+            _dashboardRow.Padding = _isCompact ? s_compactRowPadding : s_normalRowPadding;
         }
     }
 
@@ -384,7 +392,8 @@ public sealed partial class WorkspaceSidebar : Grid
             dashboardSelected,
             instanceId,
             settingsSelected,
-            notificationHubSelected);
+            notificationHubSelected,
+            workQueueSelected);
         ApplySelectionVisuals();
     }
 
@@ -441,7 +450,7 @@ public sealed partial class WorkspaceSidebar : Grid
 
         UpdateFooterButtonAccessibility(
             NotificationsButton,
-            "Notification Hub",
+            FooterNotificationHubLabel,
             WorkspaceSidebarHelper.IsSelectionMatch(
                 _selectedKey,
                 WorkspaceSidebarHelper.NotificationHubSelectionKey),
@@ -502,8 +511,6 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        MenuStack.DragOver -= MenuStack_DragOver;
-        MenuStack.Drop -= MenuStack_Drop;
         Unloaded -= OnUnloaded;
     }
 
@@ -622,8 +629,7 @@ public sealed partial class WorkspaceSidebar : Grid
         row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
         row.Tapped += (_, _) => InstanceRequested?.Invoke(this, instanceId);
         row.KeyDown += (sender, e) => InstanceRow_KeyDown(sender, e, instanceId, instance, row);
-        // Drag-to-reorder is disabled: dragging a row inside the scrolling menu reliably freezes the app
-        // (a WinUI drag-in-ScrollViewer issue). Reorder via the right-click "Move up / Move down" menu.
+        // Drag reorder disabled — WinUI drag-in-ScrollViewer freeze bug. Re-enable with MenuStack_DragOver/Drop handlers when resolved.
         row.CanDrag = false;
         ToolTipService.SetToolTip(
             row,
@@ -669,13 +675,6 @@ public sealed partial class WorkspaceSidebar : Grid
 
         InstanceRequested?.Invoke(this, instanceId);
         e.Handled = true;
-    }
-
-    private static void InstanceRow_DragStarting(DragStartingEventArgs e, string instanceId, string displayName)
-    {
-        e.Data.SetText(instanceId);
-        e.Data.Properties.Title = displayName;
-        e.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
     }
 
     private Border CreateSelectableRow(
@@ -880,21 +879,21 @@ public sealed partial class WorkspaceSidebar : Grid
             WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, WorkspaceSidebarHelper.SettingsSelectionKey));
         UpdateFooterButtonAccessibility(
             WorkQueueButton,
-            "Work Queue",
+            FooterWorkQueueLabel,
             WorkspaceSidebarHelper.IsSelectionMatch(
                 _selectedKey,
                 WorkspaceSidebarHelper.WorkQueueSelectionKey),
             badgeCount: 0);
         UpdateFooterButtonAccessibility(
             NotificationsButton,
-            "Notification Hub",
+            FooterNotificationHubLabel,
             WorkspaceSidebarHelper.IsSelectionMatch(
                 _selectedKey,
                 WorkspaceSidebarHelper.NotificationHubSelectionKey),
             _viewModel.NotificationHubBadgeCount);
         UpdateFooterButtonAccessibility(
             SettingsButton,
-            "Settings",
+            FooterSettingsLabel,
             WorkspaceSidebarHelper.IsSelectionMatch(
                 _selectedKey,
                 WorkspaceSidebarHelper.SettingsSelectionKey),
@@ -952,68 +951,6 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
         SettingsRequested?.Invoke(this, EventArgs.Empty);
-
-    private void MenuStack_DragOver(object sender, DragEventArgs e)
-    {
-        try
-        {
-            e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
-            if (e.DragUIOverride is not null)
-            {
-                e.DragUIOverride.Caption = "Reorder account";
-            }
-        }
-        catch
-        {
-            // Drag UI overrides are best-effort; never let one crash the drag.
-        }
-    }
-
-    private async void MenuStack_Drop(object sender, DragEventArgs e)
-    {
-        // async void — must never throw, and must NOT mutate the visual tree synchronously: rebuilding
-        // the menu (removing the dragged row) while the drop event is still on the stack crashes natively.
-        try
-        {
-            if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
-            {
-                return;
-            }
-
-            var sourceId = (await e.DataView.GetTextAsync()).Trim();
-            var position = e.GetPosition(MenuStack);
-            var targetId = ResolveDropTargetInstanceId(position);
-            if (!WorkspaceSidebarHelper.ShouldAcceptReorder(sourceId, targetId))
-            {
-                return;
-            }
-
-            // Defer the reorder (and its re-render) to the next dispatcher tick so the drag-drop
-            // operation fully completes before the dragged element is removed from the visual tree.
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                _isDragging = false; // ensure the post-reorder Refresh is allowed to restructure
-                InstanceReorderRequested?.Invoke(this, (sourceId, targetId!));
-            });
-        }
-        catch
-        {
-            // A failed drop should be a no-op, never a crash.
-        }
-    }
-
-    private string? ResolveDropTargetInstanceId(Point position)
-    {
-        var bounds = new List<SidebarRowBounds>(_instanceRows.Count);
-        foreach (var (instanceId, row) in _instanceRows)
-        {
-            var transform = row.TransformToVisual(MenuStack);
-            var rowBounds = transform.TransformBounds(new Rect(0, 0, row.ActualWidth, row.ActualHeight));
-            bounds.Add(new SidebarRowBounds(instanceId, rowBounds.Top, rowBounds.Bottom));
-        }
-
-        return WorkspaceSidebarHelper.ResolveDropTargetInstanceId(position.Y, bounds);
-    }
 
     private static Thickness ResolveThickness(string key, Thickness fallback) =>
         Application.Current.Resources.TryGetValue(key, out var resource) && resource is Thickness thickness
