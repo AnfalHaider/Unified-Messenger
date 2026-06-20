@@ -37,6 +37,45 @@ public class OversightInsightServiceTests
     }
 
     [Fact]
+    public void Sanitize_CutsRunOnWhenPeriodFollowedByQuote()
+    {
+        // Regression: a period immediately followed by a quote (not a space) used to slip the whole
+        // "Next action steps: …" run-on through, plus a stray interior quote.
+        var result = OversightInsightService.Sanitize(
+            "Highly engaged customers awaiting response, respond immediately.\" " +
+            "Next action steps: Select a subset of these 29 waiting customers.");
+
+        Assert.Equal("Highly engaged customers awaiting response, respond immediately.", result);
+        Assert.DoesNotContain("Next action steps", result);
+        Assert.DoesNotContain("\"", result);
+    }
+
+    [Fact]
+    public void Sanitize_CutsAtFirstSemicolon()
+    {
+        var result = OversightInsightService.Sanitize(
+            "Needs immediate response to prevent loss of goodwill among waiting customers; " +
+            "initiate an urgent communication roundup within the next hour.");
+
+        Assert.Equal(
+            "Needs immediate response to prevent loss of goodwill among waiting customers.",
+            result);
+    }
+
+    [Fact]
+    public void Sanitize_EnforcesWordBackstopOnRamblingSingleSentence()
+    {
+        var raw = "Reply now to the many waiting customers because every single one of them has been " +
+                  "patiently expecting a prompt and thoughtful response from your team for quite some time today";
+
+        var result = OversightInsightService.Sanitize(raw);
+
+        Assert.NotNull(result);
+        Assert.True(result!.Split(' ').Length <= 27, $"too many words: {result}");
+        Assert.EndsWith("…", result);
+    }
+
+    [Fact]
     public void Sanitize_TruncatesOverlongOutput()
     {
         var raw = new string('x', 250);

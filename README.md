@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.25.0 (WCAG 1.4.1 — shape-distinct status glyph on command-center cards)
+**Current release:** v4.25.1 (cleaner AI insight strips — first-clause only, no stray quotes, hard length cap)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.25.1
+
+- **Cleaner AI insight strips:** the on-device model's output is now sanitized harder before it reaches a card. Previously a sentence ending in a quote (e.g. `…respond immediately." Next action steps: …`) slipped a verbose run-on and a stray quote into the strip. The sanitizer now cuts at the first sentence/clause boundary (`. ! ? ;`) regardless of a following quote, strips interior quotes, and enforces a hard word/character cap (the small model routinely ignores the prompt's length limit). Three regression tests added.
 
 ### What's in v4.25.0
 

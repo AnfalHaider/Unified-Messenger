@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using UnifiedMessenger.Models.Ai;
 
 namespace UnifiedMessenger.Services.Ai;
@@ -155,7 +156,12 @@ public sealed class OversightInsightService
             "Write the one-line attention summary.";
     }
 
-    /// <summary>Trim the model's output to a single tidy line, dropping stray quotes/prefixes.</summary>
+    /// <summary>
+    /// Trim the model's output to a single tidy line: collapse whitespace, drop a leading label, strip
+    /// surrounding and interior quotes, keep only the first sentence/clause (so trailing "Next action
+    /// steps: …" run-ons are dropped), and enforce hard word/character backstops since the model routinely
+    /// ignores the prompt's length limit.
+    /// </summary>
     internal static string? Sanitize(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -163,14 +169,40 @@ public sealed class OversightInsightService
             return null;
         }
 
-        var line = raw.Replace("\r", " ").Replace("\n", " ").Trim();
-        var firstStop = line.IndexOf(". ", StringComparison.Ordinal);
-        if (firstStop > 20)
+        // Collapse all whitespace to single spaces.
+        var line = Regex.Replace(raw, @"\s+", " ").Trim();
+
+        // Drop a leading label the model sometimes prepends ("Insight:", "Summary -", …).
+        line = Regex.Replace(
+            line, @"^(insight|summary|answer|attention|note|action)\s*[:\-]\s*", string.Empty,
+            RegexOptions.IgnoreCase);
+
+        // Strip surrounding quotes/markers.
+        line = line.Trim().Trim('"', '\'', '*', '-', '•', ' ');
+
+        // Keep only the first sentence/clause: cut at the first . ! ? ; past a small offset (so an early
+        // abbreviation doesn't truncate it). This is what drops the trailing "Next action steps: …" run-on,
+        // even when the period is immediately followed by a quote rather than a space.
+        for (var i = 20; i < line.Length; i++)
         {
-            line = line[..(firstStop + 1)];
+            if (line[i] is '.' or '!' or '?' or ';')
+            {
+                line = line[i] == ';' ? line[..i].TrimEnd() + "." : line[..(i + 1)];
+                break;
+            }
         }
 
-        line = line.Trim().Trim('"', '\'', '*', '-', '•', ' ');
+        // Remove any remaining interior straight quotes the model left behind.
+        line = line.Replace("\"", string.Empty).Trim();
+
+        // Hard word-count backstop — the model often ignores the prompt's word limit.
+        var words = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 26)
+        {
+            line = string.Join(' ', words.Take(26)).TrimEnd('.', ',', ';', ':', ' ') + "…";
+        }
+
+        // Hard character backstop for pathological single-token output.
         if (line.Length > 200)
         {
             line = line[..200].TrimEnd() + "…";
