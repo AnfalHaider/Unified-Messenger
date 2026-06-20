@@ -48,7 +48,7 @@ public static class WorkspaceSidebarMenuPlanner
     {
         ArgumentNullException.ThrowIfNull(instances);
 
-        var enabledInstances = FilterScope(PlatformModuleSettingsHelper.FilterEnabledInstances(instances), scope).ToList();
+        var enabledInstances = FilterScope(PlatformModuleSettingsHelper.FilterSidebarVisibleInstances(instances), scope).ToList();
         return BuildWhatsAppFocusPlan(enabledInstances);
     }
 
@@ -64,7 +64,7 @@ public static class WorkspaceSidebarMenuPlanner
     /// <summary>True when both scopes have accounts — i.e. the scope switch is worth showing.</summary>
     public static bool HasMixedScopes(IEnumerable<MessengerInstance> instances)
     {
-        var enabled = PlatformModuleSettingsHelper.FilterEnabledInstances(instances).ToList();
+        var enabled = PlatformModuleSettingsHelper.FilterSidebarVisibleInstances(instances).ToList();
         return enabled.Any(i => i.IsProfessional) && enabled.Any(i => !i.IsProfessional);
     }
 
@@ -81,7 +81,7 @@ public static class WorkspaceSidebarMenuPlanner
             entries.Add(new SidebarMenuEntry(
                 ActiveAccountsEmptyKey,
                 SidebarMenuEntryKind.EmptyHint,
-                HintText: "No WhatsApp accounts yet."));
+                HintText: "No accounts yet."));
             return new SidebarMenuPlan { Entries = entries };
         }
 

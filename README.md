@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.26.0 (bug fixes — instance delete/reorder no longer crash/hang; opened chats no longer falsely counted as replied)
+**Current release:** v4.26.1 (fix: Google Business / Telegram / Messenger / generic instances now appear in the sidebar, not just the Work Queue)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.26.1
+
+- **Embed channels now appear in the sidebar.** Adding a Google Business (or Telegram / Messenger / generic URL) account left it addable and visible in the Work Queue but **invisible in the sidebar** — so it could never be opened, and therefore "never loaded." The sidebar was gated on a WhatsApp-only check (`IsPlatformModuleEnabled`) that's really the "participates in WhatsApp scraping pipelines" gate. Split it: WhatsApp-only stays for backfill/adapter/analytics, and a new `IsSidebarVisible` (any addable platform) drives sidebar visibility. Embed channels now show and open normally. (4 regression tests across the embed platforms.)
 
 ### What's in v4.26.0
 

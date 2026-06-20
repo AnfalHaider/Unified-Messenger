@@ -6,16 +6,33 @@ namespace UnifiedMessenger.Tests;
 
 public class WorkspaceSidebarMenuPlannerTests
 {
-    private static MessengerInstance Inst(string id, bool professional, string? branchKey = null) =>
+    private static MessengerInstance Inst(string id, bool professional, string? branchKey = null, string platform = "whatsapp") =>
         new()
         {
             Id = id,
             DisplayName = id,
             ProfileName = id,
-            Platform = "whatsapp",
+            Platform = platform,
             Category = professional ? WorkspaceCategory.Professional : WorkspaceCategory.Personal,
             BranchKey = branchKey
         };
+
+    [Theory]
+    [InlineData("googlebusiness")]
+    [InlineData("telegram")]
+    [InlineData("messenger")]
+    [InlineData("generic")]
+    public void BuildPlan_EmbedChannels_AppearInSidebar(string platform)
+    {
+        // Regression: embed channels are addable in "Add account" and showed in the Work Queue, but the
+        // sidebar gated on WhatsApp-only, so they were addable-but-invisible (and thus un-openable).
+        var plan = WorkspaceSidebarMenuPlanner.BuildPlan(new[]
+        {
+            Inst("embed", professional: true, platform: platform)
+        });
+
+        Assert.Contains("embed", plan.Entries.Select(e => e.Key));
+    }
 
     [Fact]
     public void BuildPlan_ProfessionalWithSharedLocation_AddsLocationSubHeader()
