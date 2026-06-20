@@ -7,8 +7,56 @@ public class OversightChatSnapshotServiceTests
 {
     // awaiting = the customer had the last word (we haven't replied).
     private static OversightChatSnapshotService.ChatEntry Chat(
-        string key, string name, int unread, DateTimeOffset when, bool awaiting) =>
-        new(key, name, unread, when, Preview: "", IsAwaiting: awaiting);
+        string key, string name, int unread, DateTimeOffset when, bool awaiting, bool fromMe = false) =>
+        new(key, name, unread, when, Preview: "", IsAwaiting: awaiting, LastMessageFromMe: fromMe);
+
+    [Fact]
+    public void StickyAwaiting_OpeningChatDoesNotMarkResponded()
+    {
+        var svc = OversightChatSnapshotService.Instance;
+        var now = DateTimeOffset.UtcNow;
+        var id = "inst-" + Guid.NewGuid().ToString("N");
+
+        // First read: customer is waiting (awaiting, 2 unread).
+        svc.Update(id, new[] { Chat("jid-x", "X", 2, now, awaiting: true) }, now);
+        Assert.Single(svc.GetAwaiting(id, null));
+
+        // Operator OPENS the chat off-screen → unread clears, direction unconfirmed (fromMe=false).
+        // It must STAY awaiting — opening is not replying.
+        svc.Update(id, new[] { Chat("jid-x", "X", 0, now, awaiting: false, fromMe: false) }, now);
+
+        var stillAwaiting = Assert.Single(svc.GetAwaiting(id, null));
+        Assert.Equal("jid-x", stillAwaiting.ConversationKey);
+    }
+
+    [Fact]
+    public void StickyAwaiting_ConfirmedReplyClearsAwaiting()
+    {
+        var svc = OversightChatSnapshotService.Instance;
+        var now = DateTimeOffset.UtcNow;
+        var id = "inst-" + Guid.NewGuid().ToString("N");
+
+        svc.Update(id, new[] { Chat("jid-y", "Y", 1, now, awaiting: true) }, now);
+        Assert.Single(svc.GetAwaiting(id, null));
+
+        // Operator actually REPLIES → last message is now from us (fromMe=true). Awaiting clears.
+        svc.Update(id, new[] { Chat("jid-y", "Y", 0, now, awaiting: false, fromMe: true) }, now);
+
+        Assert.Empty(svc.GetAwaiting(id, null));
+    }
+
+    [Fact]
+    public void StickyAwaiting_NewCaughtUpChatStaysCaughtUp()
+    {
+        var svc = OversightChatSnapshotService.Instance;
+        var now = DateTimeOffset.UtcNow;
+        var id = "inst-" + Guid.NewGuid().ToString("N");
+
+        // No prior state for this chat → an awaiting=false read is taken at face value.
+        svc.Update(id, new[] { Chat("jid-z", "Z", 0, now, awaiting: false, fromMe: false) }, now);
+
+        Assert.Empty(svc.GetAwaiting(id, null));
+    }
 
     [Fact]
     public void TryGetWindowed_ScopesActiveByLastActivity()

@@ -17,7 +17,8 @@ public sealed class OversightChatSnapshotService
         int Unread,
         DateTimeOffset LastActivityUtc,
         string Preview = "",
-        bool IsAwaiting = false);
+        bool IsAwaiting = false,
+        bool LastMessageFromMe = false);
 
     /// <summary>"Since you were last here" summary across a set of instances.</summary>
     public readonly record struct OversightDigest(
@@ -47,7 +48,42 @@ public sealed class OversightChatSnapshotService
             return;
         }
 
-        _byInstance[instanceId.Trim()] = new InstanceChats(chats, capturedAtUtc);
+        var key = instanceId.Trim();
+        _byInstance[key] = new InstanceChats(ApplyStickyAwaiting(key, chats), capturedAtUtc);
+    }
+
+    /// <summary>
+    /// Keeps a chat marked "awaiting" until we actually observe an outbound reply — opening/reading a chat
+    /// (which clears WhatsApp's unread marker) must NOT count as responding. A chat stays awaiting unless
+    /// the new read confirms the last message is now from us (<see cref="ChatEntry.LastMessageFromMe"/>);
+    /// an "awaiting=false" with unconfirmed direction inherits the prior awaiting state so an opened-but-
+    /// unanswered chat doesn't silently flip to "caught up".
+    /// </summary>
+    private IReadOnlyList<ChatEntry> ApplyStickyAwaiting(string key, IReadOnlyList<ChatEntry> incoming)
+    {
+        var prior = _byInstance.TryGetValue(key, out var snap)
+            ? snap.Chats.ToDictionary(c => c.ConversationKey, c => c, StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var result = new List<ChatEntry>(incoming.Count);
+        foreach (var chat in incoming)
+        {
+            if (chat.IsAwaiting || chat.LastMessageFromMe)
+            {
+                // Trust the read: still awaiting, or confirmed replied (last message is from us).
+                result.Add(chat);
+                continue;
+            }
+
+            // awaiting=false but the read did NOT confirm an outbound reply (direction unknown, e.g. the chat
+            // was opened off-screen so unread dropped to 0). Inherit the prior awaiting state if we had one.
+            var stillAwaiting = prior is not null &&
+                                prior.TryGetValue(chat.ConversationKey, out var was) &&
+                                was.IsAwaiting;
+            result.Add(stillAwaiting ? chat with { IsAwaiting = true } : chat);
+        }
+
+        return result;
     }
 
     /// <summary>

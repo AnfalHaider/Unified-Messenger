@@ -244,25 +244,15 @@ public sealed partial class WorkspaceSidebar : Grid
             desiredElements.Add(element);
         }
 
-        for (var index = 0; index < desiredElements.Count; index++)
+        // Rebuild the menu order by detaching everything and re-adding in the desired order. The previous
+        // incremental reconciliation could Insert a cached element that was still parented at another index
+        // within MenuStack — WinUI mishandles re-parenting inside the same panel, which wedged the layout
+        // pass and froze the app on right-click "Move up/down". Clear + re-add can never double-parent and
+        // is flicker-free at this list size (a handful of rows).
+        MenuStack.Children.Clear();
+        foreach (var element in desiredElements)
         {
-            if (index < MenuStack.Children.Count &&
-                ReferenceEquals(MenuStack.Children[index], desiredElements[index]))
-            {
-                continue;
-            }
-
-            if (index < MenuStack.Children.Count)
-            {
-                MenuStack.Children.RemoveAt(index);
-            }
-
-            MenuStack.Children.Insert(index, desiredElements[index]);
-        }
-
-        while (MenuStack.Children.Count > desiredElements.Count)
-        {
-            MenuStack.Children.RemoveAt(MenuStack.Children.Count - 1);
+            MenuStack.Children.Add(element);
         }
 
         foreach (var staleKey in _menuElementCache.Keys.Where(key => !activeKeys.Contains(key)).ToList())

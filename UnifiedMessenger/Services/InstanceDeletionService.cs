@@ -7,7 +7,7 @@ namespace UnifiedMessenger.Services;
 /// </summary>
 public static class InstanceDeletionService
 {
-    public static async Task DeleteAsync(
+    public static Task DeleteAsync(
         ApplicationServices services,
         MessengerInstance instance,
         DeleteInstanceChoice choice,
@@ -16,18 +16,31 @@ public static class InstanceDeletionService
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(instance);
 
-        await services.SessionManager.CloseSessionAsync(instance.Id).ConfigureAwait(false);
+        // The whole teardown touches WebView2 (COM/STA) and UI-coupled services, so it MUST run on the UI
+        // dispatcher thread. A plain ConfigureAwait(false)/(true) is not enough — WinRT awaitables routinely
+        // resume on a thread-pool thread regardless, which threw "the application called an interface that
+        // was marshalled for a different thread" when removing an instance. UiThreadRunner pins it.
+        return UiThreadRunner.RunAsync(() => DeleteCoreAsync(services, instance, choice, cancellationToken));
+    }
+
+    private static async Task DeleteCoreAsync(
+        ApplicationServices services,
+        MessengerInstance instance,
+        DeleteInstanceChoice choice,
+        CancellationToken cancellationToken)
+    {
+        await services.SessionManager.CloseSessionAsync(instance.Id).ConfigureAwait(true);
 
         if (choice == DeleteInstanceChoice.RemoveFromSidebar)
         {
-            await services.Registry.RemoveFromSidebarAsync(instance.Id, cancellationToken).ConfigureAwait(false);
+            await services.Registry.RemoveFromSidebarAsync(instance.Id, cancellationToken).ConfigureAwait(true);
         }
         else
         {
             await WebViewProfileManager.Instance
                 .PermanentlyDeleteProfileAsync(instance.ProfileName, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-            await services.Registry.RemovePermanentlyAsync(instance.Id, cancellationToken).ConfigureAwait(false);
+                .ConfigureAwait(true);
+            await services.Registry.RemovePermanentlyAsync(instance.Id, cancellationToken).ConfigureAwait(true);
         }
 
         services.NotificationHub.RemoveAlertsForInstance(instance.Id);

@@ -110,9 +110,11 @@ public static class OversightSnapshotReader
             var awaiting = c.TryGetProperty("awaiting", out var a)
                 ? a.ValueKind == JsonValueKind.True
                 : unread > 0;
+            var fromMe = c.TryGetProperty("lastMessageFromMe", out var fm) && fm.ValueKind == JsonValueKind.True;
             if (DateTimeOffset.TryParse(ts, out var when))
             {
-                list.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when.ToUniversalTime(), preview, awaiting));
+                list.Add(new OversightChatSnapshotService.ChatEntry(
+                    key, name, unread, when.ToUniversalTime(), preview, awaiting, fromMe));
             }
         }
 

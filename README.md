@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.25.1 (cleaner AI insight strips — first-clause only, no stray quotes, hard length cap)
+**Current release:** v4.26.0 (bug fixes — instance delete/reorder no longer crash/hang; opened chats no longer falsely counted as replied)
 
 ## Scope
 
@@ -29,6 +29,12 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.26.0
+
+- **Removing an instance no longer crashes** with *"the application called an interface that was marshalled for a different thread."* The teardown touches WebView2 (COM/STA) and UI-coupled services, so it must run on the UI dispatcher thread; it's now pinned there via `UiThreadRunner` (a plain `ConfigureAwait` isn't enough — WinRT awaitables resume on thread-pool threads regardless).
+- **Moving an instance up/down no longer hangs the app.** The sidebar menu rebuild used an incremental reconciliation that could re-insert a cached row still parented at another index — WinUI mishandles re-parenting inside the same panel and wedged the layout pass. The rebuild now detaches and re-adds in order (flicker-free at this list size).
+- **Opening a chat no longer counts as "replied."** Caught-up % is direction-first now: a chat is "awaiting" when the last message is **not from us**, using WhatsApp's persisted message direction first and the rendered-row direction next; the unread marker (which clears the instant you open a chat) is only a last resort. A new **sticky-awaiting** rule keeps a chat marked awaiting until an outbound reply is actually observed, so opening an off-screen chat can't silently flip it to "caught up." (3 regression tests.)
 
 ### What's in v4.25.1
 

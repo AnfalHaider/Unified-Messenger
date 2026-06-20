@@ -1074,10 +1074,11 @@
                 }
 
                 // Awaiting = the CUSTOMER had the last word (we haven't replied), even if the message was
-                // opened/read. Use the DOM's last-message direction when the chat is rendered; otherwise
-                // fall back to the unread marker.
+                // opened/read. Direction-first: the persisted lastMessage.fromMe is authoritative; then the
+                // rendered DOM hint; only as a last resort the unread marker (which wrongly clears the moment
+                // a chat is opened). awaiting is just "the last message was NOT from us".
                 var fromMe = last ? !!last.fromMe : (hint ? hint.lastFromMe : (unread === 0));
-                var awaiting = hint ? !hint.lastFromMe : (unread > 0);
+                var awaiting = !fromMe;
 
                 var preview = body || (hint && hint.preview) || '';
                 var iso = new Date(t * 1000).toISOString();
