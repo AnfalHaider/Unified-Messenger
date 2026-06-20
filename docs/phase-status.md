@@ -82,7 +82,7 @@
 | List/kanban virtualization | ◑ | ItemsRepeater migration — verify no residual ListView |
 | WebView2 memory strategy + default cap + orphan handler | ☐ | RED (post-suspend RAM unmeasured; cap=0; API-mixing) |
 | `IInstanceConnection` abstraction | ☐ | net-new; future-proofs channels |
-| Contrast remediation | ◑ | teal-on-light AA partial |
+| Contrast remediation | ◑ | teal-on-light AA partial; **WCAG 1.4.1 non-color status glyph on L0 cards done (v4.25.0)** |
 | CI asset guard | ✅ | shipped this session |
 | Stress fixtures in CI | ◑ | Stage-4 tests exist; not all wired |
 
