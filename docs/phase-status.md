@@ -139,10 +139,11 @@ Remaining work, highest-leverage first:
 - Avatar via `PlatformBrandingHelper.GetInitials` + accent color per instance (needs lookup from registry)
 - Expander still wraps the whole card; awaiting list expands below
 
-### v4.24.0 — Shell modernization (Increment 54)
-- Replace `GroupToggle` ToggleSwitch → two `ToggleButton`s ("By account" / "By location") styled as a segmented control
-- Move `ScopeFilterCombo` out of sidebar → `SelectorBar` in `TitleBar.RightHeader` (Professional ∣ Personal ∣ All)
-- `AppSettings.SidebarPinnedExpanded` default `false` (compact on first run); existing users keep their persisted value
-- Add "Define locations ↗" CTA border in `CommandCenterPanel` when `ByInstance` mode and no locations defined
+### v4.24.0 — Shell modernization (Increment 56) ✅ shipped
+- ✅ Replace `GroupToggle` ToggleSwitch → two `ToggleButton`s ("By account" / "By location") styled as a segmented control *(landed early in v4.22.0)*
+- ✅ Move scope switch out of sidebar → `ScopeSelector` ComboBox in `TitleBar.RightHeader` (All ∣ Professional ∣ Personal). Scope state stays owned by `WorkspaceSidebar`; title bar drives it via `SetScope` / `ScopeSelectorStateChanged` so the rail render logic is untouched. Shown only when both scopes have accounts.
+- ✅ Title-bar **AI toggle** mirroring `AppSettings.EnableLocalAi` (two-way sync with Settings → AI; graceful heuristic fallback).
+- ✅ `AppSettings.SidebarPinnedExpanded` default `false` (compact 56px rail on first run); existing users keep their persisted value.
+- ✅ "Define locations ↗" CTA border in `CommandCenterPanel` *(landed early in v4.22.0)*.
 
-Each step ships green and is reversible.
+**Deferred from this increment:** a true `SelectorBar` segmented look for the scope switch (shipped as a compact ComboBox for reliability in the 48px title bar); status glyph alongside card color for strict WCAG 1.4.1.

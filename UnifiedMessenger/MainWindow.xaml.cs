@@ -19,6 +19,8 @@ public sealed partial class MainWindow : Window, IShellUiHost
     private readonly ShellController _shell;
     private bool _forceShutdown;
     private int _startupWarmCompleted;
+    private bool _suppressScopeSelectorChange;
+    private bool _suppressAiToggleChange;
 
     DispatcherQueue IShellUiHost.DispatcherQueue => DispatcherQueue;
     XamlRoot IShellUiHost.XamlRoot => Content.XamlRoot;
@@ -62,7 +64,13 @@ public sealed partial class MainWindow : Window, IShellUiHost
         WorkspaceSidebar.SettingsRequested += (_, _) => _ = _shell.Navigation.ShowSettingsAsync();
         WorkspaceSidebar.InstanceContextRequested += (_, args) => _shell.ShowInstanceContextMenu(args);
         WorkspaceSidebar.InstanceReorderRequested += OnInstanceReorderRequested;
-        WorkspaceSidebar.Loaded += (_, _) => _shell.Chrome.RebuildInstanceNavigation();
+        WorkspaceSidebar.ScopeSelectorStateChanged += OnScopeSelectorStateChanged;
+        WorkspaceSidebar.Loaded += (_, _) =>
+        {
+            _shell.Chrome.RebuildInstanceNavigation();
+            SyncScopeSelector();
+            SyncAiToggle();
+        };
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -405,8 +413,77 @@ public sealed partial class MainWindow : Window, IShellUiHost
         {
             ThemeService.Apply(_services.AppSettings.Settings.ThemePreference);
             _shell.Chrome.ApplyNotificationPanelDockLayout();
+            SyncAiToggle();
             _ = _services.SessionManager.BroadcastAdapterSettingsAsync();
         });
+    }
+
+    // ── Title-bar scope selector (drives WorkspaceSidebar.SetScope) ───────────────────────────
+    private void OnScopeSelectorStateChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(SyncScopeSelector);
+
+    private void SyncScopeSelector()
+    {
+        ScopeSelector.Visibility = WorkspaceSidebar.ShouldShowScopeSelector
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        var targetIndex = WorkspaceSidebar.Scope switch
+        {
+            SidebarScope.Professional => 1,
+            SidebarScope.Personal => 2,
+            _ => 0
+        };
+
+        if (ScopeSelector.SelectedIndex == targetIndex)
+        {
+            return;
+        }
+
+        _suppressScopeSelectorChange = true;
+        ScopeSelector.SelectedIndex = targetIndex;
+        _suppressScopeSelectorChange = false;
+    }
+
+    private void ScopeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressScopeSelectorChange)
+        {
+            return;
+        }
+
+        var scope = ((ScopeSelector.SelectedItem as ComboBoxItem)?.Tag as string) switch
+        {
+            "Professional" => SidebarScope.Professional,
+            "Personal" => SidebarScope.Personal,
+            _ => SidebarScope.All
+        };
+        WorkspaceSidebar.SetScope(scope);
+    }
+
+    // ── Title-bar AI toggle (mirrors AppSettings.EnableLocalAi) ───────────────────────────────
+    private void SyncAiToggle()
+    {
+        var enabled = _services.AppSettings.Settings.EnableLocalAi;
+        if (AiToggleButton.IsChecked == enabled)
+        {
+            return;
+        }
+
+        _suppressAiToggleChange = true;
+        AiToggleButton.IsChecked = enabled;
+        _suppressAiToggleChange = false;
+    }
+
+    private void AiToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_suppressAiToggleChange)
+        {
+            return;
+        }
+
+        var enabled = AiToggleButton.IsChecked == true;
+        _ = _services.AppSettings.UpdateAsync(s => s.EnableLocalAi = enabled);
     }
 
     private void TryEnqueueSafe(Func<Task> asyncAction, string operationName = "")

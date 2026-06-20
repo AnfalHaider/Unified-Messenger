@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.23.0 (shell IA foundation — WorkQueue view state, location/delete/update/taskbar-pin dialogs, sidebar drag-freeze fix)
+**Current release:** v4.24.0 (shell modernization — title-bar scope selector + AI toggle, compact sidebar default)
 
 ## Scope
 
@@ -29,6 +29,13 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.24.0
+
+- **Shell modernization (closes the v4.24.0 increment of the UI/UX plan):**
+  - **Title-bar scope selector:** the account-scope switch (All ∣ Professional ∣ Personal) moved out of the sidebar and into the title bar, per the §9 shell spec. It still appears only when both scopes have accounts, persists across sessions, and re-renders the rail immediately. The scope state stays owned by the sidebar; the title-bar control drives it through a small public API (`WorkspaceSidebar.SetScope` / `ScopeSelectorStateChanged`), so the rail's render logic was not disturbed.
+  - **Title-bar AI toggle:** a one-click **AI** toggle in the title bar mirrors `AppSettings.EnableLocalAi` — flip on-device AI insight strips on/off without opening Settings. It stays in sync if the same setting is changed from Settings → AI, and degrades gracefully to heuristics when off or when Ollama is unavailable.
+  - **Compact sidebar by default:** fresh installs now open with the 56px icon rail (`SidebarPinnedExpanded` defaults off); the title-bar pin button expands it. **Existing users keep their persisted expanded/compact preference** — the new default only applies to brand-new installs.
 
 ### What's in v4.23.0
 

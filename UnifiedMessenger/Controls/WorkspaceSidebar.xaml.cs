@@ -32,7 +32,6 @@ public sealed partial class WorkspaceSidebar : Grid
     // Scope switch (Shell IA): remembers the last Refresh args so a scope change can re-render.
     private SidebarScope _scope = SidebarScope.All;
     private bool _scopeInitialized;
-    private bool _suppressScopeChange;
     private IReadOnlyList<MessengerInstance> _lastInstances = [];
     private string? _lastSelectedInstanceId;
     private bool _lastDashboardSelected;
@@ -133,9 +132,9 @@ public sealed partial class WorkspaceSidebar : Grid
             workQueueSelected);
 
         // The scope switch only applies (and shows) when both scopes have accounts; otherwise it would
-        // hide the user's only scope.
+        // hide the user's only scope. The selector itself lives in the title bar — tell it to show/hide.
         var hasMixed = WorkspaceSidebarMenuPlanner.HasMixedScopes(instanceList);
-        ScopeFilterCombo.Visibility = hasMixed ? Visibility.Visible : Visibility.Collapsed;
+        ScopeSelectorStateChanged?.Invoke(this, EventArgs.Empty);
         var effectiveScope = hasMixed ? _scope : SidebarScope.All;
 
         var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instanceList, effectiveScope);
@@ -163,43 +162,33 @@ public sealed partial class WorkspaceSidebar : Grid
 
         _scopeInitialized = true;
         _scope = ParseScope(AppSettingsService.Instance.Settings.SidebarScopeFilter);
-
-        _suppressScopeChange = true;
-        ScopeFilterCombo.SelectedIndex = _scope switch
-        {
-            SidebarScope.Professional => 1,
-            SidebarScope.Personal => 2,
-            _ => 0
-        };
-        _suppressScopeChange = false;
     }
 
-    private static SidebarScope ParseScope(string? value) => value switch
-    {
-        "Professional" => SidebarScope.Professional,
-        "Personal" => SidebarScope.Personal,
-        _ => SidebarScope.All
-    };
+    /// <summary>The current account scope. Driven by the title-bar scope selector.</summary>
+    public SidebarScope Scope => _scope;
 
-    private void ScopeFilterCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    /// <summary>
+    /// Whether the scope selector should be shown — only when both scopes have accounts, so the user
+    /// can't hide their only scope. The title bar subscribes to <see cref="ScopeSelectorStateChanged"/>.
+    /// </summary>
+    public bool ShouldShowScopeSelector => WorkspaceSidebarMenuPlanner.HasMixedScopes(_lastInstances);
+
+    /// <summary>Raised when the mixed-scope state may have changed (on every Refresh) so the title-bar
+    /// selector can update its visibility and reflect the current scope.</summary>
+    public event EventHandler? ScopeSelectorStateChanged;
+
+    /// <summary>Sets the account scope from the title-bar selector and re-renders with cached args.</summary>
+    public void SetScope(SidebarScope scope)
     {
-        // Ignore selection events until the sidebar has had its first real Refresh (the combo can fire
-        // during construction/initialization before _services and cached args are ready).
-        if (_suppressScopeChange || !_scopeInitialized)
+        EnsureScopeInitialized();
+        if (_scope == scope)
         {
             return;
         }
 
-        _scope = ((ScopeFilterCombo.SelectedItem as ComboBoxItem)?.Tag as string) switch
-        {
-            "Professional" => SidebarScope.Professional,
-            "Personal" => SidebarScope.Personal,
-            _ => SidebarScope.All
-        };
-
+        _scope = scope;
         _ = AppSettingsService.Instance.UpdateAsync(s => s.SidebarScopeFilter = _scope.ToString());
 
-        // Re-render with the cached args so the filter takes effect immediately.
         Refresh(
             _lastInstances,
             _lastSelectedInstanceId,
@@ -208,6 +197,13 @@ public sealed partial class WorkspaceSidebar : Grid
             _lastNotificationHubSelected,
             _lastWorkQueueSelected);
     }
+
+    private static SidebarScope ParseScope(string? value) => value switch
+    {
+        "Professional" => SidebarScope.Professional,
+        "Personal" => SidebarScope.Personal,
+        _ => SidebarScope.All
+    };
 
     private void ApplyInstanceContentUpdates(SidebarMenuPlan plan)
     {
@@ -350,8 +346,6 @@ public sealed partial class WorkspaceSidebar : Grid
         var labelVisibility = _isCompact ? Visibility.Collapsed : Visibility.Visible;
         BrandWordmarkImage.Visibility = labelVisibility;
         AddInstanceLabel.Visibility = labelVisibility;
-        ScopeFilterCombo.Visibility = _isCompact ? Visibility.Collapsed
-            : WorkspaceSidebarMenuPlanner.HasMixedScopes(_lastInstances) ? Visibility.Visible : Visibility.Collapsed;
         WorkQueueLabel.Visibility = labelVisibility;
         NotificationsLabel.Visibility = labelVisibility;
         SettingsLabel.Visibility = labelVisibility;

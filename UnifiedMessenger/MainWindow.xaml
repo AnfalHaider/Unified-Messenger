@@ -29,7 +29,28 @@
                 <ImageIconSource ImageSource="Assets/AppIcon.ico" />
             </TitleBar.IconSource>
             <TitleBar.RightHeader>
-                <StackPanel Orientation="Horizontal" Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                    <ComboBox
+                        x:Name="ScopeSelector"
+                        MinWidth="128"
+                        AutomationProperties.Name="Account scope"
+                        SelectionChanged="ScopeSelector_SelectionChanged"
+                        ToolTipService.ToolTip="Filter accounts by scope"
+                        Visibility="Collapsed">
+                        <ComboBoxItem Content="All accounts" Tag="All" />
+                        <ComboBoxItem Content="Professional" Tag="Professional" />
+                        <ComboBoxItem Content="Personal" Tag="Personal" />
+                    </ComboBox>
+                    <ToggleButton
+                        x:Name="AiToggleButton"
+                        AutomationProperties.Name="Toggle on-device AI insights"
+                        Click="AiToggleButton_Click"
+                        ToolTipService.ToolTip="On-device AI insights (Ollama). Falls back to heuristics when off or unavailable.">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon FontSize="14" Glyph="&#xE945;" />
+                            <TextBlock Text="AI" />
+                        </StackPanel>
+                    </ToggleButton>
                     <Button
                         x:Name="PanePinButton"
                         Click="PanePinButton_Click"

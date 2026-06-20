@@ -24,7 +24,9 @@ public sealed class AppSettings
 
     public NotificationPanelDock PanelDock { get; set; } = NotificationPanelDock.Right;
 
-    public bool SidebarPinnedExpanded { get; set; } = true;
+    // Default to the compact icon rail (56px) on first run; the title-bar pin button expands it.
+    // Existing users keep their persisted value (this default only applies to fresh installs).
+    public bool SidebarPinnedExpanded { get; set; }
 
     public int SlaThresholdMinutes { get; set; } = 15;
 

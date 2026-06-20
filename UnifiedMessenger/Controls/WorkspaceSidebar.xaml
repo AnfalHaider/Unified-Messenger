@@ -39,19 +39,7 @@
                     Source="Assets/Branding/wordmark-inline-light.png" />
             </Grid>
 
-            <ComboBox
-                x:Name="ScopeFilterCombo"
-                AutomationProperties.Name="Account scope"
-                HorizontalAlignment="Stretch"
-                Margin="4,2,4,6"
-                SelectionChanged="ScopeFilterCombo_SelectionChanged"
-                ToolTipService.ToolTip="Filter accounts by scope"
-                Visibility="Collapsed">
-                <ComboBoxItem Content="All accounts" Tag="All" />
-                <ComboBoxItem Content="Professional" Tag="Professional" />
-                <ComboBoxItem Content="Personal" Tag="Personal" />
-            </ComboBox>
-
+            <!-- Account scope is now selected from the title-bar scope selector (see MainWindow). -->
             <StackPanel x:Name="MenuStack" Spacing="2" />
         </StackPanel>
     </ScrollViewer>
