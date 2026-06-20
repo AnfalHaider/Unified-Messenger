@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-06-19 · **Baseline:** v4.16.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-06-20 · **Baseline:** v4.21.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
 > **Session 4 update (v4.14.0 → v4.16.0): command-center polish + insight strips + instance-lifecycle memory hardening.**
@@ -72,7 +72,7 @@
 ☐ **Not started.** Net-new: embed Business Profile web UI, scrape reviews (rating/% responded/unanswered), reply-from-web, review-metrics module. (API exists but excluded by no-cloud rule.)
 
 ## Phase 5 — Additional channels (Telegram, then Meta)
-☐ **Not started.** `PlatformKind`/adapters are WhatsApp-only. Each is an isolated integration (Telegram low-risk; Meta higher-risk).
+◑ **Embed slice done (v4.21.0).** Telegram (`web.telegram.org`) and Messenger (`messenger.com`) are registered platforms — selectable in "Add account", each gets its own isolated WebView session and branded accent colour. Routes to `NullPlatformAdapter` (no metric scraping yet). A Telegram adapter reading unread/awaiting from `web.telegram.org` DOM and a Messenger adapter (passive read-only; Meta fights automation) are future work that need a live logged-in account to tune.
 
 ## Cross-cutting (any phase)
 
@@ -105,7 +105,7 @@ Remaining work, highest-leverage first:
 1. **Phase 2 — deeper AI tiers.** ✅ Insight strips now have optional Ollama-phrased lines (v4.17.0, heuristic fallback). Remaining: **outbound staff-reply tone/quality** scoring; Tier-1 lightweight ONNX (net-new).
 2. **Phase 3 leftovers.** ✅ Command-center entity search + compact density (v4.18.0); ✅ generic-URL webview instances (v4.19.0 — `generic` platform → NullPlatformAdapter, no oversight data). Remaining: sidebar-rail search/density at very large account counts.
 3. **Phase 4 — Google Business reviews channel.** ◑ Embed slice done (v4.20.0 — `googlebusiness` platform loads the reviews console as a branded channel). Remaining: the metric-scraping adapter (star rating / % responded / unanswered into oversight) — needs a live logged-in account to build/tune the DOM reader.
-4. **Phase 5 — Telegram, then Meta** (isolated per-channel adapters).
+4. **Phase 5 — Telegram, then Meta.** ◑ Embed slice done (v4.21.0 — Telegram + Messenger channels selectable). Remaining: metric-scraping adapters (unread/awaiting from DOM) — needs live logged-in accounts to tune.
 5. **Polish/cleanup.** Remove dead drag code; make the awaiting-list preview more reliable (or a bounded message-store read); optional true drag-reorder via `ListView.CanReorderItems`; contrast remediation; CI stress fixtures.
 
 Each step ships green and is reversible.

@@ -10,7 +10,8 @@ public class PlatformAdapterFactoryTests
     [InlineData("whatsappbusiness", "whatsappbusiness")]
     [InlineData("generic", "generic")]
     [InlineData("googlebusiness", "generic")]
-    [InlineData("telegram", "whatsapp")]
+    [InlineData("telegram", "generic")]
+    [InlineData("messenger", "generic")]
     [InlineData("unknown", "whatsapp")]
     [InlineData(" WhatsApp ", "whatsapp")]
     public void Resolve_ReturnsWhatsAppFamilyAdapter(string platformId, string expectedPlatformId)

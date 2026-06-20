@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.20.0 (Google Business reviews channel — embed your reviews console as a first-class monitored channel)
+**Current release:** v4.21.0 (Telegram + Meta Messenger embed channels — Phase 5 embed slice)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.21.0
+
+- **Telegram + Meta Messenger embed channels (Phase 5 — embed slice):** "Add account" now offers **Telegram** (`web.telegram.org`) and **Messenger** (`messenger.com`) as branded channel options, each loading in its own isolated WebView session with a per-platform accent colour. Same embed-slice model as Google Business (v4.20.0) and generic web page (v4.19.0): the channels are fully usable for manual reading and replying, but **no adapter scraping** yet — conversation metrics (unread/awaiting) are not yet surfaced in oversight. Each will have its own adapter when a live logged-in account is available to tune the DOM reader against. Meta Messenger carries higher maintenance risk (Meta actively fights automation) so the adapter scope is passive read-only only.
 
 ### What's in v4.20.0
 

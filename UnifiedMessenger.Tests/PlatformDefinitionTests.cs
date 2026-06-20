@@ -7,6 +7,8 @@ public class PlatformDefinitionTests
     [Theory]
     [InlineData("whatsapp", "WhatsApp")]
     [InlineData("whatsappbusiness", "WhatsApp Business")]
+    [InlineData("telegram", "Telegram")]
+    [InlineData("messenger", "Messenger")]
     public void FindById_ReturnsKnownPlatform(string id, string expectedName)
     {
         var platform = PlatformDefinition.FindById(id);
@@ -28,7 +30,7 @@ public class PlatformDefinitionTests
     [Fact]
     public void FindById_ReturnsNullForUnknownPlatform()
     {
-        Assert.Null(PlatformDefinition.FindById("telegram"));
+        Assert.Null(PlatformDefinition.FindById("not-a-real-platform"));
     }
 
     [Fact]
@@ -39,14 +41,16 @@ public class PlatformDefinitionTests
     }
 
     [Fact]
-    public void All_ContainsWhatsAppFamilyAndGeneric()
+    public void All_ContainsAllRegisteredPlatforms()
     {
         var ids = PlatformDefinition.All.Select(p => p.Id).ToList();
 
-        Assert.Equal(4, ids.Count);
+        Assert.Equal(6, ids.Count);
         Assert.Contains("whatsapp", ids);
         Assert.Contains("whatsappbusiness", ids);
         Assert.Contains("googlebusiness", ids);
+        Assert.Contains("telegram", ids);
+        Assert.Contains("messenger", ids);
         Assert.Contains("generic", ids);
     }
 
@@ -59,6 +63,28 @@ public class PlatformDefinitionTests
         Assert.Equal("Google Business", google!.DisplayName);
         Assert.Equal("googlebusiness", PlatformDefinition.NormalizePlatformId("googlebusiness"));
         Assert.False(string.IsNullOrWhiteSpace(google.DefaultUrl));
+    }
+
+    [Fact]
+    public void Telegram_IsRegisteredAsEmbeddableChannel()
+    {
+        var telegram = PlatformDefinition.FindById("telegram");
+
+        Assert.NotNull(telegram);
+        Assert.Equal("Telegram", telegram!.DisplayName);
+        Assert.Equal("telegram", PlatformDefinition.NormalizePlatformId("telegram"));
+        Assert.False(string.IsNullOrWhiteSpace(telegram.DefaultUrl));
+    }
+
+    [Fact]
+    public void Messenger_IsRegisteredAsEmbeddableChannel()
+    {
+        var messenger = PlatformDefinition.FindById("messenger");
+
+        Assert.NotNull(messenger);
+        Assert.Equal("Messenger", messenger!.DisplayName);
+        Assert.Equal("messenger", PlatformDefinition.NormalizePlatformId("messenger"));
+        Assert.False(string.IsNullOrWhiteSpace(messenger.DefaultUrl));
     }
 
     [Fact]
