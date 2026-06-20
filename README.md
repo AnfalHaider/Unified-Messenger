@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.24.0 (shell modernization — title-bar scope selector + AI toggle, compact sidebar default)
+**Current release:** v4.24.1 (shell modernization — title-bar scope selector + AI toggle, compact sidebar default; locations-CTA spacing fix)
 
 ## Scope
 

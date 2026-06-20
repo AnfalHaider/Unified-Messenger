@@ -125,7 +125,7 @@
                 <TextBlock
                     VerticalAlignment="Center"
                     FontSize="13">
-                    <Run>Group accounts into </Run><Run FontWeight="SemiBold">locations</Run><Run> to oversee a whole branch at once.</Run>
+                    <Run>Group accounts into&#160;</Run><Run FontWeight="SemiBold">locations</Run><Run>&#160;to oversee a whole branch at once.</Run>
                 </TextBlock>
                 <Button
                     x:Name="DefineLocationsButton"
