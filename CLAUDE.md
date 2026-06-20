@@ -35,8 +35,9 @@ dotnet build UnifiedMessenger/UnifiedMessenger.csproj -c Release --nologo -v qui
 
 **Publish win-x64 (shipping binary):**
 ```
-dotnet publish UnifiedMessenger/UnifiedMessenger.csproj -c Release -r win-x64 --self-contained true --nologo -v quiet
+dotnet publish UnifiedMessenger/UnifiedMessenger.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true --nologo -v quiet
 ```
+⚠️ **`-p:Platform=x64` is mandatory.** The installer (`installer.iss`) packages from `bin\x64\Release\...\win-x64\publish`. Without `-p:Platform=x64`, publish writes to `bin\Release\...\publish` instead, and the installer silently ships a **stale** binary from the old x64 folder — the app installs and runs fine but shows old code. Always confirm the installed exe version after install: `(Get-Item "$env:LOCALAPPDATA\Programs\UnifiedMessenger\UnifiedMessenger.exe").VersionInfo.FileVersion`.
 
 **Smoke test — ALWAYS kill any leftover instance first:**
 ```powershell
@@ -196,6 +197,7 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 | Gotcha | Fix / Rule |
 |---|---|
 | Smoke test exits immediately (not ALIVE) | Kill leftover process before testing: `Stop-Process -Name UnifiedMessenger -Force` |
+| Installer ships stale binary (UI changes don't appear after install) | Publish with `-p:Platform=x64` — installer reads `bin\x64\Release\...\publish`, but a plain publish writes to `bin\Release\...\publish`. Verify installed exe `FileVersion` after every install. |
 | WinUI publish omits `.xbf` and `.pri` files | `CopyWinUIResourcesToPublish` MSBuild target handles this — don't work around it |
 | STJ 10 conflict with self-contained .NET 8 | `EnsureSystemTextJson10InPublish` MSBuild target copies STJ 10 dlls post-publish |
 | `ReadyToRun` breaks self-contained WinUI publish | Intentionally disabled (`PublishReadyToRun=false`) — don't re-enable |
