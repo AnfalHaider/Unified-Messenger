@@ -1,4 +1,4 @@
-﻿namespace UnifiedMessenger.Models;
+namespace UnifiedMessenger.Models;
 
 public sealed class PlatformDefinition
 {
@@ -65,6 +65,34 @@ public sealed class PlatformDefinition
             DefaultUrl = "https://www.messenger.com/",
             IconGlyph = "\uE8F2", // TODO: Replace with brand-specific glyph or image asset when Phase 5 is implemented.
             AccentColor = "#0084FF"
+        },
+        new PlatformDefinition
+        {
+            // Discord, embedded as a channel (NullPlatformAdapter — no oversight metrics). WebViewPlatform-
+            // Configurator gives discord a desktop Chrome UA + in-app new-window handling so login works.
+            Id = "discord",
+            DisplayName = "Discord",
+            Description = "Discord — embedded. No oversight metrics.",
+            DefaultUrl = "https://discord.com/app",
+            AccentColor = "#5865F2"
+        },
+        new PlatformDefinition
+        {
+            // Meta Business Suite (manage Facebook/Instagram business), embedded. NullPlatformAdapter.
+            Id = "metabusinesssuite",
+            DisplayName = "Meta Business Suite",
+            Description = "Meta Business Suite — embedded. No oversight metrics.",
+            DefaultUrl = "https://business.facebook.com/",
+            AccentColor = "#0064E0"
+        },
+        new PlatformDefinition
+        {
+            // Instagram (Meta), embedded. NullPlatformAdapter — a DM unread/awaiting adapter is future work.
+            Id = "instagram",
+            DisplayName = "Instagram",
+            Description = "Instagram — embedded. No oversight metrics.",
+            DefaultUrl = "https://www.instagram.com/",
+            AccentColor = "#E4405F"
         },
         new PlatformDefinition
         {

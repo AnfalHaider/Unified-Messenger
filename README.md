@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.27.1 (embed channels excluded from the oversight command center so they don't sit stuck at "syncing")
+**Current release:** v4.28.0 (Discord / Meta Business Suite / Instagram channels added; desktop UA for all embeds fixes Google "browser not supported")
 
 ## Scope
 
@@ -29,6 +29,12 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.28.0
+
+- **New embed channels — Discord, Meta Business Suite, Instagram.** "Add account" now offers these alongside WhatsApp / Google Business / Telegram / Messenger / generic. They were missing, so trying to add (e.g.) a Discord or Meta Business Suite account fell back to **WhatsApp** — the instance then loaded WhatsApp Web. Each new channel is embed-only (own isolated session, branded accent, no oversight scraping yet).
+- **Google Business "browser not supported" fixed.** Only Discord previously got a desktop user-agent; every other embed used WebView2's default UA, which Google/Meta reject. All embed channels (Google Business, Meta, Messenger, Telegram, Discord, Instagram, generic) now send a clean desktop **Chrome UA**. WhatsApp keeps its default UA (the scraper depends on it). *Note:* Google's sign-in may still resist embedded browsers (their anti-embedding is aggressive); the UA fix removes the blanket "unsupported browser" block.
+- *Heads-up:* instances created before this (named "Meta Business Suite"/"Discord" but stored as WhatsApp) won't auto-correct — remove and re-add them on the proper channel.
 
 ### What's in v4.27.1
 

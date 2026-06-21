@@ -45,13 +45,30 @@ public class PlatformDefinitionTests
     {
         var ids = PlatformDefinition.All.Select(p => p.Id).ToList();
 
-        Assert.Equal(6, ids.Count);
+        Assert.Equal(9, ids.Count);
         Assert.Contains("whatsapp", ids);
         Assert.Contains("whatsappbusiness", ids);
         Assert.Contains("googlebusiness", ids);
         Assert.Contains("telegram", ids);
         Assert.Contains("messenger", ids);
+        Assert.Contains("discord", ids);
+        Assert.Contains("metabusinesssuite", ids);
+        Assert.Contains("instagram", ids);
         Assert.Contains("generic", ids);
+    }
+
+    [Theory]
+    [InlineData("discord", "Discord")]
+    [InlineData("metabusinesssuite", "Meta Business Suite")]
+    [InlineData("instagram", "Instagram")]
+    public void EmbedChannels_AreRegisteredWithDefaultUrl(string id, string displayName)
+    {
+        var platform = PlatformDefinition.FindById(id);
+
+        Assert.NotNull(platform);
+        Assert.Equal(displayName, platform!.DisplayName);
+        Assert.Equal(id, PlatformDefinition.NormalizePlatformId(id));
+        Assert.False(string.IsNullOrWhiteSpace(platform.DefaultUrl));
     }
 
     [Fact]

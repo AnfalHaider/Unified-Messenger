@@ -31,15 +31,23 @@ public static class WebViewPlatformConfigurator
         settings.IsStatusBarEnabled = false;
         settings.AreBrowserAcceleratorKeysEnabled = true;
 
-        if (!PlatformDefinition.NormalizePlatformId(platformId).Equals("discord", StringComparison.OrdinalIgnoreCase))
+        var normalized = PlatformDefinition.NormalizePlatformId(platformId);
+
+        // WhatsApp Web is tuned for WebView2's default UA (and the scraper depends on it) — leave it alone.
+        // Every embed channel (Google Business, Meta, Messenger, Telegram, Discord, Instagram, generic) gets
+        // a clean desktop Chrome UA: Google/Meta reject WebView2's default UA with "browser not supported".
+        var isWhatsApp = normalized is "whatsapp" or "whatsappbusiness";
+        if (!isWhatsApp)
         {
-            return;
+            settings.UserAgent = ChromeDesktopUserAgent;
         }
 
-        settings.UserAgent = ChromeDesktopUserAgent;
-
-        coreWebView.NewWindowRequested -= OnDiscordNewWindowRequested;
-        coreWebView.NewWindowRequested += OnDiscordNewWindowRequested;
+        // Discord opens auth/links in new windows; route them back into the same view so login completes.
+        if (normalized.Equals("discord", StringComparison.OrdinalIgnoreCase))
+        {
+            coreWebView.NewWindowRequested -= OnDiscordNewWindowRequested;
+            coreWebView.NewWindowRequested += OnDiscordNewWindowRequested;
+        }
     }
 
     internal static bool IsDiscordNavigationHost(string? host)
