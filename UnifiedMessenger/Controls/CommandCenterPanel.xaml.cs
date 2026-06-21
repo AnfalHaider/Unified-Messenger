@@ -213,7 +213,14 @@ public sealed partial class CommandCenterPanel : UserControl
         var grouping = GroupByLocationButton.IsChecked == true ? OversightGrouping.ByLocation : OversightGrouping.ByInstance;
         var window = SelectedWindow();
         var (rangeStart, rangeEnd) = WindowRange();
-        var instances = _services.Registry.Instances.Where(instance => instance.IsProfessional).ToList();
+        // Oversight cards are only meaningful for platforms that contribute scraped metrics (WhatsApp
+        // family). Embed channels (Google Business / Telegram / Messenger / generic) are visible+usable in
+        // the sidebar but have no chat store to scan, so including them here would strand them at "syncing…"
+        // forever. They simply don't appear in the command center.
+        var instances = _services.Registry.Instances
+            .Where(instance => instance.IsProfessional &&
+                               PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
+            .ToList();
         var snapshot = _services.Oversight.BuildSnapshot(grouping, instances, window, rangeStart, rangeEnd);
 
         // Change-detection: the 20s auto-refresh re-renders constantly; rebuilding the card list when the

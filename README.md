@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.27.0 (Work Queue merged into the Dashboard as a "Needs reply" cross-account view; standalone kanban retired)
+**Current release:** v4.27.1 (embed channels excluded from the oversight command center so they don't sit stuck at "syncing")
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.27.1
+
+- **Embed channels no longer clutter the command center.** A *professional* Google Business / Telegram / Messenger / generic instance has no WhatsApp chat store to scan, so it would show in the oversight cards stuck at "syncing…" forever. The command center (and the "Needs reply" list) now include only oversight-capable platforms (WhatsApp family). Embed channels stay fully visible and usable in the sidebar — they just don't appear as oversight cards.
 
 ### What's in v4.27.0
 
