@@ -285,9 +285,14 @@ public sealed partial class CommandCenterPanel : UserControl
         CardsHost.Spacing = _compact ? 4 : 8;
         if (snapshot.Entities.Count == 0)
         {
+            // Distinguish "no accounts" from "accounts exist but haven't finished their first local-history
+            // scan yet" — on startup the WhatsApp IndexedDB read takes a few seconds, and showing "no
+            // accounts" during that window is misleading.
             CardsHost.Children.Add(new TextBlock
             {
-                Text = "No professional accounts yet — add one to see oversight here.",
+                Text = instances.Count > 0
+                    ? "Syncing accounts — reading each account's local history…"
+                    : "No professional accounts yet — add one to see oversight here.",
                 Foreground = Brush("TextFillColorSecondaryBrush"),
                 TextWrapping = TextWrapping.WrapWholeWords
             });

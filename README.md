@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.28.0 (Discord / Meta Business Suite / Instagram channels added; desktop UA for all embeds fixes Google "browser not supported")
+**Current release:** v4.28.1 (command center shows "Syncing…" instead of "No accounts yet" while WhatsApp's first local-history scan runs)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.28.1
+
+- **Command center no longer shows "No professional accounts yet" on startup** while WhatsApp's first IndexedDB history scan is still running. It now reads **"Syncing accounts — reading each account's local history…"** when oversight accounts exist but haven't reported data yet, and only says "no accounts" when there genuinely are none.
 
 ### What's in v4.28.0
 
