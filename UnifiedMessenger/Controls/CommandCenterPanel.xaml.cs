@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Models;
@@ -208,6 +209,7 @@ public sealed partial class CommandCenterPanel : UserControl
             return;
         }
 
+        var needsReply = NeedsReplyButton.IsChecked == true;
         var grouping = GroupByLocationButton.IsChecked == true ? OversightGrouping.ByLocation : OversightGrouping.ByInstance;
         var window = SelectedWindow();
         var (rangeStart, rangeEnd) = WindowRange();
@@ -232,13 +234,15 @@ public sealed partial class CommandCenterPanel : UserControl
         };
         // "Define locations" CTA: shown only in ByInstance mode when no locations have been set up.
         var hasLocations = AppSettingsService.Instance.Settings.WorkspaceProfiles.Count > 0;
-        LocationCtaBanner.Visibility = grouping == OversightGrouping.ByInstance && !hasLocations
+        LocationCtaBanner.Visibility = !needsReply && grouping == OversightGrouping.ByInstance && !hasLocations
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        SubtitleText.Text = grouping == OversightGrouping.ByLocation
-            ? $"Rolled up by location · caught up among chats active {windowLabel}"
-            : $"Per account · caught up among chats active {windowLabel} · group into locations (Ctrl+K)";
+        SubtitleText.Text = needsReply
+            ? $"Every customer awaiting a reply across all accounts, most urgent first · {windowLabel}"
+            : grouping == OversightGrouping.ByLocation
+                ? $"Rolled up by location · caught up among chats active {windowLabel}"
+                : $"Per account · caught up among chats active {windowLabel} · group into locations (Ctrl+K)";
         _emptyStateWindowLabel = windowLabel;
 
         // Resolve the worst entity's first instance id for the Jump button.
@@ -280,6 +284,14 @@ public sealed partial class CommandCenterPanel : UserControl
                 Foreground = Brush("TextFillColorSecondaryBrush"),
                 TextWrapping = TextWrapping.WrapWholeWords
             });
+            return;
+        }
+
+        // "Needs reply" mode: a single flat, cross-account list of every awaiting customer, worst-first —
+        // the unified "work through the backlog" view (replaces the standalone Work Queue page).
+        if (needsReply)
+        {
+            BuildNeedsReplyList(instances);
             return;
         }
 
@@ -523,6 +535,134 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         return panel;
+    }
+
+    /// <summary>
+    /// "Needs reply" mode: one flat, cross-account list of every chat awaiting a reply, worst-first (most
+    /// unread, then longest-waiting). Each row click-throughs to the live chat. Reuses the same per-instance
+    /// awaiting snapshot that powers the per-card accordion — no manual status bookkeeping, no drift.
+    /// </summary>
+    private void BuildNeedsReplyList(IReadOnlyList<MessengerInstance> instances)
+    {
+        var secondary = Brush("TextFillColorSecondaryBrush");
+        var danger = Brush("SystemFillColorCriticalBrush");
+        var (windowStart, windowEnd) = WindowRange();
+
+        var rows = instances
+            .SelectMany(inst => OversightChatSnapshotService.Instance
+                .GetAwaiting(inst.Id, windowStart, windowEnd)
+                .Select(chat => (Instance: inst, Chat: chat)))
+            .OrderByDescending(x => x.Chat.Unread)
+            .ThenBy(x => x.Chat.LastActivityUtc)
+            .Take(200)
+            .ToList();
+
+        if (rows.Count == 0)
+        {
+            CardsHost.Children.Add(new TextBlock
+            {
+                Text = "All caught up — no customers are waiting on a reply.",
+                Foreground = secondary,
+                TextWrapping = TextWrapping.WrapWholeWords,
+                Margin = new Thickness(2, 6, 2, 0)
+            });
+            return;
+        }
+
+        foreach (var (inst, chat) in rows)
+        {
+            CardsHost.Children.Add(BuildNeedsReplyRow(inst, chat, secondary, danger));
+        }
+    }
+
+    private FrameworkElement BuildNeedsReplyRow(
+        MessengerInstance inst,
+        OversightChatSnapshotService.ChatEntry chat,
+        Brush secondary,
+        Brush danger)
+    {
+        var accent = new SolidColorBrush(
+            PlatformBrandingHelper.ParseAccentColor(inst.AccentColor ?? PlatformBrandingHelper.DefaultAccentHex));
+
+        var grid = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        grid.Children.Add(new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = accent,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(0, 0, 10, 0)
+        });
+
+        var left = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(left, 1);
+        left.Children.Add(new TextBlock
+        {
+            Text = FriendlyChatName(chat.CustomerName, chat.ConversationKey),
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        if (!string.IsNullOrWhiteSpace(chat.Preview))
+        {
+            left.Children.Add(new TextBlock
+            {
+                Text = chat.Preview,
+                Foreground = secondary,
+                FontSize = 12,
+                MaxWidth = 460,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+        }
+        grid.Children.Add(left);
+
+        var right = new StackPanel
+        {
+            Spacing = 1,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(right, 2);
+        right.Children.Add(new TextBlock
+        {
+            Text = chat.Unread > 0 ? (chat.Unread == 1 ? "1 unread" : $"{chat.Unread} unread") : "needs reply",
+            Foreground = danger,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Right
+        });
+        right.Children.Add(new TextBlock
+        {
+            Text = $"{inst.DisplayName} · {RelativeAge(chat.LastActivityUtc)}",
+            Foreground = secondary,
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Right
+        });
+        grid.Children.Add(right);
+
+        var button = new Button
+        {
+            Content = grid,
+            Background = Brush("CardBackgroundFillColorDefaultBrush"),
+            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Padding = _compact ? new Thickness(12, 6, 12, 6) : new Thickness(14, 10, 14, 10)
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button,
+            $"Open chat with {FriendlyChatName(chat.CustomerName, chat.ConversationKey)} in {inst.DisplayName}");
+
+        var capturedId = inst.Id;
+        var capturedChat = chat;
+        button.Click += (_, _) =>
+            _services?.Navigation.OpenInstance(capturedId, capturedChat.ConversationKey, capturedChat.CustomerName);
+        return button;
     }
 
     /// <summary>
@@ -986,18 +1126,18 @@ public sealed partial class CommandCenterPanel : UserControl
         }
     }
 
-    private void OnGroupByAccountClick(object sender, RoutedEventArgs e)
-    {
-        GroupByAccountButton.IsChecked = true;
-        GroupByLocationButton.IsChecked = false;
-        _lastRenderSignature = string.Empty;
-        Render();
-    }
+    private void OnGroupByAccountClick(object sender, RoutedEventArgs e) => SelectMode(GroupByAccountButton);
 
-    private void OnGroupByLocationClick(object sender, RoutedEventArgs e)
+    private void OnGroupByLocationClick(object sender, RoutedEventArgs e) => SelectMode(GroupByLocationButton);
+
+    private void OnNeedsReplyClick(object sender, RoutedEventArgs e) => SelectMode(NeedsReplyButton);
+
+    // Segmented control: exactly one of {By account, By location, Needs reply} is active.
+    private void SelectMode(ToggleButton active)
     {
-        GroupByLocationButton.IsChecked = true;
-        GroupByAccountButton.IsChecked = false;
+        GroupByAccountButton.IsChecked = ReferenceEquals(active, GroupByAccountButton);
+        GroupByLocationButton.IsChecked = ReferenceEquals(active, GroupByLocationButton);
+        NeedsReplyButton.IsChecked = ReferenceEquals(active, NeedsReplyButton);
         _lastRenderSignature = string.Empty;
         Render();
     }

@@ -75,6 +75,14 @@
                             Click="OnGroupByLocationClick"
                             Padding="10,4"
                             CornerRadius="4" />
+                        <ToggleButton
+                            x:Name="NeedsReplyButton"
+                            Content="Needs reply"
+                            IsChecked="False"
+                            Click="OnNeedsReplyClick"
+                            Padding="10,4"
+                            CornerRadius="4"
+                            ToolTipService.ToolTip="Every customer awaiting a reply across all accounts, most urgent first" />
                     </StackPanel>
                 </Border>
                 <Button

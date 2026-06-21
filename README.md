@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.26.1 (fix: Google Business / Telegram / Messenger / generic instances now appear in the sidebar, not just the Work Queue)
+**Current release:** v4.27.0 (Work Queue merged into the Dashboard as a "Needs reply" cross-account view; standalone kanban retired)
 
 ## Scope
 
@@ -29,6 +29,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.27.0
+
+- **"Needs reply" — the Work Queue, merged into the Dashboard.** The command-center segmented control gains a third mode (**By account ∣ By location ∣ Needs reply**). "Needs reply" is a single **flat, cross-account list of every customer awaiting a reply, worst-first** (most unread, then longest-waiting), each row a click-through straight to the live chat. It's derived entirely from the same oversight snapshot that powers the per-card accordion — no manual drag-to-status, no drift, and fully consistent with the read-only stance (a row just navigates you to the chat to reply by hand). Respects the date window and compact density.
+- **Standalone Work Queue (kanban OCC) retired** as a sidebar destination — its purpose now lives in "Needs reply." The page and OCC code remain intact and dormant (still reachable via Ctrl+Shift+Q / command palette), so the change is reversible. *Why:* a manual kanban duplicated the Dashboard's awaiting data, fought the app's passive/derived philosophy, and sat at the wrong altitude for an owner (a doer's tool, not an overseer's).
 
 ### What's in v4.26.1
 
