@@ -1,7 +1,15 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-06-20 · **Baseline:** v4.21.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-06-21 · **Baseline:** v4.27.1 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
+
+> **Session 5 update (v4.22.0 → v4.27.1): UI/UX modernization, shell IA, bug fixes, Work-Queue merge.**
+> - **Command-center modernization (v4.22–v4.25):** vertical avatar cards, bar-chart sparklines, urgent/dropped sub-metrics, attention Jump button, dark insight strips, segmented group control, "Define locations" CTA, title-bar **scope selector + AI toggle**, compact-sidebar default, **WCAG 1.4.1 status glyph**, AI-strip sanitization.
+> - **Shell IA dialogs (v4.23):** SetLocation / ConfirmPermanentDelete / AutoUpdate / PinToTaskbar; WorkQueue view-state.
+> - **Critical build fix:** the documented publish command wrote to `bin\Release` but the installer packages `bin\x64\Release` → every install Jun 19–20 shipped a stale binary. Fixed; CLAUDE.md updated; **always `-p:Platform=x64` + verify installed `FileVersion`.**
+> - **Bug fixes (v4.26):** instance **delete** no longer crashes (`UiThreadRunner` pins WebView2/COM teardown to the UI thread); **reorder** no longer hangs (sidebar menu rebuild is reparent-safe); **opened≠replied** (direction-first awaiting + C# sticky-awaiting); **embed channels now appear in the sidebar** (split `IsPlatformModuleEnabled` vs `IsSidebarVisible`) and are excluded from the oversight command center.
+> - **Work Queue → Dashboard merge (v4.27):** new "**Needs reply**" command-center mode = flat, cross-account, worst-first awaiting list; standalone OCC kanban **retired** (sidebar button collapsed; page/code dormant + reversible).
+> - **Blocked (needs a live WhatsApp session):** unsaved-contact phone resolution (`@lid`→phone) + message-gist preview.
 
 > **Session 4 update (v4.14.0 → v4.16.0): command-center polish + insight strips + instance-lifecycle memory hardening.**
 > - **v4.14.0 (track A):** command-center visual polish — each account is a proper card (rounded border, surface background, status-colored accent bar), a large prominent caught-up %, clearer awaiting labels ("needs reply" for read-but-unanswered).
