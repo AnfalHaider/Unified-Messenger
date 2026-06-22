@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.28.1 (command center shows "Syncing…" instead of "No accounts yet" while WhatsApp's first local-history scan runs)
+**Current release:** v4.29.0 (sidebar redesign — collapsible location groups, channel-aware row subtitles, denser layout)
 
 ## Scope
 
@@ -29,6 +29,14 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.29.0
+
+- **Workspace sidebar redesign.** A cleaner, more functional account rail (research-backed: clear hierarchy, channel cues, density, collapsible groups):
+  - **Collapsible location groups** — each location sub-header (e.g. "DHA-2") now has a **chevron + account count** and can be collapsed/expanded (click or keyboard); collapse state persists across refreshes and only applies in the expanded rail.
+  - **Channel-aware row subtitles** — each account's second line now shows its **channel** ("WhatsApp", "Meta Business Suite", "Google Business", "Discord"…) instead of a repeated "Connected · syncing". Real problems still surface ("Signed out — tap to reconnect", "Connection error"); transient connecting/syncing is conveyed by the status dot's colour.
+  - **Tighter density** so more accounts fit without scrolling.
+  - The full sidebar contract (navigation events, badges, health dots, accessibility, compact icon-rail, context menus) is preserved — purely additive/visual.
 
 ### What's in v4.28.1
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -24,6 +24,13 @@ public sealed partial class WorkspaceSidebar : Grid
     private readonly Dictionary<string, UIElement> _menuElementCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<FrameworkElement> _compactHiddenElements = [];
 
+    // Collapsible location groups: which "loc:*" groups are collapsed (persists across refreshes), the
+    // member row elements per group, and each group header's chevron so it can flip on toggle.
+    private readonly HashSet<string> _collapsedGroups = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<UIElement>> _groupMembers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, FontIcon> _groupChevrons = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, int> _groupCounts = new Dictionary<string, int>();
+
     private Border? _dashboardRow;
     private SidebarMenuPlan? _currentPlan;
     private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
@@ -41,7 +48,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private int _nextSidebarTabIndex = AccessibilityTabOrderHelper.SidebarMenuBase;
 
     private static readonly Thickness s_compactRowPadding = new(6, 8, 4, 8);
-    private static readonly Thickness s_normalRowPadding = new(10, 10, 8, 10);
+    private static readonly Thickness s_normalRowPadding = new(10, 8, 8, 8);
 
     private const string FooterWorkQueueLabel = "Work Queue";
     private const string FooterNotificationHubLabel = "Notification Hub";
@@ -232,16 +239,39 @@ public sealed partial class WorkspaceSidebar : Grid
         _instanceStatusLabels.Clear();
         _instanceTitleLabels.Clear();
         _compactHiddenElements.Clear();
+        _groupMembers.Clear();
+        _groupChevrons.Clear();
         _dashboardRow = null;
+
+        // Member counts per location group, so each group header can show "DHA-2 · 3".
+        _groupCounts = ComputeGroupCounts(plan);
 
         var desiredElements = new List<UIElement>(plan.Entries.Count);
         var activeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        string? currentGroupKey = null;
         foreach (var entry in plan.Entries)
         {
             activeKeys.Add(entry.Key);
             var element = GetOrCreateMenuElement(entry);
             desiredElements.Add(element);
+
+            // Track which rows belong to a collapsible location group (entries between a "loc:" header and
+            // the next header), so the header toggle can hide/show them.
+            if (entry.Kind == SidebarMenuEntryKind.SectionHeader)
+            {
+                currentGroupKey = IsLocationGroupKey(entry.Key) ? entry.Key : null;
+            }
+            else if (entry.Kind == SidebarMenuEntryKind.Instance && currentGroupKey is not null)
+            {
+                if (!_groupMembers.TryGetValue(currentGroupKey, out var members))
+                {
+                    members = [];
+                    _groupMembers[currentGroupKey] = members;
+                }
+
+                members.Add(element);
+            }
         }
 
         // Rebuild the menu order by detaching everything and re-adding in the desired order. The previous
@@ -255,14 +285,82 @@ public sealed partial class WorkspaceSidebar : Grid
             MenuStack.Children.Add(element);
         }
 
+        ApplyGroupCollapseState();
+
         foreach (var staleKey in _menuElementCache.Keys.Where(key => !activeKeys.Contains(key)).ToList())
         {
             _menuElementCache.Remove(staleKey);
         }
+
+        // Drop collapse state for groups that no longer exist so it can't leak across scope/location changes.
+        _collapsedGroups.RemoveWhere(key => !_groupMembers.ContainsKey(key));
+    }
+
+    private static bool IsLocationGroupKey(string? key) =>
+        key is not null && key.StartsWith("loc:", StringComparison.OrdinalIgnoreCase);
+
+    private static IReadOnlyDictionary<string, int> ComputeGroupCounts(SidebarMenuPlan plan)
+    {
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        string? currentGroupKey = null;
+        foreach (var entry in plan.Entries)
+        {
+            if (entry.Kind == SidebarMenuEntryKind.SectionHeader)
+            {
+                currentGroupKey = IsLocationGroupKey(entry.Key) ? entry.Key : null;
+            }
+            else if (entry.Kind == SidebarMenuEntryKind.Instance && currentGroupKey is not null)
+            {
+                counts[currentGroupKey] = counts.GetValueOrDefault(currentGroupKey) + 1;
+            }
+        }
+
+        return counts;
+    }
+
+    /// <summary>Hide/show each collapsible group's member rows and flip its chevron. Collapse only applies
+    /// in the expanded sidebar; the compact icon rail always shows every row.</summary>
+    private void ApplyGroupCollapseState()
+    {
+        foreach (var (groupKey, members) in _groupMembers)
+        {
+            var collapsed = !_isCompact && _collapsedGroups.Contains(groupKey);
+            foreach (var member in members)
+            {
+                if (member is FrameworkElement element)
+                {
+                    element.Visibility = collapsed ? Visibility.Collapsed : Visibility.Visible;
+                }
+            }
+
+            if (_groupChevrons.TryGetValue(groupKey, out var chevron))
+            {
+                chevron.Glyph = collapsed ? "" : ""; // ChevronRight / ChevronDown
+            }
+        }
+    }
+
+    private void ToggleLocationGroup(string groupKey)
+    {
+        if (!_collapsedGroups.Remove(groupKey))
+        {
+            _collapsedGroups.Add(groupKey);
+        }
+
+        ApplyGroupCollapseState();
     }
 
     private UIElement GetOrCreateMenuElement(SidebarMenuEntry entry)
     {
+        // Location group headers are recreated each structural rebuild (not cached) so their member count
+        // and chevron registration are always current; collapse state persists separately in _collapsedGroups.
+        if (entry.Kind == SidebarMenuEntryKind.SectionHeader && IsLocationGroupKey(entry.Key))
+        {
+            var locationHeader = CreateLocationHeader(entry.SectionTitle ?? string.Empty, entry.Key);
+            locationHeader.Tag = entry.Key;
+            return locationHeader;
+        }
+
         if (_menuElementCache.TryGetValue(entry.Key, out var cached))
         {
             if (entry.Kind == SidebarMenuEntryKind.Dashboard && cached is Border dashboardRow)
@@ -357,6 +455,9 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             _dashboardRow.Padding = _isCompact ? s_compactRowPadding : s_normalRowPadding;
         }
+
+        // Re-apply collapse after a density change: compact rail shows every row; expanded honors collapse.
+        ApplyGroupCollapseState();
     }
 
     public void SetSelection(
@@ -464,7 +565,8 @@ public sealed partial class WorkspaceSidebar : Grid
             adapterStatus.State,
             instance.NotificationsMuted,
             detail);
-        var displaySubtitle = WorkspaceSidebarHelper.AppendMemoryTierHint(statusSubtitle, instance.MemoryTier);
+        var displaySubtitle = WorkspaceSidebarHelper.ComposeRowSubtitle(
+            instance.Platform, connectionStatus, instance.NotificationsMuted);
 
         if (_instanceStatusLabels.TryGetValue(normalizedId, out var statusLabel))
         {
@@ -527,6 +629,92 @@ public sealed partial class WorkspaceSidebar : Grid
         }
 
         AutomationProperties.SetName(header, WorkspaceSidebarAccessibility.ComposeSectionHeaderName(title));
+        _compactHiddenElements.Add(header);
+        return header;
+    }
+
+    /// <summary>
+    /// A collapsible location-group header: chevron + location name + member count, clickable (and keyboard
+    /// togglable) to collapse/expand the accounts in that location. Modernizes the old plain text sub-header.
+    /// </summary>
+    private Border CreateLocationHeader(string title, string key)
+    {
+        var count = _groupCounts.TryGetValue(key, out var c) ? c : 0;
+        var secondary = ResolveBrush("TextFillColorSecondaryBrush")
+            ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 128, 128, 128));
+
+        var chevron = new FontIcon
+        {
+            Glyph = _collapsedGroups.Contains(key) ? "" : "",
+            FontSize = 12,
+            Foreground = secondary,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _groupChevrons[key] = chevron;
+
+        var titleBlock = new TextBlock
+        {
+            Text = title,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        if (Application.Current.Resources.TryGetValue("UmSectionLabelTextStyle", out var styleResource) &&
+            styleResource is Style sectionStyle)
+        {
+            titleBlock.Style = sectionStyle;
+        }
+        else
+        {
+            titleBlock.FontSize = ResolveDouble("UmFontSizeSectionLabel", 11);
+            titleBlock.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
+            titleBlock.Opacity = ResolveDouble("UmOpacityHint", 0.75);
+            titleBlock.CharacterSpacing = 40;
+        }
+
+        var countBlock = new TextBlock
+        {
+            Text = count.ToString(),
+            FontSize = 11,
+            Foreground = secondary,
+            Opacity = 0.7,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var grid = new Grid { ColumnSpacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(chevron, 0);
+        Grid.SetColumn(titleBlock, 1);
+        Grid.SetColumn(countBlock, 2);
+        grid.Children.Add(chevron);
+        grid.Children.Add(titleBlock);
+        grid.Children.Add(countBlock);
+
+        var header = new Border
+        {
+            Tag = key,
+            Padding = new Thickness(4, 8, 6, 4),
+            CornerRadius = ResolveCornerRadius("UmCornerRadiusSmValue", new CornerRadius(4)),
+            Background = ResolveTransparentBrush(),
+            IsTabStop = true,
+            TabIndex = _nextSidebarTabIndex++,
+            UseSystemFocusVisuals = true,
+            Child = grid
+        };
+
+        header.PointerPressed += (_, _) => ToggleLocationGroup(key);
+        header.KeyDown += (_, e) =>
+        {
+            if (e.Key is VirtualKey.Enter or VirtualKey.Space)
+            {
+                ToggleLocationGroup(key);
+                e.Handled = true;
+            }
+        };
+
+        AutomationProperties.SetName(header,
+            $"{title} location, {count} {(count == 1 ? "account" : "accounts")}, press to collapse or expand");
         _compactHiddenElements.Add(header);
         return header;
     }
@@ -602,7 +790,10 @@ public sealed partial class WorkspaceSidebar : Grid
             adapterState,
             instance.NotificationsMuted,
             connectionDetail);
-        var subtitle = WorkspaceSidebarHelper.AppendMemoryTierHint(statusSubtitle, instance.MemoryTier);
+        // Subtitle = channel name when healthy (e.g. "WhatsApp", "Meta Business Suite"), surfacing only real
+        // problems (signed out / error). statusSubtitle is kept for the tooltip.
+        var subtitle = WorkspaceSidebarHelper.ComposeRowSubtitle(
+            instance.Platform, connectionStatus, instance.NotificationsMuted);
         var row = CreateSelectableRow(
             instanceId,
             instance,

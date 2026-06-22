@@ -175,6 +175,35 @@ public static class WorkspaceSidebarHelper
         };
     }
 
+    /// <summary>
+    /// The row subtitle for the redesigned sidebar: the channel/platform name when the account is healthy
+    /// (far more useful at a glance than a repeated "Connected · syncing"), and the problem state only when
+    /// there is one to surface (signed out, connection error, muted). Transient connecting/syncing is left to
+    /// the status dot's colour.
+    /// </summary>
+    public static string ComposeRowSubtitle(
+        string? platformId,
+        InstanceConnectionStatus connectionStatus,
+        bool notificationsMuted)
+    {
+        if (notificationsMuted)
+        {
+            return "Notifications muted";
+        }
+
+        if (connectionStatus == InstanceConnectionStatus.LoggedOut)
+        {
+            return "Signed out — tap to reconnect";
+        }
+
+        if (connectionStatus == InstanceConnectionStatus.Error)
+        {
+            return "Connection error";
+        }
+
+        return PlatformDefinition.FindById(platformId)?.DisplayName ?? "Account";
+    }
+
     internal static string FormatConnectedDetailSubtitle(string connectionDetail)
     {
         var detail = connectionDetail.Trim();
