@@ -46,6 +46,24 @@ public class OversightChatSnapshotServiceTests
     }
 
     [Fact]
+    public void StickyAwaiting_DecaysAfterMaxAge()
+    {
+        var svc = OversightChatSnapshotService.Instance;
+        var now = DateTimeOffset.UtcNow;
+        var id = "inst-" + Guid.NewGuid().ToString("N");
+
+        // An old chat (last activity 10 days ago) that was awaiting…
+        svc.Update(id, new[] { Chat("jid-old", "Old", 1, now.AddDays(-10), awaiting: true) }, now);
+        Assert.Single(svc.GetAwaiting(id, null));
+
+        // …gets an unconfirmed-direction clear (opened, no outbound observed). Because it's older than the
+        // 7-day sticky window, the safety valve lets it clear instead of sticking forever.
+        svc.Update(id, new[] { Chat("jid-old", "Old", 0, now.AddDays(-10), awaiting: false, fromMe: false) }, now);
+
+        Assert.Empty(svc.GetAwaiting(id, null));
+    }
+
+    [Fact]
     public void StickyAwaiting_NewCaughtUpChatStaysCaughtUp()
     {
         var svc = OversightChatSnapshotService.Instance;

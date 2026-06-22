@@ -639,14 +639,32 @@ public sealed partial class CommandCenterPanel : UserControl
             VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(right, 2);
-        right.Children.Add(new TextBlock
+
+        // Shape cue (WCAG 1.4.1): a warning glyph next to the count so "awaiting" isn't conveyed by the red
+        // colour alone (the text "N unread" is also a non-colour cue; the glyph makes it shape-distinct too).
+        var unreadLine = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        unreadLine.Children.Add(new FontIcon
+        {
+            Glyph = "", // Warning (ErrorBadge family) — Segoe Fluent
+            FontSize = 11,
+            Foreground = danger,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        unreadLine.Children.Add(new TextBlock
         {
             Text = chat.Unread > 0 ? (chat.Unread == 1 ? "1 unread" : $"{chat.Unread} unread") : "needs reply",
             Foreground = danger,
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
-            HorizontalAlignment = HorizontalAlignment.Right
+            VerticalAlignment = VerticalAlignment.Center
         });
+        right.Children.Add(unreadLine);
         right.Children.Add(new TextBlock
         {
             Text = $"{inst.DisplayName} · {RelativeAge(chat.LastActivityUtc)}",
@@ -923,11 +941,37 @@ public sealed partial class CommandCenterPanel : UserControl
             FontSize = 12,
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(awaitingBlock, 3);
+        // Trailing cell. In compact density the % hero (which carries the status glyph) is hidden, so the
+        // status would be colour-only — add the shape-distinct glyph here so compact stays WCAG 1.4.1 clean.
+        FrameworkElement trailingCell = awaitingBlock;
+        if (_compact && hasLiveData)
+        {
+            var (compactGlyph, compactLabel) = StatusGlyph(entity.OnTimePercent);
+            var glyphIcon = new FontIcon
+            {
+                Glyph = compactGlyph,
+                FontSize = 14,
+                Foreground = statusBrush,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTipService.SetToolTip(glyphIcon, compactLabel);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(glyphIcon, compactLabel);
 
+            var trailing = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            trailing.Children.Add(glyphIcon);
+            trailing.Children.Add(awaitingBlock);
+            trailingCell = trailing;
+        }
+
+        Grid.SetColumn(trailingCell, 3);
         topRow.Children.Add(avatar);
         topRow.Children.Add(nameBlock);
-        topRow.Children.Add(awaitingBlock);
+        topRow.Children.Add(trailingCell);
         card.Children.Add(topRow);
 
         if (_compact)

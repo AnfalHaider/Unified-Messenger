@@ -53,11 +53,20 @@ public sealed class OversightChatSnapshotService
     }
 
     /// <summary>
+    /// Safety valve for sticky-awaiting: a chat can only be carried as "awaiting" via inheritance while its
+    /// last activity is this recent. Past it, an unconfirmed-direction read is allowed to clear it, so a chat
+    /// whose outbound reply we never observed (no DOM hint, no persisted lastMessage) can't stay stuck on the
+    /// list forever. A genuinely-still-awaiting chat keeps getting fresh awaiting=true reads and is unaffected.
+    /// </summary>
+    private static readonly TimeSpan StickyAwaitingMaxAge = TimeSpan.FromDays(7);
+
+    /// <summary>
     /// Keeps a chat marked "awaiting" until we actually observe an outbound reply — opening/reading a chat
     /// (which clears WhatsApp's unread marker) must NOT count as responding. A chat stays awaiting unless
     /// the new read confirms the last message is now from us (<see cref="ChatEntry.LastMessageFromMe"/>);
     /// an "awaiting=false" with unconfirmed direction inherits the prior awaiting state so an opened-but-
-    /// unanswered chat doesn't silently flip to "caught up".
+    /// unanswered chat doesn't silently flip to "caught up" — but only up to <see cref="StickyAwaitingMaxAge"/>
+    /// so it can't get permanently stuck.
     /// </summary>
     private IReadOnlyList<ChatEntry> ApplyStickyAwaiting(string key, IReadOnlyList<ChatEntry> incoming)
     {
@@ -65,6 +74,7 @@ public sealed class OversightChatSnapshotService
             ? snap.Chats.ToDictionary(c => c.ConversationKey, c => c, StringComparer.OrdinalIgnoreCase)
             : null;
 
+        var nowUtc = DateTimeOffset.UtcNow;
         var result = new List<ChatEntry>(incoming.Count);
         foreach (var chat in incoming)
         {
@@ -76,10 +86,12 @@ public sealed class OversightChatSnapshotService
             }
 
             // awaiting=false but the read did NOT confirm an outbound reply (direction unknown, e.g. the chat
-            // was opened off-screen so unread dropped to 0). Inherit the prior awaiting state if we had one.
+            // was opened off-screen so unread dropped to 0). Inherit the prior awaiting state if we had one —
+            // but only while the chat is still recent, so it can't stick indefinitely (safety valve).
             var stillAwaiting = prior is not null &&
                                 prior.TryGetValue(chat.ConversationKey, out var was) &&
-                                was.IsAwaiting;
+                                was.IsAwaiting &&
+                                (nowUtc - chat.LastActivityUtc) <= StickyAwaitingMaxAge;
             result.Add(stillAwaiting ? chat with { IsAwaiting = true } : chat);
         }
 

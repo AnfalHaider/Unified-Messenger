@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.29.0 (sidebar redesign — collapsible location groups, channel-aware row subtitles, denser layout)
+**Current release:** v4.30.0 (WCAG status glyph on compact cards + Needs-reply rows; sticky-awaiting safety valve)
 
 ## Scope
 
@@ -29,6 +29,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.30.0
+
+- **WCAG 1.4.1 coverage finished (P1-C).** The shape-distinct status glyph (✓/⚠/⨯) was only on comfortable-density cards. It now also appears on **compact cards** (where the % is hidden, so status was previously colour-only) and a warning glyph precedes the count on **Needs-reply rows** — status is never conveyed by colour alone anywhere.
+- **Sticky-awaiting safety valve (P1-D).** v4.26's sticky-awaiting could, in theory, keep a chat "awaiting" forever if an outbound reply was never observed (no DOM hint, no persisted last message). A chat can now only be carried as awaiting via inheritance while its last activity is within **7 days**; past that an unconfirmed-clear is allowed through, so it can't get permanently stuck. A genuinely-waiting chat keeps getting fresh awaiting reads and is unaffected. (Regression test added.)
 
 ### What's in v4.29.0
 
