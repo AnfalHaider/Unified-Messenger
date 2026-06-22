@@ -1,17 +1,17 @@
-; Shared Inno Setup constants for Unified Messenger (included by installer.iss / installer-arm64.iss)
+﻿; Shared Inno Setup constants for Unified Messenger (included by installer.iss / installer-arm64.iss)
 
 #define MyAppName "Unified Messenger"
 #define MyAppFolderName "UnifiedMessenger"
 #define MyAppExeName "UnifiedMessenger.exe"
 #define MyAppPublisher "AnfalHaider"
 #define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "4.34.0"
+#define MyAppVersion "4.35.0"
 #define MyAppMutex "UnifiedMessenger_AppMutex"
 
 #define OllamaRuntimeDir "{localappdata}\UnifiedMessenger\ollama\runtime"
 #define OllamaModelsDir "{localappdata}\UnifiedMessenger\ollama\models"
 
-; Per-user install (no elevation). Binaries only — user data stays in %LocalAppData%\UnifiedMessenger.
+; Per-user install (no elevation). Binaries only â€” user data stays in %LocalAppData%\UnifiedMessenger.
 #define InstallDir "{localappdata}\Programs\UnifiedMessenger"
 #define LegacyInstallDir "{localappdata}\UnifiedMessenger"
 #define UserDataDir "{localappdata}\UnifiedMessenger"

@@ -496,10 +496,13 @@ public sealed partial class CommandCenterPanel : UserControl
 
         foreach (var (instanceId, chat) in items)
         {
+            var (enrichedName, enrichedPreview) = OversightThreadEnricher.Enrich(instanceId, chat);
+            var displayName = FriendlyChatName(enrichedName, chat.ConversationKey);
+
             var topLine = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
             topLine.Children.Add(new TextBlock
             {
-                Text = FriendlyChatName(chat.CustomerName, chat.ConversationKey),
+                Text = displayName,
                 VerticalAlignment = VerticalAlignment.Center,
                 MaxWidth = 260,
                 TextTrimming = TextTrimming.CharacterEllipsis
@@ -515,12 +518,12 @@ public sealed partial class CommandCenterPanel : UserControl
 
             var column = new StackPanel { Spacing = 1 };
             column.Children.Add(topLine);
-            if (!string.IsNullOrWhiteSpace(chat.Preview))
+            if (!string.IsNullOrWhiteSpace(enrichedPreview))
             {
-                // A glimpse of the last message (scraped from the sidebar preview).
+                // A glimpse of the last message (from DOM ingress or sidebar preview).
                 column.Children.Add(new TextBlock
                 {
-                    Text = chat.Preview,
+                    Text = enrichedPreview,
                     Foreground = secondary,
                     FontSize = 12,
                     MaxWidth = 360,
@@ -610,20 +613,23 @@ public sealed partial class CommandCenterPanel : UserControl
             Margin = new Thickness(0, 0, 10, 0)
         });
 
+        var (enrichedName, enrichedPreview) = OversightThreadEnricher.Enrich(inst.Id, chat);
+        var displayName = FriendlyChatName(enrichedName, chat.ConversationKey);
+
         var left = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(left, 1);
         left.Children.Add(new TextBlock
         {
-            Text = FriendlyChatName(chat.CustomerName, chat.ConversationKey),
+            Text = displayName,
             FontWeight = FontWeights.SemiBold,
             FontSize = 13,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
-        if (!string.IsNullOrWhiteSpace(chat.Preview))
+        if (!string.IsNullOrWhiteSpace(enrichedPreview))
         {
             left.Children.Add(new TextBlock
             {
-                Text = chat.Preview,
+                Text = enrichedPreview,
                 Foreground = secondary,
                 FontSize = 12,
                 MaxWidth = 460,
@@ -686,7 +692,7 @@ public sealed partial class CommandCenterPanel : UserControl
             Padding = _compact ? new Thickness(12, 6, 12, 6) : new Thickness(14, 10, 14, 10)
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button,
-            $"Open chat with {FriendlyChatName(chat.CustomerName, chat.ConversationKey)} in {inst.DisplayName}");
+            $"Open chat with {displayName} in {inst.DisplayName}");
 
         var capturedId = inst.Id;
         var capturedChat = chat;
