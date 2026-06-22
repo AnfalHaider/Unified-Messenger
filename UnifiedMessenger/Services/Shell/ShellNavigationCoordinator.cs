@@ -30,8 +30,6 @@ public sealed class ShellNavigationCoordinator
 
     public bool IsSettingsSelected { get; private set; }
 
-    public bool IsWorkQueueSelected { get; private set; }
-
     public string? SelectedInstanceId { get; private set; }
 
     public Frame ContentFrame => _ui.ContentFrame;
@@ -44,42 +42,11 @@ public sealed class ShellNavigationCoordinator
         }
     }
 
-    public async Task<WorkQueuePage?> ShowWorkQueueAsync()
-    {
-        IsDashboardSelected = false;
-        IsSettingsSelected = false;
-        IsWorkQueueSelected = true;
-        SelectedInstanceId = null;
-
-        _viewModel.IsDashboardSelected = false;
-        _viewModel.IsSettingsSelected = false;
-        _viewModel.IsWorkQueueSelected = true;
-
-        await _services.SessionManager.HideVisibleSessionAsync();
-        _ui.InstanceWebViewHost.Visibility = Visibility.Collapsed;
-        SetInstanceLoading(false, null);
-        _ui.ContentFrame.Visibility = Visibility.Visible;
-
-        // Do not re-navigate if already on WorkQueuePage — avoids reloading the OCC mid-operation.
-        if (_ui.ContentFrame.Content is not WorkQueuePage)
-        {
-            var navArgs = PageServices.CreateRegistryArgs(_services);
-            NavigateShellFrame(typeof(WorkQueuePage), navArgs);
-        }
-
-        ActiveWorkspaceContext.SetDashboardVisible();
-        _ui.AppTitleBar.Subtitle = "Work Queue";
-        UpdateBackToDashboardLink(false);
-        _chrome?.UpdateShellChromeSelection();
-
-        return _ui.ContentFrame.Content as WorkQueuePage;
-    }
 
     public async Task ShowDashboardAsync()
     {
         IsDashboardSelected = true;
         IsSettingsSelected = false;
-        IsWorkQueueSelected = false;
         SelectedInstanceId = null;
 
         _viewModel.IsDashboardSelected = true;
@@ -103,7 +70,6 @@ public sealed class ShellNavigationCoordinator
     {
         IsDashboardSelected = false;
         IsSettingsSelected = true;
-        IsWorkQueueSelected = false;
         SelectedInstanceId = null;
 
         _viewModel.IsDashboardSelected = false;
@@ -196,7 +162,6 @@ public sealed class ShellNavigationCoordinator
         SelectedInstanceId = instanceId;
         IsDashboardSelected = false;
         IsSettingsSelected = false;
-        IsWorkQueueSelected = false;
         _viewModel.IsDashboardSelected = false;
         _viewModel.IsSettingsSelected = false;
         _viewModel.IsWorkQueueSelected = false;

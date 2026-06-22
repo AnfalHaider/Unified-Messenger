@@ -50,7 +50,6 @@ public sealed partial class WorkspaceSidebar : Grid
     private static readonly Thickness s_compactRowPadding = new(6, 8, 4, 8);
     private static readonly Thickness s_normalRowPadding = new(10, 8, 8, 8);
 
-    private const string FooterWorkQueueLabel = "Work Queue";
     private const string FooterNotificationHubLabel = "Notification Hub";
     private const string FooterSettingsLabel = "Settings";
 
@@ -92,8 +91,6 @@ public sealed partial class WorkspaceSidebar : Grid
 #pragma warning restore CS0067
 
     public event EventHandler? DashboardRequested;
-
-    public event EventHandler? WorkQueueRequested;
 
     public event EventHandler<string>? InstanceRequested;
 
@@ -434,7 +431,6 @@ public sealed partial class WorkspaceSidebar : Grid
         var labelVisibility = _isCompact ? Visibility.Collapsed : Visibility.Visible;
         BrandWordmarkImage.Visibility = labelVisibility;
         AddInstanceLabel.Visibility = labelVisibility;
-        WorkQueueLabel.Visibility = labelVisibility;
         NotificationsLabel.Visibility = labelVisibility;
         SettingsLabel.Visibility = labelVisibility;
 
@@ -1040,11 +1036,6 @@ public sealed partial class WorkspaceSidebar : Grid
         }
 
         ApplyFooterButtonSelection(
-            WorkQueueButton,
-            WorkspaceSidebarHelper.IsSelectionMatch(
-                _selectedKey,
-                WorkspaceSidebarHelper.WorkQueueSelectionKey));
-        ApplyFooterButtonSelection(
             NotificationsButton,
             WorkspaceSidebarHelper.IsSelectionMatch(
                 _selectedKey,
@@ -1052,13 +1043,6 @@ public sealed partial class WorkspaceSidebar : Grid
         ApplyFooterButtonSelection(
             SettingsButton,
             WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, WorkspaceSidebarHelper.SettingsSelectionKey));
-        UpdateFooterButtonAccessibility(
-            WorkQueueButton,
-            FooterWorkQueueLabel,
-            WorkspaceSidebarHelper.IsSelectionMatch(
-                _selectedKey,
-                WorkspaceSidebarHelper.WorkQueueSelectionKey),
-            badgeCount: 0);
         UpdateFooterButtonAccessibility(
             NotificationsButton,
             FooterNotificationHubLabel,
@@ -1118,8 +1102,6 @@ public sealed partial class WorkspaceSidebar : Grid
     private void AddInstanceButton_Click(object sender, RoutedEventArgs e) =>
         AddInstanceRequested?.Invoke(this, EventArgs.Empty);
 
-    private void WorkQueueButton_Click(object sender, RoutedEventArgs e) =>
-        WorkQueueRequested?.Invoke(this, EventArgs.Empty);
 
     private void NotificationsButton_Click(object sender, RoutedEventArgs e) =>
         NotificationsRequested?.Invoke(this, EventArgs.Empty);

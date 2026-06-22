@@ -47,8 +47,7 @@ public sealed class ShellController
             () => new ShellSelectionState(
                 _navigation.IsDashboardSelected,
                 _navigation.IsSettingsSelected,
-                _navigation.SelectedInstanceId,
-                _navigation.IsWorkQueueSelected));
+                _navigation.SelectedInstanceId));
         _navigation.BindChrome(_chrome);
         _commandPalette = new ShellCommandPaletteCoordinator(services);
     }
@@ -88,11 +87,6 @@ public sealed class ShellController
             VirtualKey.W,
             VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
             () => _ = ShowWorkspaceManagementAsync(),
-            canUseGlobalShortcuts);
-        keyboardShortcuts.Register(
-            VirtualKey.Q,
-            VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
-            () => _ = _navigation.ShowWorkQueueAsync(),
             canUseGlobalShortcuts);
         keyboardShortcuts.RegisterIndexedShortcuts(
             VirtualKey.Number1,

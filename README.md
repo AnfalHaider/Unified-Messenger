@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.31.0 (business-hours SLA "late" count surfaced on command-center cards)
+**Current release:** v4.32.0 (removed the dormant Operations Command Center / Work Queue subsystem — 43 files, ~5,400 lines)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.32.0
+
+- **Removed the dormant OCC / Work Queue subsystem.** Retired as a destination in v4.27.0 and with its SLA logic harvested into the command center in v4.31.0, the kanban/triage/branch-filter subsystem was deleted: **43 files / ~5,400 lines** — the OperationsCommandCenter control + partials, KanbanColumnBoard, WorkQueuePage, the `Occ*` filter/view-mode/state services, presenters, view-models, the branch pill bar, and 8 OCC tests; plus the Work-Queue navigation (ShowWorkQueueAsync, the Ctrl+Shift+Q shortcut, the sidebar Work Queue button, and the OCC command-palette/nav-event handlers). The **shared** SLA/triage engine (`ThreadData`, `BusinessHoursCalculator`, `OperationalThresholds`, `MessageTriageService`, `ThreadRegistryService`) is kept — it feeds the command center's "N late" metric. A few `Occ`-prefixed *utilities* that the live analytics/personal-dashboard depend on (`OccDateRangeFilterHelper`, the `OccQueueFilter`/`OccViewMode` enums) were kept as well. 83 tests green.
 
 ### What's in v4.31.0
 

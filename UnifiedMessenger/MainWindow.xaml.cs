@@ -56,7 +56,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
         _services.SessionManager.AttachHost(InstanceWebViewHost);
 
         WorkspaceSidebar.DashboardRequested += (_, _) => _ = _shell.Navigation.ShowDashboardAsync();
-        WorkspaceSidebar.WorkQueueRequested += (_, _) => _ = _shell.Navigation.ShowWorkQueueAsync();
         WorkspaceSidebar.InstanceRequested += (_, id) => _ = _shell.Navigation.SelectInstanceAsync(id);
         WorkspaceSidebar.AddInstanceRequested += (_, _) => _ = _shell.ShowAddInstanceDialogAsync();
         WorkspaceSidebar.NotificationsRequested += (_, _) =>
@@ -128,9 +127,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
         nav.InstanceRegistryRefreshRequested += OnInstanceRegistryRefreshRequested;
         nav.AddInstanceRequested += OnAddInstanceRequested;
         nav.SettingsOpenRequested += OnSettingsOpenRequested;
-        nav.OccBranchFilterRequested += OnOccBranchFilterRequested;
-        nav.OccImmediateLaneFocusRequested += OnOccImmediateLaneFocusRequested;
-        nav.OccUrgentQueueFilterRequested += OnOccUrgentQueueFilterRequested;
 
         _services.NotificationHub.Changed += OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested += OnToastActivationRequested;
@@ -171,33 +167,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
     private void OnMessageAnalyticsChanged(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(_shell.Navigation.RefreshDashboardIfVisible);
 
-    private void OnOccBranchFilterRequested(object? sender, string? branchKey)
-    {
-        TryEnqueueSafe(async () =>
-        {
-            var page = await _shell.Navigation.ShowWorkQueueAsync();
-            page?.SelectWorkspaceBranch(branchKey, forceRefresh: true);
-        }, nameof(OnOccBranchFilterRequested));
-    }
-
-    private void OnOccImmediateLaneFocusRequested(object? sender, EventArgs e)
-    {
-        TryEnqueueSafe(async () =>
-        {
-            var page = await _shell.Navigation.ShowWorkQueueAsync();
-            page?.RequestImmediateLaneFocus();
-        }, nameof(OnOccImmediateLaneFocusRequested));
-    }
-
-    private void OnOccUrgentQueueFilterRequested(object? sender, EventArgs e)
-    {
-        TryEnqueueSafe(async () =>
-        {
-            var page = await _shell.Navigation.ShowWorkQueueAsync();
-            page?.SelectUrgentQueueFilter();
-        }, nameof(OnOccUrgentQueueFilterRequested));
-    }
-
     private void DetachShellHandlers()
     {
         var nav = _services.Navigation;
@@ -208,9 +177,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
         nav.InstanceRegistryRefreshRequested -= OnInstanceRegistryRefreshRequested;
         nav.AddInstanceRequested -= OnAddInstanceRequested;
         nav.SettingsOpenRequested -= OnSettingsOpenRequested;
-        nav.OccBranchFilterRequested -= OnOccBranchFilterRequested;
-        nav.OccImmediateLaneFocusRequested -= OnOccImmediateLaneFocusRequested;
-        nav.OccUrgentQueueFilterRequested -= OnOccUrgentQueueFilterRequested;
 
         _services.NotificationHub.Changed -= OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested -= OnToastActivationRequested;

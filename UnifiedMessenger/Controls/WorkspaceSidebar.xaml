@@ -71,29 +71,7 @@
             </StackPanel>
         </Button>
 
-        <!-- Work Queue (OCC kanban) retired as a destination: its purpose is merged into the Dashboard's
-             "Needs reply" view-mode (a flat, cross-account, worst-first awaiting list). The page + OCC code
-             stay intact (dormant, still reachable via Ctrl+Shift+Q / command palette) so this is reversible. -->
-        <Button
-            x:Name="WorkQueueButton"
-            AutomationProperties.AutomationId="SidebarWorkQueue"
-            AutomationProperties.Name="Work Queue"
-            TabIndex="91"
-            Visibility="Collapsed"
-            HorizontalAlignment="Stretch"
-            Click="WorkQueueButton_Click"
-            Style="{StaticResource SubtleButtonStyle}"
-            ToolTipService.ToolTip="Work Queue — Operations Command Center">
-            <StackPanel x:Name="WorkQueueContent" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
-                <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE7C3;" />
-                <TextBlock
-                    x:Name="WorkQueueLabel"
-                    MinWidth="0"
-                    Style="{StaticResource UmBodyTextStyle}"
-                    Text="Work Queue"
-                    TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-        </Button>
+        <!-- Work Queue (OCC kanban) fully removed — its purpose is the Dashboard's "Needs reply" view-mode. -->
 
         <Button
             x:Name="NotificationsButton"

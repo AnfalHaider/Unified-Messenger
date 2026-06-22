@@ -37,7 +37,6 @@ public sealed partial class ApplicationServices
         TaskbarBadge = provider.GetRequiredService<ITaskbarBadgeService>();
         AdapterHealth = provider.GetRequiredService<AdapterHealthMonitor>();
         ConnectionStatus = provider.GetRequiredService<InstanceConnectionStatusService>();
-        OperationsCommandCenter = provider.GetRequiredService<OperationsCommandCenterService>();
         Oversight = provider.GetRequiredService<OversightService>();
         Dashboard = provider.GetRequiredService<UnifiedMessengerDashboardService>();
         PersonalDashboard = provider.GetRequiredService<PersonalDashboardService>();
@@ -48,10 +47,6 @@ public sealed partial class ApplicationServices
         WebViewRegistry = provider.GetRequiredService<InstanceWebViewRegistry>();
         ResourceMonitor = provider.GetRequiredService<ResourceMonitorService>();
         WhatsAppBusinessContext = provider.GetRequiredService<WhatsAppBusinessContextService>();
-        OccQueueFilter = provider.GetRequiredService<OccQueueFilterState>();
-        OccFilter = provider.GetRequiredService<OccFilterState>();
-        OccDateRangeFilter = provider.GetRequiredService<OccDateRangeFilterState>();
-        OccViewMode = provider.GetRequiredService<OccViewModeState>();
         AiInferenceClient = provider.GetRequiredService<IAiInferenceClient>();
         OllamaRuntime = provider.GetRequiredService<OllamaRuntimeService>();
         AiInferenceQueue = provider.GetRequiredService<AiInferenceQueue>();
@@ -91,8 +86,6 @@ public sealed partial class ApplicationServices
 
     public InstanceConnectionStatusService ConnectionStatus { get; }
 
-    public OperationsCommandCenterService OperationsCommandCenter { get; }
-
     public OversightService Oversight { get; }
 
     public UnifiedMessengerDashboardService Dashboard { get; }
@@ -112,14 +105,6 @@ public sealed partial class ApplicationServices
     public ResourceMonitorService ResourceMonitor { get; }
 
     public WhatsAppBusinessContextService WhatsAppBusinessContext { get; }
-
-    public OccFilterState OccFilter { get; }
-
-    public OccQueueFilterState OccQueueFilter { get; }
-
-    public OccDateRangeFilterState OccDateRangeFilter { get; }
-
-    public OccViewModeState OccViewMode { get; }
 
     public IAiInferenceClient AiInferenceClient { get; }
 

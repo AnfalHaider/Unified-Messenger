@@ -32,7 +32,6 @@ public static class ServiceRegistration
         // Concrete services not yet behind interfaces.
         services.AddSingleton(_ => AdapterHealthMonitor.Instance);
         services.AddSingleton(_ => InstanceConnectionStatusService.Instance);
-        services.AddSingleton(_ => OperationsCommandCenterService.Instance);
         services.AddSingleton(_ => OversightService.Instance);
         services.AddSingleton(_ => UnifiedMessengerDashboardService.Instance);
         services.AddSingleton(_ => PersonalDashboardService.Instance);
@@ -43,10 +42,6 @@ public static class ServiceRegistration
         services.AddSingleton(_ => InstanceWebViewRegistry.Instance);
         services.AddSingleton(_ => ResourceMonitorService.Instance);
         services.AddSingleton(_ => WhatsAppBusinessContextService.Instance);
-        services.AddSingleton(_ => OccQueueFilterState.Instance);
-        services.AddSingleton(_ => OccFilterState.Instance);
-        services.AddSingleton(_ => OccDateRangeFilterState.Instance);
-        services.AddSingleton(_ => OccViewModeState.Instance);
         services.AddSingleton(_ => OllamaRuntimeService.Instance);
         services.AddSingleton(_ => AiInferenceQueue.Instance);
 
