@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.30.0 (WCAG status glyph on compact cards + Needs-reply rows; sticky-awaiting safety valve)
+**Current release:** v4.31.0 (business-hours SLA "late" count surfaced on command-center cards)
 
 ## Scope
 
@@ -29,6 +29,11 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.31.0
+
+- **The real business-hours SLA is now on the cards (P1-A).** MASTER-PLAN §8's centerpiece — reply-latency measured within each location's working hours — was computed in the rollup but then thrown away in favour of the unread-based "caught up %". Each card now also shows a **"N late"** sub-metric (next to urgent/dropped): open conversations past their business-hours reply SLA (`ThreadData.IsSlaBreached` + per-location `BusinessHoursCalculator`). It's independent of the caught-up %, so responsiveness — not just unread state — is finally visible, and it shows 0 when there's no thread data.
+- **OCC decision (P1-B):** the dormant Operations Command Center stays retired; its valuable SLA logic (which lives in shared services, not the kanban UI) is harvested into the command center rather than deleted. Documented in `docs/remaining-work.md`.
 
 ### What's in v4.30.0
 

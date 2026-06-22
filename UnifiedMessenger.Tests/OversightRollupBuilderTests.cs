@@ -53,6 +53,19 @@ public class OversightRollupBuilderTests
     ];
 
     [Fact]
+    public void SlaBreachedCount_CountsOpenInWindowThreadsPastThreshold()
+    {
+        var snap = OversightRollupBuilder.Build(Sample(), Instances, OversightGrouping.ByInstance, _ => 15);
+
+        // "a": one open thread, latency 5 < 15 → not breached.
+        Assert.Equal(0, snap.Entities.First(e => e.Key == "a").SlaBreachedCount);
+        // "b": one open thread, latency 100 > 15 → breached.
+        Assert.Equal(1, snap.Entities.First(e => e.Key == "b").SlaBreachedCount);
+        // "c": two open threads at latency 100 → breached; the spam thread is excluded.
+        Assert.Equal(2, snap.Entities.First(e => e.Key == "c").SlaBreachedCount);
+    }
+
+    [Fact]
     public void ByInstance_CountsAndSortsWorstFirst()
     {
         var snap = OversightRollupBuilder.Build(Sample(), Instances, OversightGrouping.ByInstance, _ => 15);

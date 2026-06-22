@@ -72,6 +72,11 @@ public static class OversightRollupBuilder
             var measuredOpen = open.Where(InWindow).ToList();
             var measuredCount = measuredReplied.Count + measuredOpen.Count;
 
+            // §8 business-hours SLA breach count — open in-window threads past their reply-latency SLA.
+            // Independent of the unread-based caught-up % below, so the plan's "on-time" signal is preserved
+            // even when the headline % comes from WhatsApp's unread snapshot. 0 when there's no thread data.
+            var slaBreachedCount = measuredOpen.Count(t => t.IsSlaBreached);
+
             var onTimeCount = measuredReplied.Count(t => t.ReplyLatencyMinutes <= threshold)
                 + measuredOpen.Count(t => !t.IsSlaBreached);
             var onTimePercent = measuredCount > 0
@@ -150,6 +155,7 @@ public static class OversightRollupBuilder
                 OnTimePercent = onTimePercent,
                 UrgentCount = open.Count(t => t.IsUrgent),
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
+                SlaBreachedCount = slaBreachedCount,
                 IsStale = stale,
                 LastActivityUtc = list.Count > 0 ? list.Max(t => t.LastMessageTime) : null,
                 MemberInstanceIds = instanceIds,

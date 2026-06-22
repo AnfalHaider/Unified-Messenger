@@ -9,29 +9,28 @@ none of it is a quick win.
 
 ---
 
-## P1 — high value, doable now (no live account)
+## P1 — high value, doable now (no live account) — ✅ ALL DONE
 
-### P1-A · Surface the real business-hours SLA on command-center cards
-§8's centerpiece is a business-hours-aware **reply-latency SLA**. The engine exists
-(`BusinessHoursCalculator`, `ThreadData.IsSlaBreached`) but is **dormant** inside the retired OCC.
-The command center headline is "caught up %" (unread/direction-based), not on-time latency. Surface an
-on-time-% and/or breach count on the cards so the primary metric matches the plan's intent. Ties to P1-B.
+### P1-A · Surface the real business-hours SLA on command-center cards — ✅ done (v4.31.0)
+The §8 SLA was computed in `OversightRollupBuilder` (`ThreadData.IsSlaBreached` + per-location
+`BusinessHoursCalculator`) but then **discarded** in favour of the unread-based caught-up %. Added
+`OversightEntityHealth.SlaBreachedCount` (open in-window threads past their business-hours reply SLA),
+computed independently of the caught-up override, and surfaced it as a **"N late"** card sub-metric next
+to urgent/dropped. 0 when there's no thread data, so it degrades gracefully.
 
-### P1-B · Decide the OCC's fate
-The Work Queue / OCC kanban-triage-branch-filter subsystem is dormant (sidebar button collapsed in
-v4.27.0) but still in the tree — maintenance weight + confusion. Either formally archive/remove it
-(pages, Ctrl+Shift+Q, command-palette entries) **or** harvest its SLA logic into the command center
-(ties to P1-A) and remove the rest. Document the decision.
+### P1-B · Decide the OCC's fate — ✅ decided
+**Decision: keep the OCC UI dormant (already retired in v4.27.0), harvest its SLA logic into the command
+center.** The valuable SLA engine (`BusinessHoursCalculator`, `ThreadData.IsSlaBreached`,
+`OperationalThresholds`) lives in shared Models/Services — *not* inside the OCC UI — so P1-A surfaced it
+without touching the kanban. The OCC pages stay dormant + reversible (Ctrl+Shift+Q / palette) rather than
+deleted, to avoid churn; a later cleanup can remove them once the command center fully replaces them.
 
-### P1-C · Finish WCAG 1.4.1 coverage
-The shape-distinct status glyph (✓/⚠/⨯, v4.25.0) is only on comfortable-density L0 cards. Compact cards
-(which hide the %) and the Needs-reply rows still encode status by color/text without the shape glyph.
-Add the non-color cue to those surfaces. Small.
+### P1-C · Finish WCAG 1.4.1 coverage — ✅ done (v4.30.0)
+Status glyph added to compact cards + a warning glyph on Needs-reply rows. Status is never colour-alone.
 
-### P1-D · Sticky-awaiting safety valve
-v4.26.0's sticky-awaiting prevents opening a chat from falsely clearing "awaiting". Risk: a chat with no
-DOM hint and a never-confirmed outbound could stay "awaiting" indefinitely. Add a confidence decay (after
-N hours/days) or a periodic full reconciliation so a stuck chat can self-clear. Add tests.
+### P1-D · Sticky-awaiting safety valve — ✅ done (v4.30.0)
+Stickiness only inherits while the chat's last activity is within 7 days (`StickyAwaitingMaxAge`); past
+that an unconfirmed-clear is allowed through so it can't get permanently stuck. Regression test added.
 
 ---
 

@@ -65,6 +65,14 @@ public sealed class OversightEntityHealth
 
     public int DroppedCount { get; init; }
 
+    /// <summary>
+    /// Open in-window threads whose business-hours reply-latency SLA has breached — the MASTER-PLAN §8
+    /// "on-time" signal (reply timing within each location's working hours), surfaced alongside the
+    /// unread-based caught-up %. Derived from live threads + per-location business hours via
+    /// <see cref="ThreadData.IsSlaBreached"/>; 0 when there is no thread data yet.
+    /// </summary>
+    public int SlaBreachedCount { get; init; }
+
     public bool IsStale { get; init; }
 
     public DateTimeOffset? LastActivityUtc { get; init; }

@@ -1054,13 +1054,22 @@ public sealed partial class CommandCenterPanel : UserControl
         metricRow.Children.Add(sparklineHost);
         card.Children.Add(metricRow);
 
-        // ── Sub-metrics row: urgent + dropped ────────────────────────────────────────────────
-        if (hasLiveData && (entity.UrgentCount > 0 || entity.DroppedCount > 0))
+        // ── Sub-metrics row: urgent + dropped + SLA-late ─────────────────────────────────────
+        // "late" = open conversations past their business-hours reply SLA (MASTER-PLAN §8 on-time signal),
+        // surfaced alongside the caught-up % so responsiveness — not just unread state — is visible.
+        if (hasLiveData && (entity.UrgentCount > 0 || entity.DroppedCount > 0 || entity.SlaBreachedCount > 0))
         {
+            var caution = Brush("SystemFillColorCautionBrush");
             var subMetrics = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
             if (entity.UrgentCount > 0)
             {
                 subMetrics.Children.Add(BuildSubMetric(entity.UrgentCount, "urgent", danger));
+            }
+            if (entity.SlaBreachedCount > 0)
+            {
+                var late = BuildSubMetric(entity.SlaBreachedCount, "late", caution);
+                ToolTipService.SetToolTip(late, "Open conversations past their business-hours reply SLA");
+                subMetrics.Children.Add(late);
             }
             if (entity.DroppedCount > 0)
             {
