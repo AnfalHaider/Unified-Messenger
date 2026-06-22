@@ -1021,6 +1021,54 @@
       // cursoring it record-by-record causes the read transaction to auto-abort mid-scan (a hang).
       // The chat store gives us, per conversation: stable JID, title, unreadCount, last activity, and
       // (when persisted) lastMessage with direction/body — everything oversight needs.
+      // Builds a map from @lid JID string → E.164 phone digits by reading the 'contact' store.
+      // The contact store is keyed by @c.us JID; each entry has a 'lid' field holding the @lid.
+      // This is the authoritative bridge for unsaved contacts where the chat store uses @lid keys.
+      function buildLidPhoneMap(db, callback) {
+        var map = Object.create(null);
+        try {
+          if (!db.objectStoreNames.contains('contact')) {
+            callback(map);
+            return;
+          }
+          var tx = db.transaction('contact', 'readonly');
+          var store = tx.objectStore('contact');
+          var req = store.getAll(null, 2000);
+          req.onsuccess = function () {
+            var contacts = req.result || [];
+            for (var i = 0; i < contacts.length; i++) {
+              try {
+                var c = contacts[i];
+                // Extract the @lid value — may be a string or a JID-like object.
+                var lid = '';
+                if (c.lid) {
+                  lid = typeof c.lid === 'string' ? c.lid
+                    : (c.lid._serialized || (c.lid.user ? c.lid.user + '@lid' : ''));
+                }
+                if (!lid) { continue; }
+                // Extract phone digits from the contact's own id (the @c.us key).
+                var phone = '';
+                if (c.id) {
+                  if (typeof c.id === 'string') {
+                    var at = c.id.indexOf('@');
+                    phone = at > 0 ? c.id.slice(0, at) : c.id;
+                  } else if (c.id.user) {
+                    phone = String(c.id.user);
+                  }
+                }
+                if (phone && /^\d{7,15}$/.test(phone)) {
+                  map[lid] = phone;
+                }
+              } catch (ce) { /* skip malformed contact */ }
+            }
+            callback(map);
+          };
+          req.onerror = function () { callback(map); };
+        } catch (e) {
+          callback(map);
+        }
+      }
+
       function readChats(db) {
         try {
           diag.stores = Array.prototype.slice.call(db.objectStoreNames);
@@ -1028,6 +1076,9 @@
             fail('no-chat-store');
             return;
           }
+
+          diag.stage = 'getall-contact';
+          buildLidPhoneMap(db, function (lidPhoneMap) {
 
           diag.stage = 'getall-chat';
           var req = db.transaction('chat', 'readonly').objectStore('chat').getAll(null, 1000);
@@ -1094,19 +1145,16 @@
                 var preview = body || (hint && hint.preview) || '';
                 var iso = new Date(t * 1000).toISOString();
 
-                // For @lid privacy JIDs, the chat.contact sub-object (if persisted) may carry the
-                // phone-based @c.us JID — contact.id.user is the E.164 digits without the + prefix.
-                // Reading this avoids any cross-pipeline join in C#.
-                var contactPhone = '';
-                try {
-                  var co = ch.contact;
-                  if (co && co.id) {
-                    var user = co.id.user;
-                    if (typeof user === 'string' && user.length >= 7 && /^\d+$/.test(user)) {
-                      contactPhone = user;
-                    }
+                // Resolve phone number for @lid privacy JIDs using the lid→phone map built from
+                // the 'contact' store. For @c.us JIDs extract the local part directly.
+                var contactPhone = lidPhoneMap[jid] || '';
+                if (!contactPhone) {
+                  var atIdx2 = jid.indexOf('@');
+                  var localPart = atIdx2 > 0 ? jid.slice(0, atIdx2) : jid;
+                  if (/^\d{7,15}$/.test(localPart)) {
+                    contactPhone = localPart;
                   }
-                } catch (contactErr) { /* ignore */ }
+                }
 
                 diag.active++;
                 if (awaiting) { diag.awaiting++; } else { diag.caughtUp++; }
@@ -1141,6 +1189,8 @@
           };
 
           req.onerror = function () { fail('getall-chat-error'); };
+
+          }); // end buildLidPhoneMap callback
         } catch (error) {
           fail('chat-exception');
         }
