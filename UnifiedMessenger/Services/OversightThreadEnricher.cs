@@ -23,15 +23,21 @@ internal static class OversightThreadEnricher
         WhatsAppBusinessContextService? contextSvc = null)
     {
         var convKey = chat.ConversationKey;
+
+        // Primary: the JS IndexedDB scan may have resolved the phone number directly from
+        // chat.contact.id.user — works for @lid JIDs without any cross-pipeline join.
+        string? resolvedName = null;
+        if (!string.IsNullOrWhiteSpace(chat.ContactPhone))
+        {
+            resolvedName = "+" + chat.ContactPhone.TrimStart('+');
+        }
+
         var ctx = (contextSvc ?? WhatsAppBusinessContextService.Instance)
             .GetThreadContext(instanceId, convKey);
 
-        string? resolvedName = null;
-
-        if (ctx is not null)
+        if (resolvedName is null && ctx is not null)
         {
-            // ContactPhoneNumber is the real E.164 number captured by the adapter — it works even
-            // for @lid privacy IDs which are not dialable numbers and shouldn't be displayed as-is.
+            // Secondary: DOM-ingress ContactPhoneNumber (from notification pipeline or sidebar snapshot).
             if (!string.IsNullOrWhiteSpace(ctx.ContactPhoneNumber))
             {
                 resolvedName = "+" + ctx.ContactPhoneNumber.TrimStart('+');
@@ -42,9 +48,9 @@ internal static class OversightThreadEnricher
             }
         }
 
-        // ThreadRegistryService has LastMessagePreview from the notification DOM ingress.
+        // Tertiary: ThreadRegistryService — notification-ingress threads keyed by title/phone.
         var threads = (registry ?? ThreadRegistryService.Instance).GetAllThreads();
-        var thread = FindThread(instanceId, convKey, threads);
+        var thread = FindThread(instanceId, convKey, chat.LastActivityUtc, threads);
 
         string? resolvedPreview = null;
         if (thread is not null)
@@ -62,9 +68,13 @@ internal static class OversightThreadEnricher
         return (resolvedName ?? chat.CustomerName, resolvedPreview ?? chat.Preview);
     }
 
+    // Threads within this window of the chat's last activity are considered timestamp matches.
+    private static readonly TimeSpan TimestampMatchWindow = TimeSpan.FromSeconds(90);
+
     private static ThreadData? FindThread(
         string instanceId,
         string conversationKey,
+        DateTimeOffset chatLastActivity,
         IReadOnlyList<ThreadData> threads)
     {
         var threadId = ConversationKeyResolver.BuildThreadId(instanceId, conversationKey);
@@ -83,6 +93,7 @@ internal static class OversightThreadEnricher
         }
 
         ThreadData? fuzzy = null;
+        ThreadData? byTimestamp = null;
         foreach (var t in threads)
         {
             if (!t.InstanceId.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
@@ -106,9 +117,19 @@ internal static class OversightThreadEnricher
             {
                 fuzzy = t;
             }
+
+            // Timestamp-based fallback: when the IndexedDB chat is an @lid JID we can't match by
+            // key. Find the notification-ingress thread for the same instance whose last message
+            // arrived around the same time — the notification and the IndexedDB update share the
+            // same real-world event so their timestamps are within seconds of each other.
+            if (byTimestamp is null &&
+                Math.Abs((t.LastMessageTime - chatLastActivity).TotalSeconds) <= TimestampMatchWindow.TotalSeconds)
+            {
+                byTimestamp = t;
+            }
         }
 
-        return fuzzy;
+        return fuzzy ?? byTimestamp;
     }
 
     private static bool IsGenericName(string? name) =>

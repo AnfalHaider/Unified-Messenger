@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.34.0 (fix the real freeze: registry semaphore re-entrancy deadlock on remove/move/rename/etc.)
+**Current release:** v4.37.0 (P2-A elegant fix: resolve unsaved-contact phone from IndexedDB chat.contact.id.user + timestamp fallback)
 
 ## Scope
 

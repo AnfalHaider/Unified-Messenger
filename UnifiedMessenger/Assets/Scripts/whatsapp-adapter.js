@@ -1094,12 +1094,27 @@
                 var preview = body || (hint && hint.preview) || '';
                 var iso = new Date(t * 1000).toISOString();
 
+                // For @lid privacy JIDs, the chat.contact sub-object (if persisted) may carry the
+                // phone-based @c.us JID — contact.id.user is the E.164 digits without the + prefix.
+                // Reading this avoids any cross-pipeline join in C#.
+                var contactPhone = '';
+                try {
+                  var co = ch.contact;
+                  if (co && co.id) {
+                    var user = co.id.user;
+                    if (typeof user === 'string' && user.length >= 7 && /^\d+$/.test(user)) {
+                      contactPhone = user;
+                    }
+                  }
+                } catch (contactErr) { /* ignore */ }
+
                 diag.active++;
                 if (awaiting) { diag.awaiting++; } else { diag.caughtUp++; }
 
                 conversations.push({
                   conversationKey: jid,
                   customerName: name,
+                  contactPhone: contactPhone,
                   lastInboundBody: fromMe ? '' : body,
                   lastInboundTimestampUtc: iso,
                   lastActivityTimestampUtc: iso,

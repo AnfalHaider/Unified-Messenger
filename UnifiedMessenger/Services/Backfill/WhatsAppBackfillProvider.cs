@@ -343,7 +343,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
             var awaiting = conversation.TryGetProperty("awaiting", out var awEl)
                 ? awEl.ValueKind == JsonValueKind.True
                 : unread > 0;
-            chatEntries.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when, preview, awaiting));
+            var contactPhone = ReadString(conversation, "contactPhone") ?? string.Empty;
+            chatEntries.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when, preview, awaiting, ContactPhone: contactPhone));
         }
 
         if (chatEntries.Count > 0)

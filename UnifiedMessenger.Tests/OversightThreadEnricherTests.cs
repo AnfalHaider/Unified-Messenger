@@ -13,6 +13,26 @@ public sealed class OversightThreadEnricherTests
             Preview: preview, IsAwaiting: true, LastMessageFromMe: false);
 
     [Fact]
+    public void Enrich_UsesChatContactPhone_BeforeAnyJoin()
+    {
+        // chat.ContactPhone is populated by the JS adapter from chat.contact.id.user — works for
+        // @lid JIDs without needing any cross-pipeline join.
+        var registry = ThreadRegistryService.CreateForTests();
+        var ctx = WhatsAppBusinessContextService.CreateForTests();
+
+        var chat = new OversightChatSnapshotService.ChatEntry(
+            ConversationKey: "abcxyz@lid",
+            CustomerName: "New message",
+            Unread: 2,
+            LastActivityUtc: DateTimeOffset.UtcNow,
+            ContactPhone: "923225246232");
+
+        var (name, _) = OversightThreadEnricher.Enrich("inst1", chat, registry, ctx);
+
+        Assert.Equal("+923225246232", name);
+    }
+
+    [Fact]
     public void Enrich_ReturnsContactPhoneNumber_WhenContextHasIt()
     {
         var registry = ThreadRegistryService.CreateForTests();

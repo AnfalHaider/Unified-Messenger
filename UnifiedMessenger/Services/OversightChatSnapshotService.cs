@@ -18,7 +18,8 @@ public sealed class OversightChatSnapshotService
         DateTimeOffset LastActivityUtc,
         string Preview = "",
         bool IsAwaiting = false,
-        bool LastMessageFromMe = false);
+        bool LastMessageFromMe = false,
+        string ContactPhone = "");
 
     /// <summary>"Since you were last here" summary across a set of instances.</summary>
     public readonly record struct OversightDigest(
