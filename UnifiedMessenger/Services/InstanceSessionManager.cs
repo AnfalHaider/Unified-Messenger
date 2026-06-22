@@ -632,17 +632,9 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         {
             WebViewNavigationGuard.Detach(entry.WebView.CoreWebView2);
 
-            try
-            {
-                await WebViewUiAwaiter
-                    .AwaitAsync(entry.WebView.CoreWebView2.TrySuspendAsync().AsTask())
-                    .ConfigureAwait(true);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"WebView pre-close suspend failed: {ex.Message}");
-            }
-
+            // Close directly — do NOT TrySuspendAsync first. Suspend is a memory optimization for sessions
+            // we'll resume; before a permanent Close it's pointless, and on a busy/loading WebView the
+            // suspend await could hang the close and freeze the UI (the "Remove instance gets stuck" bug).
             entry.WebView.Close();
         }
 

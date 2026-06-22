@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.32.0 (removed the dormant Operations Command Center / Work Queue subsystem — 43 files, ~5,400 lines)
+**Current release:** v4.33.0 (fix: "Remove instance" no longer freezes the app — WebView2 teardown can't hang the UI thread)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.33.0
+
+- **Instance context-menu freeze fixed (especially "Remove instance").** Removing an instance disposes its WebView2, and the teardown awaited `TrySuspendAsync()` on the UI thread with **no timeout** — on a busy/loading WebView that await could never complete, hanging the UI thread and freezing the *whole* app (so every other context-menu action you tried afterward also looked stuck). Two fixes: (1) disposal now **closes the WebView directly** without the pointless pre-close suspend; (2) **every WebView2 operation now has a 12-second timeout** (`WebViewUiAwaiter`) — a wedged op becomes a recoverable, logged error instead of a permanent freeze. This covers Remove, Refresh WebView, account switching, and the permanent-delete profile wipe. The non-WebView actions (Move, Rename, Mute, Set location, Memory tier) never touched WebView2 — they only appeared stuck because a hung Remove had already frozen the app.
 
 ### What's in v4.32.0
 
