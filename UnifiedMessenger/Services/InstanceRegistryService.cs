@@ -171,7 +171,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
 
             _store.Instances.Remove(instance);
@@ -193,7 +193,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId) ??
+            var instance = FindByIdNoLock(instanceId) ??
                            _store.ArchivedInstances.FirstOrDefault(
                                i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase))
                            ?? throw new InvalidOperationException("Instance not found.");
@@ -227,13 +227,20 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         _gate.Wait();
         try
         {
-            return _store.Instances.FirstOrDefault(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
+            return FindByIdNoLock(instanceId);
         }
         finally
         {
             _gate.Release();
         }
     }
+
+    // Lock-free lookup for callers that ALREADY hold _gate. The async mutators (remove/move/rename/…) take
+    // the gate and then need to find the instance; calling the public, gate-taking FindById from inside the
+    // gate re-enters the non-reentrant SemaphoreSlim and DEADLOCKS the UI thread (this was the "Remove
+    // instance gets stuck" / reorder-hang bug). In-gate callers must use this instead.
+    private MessengerInstance? FindByIdNoLock(string instanceId) =>
+        _store.Instances.FirstOrDefault(i => i.Id.Equals(instanceId, StringComparison.OrdinalIgnoreCase));
 
     public async Task UpdateInstanceCategoryAsync(
         string instanceId,
@@ -243,7 +250,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
 
             if (instance.Category == category)
@@ -278,7 +285,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
 
             if (instance.DisplayName.Equals(trimmed, StringComparison.Ordinal))
@@ -305,7 +312,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
 
             if (string.Equals(instance.BranchKey, normalized, StringComparison.Ordinal))
@@ -330,7 +337,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
 
             instance.NotificationsMuted = muted;
@@ -350,7 +357,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
 
             var peers = _store.Instances
@@ -395,9 +402,9 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
-            var target = FindById(targetInstanceId)
+            var target = FindByIdNoLock(targetInstanceId)
                 ?? throw new InvalidOperationException("Target instance not found.");
 
             if (instance.IsProfessional != target.IsProfessional)
@@ -439,7 +446,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
 
             instance.MemoryTier = tier;
@@ -466,7 +473,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var instance = FindById(instanceId)
+            var instance = FindByIdNoLock(instanceId)
                 ?? throw new InvalidOperationException("Instance not found.");
 
             instance.DisplayName = displayName.Trim();

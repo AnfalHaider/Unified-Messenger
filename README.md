@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.33.0 (fix: "Remove instance" no longer freezes the app — WebView2 teardown can't hang the UI thread)
+**Current release:** v4.34.0 (fix the real freeze: registry semaphore re-entrancy deadlock on remove/move/rename/etc.)
 
 ## Scope
 
@@ -29,6 +29,10 @@ Requires **Windows 10 1809+** or **Windows 11** and the **WebView2 Runtime** (pr
 All releases: [github.com/AnfalHaider/Unified-Messenger/releases](https://github.com/AnfalHaider/Unified-Messenger/releases)
 
 
+
+### What's in v4.34.0
+
+- **The real cause of the freezes: a registry semaphore re-entrancy deadlock.** Every instance mutation — Remove, Move up/down, Rename, Set location, Mute, Memory tier — does `await _gate.WaitAsync()` and then looked up the instance via the public `FindById`, which itself did a synchronous `_gate.Wait()` on the **same** non-reentrant `SemaphoreSlim`. Holding the gate and re-acquiring it = instant permanent deadlock that froze the whole app (and was also why the registry tests "hang" per CLAUDE.md). Fixed by giving in-gate callers a lock-free `FindByIdNoLock`. A regression test now drives all eight mutators in sequence under a 10s cap. *(v4.33's WebView2-timeout hardening still stands as defense-in-depth, but this deadlock was the freeze.)*
 
 ### What's in v4.33.0
 

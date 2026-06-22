@@ -25,6 +25,34 @@ public class InstanceRegistryServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GatedMutators_DoNotReenterTheGate_NoDeadlock()
+    {
+        // Regression: the async mutators take _gate then looked up the instance via the public, gate-taking
+        // FindById — re-entering the non-reentrant SemaphoreSlim and deadlocking ("Remove instance gets
+        // stuck", and the registry tests that "hang"). Each mutator must complete; a 10s cap fails loudly
+        // instead of hanging the test run if the deadlock ever returns.
+        var registry = new InstanceRegistryService(_storePath);
+        var a = await registry.AddInstanceAsync("A", "whatsapp", null, WorkspaceCategory.Professional);
+        var b = await registry.AddInstanceAsync("B", "whatsapp", null, WorkspaceCategory.Professional);
+
+        async Task Exercise()
+        {
+            await registry.UpdateInstanceCategoryAsync(a.Id, WorkspaceCategory.Personal);
+            await registry.UpdateInstanceDisplayNameAsync(a.Id, "A renamed");
+            await registry.UpdateInstanceBranchKeyAsync(b.Id, "DHA-2");
+            await registry.UpdateInstanceNotificationsMutedAsync(b.Id, true);
+            await registry.UpdateInstanceMemoryTierAsync(b.Id, MemoryTierPreference.Low);
+            await registry.MoveInstanceAsync(b.Id, -1);
+            await registry.RemoveFromSidebarAsync(a.Id);
+            await registry.RemovePermanentlyAsync(b.Id);
+        }
+
+        await Exercise().WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Empty(registry.Instances);
+    }
+
+    [Fact]
     public async Task ReorderInstanceBeforeAsync_MovesSourceBeforeTarget()
     {
         var registry = new InstanceRegistryService(_storePath);
