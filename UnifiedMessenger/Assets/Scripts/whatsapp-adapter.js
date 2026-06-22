@@ -742,7 +742,11 @@
     );
     var payloadRows = [];
 
-    for (var i = 0; i < rows.length && payloadRows.length < (backfillOptions.maxChats || 20); i++) {
+    // Collect all currently-rendered sidebar rows (WhatsApp virtual-scrolls these so there's no
+    // extra I/O — just DOM reads). Cap at 300 to avoid pathological cases; in practice WhatsApp
+    // renders 30–150 visible rows. This is intentionally uncapped from backfillOptions.maxChats,
+    // which governs the IndexedDB DB scan, not the sidebar snapshot.
+    for (var i = 0; i < rows.length && payloadRows.length < 300; i++) {
       var row = rows[i];
       var title = getChatRowTitle(row);
       var chatJid = getChatRowJid(row);
@@ -750,12 +754,19 @@
         continue;
       }
 
+      // For unsaved contacts the sidebar title IS the phone number (e.g. "+92 308 5431101").
+      // Detect it here so the C# enricher can use it as ContactPhoneNumber when looking up
+      // @lid JIDs whose phone number isn't stored in the IndexedDB chat name field.
+      var phoneMatch = (title || '').match(/^\+?\d[\d\s\-().]{6,14}$/);
+      var contactPhoneNumber = phoneMatch ? title.replace(/[\s\-().]/g, '') : '';
+
       var previewNode = row.querySelector(
         'span[data-testid="last-msg-text"], span[data-testid="last-msg-status"], div[data-testid="cell-frame-secondary"] span'
       );
       payloadRows.push({
         title: title || chatJid,
         conversationKey: chatJid || title,
+        contactPhoneNumber: contactPhoneNumber,
         preview: previewNode ? normalizeText(previewNode.textContent || '') : '',
         relativeTime: getChatRowRelativeTime(row),
         timestampUtc: new Date().toISOString()

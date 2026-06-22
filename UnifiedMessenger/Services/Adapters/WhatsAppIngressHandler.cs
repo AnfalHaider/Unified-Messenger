@@ -161,14 +161,42 @@ internal static class WhatsAppIngressHandler
             var conversationKey = ReadOptionalString(row, "conversationKey") ?? title;
             var capturedAt = WebMessageParser.ReadTimestampUtc(row, DateTimeOffset.UtcNow);
 
+            // For unsaved contacts the title IS the phone number (e.g. "+923085431101"). The JS
+            // now also emits contactPhoneNumber explicitly; fall back to title-as-phone detection
+            // so the enricher can resolve @lid JIDs to real numbers via ContactPhoneNumber.
+            var contactPhone = ReadOptionalString(row, "contactPhoneNumber") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(contactPhone))
+            {
+                contactPhone = ExtractPhoneFromTitle(title);
+            }
+
             WhatsAppBusinessContextService.Instance.UpsertThreadContext(new WhatsAppThreadContextSnapshot
             {
                 InstanceId = instance.Id,
                 ConversationKey = conversationKey,
                 CustomerName = title,
+                ContactPhoneNumber = string.IsNullOrWhiteSpace(contactPhone) ? null : contactPhone,
                 CapturedAtUtc = capturedAt
             });
         }
+    }
+
+    /// <summary>
+    /// Extracts a phone number from a sidebar title when the title IS the phone number
+    /// (unsaved WhatsApp contacts display their number as the chat title).
+    /// Returns empty string when the title is a regular name, not a phone number.
+    /// </summary>
+    private static string ExtractPhoneFromTitle(string title)
+    {
+        // A phone-number title is 7–15 digits after stripping separators, optionally leading +.
+        var stripped = title.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace(".", "");
+        if (stripped.StartsWith('+'))
+        {
+            stripped = stripped[1..];
+        }
+        return stripped.Length is >= 7 and <= 15 && stripped.All(char.IsDigit)
+            ? stripped
+            : string.Empty;
     }
 
     private static void HandleHistoryChunk(JsonElement root, MessengerInstance instance)
