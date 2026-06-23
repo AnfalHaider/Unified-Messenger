@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.38.0 (P2-A elegant fix: resolve unsaved-contact phone from IndexedDB chat.contact.id.user + timestamp fallback)
+**Current release:** v4.39.0 (P2-A fix: resolve unsaved-contact phone from the verified `contact`-store `phoneNumber` field, keyed by `@lid`)
 
 ## Scope
 

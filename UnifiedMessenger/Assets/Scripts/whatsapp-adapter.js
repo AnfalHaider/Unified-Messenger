@@ -1022,8 +1022,19 @@
       // The chat store gives us, per conversation: stable JID, title, unreadCount, last activity, and
       // (when persisted) lastMessage with direction/body — everything oversight needs.
       // Builds a map from @lid JID string → E.164 phone digits by reading the 'contact' store.
-      // The contact store is keyed by @c.us JID; each entry has a 'lid' field holding the @lid.
-      // This is the authoritative bridge for unsaved contacts where the chat store uses @lid keys.
+      // Verified schema: each contact record is keyed by its id (which is the @lid for unsaved
+      // multi-device contacts) and carries `phoneNumber` as a @c.us JID, e.g.
+      //   { id: "100012725952736@lid", phoneNumber: "923105325598@c.us", pushname: "…" }
+      // This is the authoritative local bridge for unsaved contacts whose chat-store key is @lid.
+      function umExtractDigits(value) {
+        var s = typeof value === 'string'
+          ? value
+          : (value && (value._serialized || value.user)) || '';
+        var at = s.indexOf('@');
+        if (at > 0) { s = s.slice(0, at); }
+        return /^\d{7,15}$/.test(s) ? s : '';
+      }
+
       function buildLidPhoneMap(db, callback) {
         var map = Object.create(null);
         try {
@@ -1031,34 +1042,17 @@
             callback(map);
             return;
           }
-          var tx = db.transaction('contact', 'readonly');
-          var store = tx.objectStore('contact');
-          var req = store.getAll(null, 2000);
+          var req = db.transaction('contact', 'readonly').objectStore('contact').getAll(null, 5000);
           req.onsuccess = function () {
             var contacts = req.result || [];
             for (var i = 0; i < contacts.length; i++) {
               try {
                 var c = contacts[i];
-                // Extract the @lid value — may be a string or a JID-like object.
-                var lid = '';
-                if (c.lid) {
-                  lid = typeof c.lid === 'string' ? c.lid
-                    : (c.lid._serialized || (c.lid.user ? c.lid.user + '@lid' : ''));
-                }
-                if (!lid) { continue; }
-                // Extract phone digits from the contact's own id (the @c.us key).
-                var phone = '';
-                if (c.id) {
-                  if (typeof c.id === 'string') {
-                    var at = c.id.indexOf('@');
-                    phone = at > 0 ? c.id.slice(0, at) : c.id;
-                  } else if (c.id.user) {
-                    phone = String(c.id.user);
-                  }
-                }
-                if (phone && /^\d{7,15}$/.test(phone)) {
-                  map[lid] = phone;
-                }
+                if (!c || !c.id || !c.phoneNumber) { continue; }
+                var key = typeof c.id === 'string' ? c.id : (c.id._serialized || '');
+                if (!key) { continue; }
+                var digits = umExtractDigits(c.phoneNumber);
+                if (digits) { map[key] = digits; }
               } catch (ce) { /* skip malformed contact */ }
             }
             callback(map);
@@ -1145,16 +1139,9 @@
                 var preview = body || (hint && hint.preview) || '';
                 var iso = new Date(t * 1000).toISOString();
 
-                // Resolve phone number for @lid privacy JIDs using the lid→phone map built from
-                // the 'contact' store. For @c.us JIDs extract the local part directly.
-                var contactPhone = lidPhoneMap[jid] || '';
-                if (!contactPhone) {
-                  var atIdx2 = jid.indexOf('@');
-                  var localPart = atIdx2 > 0 ? jid.slice(0, atIdx2) : jid;
-                  if (/^\d{7,15}$/.test(localPart)) {
-                    contactPhone = localPart;
-                  }
-                }
+                // Resolve phone number: for @lid privacy JIDs use the lid→phone map built from the
+                // 'contact' store; for @c.us JIDs the local part already is the E.164 number.
+                var contactPhone = lidPhoneMap[jid] || umExtractDigits(jid);
 
                 diag.active++;
                 if (awaiting) { diag.awaiting++; } else { diag.caughtUp++; }
