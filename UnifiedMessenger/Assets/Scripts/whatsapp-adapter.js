@@ -998,6 +998,100 @@
     return { byId: byId, byTitle: byTitle };
   }
 
+  // WhatsApp encrypts message bodies at rest (msgRowOpaqueData), so the last-message TEXT exists only in
+  // the live sidebar DOM, which virtual-scrolls (~15 rows). To get previews for off-screen chats we scroll
+  // the chat list top→bottom, harvesting each rendered row's preview keyed by chat-id digits, then restore
+  // the scroll position. Read-only DOM scraping — no decryption, no message-store access.
+  function umFindChatScroller() {
+    var pane = document.querySelector('#pane-side');
+    if (!pane) { return null; }
+    var divs = pane.querySelectorAll('div');
+    for (var i = 0; i < divs.length; i++) {
+      var el = divs[i];
+      if (el.scrollHeight > el.clientHeight + 40 && el.clientHeight > 200) { return el; }
+    }
+    return pane;
+  }
+
+  function umReadSidebarPreviewsInto(map) {
+    var rows = document.querySelectorAll(
+      '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+    );
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var idEl = row.querySelector('[data-id]');
+      var did = (idEl && idEl.getAttribute('data-id')) ||
+        (row.getAttribute && row.getAttribute('data-id')) || '';
+      var key = umDigits(did);
+      if (!key) { continue; }
+
+      var titleEl = row.querySelector('div[data-testid="cell-frame-primary"] span[title], span[title]');
+      var title = titleEl ? normalizeText(titleEl.getAttribute('title') || titleEl.textContent || '') : '';
+
+      var sec = row.querySelector('div[data-testid="cell-frame-secondary"]') || row;
+      var textEl = sec.querySelector('span[data-testid="last-msg-text"], span[dir="ltr"], span[dir="auto"]');
+      var preview = textEl ? normalizeText(textEl.textContent || '') : '';
+      preview = preview.replace(/\b(?:wds-)?ic-[\w-]+/g, '').replace(/\s{2,}/g, ' ').trim();
+      if (preview && title && preview === title) { preview = ''; }
+      preview = preview ? preview.slice(0, 90) : '';
+
+      var entry = { preview: preview, title: title };
+      // Keep the first non-empty preview we see for a chat (don't overwrite with a later blank).
+      if (!map[key] || (!map[key].preview && preview)) {
+        map[key] = entry;
+      }
+      // Also index by the title's phone digits (unsaved contacts show their number as the title), so the
+      // scan can join by resolved phone when the row's data-id differs from the chat-store @lid.
+      var titleDigits = umDigits((title || '').replace(/[\s\-().+]/g, ''));
+      if (titleDigits && titleDigits.length >= 7 && (!map[titleDigits] || (!map[titleDigits].preview && preview))) {
+        map[titleDigits] = entry;
+      }
+    }
+  }
+
+  function umHarvestSidebarPreviews(maxSteps) {
+    maxSteps = maxSteps || 40;
+    return new Promise(function (resolve) {
+      var map = Object.create(null);
+      var scroller = umFindChatScroller();
+      if (!scroller) { umReadSidebarPreviewsInto(map); resolve(map); return; }
+
+      var startTop = scroller.scrollTop;
+      var step = 0;
+      scroller.scrollTop = 0;
+
+      function tick() {
+        umReadSidebarPreviewsInto(map);
+        var atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 5;
+        if (step++ >= maxSteps || atBottom) {
+          scroller.scrollTop = startTop; // restore the user's view
+          umReadSidebarPreviewsInto(map);
+          resolve(map);
+          return;
+        }
+        scroller.scrollTop += Math.floor(scroller.clientHeight * 0.85);
+        setTimeout(tick, 160);
+      }
+
+      setTimeout(tick, 60);
+    });
+  }
+
+  // Host start/poll API for the preview harvest (ExecuteScriptAsync doesn't await promises). Populates the
+  // persistent window.__umHarvestedPreviews map that the IndexedDB scan reads when building previews.
+  window.__umStartPreviewHarvest = function (maxSteps) {
+    window.__umPreviewHarvestDone = false;
+    umHarvestSidebarPreviews(maxSteps)
+      .then(function (m) { window.__umHarvestedPreviews = m; window.__umPreviewHarvestDone = true; })
+      .catch(function () { window.__umPreviewHarvestDone = true; });
+    setTimeout(function () { window.__umPreviewHarvestDone = true; }, 12000); // watchdog
+    return true;
+  };
+
+  window.__umIsPreviewHarvestDone = function () {
+    return window.__umPreviewHarvestDone ? 'true' : 'false';
+  };
+
   function umDbConversationsPromise(maxChats) {
     maxChats = maxChats || 50;
     return new Promise(function (resolve) {
@@ -1119,14 +1213,24 @@
                 var body = last ? (last.body || last.caption || last.text || '') : '';
                 var name = getChatTitle(ch);
 
+                // Resolve phone number: for @lid privacy JIDs use the lid→phone map built from the
+                // 'contact' store; for @c.us JIDs the local part already is the E.164 number.
+                var contactPhone = lidPhoneMap[jid] || umExtractDigits(jid);
+
                 // Look up the sidebar DOM hint (rendered chats only) by stable id, then by title.
                 var hint = domHints.byId[umDigits(jid)] ||
                   (name ? domHints.byTitle[name.toLowerCase()] : null) || null;
 
+                // Harvested previews (from the scrolled sidebar) cover off-screen chats too. The sidebar
+                // row's data-id may be the @lid or the resolved @c.us phone, so look up by both.
+                var hv = window.__umHarvestedPreviews || null;
+                var harvested = (hv && (hv[umDigits(jid)] || (contactPhone && hv[contactPhone]))) || null;
+
                 // Unsaved contacts have no chat-store name ("New message"); the sidebar shows their phone
                 // number — use it.
-                if ((!name || name === 'New message') && hint && hint.title) {
-                  name = hint.title;
+                if ((!name || name === 'New message')) {
+                  if (hint && hint.title) { name = hint.title; }
+                  else if (harvested && harvested.title) { name = harvested.title; }
                 }
 
                 // Awaiting = the CUSTOMER had the last word (we haven't replied), even if the message was
@@ -1136,12 +1240,8 @@
                 var fromMe = last ? !!last.fromMe : (hint ? hint.lastFromMe : (unread === 0));
                 var awaiting = !fromMe;
 
-                var preview = body || (hint && hint.preview) || '';
+                var preview = body || (hint && hint.preview) || (harvested && harvested.preview) || '';
                 var iso = new Date(t * 1000).toISOString();
-
-                // Resolve phone number: for @lid privacy JIDs use the lid→phone map built from the
-                // 'contact' store; for @c.us JIDs the local part already is the E.164 number.
-                var contactPhone = lidPhoneMap[jid] || umExtractDigits(jid);
 
                 diag.active++;
                 if (awaiting) { diag.awaiting++; } else { diag.caughtUp++; }

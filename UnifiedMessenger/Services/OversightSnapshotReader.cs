@@ -17,7 +17,7 @@ public static class OversightSnapshotReader
     // single window.__umDbConversationsResult global, so concurrent scans would clobber each other.
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.OrdinalIgnoreCase);
 
-    public static async Task<RefreshResult?> RefreshAsync(MessengerInstance instance)
+    public static async Task<RefreshResult?> RefreshAsync(MessengerInstance instance, bool harvestPreviews = false)
     {
         if (instance is null || string.IsNullOrWhiteSpace(instance.Id))
         {
@@ -28,11 +28,50 @@ public static class OversightSnapshotReader
         await gate.WaitAsync().ConfigureAwait(false);
         try
         {
+            if (harvestPreviews)
+            {
+                await HarvestPreviewsAsync(instance).ConfigureAwait(false);
+            }
+
             return await RunScanAsync(instance).ConfigureAwait(false);
         }
         finally
         {
             gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Scrolls the sidebar to harvest last-message previews for off-screen chats into a persistent JS map
+    /// the scan reads. Best-effort: bounded poll, never throws. Message bodies are encrypted at rest, so the
+    /// rendered DOM is the only plaintext preview source.
+    /// </summary>
+    private static async Task HarvestPreviewsAsync(MessengerInstance instance)
+    {
+        var started = await InstanceSessionManager.Instance
+            .TryExecuteScriptOnInstanceAsync(
+                instance.Id,
+                "window.__umStartPreviewHarvest ? window.__umStartPreviewHarvest(40) : 'NOFN'")
+            .ConfigureAwait(false);
+
+        if (started is null || started.Contains("NOFN", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        for (var attempt = 0; attempt < 50; attempt++) // ~12.5s, matching the JS watchdog
+        {
+            await Task.Delay(250).ConfigureAwait(false);
+            var done = await InstanceSessionManager.Instance
+                .TryExecuteScriptOnInstanceAsync(
+                    instance.Id,
+                    "window.__umIsPreviewHarvestDone ? window.__umIsPreviewHarvestDone() : 'true'")
+                .ConfigureAwait(false);
+
+            if (done is not null && done.Contains("true", StringComparison.Ordinal))
+            {
+                return;
+            }
         }
     }
 

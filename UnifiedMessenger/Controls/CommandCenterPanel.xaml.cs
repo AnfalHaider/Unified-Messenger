@@ -1269,7 +1269,7 @@ public sealed partial class CommandCenterPanel : UserControl
         // returns null), and succeeds once its WhatsApp Web is ready.
         for (var round = 0; round < 3; round++)
         {
-            var result = await OversightSnapshotReader.RefreshAsync(instance).ConfigureAwait(true);
+            var result = await OversightSnapshotReader.RefreshAsync(instance, harvestPreviews: true).ConfigureAwait(true);
             if (result is { } r)
             {
                 var pct = r.Active > 0 ? (int)Math.Round(100.0 * r.CaughtUp / r.Active) : 100;
