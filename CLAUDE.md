@@ -150,6 +150,18 @@ docs/
 - **`OversightAlertMonitor`** — edge-triggered threshold toasts when awaiting > X.
 - **`OversightInsightService`** — per-account AI insight cache: keyed by `(entityKey, signature)`, background Ollama generation, heuristic fallback. Prompts send **only aggregate counts** — never customer names or message text.
 
+### Unsaved-contact phone + message preview (P2-A, shipped v4.39.10) — VERIFIED FACTS
+
+These were confirmed by reading the live WhatsApp Web IndexedDB via F12 DevTools (DevTools is enabled). Don't re-derive or re-guess them — three earlier guesses were wrong.
+
+- **WhatsApp Web stores unsaved contacts under `@lid` privacy JIDs**, not phone numbers. The `chat` store's conversation key is the `@lid` for these.
+- **`@lid` → phone lives in the `contact` store.** Each record is keyed by its `id` (which *is* the `@lid` for unsaved contacts) and carries `phoneNumber` as a `@c.us` JID, e.g. `{ id: "…@lid", phoneNumber: "923105325598@c.us", pushname: "…" }`. The dedicated `lid-pn-mapping` store exists but is **empty** — ignore it. `whatsapp-adapter.js` `buildLidPhoneMap` builds `contact.id → digits(contact.phoneNumber)`; the scan sets `contactPhone = lidPhoneMap[jid] || umExtractDigits(jid)`.
+- **Message bodies are ENCRYPTED at rest** in the `message` store's `msgRowOpaqueData` blob (`iv`/`_keyId`/`_scheme`). The `chat` store has no body. So **no readable preview exists in IndexedDB**; decryption is out of scope. The only plaintext preview source is the **live sidebar DOM**.
+- **Sidebar row DOM:** each `[role="row"]` exposes two `span[title]` — `[0]` = name/phone, `[1]` = last-message text — and carries **no `data-id`**. `window.__umStartPreviewHarvest()` does a **synchronous** single pass over the ~60 rendered rows (background webviews throttle `setTimeout` to ~1/sec, so scrolling never finishes), keying previews by the title's phone digits into `window.__umHarvestedPreviews`; the scan joins by resolved phone.
+- **Two C# parse paths build `ChatEntry` from the scan JSON — keep both in sync:** `WhatsAppBackfillProvider.ProcessIndexedDbConversationsAsync` and `OversightSnapshotReader.ParseChatEntries`. Both must read `contactPhone`. `OversightThreadEnricher.Enrich` prefers `chat.ContactPhone` → `+<digits>`. Tests: `OversightThreadEnricherTests` (7, green).
+- **`OnResyncHistory` reloads each account's WebView before probing** so freshly-installed scraper JS takes effect (the adapter script is injected only on document creation). `HarvestPreviewsAsync` waits ~25s for the chat list to re-render before harvesting. Preview harvest runs on the manual Re-sync path only — never the background `OversightAlertMonitor` (so it never scrolls the visible list passively).
+- Known limits (accepted): previews only for chats among the ~60 rendered rows (awaiting chats are near the top) and only when the last message has text. Re-sync is slower because it reloads each account first.
+
 ### AI layer
 - **`OllamaInferenceClient`** — wraps OllamaSharp; `GenerateTextAsync(prompt, systemPrompt, model, ct)` returns trimmed text or null on failure. `GenerateStructuredAsync<T>` for schema-constrained output.
 - **`OversightInsightService.Instance`** (singleton) — `TryGet(key, sig)` for cached AI text; `Request(key, sig, facts, onReady)` for background generation.
@@ -206,6 +218,11 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 | Long `message`-store IndexedDB cursor hangs read transaction | Use bounded `chat` `getAll` instead of per-message cursors |
 | Test filter too broad → hangs headless | Use exact class names in `--filter`, not loose substrings |
 | `NullPlatformAdapter.PlatformId` is `"generic"` not `"whatsapp"` | Adapter factory tests for new platforms expect `"generic"` |
+| Unsaved contacts show `@lid` JIDs, not phone numbers | Phone is in the `contact` store's `phoneNumber` field, keyed by `@lid` id. The `lid-pn-mapping` store is empty — don't use it. (See P2-A section.) |
+| Message preview is blank | Bodies are encrypted at rest (`msgRowOpaqueData`); harvest preview from the live sidebar DOM (`__umStartPreviewHarvest`), not IndexedDB. |
+| Scraper JS change doesn't take effect after install | Adapter is injected on document creation only. Reload the page (Re-sync now does this automatically) or right-click account → Refresh WebView. |
+| Background webview throttles `setTimeout` (~1/sec) | Don't rely on timed loops (e.g. scroll harvest) in non-visible webviews; do synchronous single-pass DOM reads. |
+| `ChatEntry` field added but not populated | TWO parse paths build it: `WhatsAppBackfillProvider.ProcessIndexedDbConversationsAsync` AND `OversightSnapshotReader.ParseChatEntries`. Update both. |
 
 ---
 
@@ -223,21 +240,23 @@ Use Bash `git commit -m "..."` (not PowerShell here-strings — they break on mu
 
 ---
 
-## Phase roadmap (current as of v4.21.0)
+## Phase roadmap (current as of v4.39.10)
 
 See `docs/phase-status.md` for detailed status. Summary:
 
 | Phase | Status |
 |---|---|
 | 1 — WhatsApp oversight foundation | ✅ Complete |
-| 2 — AI tiers (insight strips + Ollama) | ✅ Core done · ☐ Tone/quality + Tier-1 ONNX pending |
+| 2 — AI tiers (insight strips + Ollama) | ✅ Core done · ✅ P2-A unsaved-contact phone + preview (v4.39.10) · ☐ Tier-1 ONNX, AI shift-briefing/anomaly |
 | 3 — Oversight depth & scale | ✅ Mostly done · ☐ Sidebar-rail density at very large counts |
 | 4 — Google Business embed + metrics | ◑ Embed done (v4.20.0) · ☐ DOM metric scraper pending |
 | 5 — Telegram + Meta embed + metrics | ◑ Embed done (v4.21.0) · ☐ DOM metric scrapers pending |
 
-Remaining highest-leverage work:
-1. Outbound staff-reply tone/quality scoring (Phase 2 — Tier-2 Ollama)
-2. Google Business review-metric scraper (Phase 4 — needs live account)
-3. Telegram unread/awaiting DOM adapter (Phase 5 — needs live account)
-4. Messenger passive-read adapter (Phase 5 — Meta fights automation, read-only only)
-5. `IInstanceConnection` abstraction (cross-cutting — decouples oversight layer from WebView2)
+Remaining highest-leverage work (task #s in the running list):
+1. #32 Google Business review-health card (Phase 4 — needs live signed-in account, user has it)
+2. #25 AI shift briefing · #33 anomaly-narrated alerts · #34 cross-location ranking rationale · #36 end-of-day projection (Phase 2 Tier-2 Ollama; aggregate counts only — never names/text)
+3. #35 hourly oversight snapshot persistence (Tier-3 foundation) → #37 week-over-week narrative
+4. #24 Telegram / Messenger / Instagram DOM scrapers (need live accounts; Meta read-only only)
+5. #26 `IInstanceConnection` abstraction (decouples oversight layer from WebView2)
+
+> P2-C (outbound staff-reply tone scoring) was **dropped** earlier this work-stream in favour of the more valuable AI features above (shift briefing, anomaly narration, ranking rationale, projections).
