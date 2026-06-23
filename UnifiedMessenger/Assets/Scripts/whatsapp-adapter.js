@@ -999,92 +999,54 @@
   }
 
   // WhatsApp encrypts message bodies at rest (msgRowOpaqueData), so the last-message TEXT exists only in
-  // the live sidebar DOM, which virtual-scrolls (~15 rows). To get previews for off-screen chats we scroll
-  // the chat list top→bottom, harvesting each rendered row's preview keyed by chat-id digits, then restore
-  // the scroll position. Read-only DOM scraping — no decryption, no message-store access.
-  function umFindChatScroller() {
-    var pane = document.querySelector('#pane-side');
-    if (!pane) { return null; }
-    var divs = pane.querySelectorAll('div');
-    for (var i = 0; i < divs.length; i++) {
-      var el = divs[i];
-      if (el.scrollHeight > el.clientHeight + 40 && el.clientHeight > 200) { return el; }
-    }
-    return pane;
-  }
-
+  // the live sidebar DOM. We harvest each rendered row's preview (read-only — no decryption, no message
+  // store) keyed by the chat's phone digits, and the IndexedDB scan joins by the resolved contact phone.
   function umReadSidebarPreviewsInto(map) {
-    var rows = document.querySelectorAll(
-      '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
-    );
-    for (var i = 0; i < rows.length; i++) {
-      var row = rows[i];
-      var idEl = row.querySelector('[data-id]');
-      var did = (idEl && idEl.getAttribute('data-id')) ||
-        (row.getAttribute && row.getAttribute('data-id')) || '';
-      var key = umDigits(did);
-      if (!key) { continue; }
+    try {
+      var rows = document.querySelectorAll(
+        '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
+      );
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
 
-      var titleEl = row.querySelector('div[data-testid="cell-frame-primary"] span[title], span[title]');
-      var title = titleEl ? normalizeText(titleEl.getAttribute('title') || titleEl.textContent || '') : '';
+        // Each sidebar row exposes two span[title] elements: [0] = the contact name (or phone number for
+        // unsaved contacts), [1] = the full last-message text. (Verified live — rows carry no data-id.)
+        var titleSpans = row.querySelectorAll('span[title]');
+        var title = titleSpans[0] ? normalizeText(titleSpans[0].getAttribute('title') || titleSpans[0].textContent || '') : '';
+        var preview = titleSpans[1] ? normalizeText(titleSpans[1].getAttribute('title') || titleSpans[1].textContent || '') : '';
+        preview = preview.replace(/\b(?:wds-)?ic-[\w-]+/g, '').replace(/\s{2,}/g, ' ').trim();
+        if (preview && title && preview === title) { preview = ''; }
+        preview = preview ? preview.slice(0, 100) : '';
 
-      var sec = row.querySelector('div[data-testid="cell-frame-secondary"]') || row;
-      var textEl = sec.querySelector('span[data-testid="last-msg-text"], span[dir="ltr"], span[dir="auto"]');
-      var preview = textEl ? normalizeText(textEl.textContent || '') : '';
-      preview = preview.replace(/\b(?:wds-)?ic-[\w-]+/g, '').replace(/\s{2,}/g, ' ').trim();
-      if (preview && title && preview === title) { preview = ''; }
-      preview = preview ? preview.slice(0, 90) : '';
+        if (!title && !preview) { continue; }
 
-      var entry = { preview: preview, title: title };
-      // Keep the first non-empty preview we see for a chat (don't overwrite with a later blank).
-      if (!map[key] || (!map[key].preview && preview)) {
-        map[key] = entry;
-      }
-      // Also index by the title's phone digits (unsaved contacts show their number as the title), so the
-      // scan can join by resolved phone when the row's data-id differs from the chat-store @lid.
-      var titleDigits = umDigits((title || '').replace(/[\s\-().+]/g, ''));
-      if (titleDigits && titleDigits.length >= 7 && (!map[titleDigits] || (!map[titleDigits].preview && preview))) {
-        map[titleDigits] = entry;
-      }
-    }
-  }
+        var entry = { preview: preview, title: title };
 
-  function umHarvestSidebarPreviews(maxSteps) {
-    maxSteps = maxSteps || 40;
-    return new Promise(function (resolve) {
-      var map = Object.create(null);
-      var scroller = umFindChatScroller();
-      if (!scroller) { umReadSidebarPreviewsInto(map); resolve(map); return; }
-
-      var startTop = scroller.scrollTop;
-      var step = 0;
-      scroller.scrollTop = 0;
-
-      function tick() {
-        umReadSidebarPreviewsInto(map);
-        var atBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 5;
-        if (step++ >= maxSteps || atBottom) {
-          scroller.scrollTop = startTop; // restore the user's view
-          umReadSidebarPreviewsInto(map);
-          resolve(map);
-          return;
+        // Key by the title's phone digits (unsaved contacts show their number as the title); the scan joins
+        // by the resolved contact phone. Rows carry no data-id, so this is the primary key.
+        var titleDigits = umDigits((title || '').replace(/[\s\-().+]/g, ''));
+        if (titleDigits && titleDigits.length >= 7 && (!map[titleDigits] || (!map[titleDigits].preview && preview))) {
+          map[titleDigits] = entry;
         }
-        scroller.scrollTop += Math.floor(scroller.clientHeight * 0.85);
-        setTimeout(tick, 160);
+        // Fallback: a data-id if one is ever present.
+        var idEl = row.querySelector('[data-id]');
+        var keyById = umDigits((idEl && idEl.getAttribute('data-id')) || '');
+        if (keyById && (!map[keyById] || (!map[keyById].preview && preview))) {
+          map[keyById] = entry;
+        }
       }
-
-      setTimeout(tick, 60);
-    });
+    } catch (e) { /* best-effort harvest */ }
   }
 
-  // Host start/poll API for the preview harvest (ExecuteScriptAsync doesn't await promises). Populates the
-  // persistent window.__umHarvestedPreviews map that the IndexedDB scan reads when building previews.
-  window.__umStartPreviewHarvest = function (maxSteps) {
-    window.__umPreviewHarvestDone = false;
-    umHarvestSidebarPreviews(maxSteps)
-      .then(function (m) { window.__umHarvestedPreviews = m; window.__umPreviewHarvestDone = true; })
-      .catch(function () { window.__umPreviewHarvestDone = true; });
-    setTimeout(function () { window.__umPreviewHarvestDone = true; }, 12000); // watchdog
+  // Populates the persistent window.__umHarvestedPreviews map (chat phone-digits -> preview) that the
+  // IndexedDB scan reads. Synchronous single pass over the currently-rendered sidebar rows — NO scrolling
+  // and NO timers, because background (non-visible) webviews throttle setTimeout to ~1/sec; the ~60
+  // rendered rows already cover the recent/awaiting chats.
+  window.__umStartPreviewHarvest = function () {
+    var map = Object.create(null);
+    umReadSidebarPreviewsInto(map);
+    window.__umHarvestedPreviews = map;
+    window.__umPreviewHarvestDone = true;
     return true;
   };
 

@@ -51,7 +51,7 @@ public static class OversightSnapshotReader
         var started = await InstanceSessionManager.Instance
             .TryExecuteScriptOnInstanceAsync(
                 instance.Id,
-                "window.__umStartPreviewHarvest ? window.__umStartPreviewHarvest(40) : 'NOFN'")
+                "window.__umStartPreviewHarvest ? window.__umStartPreviewHarvest() : 'NOFN'")
             .ConfigureAwait(false);
 
         if (started is null || started.Contains("NOFN", StringComparison.Ordinal))
