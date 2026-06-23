@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.39.9 (P2-A: unsaved-contact phone + message preview in awaiting/Needs-reply — preview harvested from the sidebar DOM since message bodies are encrypted at rest)
+**Current release:** v4.39.10 (Re-sync history now reloads each account first, so scraper updates apply without a manual Refresh WebView)
 
 ## Scope
 

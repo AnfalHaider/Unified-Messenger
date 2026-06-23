@@ -1241,6 +1241,17 @@ public sealed partial class CommandCenterPanel : UserControl
         _resyncInProgress = true;
         ResyncButton.IsEnabled = false;
         AttentionBanner.Visibility = Visibility.Visible;
+
+        // Reload each account's WebView first so the latest scraper script is (re)injected — script is only
+        // injected on document creation, so without this an app update wouldn't take effect until a manual
+        // "Refresh WebView". Loaded sessions get reloaded; not-yet-loaded ones inject the current script when
+        // they warm during the probe. The probe below waits for each page to re-render before harvesting.
+        AttentionText.Text = "Reloading accounts to apply the latest sync…";
+        foreach (var instance in pros)
+        {
+            await _services.SessionManager.ReloadSessionAsync(instance.Id);
+        }
+
         AttentionText.Text = "Probing each account's local history…";
 
         // Direct diagnostic: run the IndexedDB scan straight on each webview and read the raw result,

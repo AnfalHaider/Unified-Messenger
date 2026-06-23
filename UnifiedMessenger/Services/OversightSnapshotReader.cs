@@ -48,6 +48,24 @@ public static class OversightSnapshotReader
     /// </summary>
     private static async Task HarvestPreviewsAsync(MessengerInstance instance)
     {
+        // After a WebView reload the chat list isn't rendered yet; wait for sidebar rows before harvesting
+        // (the harvest is a synchronous read of currently-rendered rows). Bounded so it never hangs.
+        for (var w = 0; w < 50; w++) // up to ~25s
+        {
+            var count = await InstanceSessionManager.Instance
+                .TryExecuteScriptOnInstanceAsync(
+                    instance.Id,
+                    "(document.querySelectorAll('#pane-side [role=\"row\"], #side [role=\"row\"], [data-testid=\"chat-list\"] [role=\"row\"]').length || 0).toString()")
+                .ConfigureAwait(false);
+
+            var raw = count?.Trim('"');
+            if (int.TryParse(raw, out var n) && n > 0)
+            {
+                break;
+            }
+            await Task.Delay(500).ConfigureAwait(false);
+        }
+
         var started = await InstanceSessionManager.Instance
             .TryExecuteScriptOnInstanceAsync(
                 instance.Id,
