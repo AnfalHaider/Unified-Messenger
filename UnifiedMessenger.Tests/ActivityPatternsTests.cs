@@ -123,6 +123,31 @@ public class ActivityPatternsTests : IDisposable
     }
 
     [Fact]
+    public void GetWeekOverWeek_ComparesThisWeekVsLast()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        var today = DateTime.Today;
+
+        // 6 received this week (today), 2 last week (8 days ago).
+        for (var i = 0; i < 6; i++)
+        {
+            service.RecordMessageReceived("inst-1", receivedAtUtc: LocalAt(today.AddHours(10).AddMinutes(i)));
+        }
+        for (var i = 0; i < 2; i++)
+        {
+            service.RecordMessageReceived("inst-1", receivedAtUtc: LocalAt(today.AddDays(-8).AddHours(10).AddMinutes(i)));
+        }
+
+        var wow = service.GetWeekOverWeek([]);
+
+        Assert.True(wow.HasData);
+        Assert.Equal(6, wow.ThisWeekTotal);
+        Assert.Equal(2, wow.LastWeekTotal);
+        Assert.Equal(200, wow.DeltaPercent); // (6-2)/2 = +200%
+        Assert.Equal(today.DayOfWeek.ToString(), wow.BusiestDay);
+    }
+
+    [Fact]
     public void BuildActivityPatterns_FiltersByAccount()
     {
         var service = new MessageAnalyticsService(_storePath);

@@ -81,11 +81,12 @@ ranking rationale, projection). Would need a message-content pipeline (metric is
 Recorded for completeness; not planned.
 
 ### P2-D · Tier-2 AI oversight narration (Ollama, aggregate counts only — never names/text)
-Net-new AI features layered on the existing `OversightInsightService` infra. None exist in code yet:
-- **#25 AI shift briefing** — start-of-shift summary of where each location stands.
-- **#33 anomaly-narrated alerts** — explain *why* an alert fired, not just that it did.
-- **#34 cross-location ranking rationale** — narrate why one location ranks worse than another.
-- **#36 end-of-day projection** — project where the day lands given current pace.
+Layered on the existing `OversightInsightService` infra (now has a general prompt-based `Request` overload):
+- **#25 AI shift briefing** — ✅ done (v4.43.0). One-line whole-business "where to focus first" under the KPI
+  band; deterministic heuristic + local-AI swap (`CommandCenterPanel.RenderBriefing`).
+- **#33 anomaly-narrated alerts** — ☐ explain *why* an alert fired, not just that it did.
+- **#34 cross-location ranking rationale** — ☐ narrate why one location ranks worse than another.
+- **#36 end-of-day projection** — ☐ project where the day lands given current pace.
 
 All prompts must send aggregate counts only — never customer names or message text (see
 `OversightInsightService` contract).
@@ -114,8 +115,8 @@ RAM at many-instance scale + CI stress fixtures to confirm the memory strategy h
 ### P3-E · Oversight snapshot persistence (Tier-3 foundation, #35 → #37)
 - **#35 hourly oversight snapshot persistence** — ✅ done (v4.40.0). Activity-history log
   (`MessageAnalyticsService`, ~400-day daily + hourly buckets) + durable `oversight-snapshot.json`.
-- **#37 week-over-week narrative** — ☐ pending, **now unblocked** by the activity history. Narrate
-  trend changes (this week vs last) from the accrued buckets.
+- **#37 week-over-week narrative** — ✅ done (v4.43.0). Deterministic this-week-vs-last + busiest-weekday
+  line in the Activity patterns panel (`MessageAnalyticsService.GetWeekOverWeek`).
 
 ---
 

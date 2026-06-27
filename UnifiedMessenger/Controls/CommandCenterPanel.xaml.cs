@@ -857,9 +857,11 @@ public sealed partial class CommandCenterPanel : UserControl
         // Caught-up %: measured-count-weighted average across accounts that actually have live data.
         var live = entities.Where(e => e.MeasuredCount > 0).ToList();
         var measured = live.Sum(e => e.MeasuredCount);
+        int? overallPct = null;
         if (measured > 0)
         {
             var pct = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
+            overallPct = pct;
             KpiCaughtUpValue.Text = $"{pct}%";
             KpiCaughtUpValue.Foreground = StatusBrushForPercent(pct);
         }
@@ -912,7 +914,84 @@ public sealed partial class CommandCenterPanel : UserControl
         KpiBusiestHint.Text = busyDay == "—" ? "peak hour" : $"peak hour · {busyDay}";
 
         KpiBand.Visibility = Visibility.Visible;
+
+        RenderBriefing(entities, overallPct, totalAwaiting, behind, busyHour);
     }
+
+    private const string BriefingSystemPrompt =
+        "You are an operations assistant for a multi-location business owner monitoring WhatsApp customer " +
+        "chats. You are given only aggregate counts across the owner's OWN business accounts (account names " +
+        "are the owner's labels — fine to mention). Reply with EXACTLY ONE short start-of-shift line (max 24 " +
+        "words) telling the owner where to focus first. Plain sentence, no greeting, no markdown, no quotes. " +
+        "Never invent customer names or message text.";
+
+    /// <summary>
+    /// #25 AI shift briefing: a one-line, whole-business "where to focus first" summary under the KPI band.
+    /// Always shows a deterministic heuristic; when local AI is on it swaps in a model-phrased line (cached,
+    /// degrades to the heuristic). Hidden when there's nothing to brief.
+    /// </summary>
+    private void RenderBriefing(
+        IReadOnlyList<OversightEntityHealth> entities,
+        int? overallPct,
+        int totalAwaiting,
+        int accountsBehind,
+        string busyHour)
+    {
+        if (overallPct is null)
+        {
+            BriefingStrip.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var worst = entities.Where(e => e.AwaitingCount > 0)
+            .OrderByDescending(e => e.AwaitingCount)
+            .FirstOrDefault();
+        var busy = busyHour is "—" or "" ? string.Empty : $" Busiest around {busyHour}.";
+
+        string heuristic;
+        if (totalAwaiting == 0)
+        {
+            heuristic = $"All caught up — nothing waiting on a reply.{busy}";
+        }
+        else
+        {
+            var customers = totalAwaiting == 1 ? "1 customer is" : $"{totalAwaiting} customers are";
+            var accountWord = accountsBehind == 1 ? "account" : "accounts";
+            var start = worst is not null
+                ? $" Start with {worst.DisplayName} ({worst.AwaitingCount} waiting)."
+                : string.Empty;
+            heuristic = $"{customers} waiting across {accountsBehind} {accountWord}.{start}{busy}";
+        }
+
+        var displayText = heuristic;
+        var isAi = false;
+        if (AppSettingsService.Instance.Settings.EnableLocalAi)
+        {
+            var signature = $"{overallPct}|{totalAwaiting}|{accountsBehind}|{worst?.Key}|{worst?.AwaitingCount}|{busyHour}";
+            var cached = OversightInsightService.Instance.TryGet(BriefingCacheKey, signature);
+            if (cached is not null)
+            {
+                displayText = cached;
+                isAi = true;
+            }
+            else
+            {
+                var prompt =
+                    $"Across {entities.Count} accounts: {totalAwaiting} customer(s) waiting, {accountsBehind} account(s) " +
+                    $"behind, {overallPct}% caught up overall." +
+                    (worst is not null ? $" Account needing most attention: {worst.DisplayName} ({worst.AwaitingCount} waiting)." : string.Empty) +
+                    (busyHour is "—" or "" ? string.Empty : $" Busiest hour: {busyHour}.") +
+                    " Write the one-line start-of-shift briefing.";
+                OversightInsightService.Instance.Request(BriefingCacheKey, signature, prompt, BriefingSystemPrompt, OnInsightReady);
+            }
+        }
+
+        BriefingBadge.Text = isAi ? "✦ AI" : "✦";
+        BriefingText.Text = displayText;
+        BriefingStrip.Visibility = Visibility.Visible;
+    }
+
+    private const string BriefingCacheKey = "__shift_briefing__";
 
     /// <summary>
     /// A one-line attention summary for an account/location, styled like an info strip. Returns null when

@@ -66,17 +66,22 @@
                 <Grid x:Name="AxisHost" />
             </StackPanel>
 
-            <!-- Insight -->
-            <Border
-                Grid.Row="3"
-                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                CornerRadius="6"
-                Padding="11,8">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon FontSize="15" Foreground="{ThemeResource SystemFillColorCautionBrush}" Glyph="&#xEA80;" VerticalAlignment="Center" />
-                    <TextBlock x:Name="InsightText" FontSize="13" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+            <!-- Insight + week-over-week trend -->
+            <StackPanel Grid.Row="3" Spacing="8">
+                <Border
+                    Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                    CornerRadius="6"
+                    Padding="11,8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="15" Foreground="{ThemeResource SystemFillColorCautionBrush}" Glyph="&#xEA80;" VerticalAlignment="Center" />
+                        <TextBlock x:Name="InsightText" FontSize="13" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+                <StackPanel x:Name="WeekRow" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                    <FontIcon FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE9D2;" VerticalAlignment="Center" />
+                    <TextBlock x:Name="WeekText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
                 </StackPanel>
-            </Border>
+            </StackPanel>
         </Grid>
     </Border>
 </UserControl>

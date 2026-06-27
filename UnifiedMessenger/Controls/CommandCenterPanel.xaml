@@ -78,8 +78,9 @@
             </StackPanel>
         </Grid>
 
-        <!-- Row 1 — at-a-glance KPI summary band -->
-        <Grid x:Name="KpiBand" Grid.Row="1" ColumnSpacing="12">
+        <!-- Row 1 — at-a-glance KPI summary band + AI shift briefing -->
+        <StackPanel Grid.Row="1" Spacing="10">
+        <Grid x:Name="KpiBand" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
@@ -138,6 +139,26 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <Border
+            x:Name="BriefingStrip"
+            Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+            CornerRadius="8"
+            Padding="12,9"
+            Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock
+                    x:Name="BriefingBadge"
+                    FontSize="11"
+                    FontWeight="SemiBold"
+                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                    Text="✦"
+                    VerticalAlignment="Top"
+                    Margin="0,1,0,0" />
+                <TextBlock x:Name="BriefingText" FontSize="13" TextWrapping="WrapWholeWords" VerticalAlignment="Center" />
+            </StackPanel>
+        </Border>
+        </StackPanel>
 
         <!-- Row 2 — mode segmented control + filter + density -->
         <Grid Grid.Row="2" ColumnSpacing="12">

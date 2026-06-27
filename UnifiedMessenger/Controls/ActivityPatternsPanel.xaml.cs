@@ -207,6 +207,38 @@ public sealed partial class ActivityPatternsPanel : UserControl
             _ => "in"
         };
         InsightText.Text = $"Busiest {prep} {patterns.PeakLabel} — {patterns.Values[patterns.PeakIndex]} messages at the peak.";
+
+        RenderWeekOverWeek(instances);
+    }
+
+    /// <summary>#37: a plain-language week-over-week trend line (this week vs last, busiest day).</summary>
+    private void RenderWeekOverWeek(IReadOnlyList<MessengerInstance> instances)
+    {
+        var wow = MessageAnalyticsService.Instance.GetWeekOverWeek(instances);
+        if (!wow.HasData)
+        {
+            WeekRow.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        string trend;
+        if (wow.LastWeekTotal == 0)
+        {
+            trend = "first week of activity";
+        }
+        else if (wow.DeltaPercent == 0)
+        {
+            trend = "about the same as last week";
+        }
+        else
+        {
+            var dir = wow.DeltaPercent > 0 ? "up" : "down";
+            trend = $"{dir} {Math.Abs(wow.DeltaPercent)}% vs last week";
+        }
+
+        var busiest = string.IsNullOrEmpty(wow.BusiestDay) ? string.Empty : $" · busiest on {wow.BusiestDay}";
+        WeekText.Text = $"This week: {wow.ThisWeekTotal} messages, {trend}{busiest}.";
+        WeekRow.Visibility = Visibility.Visible;
     }
 
     private static Brush Brush(string key) =>

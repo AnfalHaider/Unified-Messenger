@@ -78,7 +78,14 @@ public sealed class OversightInsightService
     /// in the background and invoke <paramref name="onReady"/> (on a thread-pool thread) when it lands.
     /// No-ops when AI is off, already cached for this signature, or already generating for this account.
     /// </summary>
-    public void Request(string entityKey, string signature, OversightInsightFacts facts, Action onReady)
+    public void Request(string entityKey, string signature, OversightInsightFacts facts, Action onReady) =>
+        Request(entityKey, signature, BuildPrompt(facts), SystemPrompt, onReady);
+
+    /// <summary>
+    /// General narration: generate a cached one-liner from an arbitrary user/system prompt pair (used by the
+    /// shift briefing and other aggregate narrations). Same dedup/cache/degrade semantics as the facts overload.
+    /// </summary>
+    public void Request(string entityKey, string signature, string userPrompt, string systemPrompt, Action onReady)
     {
         if (string.IsNullOrWhiteSpace(entityKey) || !_aiEnabledProvider())
         {
@@ -98,10 +105,10 @@ public sealed class OversightInsightService
             }
         }
 
-        _ = GenerateAsync(entityKey, signature, facts, onReady);
+        _ = GenerateAsync(entityKey, signature, userPrompt, systemPrompt, onReady);
     }
 
-    private async Task GenerateAsync(string entityKey, string signature, OversightInsightFacts facts, Action onReady)
+    private async Task GenerateAsync(string entityKey, string signature, string userPrompt, string systemPrompt, Action onReady)
     {
         await _gate.WaitAsync().ConfigureAwait(false);
         try
@@ -120,7 +127,7 @@ public sealed class OversightInsightService
             }
 
             var text = await _client
-                .GenerateTextAsync(BuildPrompt(facts), SystemPrompt, _modelProvider(), cts.Token)
+                .GenerateTextAsync(userPrompt, systemPrompt, _modelProvider(), cts.Token)
                 .ConfigureAwait(false);
 
             text = Sanitize(text);

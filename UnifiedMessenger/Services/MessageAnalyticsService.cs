@@ -58,6 +58,14 @@ public sealed class ActivityPatterns
 /// <summary>Messages-per-day KPI: 7-day average inbound volume plus the change vs the prior window.</summary>
 public readonly record struct MessagesPerDayStat(int AveragePerDay, int DeltaCount, bool HasData);
 
+/// <summary>Week-over-week inbound comparison (#37): this-week vs last-week totals, % change, busiest weekday.</summary>
+public readonly record struct WeekOverWeekStat(
+    int ThisWeekTotal,
+    int LastWeekTotal,
+    int DeltaPercent,
+    string BusiestDay,
+    bool HasData);
+
 public sealed class ProfessionalAnalyticsSnapshot
 {
     public int SentCount { get; init; }
@@ -685,6 +693,60 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         var avg = (int)Math.Round(current / (double)days);
         var priorAvg = (int)Math.Round(prior / (double)days);
         return new MessagesPerDayStat(avg, avg - priorAvg, true);
+    }
+
+    /// <summary>
+    /// Week-over-week inbound comparison (#37): this week's total vs last week's, the % change, and this
+    /// week's busiest weekday — for a plain-language trend narrative. <c>HasData</c> false until activity accrues.
+    /// </summary>
+    public WeekOverWeekStat GetWeekOverWeek(IEnumerable<MessengerInstance> instances)
+    {
+        var ids = instances.Select(i => i.Id).Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var includeAll = ids.Count == 0;
+
+        var today = DateTime.Now.Date;
+        var thisWeek = 0;
+        var lastWeek = 0;
+        var dayTotals = new int[7]; // Mon..Sun, this week.
+        foreach (var pair in _stats)
+        {
+            if (!includeAll && !ids.Contains(pair.Key))
+            {
+                continue;
+            }
+
+            foreach (var (day, count) in pair.Value.DailyReceived)
+            {
+                if (!DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                {
+                    continue;
+                }
+
+                var ago = (today - date.Date).Days;
+                if (ago >= 0 && ago < 7)
+                {
+                    thisWeek += count;
+                    dayTotals[((int)date.DayOfWeek + 6) % 7] += count;
+                }
+                else if (ago >= 7 && ago < 14)
+                {
+                    lastWeek += count;
+                }
+            }
+        }
+
+        if (thisWeek == 0 && lastWeek == 0)
+        {
+            return new WeekOverWeekStat(0, 0, 0, string.Empty, false);
+        }
+
+        var delta = lastWeek > 0
+            ? (int)Math.Round((thisWeek - lastWeek) * 100.0 / lastWeek)
+            : thisWeek > 0 ? 100 : 0;
+        string[] dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        var busiest = dayTotals.Max() > 0 ? dayNames[Array.IndexOf(dayTotals, dayTotals.Max())] : string.Empty;
+        return new WeekOverWeekStat(thisWeek, lastWeek, delta, busiest, true);
     }
 
     /// <summary>Compact "busiest window" summary, e.g. ("2–3 PM", "Tue"). Empty dashes when no data.</summary>
