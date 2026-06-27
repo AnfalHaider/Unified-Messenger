@@ -60,10 +60,10 @@
                 </StackPanel>
             </Border>
 
-            <!-- Chart: bars + axis labels (built imperatively) -->
+            <!-- Chart: smooth area/line + axis labels (built imperatively on a Canvas) -->
             <StackPanel Grid.Row="2" Spacing="6">
                 <Grid x:Name="ChartHost" Height="190" />
-                <Grid x:Name="AxisHost" />
+                <Canvas x:Name="AxisHost" Height="16" />
             </StackPanel>
 
             <!-- Insight + week-over-week trend -->
