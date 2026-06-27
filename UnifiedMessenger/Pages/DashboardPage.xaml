@@ -15,36 +15,60 @@
         VerticalScrollBarVisibility="Auto"
         HorizontalScrollMode="Disabled">
         <StackPanel Spacing="16" HorizontalAlignment="Stretch">
-            <StackPanel Spacing="4">
-                <TextBlock
-                    x:Name="WelcomeTitle"
-                    AutomationProperties.Name="Welcome back"
-                    Style="{StaticResource TitleTextBlockStyle}"
-                    Text="Welcome back" />
-                <TextBlock
-                    x:Name="WelcomeSubtitle"
-                    Opacity="0.7"
-                    Text="Your unified messaging workspace"
-                    TextWrapping="WrapWholeWords" />
-            </StackPanel>
+            <!-- Header: greeting + a "Personal" button (top) that opens the personal overview in a flyout. -->
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4" VerticalAlignment="Center">
+                    <TextBlock
+                        x:Name="WelcomeTitle"
+                        AutomationProperties.Name="Welcome back"
+                        Style="{StaticResource TitleTextBlockStyle}"
+                        Text="Welcome back" />
+                    <TextBlock
+                        x:Name="WelcomeSubtitle"
+                        Opacity="0.7"
+                        Text="Your unified messaging workspace"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <Button
+                    x:Name="PersonalButton"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    AutomationProperties.AutomationId="DashboardPersonalOverviewButton"
+                    AutomationProperties.Name="Personal overview"
+                    ToolTipService.ToolTip="Personal accounts overview">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE716;" />
+                        <TextBlock x:Name="PersonalButtonLabel" Text="Personal" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout x:Name="PersonalFlyout" Placement="Bottom" Opened="PersonalFlyout_Opened">
+                            <Flyout.FlyoutPresenterStyle>
+                                <Style TargetType="FlyoutPresenter">
+                                    <Setter Property="MaxWidth" Value="760" />
+                                    <Setter Property="MaxHeight" Value="580" />
+                                    <Setter Property="Padding" Value="12" />
+                                    <Setter Property="CornerRadius" Value="10" />
+                                </Style>
+                            </Flyout.FlyoutPresenterStyle>
+                            <controls:PersonalOverviewPanel
+                                x:Name="PersonalOverviewPanel"
+                                Width="660"
+                                MaxHeight="540" />
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </Grid>
 
             <controls:CommandCenterPanel x:Name="CommandCenterPanel" />
 
             <controls:ActivityPatternsPanel x:Name="ActivityPatternsPanel" />
 
             <controls:ReviewHealthPanel x:Name="ReviewHealthPanel" />
-
-            <Expander
-                x:Name="PersonalOverviewExpander"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Stretch"
-                Header="Personal overview"
-                AutomationProperties.Name="Personal overview"
-                AutomationProperties.AutomationId="DashboardPersonalOverviewExpander">
-                <controls:PersonalOverviewPanel
-                    x:Name="PersonalOverviewPanel"
-                    MaxHeight="480" />
-            </Expander>
         </StackPanel>
     </ScrollViewer>
 </Page>

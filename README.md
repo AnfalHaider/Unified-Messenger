@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.42.0 (Redesigned command center + KPI band, filterable **Activity patterns** graph, durable oversight snapshot, custom account icons (brand logos + import + upload), and a new **Reviews** section showing Google Business reviews awaiting a reply + reply rate per account.)
+**Current release:** v4.42.1 (Redesigned command center + KPI band, filterable **Activity patterns** graph, durable oversight snapshot, custom account icons, a **Reviews** section for Google Business reviews awaiting a reply, and a top **Personal** button. v4.42.1 fixes the Reviews section not appearing for Google accounts and moves the personal overview to a top button.)
 
 ### What's in v4.42.0
 - **Google Business review-health (Phase 4):** a new dashboard **Reviews** section scrapes each Google Business account's live reviews page for **reviews awaiting a reply** (the actionable signal) and **reply rate** on the loaded page. Refresh on demand. (Google exposes no aggregate rating/total on the manager reviews page, so those aren't shown.)

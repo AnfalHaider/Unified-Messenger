@@ -130,9 +130,17 @@ public sealed partial class DashboardPage : Page
 
         WelcomeSubtitle.Text = DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
 
+        // The "Personal" top button shows the personal-account count and hides when there are none.
+        PersonalButtonLabel.Text = personalCount > 0 ? $"Personal · {personalCount}" : "Personal";
+        PersonalButton.Visibility = personalCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+
         PersonalOverviewPanel.Refresh(PersonalInstances);
         CommandCenterPanel.Render();
     }
+
+    // Refresh the personal overview each time its flyout opens so it's current when viewed.
+    private void PersonalFlyout_Opened(object sender, object e) =>
+        PersonalOverviewPanel.Refresh(PersonalInstances);
 
     private IEnumerable<MessengerInstance> PersonalInstances =>
         _registry?.Instances.Where(i => !i.IsProfessional) ?? [];

@@ -27,9 +27,11 @@ public sealed partial class ReviewHealthPanel : UserControl
     public void ConfigureServices(ApplicationServices services) => _services = services;
 
     private IEnumerable<MessengerInstance> GoogleInstances() =>
+        // NOTE: do NOT gate on IsPlatformModuleEnabled — that is WhatsApp-family-only, so it would exclude
+        // Google Business (an embed channel). Google accounts are sidebar-visible embed channels.
         _services?.Registry.Instances.Where(i =>
             i.IsProfessional &&
-            PlatformModuleSettingsHelper.IsPlatformModuleEnabled(i.Platform) &&
+            PlatformModuleSettingsHelper.IsSidebarVisible(i.Platform) &&
             string.Equals(PlatformDefinition.NormalizePlatformId(i.Platform), "googlebusiness", StringComparison.OrdinalIgnoreCase))
         ?? [];
 
