@@ -10,41 +10,39 @@
     x:DataType="local:DashboardPage"
     xmlns:local="using:UnifiedMessenger.Pages">
 
-    <Grid Padding="24,20" RowSpacing="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <ScrollViewer
+        Padding="24,20"
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollMode="Disabled">
+        <StackPanel Spacing="16" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="4">
+                <TextBlock
+                    x:Name="WelcomeTitle"
+                    AutomationProperties.Name="Welcome back"
+                    Style="{StaticResource TitleTextBlockStyle}"
+                    Text="Welcome back" />
+                <TextBlock
+                    x:Name="WelcomeSubtitle"
+                    Opacity="0.7"
+                    Text="Your unified messaging workspace"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
 
-        <StackPanel Spacing="4">
-            <TextBlock
-                x:Name="WelcomeTitle"
-                AutomationProperties.Name="Welcome back"
-                Style="{StaticResource TitleTextBlockStyle}"
-                Text="Welcome back" />
-            <TextBlock
-                x:Name="WelcomeSubtitle"
-                Opacity="0.7"
-                Text="Your unified messaging workspace"
-                TextWrapping="WrapWholeWords" />
+            <controls:CommandCenterPanel x:Name="CommandCenterPanel" />
+
+            <controls:ActivityPatternsPanel x:Name="ActivityPatternsPanel" />
+
+            <Expander
+                x:Name="PersonalOverviewExpander"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch"
+                Header="Personal overview"
+                AutomationProperties.Name="Personal overview"
+                AutomationProperties.AutomationId="DashboardPersonalOverviewExpander">
+                <controls:PersonalOverviewPanel
+                    x:Name="PersonalOverviewPanel"
+                    MaxHeight="480" />
+            </Expander>
         </StackPanel>
-
-        <controls:CommandCenterPanel
-            x:Name="CommandCenterPanel"
-            Grid.Row="1" />
-
-        <Expander
-            x:Name="PersonalOverviewExpander"
-            Grid.Row="2"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Stretch"
-            Header="Personal overview"
-            AutomationProperties.Name="Personal overview"
-            AutomationProperties.AutomationId="DashboardPersonalOverviewExpander">
-            <controls:PersonalOverviewPanel
-                x:Name="PersonalOverviewPanel"
-                MaxHeight="480" />
-        </Expander>
-    </Grid>
+    </ScrollViewer>
 </Page>

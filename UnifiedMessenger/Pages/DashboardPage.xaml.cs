@@ -24,6 +24,7 @@ public sealed partial class DashboardPage : Page
         _services.ThreadRegistry.RefreshOperationalFlags(raiseChanged: false);
         PersonalOverviewPanel.ScheduleRefresh(PersonalInstances);
         CommandCenterPanel.Render();
+        ActivityPatternsPanel.Render();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -38,6 +39,7 @@ public sealed partial class DashboardPage : Page
             }
 
             PersonalOverviewPanel.ConfigureServices(_services);
+            ActivityPatternsPanel.ConfigureServices(_services);
         }
 
         if (_registry is not null)
@@ -99,6 +101,10 @@ public sealed partial class DashboardPage : Page
 
     private void OnPersonalDataChanged(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() => PersonalOverviewPanel.ScheduleRefresh(PersonalInstances));
+
+    /// <summary>Forces the command center to redraw (e.g. after an account avatar icon changed), bypassing
+    /// the data-signature guard that would otherwise skip an icon-only change.</summary>
+    public void ForceRefreshIcons() => CommandCenterPanel.ForceRender();
 
     public void RefreshAll()
     {

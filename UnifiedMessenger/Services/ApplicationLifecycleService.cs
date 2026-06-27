@@ -102,6 +102,7 @@ public static class ApplicationLifecycleService
         {
             await services.MessageAnalytics.FlushAsync(cancellationToken).ConfigureAwait(false);
             await services.TriagePersistence.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await OversightChatSnapshotService.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

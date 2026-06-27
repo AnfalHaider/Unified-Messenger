@@ -2,7 +2,17 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.39.10 (Re-sync history now reloads each account first, so scraper updates apply without a manual Refresh WebView)
+**Current release:** v4.41.1 (Redesigned command center + at-a-glance KPI band, new filterable **Activity patterns** graph — busiest hour/day/month — durable oversight snapshot so the dashboard survives restarts, and custom account icons including social-media brand logos, profile-photo import, and image upload. v4.41.1: profile-photo import now targets the real self-avatar instead of decorative nav icons.)
+
+### What's in v4.41.0
+- **Custom account icons (expanded):** right-click an account → **Change icon** to choose a social-media brand logo (WhatsApp, Telegram, Instagram, Facebook, Messenger, X, TikTok, YouTube, LinkedIn, Discord, Pinterest, Reddit, WeChat, Google), a general icon, **import the account's profile photo**, or **upload an image from your PC**. Reset to initials anytime.
+
+### What's in v4.40.0
+- **Command-center redesign:** at-a-glance KPI band (caught up · awaiting · messages/day · busiest window), redesigned account cards (avatar, status %, full-height status rail, awaiting pill, in-card AI strip), info-styled dismissible digest, single-scroll dashboard.
+- **Activity patterns graph:** one filterable chart — Hour of day / Day of week / Month — with account + range filters, peak highlight, and a plain-language insight line. Reads an on-device activity-history log (retained ~400 days; fully local).
+- **Durable oversight snapshot:** the live dashboard (caught-up %, awaiting list, counts) now persists to disk, loads instantly on launch with an "Updated …" stamp, and re-sync updates incrementally instead of starting blank. Analytics history merges (never wipes/double-counts) on re-sync.
+- **Custom account icons:** right-click an account → **Change icon** to pick a social-media brand logo (WhatsApp, Telegram, Instagram, Facebook, Messenger, X, TikTok, YouTube, LinkedIn, Discord, Pinterest, Reddit, WeChat, Google — via a bundled Font Awesome Brands font), a general icon, or **import the account's profile photo** from its live session. Reset to initials anytime. Shows in the sidebar and dashboard cards.
+- **Bug fixes:** removed a stray floating `Ctrl+D` tooltip (suppressed auto-generated accelerator tooltips); **fixed account names vanishing** after adding an account (the sidebar reused cached rows whose label references were cleared on rebuild — rows are now recreated so titles/status/badges stay correct); the Change-icon dialog no longer gets occluded by an open account's WebView.
 
 ## Scope
 

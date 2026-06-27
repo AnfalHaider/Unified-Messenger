@@ -42,6 +42,15 @@ public sealed class ShellNavigationCoordinator
         }
     }
 
+    /// <summary>Forces the command center to redraw avatars even when oversight data is unchanged.</summary>
+    public void ForceRefreshDashboardIcons()
+    {
+        if (_ui.ContentFrame.Content is DashboardPage dashboard)
+        {
+            dashboard.ForceRefreshIcons();
+        }
+    }
+
 
     public async Task ShowDashboardAsync()
     {

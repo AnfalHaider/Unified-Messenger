@@ -21,7 +21,6 @@ public sealed partial class WorkspaceSidebar : Grid
     private readonly Dictionary<string, Ellipse> _instanceStatusDots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBlock> _instanceStatusLabels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBlock> _instanceTitleLabels = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, UIElement> _menuElementCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<FrameworkElement> _compactHiddenElements = [];
 
     // Collapsible location groups: which "loc:*" groups are collapsed (persists across refreshes), the
@@ -244,12 +243,10 @@ public sealed partial class WorkspaceSidebar : Grid
         _groupCounts = ComputeGroupCounts(plan);
 
         var desiredElements = new List<UIElement>(plan.Entries.Count);
-        var activeKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         string? currentGroupKey = null;
         foreach (var entry in plan.Entries)
         {
-            activeKeys.Add(entry.Key);
             var element = GetOrCreateMenuElement(entry);
             desiredElements.Add(element);
 
@@ -283,11 +280,6 @@ public sealed partial class WorkspaceSidebar : Grid
         }
 
         ApplyGroupCollapseState();
-
-        foreach (var staleKey in _menuElementCache.Keys.Where(key => !activeKeys.Contains(key)).ToList())
-        {
-            _menuElementCache.Remove(staleKey);
-        }
 
         // Drop collapse state for groups that no longer exist so it can't leak across scope/location changes.
         _collapsedGroups.RemoveWhere(key => !_groupMembers.ContainsKey(key));
@@ -349,34 +341,17 @@ public sealed partial class WorkspaceSidebar : Grid
 
     private UIElement GetOrCreateMenuElement(SidebarMenuEntry entry)
     {
-        // Location group headers are recreated each structural rebuild (not cached) so their member count
-        // and chevron registration are always current; collapse state persists separately in _collapsedGroups.
-        if (entry.Kind == SidebarMenuEntryKind.SectionHeader && IsLocationGroupKey(entry.Key))
-        {
-            var locationHeader = CreateLocationHeader(entry.SectionTitle ?? string.Empty, entry.Key);
-            locationHeader.Tag = entry.Key;
-            return locationHeader;
-        }
-
-        if (_menuElementCache.TryGetValue(entry.Key, out var cached))
-        {
-            if (entry.Kind == SidebarMenuEntryKind.Dashboard && cached is Border dashboardRow)
-            {
-                _dashboardRow = dashboardRow;
-            }
-
-            if (entry.Kind == SidebarMenuEntryKind.Instance && entry.Instance is not null && cached is Border cachedRow)
-            {
-                UpdateInstanceRowContent(cachedRow, entry.Instance);
-                RegisterInstanceRow(entry.Instance, cachedRow);
-            }
-
-            return cached;
-        }
-
+        // Every element is recreated on a structural rebuild. SyncMenuStack clears the row-tracking
+        // dictionaries (title/status labels, dots, badges) and _compactHiddenElements; those are only
+        // re-populated by the Create* methods. Reusing a cached element therefore left its label refs
+        // dangling — after an add/remove, pre-existing rows' titles fell out of _compactHiddenElements and
+        // could blank out on the next compact↔expand cycle (names vanished), and their status/badge stopped
+        // updating. Recreating a handful of lightweight rows is cheap and keeps every reference consistent.
         UIElement created = entry.Kind switch
         {
-            SidebarMenuEntryKind.SectionHeader => CreateSectionHeader(entry.SectionTitle ?? string.Empty, entry.Key),
+            SidebarMenuEntryKind.SectionHeader => IsLocationGroupKey(entry.Key)
+                ? CreateLocationHeader(entry.SectionTitle ?? string.Empty, entry.Key)
+                : CreateSectionHeader(entry.SectionTitle ?? string.Empty, entry.Key),
             SidebarMenuEntryKind.Dashboard => CreateDashboardRow(),
             SidebarMenuEntryKind.EmptyHint => CreateEmptyHint(entry.HintText ?? string.Empty, entry.Key),
             SidebarMenuEntryKind.Instance when entry.Instance is not null => CreateInstanceRow(entry.Instance),
@@ -388,7 +363,6 @@ public sealed partial class WorkspaceSidebar : Grid
             frameworkElement.Tag = entry.Key;
         }
 
-        _menuElementCache[entry.Key] = created;
         return created;
     }
 
@@ -425,6 +399,13 @@ public sealed partial class WorkspaceSidebar : Grid
         _isCompact = compact;
         ApplyCompactDisplay();
     }
+
+    /// <summary>
+    /// Drops the cached plan so the next <see cref="Refresh"/> does a full structural rebuild (recreating
+    /// rows + avatars). Needed when something the incremental path doesn't track changed — e.g. an account's
+    /// avatar icon — otherwise the icon-only change wouldn't appear.
+    /// </summary>
+    public void InvalidatePlan() => _currentPlan = null;
 
     private void ApplyCompactDisplay()
     {

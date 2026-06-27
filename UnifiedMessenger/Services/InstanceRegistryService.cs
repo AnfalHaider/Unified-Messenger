@@ -302,6 +302,35 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         }
     }
 
+    /// <summary>
+    /// Sets (or clears) the user-chosen built-in avatar icon and its flat color. Pass null glyph to clear it
+    /// (fall back to an imported/uploaded image if cached, else initials). The icon color is independent of
+    /// the platform accent (which platform branding owns), so it persists across reloads.
+    /// </summary>
+    public async Task UpdateInstanceAvatarIconAsync(
+        string instanceId,
+        string? iconGlyph,
+        string? iconColor,
+        string? iconFontFamily = null,
+        CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var instance = FindByIdNoLock(instanceId)
+                ?? throw new InvalidOperationException("Instance not found.");
+
+            instance.CustomIconGlyph = string.IsNullOrWhiteSpace(iconGlyph) ? null : iconGlyph;
+            instance.CustomIconColor = string.IsNullOrWhiteSpace(iconColor) ? null : iconColor;
+            instance.CustomIconFontFamily = string.IsNullOrWhiteSpace(iconFontFamily) ? null : iconFontFamily;
+            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task UpdateInstanceBranchKeyAsync(
         string instanceId,
         string? branchKey,

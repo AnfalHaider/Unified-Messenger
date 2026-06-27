@@ -118,6 +118,14 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private void OnAutoRefreshTick(object? sender, object e) => Render();
 
+    /// <summary>Forces a full rebuild on the next render — used when something the data signature doesn't
+    /// capture changed (e.g. an account's avatar icon), so cards redraw with the new avatar.</summary>
+    public void ForceRender()
+    {
+        _lastRenderSignature = string.Empty;
+        Render();
+    }
+
     private bool _digestShown;
     private string _lastRenderSignature = string.Empty;
     private string _searchQuery = string.Empty;
@@ -133,9 +141,17 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private void OnDensityToggled(object sender, RoutedEventArgs e)
     {
-        _compact = DensityToggle.IsOn;
+        _compact = DensityToggle.IsChecked == true;
         _lastRenderSignature = string.Empty;
         Render();
+    }
+
+    private bool _digestDismissed;
+
+    private void OnDismissDigest(object sender, RoutedEventArgs e)
+    {
+        _digestDismissed = true;
+        DigestBanner.Visibility = Visibility.Collapsed;
     }
 
     private bool MatchesSearch(string? text) =>
@@ -252,6 +268,18 @@ public sealed partial class CommandCenterPanel : UserControl
                 : $"Per account · caught up among chats active {windowLabel} · group into locations (Ctrl+K)";
         _emptyStateWindowLabel = windowLabel;
 
+        // "As of" stamp — honest about persisted (pre-scan) data after a fresh launch.
+        var capturedAt = OversightChatSnapshotService.Instance.LastCapturedUtc;
+        if (capturedAt is { } cap)
+        {
+            UpdatedText.Text = $"Updated {RelativeAge(cap)}";
+            UpdatedText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            UpdatedText.Visibility = Visibility.Collapsed;
+        }
+
         // Resolve the worst entity's first instance id for the Jump button.
         _worstEntityFirstInstanceId = null;
         if (!string.IsNullOrWhiteSpace(snapshot.WorstEntityKey))
@@ -261,13 +289,21 @@ public sealed partial class CommandCenterPanel : UserControl
             _worstEntityFirstInstanceId = worst?.MemberInstanceIds.FirstOrDefault();
         }
 
-        if (TryBuildDigestBanner(instances, out var digestText))
+        // KPI summary band — whole-business glance, computed from per-instance health regardless of grouping.
+        var kpiEntities = grouping == OversightGrouping.ByLocation
+            ? _services.Oversight.BuildSnapshot(OversightGrouping.ByInstance, instances, window, rangeStart, rangeEnd).Entities
+            : snapshot.Entities;
+        RenderKpiBand(kpiEntities, instances);
+
+        // Informational digest ("since you were last here") — neutral info banner, dismissible, shown once.
+        if (!_digestDismissed && TryBuildDigestBanner(instances, out var digestText))
         {
-            AttentionText.Text = digestText;
-            AttentionBanner.Visibility = Visibility.Visible;
-            AttentionJumpButton.Visibility = Visibility.Collapsed;
+            DigestText.Text = digestText;
+            DigestBanner.Visibility = Visibility.Visible;
         }
-        else if (snapshot.TotalUrgent > 0 || snapshot.TotalDropped > 0)
+
+        // Attention banner (caution) — only when there's a real backlog to act on, or during a re-sync.
+        if (snapshot.TotalUrgent > 0 || snapshot.TotalDropped > 0)
         {
             AttentionText.Text = snapshot.AttentionSummary;
             AttentionBanner.Visibility = Visibility.Visible;
@@ -285,6 +321,7 @@ public sealed partial class CommandCenterPanel : UserControl
         CardsHost.Spacing = _compact ? 4 : 8;
         if (snapshot.Entities.Count == 0)
         {
+            KpiBand.Visibility = Visibility.Collapsed;
             // Distinguish "no accounts" from "accounts exist but haven't finished their first local-history
             // scan yet" — on startup the WhatsApp IndexedDB read takes a few seconds, and showing "no
             // accounts" during that window is misleading.
@@ -426,7 +463,32 @@ public sealed partial class CommandCenterPanel : UserControl
         // Preserve open/closed state across the 20s auto-refresh re-render.
         expander.Expanding += (_, _) => _expandedKeys.Add(entity.Key);
         expander.Collapsed += (_, _) => _expandedKeys.Remove(entity.Key);
-        return expander;
+
+        // Full-height status rail to the left of the card — status by position+colour (the % hero glyph
+        // carries the non-colour cue for WCAG). Stale accounts read critical.
+        var hasLiveData = entity.MeasuredCount > 0;
+        var railBrush = entity.IsStale
+            ? Brush("SystemFillColorCriticalBrush")
+            : !hasLiveData
+                ? Brush("TextFillColorDisabledBrush")
+                : StatusBrushForPercent(entity.OnTimePercent);
+        var rail = new Border
+        {
+            Width = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = railBrush,
+            Margin = new Thickness(0, 2, 8, 2),
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
+
+        var wrapper = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+        wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        wrapper.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(rail, 0);
+        Grid.SetColumn(expander, 1);
+        wrapper.Children.Add(rail);
+        wrapper.Children.Add(expander);
+        return wrapper;
     }
 
     /// <summary>
@@ -747,6 +809,111 @@ public sealed partial class CommandCenterPanel : UserControl
         return d == 1 ? "1 day ago" : $"{d} days ago";
     }
 
+    /// <summary>Compact age for tight KPI tiles: "now", "12m", "5h", "9d".</summary>
+    private static string ShortAge(DateTimeOffset whenUtc)
+    {
+        var span = DateTimeOffset.UtcNow - whenUtc;
+        if (span < TimeSpan.Zero)
+        {
+            span = TimeSpan.Zero;
+        }
+
+        if (span.TotalMinutes < 1)
+        {
+            return "now";
+        }
+        if (span.TotalMinutes < 60)
+        {
+            return $"{(int)Math.Round(span.TotalMinutes)}m";
+        }
+        if (span.TotalHours < 24)
+        {
+            return $"{(int)Math.Round(span.TotalHours)}h";
+        }
+
+        return $"{(int)Math.Round(span.TotalDays)}d";
+    }
+
+    /// <summary>Status colour bands shared by the % hero, KPI tiles, and card accent stripe.</summary>
+    private static Brush StatusBrushForPercent(int onTimePercent) => onTimePercent switch
+    {
+        >= 90 => Brush("SystemFillColorSuccessBrush"),
+        >= 70 => Brush("SystemFillColorCautionBrush"),
+        _ => Brush("SystemFillColorCriticalBrush"),
+    };
+
+    /// <summary>
+    /// Populates the at-a-glance KPI band from per-instance health: overall caught-up %, total awaiting
+    /// (+ accounts behind), total past-SLA, and the single oldest waiting conversation. Computed from the
+    /// by-instance entities so the headline numbers are stable across grouping modes.
+    /// </summary>
+    private void RenderKpiBand(
+        IReadOnlyList<OversightEntityHealth> entities,
+        IReadOnlyList<MessengerInstance> instances)
+    {
+        var secondary = Brush("TextFillColorSecondaryBrush");
+        var success = Brush("SystemFillColorSuccessBrush");
+
+        // Caught-up %: measured-count-weighted average across accounts that actually have live data.
+        var live = entities.Where(e => e.MeasuredCount > 0).ToList();
+        var measured = live.Sum(e => e.MeasuredCount);
+        if (measured > 0)
+        {
+            var pct = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
+            KpiCaughtUpValue.Text = $"{pct}%";
+            KpiCaughtUpValue.Foreground = StatusBrushForPercent(pct);
+        }
+        else
+        {
+            KpiCaughtUpValue.Text = "—";
+            KpiCaughtUpValue.Foreground = secondary;
+        }
+
+        var totalAwaiting = entities.Sum(e => e.AwaitingCount);
+        var behind = entities.Count(e => e.AwaitingCount > 0);
+        KpiAwaitingValue.Text = totalAwaiting.ToString();
+        KpiAwaitingValue.Foreground = totalAwaiting > 0 ? Brush("TextFillColorPrimaryBrush") : success;
+        KpiAwaitingHint.Text = behind switch
+        {
+            0 => "all accounts clear",
+            1 => "1 account behind",
+            _ => $"{behind} accounts behind"
+        };
+
+        // Messages/day — 7-day inbound average + change vs the prior week (from the activity history log).
+        var perDay = MessageAnalyticsService.Instance.GetMessagesPerDay(instances);
+        if (perDay.HasData)
+        {
+            KpiMessagesValue.Text = perDay.AveragePerDay.ToString();
+            KpiMessagesValue.Foreground = Brush("TextFillColorPrimaryBrush");
+            if (perDay.DeltaCount == 0)
+            {
+                KpiMessagesDelta.Text = string.Empty;
+            }
+            else
+            {
+                var up = perDay.DeltaCount > 0;
+                KpiMessagesDelta.Text = $"{(up ? "▲" : "▼")} {Math.Abs(perDay.DeltaCount)}";
+                // More inbound isn't "bad" — keep the delta neutral-positive (caution only signals nothing here).
+                KpiMessagesDelta.Foreground = up ? Brush("SystemFillColorSuccessBrush") : secondary;
+            }
+        }
+        else
+        {
+            KpiMessagesValue.Text = "—";
+            KpiMessagesValue.Foreground = secondary;
+            KpiMessagesDelta.Text = string.Empty;
+        }
+
+        // Busiest window — peak inbound hour + day (from the same history log feeding the graph).
+        var (busyHour, busyDay) = MessageAnalyticsService.Instance.GetBusiestWindow(instances);
+        KpiBusiestValue.Text = busyHour;
+        KpiBusiestValue.Foreground = busyHour == "—" ? secondary : Brush("SystemFillColorCautionBrush");
+        KpiBusiestHint.Text = busyDay == "—" ? "peak hour" : $"peak hour · {busyDay}";
+
+        KpiBand.Visibility = Visibility.Visible;
+    }
+
     /// <summary>
     /// A one-line attention summary for an account/location, styled like an info strip. Returns null when
     /// there's nothing to flag (still syncing, no activity, or fully caught up) so quiet accounts stay quiet.
@@ -864,13 +1031,7 @@ public sealed partial class CommandCenterPanel : UserControl
         var secondary = Brush("TextFillColorSecondaryBrush");
         var danger = Brush("SystemFillColorCriticalBrush");
         var hasLiveData = entity.MeasuredCount > 0;
-        var statusBrush = !hasLiveData
-            ? secondary
-            : entity.OnTimePercent >= 90
-                ? Brush("SystemFillColorSuccessBrush")
-                : entity.OnTimePercent >= 70
-                    ? Brush("SystemFillColorCautionBrush")
-                    : Brush("SystemFillColorCriticalBrush");
+        var statusBrush = !hasLiveData ? secondary : StatusBrushForPercent(entity.OnTimePercent);
 
         var card = new StackPanel
         {
@@ -878,78 +1039,86 @@ public sealed partial class CommandCenterPanel : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
 
-        // ── Top row: accent bar + avatar circle + name + awaiting badge ──────────────────────
+        // ── Top row: avatar circle + name/freshness + awaiting pill ──────────────────────────
+        // (The status accent is a full-height stripe on the card wrapper, see BuildRow.)
         var topRow = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
-        topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
         topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        // Status accent bar
-        topRow.Children.Add(new Border
-        {
-            Width = 4,
-            Height = 24,
-            CornerRadius = new CornerRadius(2),
-            Background = entity.IsStale ? danger : statusBrush,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 10, 0)
-        });
+        // Avatar: imported photo / built-in icon / initials — per-account via ProfileAvatarService so a
+        // chosen icon shows on the dashboard card and the sidebar alike. Locations fall back to initials.
+        var avatar = BuildEntityAvatar(entity, 30);
+        avatar.Margin = new Thickness(0, 0, 10, 0);
+        avatar.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(avatar, 0);
 
-        // Avatar: colored circle with initials
-        var accentColor = ResolveEntityAccentColor(entity);
-        var avatarBrush = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(accentColor));
-        var initials = PlatformBrandingHelper.GetInitials(entity.DisplayName);
-        var avatar = new Grid
-        {
-            Width = 28,
-            Height = 28,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(avatar, 1);
-        avatar.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 28, Height = 28, Fill = avatarBrush });
-        avatar.Children.Add(new TextBlock
-        {
-            Text = initials,
-            FontSize = 10,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        // Account name (with location count when grouped)
+        // Account name (with location count when grouped) + freshness subline
         var nameText = entity.Kind == OversightEntityKind.Location
             ? $"{entity.DisplayName}  ({entity.AccountCount})"
             : entity.DisplayName;
-        var nameBlock = new TextBlock
+        var nameColumn = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 1 };
+        Grid.SetColumn(nameColumn, 1);
+        nameColumn.Children.Add(new TextBlock
         {
             Text = nameText,
             FontWeight = FontWeights.SemiBold,
             FontSize = 14,
-            VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
-        };
-        Grid.SetColumn(nameBlock, 2);
-
-        // Awaiting badge (right-aligned)
-        var awaitingText = !entity.HasChatData || !hasLiveData
-            ? "—"
-            : entity.AwaitingCount == 1
-                ? "1 awaiting"
-                : $"{entity.AwaitingCount} awaiting";
-        var awaitingBlock = new TextBlock
+        });
+        if (!_compact)
         {
-            Text = awaitingText,
-            Foreground = entity.AwaitingCount > 0 ? danger : secondary,
-            FontWeight = entity.AwaitingCount > 0 ? FontWeights.SemiBold : FontWeights.Normal,
-            FontSize = 12,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        // Trailing cell. In compact density the % hero (which carries the status glyph) is hidden, so the
-        // status would be colour-only — add the shape-distinct glyph here so compact stays WCAG 1.4.1 clean.
-        FrameworkElement trailingCell = awaitingBlock;
+            var freshness = entity.IsStale
+                ? "stale — reconnect"
+                : entity.HistoricalOpenCount > 0
+                    ? $"synced · {entity.HistoricalOpenCount} from history"
+                    : "synced";
+            nameColumn.Children.Add(new TextBlock
+            {
+                Text = freshness,
+                FontSize = 11,
+                Foreground = entity.IsStale ? danger : Brush("TextFillColorTertiaryBrush"),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+        }
+
+        // Awaiting pill (right-aligned): a soft danger chip when behind, quiet text when caught up.
+        FrameworkElement awaitingVisual;
+        if (!entity.HasChatData || !hasLiveData)
+        {
+            awaitingVisual = new TextBlock
+            {
+                Text = "—", Foreground = secondary, FontSize = 12, VerticalAlignment = VerticalAlignment.Center
+            };
+        }
+        else if (entity.AwaitingCount > 0)
+        {
+            awaitingVisual = new Border
+            {
+                Background = Brush("SystemFillColorCriticalBackgroundBrush"),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(9, 3, 9, 3),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = entity.AwaitingCount == 1 ? "1 awaiting" : $"{entity.AwaitingCount} awaiting",
+                    Foreground = danger,
+                    FontWeight = FontWeights.SemiBold,
+                    FontSize = 12
+                }
+            };
+        }
+        else
+        {
+            awaitingVisual = new TextBlock
+            {
+                Text = "caught up", Foreground = secondary, FontSize = 12, VerticalAlignment = VerticalAlignment.Center
+            };
+        }
+
+        // In compact density the % hero (which carries the status glyph) is hidden, so the status would be
+        // colour-only — add the shape-distinct glyph here so compact stays WCAG 1.4.1 clean.
+        FrameworkElement trailingCell = awaitingVisual;
         if (_compact && hasLiveData)
         {
             var (compactGlyph, compactLabel) = StatusGlyph(entity.OnTimePercent);
@@ -970,13 +1139,13 @@ public sealed partial class CommandCenterPanel : UserControl
                 VerticalAlignment = VerticalAlignment.Center
             };
             trailing.Children.Add(glyphIcon);
-            trailing.Children.Add(awaitingBlock);
+            trailing.Children.Add(awaitingVisual);
             trailingCell = trailing;
         }
 
-        Grid.SetColumn(trailingCell, 3);
+        Grid.SetColumn(trailingCell, 2);
         topRow.Children.Add(avatar);
-        topRow.Children.Add(nameBlock);
+        topRow.Children.Add(nameColumn);
         topRow.Children.Add(trailingCell);
         card.Children.Add(topRow);
 
@@ -1043,19 +1212,6 @@ public sealed partial class CommandCenterPanel : UserControl
         var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);
         ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
         sparklineHost.Children.Add(sparkline);
-
-        var freshnessText = entity.IsStale
-            ? "stale — reconnect"
-            : entity.HistoricalOpenCount > 0
-                ? $"synced · {entity.HistoricalOpenCount} from history"
-                : "synced";
-        sparklineHost.Children.Add(new TextBlock
-        {
-            Text = freshnessText,
-            FontSize = 10,
-            Foreground = entity.IsStale ? danger : secondary,
-            HorizontalAlignment = HorizontalAlignment.Right
-        });
         Grid.SetColumn(sparklineHost, 1);
         metricRow.Children.Add(sparklineHost);
         card.Children.Add(metricRow);
@@ -1085,6 +1241,38 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         return card;
+    }
+
+    /// <summary>
+    /// Builds the card avatar: for an account, the per-instance avatar (imported photo, built-in icon, or
+    /// initials) from <see cref="ProfileAvatarService"/>; for a location (or an unresolved account), colored
+    /// initials of the entity name.
+    /// </summary>
+    private FrameworkElement BuildEntityAvatar(OversightEntityHealth entity, double size)
+    {
+        if (entity.Kind == OversightEntityKind.Instance && _services is not null)
+        {
+            var instance = _services.Registry.Instances.FirstOrDefault(i =>
+                string.Equals(i.Id, entity.Key, StringComparison.OrdinalIgnoreCase));
+            if (instance is not null)
+            {
+                return ProfileAvatarService.CreateAvatar(instance, size);
+            }
+        }
+
+        var brush = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(ResolveEntityAccentColor(entity)));
+        var host = new Grid { Width = size, Height = size };
+        host.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse { Width = size, Height = size, Fill = brush });
+        host.Children.Add(new TextBlock
+        {
+            Text = PlatformBrandingHelper.GetInitials(entity.DisplayName),
+            FontSize = size * 0.36,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        return host;
     }
 
     /// <summary>

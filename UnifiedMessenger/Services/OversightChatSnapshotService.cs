@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Text.Json;
 
 namespace UnifiedMessenger.Services;
 
@@ -31,16 +33,42 @@ public sealed class OversightChatSnapshotService
 
     private sealed record InstanceChats(IReadOnlyList<ChatEntry> Chats, DateTimeOffset CapturedAtUtc);
 
+    private const string FileName = "oversight-snapshot.json";
+    private const int SaveDebounceMilliseconds = 750;
+
     private static readonly Lazy<OversightChatSnapshotService> LazyInstance = new(() => new OversightChatSnapshotService());
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = false,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
 
     public static OversightChatSnapshotService Instance => LazyInstance.Value;
 
     private readonly ConcurrentDictionary<string, InstanceChats> _byInstance =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly string _storePath;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly object _debounceLock = new();
+    private CancellationTokenSource? _saveDebounceCts;
+    private int _saveGeneration;
+    private bool _isLoaded;
+
     private OversightChatSnapshotService()
+        : this(Path.Combine(ApplicationPaths.UserDataRoot, FileName))
     {
     }
+
+    internal OversightChatSnapshotService(string storePath)
+    {
+        _storePath = storePath;
+    }
+
+    /// <summary>The most recent capture time across all instances — the "as of" stamp the dashboard shows.</summary>
+    public DateTimeOffset? LastCapturedUtc =>
+        _byInstance.IsEmpty ? null : _byInstance.Values.Max(v => v.CapturedAtUtc);
 
     public void Update(string instanceId, IReadOnlyList<ChatEntry> chats, DateTimeOffset capturedAtUtc)
     {
@@ -51,6 +79,74 @@ public sealed class OversightChatSnapshotService
 
         var key = instanceId.Trim();
         _byInstance[key] = new InstanceChats(ApplyStickyAwaiting(key, chats), capturedAtUtc);
+        ScheduleSave();
+    }
+
+    /// <summary>
+    /// Loads the last-persisted oversight snapshot so the command center shows last-known numbers
+    /// immediately on launch (labeled "as of …"), instead of going blank until the next scan. Idempotent;
+    /// a fresh scan via <see cref="Update"/> replaces an instance's chats with the latest truth.
+    /// </summary>
+    public async Task LoadAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_isLoaded)
+            {
+                return;
+            }
+
+            if (!File.Exists(_storePath))
+            {
+                _isLoaded = true;
+                return;
+            }
+
+            SnapshotStore? store;
+            try
+            {
+                await using var stream = File.OpenRead(_storePath);
+                store = await JsonSerializer
+                    .DeserializeAsync<SnapshotStore>(stream, JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (JsonException ex)
+            {
+                Debug.WriteLine($"Oversight snapshot is corrupt; resetting: {ex.Message}");
+                BackupCorruptFile();
+                _isLoaded = true;
+                return;
+            }
+
+            if (store?.Instances is not null)
+            {
+                foreach (var (instanceId, dto) in store.Instances)
+                {
+                    if (string.IsNullOrWhiteSpace(instanceId) || dto.Chats is null)
+                    {
+                        continue;
+                    }
+
+                    var chats = dto.Chats.Select(c => new ChatEntry(
+                        c.ConversationKey ?? string.Empty,
+                        c.CustomerName ?? string.Empty,
+                        c.Unread,
+                        c.LastActivityUtc,
+                        c.Preview ?? string.Empty,
+                        c.IsAwaiting,
+                        c.LastMessageFromMe,
+                        c.ContactPhone ?? string.Empty)).ToList();
+                    _byInstance[instanceId] = new InstanceChats(chats, dto.CapturedAtUtc);
+                }
+            }
+
+            _isLoaded = true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     /// <summary>
@@ -207,5 +303,152 @@ public sealed class OversightChatSnapshotService
             .OrderByDescending(c => c.Unread)
             .ThenByDescending(c => c.LastActivityUtc)
             .ToList();
+    }
+
+    /// <summary>Forces any pending debounced save to disk (call on app suspend/exit).</summary>
+    public async Task FlushAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_debounceLock)
+        {
+            Interlocked.Increment(ref _saveGeneration);
+            _saveDebounceCts?.Cancel();
+            _saveDebounceCts?.Dispose();
+            _saveDebounceCts = null;
+        }
+
+        await SaveAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private void ScheduleSave()
+    {
+        CancellationToken token;
+        int generation;
+        lock (_debounceLock)
+        {
+            _saveDebounceCts?.Cancel();
+            _saveDebounceCts?.Dispose();
+            _saveDebounceCts = new CancellationTokenSource();
+            token = _saveDebounceCts.Token;
+            generation = Interlocked.Increment(ref _saveGeneration);
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(SaveDebounceMilliseconds, token).ConfigureAwait(false);
+                if (generation != Volatile.Read(ref _saveGeneration))
+                {
+                    return;
+                }
+
+                await SaveAsync(token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // debounced
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Oversight snapshot save failed: {ex.Message}");
+            }
+        }, token);
+    }
+
+    private async Task SaveAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var store = new SnapshotStore
+            {
+                Version = SnapshotStore.CurrentVersion,
+                Instances = _byInstance.ToDictionary(
+                    pair => pair.Key,
+                    pair => new InstanceSnapshotDto
+                    {
+                        CapturedAtUtc = pair.Value.CapturedAtUtc,
+                        Chats = pair.Value.Chats.Select(c => new ChatEntryDto
+                        {
+                            ConversationKey = c.ConversationKey,
+                            CustomerName = c.CustomerName,
+                            Unread = c.Unread,
+                            LastActivityUtc = c.LastActivityUtc,
+                            Preview = c.Preview,
+                            IsAwaiting = c.IsAwaiting,
+                            LastMessageFromMe = c.LastMessageFromMe,
+                            ContactPhone = c.ContactPhone
+                        }).ToList()
+                    },
+                    StringComparer.OrdinalIgnoreCase)
+            };
+
+            Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
+            var tempPath = _storePath + ".tmp";
+            await using (var stream = new FileStream(
+                             tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
+                             bufferSize: 4096, options: FileOptions.Asynchronous))
+            {
+                await JsonSerializer.SerializeAsync(stream, store, JsonOptions, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            File.Move(tempPath, _storePath, overwrite: true);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private void BackupCorruptFile()
+    {
+        try
+        {
+            if (File.Exists(_storePath))
+            {
+                File.Move(_storePath, $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak", overwrite: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Could not back up corrupt oversight snapshot: {ex.Message}");
+        }
+    }
+
+    private sealed class SnapshotStore
+    {
+        public const int CurrentVersion = 1;
+
+        public int Version { get; set; } = CurrentVersion;
+
+        public Dictionary<string, InstanceSnapshotDto> Instances { get; set; } =
+            new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class InstanceSnapshotDto
+    {
+        public DateTimeOffset CapturedAtUtc { get; set; }
+
+        public List<ChatEntryDto>? Chats { get; set; }
+    }
+
+    private sealed class ChatEntryDto
+    {
+        public string? ConversationKey { get; set; }
+
+        public string? CustomerName { get; set; }
+
+        public int Unread { get; set; }
+
+        public DateTimeOffset LastActivityUtc { get; set; }
+
+        public string? Preview { get; set; }
+
+        public bool IsAwaiting { get; set; }
+
+        public bool LastMessageFromMe { get; set; }
+
+        public string? ContactPhone { get; set; }
     }
 }

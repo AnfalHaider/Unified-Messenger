@@ -43,6 +43,14 @@ public interface IInstanceRegistryService
         string displayName,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Set (or clear, when null) the account's built-in avatar icon glyph, flat color, and font.</summary>
+    Task UpdateInstanceAvatarIconAsync(
+        string instanceId,
+        string? iconGlyph,
+        string? iconColor,
+        string? iconFontFamily = null,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Assign (or clear, when null/empty) the account's location/workspace key. Metadata only —
     /// does not reload the session.</summary>
     Task UpdateInstanceBranchKeyAsync(

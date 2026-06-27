@@ -16,6 +16,14 @@ public sealed class KeyboardShortcutService : IDisposable
     {
         ArgumentNullException.ThrowIfNull(host);
         _host = host;
+
+        // Suppress WinUI's auto-generated accelerator gesture tooltips (e.g. a stray "Ctrl+D" floating
+        // over the dashboard). These accelerators are app-level (attached to the window root, not a button),
+        // so their hover tooltip has no sensible anchor and can orphan on top of content during re-renders.
+        if (host is FrameworkElement element)
+        {
+            element.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
+        }
     }
 
     public void Register(

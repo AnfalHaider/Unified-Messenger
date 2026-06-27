@@ -16,6 +16,48 @@ public sealed class DailyActivityPoint
     public int Received { get; init; }
 }
 
+/// <summary>The bucket the activity-patterns graph groups inbound volume by.</summary>
+public enum ActivityDimension
+{
+    HourOfDay,
+    DayOfWeek,
+    Month
+}
+
+/// <summary>
+/// One filterable activity-patterns series for the dashboard graph: parallel <see cref="Labels"/> and
+/// <see cref="Values"/>, the index of the peak bucket, a human peak label, the value unit, and the total.
+/// </summary>
+public sealed class ActivityPatterns
+{
+    public static ActivityPatterns Empty { get; } = new()
+    {
+        Labels = [],
+        Values = [],
+        PeakIndex = -1,
+        PeakLabel = "—",
+        Unit = "messages",
+        Total = 0
+    };
+
+    public required IReadOnlyList<string> Labels { get; init; }
+
+    public required IReadOnlyList<int> Values { get; init; }
+
+    public int PeakIndex { get; init; }
+
+    public required string PeakLabel { get; init; }
+
+    public required string Unit { get; init; }
+
+    public int Total { get; init; }
+
+    public bool HasData => Total > 0;
+}
+
+/// <summary>Messages-per-day KPI: 7-day average inbound volume plus the change vs the prior window.</summary>
+public readonly record struct MessagesPerDayStat(int AveragePerDay, int DeltaCount, bool HasData);
+
 public sealed class ProfessionalAnalyticsSnapshot
 {
     public int SentCount { get; init; }
@@ -69,7 +111,9 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
 {
     private const string FileName = "analytics.json";
     private const int MaxReplyLatencies = 500;
-    private const int DailyBucketRetentionDays = 30;
+    // Long enough to back the activity-patterns graph's Month view across a full year (plus margin),
+    // while staying tiny on disk (one int per day per instance).
+    private const int DailyBucketRetentionDays = 400;
     private const int SaveDebounceMilliseconds = 750;
 
     private static readonly Lazy<MessageAnalyticsService> LazyInstance = new(() => new MessageAnalyticsService());
@@ -446,6 +490,213 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
 
         return (stats.TotalReplyMinutes, stats.ReplyCount, stats.LastReceivedUtc, stats.LastSentUtc);
+    }
+
+    // ── Activity-patterns graph queries ──────────────────────────────────────────────────────────
+    // All read inbound (customer-message) volume, which is the "busiest" signal the dashboard graph wants.
+
+    /// <summary>
+    /// Builds one filterable activity series — inbound volume bucketed by hour-of-day, day-of-week, or
+    /// month — across the given accounts (empty = all) within [fromUtc, toUtc] (null = unbounded).
+    /// Hour-of-day uses the all-time hourly histogram, so the date range narrows day/month views only.
+    /// </summary>
+    public ActivityPatterns BuildActivityPatterns(
+        ActivityDimension dimension,
+        IEnumerable<MessengerInstance> instances,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
+    {
+        var ids = instances
+            .Select(i => i.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var includeAll = ids.Count == 0;
+
+        var selected = _stats
+            .Where(pair => includeAll || ids.Contains(pair.Key))
+            .Select(pair => pair.Value)
+            .ToList();
+
+        return dimension switch
+        {
+            ActivityDimension.HourOfDay => BuildHourOfDay(selected),
+            ActivityDimension.DayOfWeek => BuildDayOfWeek(selected, fromUtc, toUtc),
+            _ => BuildMonth(selected, fromUtc, toUtc)
+        };
+    }
+
+    private static ActivityPatterns BuildHourOfDay(IReadOnlyList<InstanceMessageStats> selected)
+    {
+        var totals = new int[24];
+        foreach (var stats in selected)
+        {
+            if (stats.HourlyReceived.Length != 24)
+            {
+                continue;
+            }
+
+            for (var h = 0; h < 24; h++)
+            {
+                totals[h] += stats.HourlyReceived[h];
+            }
+        }
+
+        var labels = new string[24];
+        for (var h = 0; h < 24; h++)
+        {
+            labels[h] = h == 0 ? "12a" : h < 12 ? $"{h}a" : h == 12 ? "12p" : $"{h - 12}p";
+        }
+
+        return Finalize(labels, totals, peak =>
+            $"{DateTime.Today.AddHours(peak):h tt}–{DateTime.Today.AddHours(peak + 1):h tt}");
+    }
+
+    private ActivityPatterns BuildDayOfWeek(
+        IReadOnlyList<InstanceMessageStats> selected,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
+    {
+        // Mon..Sun (index 0..6).
+        var totals = new int[7];
+        ForEachDayInRange(selected, fromUtc, toUtc, (date, count) =>
+        {
+            var idx = ((int)date.DayOfWeek + 6) % 7;
+            totals[idx] += count;
+        });
+
+        string[] labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        string[] full = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        return Finalize(labels, totals, peak => full[peak]);
+    }
+
+    private ActivityPatterns BuildMonth(
+        IReadOnlyList<InstanceMessageStats> selected,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
+    {
+        // Jan..Dec (index 0..11), aggregated across years so "which month is busiest" is answerable.
+        var totals = new int[12];
+        ForEachDayInRange(selected, fromUtc, toUtc, (date, count) => totals[date.Month - 1] += count);
+
+        string[] labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        string[] full =
+        [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        return Finalize(labels, totals, peak => full[peak]);
+    }
+
+    private void ForEachDayInRange(
+        IReadOnlyList<InstanceMessageStats> selected,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc,
+        Action<DateTime, int> bucket)
+    {
+        foreach (var stats in selected)
+        {
+            foreach (var (day, count) in stats.DailyReceived)
+            {
+                if (count <= 0 ||
+                    !DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                {
+                    continue;
+                }
+
+                if (!IsDayInRange(day, fromUtc, toUtc))
+                {
+                    continue;
+                }
+
+                bucket(date, count);
+            }
+        }
+    }
+
+    private static ActivityPatterns Finalize(string[] labels, int[] values, Func<int, string> peakLabel)
+    {
+        var total = values.Sum();
+        if (total == 0)
+        {
+            return new ActivityPatterns
+            {
+                Labels = labels,
+                Values = values,
+                PeakIndex = -1,
+                PeakLabel = "—",
+                Unit = "messages",
+                Total = 0
+            };
+        }
+
+        var peak = Array.IndexOf(values, values.Max());
+        return new ActivityPatterns
+        {
+            Labels = labels,
+            Values = values,
+            PeakIndex = peak,
+            PeakLabel = peakLabel(peak),
+            Unit = "messages",
+            Total = total
+        };
+    }
+
+    /// <summary>7-day average inbound/day across the accounts, plus the change vs the prior 7 days.</summary>
+    public MessagesPerDayStat GetMessagesPerDay(IEnumerable<MessengerInstance> instances, int days = 7)
+    {
+        var ids = instances.Select(i => i.Id).Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var includeAll = ids.Count == 0;
+
+        var today = DateTime.Now.Date;
+        var current = 0;
+        var prior = 0;
+        foreach (var pair in _stats)
+        {
+            if (!includeAll && !ids.Contains(pair.Key))
+            {
+                continue;
+            }
+
+            foreach (var (day, count) in pair.Value.DailyReceived)
+            {
+                if (!DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                {
+                    continue;
+                }
+
+                var ago = (today - date.Date).Days;
+                if (ago >= 0 && ago < days)
+                {
+                    current += count;
+                }
+                else if (ago >= days && ago < days * 2)
+                {
+                    prior += count;
+                }
+            }
+        }
+
+        if (current == 0 && prior == 0)
+        {
+            return new MessagesPerDayStat(0, 0, false);
+        }
+
+        var avg = (int)Math.Round(current / (double)days);
+        var priorAvg = (int)Math.Round(prior / (double)days);
+        return new MessagesPerDayStat(avg, avg - priorAvg, true);
+    }
+
+    /// <summary>Compact "busiest window" summary, e.g. ("2–3 PM", "Tue"). Empty dashes when no data.</summary>
+    public (string Hour, string Day) GetBusiestWindow(IEnumerable<MessengerInstance> instances)
+    {
+        var hour = BuildActivityPatterns(ActivityDimension.HourOfDay, instances, null, null);
+        var dow = BuildActivityPatterns(ActivityDimension.DayOfWeek, instances, null, null);
+        var hourLabel = hour.HasData && hour.PeakIndex >= 0
+            ? $"{DateTime.Today.AddHours(hour.PeakIndex):h tt}".Replace(" ", "")
+            : "—";
+        var dayLabel = dow.HasData && dow.PeakIndex >= 0 ? dow.Labels[dow.PeakIndex] : "—";
+        return (hourLabel, dayLabel);
     }
 
     public ProfessionalAnalyticsSnapshot CaptureProfessionalSnapshot(

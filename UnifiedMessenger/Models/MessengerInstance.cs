@@ -32,6 +32,22 @@ public sealed class MessengerInstance
     /// <summary>Platform accent color as #RRGGBB for sidebar identity.</summary>
     public string AccentColor { get; set; } = "#6B7280";
 
+    /// <summary>
+    /// User-chosen built-in avatar icon (a Segoe Fluent glyph). When set, the avatar shows this glyph on
+    /// <see cref="CustomIconColor"/> instead of initials. A cached avatar image (upload/import) takes
+    /// precedence over this; empty means fall back to initials. Not reset by platform branding.
+    /// </summary>
+    public string? CustomIconGlyph { get; set; }
+
+    /// <summary>Flat fill color (#RRGGBB) for the chosen built-in <see cref="CustomIconGlyph"/>.</summary>
+    public string? CustomIconColor { get; set; }
+
+    /// <summary>
+    /// Font family for <see cref="CustomIconGlyph"/>. Null = the system Segoe Fluent icon font (general
+    /// icons); a bundled brand font reference (e.g. the Font Awesome Brands ms-appx URI) for social logos.
+    /// </summary>
+    public string? CustomIconFontFamily { get; set; }
+
     /// <summary>Workspace grouping: Personal or Professional.</summary>
     public WorkspaceCategory Category { get; set; } = WorkspaceCategory.Personal;
 

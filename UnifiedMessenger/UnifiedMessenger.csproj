@@ -26,10 +26,10 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 
     <!-- Versioning (keep in sync with app.manifest assemblyIdentity and installer.iss). -->
-    <Version>4.39.10</Version>
-    <AssemblyVersion>4.39.10.0</AssemblyVersion>
-    <FileVersion>4.39.10.0</FileVersion>
-    <ApplicationDisplayVersion>4.39.10</ApplicationDisplayVersion>
+    <Version>4.41.2</Version>
+    <AssemblyVersion>4.41.2.0</AssemblyVersion>
+    <FileVersion>4.41.2.0</FileVersion>
+    <ApplicationDisplayVersion>4.41.2</ApplicationDisplayVersion>
     <NoWarn>$(NoWarn);CS9057</NoWarn>
 
     <!-- Match host CPU for local `dotnet run`; use README publish commands for shipping. -->
@@ -73,6 +73,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Assets\Styles\*-chrome.css">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Fonts\*.ttf">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

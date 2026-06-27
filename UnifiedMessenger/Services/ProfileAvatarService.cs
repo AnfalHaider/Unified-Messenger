@@ -26,9 +26,45 @@ public static class ProfileAvatarService
         }
 
         var cachedPath = ResolveCachedAvatarPath(instance.Id);
-        return cachedPath is not null
-            ? CreateImageAvatar(cachedPath, size)
-            : CreateInitialsAvatar(instance, size);
+        if (cachedPath is not null)
+        {
+            return CreateImageAvatar(cachedPath, size);
+        }
+
+        if (!string.IsNullOrWhiteSpace(instance.CustomIconGlyph))
+        {
+            return CreateGlyphAvatar(instance.CustomIconGlyph!, instance.CustomIconColor, instance.CustomIconFontFamily, size);
+        }
+
+        return CreateInitialsAvatar(instance, size);
+    }
+
+    /// <summary>
+    /// A flat-colored built-in icon avatar: a white glyph centered on a solid color circle. When
+    /// <paramref name="fontFamilyRef"/> is set (e.g. the bundled Font Awesome Brands font), the glyph is
+    /// drawn from that font — so social-media brand logos render; otherwise the system icon font is used.
+    /// </summary>
+    private static FrameworkElement CreateGlyphAvatar(string glyph, string? colorHex, string? fontFamilyRef, double size)
+    {
+        var fill = PlatformBrandingHelper.GetAccentBrush(
+            string.IsNullOrWhiteSpace(colorHex) ? PlatformBrandingHelper.DefaultAccentHex : colorHex);
+        var host = new Grid { Width = size, Height = size };
+        host.Children.Add(new Ellipse { Width = size, Height = size, Fill = fill });
+        var icon = new FontIcon
+        {
+            Glyph = glyph,
+            FontSize = size * 0.5,
+            Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        if (!string.IsNullOrWhiteSpace(fontFamilyRef))
+        {
+            icon.FontFamily = new FontFamily(fontFamilyRef);
+        }
+
+        host.Children.Add(icon);
+        return host;
     }
 
     public static async Task SaveAvatarAsync(
