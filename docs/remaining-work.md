@@ -64,13 +64,15 @@ scraper JS takes effect. Known accepted limits: previews only for the ~60 render
 See the **P2-A VERIFIED FACTS** section in `CLAUDE.md`.
 
 ### P2-B · Channel metric scrapers (Google / Telegram / Messenger / Instagram)
-Embed slices exist (all route to `NullPlatformAdapter` — confirmed in
-`PlatformAdapterInternals.ResolveEnabledAdapter`, where only `whatsapp`/`whatsappbusiness` resolve to real
-adapters). Build per-channel scrapers that feed oversight metrics — **#32 Google** (rating / % responded /
-unanswered, user has a live account so this is the top unblocked item), **#24 Telegram** (unread/awaiting),
-**#24 Messenger + Instagram** (passive read-only; Meta fights automation). Each must be tuned against a live
-logged-in account. Add real adapter cases in `PlatformAdapterInternals.ResolveEnabledAdapter` + per-channel
-snapshot services.
+- **#32 Google** — ✅ done (v4.42.0). Dashboard **Reviews** section: `GoogleReviewSnapshotService` scrapes the
+  live `business.google.com/reviews` page (navigates there, counts Reply buttons = unanswered, Edit buttons =
+  answered) → reviews-awaiting-reply + reply rate per account; `ReviewHealthPanel` UI, on-demand Refresh.
+  **Live-DOM-verified limitation:** Google's manager reviews page exposes **no aggregate rating or total
+  count** (per-review stars are SVG-only, no aria/text), so rating/total are intentionally not scraped; counts
+  reflect the loaded (paginated) page. Selectors rely on EN button text ("Reply"/"Edit") — may need locale/UI
+  re-tuning.
+- **#24 Telegram** (unread/awaiting), **#24 Messenger + Instagram** (passive read-only; Meta fights automation)
+  — ☐ pending. Each must be tuned against a live logged-in account.
 
 ### P2-C · Outbound staff-reply tone/quality scoring (Tier-2 Ollama) — **DROPPED**
 §6/§8 AI Tier-2: read outbound staff replies and score tone/quality. **Dropped** earlier in this

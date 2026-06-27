@@ -32,6 +32,8 @@
 
             <controls:ActivityPatternsPanel x:Name="ActivityPatternsPanel" />
 
+            <controls:ReviewHealthPanel x:Name="ReviewHealthPanel" />
+
             <Expander
                 x:Name="PersonalOverviewExpander"
                 HorizontalAlignment="Stretch"

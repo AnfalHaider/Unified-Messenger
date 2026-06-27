@@ -249,7 +249,7 @@ See `docs/remaining-work.md` for the detailed backlog. Summary:
 | 1 — WhatsApp oversight foundation | ✅ Complete |
 | 2 — AI tiers (insight strips + Ollama) | ✅ Core done · ✅ P2-A unsaved-contact phone + preview (v4.39.10) · ☐ Tier-1 ONNX, AI shift-briefing/anomaly |
 | 3 — Oversight depth & scale | ✅ Mostly done · ✅ Activity-history persistence + Activity-patterns graph (v4.40.0) · ☐ Sidebar-rail density at very large counts |
-| 4 — Google Business embed + metrics | ◑ Embed done (v4.20.0) · ☐ DOM metric scraper pending (#32) |
+| 4 — Google Business embed + metrics | ◑ Embed done (v4.20.0) · ✅ Review-health scraper + Reviews section (v4.42.0, #32) — unanswered + reply rate; no rating/total (Google doesn't expose them) |
 | 5 — Telegram + Meta embed + metrics | ◑ Embed done (v4.21.0) · ☐ DOM metric scrapers pending (#24) |
 
 **Shipped v4.40.0 → v4.41.2:** command-center redesign + KPI band; **Activity-patterns graph** (hour/day/month,
@@ -259,8 +259,7 @@ import-from-account + image upload + reset); bug fixes (names-vanish, stray tool
 This **closes #35** (persistence foundation).
 
 Remaining highest-leverage work (task #s in the running list):
-1. #32 Google Business review-health card (Phase 4 — needs live signed-in account, user has it)
-2. #37 week-over-week narrative — now unblocked by the v4.40 activity history
+1. #37 week-over-week narrative — now unblocked by the v4.40 activity history
 3. #25 AI shift briefing · #33 anomaly-narrated alerts · #34 cross-location ranking rationale · #36 end-of-day projection (Phase 2 Tier-2 Ollama; aggregate counts only — never names/text)
 4. #24 Telegram / Messenger / Instagram DOM scrapers (need live accounts; Meta read-only only)
 5. #26 `IInstanceConnection` abstraction (decouples oversight layer from WebView2)
