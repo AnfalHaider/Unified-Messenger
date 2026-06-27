@@ -66,12 +66,12 @@ public sealed class GoogleReviewSnapshotService
             return null;
         }
 
-        var manager = InstanceSessionManager.Instance;
+        var connection = InstanceConnection.Current;
         for (var attempt = 0; attempt < 24; attempt++)
         {
             try
             {
-                await manager.TryExecuteScriptOnInstanceAsync(instanceId, KickoffScript).ConfigureAwait(true);
+                await connection.ExecuteScriptAsync(instanceId, KickoffScript).ConfigureAwait(true);
             }
             catch
             {
@@ -83,7 +83,7 @@ public sealed class GoogleReviewSnapshotService
             string? raw;
             try
             {
-                raw = await manager.TryExecuteScriptOnInstanceAsync(instanceId, ReadScript).ConfigureAwait(true);
+                raw = await connection.ExecuteScriptAsync(instanceId, ReadScript).ConfigureAwait(true);
             }
             catch
             {

@@ -28,10 +28,10 @@ public static class AvatarImportService
             return ImportResult.Failed;
         }
 
-        var manager = InstanceSessionManager.Instance;
+        var connection = InstanceConnection.Current;
         try
         {
-            await manager.TryExecuteScriptOnInstanceAsync(instanceId, BuildKickoffScript(platform)).ConfigureAwait(true);
+            await connection.ExecuteScriptAsync(instanceId, BuildKickoffScript(platform)).ConfigureAwait(true);
         }
         catch
         {
@@ -46,7 +46,7 @@ public static class AvatarImportService
             string? raw;
             try
             {
-                raw = await manager.TryExecuteScriptOnInstanceAsync(instanceId, ReadScript).ConfigureAwait(true);
+                raw = await connection.ExecuteScriptAsync(instanceId, ReadScript).ConfigureAwait(true);
             }
             catch
             {
