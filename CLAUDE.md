@@ -258,11 +258,11 @@ re-sync); **custom account icons** (brand logos via bundled Font Awesome Brands 
 import-from-account + image upload + reset); bug fixes (names-vanish, stray tooltip, dialog WebView occlusion).
 This **closes #35** (persistence foundation).
 
-Remaining highest-leverage work (task #s in the running list):
-1. #33 anomaly-narrated alerts · #34 cross-location ranking rationale · #36 end-of-day projection (Phase 2 Tier-2 Ollama; aggregate counts only — never names/text) — #25 shift briefing + #37 week-over-week shipped v4.43.0
-2. #24 Telegram / Messenger / Instagram DOM scrapers (need live accounts; Meta read-only only)
-3. #26 `IInstanceConnection` abstraction (decouples oversight layer from WebView2)
-4. Tier-1 ONNX · post-suspend RAM instrumentation · L1 channel-aware entity view (depends on #24)
+Phase 2 Tier-2 AI narration is **complete** (#25 briefing, #37 week-over-week — v4.43.0; #33 anomaly, #34 ranking
+rationale, #36 end-of-day projection — v4.44.0). Remaining highest-leverage work (task #s in the running list):
+1. #24 Telegram / Messenger / Instagram DOM scrapers (need live accounts; Meta read-only only)
+2. #26 `IInstanceConnection` abstraction (decouples oversight layer from WebView2)
+3. Tier-1 ONNX · post-suspend RAM instrumentation · L1 channel-aware entity view (depends on #24)
 
 > P2-C (outbound staff-reply tone scoring) was **dropped** earlier this work-stream in favour of the more valuable AI features above (shift briefing, anomaly narration, ranking rationale, projections).
 > Icon-feature follow-ups (import robustness, Settings entry point) are tracked in `docs/remaining-work.md`.

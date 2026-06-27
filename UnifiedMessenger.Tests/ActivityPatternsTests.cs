@@ -148,6 +148,35 @@ public class ActivityPatternsTests : IDisposable
     }
 
     [Fact]
+    public void GetEndOfDayProjection_ReportsTodaySoFarAndProjectsForward()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        var now = DateTime.Now;
+        // 5 received earlier today (seconds ago → same day + hour, robust regardless of run time).
+        for (var i = 0; i < 5; i++)
+        {
+            service.RecordMessageReceived("inst-1", receivedAtUtc: LocalAt(now.AddSeconds(-i)));
+        }
+
+        var projection = service.GetEndOfDayProjection([]);
+
+        Assert.True(projection.HasData);
+        Assert.Equal(5, projection.SoFar);
+        Assert.True(projection.Projected >= projection.SoFar);
+    }
+
+    [Fact]
+    public void GetEndOfDayProjection_NoActivityToday_HasNoData()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        service.RecordMessageReceived("inst-1", receivedAtUtc: LocalAt(DateTime.Today.AddDays(-3).AddHours(10)));
+
+        var projection = service.GetEndOfDayProjection([]);
+
+        Assert.False(projection.HasData);
+    }
+
+    [Fact]
     public void BuildActivityPatterns_FiltersByAccount()
     {
         var service = new MessageAnalyticsService(_storePath);

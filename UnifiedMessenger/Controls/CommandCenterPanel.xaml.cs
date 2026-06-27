@@ -915,7 +915,7 @@ public sealed partial class CommandCenterPanel : UserControl
 
         KpiBand.Visibility = Visibility.Visible;
 
-        RenderBriefing(entities, overallPct, totalAwaiting, behind, busyHour);
+        RenderBriefing(entities, instances, overallPct, totalAwaiting, behind, busyHour);
     }
 
     private const string BriefingSystemPrompt =
@@ -932,6 +932,7 @@ public sealed partial class CommandCenterPanel : UserControl
     /// </summary>
     private void RenderBriefing(
         IReadOnlyList<OversightEntityHealth> entities,
+        IReadOnlyList<MessengerInstance> instances,
         int? overallPct,
         int totalAwaiting,
         int accountsBehind,
@@ -943,31 +944,43 @@ public sealed partial class CommandCenterPanel : UserControl
             return;
         }
 
+        // #34 ranking rationale: the account furthest behind (most awaiting, then lowest caught-up %).
         var worst = entities.Where(e => e.AwaitingCount > 0)
             .OrderByDescending(e => e.AwaitingCount)
+            .ThenBy(e => e.OnTimePercent)
             .FirstOrDefault();
+
+        // #36 end-of-day projection + #33 anomaly (today's pace vs the recent daily average).
+        var eod = MessageAnalyticsService.Instance.GetEndOfDayProjection(instances);
+        var perDay = MessageAnalyticsService.Instance.GetMessagesPerDay(instances);
+        var busierThanUsual = eod.HasData && perDay is { HasData: true, AveragePerDay: > 0 }
+            && eod.Projected >= (int)Math.Round(perDay.AveragePerDay * 1.4);
+        var projectionNote = eod.HasData && eod.Projected > eod.SoFar
+            ? $" On pace for ~{eod.Projected} messages today{(busierThanUsual ? " — busier than usual" : string.Empty)}."
+            : busierThanUsual ? " Busier than usual today." : string.Empty;
+
         var busy = busyHour is "—" or "" ? string.Empty : $" Busiest around {busyHour}.";
 
         string heuristic;
         if (totalAwaiting == 0)
         {
-            heuristic = $"All caught up — nothing waiting on a reply.{busy}";
+            heuristic = $"All caught up — nothing waiting on a reply.{projectionNote}{busy}";
         }
         else
         {
             var customers = totalAwaiting == 1 ? "1 customer is" : $"{totalAwaiting} customers are";
             var accountWord = accountsBehind == 1 ? "account" : "accounts";
             var start = worst is not null
-                ? $" Start with {worst.DisplayName} ({worst.AwaitingCount} waiting)."
+                ? $" Start with {worst.DisplayName} ({worst.AwaitingCount} waiting, {worst.OnTimePercent}% caught up)."
                 : string.Empty;
-            heuristic = $"{customers} waiting across {accountsBehind} {accountWord}.{start}{busy}";
+            heuristic = $"{customers} waiting across {accountsBehind} {accountWord}.{start}{projectionNote}";
         }
 
         var displayText = heuristic;
         var isAi = false;
         if (AppSettingsService.Instance.Settings.EnableLocalAi)
         {
-            var signature = $"{overallPct}|{totalAwaiting}|{accountsBehind}|{worst?.Key}|{worst?.AwaitingCount}|{busyHour}";
+            var signature = $"{overallPct}|{totalAwaiting}|{accountsBehind}|{worst?.Key}|{worst?.AwaitingCount}|{busyHour}|{eod.Projected}|{busierThanUsual}";
             var cached = OversightInsightService.Instance.TryGet(BriefingCacheKey, signature);
             if (cached is not null)
             {
@@ -979,9 +992,11 @@ public sealed partial class CommandCenterPanel : UserControl
                 var prompt =
                     $"Across {entities.Count} accounts: {totalAwaiting} customer(s) waiting, {accountsBehind} account(s) " +
                     $"behind, {overallPct}% caught up overall." +
-                    (worst is not null ? $" Account needing most attention: {worst.DisplayName} ({worst.AwaitingCount} waiting)." : string.Empty) +
+                    (worst is not null ? $" Furthest behind: {worst.DisplayName} ({worst.AwaitingCount} waiting, {worst.OnTimePercent}% caught up)." : string.Empty) +
+                    (eod.HasData ? $" {eod.SoFar} messages so far today, projected ~{eod.Projected} by end of day." : string.Empty) +
+                    (busierThanUsual ? " That is busier than the usual daily average." : string.Empty) +
                     (busyHour is "—" or "" ? string.Empty : $" Busiest hour: {busyHour}.") +
-                    " Write the one-line start-of-shift briefing.";
+                    " Write the one-line start-of-shift briefing telling the owner where to focus and flag anything unusual.";
                 OversightInsightService.Instance.Request(BriefingCacheKey, signature, prompt, BriefingSystemPrompt, OnInsightReady);
             }
         }

@@ -66,6 +66,9 @@ public readonly record struct WeekOverWeekStat(
     string BusiestDay,
     bool HasData);
 
+/// <summary>End-of-day projection (#36): inbound so far today and the projected end-of-day total.</summary>
+public readonly record struct EndOfDayProjection(int SoFar, int Projected, bool HasData);
+
 public sealed class ProfessionalAnalyticsSnapshot
 {
     public int SentCount { get; init; }
@@ -747,6 +750,65 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         string[] dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
         var busiest = dayTotals.Max() > 0 ? dayNames[Array.IndexOf(dayTotals, dayTotals.Max())] : string.Empty;
         return new WeekOverWeekStat(thisWeek, lastWeek, delta, busiest, true);
+    }
+
+    /// <summary>
+    /// End-of-day projection (#36): today's inbound so far, plus a projected end-of-day total derived from the
+    /// typical hour-of-day distribution (today-so-far ÷ the share of a normal day that usually arrives by now).
+    /// <c>HasData</c> false until there's both a learned hourly shape and some activity today.
+    /// </summary>
+    public EndOfDayProjection GetEndOfDayProjection(IEnumerable<MessengerInstance> instances)
+    {
+        var ids = instances.Select(i => i.Id).Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var includeAll = ids.Count == 0;
+
+        var todayKey = DateTime.Now.ToString("yyyy-MM-dd");
+        var hourly = new long[24];
+        var soFar = 0;
+        foreach (var pair in _stats)
+        {
+            if (!includeAll && !ids.Contains(pair.Key))
+            {
+                continue;
+            }
+
+            if (pair.Value.HourlyReceived.Length == 24)
+            {
+                for (var h = 0; h < 24; h++)
+                {
+                    hourly[h] += pair.Value.HourlyReceived[h];
+                }
+            }
+
+            if (pair.Value.DailyReceived.TryGetValue(todayKey, out var t))
+            {
+                soFar += t;
+            }
+        }
+
+        if (soFar == 0)
+        {
+            return new EndOfDayProjection(0, 0, false);
+        }
+
+        var total = hourly.Sum();
+        var nowHour = DateTime.Now.Hour;
+        long through = 0;
+        for (var h = 0; h <= nowHour && h < 24; h++)
+        {
+            through += hourly[h];
+        }
+
+        // Without a learned shape, or too early in the day to extrapolate reliably, just report what's in.
+        var fraction = total > 0 ? through / (double)total : 0;
+        if (fraction <= 0.05)
+        {
+            return new EndOfDayProjection(soFar, soFar, true);
+        }
+
+        var projected = Math.Max(soFar, (int)Math.Round(soFar / fraction));
+        return new EndOfDayProjection(soFar, projected, true);
     }
 
     /// <summary>Compact "busiest window" summary, e.g. ("2–3 PM", "Tue"). Empty dashes when no data.</summary>

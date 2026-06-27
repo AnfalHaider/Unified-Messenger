@@ -84,9 +84,12 @@ Recorded for completeness; not planned.
 Layered on the existing `OversightInsightService` infra (now has a general prompt-based `Request` overload):
 - **#25 AI shift briefing** — ✅ done (v4.43.0). One-line whole-business "where to focus first" under the KPI
   band; deterministic heuristic + local-AI swap (`CommandCenterPanel.RenderBriefing`).
-- **#33 anomaly-narrated alerts** — ☐ explain *why* an alert fired, not just that it did.
-- **#34 cross-location ranking rationale** — ☐ narrate why one location ranks worse than another.
-- **#36 end-of-day projection** — ☐ project where the day lands given current pace.
+- **#33 anomaly narration** — ✅ done (v4.44.0). The briefing flags "busier than usual" when today's projected
+  volume runs ≥40% over the recent daily average.
+- **#34 ranking rationale** — ✅ done (v4.44.0). The briefing names the account furthest behind + its caught-up %.
+  (Per-account granularity; a dedicated cross-*location* rationale card remains optional.)
+- **#36 end-of-day projection** — ✅ done (v4.44.0). `MessageAnalyticsService.GetEndOfDayProjection` (today-so-far
+  ÷ the share of a normal day usually in by now); surfaced in the briefing ("on pace for ~N today").
 
 All prompts must send aggregate counts only — never customer names or message text (see
 `OversightInsightService` contract).
