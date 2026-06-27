@@ -31,20 +31,13 @@
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Text="Google Business — reviews awaiting a reply" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                    <TextBlock
-                        x:Name="UpdatedText"
-                        FontSize="11"
-                        VerticalAlignment="Center"
-                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                        Visibility="Collapsed" />
-                    <Button x:Name="RefreshButton" Click="OnRefresh" ToolTipService.ToolTip="Re-read review counts from each Google Business account">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon FontSize="14" Glyph="&#xE72C;" />
-                            <TextBlock Text="Refresh reviews" />
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
+                <TextBlock
+                    x:Name="UpdatedText"
+                    Grid.Column="1"
+                    FontSize="11"
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                    Visibility="Collapsed" />
             </Grid>
 
             <StackPanel x:Name="CardsHost" Grid.Row="1" Spacing="8" />

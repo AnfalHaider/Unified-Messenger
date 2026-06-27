@@ -155,7 +155,11 @@ public sealed partial class ReviewHealthPanel : UserControl
         };
     }
 
-    private async void OnRefresh(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Scrapes review health from each Google account's live session and re-renders. Public so the dashboard's
+    /// single Re-sync button drives it (the per-section Refresh button was removed).
+    /// </summary>
+    public async Task RefreshAsync()
     {
         if (_services is null || _refreshing)
         {
@@ -169,7 +173,6 @@ public sealed partial class ReviewHealthPanel : UserControl
         }
 
         _refreshing = true;
-        RefreshButton.IsEnabled = false;
         try
         {
             foreach (var instance in accounts)
@@ -180,7 +183,6 @@ public sealed partial class ReviewHealthPanel : UserControl
         }
         finally
         {
-            RefreshButton.IsEnabled = true;
             _refreshing = false;
         }
     }

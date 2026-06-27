@@ -52,9 +52,15 @@ public sealed partial class DashboardPage : Page
         RefreshAll();
     }
 
+    private bool _dashboardResyncRunning;
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         PersonalOverviewPanel.ApplyAccessibilityTabOrder();
+
+        // Single dashboard-wide Re-sync: the command center raises the request; we orchestrate the full
+        // refresh (oversight history + activity graph + Google reviews) so there's one button, not three.
+        CommandCenterPanel.DashboardResyncRequested += OnDashboardResyncRequested;
 
         _services.DashboardRefresh.Attach(DispatcherQueue);
         _services.DashboardRefresh.Subscribe();
@@ -73,10 +79,37 @@ public sealed partial class DashboardPage : Page
         CommandCenterPanel.Render();
     }
 
+    private void OnDashboardResyncRequested(object? sender, EventArgs e) => _ = RunDashboardResyncAsync();
+
+    /// <summary>
+    /// The dashboard's single Re-sync action: re-read oversight history, then refresh the activity graph and
+    /// Google reviews. One button drives all three (the per-section Refresh/Refresh-reviews buttons were removed).
+    /// </summary>
+    private async Task RunDashboardResyncAsync()
+    {
+        if (_dashboardResyncRunning)
+        {
+            return;
+        }
+
+        _dashboardResyncRunning = true;
+        try
+        {
+            await CommandCenterPanel.RunResyncAsync();
+            await ReviewHealthPanel.RefreshAsync();
+            ActivityPatternsPanel.Render();
+        }
+        finally
+        {
+            _dashboardResyncRunning = false;
+        }
+    }
+
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
+        CommandCenterPanel.DashboardResyncRequested -= OnDashboardResyncRequested;
 
         _services.DashboardRefresh.RefreshRequested -= OnCoordinatorRefreshRequested;
         _services.DashboardRefresh.Unsubscribe();

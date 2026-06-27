@@ -65,15 +65,13 @@
                 </ComboBox>
                 <Button
                     x:Name="ResyncButton"
-                    Click="OnResyncHistory"
-                    ToolTipService.ToolTip="Re-read history from each account and reconcile answered conversations">
+                    Click="OnResyncClick"
+                    Style="{StaticResource AccentButtonStyle}"
+                    ToolTipService.ToolTip="Re-read history, refresh the numbers, the activity graph, and Google reviews">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon FontSize="14" Glyph="&#xE895;" />
                         <TextBlock Text="Re-sync" />
                     </StackPanel>
-                </Button>
-                <Button Click="OnRefresh" ToolTipService.ToolTip="Refresh the oversight numbers now">
-                    <FontIcon FontSize="14" Glyph="&#xE72C;" />
                 </Button>
             </StackPanel>
         </Grid>

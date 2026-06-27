@@ -2,7 +2,7 @@
 
 Native WinUI 3 desktop client for running **multiple isolated WhatsApp / WhatsApp Business Web sessions** in one window, with a unified notification hub and lightweight operations dashboards.
 
-**Current release:** v4.44.0 (Redesigned command center + KPI band, **Activity patterns** graph with a week-over-week trend, an **AI shift briefing** that now flags the busiest/anomalous days, projects end-of-day volume, and explains which account is furthest behind, durable oversight snapshot, custom account icons, a Google Business **Reviews** section, and a top Personal button.)
+**Current release:** v4.44.1 (One dashboard **Re-sync** button now refreshes everything — oversight history, the activity graph, and Google reviews — replacing the separate Refresh and Refresh-reviews buttons. Plus the redesigned command center + KPI band, Activity patterns graph + week-over-week trend, AI shift briefing, durable oversight snapshot, custom account icons, the Google Business Reviews section, and a top Personal button.)
 
 ### What's in v4.44.0
 - **Smarter AI shift briefing (#33/#34/#36):** the briefing now adds an **end-of-day projection** ("on pace for ~N today"), an **anomaly flag** ("busier than usual"), and a **ranking rationale** (the account furthest behind + its caught-up %). Deterministic heuristics with a local-AI swap when Ollama is on.

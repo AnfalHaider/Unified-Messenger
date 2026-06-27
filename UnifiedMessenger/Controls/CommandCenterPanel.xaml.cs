@@ -1498,16 +1498,27 @@ public sealed partial class CommandCenterPanel : UserControl
     private void OnDefineLocations(object sender, RoutedEventArgs e) =>
         _services?.Navigation.RequestOpenSettings(Services.SettingsNavigationHelper.WorkspaceManagementSectionKey);
 
-    private void OnRefresh(object sender, RoutedEventArgs e) => Render();
-
     private bool _resyncInProgress;
+
+    /// <summary>
+    /// Raised when the unified Re-sync button is clicked. The dashboard orchestrates the full refresh
+    /// (oversight history + the activity graph + Google reviews) so there is a single dashboard-wide button.
+    /// </summary>
+    public event EventHandler? DashboardResyncRequested;
+
+    /// <summary>True while a re-sync is running, so the dashboard can disable re-entry across panels.</summary>
+    public bool IsResyncInProgress => _resyncInProgress;
+
+    private void OnResyncClick(object sender, RoutedEventArgs e) =>
+        DashboardResyncRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Deterministically re-runs history backfill for every professional account (force), then reports
     /// what the IndexedDB read returned and how much was reconciled — so reconciliation no longer
-    /// depends on auto-trigger timing, and the result is observable.
+    /// depends on auto-trigger timing, and the result is observable. Public so the dashboard's single
+    /// Re-sync button can run it as part of a unified refresh.
     /// </summary>
-    private async void OnResyncHistory(object sender, RoutedEventArgs e)
+    public async Task RunResyncAsync()
     {
         if (_services is null || _resyncInProgress)
         {
