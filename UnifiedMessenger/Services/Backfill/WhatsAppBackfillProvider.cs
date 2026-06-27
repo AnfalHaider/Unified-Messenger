@@ -196,28 +196,91 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
 
     private static async Task<int> MergeDailyAggregatesAsync(string instanceId, CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
-        var raw = await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(instanceId, "window.__umCollectMessageDailyAggregates && window.__umCollectMessageDailyAggregates()")
+        // ExecuteScriptAsync does not await promises, so kick off the IndexedDB read and poll window.__umMsgAgg.
+        await InstanceSessionManager.Instance
+            .TryExecuteScriptOnInstanceAsync(instanceId, "window.__umStartMessageAgg && window.__umStartMessageAgg()")
             .ConfigureAwait(false);
 
-        var payload = ParseJsonRoot(raw);
-        if (payload is null ||
-            !payload.Value.TryGetProperty("received", out var receivedElement) ||
-            !payload.Value.TryGetProperty("sent", out var sentElement))
+        for (var attempt = 0; attempt < 20; attempt++)
         {
-            return 0;
+            await Task.Delay(300, cancellationToken).ConfigureAwait(false);
+
+            var raw = await InstanceSessionManager.Instance
+                .TryExecuteScriptOnInstanceAsync(
+                    instanceId,
+                    "(window.__umMsgAgg?JSON.stringify(window.__umMsgAgg):'{\"state\":\"none\"}')")
+                .ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            string inner;
+            try
+            {
+                inner = JsonSerializer.Deserialize<string>(raw) ?? raw.Trim('"');
+            }
+            catch (JsonException)
+            {
+                inner = raw.Trim('"');
+            }
+
+            JsonDocument document;
+            try
+            {
+                document = JsonDocument.Parse(inner);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            using (document)
+            {
+                var root = document.RootElement;
+                var state = root.TryGetProperty("state", out var stateElement) ? stateElement.GetString() : null;
+                if (state is "error" or "nodb")
+                {
+                    return 0;
+                }
+                if (state != "done")
+                {
+                    continue;
+                }
+
+                if (!root.TryGetProperty("received", out var receivedElement) ||
+                    !root.TryGetProperty("sent", out var sentElement))
+                {
+                    return 0;
+                }
+
+                var received = ReadDayBuckets(receivedElement);
+                var sent = ReadDayBuckets(sentElement);
+                int[]? receivedByHour = null;
+                if (root.TryGetProperty("receivedByHour", out var hourElement) &&
+                    hourElement.ValueKind == JsonValueKind.Array)
+                {
+                    var hours = new int[24];
+                    var index = 0;
+                    foreach (var hour in hourElement.EnumerateArray())
+                    {
+                        if (index >= 24)
+                        {
+                            break;
+                        }
+
+                        hours[index++] = hour.TryGetInt32(out var value) ? value : 0;
+                    }
+
+                    receivedByHour = hours;
+                }
+
+                MessageAnalyticsService.Instance.RecordBackfillDailyAggregate(instanceId, received, sent, receivedByHour);
+                return received.Count + sent.Count;
+            }
         }
 
-        var received = ReadDayBuckets(receivedElement);
-        var sent = ReadDayBuckets(sentElement);
-        if (received.Count == 0 && sent.Count == 0)
-        {
-            return 0;
-        }
-
-        MessageAnalyticsService.Instance.RecordBackfillDailyAggregate(instanceId, received, sent);
-        return received.Count + sent.Count;
+        return 0;
     }
 
     private static async Task<int> CaptureSidebarSnapshotAsync(

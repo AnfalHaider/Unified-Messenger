@@ -177,6 +177,54 @@ public class ActivityPatternsTests : IDisposable
     }
 
     [Fact]
+    public void RecordBackfillDailyAggregate_SetsAuthoritativeHourlyHistogram()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        var hourly = new int[24];
+        hourly[15] = 12;
+        hourly[12] = 3;
+
+        service.RecordBackfillDailyAggregate(
+            "inst-1", new Dictionary<string, int>(), new Dictionary<string, int>(), hourly);
+
+        var result = service.BuildActivityPatterns(ActivityDimension.HourOfDay, [], null, null);
+        Assert.Equal(12, result.Values[15]);
+        Assert.Equal(3, result.Values[12]);
+        Assert.Equal(15, result.PeakIndex);
+    }
+
+    [Fact]
+    public void RecordBackfillDailyAggregate_HourlyReplacesNotAccumulates()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        var first = new int[24];
+        first[15] = 12;
+        var second = new int[24];
+        second[15] = 20; // a later re-sync sees more messages at 3 PM
+
+        service.RecordBackfillDailyAggregate("inst-1", new Dictionary<string, int>(), new Dictionary<string, int>(), first);
+        service.RecordBackfillDailyAggregate("inst-1", new Dictionary<string, int>(), new Dictionary<string, int>(), second);
+
+        var result = service.BuildActivityPatterns(ActivityDimension.HourOfDay, [], null, null);
+        Assert.Equal(20, result.Values[15]); // replaced with the fresh count, not 32
+    }
+
+    [Fact]
+    public void RecordBackfillDailyAggregate_EmptyHourly_LeavesExistingHistogram()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        var hourly = new int[24];
+        hourly[15] = 9;
+        service.RecordBackfillDailyAggregate("inst-1", new Dictionary<string, int>(), new Dictionary<string, int>(), hourly);
+
+        // A later read where the account wasn't loaded (all-zero hourly) must NOT wipe the histogram.
+        service.RecordBackfillDailyAggregate("inst-1", new Dictionary<string, int>(), new Dictionary<string, int>(), new int[24]);
+
+        var result = service.BuildActivityPatterns(ActivityDimension.HourOfDay, [], null, null);
+        Assert.Equal(9, result.Values[15]);
+    }
+
+    [Fact]
     public void BuildActivityPatterns_FiltersByAccount()
     {
         var service = new MessageAnalyticsService(_storePath);

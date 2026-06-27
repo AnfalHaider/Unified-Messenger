@@ -401,19 +401,25 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         lock (_debounceLock)
         {
             var stats = _stats.GetOrAdd(instanceId, _ => new InstanceMessageStats());
-            ApplyReceivedIncrement(stats, receivedAtUtc);
+            // Backfill inbound is a per-conversation, dedupe-gated row — accurate hour-of-day comes from the
+            // message-store histogram (RecordBackfillAggregate), so don't let this path feed HourlyReceived.
+            ApplyReceivedIncrement(stats, receivedAtUtc, countHourly: false);
         }
 
         NotifyChanged();
     }
 
     /// <summary>
-    /// Merges IndexedDB daily sent/received buckets without incrementing headline sent/received totals.
+    /// Merges IndexedDB per-day sent/received buckets and replaces the hour-of-day histogram with the
+    /// authoritative per-message counts read straight from the message store — so the activity graph reflects
+    /// real volume and updates as new messages arrive. <paramref name="receivedByHour"/> may be empty (e.g.
+    /// the account hadn't loaded its store yet), in which case the existing histogram is left untouched.
     /// </summary>
     public void RecordBackfillDailyAggregate(
         string instanceId,
         IReadOnlyDictionary<string, int> receivedByDay,
-        IReadOnlyDictionary<string, int> sentByDay)
+        IReadOnlyDictionary<string, int> sentByDay,
+        IReadOnlyList<int>? receivedByHour = null)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
@@ -427,6 +433,17 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             MergeBackfillDailyBuckets(stats.DailySent, sentByDay);
             PruneDailyBuckets(stats.DailyReceived);
             PruneDailyBuckets(stats.DailySent);
+
+            if (receivedByHour is { Count: 24 } && receivedByHour.Any(c => c > 0))
+            {
+                var hourly = new int[24];
+                for (var h = 0; h < 24; h++)
+                {
+                    hourly[h] = Math.Max(0, receivedByHour[h]);
+                }
+
+                stats.HourlyReceived = hourly;
+            }
         }
 
         NotifyChanged();
@@ -446,16 +463,17 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         NotifyChanged();
     }
 
-    private static void ApplyReceivedIncrement(InstanceMessageStats stats, DateTimeOffset receivedAtUtc)
+    private static void ApplyReceivedIncrement(InstanceMessageStats stats, DateTimeOffset receivedAtUtc, bool countHourly = true)
     {
         stats.ReceivedCount++;
         stats.LastReceivedUtc = receivedAtUtc;
         IncrementDaily(stats.DailyReceived, 1, receivedAtUtc);
 
-        var hour = receivedAtUtc.LocalDateTime.Hour;
-        if (stats.HourlyReceived.Length == 24)
+        // Live messages increment the hour bucket in real time; backfill rows don't (the message-store
+        // histogram is authoritative for hour-of-day).
+        if (countHourly && stats.HourlyReceived.Length == 24)
         {
-            stats.HourlyReceived[hour]++;
+            stats.HourlyReceived[receivedAtUtc.LocalDateTime.Hour]++;
         }
     }
 

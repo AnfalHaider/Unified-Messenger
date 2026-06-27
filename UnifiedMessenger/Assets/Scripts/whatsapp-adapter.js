@@ -786,12 +786,19 @@
   function readMessageDailyAggregatesFromDb(db, callback) {
     try {
       if (!db.objectStoreNames.contains('message')) {
-        callback({ sent: {}, received: {} });
+        callback({ sent: {}, received: {}, receivedByHour: [] });
         return;
       }
 
       var sent = Object.create(null);
       var received = Object.create(null);
+      // Per-hour histogram of RECEIVED (inbound) messages, bucketed by the user's LOCAL hour — actual
+      // per-message counts, so the "hour of day" chart reflects real volume and updates as messages arrive
+      // (replacing the old dedupe-gated per-conversation count that never grew).
+      var receivedByHour = [];
+      for (var h = 0; h < 24; h++) {
+        receivedByHour[h] = 0;
+      }
       var txn = db.transaction('message', 'readonly');
       var store = txn.objectStore('message');
       var cursorReq = store.openCursor();
@@ -799,17 +806,19 @@
       cursorReq.onsuccess = function (event) {
         var cursor = event.target.result;
         if (!cursor) {
-          callback({ sent: sent, received: received });
+          callback({ sent: sent, received: received, receivedByHour: receivedByHour });
           return;
         }
 
         var msg = cursor.value;
         if (msg && msg.t) {
-          var day = new Date(msg.t * 1000).toISOString().slice(0, 10);
+          var when = new Date(msg.t * 1000);
+          var day = when.toISOString().slice(0, 10);
           if (msg.fromMe) {
             sent[day] = (sent[day] || 0) + 1;
           } else {
             received[day] = (received[day] || 0) + 1;
+            receivedByHour[when.getHours()] = (receivedByHour[when.getHours()] || 0) + 1;
           }
         }
 
@@ -869,6 +878,50 @@
         resolve({ sent: {}, received: {} });
       });
     });
+  };
+
+  // Start/poll variant of the message aggregate: ExecuteScriptAsync does NOT await promises, so the
+  // promise-returning collector above silently yielded nothing. This kicks off the IndexedDB read and
+  // stashes the result on window.__umMsgAgg for the host to poll — the same bridge the oversight reader uses.
+  window.__umStartMessageAgg = function () {
+    window.__umMsgAgg = { state: 'working' };
+    try {
+      function finish(result) {
+        if (!result) {
+          window.__umMsgAgg = { state: 'error' };
+          return;
+        }
+        window.__umMsgAgg = {
+          state: 'done',
+          sent: result.sent || {},
+          received: result.received || {},
+          receivedByHour: result.receivedByHour || []
+        };
+      }
+
+      if (dbCache) {
+        readMessageDailyAggregatesFromDb(dbCache, finish);
+        return;
+      }
+      if (!window.indexedDB || !indexedDB.databases) {
+        window.__umMsgAgg = { state: 'error' };
+        return;
+      }
+      indexedDB.databases().then(function (databases) {
+        if (!databases.some(function (d) { return d.name === 'model-storage'; })) {
+          window.__umMsgAgg = { state: 'nodb' };
+          return;
+        }
+        var request = indexedDB.open('model-storage');
+        request.onsuccess = function () {
+          dbCache = request.result;
+          readMessageDailyAggregatesFromDb(dbCache, finish);
+        };
+        request.onerror = function () { window.__umMsgAgg = { state: 'error' }; };
+      }).catch(function () { window.__umMsgAgg = { state: 'error' }; });
+    } catch (e) {
+      window.__umMsgAgg = { state: 'error' };
+    }
   };
 
   // --- IndexedDB-direct history (robust backfill) -------------------------------------------------
