@@ -671,6 +671,61 @@
                 </shared:SurfaceCard>
             </StackPanel>
 
+            <StackPanel x:Name="AccountsSection" Tag="accounts" Spacing="8">
+                <shared:SectionHeaderView Title="ACCOUNTS" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Change the icon shown in the sidebar and dashboard for each account — pick a brand logo or general icon, import the account's profile photo, or upload an image."
+                            TextWrapping="WrapWholeWords" />
+                        <ListView
+                            x:Name="AccountsList"
+                            SelectionMode="None">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ArchivedAccountRowViewModel">
+                                    <Grid Padding="4,8" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon
+                                            VerticalAlignment="Center"
+                                            FontSize="16"
+                                            Glyph="{x:Bind IconGlyph}" />
+                                        <StackPanel
+                                            Grid.Column="1"
+                                            Spacing="2"
+                                            VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Opacity="0.65"
+                                                Text="{x:Bind PlatformLabel}" />
+                                        </StackPanel>
+                                        <Button
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Click="ChangeAccountIconButton_Click"
+                                            Content="Change icon..."
+                                            Tag="{x:Bind InstanceId}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <TextBlock
+                            x:Name="NoAccountsText"
+                            Opacity="0.55"
+                            Text="No accounts yet. Add one from the sidebar."
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
             <StackPanel x:Name="RemovedAccountsSection" Tag="removed-accounts" Spacing="8">
                 <shared:SectionHeaderView Title="REMOVED ACCOUNTS" />
                 <shared:SurfaceCard>

@@ -21,6 +21,8 @@ public static class SettingsNavigationHelper
 
     public const string SystemSectionKey = "system";
 
+    public const string AccountsSectionKey = "accounts";
+
     public const string RemovedAccountsSectionKey = "removed-accounts";
 
     public const string StorageSectionKey = "storage";
@@ -37,6 +39,7 @@ public static class SettingsNavigationHelper
         new() { Key = DataPrivacySectionKey, Label = "Data & privacy" },
         new() { Key = KeyboardShortcutsSectionKey, Label = "Keyboard shortcuts" },
         new() { Key = SystemSectionKey, Label = "System" },
+        new() { Key = AccountsSectionKey, Label = "Accounts" },
         new() { Key = RemovedAccountsSectionKey, Label = "Removed accounts" },
         new() { Key = StorageSectionKey, Label = "Storage" },
         new() { Key = AboutSectionKey, Label = "About" }

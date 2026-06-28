@@ -88,6 +88,7 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(EnableAutoUpdateToggle, "Enable auto update");
         AutomationProperties.SetName(PromptBeforeAutoUpdateToggle, "Prompt before auto-update installs");
         AutomationProperties.SetName(CheckForUpdatesButton, "Check for updates");
+        AutomationProperties.SetName(AccountsList, "Accounts");
         AutomationProperties.SetName(ArchivedAccountsList, "Removed accounts");
     }
 
@@ -101,6 +102,7 @@ public sealed partial class SettingsPage : Page
         _sectionAnchors[SettingsNavigationHelper.DataPrivacySectionKey] = DataPrivacySection;
         _sectionAnchors[SettingsNavigationHelper.KeyboardShortcutsSectionKey] = KeyboardShortcutsSection;
         _sectionAnchors[SettingsNavigationHelper.SystemSectionKey] = SystemSection;
+        _sectionAnchors[SettingsNavigationHelper.AccountsSectionKey] = AccountsSection;
         _sectionAnchors[SettingsNavigationHelper.RemovedAccountsSectionKey] = RemovedAccountsSection;
         _sectionAnchors[SettingsNavigationHelper.StorageSectionKey] = StorageSection;
         _sectionAnchors[SettingsNavigationHelper.AboutSectionKey] = AboutSection;
@@ -191,6 +193,7 @@ public sealed partial class SettingsPage : Page
 
         UpdateImportExportPanelVisibility(settings.EnableImportExportInstances);
         RefreshAiSection();
+        RefreshAccounts();
         RefreshArchivedAccounts();
         RefreshStoragePaths();
         RefreshWorkspaceManagementSummary();

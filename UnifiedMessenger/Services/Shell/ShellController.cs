@@ -627,108 +627,35 @@ public sealed class ShellController
         }
     }
 
-    private async Task ChangeInstanceIconAsync(string instanceId)
+    private Task ChangeInstanceIconAsync(string instanceId)
     {
         var instance = _services.Registry.FindById(instanceId);
         if (instance is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        var dialog = new ChangeIconDialog(instance) { XamlRoot = _ui.XamlRoot };
         // WebView2 renders in "airspace" above XAML, so an open account's WebView would paint over the
         // ContentDialog. Collapse the WebView host while the dialog is up, then restore it.
         var webHost = _ui.InstanceWebViewHost;
         var priorWebHostVisibility = webHost.Visibility;
-        webHost.Visibility = Visibility.Collapsed;
-        try
-        {
-            await dialog.ShowAsync();
-        }
-        finally
-        {
-            webHost.Visibility = priorWebHostVisibility;
-        }
 
-        // The Import button closes the dialog with Hide() (result None), so branch on the dialog's own
-        // choice, not the ContentDialogResult.
-        if (dialog.Result == AvatarChoiceKind.Cancel)
-        {
-            return;
-        }
-
-        try
-        {
-            if (dialog.Result == AvatarChoiceKind.UploadImage)
+        return AccountIconChangeFlow.RunAsync(
+            _services,
+            instance,
+            _ui.XamlRoot,
+            AccountIconChangeFlow.PickImageBytesAsync,
+            beforeShow: () => webHost.Visibility = Visibility.Collapsed,
+            afterShow: () => webHost.Visibility = priorWebHostVisibility,
+            onChanged: () =>
             {
-                var bytes = await PickImageBytesAsync();
-                if (bytes is null)
-                {
-                    return; // user cancelled the file picker
-                }
-
-                await ProfileAvatarService.SaveAvatarAsync(instanceId, bytes);
-                await _services.Registry.UpdateInstanceAvatarIconAsync(instanceId, null, null, null);
-            }
-            else if (dialog.Result == AvatarChoiceKind.ImportFromAccount)
-            {
-                var outcome = await AvatarImportService.TryImportProfilePhotoAsync(instanceId, instance.Platform);
-                if (outcome != AvatarImportService.ImportResult.Imported)
-                {
-                    await _services.Dialog.ShowErrorAsync(
-                        "Couldn't import the profile photo",
-                        "Open this account so its web session and profile photo are loaded, then try Import again.");
-                    return;
-                }
-
-                // An imported image takes precedence in ProfileAvatarService — clear any built-in glyph.
-                await _services.Registry.UpdateInstanceAvatarIconAsync(instanceId, null, null, null);
-            }
-            else
-            {
-                // A built-in icon or reset supersedes any imported/uploaded image (which wins in
-                // ProfileAvatarService.CreateAvatar) — so clear the cached PNG first.
-                await ProfileAvatarService.RemoveAvatarAsync(instanceId);
-                var built = dialog.Result == AvatarChoiceKind.BuiltInIcon;
-                await _services.Registry.UpdateInstanceAvatarIconAsync(
-                    instanceId,
-                    built ? dialog.ResultGlyph : null,
-                    built ? dialog.ResultColor : null,
-                    built ? dialog.ResultFontFamily : null);
-            }
-
-            // Avatar changes aren't captured by the sidebar's incremental path or the command center's
-            // data signature, so force both to redraw.
-            _ui.WorkspaceSidebar.InvalidatePlan();
-            _chrome.RebuildInstanceNavigation();
-            _navigation.ForceRefreshDashboardIcons();
-            _chrome.UpdateShellChromeSelection();
-        }
-        catch (Exception ex)
-        {
-            await _services.Dialog.ShowErrorAsync("Could not change icon", ex.Message);
-        }
-    }
-
-    private static async Task<byte[]?> PickImageBytesAsync()
-    {
-        var picker = new Windows.Storage.Pickers.FileOpenPicker
-        {
-            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary
-        };
-        picker.FileTypeFilter.Add(".png");
-        picker.FileTypeFilter.Add(".jpg");
-        picker.FileTypeFilter.Add(".jpeg");
-        picker.FileTypeFilter.Add(".gif");
-        picker.FileTypeFilter.Add(".bmp");
-        picker.FileTypeFilter.Add(".webp");
-
-        // Unpackaged WinUI: the picker must be initialized with the window handle.
-        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow);
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-        var file = await picker.PickSingleFileAsync();
-        return file is null ? null : await File.ReadAllBytesAsync(file.Path);
+                // Avatar changes aren't captured by the sidebar's incremental path or the command center's
+                // data signature, so force both to redraw.
+                _ui.WorkspaceSidebar.InvalidatePlan();
+                _chrome.RebuildInstanceNavigation();
+                _navigation.ForceRefreshDashboardIcons();
+                _chrome.UpdateShellChromeSelection();
+            });
     }
 
     private async Task EditInstanceMetadataAsync(string instanceId)

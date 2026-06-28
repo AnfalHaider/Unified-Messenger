@@ -10,6 +10,8 @@ public partial class SettingsViewModel : ViewModelBase
 
     public ObservableCollection<ArchivedAccountRowViewModel> ArchivedAccounts { get; } = [];
 
+    public ObservableCollection<ArchivedAccountRowViewModel> Accounts { get; } = [];
+
     [ObservableProperty]
     private string _selectedSectionKey = SettingsNavigationHelper.NotificationsSectionKey;
 
@@ -18,6 +20,9 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showNoArchivedAccounts = true;
+
+    [ObservableProperty]
+    private bool _showNoAccounts = true;
 
     [ObservableProperty]
     private string _versionLabel = string.Empty;

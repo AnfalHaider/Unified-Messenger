@@ -8,6 +8,57 @@ namespace UnifiedMessenger.Pages;
 
 public sealed partial class SettingsPage
 {
+    private void RefreshAccounts()
+    {
+        if (_registry is null)
+        {
+            _viewModel.Accounts.Clear();
+            AccountsList.ItemsSource = null;
+            _viewModel.ShowNoAccounts = true;
+            NoAccountsText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var rows = SettingsArchivedAccountsPresenter.BuildRows(_registry.Instances);
+        _viewModel.Accounts.Clear();
+        foreach (var row in rows)
+        {
+            _viewModel.Accounts.Add(row);
+        }
+
+        AccountsList.ItemsSource = _viewModel.Accounts;
+        _viewModel.ShowNoAccounts = rows.Count == 0;
+        NoAccountsText.Visibility = _viewModel.ShowNoAccounts ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void ChangeAccountIconButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_registry is null ||
+            sender is not Button { Tag: string instanceId } ||
+            !ShellNavigationService.IsValidInstanceId(instanceId))
+        {
+            return;
+        }
+
+        var instance = _registry.FindById(instanceId);
+        if (instance is null)
+        {
+            return;
+        }
+
+        await AccountIconChangeFlow.RunAsync(
+            _services,
+            instance,
+            XamlRoot,
+            AccountIconChangeFlow.PickImageBytesAsync,
+            onChanged: () =>
+            {
+                // Refresh this list's icon preview and push the change to the sidebar/dashboard.
+                RefreshAccounts();
+                _services.Navigation.RequestInstanceRegistryRefresh();
+            });
+    }
+
     private void RefreshArchivedAccounts()
     {
         if (_registry is null)
