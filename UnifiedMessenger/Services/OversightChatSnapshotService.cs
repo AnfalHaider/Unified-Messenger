@@ -78,7 +78,17 @@ public sealed class OversightChatSnapshotService
         }
 
         var key = instanceId.Trim();
-        _byInstance[key] = new InstanceChats(ApplyStickyAwaiting(key, chats), capturedAtUtc);
+        var resolved = ApplyStickyAwaiting(key, chats);
+        _byInstance[key] = new InstanceChats(resolved, capturedAtUtc);
+
+        // Feed the response-time tracker the post-sticky state so it measures First Response Time from real
+        // message timestamps as chats move awaiting → replied across syncs.
+        foreach (var chat in resolved)
+        {
+            ResponseTimeTracker.Instance.Observe(
+                key, chat.ConversationKey, chat.IsAwaiting, chat.LastMessageFromMe, chat.LastActivityUtc);
+        }
+
         ScheduleSave();
     }
 

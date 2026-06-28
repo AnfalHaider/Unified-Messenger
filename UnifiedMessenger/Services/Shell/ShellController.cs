@@ -190,6 +190,8 @@ public sealed class ShellController
         // Last-known oversight snapshot, so the command center shows numbers immediately on launch
         // (labeled "as of …") instead of going blank until the next scan.
         await OversightChatSnapshotService.Instance.LoadAsync().ConfigureAwait(true);
+        // Forward-tracked First Response Time samples + in-flight pending waits.
+        await ResponseTimeTracker.Instance.LoadAsync().ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);
