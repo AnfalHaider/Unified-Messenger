@@ -52,8 +52,8 @@ public static class OversightSnapshotReader
         // (the harvest is a synchronous read of currently-rendered rows). Bounded so it never hangs.
         for (var w = 0; w < 50; w++) // up to ~25s
         {
-            var count = await InstanceSessionManager.Instance
-                .TryExecuteScriptOnInstanceAsync(
+            var count = await InstanceConnection.Current
+                .ExecuteScriptAsync(
                     instance.Id,
                     "(document.querySelectorAll('#pane-side [role=\"row\"], #side [role=\"row\"], [data-testid=\"chat-list\"] [role=\"row\"]').length || 0).toString()")
                 .ConfigureAwait(false);
@@ -66,8 +66,8 @@ public static class OversightSnapshotReader
             await Task.Delay(500).ConfigureAwait(false);
         }
 
-        var started = await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        var started = await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instance.Id,
                 "window.__umStartPreviewHarvest ? window.__umStartPreviewHarvest() : 'NOFN'")
             .ConfigureAwait(false);
@@ -80,8 +80,8 @@ public static class OversightSnapshotReader
         for (var attempt = 0; attempt < 50; attempt++) // ~12.5s, matching the JS watchdog
         {
             await Task.Delay(250).ConfigureAwait(false);
-            var done = await InstanceSessionManager.Instance
-                .TryExecuteScriptOnInstanceAsync(
+            var done = await InstanceConnection.Current
+                .ExecuteScriptAsync(
                     instance.Id,
                     "window.__umIsPreviewHarvestDone ? window.__umIsPreviewHarvestDone() : 'true'")
                 .ConfigureAwait(false);
@@ -95,8 +95,8 @@ public static class OversightSnapshotReader
 
     private static async Task<RefreshResult?> RunScanAsync(MessengerInstance instance)
     {
-        await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instance.Id,
                 "window.__umStartDbConversationScan ? window.__umStartDbConversationScan(2000) : 'NOFN'")
             .ConfigureAwait(false);
@@ -104,8 +104,8 @@ public static class OversightSnapshotReader
         for (var attempt = 0; attempt < 75; attempt++) // ~22s; the scan self-settles via a 20s watchdog
         {
             await Task.Delay(300).ConfigureAwait(false);
-            var raw = await InstanceSessionManager.Instance
-                .TryExecuteScriptOnInstanceAsync(
+            var raw = await InstanceConnection.Current
+                .ExecuteScriptAsync(
                     instance.Id,
                     "window.__umGetDbConversationResult ? window.__umGetDbConversationResult() : 'NOFN'")
                 .ConfigureAwait(false);

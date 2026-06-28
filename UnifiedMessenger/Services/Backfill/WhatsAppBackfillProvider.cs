@@ -33,8 +33,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
 
         await BroadcastBackfillOptionsAsync(instance.Id, context, cancellationToken).ConfigureAwait(false);
 
-        await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instance.Id,
                 "window.__unifiedMessengerPublishBadge && window.__unifiedMessengerPublishBadge();")
             .ConfigureAwait(false);
@@ -46,8 +46,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         result.SidebarRowsCaptured = await CaptureSidebarSnapshotAsync(instance, cancellationToken)
             .ConfigureAwait(false);
 
-        var raw = await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        var raw = await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instance.Id,
                 $"window.__umCollectBackfillCandidates({context.BackfillMaxChats})")
             .ConfigureAwait(false);
@@ -191,22 +191,22 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         var script =
             $"window.__umSetBackfillOptions && window.__umSetBackfillOptions({{ mode: '{mode}', recentDays: {context.BackfillRecentDays}, maxChats: {context.BackfillMaxChats} }});";
 
-        await InstanceSessionManager.Instance.TryExecuteScriptOnInstanceAsync(instanceId, script).ConfigureAwait(false);
+        await InstanceConnection.Current.ExecuteScriptAsync(instanceId, script).ConfigureAwait(false);
     }
 
     private static async Task<int> MergeDailyAggregatesAsync(string instanceId, CancellationToken cancellationToken)
     {
         // ExecuteScriptAsync does not await promises, so kick off the IndexedDB read and poll window.__umMsgAgg.
-        await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(instanceId, "window.__umStartMessageAgg && window.__umStartMessageAgg()")
+        await InstanceConnection.Current
+            .ExecuteScriptAsync(instanceId, "window.__umStartMessageAgg && window.__umStartMessageAgg()")
             .ConfigureAwait(false);
 
         for (var attempt = 0; attempt < 20; attempt++)
         {
             await Task.Delay(300, cancellationToken).ConfigureAwait(false);
 
-            var raw = await InstanceSessionManager.Instance
-                .TryExecuteScriptOnInstanceAsync(
+            var raw = await InstanceConnection.Current
+                .ExecuteScriptAsync(
                     instanceId,
                     "(window.__umMsgAgg?JSON.stringify(window.__umMsgAgg):'{\"state\":\"none\"}')")
                 .ConfigureAwait(false);
@@ -288,8 +288,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        var raw = await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        var raw = await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instance.Id,
                 "window.__umCollectSidebarSnapshot && window.__umCollectSidebarSnapshot()")
             .ConfigureAwait(false);
@@ -353,8 +353,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
     {
         // Start the async IndexedDB scan, then poll the synchronous getter — ExecuteScriptAsync does not
         // await JS promises, so a pending promise would serialize to "{}".
-        await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instance.Id,
                 $"window.__umStartDbConversationScan && window.__umStartDbConversationScan({context.BackfillMaxChats})")
             .ConfigureAwait(false);
@@ -363,8 +363,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         for (var attempt = 0; attempt < 50; attempt++) // up to ~15s
         {
             await Task.Delay(300, cancellationToken).ConfigureAwait(false);
-            var raw = await InstanceSessionManager.Instance
-                .TryExecuteScriptOnInstanceAsync(
+            var raw = await InstanceConnection.Current
+                .ExecuteScriptAsync(
                     instance.Id,
                     "window.__umGetDbConversationResult ? window.__umGetDbConversationResult() : ''")
                 .ConfigureAwait(false);
@@ -515,8 +515,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        var raw = await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        var raw = await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instance.Id,
                 "window.__umScrollBackOpenChatHistory && window.__umScrollBackOpenChatHistory(4)")
             .ConfigureAwait(false);
@@ -597,8 +597,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        var raw = await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        var raw = await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instance.Id,
                 $"window.__umRunDeepBackfillWalk && window.__umRunDeepBackfillWalk({DeepBackfillMaxChats})")
             .ConfigureAwait(false);
@@ -661,8 +661,8 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
     private static async Task CommitBaselineAsync(string instanceId, CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        await InstanceSessionManager.Instance
-            .TryExecuteScriptOnInstanceAsync(
+        await InstanceConnection.Current
+            .ExecuteScriptAsync(
                 instanceId,
                 "window.__umCommitInboundBaseline && window.__umCommitInboundBaseline();")
             .ConfigureAwait(false);

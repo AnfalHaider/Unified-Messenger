@@ -7,6 +7,7 @@ namespace UnifiedMessenger.Tests;
 /// Exercises the Google review-health scrape through the <see cref="IInstanceConnection"/> abstraction (#26):
 /// with a fake connection the parser is testable without a live WebView.
 /// </summary>
+[Collection("InstanceConnection")]
 public class GoogleReviewScrapeTests
 {
     private sealed class FakeConnection : IInstanceConnection
