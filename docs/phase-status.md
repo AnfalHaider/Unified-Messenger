@@ -1,7 +1,24 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-06-21 · **Baseline:** v4.27.1 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-06-29 · **Baseline:** v4.45.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
+
+> **Session 7 update (v4.42.0 → v4.45.0): channel + AI features, then infrastructure + polish.**
+> - **#32 Google review-health** (v4.42.0): dashboard Reviews section (unanswered + reply rate).
+> - **Tier-2 AI narration suite** (v4.43.0–v4.44.0): #25 shift briefing, #33 anomaly, #34 ranking rationale,
+>   #36 end-of-day projection, #37 week-over-week — all on the existing `OversightInsightService` infra,
+>   aggregate-counts-only prompts, heuristic fallback.
+> - **Activity-graph data fix** (v4.44.2): hour-of-day histogram read from the message store each Re-sync
+>   (was a stuck per-conversation count); kept as **bars** (a line-chart restyle was reverted by preference).
+> - **#26 `IInstanceConnection` — COMPLETE** (v4.45.0): the whole oversight/backfill/review/avatar data path
+>   talks to the abstraction, not WebView2. **P3-A done.**
+> - **P3-C WebView2 RAM instrumentation — DONE** (v4.45.0): `ResourceMonitorService` sums `msedgewebview2`
+>   child-process working sets (the memory card was app-process-only); stress fixtures lock the
+>   eviction/reap policy at scale.
+> - **Polish**: dead drag-reorder code removed; Settings → Accounts change-icon entry point; contrast verified
+>   passing (the "teal" token is `#1B75BB`, ~4.86:1 on white).
+> - **Still gated (need a live account or a model):** #24 Telegram/Meta scrapers, P3-D L1 entity view (depends
+>   on #24), P3-B Tier-1 ONNX, icon import-from-account robustness.
 
 > **Session 5 update (v4.22.0 → v4.27.1): UI/UX modernization, shell IA, bug fixes, Work-Queue merge.**
 > - **Command-center modernization (v4.22–v4.25):** vertical avatar cards, bar-chart sparklines, urgent/dropped sub-metrics, attention Jump button, dark insight strips, segmented group control, "Define locations" CTA, title-bar **scope selector + AI toggle**, compact-sidebar default, **WCAG 1.4.1 status glyph**, AI-strip sanitization.
@@ -88,9 +105,9 @@
 |---|---|---|
 | Ingress coalescing | ✅ | `WebMessageIngressService` (v4.2) |
 | List/kanban virtualization | ◑ | ItemsRepeater migration — verify no residual ListView |
-| WebView2 memory strategy + default cap + orphan handler | ☐ | RED (post-suspend RAM unmeasured; cap=0; API-mixing) |
-| `IInstanceConnection` abstraction | ☐ | net-new; future-proofs channels |
-| Contrast remediation | ◑ | teal-on-light AA partial; **WCAG 1.4.1 non-color status glyph on L0 cards done (v4.25.0)** |
+| WebView2 memory strategy + default cap + orphan handler | ✅ | cap=6 + LRU + idle reaper + memory tiers; orphan/recovery via `AdapterHealthMonitor`. **v4.45.0:** post-suspend RAM now *measured* (`ResourceMonitorService` sums `msedgewebview2` children) + stress fixtures lock the eviction/reap policy at scale |
+| `IInstanceConnection` abstraction | ✅ | **v4.45.0:** data layer (oversight/backfill/review/avatar) talks to `IInstanceConnection.Current`, not WebView2; fakeable in tests |
+| Contrast remediation | ✅ | **resolved:** the brand "teal" token is `#1B75BB` (~4.86:1 on white, passes WCAG AA normal text); `HighContrast.xaml` covers high-contrast mode; WCAG 1.4.1 non-color status glyph on L0 cards (v4.25.0) |
 | CI asset guard | ✅ | shipped this session |
 | Stress fixtures in CI | ◑ | Stage-4 tests exist; not all wired |
 

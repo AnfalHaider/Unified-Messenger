@@ -240,29 +240,30 @@ Use Bash `git commit -m "..."` (not PowerShell here-strings — they break on mu
 
 ---
 
-## Phase roadmap (current as of v4.41.2)
+## Phase roadmap (current as of v4.45.0)
 
 See `docs/remaining-work.md` for the detailed backlog. Summary:
 
 | Phase | Status |
 |---|---|
 | 1 — WhatsApp oversight foundation | ✅ Complete |
-| 2 — AI tiers (insight strips + Ollama) | ✅ Core done · ✅ P2-A unsaved-contact phone + preview (v4.39.10) · ☐ Tier-1 ONNX, AI shift-briefing/anomaly |
+| 2 — AI tiers (insight strips + Ollama) | ✅ Core done · ✅ P2-A unsaved-contact phone + preview (v4.39.10) · ✅ Tier-2 narration suite (#25/#33/#34/#36/#37) · ☐ Tier-1 ONNX (needs a model) |
 | 3 — Oversight depth & scale | ✅ Mostly done · ✅ Activity-history persistence + Activity-patterns graph (v4.40.0) · ☐ Sidebar-rail density at very large counts |
 | 4 — Google Business embed + metrics | ◑ Embed done (v4.20.0) · ✅ Review-health scraper + Reviews section (v4.42.0, #32) — unanswered + reply rate; no rating/total (Google doesn't expose them) |
-| 5 — Telegram + Meta embed + metrics | ◑ Embed done (v4.21.0) · ☐ DOM metric scrapers pending (#24) |
+| 5 — Telegram + Meta embed + metrics | ◑ Embed done (v4.21.0) · ☐ DOM metric scrapers pending (#24 — need live accounts) |
 
-**Shipped v4.40.0 → v4.41.2:** command-center redesign + KPI band; **Activity-patterns graph** (hour/day/month,
-filterable) on an on-device activity-history log; **durable oversight snapshot** (survives restart, incremental
-re-sync); **custom account icons** (brand logos via bundled Font Awesome Brands font + general icons +
-import-from-account + image upload + reset); bug fixes (names-vanish, stray tooltip, dialog WebView occlusion).
-This **closes #35** (persistence foundation).
+**Shipped v4.42.0 → v4.45.0:** #32 Google review-health (v4.42.0); the full **Tier-2 AI narration suite**
+(#25 shift briefing, #37 week-over-week — v4.43.0; #33 anomaly, #34 ranking rationale, #36 end-of-day
+projection — v4.44.0); the **activity-graph data fix** (hour-of-day read from the message store each Re-sync,
+v4.44.2 — kept as bars); **#26 `IInstanceConnection` complete** (data layer fully decoupled from WebView2);
+**P3-C WebView2 RAM instrumentation + memory-policy stress fixtures**; **Settings → Accounts change-icon**
+entry point; dead drag-reorder code removed; contrast verified passing (all v4.45.0).
 
-Phase 2 Tier-2 AI narration is **complete** (#25 briefing, #37 week-over-week — v4.43.0; #33 anomaly, #34 ranking
-rationale, #36 end-of-day projection — v4.44.0). Remaining highest-leverage work (task #s in the running list):
-1. #24 Telegram / Messenger / Instagram DOM scrapers (need live accounts; Meta read-only only)
-2. #26 `IInstanceConnection` abstraction (decouples oversight layer from WebView2)
-3. Tier-1 ONNX · post-suspend RAM instrumentation · L1 channel-aware entity view (depends on #24)
+Remaining work is **gated on external dependencies** (task #s in the running list):
+1. #24 Telegram / Messenger / Instagram DOM scrapers — need live logged-in accounts (Meta read-only only)
+2. P3-D L1 channel-aware entity view — depends on #24
+3. Tier-1 ONNX — needs a chosen, downloaded model + runtime packaging (can't be built blind)
+4. Icon import-from-account robustness · brand-logo import for other channels — live per-platform DOM tuning
 
-> P2-C (outbound staff-reply tone scoring) was **dropped** earlier this work-stream in favour of the more valuable AI features above (shift briefing, anomaly narration, ranking rationale, projections).
-> Icon-feature follow-ups (import robustness, Settings entry point) are tracked in `docs/remaining-work.md`.
+> P2-C (outbound staff-reply tone scoring) was **dropped** in favour of the Tier-2 AI features above.
+> #26, P3-C, the Settings change-icon entry point, and the dead-code/contrast polish all shipped in v4.45.0.
