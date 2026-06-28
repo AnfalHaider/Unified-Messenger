@@ -1,12 +1,8 @@
-using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Shapes;
-using Windows.Foundation;
-using Windows.UI;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
@@ -20,11 +16,11 @@ namespace UnifiedMessenger.Controls;
 public sealed partial class ActivityPatternsPanel : UserControl
 {
     private const double ChartHeight = 190;
+    private const double BarMaxHeight = 165;
 
     private ApplicationServices? _services;
     private ActivityDimension _dimension = ActivityDimension.HourOfDay;
     private bool _populatingAccounts;
-    private double _lastChartWidth;
 
     public ActivityPatternsPanel()
     {
@@ -43,15 +39,6 @@ public sealed partial class ActivityPatternsPanel : UserControl
 
         PopulateAccounts();
         Render();
-
-        // Re-draw on width change so the curve + axis labels reflow with the window.
-        ChartHost.SizeChanged += (_, args) =>
-        {
-            if (Math.Abs(args.NewSize.Width - _lastChartWidth) > 1)
-            {
-                Render();
-            }
-        };
     }
 
     private void PopulateAccounts()
@@ -137,7 +124,9 @@ public sealed partial class ActivityPatternsPanel : UserControl
         var patterns = MessageAnalyticsService.Instance.BuildActivityPatterns(_dimension, instances, from, to);
 
         ChartHost.Children.Clear();
+        ChartHost.ColumnDefinitions.Clear();
         AxisHost.Children.Clear();
+        AxisHost.ColumnDefinitions.Clear();
 
         var count = patterns.Labels.Count;
         if (count == 0 || !patterns.HasData)
@@ -151,11 +140,65 @@ public sealed partial class ActivityPatternsPanel : UserControl
                 TextWrapping = TextWrapping.WrapWholeWords
             });
             InsightText.Text = "Once a few days of activity accrue, the busiest hour, day, and month surface here.";
-            WeekRow.Visibility = Visibility.Collapsed;
             return;
         }
 
-        DrawAreaChart(patterns);
+        var max = Math.Max(1, patterns.Values.Max());
+        var barFill = Brush("AccentFillColorDefaultBrush");
+        var peakFill = Brush("SystemFillColorCautionBrush");
+        var labelBrush = Brush("TextFillColorTertiaryBrush");
+        var peakLabelBrush = Brush("SystemFillColorCautionBrush");
+
+        for (var i = 0; i < count; i++)
+        {
+            ChartHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            AxisHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var isPeak = i == patterns.PeakIndex;
+            var value = patterns.Values[i];
+            var barHeight = Math.Max(3, value / (double)max * BarMaxHeight);
+
+            var column = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom };
+            if (isPeak)
+            {
+                column.Children.Add(new TextBlock
+                {
+                    Text = value.ToString(),
+                    FontSize = 10,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = peakLabelBrush,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 2)
+                });
+            }
+
+            column.Children.Add(new Border
+            {
+                Height = barHeight,
+                Background = isPeak ? peakFill : barFill,
+                Opacity = isPeak ? 1.0 : 0.45,
+                CornerRadius = new CornerRadius(3, 3, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Margin = new Thickness(3, 0, 3, 0)
+            });
+
+            Grid.SetColumn(column, i);
+            ChartHost.Children.Add(column);
+
+            // Axis labels: show all for ≤12 buckets; thin to every 3rd for the 24-hour view.
+            var showLabel = count <= 12 || i % 3 == 0 || isPeak;
+            var axisLabel = new TextBlock
+            {
+                Text = showLabel ? patterns.Labels[i] : string.Empty,
+                FontSize = 10,
+                Foreground = isPeak ? peakLabelBrush : labelBrush,
+                FontWeight = isPeak ? FontWeights.SemiBold : FontWeights.Normal,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextTrimming = TextTrimming.None
+            };
+            Grid.SetColumn(axisLabel, i);
+            AxisHost.Children.Add(axisLabel);
+        }
 
         var prep = _dimension switch
         {
@@ -166,198 +209,6 @@ public sealed partial class ActivityPatternsPanel : UserControl
         InsightText.Text = $"Busiest {prep} {patterns.PeakLabel} — {patterns.Values[patterns.PeakIndex]} messages at the peak.";
 
         RenderWeekOverWeek(instances);
-    }
-
-    /// <summary>
-    /// Draws the activity volume as a smooth gradient area + line with point markers and a highlighted
-    /// peak — replacing the old bar columns. Axis labels are positioned on a Canvas so they sit directly
-    /// under each data point regardless of bucket count.
-    /// </summary>
-    private void DrawAreaChart(ActivityPatterns patterns)
-    {
-        var count = patterns.Values.Count;
-        var width = ChartHost.ActualWidth;
-        if (width < 40)
-        {
-            width = 560; // first layout pass before the host has measured; SizeChanged re-draws to fit.
-        }
-        _lastChartWidth = width;
-
-        var canvas = new Canvas { Width = width, Height = ChartHeight };
-        ChartHost.Children.Add(canvas);
-
-        const double topPad = 24;    // headroom for the peak value label
-        const double bottomPad = 8;
-        const double sidePad = 12;
-        var plotTop = topPad;
-        var plotBottom = ChartHeight - bottomPad;
-        var plotHeight = plotBottom - plotTop;
-        var plotLeft = sidePad;
-        var plotWidth = Math.Max(1, width - sidePad * 2);
-
-        var max = Math.Max(1, patterns.Values.Max());
-        var accent = Brush("AccentFillColorDefaultBrush");
-        var accentColor = (accent as SolidColorBrush)?.Color ?? Colors.SteelBlue;
-        var peakFill = Brush("SystemFillColorCautionBrush");
-        var peakColor = (peakFill as SolidColorBrush)?.Color ?? Colors.Goldenrod;
-        var cardBg = Brush("CardBackgroundFillColorDefaultBrush");
-        var gridBrush = Brush("DividerStrokeColorDefaultBrush");
-        var labelBrush = Brush("TextFillColorTertiaryBrush");
-
-        // Faint horizontal gridlines.
-        for (var g = 0; g <= 3; g++)
-        {
-            var y = plotTop + plotHeight * g / 3.0;
-            canvas.Children.Add(new Line
-            {
-                X1 = plotLeft,
-                X2 = plotLeft + plotWidth,
-                Y1 = y,
-                Y2 = y,
-                Stroke = gridBrush,
-                StrokeThickness = 1,
-                Opacity = 0.35
-            });
-        }
-
-        // Data points in plot space.
-        var pts = new List<Point>(count);
-        for (var i = 0; i < count; i++)
-        {
-            var x = count == 1 ? plotLeft + plotWidth / 2 : plotLeft + plotWidth * i / (count - 1.0);
-            var y = plotBottom - patterns.Values[i] / (double)max * plotHeight;
-            pts.Add(new Point(x, y));
-        }
-
-        // Gradient area fill under the curve.
-        var areaGeo = new PathGeometry();
-        areaGeo.Figures.Add(BuildSmoothFigure(pts, closeArea: true, baselineY: plotBottom));
-        var areaGradient = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-        areaGradient.GradientStops.Add(new GradientStop { Color = Color.FromArgb(96, accentColor.R, accentColor.G, accentColor.B), Offset = 0 });
-        areaGradient.GradientStops.Add(new GradientStop { Color = Color.FromArgb(6, accentColor.R, accentColor.G, accentColor.B), Offset = 1 });
-        canvas.Children.Add(new Microsoft.UI.Xaml.Shapes.Path { Data = areaGeo, Fill = areaGradient });
-
-        // The line itself.
-        var lineGeo = new PathGeometry();
-        lineGeo.Figures.Add(BuildSmoothFigure(pts, closeArea: false, baselineY: plotBottom));
-        canvas.Children.Add(new Microsoft.UI.Xaml.Shapes.Path
-        {
-            Data = lineGeo,
-            Stroke = accent,
-            StrokeThickness = 2.5,
-            StrokeLineJoin = PenLineJoin.Round,
-            StrokeStartLineCap = PenLineCap.Round,
-            StrokeEndLineCap = PenLineCap.Round
-        });
-
-        // Point markers (peak emphasized) + tooltips.
-        for (var i = 0; i < count; i++)
-        {
-            var isPeak = i == patterns.PeakIndex;
-            var p = pts[i];
-            var size = isPeak ? 11.0 : 6.0;
-            var dot = new Ellipse
-            {
-                Width = size,
-                Height = size,
-                Fill = isPeak ? peakFill : accent,
-                Stroke = cardBg,
-                StrokeThickness = 2
-            };
-            Canvas.SetLeft(dot, p.X - size / 2);
-            Canvas.SetTop(dot, p.Y - size / 2);
-            ToolTipService.SetToolTip(dot, $"{patterns.Labels[i]} · {patterns.Values[i]} messages");
-            canvas.Children.Add(dot);
-
-            if (isPeak)
-            {
-                var lbl = new TextBlock
-                {
-                    Text = patterns.Values[i].ToString(),
-                    FontSize = 11,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = peakFill
-                };
-                lbl.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                var lx = Math.Clamp(p.X - lbl.DesiredSize.Width / 2, 0, width - lbl.DesiredSize.Width);
-                Canvas.SetLeft(lbl, lx);
-                Canvas.SetTop(lbl, Math.Max(0, p.Y - size / 2 - lbl.DesiredSize.Height - 2));
-                canvas.Children.Add(lbl);
-            }
-        }
-
-        // Axis labels aligned under each point. Thin to every 3rd for the dense 24-hour view.
-        for (var i = 0; i < count; i++)
-        {
-            var isPeak = i == patterns.PeakIndex;
-            var showLabel = count <= 12 || i % 3 == 0 || isPeak;
-            if (!showLabel)
-            {
-                continue;
-            }
-
-            var axisLabel = new TextBlock
-            {
-                Text = patterns.Labels[i],
-                FontSize = 10,
-                Foreground = isPeak ? peakFill : labelBrush,
-                FontWeight = isPeak ? FontWeights.SemiBold : FontWeights.Normal
-            };
-            axisLabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            var ax = Math.Clamp(pts[i].X - axisLabel.DesiredSize.Width / 2, 0, width - axisLabel.DesiredSize.Width);
-            Canvas.SetLeft(axisLabel, ax);
-            Canvas.SetTop(axisLabel, 0);
-            AxisHost.Children.Add(axisLabel);
-        }
-    }
-
-    /// <summary>
-    /// Builds a Catmull-Rom-smoothed path figure through <paramref name="pts"/>. When
-    /// <paramref name="closeArea"/> is set, the figure drops to <paramref name="baselineY"/> at both ends
-    /// and closes, yielding a fillable area under the curve.
-    /// </summary>
-    private static PathFigure BuildSmoothFigure(IReadOnlyList<Point> pts, bool closeArea, double baselineY)
-    {
-        var fig = new PathFigure();
-        if (closeArea)
-        {
-            fig.StartPoint = new Point(pts[0].X, baselineY);
-            fig.Segments.Add(new LineSegment { Point = pts[0] });
-        }
-        else
-        {
-            fig.StartPoint = pts[0];
-        }
-
-        if (pts.Count == 1)
-        {
-            if (closeArea)
-            {
-                fig.Segments.Add(new LineSegment { Point = new Point(pts[0].X, baselineY) });
-                fig.IsClosed = true;
-            }
-            return fig;
-        }
-
-        for (var i = 0; i < pts.Count - 1; i++)
-        {
-            var p0 = i == 0 ? pts[i] : pts[i - 1];
-            var p1 = pts[i];
-            var p2 = pts[i + 1];
-            var p3 = i + 2 < pts.Count ? pts[i + 2] : pts[i + 1];
-
-            var c1 = new Point(p1.X + (p2.X - p0.X) / 6.0, p1.Y + (p2.Y - p0.Y) / 6.0);
-            var c2 = new Point(p2.X - (p3.X - p1.X) / 6.0, p2.Y - (p3.Y - p1.Y) / 6.0);
-            fig.Segments.Add(new BezierSegment { Point1 = c1, Point2 = c2, Point3 = p2 });
-        }
-
-        if (closeArea)
-        {
-            fig.Segments.Add(new LineSegment { Point = new Point(pts[^1].X, baselineY) });
-            fig.IsClosed = true;
-        }
-
-        return fig;
     }
 
     /// <summary>#37: a plain-language week-over-week trend line (this week vs last, busiest day).</summary>
