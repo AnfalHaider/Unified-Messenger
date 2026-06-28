@@ -62,7 +62,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
             _shell.Chrome.SetNotificationPanelVisible(!_shell.Chrome.NotificationPanelVisible);
         WorkspaceSidebar.SettingsRequested += (_, _) => _ = _shell.Navigation.ShowSettingsAsync();
         WorkspaceSidebar.InstanceContextRequested += (_, args) => _shell.ShowInstanceContextMenu(args);
-        WorkspaceSidebar.InstanceReorderRequested += OnInstanceReorderRequested;
         WorkspaceSidebar.ScopeSelectorStateChanged += OnScopeSelectorStateChanged;
         WorkspaceSidebar.Loaded += (_, _) =>
         {
@@ -255,20 +254,6 @@ public sealed partial class MainWindow : Window, IShellUiHost
                 _services.AdapterHealth.EndRecovery(instanceId);
             }
         });
-    }
-
-    private async void OnInstanceReorderRequested(object? sender, (string SourceInstanceId, string TargetInstanceId) args)
-    {
-        try
-        {
-            await _services.Registry.ReorderInstanceBeforeAsync(args.SourceInstanceId, args.TargetInstanceId);
-            _shell.Chrome.RebuildInstanceNavigation();
-            _shell.Chrome.UpdateShellChromeSelection();
-        }
-        catch (Exception ex)
-        {
-            await _services.Dialog.ShowErrorAsync("Could not reorder instance", ex.Message);
-        }
     }
 
     private void OnNotificationHubChanged(object? sender, NotificationHubChangedEventArgs e) =>

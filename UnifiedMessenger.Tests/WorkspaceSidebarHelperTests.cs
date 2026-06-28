@@ -107,18 +107,6 @@ public class WorkspaceSidebarHelperTests
     }
 
     [Theory]
-    [InlineData("inst-1", "inst-2", true)]
-    [InlineData("inst-1", "inst-1", false)]
-    [InlineData(" ", "inst-1", false)]
-    public void ShouldAcceptReorder_ValidatesDistinctInstanceIds(
-        string sourceId,
-        string targetId,
-        bool expected)
-    {
-        Assert.Equal(expected, WorkspaceSidebarHelper.ShouldAcceptReorder(sourceId, targetId));
-    }
-
-    [Theory]
     [InlineData(MemoryTierPreference.Low, "Low")]
     [InlineData(MemoryTierPreference.Normal, "Normal")]
     [InlineData(MemoryTierPreference.High, "High")]
@@ -153,19 +141,5 @@ public class WorkspaceSidebarHelperTests
         Assert.Contains("Sales WhatsApp", tooltip, StringComparison.Ordinal);
         Assert.Contains("Memory tier: High", tooltip, StringComparison.Ordinal);
         Assert.Contains("Adapter: Adapter ready", tooltip, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ResolveDropTargetInstanceId_MatchesRowBounds()
-    {
-        var bounds = new List<SidebarRowBounds>
-        {
-            new("inst-a", 0, 40),
-            new("inst-b", 41, 80)
-        };
-
-        Assert.Equal("inst-a", WorkspaceSidebarHelper.ResolveDropTargetInstanceId(20, bounds));
-        Assert.Equal("inst-b", WorkspaceSidebarHelper.ResolveDropTargetInstanceId(60, bounds));
-        Assert.Null(WorkspaceSidebarHelper.ResolveDropTargetInstanceId(200, bounds));
     }
 }

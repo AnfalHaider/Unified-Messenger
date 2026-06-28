@@ -53,21 +53,6 @@ public class InstanceRegistryServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ReorderInstanceBeforeAsync_MovesSourceBeforeTarget()
-    {
-        var registry = new InstanceRegistryService(_storePath);
-        await registry.AddInstanceAsync("First", "whatsapp", null);
-        await registry.AddInstanceAsync("Second", "whatsapp", null);
-        var third = await registry.AddInstanceAsync("Third", "whatsappbusiness", null);
-        var first = registry.Instances.First(i => i.DisplayName == "First");
-
-        await registry.ReorderInstanceBeforeAsync(third.Id, first.Id);
-
-        var ordered = registry.GetOrderedInstances().Select(i => i.DisplayName).ToList();
-        Assert.Equal(["Third", "First", "Second"], ordered);
-    }
-
-    [Fact]
     public async Task UpdateInstanceMetadataAsync_UpdatesPlatformAndNotes()
     {
         var registry = new InstanceRegistryService(_storePath);

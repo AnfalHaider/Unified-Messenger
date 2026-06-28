@@ -236,33 +236,4 @@ public static class WorkspaceSidebarHelper
             }
         };
 
-    public static bool ShouldAcceptReorder(string? sourceInstanceId, string? targetInstanceId)
-    {
-        if (!ShellNavigationService.IsValidInstanceId(sourceInstanceId) ||
-            !ShellNavigationService.IsValidInstanceId(targetInstanceId))
-        {
-            return false;
-        }
-
-        return !sourceInstanceId!.Trim().Equals(targetInstanceId!.Trim(), StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static string? ResolveDropTargetInstanceId(
-        double dropY,
-        IReadOnlyList<SidebarRowBounds> rowBounds)
-    {
-        ArgumentNullException.ThrowIfNull(rowBounds);
-
-        foreach (var bounds in rowBounds)
-        {
-            if (dropY >= bounds.Top && dropY <= bounds.Bottom)
-            {
-                return bounds.InstanceId;
-            }
-        }
-
-        return null;
-    }
 }
-
-internal readonly record struct SidebarRowBounds(string InstanceId, double Top, double Bottom);

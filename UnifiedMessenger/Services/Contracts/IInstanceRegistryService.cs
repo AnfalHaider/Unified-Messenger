@@ -68,11 +68,6 @@ public interface IInstanceRegistryService
         int direction,
         CancellationToken cancellationToken = default);
 
-    Task ReorderInstanceBeforeAsync(
-        string instanceId,
-        string targetInstanceId,
-        CancellationToken cancellationToken = default);
-
     Task UpdateInstanceMemoryTierAsync(
         string instanceId,
         MemoryTierPreference tier,

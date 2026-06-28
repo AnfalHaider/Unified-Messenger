@@ -423,50 +423,6 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         }
     }
 
-    public async Task ReorderInstanceBeforeAsync(
-        string instanceId,
-        string targetInstanceId,
-        CancellationToken cancellationToken = default)
-    {
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            var instance = FindByIdNoLock(instanceId)
-                ?? throw new InvalidOperationException("Instance not found.");
-            var target = FindByIdNoLock(targetInstanceId)
-                ?? throw new InvalidOperationException("Target instance not found.");
-
-            if (instance.IsProfessional != target.IsProfessional)
-            {
-                return;
-            }
-
-            var peers = _store.Instances
-                .Where(i => i.IsProfessional == instance.IsProfessional)
-                .OrderBy(i => i.SortOrder)
-                .ThenBy(i => i.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            peers.Remove(instance);
-            var targetIndex = peers.FindIndex(i => i.Id.Equals(targetInstanceId, StringComparison.OrdinalIgnoreCase));
-            if (targetIndex < 0)
-            {
-                peers.Add(instance);
-            }
-            else
-            {
-                peers.Insert(targetIndex, instance);
-            }
-
-            RenormalizeSortOrders(peers, preserveListOrder: true);
-            await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
-
     public async Task UpdateInstanceMemoryTierAsync(
         string instanceId,
         MemoryTierPreference tier,

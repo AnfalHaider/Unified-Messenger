@@ -65,8 +65,6 @@ public sealed partial class WorkspaceSidebar : Grid
         InitializeComponent();
         ApplyBrandWordmarkForTheme();
         ActualThemeChanged += (_, _) => ApplyBrandWordmarkForTheme();
-        // Drag-to-reorder disabled (froze the app) — reorder is via the right-click Move up/down menu.
-        MenuStack.AllowDrop = false;
         Unloaded += OnUnloaded;
     }
 
@@ -82,12 +80,6 @@ public sealed partial class WorkspaceSidebar : Grid
 
         BrandWordmarkImage.Source = new BitmapImage(new Uri(assetPath));
     }
-
-    // Drag reorder is disabled (WinUI drag-in-ScrollViewer freeze bug); this event is subscribed externally
-    // and will be re-wired when drag is re-enabled.
-#pragma warning disable CS0067
-    public event EventHandler<(string SourceInstanceId, string TargetInstanceId)>? InstanceReorderRequested;
-#pragma warning restore CS0067
 
     public event EventHandler? DashboardRequested;
 
@@ -781,8 +773,6 @@ public sealed partial class WorkspaceSidebar : Grid
         row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
         row.Tapped += (_, _) => InstanceRequested?.Invoke(this, instanceId);
         row.KeyDown += (sender, e) => InstanceRow_KeyDown(sender, e, instanceId, instance, row);
-        // Drag reorder disabled — WinUI drag-in-ScrollViewer freeze bug. Re-enable with MenuStack_DragOver/Drop handlers when resolved.
-        row.CanDrag = false;
         ToolTipService.SetToolTip(
             row,
             WorkspaceSidebarHelper.ComposeInstanceTooltip(
