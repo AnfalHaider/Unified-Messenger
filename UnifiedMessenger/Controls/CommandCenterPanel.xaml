@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="using:UnifiedMessenger.ViewModels"
     mc:Ignorable="d">
 
     <Grid RowSpacing="12">
@@ -76,67 +77,43 @@
             </StackPanel>
         </Grid>
 
-        <!-- Row 1 — at-a-glance KPI summary band + AI shift briefing -->
+        <!-- Row 1 — at-a-glance KPI summary band (responsive, wraps) + AI shift briefing -->
         <StackPanel Grid.Row="1" Spacing="10">
-        <Grid x:Name="KpiBand" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Border
-                Grid.Column="0"
-                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                CornerRadius="8"
-                Padding="14,10">
-                <StackPanel Spacing="1">
-                    <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Caught up" />
-                    <TextBlock x:Name="KpiCaughtUpValue" FontSize="24" FontWeight="SemiBold" Text="—" />
-                    <TextBlock x:Name="KpiCaughtUpHint" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="across all accounts" />
-                </StackPanel>
-            </Border>
-
-            <Border
-                Grid.Column="1"
-                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                CornerRadius="8"
-                Padding="14,10">
-                <StackPanel Spacing="1">
-                    <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Awaiting reply" />
-                    <TextBlock x:Name="KpiAwaitingValue" FontSize="24" FontWeight="SemiBold" Text="—" />
-                    <TextBlock x:Name="KpiAwaitingHint" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="customers waiting" />
-                </StackPanel>
-            </Border>
-
-            <Border
-                Grid.Column="2"
-                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                CornerRadius="8"
-                Padding="14,10">
-                <StackPanel Spacing="1">
-                    <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Messages / day" />
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock x:Name="KpiMessagesValue" FontSize="24" FontWeight="SemiBold" Text="—" />
-                        <TextBlock x:Name="KpiMessagesDelta" FontSize="11" VerticalAlignment="Bottom" Margin="0,0,0,5" />
-                    </StackPanel>
-                    <TextBlock x:Name="KpiMessagesHint" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="7-day average" />
-                </StackPanel>
-            </Border>
-
-            <Border
-                Grid.Column="3"
-                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                CornerRadius="8"
-                Padding="14,10">
-                <StackPanel Spacing="1">
-                    <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="Busiest window" />
-                    <TextBlock x:Name="KpiBusiestValue" FontSize="24" FontWeight="SemiBold" Foreground="{ThemeResource SystemFillColorCautionBrush}" Text="—" />
-                    <TextBlock x:Name="KpiBusiestHint" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="peak hour" />
-                </StackPanel>
-            </Border>
-        </Grid>
+        <ItemsRepeater x:Name="KpiBand">
+            <ItemsRepeater.Layout>
+                <UniformGridLayout
+                    MinItemWidth="158"
+                    MinColumnSpacing="12"
+                    MinRowSpacing="12"
+                    ItemsStretch="Fill" />
+            </ItemsRepeater.Layout>
+            <ItemsRepeater.ItemTemplate>
+                <DataTemplate x:DataType="vm:KpiTileViewModel">
+                    <Border
+                        Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                        CornerRadius="8"
+                        Padding="14,10"
+                        Tapped="OnKpiTileTapped"
+                        Tag="{x:Bind ActionKey}"
+                        ToolTipService.ToolTip="{x:Bind Tooltip}">
+                        <StackPanel Spacing="1">
+                            <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Label}" />
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock FontSize="24" FontWeight="SemiBold" Text="{x:Bind Value}" Foreground="{x:Bind ValueBrush}" />
+                                <TextBlock
+                                    FontSize="11"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,0,5"
+                                    Text="{x:Bind Delta}"
+                                    Foreground="{x:Bind DeltaBrush}"
+                                    Visibility="{x:Bind DeltaVisibility}" />
+                            </StackPanel>
+                            <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{x:Bind Hint}" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsRepeater.ItemTemplate>
+        </ItemsRepeater>
 
         <Border
             x:Name="BriefingStrip"

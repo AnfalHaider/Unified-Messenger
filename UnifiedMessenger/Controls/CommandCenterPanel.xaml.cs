@@ -9,6 +9,7 @@ using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Ai;
 using UnifiedMessenger.Services.Backfill;
+using UnifiedMessenger.ViewModels;
 
 namespace UnifiedMessenger.Controls;
 
@@ -293,7 +294,7 @@ public sealed partial class CommandCenterPanel : UserControl
         var kpiEntities = grouping == OversightGrouping.ByLocation
             ? _services.Oversight.BuildSnapshot(OversightGrouping.ByInstance, instances, window, rangeStart, rangeEnd).Entities
             : snapshot.Entities;
-        RenderKpiBand(kpiEntities, instances);
+        RenderKpiBand(kpiEntities, instances, rangeStart, rangeEnd);
 
         // Informational digest ("since you were last here") — neutral info banner, dismissible, shown once.
         if (!_digestDismissed && TryBuildDigestBanner(instances, out var digestText))
@@ -849,10 +850,15 @@ public sealed partial class CommandCenterPanel : UserControl
     /// </summary>
     private void RenderKpiBand(
         IReadOnlyList<OversightEntityHealth> entities,
-        IReadOnlyList<MessengerInstance> instances)
+        IReadOnlyList<MessengerInstance> instances,
+        DateTimeOffset? rangeStart,
+        DateTimeOffset? rangeEnd)
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
         var success = Brush("SystemFillColorSuccessBrush");
+        var primary = Brush("TextFillColorPrimaryBrush");
+        var caution = Brush("SystemFillColorCautionBrush");
+        var tiles = new List<KpiTileViewModel>(6);
 
         // Caught-up %: measured-count-weighted average across accounts that actually have live data.
         var live = entities.Where(e => e.MeasuredCount > 0).ToList();
@@ -860,63 +866,139 @@ public sealed partial class CommandCenterPanel : UserControl
         int? overallPct = null;
         if (measured > 0)
         {
-            var pct = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
-            overallPct = pct;
-            KpiCaughtUpValue.Text = $"{pct}%";
-            KpiCaughtUpValue.Foreground = StatusBrushForPercent(pct);
+            overallPct = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
         }
-        else
+
+        tiles.Add(new KpiTileViewModel
         {
-            KpiCaughtUpValue.Text = "—";
-            KpiCaughtUpValue.Foreground = secondary;
-        }
+            Label = "Caught up",
+            Value = overallPct is { } p ? $"{p}%" : "—",
+            ValueBrush = overallPct is { } pp ? StatusBrushForPercent(pp) : secondary,
+            Hint = "unread cleared, across accounts",
+            ActionKey = overallPct is null ? string.Empty : "caughtup",
+            Tooltip = "Share of active chats with no unread messages. This measures unread cleared — not reply speed (see Response time)."
+        });
 
         var totalAwaiting = entities.Sum(e => e.AwaitingCount);
         var behind = entities.Count(e => e.AwaitingCount > 0);
-        KpiAwaitingValue.Text = totalAwaiting.ToString();
-        KpiAwaitingValue.Foreground = totalAwaiting > 0 ? Brush("TextFillColorPrimaryBrush") : success;
-        KpiAwaitingHint.Text = behind switch
+        tiles.Add(new KpiTileViewModel
         {
-            0 => "all accounts clear",
-            1 => "1 account behind",
-            _ => $"{behind} accounts behind"
-        };
+            Label = "Awaiting reply",
+            Value = totalAwaiting.ToString(),
+            ValueBrush = totalAwaiting > 0 ? primary : success,
+            Hint = behind switch { 0 => "all accounts clear", 1 => "1 account behind", _ => $"{behind} accounts behind" },
+            ActionKey = totalAwaiting > 0 ? "awaiting" : string.Empty,
+            Tooltip = "Customers still waiting on a first reply. Click to see them, most urgent first."
+        });
+
+        // Response time (FRT) + SLA compliance — forward-tracked from real message timestamps.
+        var slaThreshold = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+        var response = ResponseTimeTracker.Instance.GetStats(instances, rangeStart, rangeEnd, slaThreshold);
+        tiles.Add(new KpiTileViewModel
+        {
+            Label = "Response time",
+            Value = response.HasData ? FormatMinutes(response.MedianMinutes) : "—",
+            ValueBrush = response.HasData ? ResponseBrush(response.MedianMinutes, slaThreshold) : secondary,
+            Hint = response.HasData ? $"median · {response.SampleCount} replies" : "builds as you reply",
+            Tooltip = $"Median time from a customer's message to your first reply (measured live since tracking began). Target: under {slaThreshold} min."
+        });
+
+        tiles.Add(new KpiTileViewModel
+        {
+            Label = "SLA met",
+            Value = response.HasData ? $"{response.SlaCompliancePercent}%" : "—",
+            ValueBrush = response.HasData ? StatusBrushForPercent(response.SlaCompliancePercent) : secondary,
+            Hint = response.HasData ? $"replied within {slaThreshold} min" : $"target {slaThreshold} min",
+            Tooltip = $"Share of replies sent within your {slaThreshold}-minute SLA target. Adjust the target in Settings → Session & performance."
+        });
 
         // Messages/day — 7-day inbound average + change vs the prior week (from the activity history log).
         var perDay = MessageAnalyticsService.Instance.GetMessagesPerDay(instances);
-        if (perDay.HasData)
+        var perDayDelta = string.Empty;
+        Brush? perDayDeltaBrush = null;
+        if (perDay is { HasData: true, DeltaCount: not 0 })
         {
-            KpiMessagesValue.Text = perDay.AveragePerDay.ToString();
-            KpiMessagesValue.Foreground = Brush("TextFillColorPrimaryBrush");
-            if (perDay.DeltaCount == 0)
-            {
-                KpiMessagesDelta.Text = string.Empty;
-            }
-            else
-            {
-                var up = perDay.DeltaCount > 0;
-                KpiMessagesDelta.Text = $"{(up ? "▲" : "▼")} {Math.Abs(perDay.DeltaCount)}";
-                // More inbound isn't "bad" — keep the delta neutral-positive (caution only signals nothing here).
-                KpiMessagesDelta.Foreground = up ? Brush("SystemFillColorSuccessBrush") : secondary;
-            }
+            var up = perDay.DeltaCount > 0;
+            perDayDelta = $"{(up ? "▲" : "▼")} {Math.Abs(perDay.DeltaCount)}";
+            perDayDeltaBrush = up ? success : secondary;
         }
-        else
+
+        tiles.Add(new KpiTileViewModel
         {
-            KpiMessagesValue.Text = "—";
-            KpiMessagesValue.Foreground = secondary;
-            KpiMessagesDelta.Text = string.Empty;
-        }
+            Label = "Messages / day",
+            Value = perDay.HasData ? perDay.AveragePerDay.ToString() : "—",
+            ValueBrush = perDay.HasData ? primary : secondary,
+            Delta = perDayDelta,
+            DeltaBrush = perDayDeltaBrush,
+            Hint = "7-day average",
+            ActionKey = perDay.HasData ? "busiest" : string.Empty,
+            Tooltip = "Average inbound customer messages per day over the last 7 days, vs the prior week. Click to open the activity graph."
+        });
 
         // Busiest window — peak inbound hour + day (from the same history log feeding the graph).
         var (busyHour, busyDay) = MessageAnalyticsService.Instance.GetBusiestWindow(instances);
-        KpiBusiestValue.Text = busyHour;
-        KpiBusiestValue.Foreground = busyHour == "—" ? secondary : Brush("SystemFillColorCautionBrush");
-        KpiBusiestHint.Text = busyDay == "—" ? "peak hour" : $"peak hour · {busyDay}";
+        tiles.Add(new KpiTileViewModel
+        {
+            Label = "Busiest window",
+            Value = busyHour,
+            ValueBrush = busyHour == "—" ? secondary : caution,
+            Hint = busyDay == "—" ? "peak hour" : $"peak hour · {busyDay}",
+            ActionKey = busyHour == "—" ? string.Empty : "busiest",
+            Tooltip = "Your peak inbound hour and weekday — plan coverage around it. Click to open the activity graph."
+        });
 
+        KpiBand.ItemsSource = tiles;
         KpiBand.Visibility = Visibility.Visible;
 
         RenderBriefing(entities, instances, overallPct, totalAwaiting, behind, busyHour);
     }
+
+    private static string FormatMinutes(double minutes)
+    {
+        if (minutes < 1)
+        {
+            return "<1m";
+        }
+
+        if (minutes < 60)
+        {
+            return $"{Math.Round(minutes)}m";
+        }
+
+        var hours = minutes / 60.0;
+        return hours < 24 ? $"{hours:0.#}h" : $"{Math.Round(hours / 24.0)}d";
+    }
+
+    private Brush ResponseBrush(double medianMinutes, int slaThreshold) =>
+        medianMinutes <= slaThreshold ? Brush("SystemFillColorSuccessBrush")
+        : medianMinutes <= slaThreshold * 2 ? Brush("SystemFillColorCautionBrush")
+        : Brush("SystemFillColorCriticalBrush");
+
+    /// <summary>Routes a KPI tile tap to the matching drill-down (mode switch, account jump, or activity graph).</summary>
+    private void OnKpiTileTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not string action || string.IsNullOrEmpty(action))
+        {
+            return;
+        }
+
+        switch (action)
+        {
+            case "awaiting":
+                SelectMode(NeedsReplyButton);
+                break;
+            case "caughtup":
+                OnAttentionJump(sender, e);
+                break;
+            case "busiest":
+            case "messages":
+                DashboardActivityRequested?.Invoke(this, EventArgs.Empty);
+                break;
+        }
+    }
+
+    /// <summary>Raised when a KPI tile asks to open the activity graph (the dashboard scrolls it into view).</summary>
+    public event EventHandler? DashboardActivityRequested;
 
     private const string BriefingSystemPrompt =
         "You are an operations assistant for a multi-location business owner monitoring WhatsApp customer " +

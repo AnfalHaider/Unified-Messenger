@@ -11,6 +11,7 @@
     xmlns:local="using:UnifiedMessenger.Pages">
 
     <ScrollViewer
+        x:Name="DashboardScrollViewer"
         Padding="24,20"
         VerticalScrollBarVisibility="Auto"
         HorizontalScrollMode="Disabled">

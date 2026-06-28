@@ -61,6 +61,7 @@ public sealed partial class DashboardPage : Page
         // Single dashboard-wide Re-sync: the command center raises the request; we orchestrate the full
         // refresh (oversight history + activity graph + Google reviews) so there's one button, not three.
         CommandCenterPanel.DashboardResyncRequested += OnDashboardResyncRequested;
+        CommandCenterPanel.DashboardActivityRequested += OnDashboardActivityRequested;
 
         _services.DashboardRefresh.Attach(DispatcherQueue);
         _services.DashboardRefresh.Subscribe();
@@ -80,6 +81,17 @@ public sealed partial class DashboardPage : Page
     }
 
     private void OnDashboardResyncRequested(object? sender, EventArgs e) => _ = RunDashboardResyncAsync();
+
+    // A KPI tile (Busiest window / Messages per day) asked to open the activity graph — scroll it into view.
+    private void OnDashboardActivityRequested(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            var transform = ActivityPatternsPanel.TransformToVisual(DashboardScrollViewer.Content as UIElement);
+            var target = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+            DashboardScrollViewer.ChangeView(null, Math.Max(0, target.Y - 12), null, disableAnimation: false);
+        });
+    }
 
     /// <summary>
     /// The dashboard's single Re-sync action: re-read oversight history, then refresh the activity graph and
@@ -110,6 +122,7 @@ public sealed partial class DashboardPage : Page
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
         CommandCenterPanel.DashboardResyncRequested -= OnDashboardResyncRequested;
+        CommandCenterPanel.DashboardActivityRequested -= OnDashboardActivityRequested;
 
         _services.DashboardRefresh.RefreshRequested -= OnCoordinatorRefreshRequested;
         _services.DashboardRefresh.Unsubscribe();
