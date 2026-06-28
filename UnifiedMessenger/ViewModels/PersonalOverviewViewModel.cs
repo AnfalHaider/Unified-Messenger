@@ -23,6 +23,12 @@ public partial class PersonalOverviewViewModel : ViewModelBase
     private long _appWorkingSetMegabytes;
 
     [ObservableProperty]
+    private long _totalWorkingSetMegabytes;
+
+    [ObservableProperty]
+    private int _webView2ProcessCount;
+
+    [ObservableProperty]
     private string _visibleInstanceName = "None";
 
     [ObservableProperty]
@@ -74,6 +80,8 @@ public partial class PersonalOverviewViewModel : ViewModelBase
         PersonalAccountCount = viewState.PersonalAccountCount;
         TotalUnreadCount = viewState.TotalUnreadCount;
         AppWorkingSetMegabytes = viewState.AppWorkingSetMegabytes;
+        TotalWorkingSetMegabytes = viewState.TotalWorkingSetMegabytes;
+        WebView2ProcessCount = viewState.WebView2ProcessCount;
         VisibleInstanceName = viewState.VisibleInstanceName;
         LastUpdatedText = viewState.LastUpdatedText;
         ShowQuickAction = viewState.QuickAction.IsVisible;

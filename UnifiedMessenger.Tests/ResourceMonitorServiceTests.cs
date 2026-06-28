@@ -94,6 +94,51 @@ public class ResourceMonitorServiceTests
     }
 
     [Fact]
+    public void AggregateWebViewMemory_SumsPositiveSamplesAndCountsThem()
+    {
+        // A process can exit between enumeration and the WorkingSet64 read → 0/negative samples are skipped.
+        var (totalBytes, count) = ResourceMonitorService.AggregateWebViewMemory(
+            [100_000_000, 0, 250_000_000, -1, 50_000_000]);
+
+        Assert.Equal(400_000_000, totalBytes);
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public void AggregateWebViewMemory_NoProcesses_ReturnsZero()
+    {
+        var (totalBytes, count) = ResourceMonitorService.AggregateWebViewMemory([]);
+
+        Assert.Equal(0, totalBytes);
+        Assert.Equal(0, count);
+    }
+
+    [Fact]
+    public void Capture_IncludesWebViewChildProcessesInTotalMemory()
+    {
+        var hub = NotificationHub.CreateForTests();
+        var sessionManager = new InstanceSessionManager();
+        var healthMonitor = AdapterHealthMonitor.Instance;
+
+        // App process = 100 MB; three WebView2 children = 200 + 150 + 50 = 400 MB → total 500 MB.
+        var service = ResourceMonitorService.CreateForTests(
+            workingSetBytesProvider: () => 100L * 1024 * 1024,
+            webViewWorkingSetsProvider: () =>
+                [200L * 1024 * 1024, 150L * 1024 * 1024, 50L * 1024 * 1024]);
+
+        var snapshot = service.Capture(
+            [new MessengerInstance { Id = "inst-1", DisplayName = "One", Platform = "whatsapp" }],
+            sessionManager,
+            hub,
+            healthMonitor);
+
+        Assert.Equal(100, snapshot.WorkingSetMegabytes);
+        Assert.Equal(400, snapshot.WebView2WorkingSetMegabytes);
+        Assert.Equal(3, snapshot.WebView2ProcessCount);
+        Assert.Equal(500, snapshot.TotalWorkingSetMegabytes);
+    }
+
+    [Fact]
     public void Capture_OrdersTilesAndUsesInjectedWorkingSet()
     {
         var hub = NotificationHub.CreateForTests();

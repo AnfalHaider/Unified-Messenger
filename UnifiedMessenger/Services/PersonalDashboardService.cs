@@ -52,6 +52,12 @@ public sealed class PersonalDashboardSnapshot
 
     public long AppWorkingSetMegabytes { get; init; }
 
+    /// <summary>App process + all WebView2 child processes — the honest total RAM footprint.</summary>
+    public long TotalWorkingSetMegabytes { get; init; }
+
+    /// <summary>Number of live WebView2 processes backing the open sessions.</summary>
+    public int WebView2ProcessCount { get; init; }
+
     public string VisibleInstanceName { get; init; } = "None";
 
     public string? MostUnreadInstanceId { get; init; }
@@ -121,6 +127,8 @@ public sealed class PersonalDashboardService
             PersonalAccountCount = resourceSnapshot.ActiveAccountCount,
             TotalUnreadCount = resourceSnapshot.TotalUnreadCount,
             AppWorkingSetMegabytes = resourceSnapshot.WorkingSetMegabytes,
+            TotalWorkingSetMegabytes = resourceSnapshot.TotalWorkingSetMegabytes,
+            WebView2ProcessCount = resourceSnapshot.WebView2ProcessCount,
             VisibleInstanceName = resourceSnapshot.VisibleInstanceName,
             MostUnreadInstanceId = mostUnread is { UnreadCount: > 0 } ? mostUnread.InstanceId : null,
             MostUnreadCount = mostUnread?.UnreadCount ?? 0,

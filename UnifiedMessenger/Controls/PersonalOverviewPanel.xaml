@@ -131,7 +131,7 @@
                     x:Name="SummaryCardMemory"
                     Grid.Row="1"
                     MetricAutomationId="PersonalMetric_Memory"
-                    Label="App memory"
+                    Label="Memory"
                     Value="0 MB" />
 
                 <shared:MetricCardView

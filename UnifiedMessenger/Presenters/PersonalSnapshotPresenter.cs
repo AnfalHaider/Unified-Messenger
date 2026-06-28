@@ -57,6 +57,8 @@ public static class PersonalSnapshotPresenter
             PersonalAccountCount = snapshot.PersonalAccountCount,
             TotalUnreadCount = snapshot.TotalUnreadCount,
             AppWorkingSetMegabytes = snapshot.AppWorkingSetMegabytes,
+            TotalWorkingSetMegabytes = snapshot.TotalWorkingSetMegabytes,
+            WebView2ProcessCount = snapshot.WebView2ProcessCount,
             VisibleInstanceName = snapshot.VisibleInstanceName,
             LastUpdatedText = DashboardPageHelper.FormatPersonalLastUpdated(snapshot.CapturedAtUtc),
             QuickAction = BuildQuickAction(snapshot),

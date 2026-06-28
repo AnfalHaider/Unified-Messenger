@@ -427,6 +427,8 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
 
     internal void TrackAccessForTests(string instanceId) => TouchAccessOrder(instanceId);
 
+    internal void RemoveAccessForTests(string instanceId) => RemoveAccessTracking(instanceId);
+
     internal void SetVisibleInstanceForTests(string? instanceId) => _visibleInstanceId = instanceId;
 
     private async Task EnforceSessionCapAsync(string incomingInstanceId, CancellationToken cancellationToken)

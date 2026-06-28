@@ -147,7 +147,10 @@ public sealed partial class PersonalOverviewPanel : UserControl
     {
         SummaryCardAccounts.Value = _viewModel.PersonalAccountCount.ToString();
         SummaryCardUnread.Value = _viewModel.TotalUnreadCount.ToString();
-        SummaryCardMemory.Value = $"{_viewModel.AppWorkingSetMegabytes} MB";
+        SummaryCardMemory.Value = $"{_viewModel.TotalWorkingSetMegabytes} MB";
+        SummaryCardMemory.Subtext = _viewModel.WebView2ProcessCount > 0
+            ? $"app {_viewModel.AppWorkingSetMegabytes} MB · {_viewModel.WebView2ProcessCount} WebView procs"
+            : $"app {_viewModel.AppWorkingSetMegabytes} MB";
         SummaryCardActive.Value = _viewModel.VisibleInstanceName;
         PersonalLastUpdatedText.Text = _viewModel.LastUpdatedText;
 
