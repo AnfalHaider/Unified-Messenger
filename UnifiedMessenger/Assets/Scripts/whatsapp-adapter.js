@@ -783,22 +783,45 @@
     return { ok: payloadRows.length > 0, rows: payloadRows };
   };
 
+  // True when a message belongs to a non-customer chat: groups (@g.us), WhatsApp Status
+  // (status@broadcast), broadcast lists (@broadcast), and channels (@newsletter). These previously
+  // inflated the dashboard's inbound counts massively (Status alone can be hundreds/day), so the
+  // metrics claimed e.g. 751 msgs/day when direct customer volume was far lower.
+  function umIsNonCustomerMessage(msg, primaryKey) {
+    var key = String((msg && (msg.id || (msg.key && msg.key.remoteJid))) || primaryKey || '');
+    return key.indexOf('@g.us') >= 0 ||
+           key.indexOf('status@broadcast') >= 0 ||
+           key.indexOf('@broadcast') >= 0 ||
+           key.indexOf('@newsletter') >= 0;
+  }
+
+  // The user's LOCAL calendar day (yyyy-MM-dd). The old toISOString() sliced the UTC day, which pushed
+  // every evening message (in UTC+ timezones) onto the previous day — skewing daily totals and the
+  // day-of-week chart exactly where traffic peaks.
+  function umLocalDayKey(when) {
+    var m = when.getMonth() + 1;
+    var d = when.getDate();
+    return when.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (d < 10 ? '0' + d : d);
+  }
+
   function readMessageDailyAggregatesFromDb(db, callback) {
     try {
       if (!db.objectStoreNames.contains('message')) {
-        callback({ sent: {}, received: {}, receivedByHour: [] });
+        callback({ sent: {}, received: {}, receivedByHour: [], receivedByDayHour: {} });
         return;
       }
 
       var sent = Object.create(null);
       var received = Object.create(null);
-      // Per-hour histogram of RECEIVED (inbound) messages, bucketed by the user's LOCAL hour — actual
-      // per-message counts, so the "hour of day" chart reflects real volume and updates as messages arrive
-      // (replacing the old dedupe-gated per-conversation count that never grew).
+      // Lifetime per-hour histogram (kept for back-compat with stores that predate the matrix)…
       var receivedByHour = [];
       for (var h = 0; h < 24; h++) {
         receivedByHour[h] = 0;
       }
+      // …and the per-day × per-hour matrix { 'yyyy-MM-dd': [24 counts] } (both LOCAL time), so the
+      // hour-of-day chart can honour the date-range filter instead of always showing all-time.
+      var receivedByDayHour = Object.create(null);
+
       var txn = db.transaction('message', 'readonly');
       var store = txn.objectStore('message');
       var cursorReq = store.openCursor();
@@ -806,19 +829,27 @@
       cursorReq.onsuccess = function (event) {
         var cursor = event.target.result;
         if (!cursor) {
-          callback({ sent: sent, received: received, receivedByHour: receivedByHour });
+          callback({ sent: sent, received: received, receivedByHour: receivedByHour, receivedByDayHour: receivedByDayHour });
           return;
         }
 
         var msg = cursor.value;
-        if (msg && msg.t) {
+        if (msg && msg.t && !umIsNonCustomerMessage(msg, cursor.primaryKey)) {
           var when = new Date(msg.t * 1000);
-          var day = when.toISOString().slice(0, 10);
+          var day = umLocalDayKey(when);
           if (msg.fromMe) {
             sent[day] = (sent[day] || 0) + 1;
           } else {
             received[day] = (received[day] || 0) + 1;
-            receivedByHour[when.getHours()] = (receivedByHour[when.getHours()] || 0) + 1;
+            var hour = when.getHours();
+            receivedByHour[hour] = (receivedByHour[hour] || 0) + 1;
+            var row = receivedByDayHour[day];
+            if (!row) {
+              row = [];
+              for (var i = 0; i < 24; i++) { row[i] = 0; }
+              receivedByDayHour[day] = row;
+            }
+            row[hour]++;
           }
         }
 
@@ -895,7 +926,8 @@
           state: 'done',
           sent: result.sent || {},
           received: result.received || {},
-          receivedByHour: result.receivedByHour || []
+          receivedByHour: result.receivedByHour || [],
+          receivedByDayHour: result.receivedByDayHour || {}
         };
       }
 

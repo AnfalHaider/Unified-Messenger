@@ -419,7 +419,8 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         string instanceId,
         IReadOnlyDictionary<string, int> receivedByDay,
         IReadOnlyDictionary<string, int> sentByDay,
-        IReadOnlyList<int>? receivedByHour = null)
+        IReadOnlyList<int>? receivedByHour = null,
+        IReadOnlyDictionary<string, int[]>? receivedByDayHour = null)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
@@ -444,10 +445,42 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
 
                 stats.HourlyReceived = hourly;
             }
+
+            // Day×hour matrix: the message store is the truth, so REPLACE (a later sync sees strictly more
+            // of the same store; accumulate would double-count). Skipped when empty so an unloaded account
+            // doesn't wipe accrued history.
+            if (receivedByDayHour is { Count: > 0 })
+            {
+                var matrix = new Dictionary<string, int[]>(StringComparer.Ordinal);
+                foreach (var (day, hours) in receivedByDayHour)
+                {
+                    if (string.IsNullOrWhiteSpace(day) || hours is not { Length: 24 })
+                    {
+                        continue;
+                    }
+
+                    matrix[day] = hours.ToArray();
+                }
+
+                if (matrix.Count > 0)
+                {
+                    stats.HourlyReceivedByDay = matrix;
+                    PruneDayHourMatrix(stats.HourlyReceivedByDay);
+                }
+            }
         }
 
         NotifyChanged();
         ScheduleSave();
+    }
+
+    private static void PruneDayHourMatrix(Dictionary<string, int[]> matrix)
+    {
+        var cutoff = DateTime.Now.Date.AddDays(-DailyBucketRetentionDays).ToString("yyyy-MM-dd");
+        foreach (var key in matrix.Keys.Where(k => string.CompareOrdinal(k, cutoff) < 0).ToList())
+        {
+            matrix.Remove(key);
+        }
     }
 
     internal void RecordBackfillSlaCandidateForTests(string instanceId, double latencyMinutes)
@@ -469,11 +502,24 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         stats.LastReceivedUtc = receivedAtUtc;
         IncrementDaily(stats.DailyReceived, 1, receivedAtUtc);
 
-        // Live messages increment the hour bucket in real time; backfill rows don't (the message-store
-        // histogram is authoritative for hour-of-day).
-        if (countHourly && stats.HourlyReceived.Length == 24)
+        // Live messages increment the hour buckets in real time; backfill rows don't (the message-store
+        // histogram/matrix is authoritative for hour-of-day and replaces these on the next Re-sync).
+        if (countHourly)
         {
-            stats.HourlyReceived[receivedAtUtc.LocalDateTime.Hour]++;
+            var local = receivedAtUtc.LocalDateTime;
+            if (stats.HourlyReceived.Length == 24)
+            {
+                stats.HourlyReceived[local.Hour]++;
+            }
+
+            var dayKey = local.ToString("yyyy-MM-dd");
+            if (!stats.HourlyReceivedByDay.TryGetValue(dayKey, out var row) || row.Length != 24)
+            {
+                row = new int[24];
+                stats.HourlyReceivedByDay[dayKey] = row;
+            }
+
+            row[local.Hour]++;
         }
     }
 
@@ -548,25 +594,53 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
 
         return dimension switch
         {
-            ActivityDimension.HourOfDay => BuildHourOfDay(selected),
+            ActivityDimension.HourOfDay => BuildHourOfDay(selected, fromUtc, toUtc),
             ActivityDimension.DayOfWeek => BuildDayOfWeek(selected, fromUtc, toUtc),
             _ => BuildMonth(selected, fromUtc, toUtc)
         };
     }
 
-    private static ActivityPatterns BuildHourOfDay(IReadOnlyList<InstanceMessageStats> selected)
+    private static ActivityPatterns BuildHourOfDay(
+        IReadOnlyList<InstanceMessageStats> selected,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
     {
         var totals = new int[24];
+        // Range-aware: sum the day×hour matrix over days inside the window (so "Last 30 days" ≠ "All time").
+        // Fall back to the lifetime HourlyReceived only for legacy stores that predate the matrix AND have no
+        // matrix data at all, and only when the window is unbounded — otherwise a bounded window would wrongly
+        // show all-time data.
+        var anyMatrix = false;
         foreach (var stats in selected)
         {
-            if (stats.HourlyReceived.Length != 24)
+            foreach (var (day, hours) in stats.HourlyReceivedByDay)
             {
-                continue;
-            }
+                if (hours is not { Length: 24 } || !IsDayInRange(day, fromUtc, toUtc))
+                {
+                    continue;
+                }
 
-            for (var h = 0; h < 24; h++)
+                anyMatrix = true;
+                for (var h = 0; h < 24; h++)
+                {
+                    totals[h] += hours[h];
+                }
+            }
+        }
+
+        if (!anyMatrix && fromUtc is null && toUtc is null)
+        {
+            foreach (var stats in selected)
             {
-                totals[h] += stats.HourlyReceived[h];
+                if (stats.HourlyReceived.Length != 24)
+                {
+                    continue;
+                }
+
+                for (var h = 0; h < 24; h++)
+                {
+                    totals[h] += stats.HourlyReceived[h];
+                }
             }
         }
 
@@ -1026,6 +1100,10 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
     }
 
+    // Days present in the message store on a full scan are authoritative — REPLACE them so a corrected
+    // (customer-only) recount actually lowers previously-inflated counts (Status/group messages used to be
+    // included, ballooning "messages/day"). Days no longer in the store's rolling cache aren't in the
+    // incoming set, so their historical value is preserved untouched.
     private static void MergeBackfillDailyBuckets(
         Dictionary<string, int> target,
         IReadOnlyDictionary<string, int> incoming)
@@ -1037,8 +1115,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
                 continue;
             }
 
-            target.TryGetValue(day, out var existing);
-            target[day] = Math.Max(existing, count);
+            target[day] = count;
         }
     }
 
@@ -1091,8 +1168,15 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             ? stats.HourlyReceived
             : new int[24];
 
+        // Drop malformed rows (wrong length) so downstream loops can trust Length == 24.
+        foreach (var key in stats.HourlyReceivedByDay.Where(kv => kv.Value is not { Length: 24 }).Select(kv => kv.Key).ToList())
+        {
+            stats.HourlyReceivedByDay.Remove(key);
+        }
+
         PruneDailyBuckets(stats.DailySent);
         PruneDailyBuckets(stats.DailyReceived);
+        PruneDayHourMatrix(stats.HourlyReceivedByDay);
     }
 
     private static string FormatAverageReplyTime(double totalMinutes, int replyCount)
@@ -1400,6 +1484,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             DailySent = dto.DailySent ?? new Dictionary<string, int>(StringComparer.Ordinal),
             DailyReceived = dto.DailyReceived ?? new Dictionary<string, int>(StringComparer.Ordinal),
             HourlyReceived = dto.HourlyReceived ?? new int[24],
+            HourlyReceivedByDay = dto.HourlyReceivedByDay ?? new Dictionary<string, int[]>(StringComparer.Ordinal),
             ReplyLatenciesMinutes = dto.ReplyLatenciesMinutes ?? [],
             PendingInboundUtc = dto.PendingInboundUtc ?? new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase),
             LastPairedConversationKey = dto.LastPairedConversationKey,
@@ -1424,6 +1509,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             DailySent = stats.DailySent,
             DailyReceived = stats.DailyReceived,
             HourlyReceived = stats.HourlyReceived,
+            HourlyReceivedByDay = stats.HourlyReceivedByDay,
             ReplyLatenciesMinutes = stats.ReplyLatenciesMinutes,
             PendingInboundUtc = stats.PendingInboundUtc,
             LastPairedConversationKey = stats.LastPairedConversationKey,
@@ -1483,6 +1569,10 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
 
         public int[] HourlyReceived { get; set; } = new int[24];
 
+        /// <summary>Inbound counts per local day per local hour ('yyyy-MM-dd' → 24 ints) — lets the
+        /// hour-of-day chart honour the date-range filter instead of always showing all-time.</summary>
+        public Dictionary<string, int[]> HourlyReceivedByDay { get; set; } = new(StringComparer.Ordinal);
+
         public List<double> ReplyLatenciesMinutes { get; set; } = [];
 
         public Dictionary<string, DateTimeOffset> PendingInboundUtc { get; set; } =
@@ -1526,6 +1616,8 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         public Dictionary<string, int>? DailyReceived { get; set; }
 
         public int[]? HourlyReceived { get; set; }
+
+        public Dictionary<string, int[]>? HourlyReceivedByDay { get; set; }
 
         public List<double>? ReplyLatenciesMinutes { get; set; }
 

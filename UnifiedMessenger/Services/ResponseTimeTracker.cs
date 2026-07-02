@@ -50,6 +50,11 @@ public sealed class ResponseTimeTracker
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, DateTimeOffset>> _pending =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // instanceId -> when this account first came under observation. Messages that arrived earlier are
+    // pre-existing backlog and excluded from FRT (persisted so a restart doesn't re-open the backlog window).
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _watchStartUtc =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // instanceId -> recorded FRT samples (capped, pruned).
     private readonly ConcurrentDictionary<string, List<ResponseSample>> _samples =
         new(StringComparer.OrdinalIgnoreCase);
@@ -91,13 +96,19 @@ public sealed class ResponseTimeTracker
         var id = instanceId.Trim();
         var pendingForInstance = _pending.GetOrAdd(id, _ => new ConcurrentDictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase));
 
+        // Record (or read) when this account first came under observation. Messages that arrived BEFORE this
+        // (pre-existing backlog the owner may have already handled on their phone) must not be attributed to
+        // the business's response time — otherwise the first sync reports a huge, misleading FRT.
+        var watchStart = _watchStartUtc.GetOrAdd(id, _ => DateTimeOffset.UtcNow);
+
         if (lastMessageFromMe)
         {
             // Replied. If we had a pending inbound for this chat, that's a completed response → record FRT.
             if (pendingForInstance.TryRemove(conversationKey, out var inboundUtc))
             {
                 var frt = lastActivityUtc - inboundUtc;
-                if (frt > TimeSpan.Zero && frt <= MaxCredibleResponse)
+                // Only count responses to messages that arrived after we started watching this account.
+                if (inboundUtc >= watchStart && frt > TimeSpan.Zero && frt <= MaxCredibleResponse)
                 {
                     RecordSample(id, lastActivityUtc, frt.TotalMinutes);
                 }
@@ -109,10 +120,18 @@ public sealed class ResponseTimeTracker
         if (isAwaiting)
         {
             // Customer waiting. Remember the earliest unanswered inbound time (don't overwrite a prior one).
-            pendingForInstance.TryAdd(conversationKey, lastActivityUtc);
+            // Skip pre-watch backlog so it can never become a sample.
+            if (lastActivityUtc >= watchStart)
+            {
+                pendingForInstance.TryAdd(conversationKey, lastActivityUtc);
+            }
         }
         // else: not awaiting and not confirmed-replied (ambiguous read) — leave any pending intact.
     }
+
+    /// <summary>Test seam: pins when an account began being observed so pre-watch backlog can be simulated.</summary>
+    internal void SetWatchStartForTests(string instanceId, DateTimeOffset utc) =>
+        _watchStartUtc[instanceId.Trim()] = utc;
 
     private void RecordSample(string instanceId, DateTimeOffset answeredAtUtc, double frtMinutes)
     {
@@ -277,6 +296,11 @@ public sealed class ResponseTimeTracker
 
                     _pending[instanceId] = pending;
                 }
+
+                if (dto.WatchStartUtc is { } ws)
+                {
+                    _watchStartUtc[instanceId] = ws;
+                }
             }
         }
         finally
@@ -373,6 +397,17 @@ public sealed class ResponseTimeTracker
                 dto.Pending = pending.ToDictionary(p => p.Key, p => p.Value, StringComparer.OrdinalIgnoreCase);
             }
 
+            foreach (var (instanceId, watchStart) in _watchStartUtc)
+            {
+                if (!store.Instances.TryGetValue(instanceId, out var dto))
+                {
+                    dto = new InstanceResponseDto();
+                    store.Instances[instanceId] = dto;
+                }
+
+                dto.WatchStartUtc = watchStart;
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
             var tempPath = _storePath + ".tmp";
             await using (var stream = new FileStream(
@@ -408,6 +443,8 @@ public sealed class ResponseTimeTracker
         public List<ResponseSampleDto>? Samples { get; set; }
 
         public Dictionary<string, DateTimeOffset>? Pending { get; set; }
+
+        public DateTimeOffset? WatchStartUtc { get; set; }
     }
 
     private sealed class ResponseSampleDto

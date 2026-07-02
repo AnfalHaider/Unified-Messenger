@@ -23,10 +23,22 @@ public class ResponseTimeTrackerTests : IDisposable
     private static MessengerInstance Inst(string id) =>
         new() { Id = id, DisplayName = id, Platform = "whatsapp" };
 
+    // All test inbounds are recent-but-past; pin watch-start earlier so they count as in-window.
+    private static ResponseTimeTracker NewTracker(string path, params string[] instanceIds)
+    {
+        var tracker = new ResponseTimeTracker(path);
+        foreach (var id in instanceIds)
+        {
+            tracker.SetWatchStartForTests(id, DateTimeOffset.UtcNow.AddDays(-30));
+        }
+
+        return tracker;
+    }
+
     [Fact]
     public void Observe_AwaitingThenReplied_RecordsFrtFromTimestamps()
     {
-        var tracker = new ResponseTimeTracker(_storePath);
+        var tracker = NewTracker(_storePath, "inst-1");
         var inbound = DateTimeOffset.UtcNow.AddMinutes(-30);
 
         // Customer message arrives (awaiting), then we reply 12 minutes later (last message from us).
@@ -44,7 +56,7 @@ public class ResponseTimeTrackerTests : IDisposable
     [Fact]
     public void GetStats_SlaCompliance_CountsOnlyWithinThreshold()
     {
-        var tracker = new ResponseTimeTracker(_storePath);
+        var tracker = NewTracker(_storePath, "inst-1", "inst-2");
         var t0 = DateTimeOffset.UtcNow.AddHours(-2);
 
         // Three responses: 5 min, 10 min, 40 min. With a 15-min SLA, 2 of 3 comply → 67%.
@@ -62,7 +74,7 @@ public class ResponseTimeTrackerTests : IDisposable
     [Fact]
     public void Observe_OnlyAwaiting_NoReply_RecordsNothing()
     {
-        var tracker = new ResponseTimeTracker(_storePath);
+        var tracker = NewTracker(_storePath, "inst-1", "inst-2");
         tracker.Observe("inst-1", "chat-a", isAwaiting: true, lastMessageFromMe: false, DateTimeOffset.UtcNow);
 
         var stats = tracker.GetStats([Inst("inst-1")], null, null, slaThresholdMinutes: 15);
@@ -74,7 +86,7 @@ public class ResponseTimeTrackerTests : IDisposable
     [Fact]
     public void Observe_KeepsEarliestUnansweredInbound_AcrossRepeatReads()
     {
-        var tracker = new ResponseTimeTracker(_storePath);
+        var tracker = NewTracker(_storePath, "inst-1", "inst-2");
         var first = DateTimeOffset.UtcNow.AddMinutes(-60);
 
         // Customer messages, stays awaiting across several syncs (later inbound activity), then we reply.
@@ -91,7 +103,7 @@ public class ResponseTimeTrackerTests : IDisposable
     [Fact]
     public void GetStats_AnsweredToday_CountsOnlyTodaysReplies()
     {
-        var tracker = new ResponseTimeTracker(_storePath);
+        var tracker = NewTracker(_storePath, "inst-1", "inst-2");
         var now = DateTimeOffset.Now;
 
         Record(tracker, "inst-1", "c1", now.AddMinutes(-10), 5);  // answered today
@@ -107,7 +119,7 @@ public class ResponseTimeTrackerTests : IDisposable
     [Fact]
     public void GetStats_ScopesToProvidedInstances()
     {
-        var tracker = new ResponseTimeTracker(_storePath);
+        var tracker = NewTracker(_storePath, "inst-1", "inst-2");
         var t0 = DateTimeOffset.UtcNow.AddHours(-1);
         Record(tracker, "inst-1", "c1", t0, 5);
         Record(tracker, "inst-2", "c2", t0, 50);
@@ -116,6 +128,22 @@ public class ResponseTimeTrackerTests : IDisposable
 
         Assert.Equal(1, onlyOne.SampleCount);
         Assert.Equal(5, onlyOne.MedianMinutes, precision: 1);
+    }
+
+    [Fact]
+    public void Observe_PreWatchBacklog_IsExcluded()
+    {
+        // A chat whose customer message arrived BEFORE we started watching (backlog the owner may have
+        // already handled on their phone) must not be counted — otherwise the first sync reports a huge FRT.
+        var tracker = new ResponseTimeTracker(_storePath);
+        tracker.SetWatchStartForTests("inst-1", DateTimeOffset.UtcNow.AddHours(-1));
+
+        var oldInbound = DateTimeOffset.UtcNow.AddDays(-2); // arrived 2 days ago, before watch-start
+        tracker.Observe("inst-1", "chat-old", isAwaiting: true, lastMessageFromMe: false, oldInbound);
+        tracker.Observe("inst-1", "chat-old", isAwaiting: false, lastMessageFromMe: true, DateTimeOffset.UtcNow);
+
+        var stats = tracker.GetStats([Inst("inst-1")], null, null, slaThresholdMinutes: 15);
+        Assert.False(stats.HasData); // the 2-day "response" is backlog, not a measured reply
     }
 
     // Helper: drive one full awaiting→replied cycle producing a sample of the given FRT, answered at answeredAt.

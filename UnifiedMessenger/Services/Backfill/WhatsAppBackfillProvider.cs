@@ -275,7 +275,36 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
                     receivedByHour = hours;
                 }
 
-                MessageAnalyticsService.Instance.RecordBackfillDailyAggregate(instanceId, received, sent, receivedByHour);
+                Dictionary<string, int[]>? receivedByDayHour = null;
+                if (root.TryGetProperty("receivedByDayHour", out var matrixElement) &&
+                    matrixElement.ValueKind == JsonValueKind.Object)
+                {
+                    receivedByDayHour = new Dictionary<string, int[]>(StringComparer.Ordinal);
+                    foreach (var dayProp in matrixElement.EnumerateObject())
+                    {
+                        if (dayProp.Value.ValueKind != JsonValueKind.Array)
+                        {
+                            continue;
+                        }
+
+                        var hours = new int[24];
+                        var index = 0;
+                        foreach (var hour in dayProp.Value.EnumerateArray())
+                        {
+                            if (index >= 24)
+                            {
+                                break;
+                            }
+
+                            hours[index++] = hour.TryGetInt32(out var value) && value > 0 ? value : 0;
+                        }
+
+                        receivedByDayHour[dayProp.Name] = hours;
+                    }
+                }
+
+                MessageAnalyticsService.Instance.RecordBackfillDailyAggregate(
+                    instanceId, received, sent, receivedByHour, receivedByDayHour);
                 return received.Count + sent.Count;
             }
         }

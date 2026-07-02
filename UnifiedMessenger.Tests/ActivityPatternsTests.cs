@@ -225,6 +225,52 @@ public class ActivityPatternsTests : IDisposable
     }
 
     [Fact]
+    public void HourOfDay_DayHourMatrix_HonoursDateRange()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        var today = DateTime.Today;
+        string Day(int daysAgo) => today.AddDays(-daysAgo).ToString("yyyy-MM-dd");
+
+        int[] Hours(int hour, int count)
+        {
+            var a = new int[24];
+            a[hour] = count;
+            return a;
+        }
+
+        // 10 messages at 3pm today; 7 messages at 9am 60 days ago.
+        var matrix = new Dictionary<string, int[]>
+        {
+            [Day(0)] = Hours(15, 10),
+            [Day(60)] = Hours(9, 7)
+        };
+        service.RecordBackfillDailyAggregate(
+            "inst-1", new Dictionary<string, int>(), new Dictionary<string, int>(), null, matrix);
+
+        var last30 = service.BuildActivityPatterns(ActivityDimension.HourOfDay, [], DateTimeOffset.Now.AddDays(-30), null);
+        Assert.Equal(10, last30.Values[15]); // today's is in range
+        Assert.Equal(0, last30.Values[9]);   // 60 days ago is NOT in the last-30 window
+
+        var allTime = service.BuildActivityPatterns(ActivityDimension.HourOfDay, [], null, null);
+        Assert.Equal(10, allTime.Values[15]);
+        Assert.Equal(7, allTime.Values[9]);  // all-time includes both
+    }
+
+    [Fact]
+    public void HourOfDay_DayHourMatrix_ReplacesNotAccumulatesAcrossResyncs()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        var day = DateTime.Today.ToString("yyyy-MM-dd");
+        int[] At(int h, int c) { var a = new int[24]; a[h] = c; return a; }
+
+        service.RecordBackfillDailyAggregate("inst-1", new Dictionary<string, int>(), new Dictionary<string, int>(), null, new Dictionary<string, int[]> { [day] = At(15, 5) });
+        service.RecordBackfillDailyAggregate("inst-1", new Dictionary<string, int>(), new Dictionary<string, int>(), null, new Dictionary<string, int[]> { [day] = At(15, 8) });
+
+        var result = service.BuildActivityPatterns(ActivityDimension.HourOfDay, [], null, null);
+        Assert.Equal(8, result.Values[15]); // the message store is authoritative — replaced, not 13
+    }
+
+    [Fact]
     public void BuildActivityPatterns_FiltersByAccount()
     {
         var service = new MessageAnalyticsService(_storePath);
