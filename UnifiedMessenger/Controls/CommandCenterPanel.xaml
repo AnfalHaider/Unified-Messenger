@@ -66,6 +66,15 @@
                     <ComboBoxItem Content="Custom range" Tag="Custom" />
                 </ComboBox>
                 <Button
+                    x:Name="ReportButton"
+                    Click="OnReportClick"
+                    ToolTipService.ToolTip="A plain-language weekly report — trends, what to focus on, and per-account breakdown you can save or export">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon FontSize="14" Glyph="&#xE9F9;" />
+                        <TextBlock Text="Report" />
+                    </StackPanel>
+                </Button>
+                <Button
                     x:Name="ResyncButton"
                     Click="OnResyncClick"
                     Style="{StaticResource AccentButtonStyle}"

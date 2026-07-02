@@ -1778,6 +1778,29 @@ public sealed partial class CommandCenterPanel : UserControl
     private void OnResyncClick(object sender, RoutedEventArgs e) =>
         DashboardResyncRequested?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Builds and shows the plain-language weekly report (deterministic, optionally AI-narrated).</summary>
+    private async void OnReportClick(object sender, RoutedEventArgs e)
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var instances = _services.Registry.Instances
+            .Where(i => i.IsProfessional && PlatformModuleSettingsHelper.IsPlatformModuleEnabled(i.Platform))
+            .ToList();
+
+        var inputs = DashboardReportHelper.GatherInputs(instances);
+        var report = BusinessReport.Build(inputs);
+
+        var dialog = new UnifiedMessenger.Dialogs.WeeklyReportDialog(inputs, report, instances)
+        {
+            XamlRoot = XamlRoot
+        };
+
+        await dialog.ShowAsync();
+    }
+
     /// <summary>
     /// Deterministically re-runs history backfill for every professional account (force), then reports
     /// what the IndexedDB read returned and how much was reconciled — so reconciliation no longer
