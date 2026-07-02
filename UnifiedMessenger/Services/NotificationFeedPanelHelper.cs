@@ -42,6 +42,42 @@ public static class NotificationFeedPanelHelper
 
     public static bool IsValidAlertId(string? alertId) => !string.IsNullOrWhiteSpace(alertId);
 
+    /// <summary>
+    /// Groups the feed by ACCOUNT (instance), not platform — so a header + per-row identity tell the owner
+    /// exactly which of their (possibly several WhatsApp) accounts each notification came from. Sections are
+    /// ordered by most-recent activity so the account that just pinged floats to the top.
+    /// </summary>
+    public static IReadOnlyList<NotificationAlertGroup> GroupAlertsByInstance(
+        IEnumerable<NotificationAlert> alerts,
+        IReadOnlyDictionary<string, MessengerInstance> instanceLookup)
+    {
+        ArgumentNullException.ThrowIfNull(alerts);
+        ArgumentNullException.ThrowIfNull(instanceLookup);
+
+        return alerts
+            .GroupBy(alert => alert.InstanceId ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(group => group.Max(a => a.ReceivedAt))
+            .Select(group => new NotificationAlertGroup(
+                group.Key,
+                ResolveAccountName(group.Key, group.First(), instanceLookup),
+                group.OrderByDescending(alert => alert.ReceivedAt)))
+            .ToList();
+    }
+
+    internal static string ResolveAccountName(
+        string instanceId,
+        NotificationAlert sample,
+        IReadOnlyDictionary<string, MessengerInstance> instanceLookup)
+    {
+        if (instanceLookup.TryGetValue(instanceId, out var instance) && !string.IsNullOrWhiteSpace(instance.DisplayName))
+        {
+            return instance.DisplayName;
+        }
+
+        return string.IsNullOrWhiteSpace(sample.InstanceDisplayName) ? "Account" : sample.InstanceDisplayName;
+    }
+
+    // Retained for the toast-grouping path / tests that still key by platform.
     public static IReadOnlyList<NotificationAlertGroup> GroupAlertsByPlatform(
         IEnumerable<NotificationAlert> alerts,
         IReadOnlyDictionary<string, MessengerInstance> instanceLookup)

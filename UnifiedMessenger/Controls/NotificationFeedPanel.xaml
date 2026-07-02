@@ -17,16 +17,32 @@
             <controls:NotificationFeedTemplateSelector.HeaderTemplate>
                 <DataTemplate>
                     <Grid
-                        Margin="0,12,0,4"
-                        Padding="4,0"
+                        Margin="0,14,0,6"
+                        Padding="2,0"
                         ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Style="{StaticResource UmSectionLabelTextStyle}" Opacity="0.65"
+                        <!-- Per-account avatar: accent circle + initials so each section is instantly identifiable -->
+                        <Grid Width="22" Height="22" VerticalAlignment="Center">
+                            <Ellipse Fill="{Binding AccentBrush}" />
+                            <TextBlock
+                                Text="{Binding GroupInitials}"
+                                FontSize="10"
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Grid>
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontWeight="SemiBold"
+                            TextTrimming="CharacterEllipsis"
                             Text="{Binding GroupTitle}" />
-                        <TextBlock Grid.Column="1" VerticalAlignment="Center" Style="{StaticResource UmSectionLabelTextStyle}" Opacity="0.55"
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource UmSectionLabelTextStyle}" Opacity="0.55"
                             Text="{Binding GroupUnreadLabel}" />
                     </Grid>
                 </DataTemplate>
@@ -51,7 +67,7 @@
 
                         <Grid
                             Grid.Column="1"
-                            Padding="10,12"
+                            Padding="10,10"
                             ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -60,34 +76,50 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
-                            <Grid ColumnSpacing="8">
+                            <!-- Account identity line: dot + account name + time, so each row is attributable -->
+                            <Grid ColumnSpacing="6">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock
-                                    FontWeight="SemiBold"
-                                    Opacity="{Binding TitleOpacity}"
-                                    Text="{Binding Title}"
-                                    TextTrimming="CharacterEllipsis" />
+                                <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{Binding AccentBrush}" />
                                 <TextBlock
                                     Grid.Column="1"
-                                    Style="{StaticResource UmSectionLabelTextStyle}" Opacity="0.55"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Opacity="0.7"
+                                    TextTrimming="CharacterEllipsis"
+                                    Text="{Binding AccountName}" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource UmSectionLabelTextStyle}" Opacity="0.5"
                                     Text="{Binding RelativeTimeText}" />
                             </Grid>
 
                             <TextBlock
                                 Grid.Row="1"
-                                Margin="0,4,0,0"
+                                Margin="0,3,0,0"
+                                FontWeight="SemiBold"
+                                Opacity="{Binding TitleOpacity}"
+                                Text="{Binding Title}"
+                                TextTrimming="CharacterEllipsis" />
+
+                            <TextBlock
+                                Grid.Row="2"
+                                Margin="0,2,0,0"
                                 Opacity="{Binding BodyOpacity}"
                                 Text="{Binding Body}"
                                 TextTrimming="CharacterEllipsis"
                                 TextWrapping="WrapWholeWords" />
 
                             <Button
-                                Grid.RowSpan="2"
+                                Grid.RowSpan="3"
                                 Grid.Column="1"
                                 Margin="4,0,0,0"
                                 VerticalAlignment="Top"

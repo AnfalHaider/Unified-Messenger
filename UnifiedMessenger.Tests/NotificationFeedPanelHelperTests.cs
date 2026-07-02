@@ -97,6 +97,24 @@ public class NotificationFeedPanelHelperTests
     }
 
     [Fact]
+    public void GroupAlertsByInstance_SeparatesAccountsAndOrdersByRecency()
+    {
+        // Three WhatsApp accounts: platform grouping would collapse them into one section (the bug).
+        var older = NotificationAlert.Create("inst-1", "Sales WA", "whatsapp", "Msg 1", id: "a1");
+        var newer = NotificationAlert.Create("inst-2", "Support WA", "whatsapp", "Msg 2", id: "a2");
+        var lookup = NotificationFeedPanelHelper.BuildInstanceLookup([
+            new MessengerInstance { Id = "inst-1", DisplayName = "Sales WA", Platform = "whatsapp" },
+            new MessengerInstance { Id = "inst-2", DisplayName = "Support WA", Platform = "whatsapp" }
+        ]);
+
+        var groups = NotificationFeedPanelHelper.GroupAlertsByInstance([older, newer], lookup);
+
+        Assert.Equal(2, groups.Count); // one section per account, not one "WhatsApp" section
+        Assert.Contains(groups, g => g is { InstanceId: "inst-1", Key: "Sales WA" });
+        Assert.Contains(groups, g => g is { InstanceId: "inst-2", Key: "Support WA" });
+    }
+
+    [Fact]
     public void GroupAlertsByPlatform_UsesInstancePlatformWhenAlertPlatformMissing()
     {
         var alert = NotificationAlert.Create("inst-1", "Sales", "not-a-platform", "Msg", id: "a1");

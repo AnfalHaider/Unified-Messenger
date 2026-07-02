@@ -34,11 +34,11 @@ public static class NotificationFeedPresenter
             hub.Alerts.Count,
             unreadAlerts);
 
-        var platformGroups = NotificationFeedPanelHelper.GroupAlertsByPlatform(hub.Alerts, instanceLookup);
+        var accountGroups = NotificationFeedPanelHelper.GroupAlertsByInstance(hub.Alerts, instanceLookup);
 
         return new NotificationFeedPresentation
         {
-            FeedItems = NotificationFeedAlertRow.BuildFeedItems(platformGroups, instanceLookup),
+            FeedItems = NotificationFeedAlertRow.BuildFeedItems(accountGroups, instanceLookup),
             ShowAlertList = NotificationFeedPanelHelper.ShouldShowAlertList(hub.Alerts.Count),
             ClearAllEnabled = commandStates.ClearEnabled,
             MarkAllReadEnabled = commandStates.MarkAllReadEnabled,
