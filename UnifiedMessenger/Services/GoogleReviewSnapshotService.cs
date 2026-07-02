@@ -12,11 +12,15 @@ namespace UnifiedMessenger.Services;
 /// </summary>
 public sealed class GoogleReviewSnapshotService
 {
+    /// <summary>A best-effort preview of one review still awaiting a reply (reviewer + snippet from the card DOM).</summary>
+    public readonly record struct PendingReview(string Reviewer, string Snippet);
+
     public readonly record struct ReviewHealth(
         int Unanswered,
         int Answered,
         DateTimeOffset CapturedAtUtc,
-        bool HasData)
+        bool HasData,
+        IReadOnlyList<PendingReview> Pending)
     {
         public int Total => Unanswered + Answered;
 
@@ -31,10 +35,20 @@ public sealed class GoogleReviewSnapshotService
         "if(/business\\.google\\.com/.test(location.host)){if(!window.__umGRnav){window.__umGRnav=1;location.href='https://business.google.com/reviews';}window.__umGR={state:'navigating'};return;}" +
         "window.__umGR={state:'notreviews'};return;}" +
         "var b=[].slice.call(document.querySelectorAll('button'));" +
-        "var reply=b.filter(function(x){return /(^|\\b)reply\\b/i.test((x.innerText||'').trim());}).length;" +
+        "var replyBtns=b.filter(function(x){return /(^|\\b)reply\\b/i.test((x.innerText||'').trim());});" +
+        "var reply=replyBtns.length;" +
         "var edit=b.filter(function(x){return /\\bedit\\b/i.test((x.innerText||'').trim());}).length;" +
         "if(reply+edit===0){window.__umGR={state:'loading'};return;}" +
-        "window.__umGR={state:'done',unanswered:reply,answered:edit};" +
+        // Best-effort: for each unanswered review, climb to the smallest ancestor card holding its text and
+        // pull the reviewer name (first meaningful line) + a snippet (longest line). Structure varies, so this
+        // may need locale/UI tuning — the counts above are the reliable signal.
+        "var pending=[];replyBtns.slice(0,8).forEach(function(btn){var n=btn.parentElement,card=null;" +
+        "for(var i=0;i<8&&n;i++){var t=(n.innerText||'').trim();if(t.length>=25&&t.length<=700){card=n;break;}n=n.parentElement;}" +
+        "var lines=((card&&card.innerText)||'').split('\\n').map(function(s){return s.trim();})" +
+        ".filter(function(s){return s.length>1&&!/^(reply|edit|share|read more|like|helpful|\\d+ (day|week|month|year)s? ago)$/i.test(s);});" +
+        "var name=lines[0]||'Reviewer';var snip='';lines.forEach(function(l){if(l!==name&&l.length>snip.length)snip=l;});" +
+        "pending.push({reviewer:name.slice(0,60),snippet:snip.slice(0,140)});});" +
+        "window.__umGR={state:'done',unanswered:reply,answered:edit,pending:pending};" +
         "}catch(e){window.__umGR={state:'error'};}})()";
 
     private const string ReadScript = "(window.__umGR?JSON.stringify(window.__umGR):'{\"state\":\"none\"}')";
@@ -113,7 +127,23 @@ public sealed class GoogleReviewSnapshotService
                 {
                     var unanswered = doc.RootElement.GetProperty("unanswered").GetInt32();
                     var answered = doc.RootElement.GetProperty("answered").GetInt32();
-                    var health = new ReviewHealth(unanswered, answered, DateTimeOffset.UtcNow, true);
+                    var pending = new List<PendingReview>();
+                    if (doc.RootElement.TryGetProperty("pending", out var pendingEl) &&
+                        pendingEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in pendingEl.EnumerateArray())
+                        {
+                            var reviewer = item.TryGetProperty("reviewer", out var r) ? r.GetString() ?? "" : "";
+                            var snippet = item.TryGetProperty("snippet", out var sn) ? sn.GetString() ?? "" : "";
+                            if (!string.IsNullOrWhiteSpace(reviewer) || !string.IsNullOrWhiteSpace(snippet))
+                            {
+                                pending.Add(new PendingReview(
+                                    string.IsNullOrWhiteSpace(reviewer) ? "Reviewer" : reviewer, snippet));
+                            }
+                        }
+                    }
+
+                    var health = new ReviewHealth(unanswered, answered, DateTimeOffset.UtcNow, true, pending);
                     _byInstance[instanceId.Trim()] = health;
                     return health;
                 }

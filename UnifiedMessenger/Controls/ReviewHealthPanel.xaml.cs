@@ -110,6 +110,8 @@ public sealed partial class ReviewHealthPanel : UserControl
         });
         grid.Children.Add(nameCol);
 
+        var pending = health.Pending ?? [];
+
         FrameworkElement trailing;
         if (!health.HasData)
         {
@@ -117,20 +119,35 @@ public sealed partial class ReviewHealthPanel : UserControl
         }
         else if (health.Unanswered > 0)
         {
-            trailing = new Border
+            // Clickable: opens the account's Google reviews page so the owner can reply straight away.
+            var chip = new Button
             {
                 Background = Brush("SystemFillColorCriticalBackgroundBrush"),
+                BorderThickness = new Thickness(0),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(9, 3, 9, 3),
                 VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock
+                Tag = instance.Id,
+                Content = new StackPanel
                 {
-                    Text = health.Unanswered == 1 ? "1 to reply" : $"{health.Unanswered} to reply",
-                    Foreground = danger,
-                    FontWeight = FontWeights.SemiBold,
-                    FontSize = 12
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 5,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = health.Unanswered == 1 ? "1 to reply" : $"{health.Unanswered} to reply",
+                            Foreground = danger,
+                            FontWeight = FontWeights.SemiBold,
+                            FontSize = 12
+                        },
+                        new FontIcon { Glyph = "", FontSize = 11, Foreground = danger, VerticalAlignment = VerticalAlignment.Center }
+                    }
                 }
             };
+            ToolTipService.SetToolTip(chip, "Open this account's Google reviews to reply");
+            chip.Click += OnOpenReviewsClick;
+            trailing = chip;
         }
         else
         {
@@ -146,13 +163,90 @@ public sealed partial class ReviewHealthPanel : UserControl
         Grid.SetColumn(trailing, 2);
         grid.Children.Add(trailing);
 
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(grid);
+
+        // "Which ones": list the awaiting reviews (reviewer + snippet), each a click-through to reply.
+        if (pending.Count > 0)
+        {
+            var list = new StackPanel { Spacing = 4, Margin = new Thickness(40, 2, 0, 0) };
+            foreach (var review in pending.Take(6))
+            {
+                var row = new StackPanel { Spacing = 0 };
+                row.Children.Add(new TextBlock
+                {
+                    Text = review.Reviewer,
+                    FontSize = 12,
+                    FontWeight = FontWeights.SemiBold,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                if (!string.IsNullOrWhiteSpace(review.Snippet))
+                {
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = review.Snippet,
+                        FontSize = 11,
+                        Foreground = secondary,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        TextWrapping = TextWrapping.NoWrap
+                    });
+                }
+
+                var rowButton = new Button
+                {
+                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    BorderThickness = new Thickness(0),
+                    Padding = new Thickness(8, 5, 8, 5),
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                    Tag = instance.Id,
+                    Content = row
+                };
+                ToolTipService.SetToolTip(rowButton, "Open this account's reviews to reply");
+                rowButton.Click += OnOpenReviewsClick;
+                list.Children.Add(rowButton);
+            }
+
+            if (health.Unanswered > pending.Count)
+            {
+                list.Children.Add(new TextBlock
+                {
+                    Text = $"+ {health.Unanswered - pending.Count} more awaiting a reply",
+                    FontSize = 11,
+                    Foreground = Brush("TextFillColorTertiaryBrush"),
+                    Margin = new Thickness(8, 2, 0, 0)
+                });
+            }
+
+            body.Children.Add(list);
+        }
+        else if (health is { HasData: true, Unanswered: > 0 })
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = "Couldn't read the individual reviews from the page — click “to reply” to open them in Google.",
+                FontSize = 11,
+                Foreground = Brush("TextFillColorTertiaryBrush"),
+                Margin = new Thickness(40, 0, 0, 0),
+                TextWrapping = TextWrapping.WrapWholeWords
+            });
+        }
+
         return new Border
         {
             Background = Brush("CardBackgroundFillColorSecondaryBrush"),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 14, 10),
-            Child = grid
+            Child = body
         };
+    }
+
+    private void OnOpenReviewsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string instanceId } && !string.IsNullOrWhiteSpace(instanceId))
+        {
+            _services?.Navigation.OpenInstance(instanceId, null, null);
+        }
     }
 
     /// <summary>
