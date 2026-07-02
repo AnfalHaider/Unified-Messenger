@@ -60,7 +60,6 @@ public sealed class ResponseTimeTracker
     private CancellationTokenSource? _saveDebounceCts;
     private int _saveGeneration;
     private bool _isLoaded;
-    private bool _dirty;
 
     private ResponseTimeTracker()
         : this(Path.Combine(ApplicationPaths.UserDataRoot, FileName))
@@ -127,7 +126,6 @@ public sealed class ResponseTimeTracker
             }
         }
 
-        _dirty = true;
         ScheduleSave();
     }
 
@@ -386,7 +384,6 @@ public sealed class ResponseTimeTracker
             }
 
             File.Move(tempPath, _storePath, overwrite: true);
-            _dirty = false;
         }
         finally
         {

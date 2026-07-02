@@ -70,6 +70,13 @@ public sealed class OversightChatSnapshotService
     public DateTimeOffset? LastCapturedUtc =>
         _byInstance.IsEmpty ? null : _byInstance.Values.Max(v => v.CapturedAtUtc);
 
+    /// <summary>When this instance's chats were last captured, or null if it has no snapshot yet.
+    /// Feeds the per-card "Updated Xm ago" freshness line so stale data is visible per account.</summary>
+    public DateTimeOffset? TryGetCapturedAtUtc(string instanceId) =>
+        !string.IsNullOrWhiteSpace(instanceId) && _byInstance.TryGetValue(instanceId.Trim(), out var snap)
+            ? snap.CapturedAtUtc
+            : null;
+
     public void Update(string instanceId, IReadOnlyList<ChatEntry> chats, DateTimeOffset capturedAtUtc)
     {
         if (string.IsNullOrWhiteSpace(instanceId) || chats is null)

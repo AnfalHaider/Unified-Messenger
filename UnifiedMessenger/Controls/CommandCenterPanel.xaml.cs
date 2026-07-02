@@ -169,6 +169,9 @@ public sealed partial class CommandCenterPanel : UserControl
         var sb = new StringBuilder();
         sb.Append((int)grouping).Append('|').Append((int)window).Append('|')
             .Append(start?.UtcTicks ?? 0).Append('|').Append(end?.UtcTicks ?? 0).Append('|');
+        // Coarse 5-minute bucket: the cards carry relative text ("updated 3m ago", "longest wait 2h") that
+        // must not freeze when the underlying counts are unchanged — this forces a redraw a few times an hour.
+        sb.Append(DateTimeOffset.UtcNow.UtcTicks / TimeSpan.TicksPerMinute / 5).Append('|');
         foreach (var e in snapshot.Entities)
         {
             sb.Append(e.Key).Append(',').Append(e.OnTimePercent).Append(',').Append(e.AwaitingCount)
@@ -323,17 +326,25 @@ public sealed partial class CommandCenterPanel : UserControl
         if (snapshot.Entities.Count == 0)
         {
             KpiBand.Visibility = Visibility.Collapsed;
+            LegendRow.Visibility = Visibility.Collapsed;
             // Distinguish "no accounts" from "accounts exist but haven't finished their first local-history
             // scan yet" — on startup the WhatsApp IndexedDB read takes a few seconds, and showing "no
             // accounts" during that window is misleading.
             CardsHost.Children.Add(new TextBlock
             {
                 Text = instances.Count > 0
-                    ? "Syncing accounts — reading each account's local history…"
-                    : "No professional accounts yet — add one to see oversight here.",
+                    ? "Reading each account's local chat history — usually a few seconds…"
+                    : "No professional accounts yet — click + in the sidebar to add your first WhatsApp account, then mark it Professional to see oversight here.",
                 Foreground = Brush("TextFillColorSecondaryBrush"),
                 TextWrapping = TextWrapping.WrapWholeWords
             });
+
+            // Shimmer placeholder cards (one per pending account, capped) instead of a bare text line.
+            for (var i = 0; i < Math.Min(instances.Count, 3); i++)
+            {
+                CardsHost.Children.Add(BuildSkeletonCard());
+            }
+
             return;
         }
 
@@ -341,6 +352,7 @@ public sealed partial class CommandCenterPanel : UserControl
         // the unified "work through the backlog" view (replaces the standalone Work Queue page).
         if (needsReply)
         {
+            LegendRow.Visibility = Visibility.Collapsed;
             BuildNeedsReplyList(instances);
             return;
         }
@@ -398,6 +410,9 @@ public sealed partial class CommandCenterPanel : UserControl
                 TextWrapping = TextWrapping.WrapWholeWords
             });
         }
+
+        // Legend explains the status bands + what the % means — only when health cards are on screen.
+        LegendRow.Visibility = renderedCount > 0 && !_compact ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private Expander BuildExpander(OversightEntityHealth location, IReadOnlyList<OversightEntityHealth> members)
@@ -1209,6 +1224,20 @@ public sealed partial class CommandCenterPanel : UserControl
         var hasLiveData = entity.MeasuredCount > 0;
         var statusBrush = !hasLiveData ? secondary : StatusBrushForPercent(entity.OnTimePercent);
 
+        // Live awaiting detail from the same snapshot the awaiting count comes from, so the "past target"
+        // chip and oldest-wait hint always agree with the pill (unlike the old registry-based "late" count,
+        // which could show dozens late on a 100% caught-up account).
+        var (cardWindowStart, cardWindowEnd) = WindowRange();
+        var slaMinutes = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+        var nowUtc = DateTimeOffset.UtcNow;
+        var awaitingChats = entity.MemberInstanceIds
+            .SelectMany(id => OversightChatSnapshotService.Instance.GetAwaiting(id, cardWindowStart, cardWindowEnd))
+            .ToList();
+        var pastSlaCount = awaitingChats.Count(c => (nowUtc - c.LastActivityUtc).TotalMinutes > slaMinutes);
+        TimeSpan? oldestWait = awaitingChats.Count > 0
+            ? nowUtc - awaitingChats.Min(c => c.LastActivityUtc)
+            : null;
+
         var card = new StackPanel
         {
             Spacing = _compact ? 4 : 8,
@@ -1244,18 +1273,28 @@ public sealed partial class CommandCenterPanel : UserControl
         });
         if (!_compact)
         {
+            // Per-card data freshness: when this account's chats were last read. Locations show their
+            // least-fresh member so a silently-stale branch account can't hide behind a fresh sibling.
+            var capturedAt = entity.MemberInstanceIds
+                .Select(OversightChatSnapshotService.Instance.TryGetCapturedAtUtc)
+                .Where(t => t is not null)
+                .DefaultIfEmpty(null)
+                .Min();
             var freshness = entity.IsStale
-                ? "stale — reconnect"
-                : entity.HistoricalOpenCount > 0
-                    ? $"synced · {entity.HistoricalOpenCount} from history"
-                    : "synced";
-            nameColumn.Children.Add(new TextBlock
+                ? "stale — right-click the account → Refresh WebView, then Re-sync"
+                : capturedAt is { } cap
+                    ? $"updated {RelativeAge(cap)}{(entity.HistoricalOpenCount > 0 ? $" · {entity.HistoricalOpenCount} chats tracked" : string.Empty)}"
+                    : "waiting for first sync…";
+            var freshnessBlock = new TextBlock
             {
                 Text = freshness,
                 FontSize = 11,
                 Foreground = entity.IsStale ? danger : Brush("TextFillColorTertiaryBrush"),
                 TextTrimming = TextTrimming.CharacterEllipsis
-            });
+            };
+            ToolTipService.SetToolTip(freshnessBlock,
+                "When this account's chat data was last read. Numbers on this card are only as fresh as this stamp — click Re-sync to update.");
+            nameColumn.Children.Add(freshnessBlock);
         }
 
         // Awaiting pill (right-aligned): a soft danger chip when behind, quiet text when caught up.
@@ -1283,6 +1322,9 @@ public sealed partial class CommandCenterPanel : UserControl
                     FontSize = 12
                 }
             };
+            ToolTipService.SetToolTip(awaitingVisual, oldestWait is { } ow
+                ? $"Customers still waiting on a reply — the longest has waited {FormatMinutes(ow.TotalMinutes)}. Expand the card to see who and jump straight to their chat."
+                : "Customers still waiting on a reply. Expand the card to see who and jump straight to their chat.");
         }
         else
         {
@@ -1290,6 +1332,7 @@ public sealed partial class CommandCenterPanel : UserControl
             {
                 Text = "caught up", Foreground = secondary, FontSize = 12, VerticalAlignment = VerticalAlignment.Center
             };
+            ToolTipService.SetToolTip(awaitingVisual, "No customers are waiting on a reply in this date range.");
         }
 
         // In compact density the % hero (which carries the status glyph) is hidden, so the status would be
@@ -1380,43 +1423,204 @@ public sealed partial class CommandCenterPanel : UserControl
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(0, 0, 0, 4)
             });
+            ToolTipService.SetToolTip(pctCell,
+                $"{entity.OnTimePercent}% of this account's {entity.MeasuredCount} active chats have no customer message waiting. " +
+                "This measures unread cleared — reply speed is the \"reply ~\" chip below.");
             Grid.SetColumn(pctCell, 0);
             metricRow.Children.Add(pctCell);
         }
 
-        var sparklineHost = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Spacing = 4 };
+        var sparklineHost = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Spacing = 3 };
         var sparkline = BuildSparkline(entity.TrendCounts, statusBrush);
-        ToolTipService.SetToolTip(sparkline, "Activity over the last 7 days");
+        ToolTipService.SetToolTip(sparkline, "Chat activity per day over the last 7 days (today rightmost) — taller bar = busier day");
         sparklineHost.Children.Add(sparkline);
+        sparklineHost.Children.Add(new TextBlock
+        {
+            Text = "last 7 days",
+            FontSize = 9,
+            Foreground = Brush("TextFillColorTertiaryBrush"),
+            HorizontalAlignment = HorizontalAlignment.Right
+        });
         Grid.SetColumn(sparklineHost, 1);
         metricRow.Children.Add(sparklineHost);
         card.Children.Add(metricRow);
 
-        // ── Sub-metrics row: urgent + dropped + SLA-late ─────────────────────────────────────
-        // "late" = open conversations past their business-hours reply SLA (MASTER-PLAN §8 on-time signal),
-        // surfaced alongside the caught-up % so responsiveness — not just unread state — is visible.
-        if (hasLiveData && (entity.UrgentCount > 0 || entity.DroppedCount > 0 || entity.SlaBreachedCount > 0))
+        // ── Detail chips: reply speed · answered today · past-target · urgent · dropped ───────
+        // All live-data derived. The old "N late" figure came from the triage registry and could
+        // contradict the pill (e.g. "45 late" on a 100% caught-up account) — replaced by "past target",
+        // counted from the same awaiting snapshot as the pill, so the numbers always agree.
+        if (hasLiveData)
         {
             var caution = Brush("SystemFillColorCautionBrush");
-            var subMetrics = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 };
+            var success = Brush("SystemFillColorSuccessBrush");
+            var memberInstances = _services?.Registry.Instances
+                .Where(i => entity.MemberInstanceIds.Contains(i.Id, StringComparer.OrdinalIgnoreCase))
+                .ToList() ?? [];
+            var resp = ResponseTimeTracker.Instance.GetStats(memberInstances, cardWindowStart, cardWindowEnd, slaMinutes);
+
+            var chips = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+
+            if (resp.HasData)
+            {
+                var replies = resp.SampleCount == 1 ? "1 reply measured" : $"{resp.SampleCount} replies measured";
+                chips.Children.Add(BuildMetricChip(
+                    "",
+                    $"reply ~{FormatMinutes(resp.MedianMinutes)}",
+                    ResponseBrush(resp.MedianMinutes, slaMinutes),
+                    $"Median time from a customer's message to this account's first reply ({replies}). Target: under {slaMinutes} min."));
+            }
+            else
+            {
+                chips.Children.Add(BuildMetricChip(
+                    "",
+                    "reply speed: measuring…",
+                    secondary,
+                    "Reply speed is measured live as chats go from waiting to answered across syncs — it fills in after a few replies. No history is guessed."));
+            }
+
+            if (resp.AnsweredToday > 0)
+            {
+                chips.Children.Add(BuildMetricChip(
+                    "",
+                    resp.AnsweredToday == 1 ? "1 answered today" : $"{resp.AnsweredToday} answered today",
+                    success,
+                    "Waiting customers this account replied to today — work done, not just work pending."));
+            }
+
+            if (pastSlaCount > 0)
+            {
+                chips.Children.Add(BuildMetricChip(
+                    "",
+                    $"{pastSlaCount} past {slaMinutes}m",
+                    caution,
+                    $"Of the {entity.AwaitingCount} awaiting, {pastSlaCount} have already waited longer than your {slaMinutes}-minute reply target — reply to these first."));
+            }
+
             if (entity.UrgentCount > 0)
             {
-                subMetrics.Children.Add(BuildSubMetric(entity.UrgentCount, "urgent", danger));
+                chips.Children.Add(BuildMetricChip(
+                    "",
+                    $"{entity.UrgentCount} urgent",
+                    danger,
+                    "Messages whose wording looks urgent (triage keywords / local AI)."));
             }
-            if (entity.SlaBreachedCount > 0)
-            {
-                var late = BuildSubMetric(entity.SlaBreachedCount, "late", caution);
-                ToolTipService.SetToolTip(late, "Open conversations past their business-hours reply SLA");
-                subMetrics.Children.Add(late);
-            }
+
             if (entity.DroppedCount > 0)
             {
-                subMetrics.Children.Add(BuildSubMetric(entity.DroppedCount, "dropped", danger));
+                chips.Children.Add(BuildMetricChip(
+                    "",
+                    $"{entity.DroppedCount} dropped",
+                    danger,
+                    "Conversations that look abandoned — the customer never got a reply and the chat went quiet."));
             }
-            card.Children.Add(subMetrics);
+
+            card.Children.Add(chips);
+
+            // Plain-language nudge — the single most useful next action for this account.
+            if (oldestWait is { } worst && entity.AwaitingCount > 0)
+            {
+                card.Children.Add(new TextBlock
+                {
+                    Text = $"Longest wait right now: {FormatMinutes(worst.TotalMinutes)} — expand this card to see who's waiting and open their chat.",
+                    FontSize = 11,
+                    Foreground = Brush("TextFillColorTertiaryBrush"),
+                    TextWrapping = TextWrapping.WrapWholeWords
+                });
+            }
         }
 
         return card;
+    }
+
+    /// <summary>A small icon+text pill for the card's detail row; the tooltip carries the plain-language explanation.</summary>
+    private FrameworkElement BuildMetricChip(string glyph, string text, Brush foreground, string tooltip)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+        content.Children.Add(new FontIcon
+        {
+            Glyph = glyph,
+            FontSize = 11,
+            Foreground = foreground,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = foreground,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var chip = new Border
+        {
+            Background = Brush("CardBackgroundFillColorSecondaryBrush"),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 3, 8, 3),
+            Child = content
+        };
+        ToolTipService.SetToolTip(chip, tooltip);
+        return chip;
+    }
+
+    /// <summary>
+    /// A shimmering placeholder card shown while the first per-account history scan runs — communicates
+    /// "loading" with shape instead of a bare text line. Pure opacity pulse; no dependencies.
+    /// </summary>
+    private FrameworkElement BuildSkeletonCard()
+    {
+        Border Bar(double width, double height) => new()
+        {
+            Width = width,
+            Height = height,
+            CornerRadius = new CornerRadius(4),
+            Background = Brush("ControlFillColorSecondaryBrush"),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        var lines = new StackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        lines.Children.Add(Bar(170, 12));
+        lines.Children.Add(Bar(110, 9));
+
+        var top = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        top.Children.Add(new Border
+        {
+            Width = 30,
+            Height = 30,
+            CornerRadius = new CornerRadius(15),
+            Background = Brush("ControlFillColorSecondaryBrush")
+        });
+        top.Children.Add(lines);
+
+        var inner = new StackPanel { Spacing = 12 };
+        inner.Children.Add(top);
+        inner.Children.Add(Bar(230, 18));
+
+        var cardBorder = new Border
+        {
+            Background = Brush("CardBackgroundFillColorDefaultBrush"),
+            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(16, 12, 16, 14),
+            Child = inner
+        };
+
+        var pulse = new Microsoft.UI.Xaml.Media.Animation.DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.45,
+            Duration = new Duration(TimeSpan.FromMilliseconds(900)),
+            AutoReverse = true,
+            RepeatBehavior = Microsoft.UI.Xaml.Media.Animation.RepeatBehavior.Forever
+        };
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTarget(pulse, cardBorder);
+        Microsoft.UI.Xaml.Media.Animation.Storyboard.SetTargetProperty(pulse, "Opacity");
+        var storyboard = new Microsoft.UI.Xaml.Media.Animation.Storyboard();
+        storyboard.Children.Add(pulse);
+        cardBorder.Loaded += (_, _) => storyboard.Begin();
+        cardBorder.Unloaded += (_, _) => storyboard.Stop();
+        return cardBorder;
     }
 
     /// <summary>
@@ -1487,26 +1691,6 @@ public sealed partial class CommandCenterPanel : UserControl
         >= 70 => ("", "Needs attention"), // Warning
         _ => ("", "Behind"),              // ErrorBadge
     };
-
-    private static StackPanel BuildSubMetric(int count, string label, Brush foreground)
-    {
-        var cell = new StackPanel { Orientation = Orientation.Vertical, Spacing = 0 };
-        cell.Children.Add(new TextBlock
-        {
-            Text = count.ToString(),
-            FontSize = 13,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = foreground
-        });
-        cell.Children.Add(new TextBlock
-        {
-            Text = label,
-            FontSize = 10,
-            Foreground = foreground,
-            Opacity = 0.75
-        });
-        return cell;
-    }
 
     /// <summary>
     /// A compact 7-day bar-chart sparkline. Seven vertical bars, color-matched to the account's
