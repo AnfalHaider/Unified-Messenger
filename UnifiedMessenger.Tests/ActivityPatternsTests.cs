@@ -271,6 +271,41 @@ public class ActivityPatternsTests : IDisposable
     }
 
     [Fact]
+    public void BuildActivityBreakdown_SplitsBucketsByAccount()
+    {
+        var service = new MessageAnalyticsService(_storePath);
+        var today = DateTime.Today;
+
+        // inst-1: 3 at 2pm; inst-2: 1 at 2pm, 2 at 9am.
+        for (var i = 0; i < 3; i++)
+        {
+            service.RecordMessageReceived("inst-1", receivedAtUtc: LocalAt(today.AddHours(14).AddMinutes(i)));
+        }
+        service.RecordMessageReceived("inst-2", receivedAtUtc: LocalAt(today.AddHours(14)));
+        service.RecordMessageReceived("inst-2", receivedAtUtc: LocalAt(today.AddHours(9)));
+        service.RecordMessageReceived("inst-2", receivedAtUtc: LocalAt(today.AddHours(9).AddMinutes(1)));
+
+        var instances = new List<MessengerInstance>
+        {
+            new() { Id = "inst-1", DisplayName = "One", Platform = "whatsapp", AccentColor = "#111111" },
+            new() { Id = "inst-2", DisplayName = "Two", Platform = "whatsapp", AccentColor = "#222222" }
+        };
+
+        var b = service.BuildActivityBreakdown(ActivityDimension.HourOfDay, instances, null, null);
+
+        Assert.True(b.HasData);
+        Assert.Equal(6, b.Total);
+        Assert.Equal(2, b.Series.Count);
+        Assert.Equal(4, b.Totals[14]); // 3 + 1 at 2pm
+        Assert.Equal(2, b.Totals[9]);
+        // Busiest account (inst-1 with 3) sorts first.
+        Assert.Equal("inst-1", b.Series[0].InstanceId);
+        Assert.Equal(3, b.Series[0].Values[14]);
+        Assert.Equal(1, b.Series[1].Values[14]);
+        Assert.Equal(2, b.Series[1].Values[9]);
+    }
+
+    [Fact]
     public void BuildActivityPatterns_FiltersByAccount()
     {
         var service = new MessageAnalyticsService(_storePath);

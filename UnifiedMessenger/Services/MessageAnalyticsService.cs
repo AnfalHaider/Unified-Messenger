@@ -58,6 +58,52 @@ public sealed class ActivityPatterns
 /// <summary>Messages-per-day KPI: 7-day average inbound volume plus the change vs the prior window.</summary>
 public readonly record struct MessagesPerDayStat(int AveragePerDay, int DeltaCount, bool HasData);
 
+/// <summary>One account's contribution to each bucket of the activity graph (for stacked, color-coded bars).</summary>
+public sealed class ActivityAccountSeries
+{
+    public required string InstanceId { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string AccentColor { get; init; }
+
+    public required IReadOnlyList<int> Values { get; init; }
+
+    public int Total { get; init; }
+}
+
+/// <summary>
+/// A per-account breakdown of the activity graph: the shared bucket <see cref="Labels"/>, the stacked
+/// <see cref="Totals"/> per bucket, and one <see cref="ActivityAccountSeries"/> per account (busiest first)
+/// so the chart can stack each account's contribution in its own accent colour with a legend.
+/// </summary>
+public sealed class ActivityBreakdown
+{
+    public static ActivityBreakdown Empty { get; } = new()
+    {
+        Labels = [],
+        Totals = [],
+        Series = [],
+        PeakIndex = -1,
+        PeakLabel = "—",
+        Total = 0
+    };
+
+    public required IReadOnlyList<string> Labels { get; init; }
+
+    public required IReadOnlyList<int> Totals { get; init; }
+
+    public required IReadOnlyList<ActivityAccountSeries> Series { get; init; }
+
+    public int PeakIndex { get; init; }
+
+    public required string PeakLabel { get; init; }
+
+    public int Total { get; init; }
+
+    public bool HasData => Total > 0;
+}
+
 /// <summary>Week-over-week inbound comparison (#37): this-week vs last-week totals, % change, busiest weekday.</summary>
 public readonly record struct WeekOverWeekStat(
     int ThisWeekTotal,
@@ -714,6 +760,172 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
                 bucket(date, count);
             }
         }
+    }
+
+    /// <summary>
+    /// Per-account version of <see cref="BuildActivityPatterns"/>: one value series per account (same buckets,
+    /// same date-range rules) so the graph can stack each account's contribution in its accent colour.
+    /// </summary>
+    public ActivityBreakdown BuildActivityBreakdown(
+        ActivityDimension dimension,
+        IReadOnlyList<MessengerInstance> instances,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
+    {
+        if (instances is null || instances.Count == 0)
+        {
+            return ActivityBreakdown.Empty;
+        }
+
+        var (labels, peakLabel) = LabelsFor(dimension);
+        var series = new List<ActivityAccountSeries>();
+        var totals = new int[labels.Length];
+
+        foreach (var instance in instances)
+        {
+            if (string.IsNullOrWhiteSpace(instance.Id) || !_stats.TryGetValue(instance.Id.Trim(), out var stats))
+            {
+                continue;
+            }
+
+            var values = dimension switch
+            {
+                ActivityDimension.HourOfDay => HourBucketsForStats(stats, fromUtc, toUtc),
+                ActivityDimension.DayOfWeek => DayOfWeekBucketsForStats(stats, fromUtc, toUtc),
+                _ => MonthBucketsForStats(stats, fromUtc, toUtc)
+            };
+
+            var seriesTotal = values.Sum();
+            if (seriesTotal == 0)
+            {
+                continue;
+            }
+
+            for (var i = 0; i < totals.Length; i++)
+            {
+                totals[i] += values[i];
+            }
+
+            series.Add(new ActivityAccountSeries
+            {
+                InstanceId = instance.Id.Trim(),
+                DisplayName = instance.DisplayName,
+                AccentColor = string.IsNullOrWhiteSpace(instance.AccentColor)
+                    ? PlatformBrandingHelper.DefaultAccentHex
+                    : instance.AccentColor,
+                Values = values,
+                Total = seriesTotal
+            });
+        }
+
+        var grandTotal = totals.Sum();
+        if (grandTotal == 0)
+        {
+            return ActivityBreakdown.Empty;
+        }
+
+        var peak = Array.IndexOf(totals, totals.Max());
+        return new ActivityBreakdown
+        {
+            Labels = labels,
+            Totals = totals,
+            Series = series.OrderByDescending(s => s.Total).ToList(),
+            PeakIndex = peak,
+            PeakLabel = peakLabel(peak),
+            Total = grandTotal
+        };
+    }
+
+    private static (string[] Labels, Func<int, string> PeakLabel) LabelsFor(ActivityDimension dimension)
+    {
+        switch (dimension)
+        {
+            case ActivityDimension.HourOfDay:
+                var hours = new string[24];
+                for (var h = 0; h < 24; h++)
+                {
+                    hours[h] = h == 0 ? "12a" : h < 12 ? $"{h}a" : h == 12 ? "12p" : $"{h - 12}p";
+                }
+
+                return (hours, peak => $"{DateTime.Today.AddHours(peak):h tt}–{DateTime.Today.AddHours(peak + 1):h tt}");
+            case ActivityDimension.DayOfWeek:
+                string[] dFull = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+                return (["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], peak => dFull[peak]);
+            default:
+                string[] mFull =
+                [
+                    "January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"
+                ];
+                return (
+                    ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+                    peak => mFull[peak]);
+        }
+    }
+
+    private static int[] HourBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    {
+        var totals = new int[24];
+        var anyMatrix = false;
+        foreach (var (day, hours) in stats.HourlyReceivedByDay)
+        {
+            if (hours is not { Length: 24 } || !IsDayInRange(day, fromUtc, toUtc))
+            {
+                continue;
+            }
+
+            anyMatrix = true;
+            for (var h = 0; h < 24; h++)
+            {
+                totals[h] += hours[h];
+            }
+        }
+
+        if (!anyMatrix && fromUtc is null && toUtc is null && stats.HourlyReceived.Length == 24)
+        {
+            for (var h = 0; h < 24; h++)
+            {
+                totals[h] += stats.HourlyReceived[h];
+            }
+        }
+
+        return totals;
+    }
+
+    private static int[] DayOfWeekBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    {
+        var totals = new int[7];
+        foreach (var (day, count) in stats.DailyReceived)
+        {
+            if (count <= 0 ||
+                !DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ||
+                !IsDayInRange(day, fromUtc, toUtc))
+            {
+                continue;
+            }
+
+            totals[((int)date.DayOfWeek + 6) % 7] += count;
+        }
+
+        return totals;
+    }
+
+    private static int[] MonthBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    {
+        var totals = new int[12];
+        foreach (var (day, count) in stats.DailyReceived)
+        {
+            if (count <= 0 ||
+                !DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ||
+                !IsDayInRange(day, fromUtc, toUtc))
+            {
+                continue;
+            }
+
+            totals[date.Month - 1] += count;
+        }
+
+        return totals;
     }
 
     private static ActivityPatterns Finalize(string[] labels, int[] values, Func<int, string> peakLabel)

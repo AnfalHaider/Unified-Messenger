@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -121,49 +122,56 @@ public sealed partial class ActivityPatternsPanel : UserControl
 
         var instances = ResolveInstances();
         var (from, to) = ResolveRange();
-        var patterns = MessageAnalyticsService.Instance.BuildActivityPatterns(_dimension, instances, from, to);
+        var breakdown = MessageAnalyticsService.Instance.BuildActivityBreakdown(_dimension, instances, from, to);
 
         ChartHost.Children.Clear();
         ChartHost.ColumnDefinitions.Clear();
         AxisHost.Children.Clear();
         AxisHost.ColumnDefinitions.Clear();
+        LegendHost.ItemsSource = null;
 
-        var count = patterns.Labels.Count;
-        if (count == 0 || !patterns.HasData)
+        var count = breakdown.Labels.Count;
+        if (count == 0 || !breakdown.HasData)
         {
             ChartHost.Children.Add(new TextBlock
             {
-                Text = "No activity recorded yet for this selection — patterns build up as messages arrive.",
+                Text = "No activity recorded yet for this selection — patterns build up as messages arrive. If you just updated, click Re-sync.",
                 Foreground = Brush("TextFillColorSecondaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextWrapping = TextWrapping.WrapWholeWords
             });
             InsightText.Text = "Once a few days of activity accrue, the busiest hour, day, and month surface here.";
+            RenderWeekOverWeek(instances);
             return;
         }
 
-        var max = Math.Max(1, patterns.Values.Max());
-        var barFill = Brush("AccentFillColorDefaultBrush");
-        var peakFill = Brush("SystemFillColorCautionBrush");
+        // Colour each account's contribution: with a single visible series, one accent + a highlighted peak;
+        // with several, stack each account's segment in its own accent so you can see who drives each bar.
+        var multiSeries = breakdown.Series.Count > 1;
         var labelBrush = Brush("TextFillColorTertiaryBrush");
         var peakLabelBrush = Brush("SystemFillColorCautionBrush");
+        var singleFill = Brush("AccentFillColorDefaultBrush");
+        var peakFill = Brush("SystemFillColorCautionBrush");
+        var max = Math.Max(1, breakdown.Totals.Max());
 
         for (var i = 0; i < count; i++)
         {
             ChartHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             AxisHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            var isPeak = i == patterns.PeakIndex;
-            var value = patterns.Values[i];
-            var barHeight = Math.Max(3, value / (double)max * BarMaxHeight);
+            var isPeak = i == breakdown.PeakIndex;
+            var total = breakdown.Totals[i];
+            var fullHeight = Math.Max(total > 0 ? 3 : 0, total / (double)max * BarMaxHeight);
 
-            var column = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom };
-            if (isPeak)
+            var column = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(3, 0, 3, 0) };
+
+            // Value label above the peak bucket.
+            if (isPeak && total > 0)
             {
                 column.Children.Add(new TextBlock
                 {
-                    Text = value.ToString(),
+                    Text = total.ToString(),
                     FontSize = 10,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = peakLabelBrush,
@@ -172,16 +180,50 @@ public sealed partial class ActivityPatternsPanel : UserControl
                 });
             }
 
-            column.Children.Add(new Border
-            {
-                Height = barHeight,
-                Background = isPeak ? peakFill : barFill,
-                Opacity = isPeak ? 1.0 : 0.45,
-                CornerRadius = new CornerRadius(3, 3, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                Margin = new Thickness(3, 0, 3, 0)
-            });
+            // Per-bucket tooltip: the total plus each account's share.
+            var tip = new StringBuilder();
+            tip.Append(breakdown.Labels[i]).Append(" · ").Append(total).Append(total == 1 ? " message" : " messages");
 
+            if (total > 0)
+            {
+                if (multiSeries)
+                {
+                    var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom };
+                    var segments = breakdown.Series
+                        .Select((s, idx) => (Series: s, Value: s.Values[i], Index: idx))
+                        .Where(x => x.Value > 0)
+                        .ToList();
+                    for (var s = 0; s < segments.Count; s++)
+                    {
+                        var (series, value, _) = segments[s];
+                        var segHeight = Math.Max(2, value / (double)total * fullHeight);
+                        stack.Children.Add(new Border
+                        {
+                            Height = segHeight,
+                            Background = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(series.AccentColor)),
+                            // Round only the very top segment.
+                            CornerRadius = s == 0 ? new CornerRadius(3, 3, 0, 0) : new CornerRadius(0),
+                            HorizontalAlignment = HorizontalAlignment.Stretch
+                        });
+                        tip.Append('\n').Append(series.DisplayName).Append(": ").Append(value);
+                    }
+
+                    column.Children.Add(stack);
+                }
+                else
+                {
+                    column.Children.Add(new Border
+                    {
+                        Height = fullHeight,
+                        Background = isPeak ? peakFill : singleFill,
+                        Opacity = isPeak ? 1.0 : 0.55,
+                        CornerRadius = new CornerRadius(3, 3, 0, 0),
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    });
+                }
+            }
+
+            ToolTipService.SetToolTip(column, tip.ToString());
             Grid.SetColumn(column, i);
             ChartHost.Children.Add(column);
 
@@ -189,16 +231,17 @@ public sealed partial class ActivityPatternsPanel : UserControl
             var showLabel = count <= 12 || i % 3 == 0 || isPeak;
             var axisLabel = new TextBlock
             {
-                Text = showLabel ? patterns.Labels[i] : string.Empty,
+                Text = showLabel ? breakdown.Labels[i] : string.Empty,
                 FontSize = 10,
                 Foreground = isPeak ? peakLabelBrush : labelBrush,
                 FontWeight = isPeak ? FontWeights.SemiBold : FontWeights.Normal,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextTrimming = TextTrimming.None
+                HorizontalAlignment = HorizontalAlignment.Center
             };
             Grid.SetColumn(axisLabel, i);
             AxisHost.Children.Add(axisLabel);
         }
+
+        RenderLegend(multiSeries ? breakdown.Series : []);
 
         var prep = _dimension switch
         {
@@ -206,9 +249,44 @@ public sealed partial class ActivityPatternsPanel : UserControl
             ActivityDimension.DayOfWeek => "on",
             _ => "in"
         };
-        InsightText.Text = $"Busiest {prep} {patterns.PeakLabel} — {patterns.Values[patterns.PeakIndex]} messages at the peak.";
+        var rangeWord = (RangeSelector.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "the selected range";
+        InsightText.Text =
+            $"{breakdown.Total} messages in {rangeWord.ToLowerInvariant()} · busiest {prep} {breakdown.PeakLabel} " +
+            $"({breakdown.Totals[breakdown.PeakIndex]} at the peak).";
 
         RenderWeekOverWeek(instances);
+    }
+
+    /// <summary>Renders the per-account colour legend (empty list hides it — single-account or no data).</summary>
+    private void RenderLegend(IReadOnlyList<ActivityAccountSeries> series)
+    {
+        if (series.Count == 0)
+        {
+            LegendHost.ItemsSource = null;
+            return;
+        }
+
+        var chips = series.Select(s =>
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+            row.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse
+            {
+                Width = 9,
+                Height = 9,
+                VerticalAlignment = VerticalAlignment.Center,
+                Fill = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(s.AccentColor))
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text = $"{s.DisplayName} ({s.Total})",
+                FontSize = 11,
+                Foreground = Brush("TextFillColorSecondaryBrush"),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            return (FrameworkElement)row;
+        }).ToList();
+
+        LegendHost.ItemsSource = chips;
     }
 
     /// <summary>#37: a plain-language week-over-week trend line (this week vs last, busiest day).</summary>

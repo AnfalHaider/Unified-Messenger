@@ -60,10 +60,15 @@
                 </StackPanel>
             </Border>
 
-            <!-- Chart: bars + axis labels (built imperatively) -->
+            <!-- Chart: bars + axis labels + per-account legend (built imperatively) -->
             <StackPanel Grid.Row="2" Spacing="6">
                 <Grid x:Name="ChartHost" Height="190" />
                 <Grid x:Name="AxisHost" />
+                <ItemsRepeater x:Name="LegendHost" Margin="0,4,0,0">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Orientation="Horizontal" Spacing="14" />
+                    </ItemsRepeater.Layout>
+                </ItemsRepeater>
             </StackPanel>
 
             <!-- Insight + week-over-week trend -->
