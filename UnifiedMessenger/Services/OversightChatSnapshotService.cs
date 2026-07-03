@@ -213,8 +213,12 @@ public sealed class OversightChatSnapshotService
     }
 
     /// <summary>
-    /// Active = chats whose last activity is within the window (or all chats when <paramref name="windowStartUtc"/>
-    /// is null); CaughtUp = those with no unread. Returns false when there is no snapshot for the instance.
+    /// Active = chats caught up within the window PLUS every chat currently awaiting a reply; CaughtUp =
+    /// the in-window chats with no customer waiting. A chat awaiting a reply is <b>current state</b> and is
+    /// always counted (and never as "caught up") regardless of the date window — a customer who has been
+    /// waiting since yesterday still needs a reply today, so it must not drop out of "Today". The window
+    /// still scopes the caught-up chats, so the on-time % reflects recent handling. Returns false when there
+    /// is no snapshot for the instance.
     /// </summary>
     public bool TryGetWindowed(
         string instanceId,
@@ -230,22 +234,34 @@ public sealed class OversightChatSnapshotService
             return false;
         }
 
+        var id = instanceId.Trim();
+        var now = DateTimeOffset.UtcNow;
         foreach (var chat in snap.Chats)
         {
+            if (IsEffectivelyAwaiting(id, chat, now))
+            {
+                // Current-state backlog — always counts, never "caught up", independent of the window.
+                active++;
+                continue;
+            }
+
             if (!InWindow(chat.LastActivityUtc, windowStartUtc, windowEndUtc))
             {
                 continue;
             }
 
             active++;
-            if (!chat.IsAwaiting)
-            {
-                caughtUp++;
-            }
+            caughtUp++;
         }
 
         return true;
     }
+
+    // A chat awaiting a reply unless the owner manually marked it handled-elsewhere or snoozed it (an
+    // override that self-expires when a newer message arrives or the snooze lapses).
+    private static bool IsEffectivelyAwaiting(string instanceId, ChatEntry chat, DateTimeOffset nowUtc) =>
+        chat.IsAwaiting &&
+        !AwaitingOverrideStore.Instance.IsSuppressed(instanceId, chat.ConversationKey, chat.LastActivityUtc, nowUtc);
 
     /// <summary>
     /// Summarize awaiting state across instances for the "since you were last here" digest: how many are
@@ -269,9 +285,11 @@ public sealed class OversightChatSnapshotService
 
             hasData = true;
             var awaitingHere = 0;
+            var idTrim = id.Trim();
+            var nowUtc = DateTimeOffset.UtcNow;
             foreach (var chat in snap.Chats)
             {
-                if (!chat.IsAwaiting)
+                if (!IsEffectivelyAwaiting(idTrim, chat, nowUtc))
                 {
                     continue;
                 }
@@ -302,21 +320,27 @@ public sealed class OversightChatSnapshotService
         (endUtc is null || when <= endUtc.Value);
 
     /// <summary>
-    /// The chats awaiting a reply (unread &gt; 0) within the window, worst-first (most unread, then most
-    /// recent). Used to populate the click-through "awaiting" list. Empty when there is no snapshot.
+    /// Every chat currently awaiting a reply, worst-first (most unread, then most recent). Awaiting is
+    /// <b>current state</b>, so the date-window parameters are intentionally ignored — a customer waiting
+    /// since last week must still appear in "Today". Kept as parameters for call-site compatibility. Empty
+    /// when there is no snapshot.
     /// </summary>
     public IReadOnlyList<ChatEntry> GetAwaiting(
         string instanceId,
-        DateTimeOffset? windowStartUtc,
+        DateTimeOffset? windowStartUtc = null,
         DateTimeOffset? windowEndUtc = null)
     {
+        _ = windowStartUtc;
+        _ = windowEndUtc;
         if (string.IsNullOrWhiteSpace(instanceId) || !_byInstance.TryGetValue(instanceId.Trim(), out var snap))
         {
             return [];
         }
 
+        var id = instanceId.Trim();
+        var now = DateTimeOffset.UtcNow;
         return snap.Chats
-            .Where(c => c.IsAwaiting && InWindow(c.LastActivityUtc, windowStartUtc, windowEndUtc))
+            .Where(c => IsEffectivelyAwaiting(id, c, now))
             .OrderByDescending(c => c.Unread)
             .ThenByDescending(c => c.LastActivityUtc)
             .ToList();

@@ -192,6 +192,8 @@ public sealed class ShellController
         await OversightChatSnapshotService.Instance.LoadAsync().ConfigureAwait(true);
         // Forward-tracked First Response Time samples + in-flight pending waits.
         await ResponseTimeTracker.Instance.LoadAsync().ConfigureAwait(true);
+        // Manual "handled elsewhere" / snooze overrides for the awaiting lists.
+        await AwaitingOverrideStore.Instance.LoadAsync().ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);

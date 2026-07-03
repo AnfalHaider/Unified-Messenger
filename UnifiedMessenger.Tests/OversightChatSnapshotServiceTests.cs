@@ -109,7 +109,7 @@ public class OversightChatSnapshotServiceTests
     }
 
     [Fact]
-    public void TryGetWindowed_RespectsWindowEnd()
+    public void CaughtUpChatsAreWindowed_ButAwaitingIsAlwaysCurrentState()
     {
         var svc = OversightChatSnapshotService.Instance;
         var now = DateTimeOffset.UtcNow;
@@ -117,20 +117,24 @@ public class OversightChatSnapshotServiceTests
 
         svc.Update(id, new[]
         {
-            Chat("a", "A", 1, now.AddDays(-10), awaiting: true), // before range
-            Chat("b", "B", 1, now.AddDays(-5), awaiting: true),  // inside range
-            Chat("c", "C", 0, now, awaiting: false),             // after range
+            Chat("a", "A", 1, now.AddDays(-10), awaiting: true), // awaiting, well before the range
+            Chat("b", "B", 1, now.AddDays(-5), awaiting: true),  // awaiting, inside the range
+            Chat("c", "C", 0, now, awaiting: false),             // caught up, after the range
         }, now);
 
         var start = now.AddDays(-7);
         var end = now.AddDays(-2);
 
-        Assert.True(svc.TryGetWindowed(id, start, out var active, out _, end));
-        Assert.Equal(1, active); // only "b" falls in [start, end]
+        Assert.True(svc.TryGetWindowed(id, start, out var active, out var caughtUp, end));
+        // Both awaiting chats count regardless of the window; the caught-up chat "c" is outside [start,end].
+        Assert.Equal(2, active);
+        Assert.Equal(0, caughtUp);
 
+        // Awaiting is current-state: BOTH waiting customers surface, even the 10-day-old one.
         var awaiting = svc.GetAwaiting(id, start, end);
-        var only = Assert.Single(awaiting);
-        Assert.Equal("b", only.ConversationKey);
+        Assert.Equal(2, awaiting.Count);
+        Assert.Contains(awaiting, c => c.ConversationKey == "a");
+        Assert.Contains(awaiting, c => c.ConversationKey == "b");
     }
 
     [Fact]

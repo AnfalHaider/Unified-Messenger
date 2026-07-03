@@ -104,6 +104,7 @@ public static class ApplicationLifecycleService
             await services.TriagePersistence.FlushAsync(cancellationToken).ConfigureAwait(false);
             await OversightChatSnapshotService.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
             await ResponseTimeTracker.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await AwaitingOverrideStore.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

@@ -131,6 +131,10 @@ public sealed partial class CommandCenterPanel : UserControl
     private string _lastRenderSignature = string.Empty;
     private string _searchQuery = string.Empty;
     private bool _compact;
+
+    // When set, the Needs-reply list is scoped to just these accounts (a card's awaiting pill was clicked).
+    private List<string>? _needsReplyFilterIds;
+    private string _needsReplyFilterLabel = string.Empty;
     private string? _worstEntityFirstInstanceId;
 
     private void OnSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
@@ -639,11 +643,18 @@ public sealed partial class CommandCenterPanel : UserControl
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
         var danger = Brush("SystemFillColorCriticalBrush");
-        var (windowStart, windowEnd) = WindowRange();
 
-        var rows = instances
+        // Scope to one account/location when a card's awaiting pill was clicked.
+        var scoped = instances;
+        if (_needsReplyFilterIds is { Count: > 0 } filter)
+        {
+            scoped = instances.Where(i => filter.Contains(i.Id, StringComparer.OrdinalIgnoreCase)).ToList();
+            CardsHost.Children.Add(BuildScopeChip(_needsReplyFilterLabel));
+        }
+
+        var rows = scoped
             .SelectMany(inst => OversightChatSnapshotService.Instance
-                .GetAwaiting(inst.Id, windowStart, windowEnd)
+                .GetAwaiting(inst.Id)
                 .Select(chat => (Instance: inst, Chat: chat)))
             .OrderByDescending(x => x.Chat.Unread)
             .ThenBy(x => x.Chat.LastActivityUtc)
@@ -654,7 +665,9 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             CardsHost.Children.Add(new TextBlock
             {
-                Text = "All caught up — no customers are waiting on a reply.",
+                Text = _needsReplyFilterIds is { Count: > 0 }
+                    ? $"{_needsReplyFilterLabel} is all caught up — no customers waiting."
+                    : "All caught up — no customers are waiting on a reply.",
                 Foreground = secondary,
                 TextWrapping = TextWrapping.WrapWholeWords,
                 Margin = new Thickness(2, 6, 2, 0)
@@ -666,6 +679,39 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             CardsHost.Children.Add(BuildNeedsReplyRow(inst, chat, secondary, danger));
         }
+    }
+
+    /// <summary>A "Showing: &lt;account&gt; ✕" chip above the scoped Needs-reply list; click clears the scope.</summary>
+    private FrameworkElement BuildScopeChip(string label)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        content.Children.Add(new TextBlock
+        {
+            Text = $"Showing: {label}",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        content.Children.Add(new FontIcon { Glyph = "", FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
+
+        var chip = new Button
+        {
+            Background = Brush("CardBackgroundFillColorSecondaryBrush"),
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 4, 10, 4),
+            Margin = new Thickness(0, 0, 0, 6),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Content = content
+        };
+        ToolTipService.SetToolTip(chip, "Show every account's waiting customers");
+        chip.Click += (_, _) =>
+        {
+            _needsReplyFilterIds = null;
+            _lastRenderSignature = string.Empty;
+            Render();
+        };
+        return chip;
     }
 
     private FrameworkElement BuildNeedsReplyRow(
@@ -776,6 +822,71 @@ public sealed partial class CommandCenterPanel : UserControl
         var capturedChat = chat;
         button.Click += (_, _) =>
             _services?.Navigation.OpenInstance(capturedId, capturedChat.ConversationKey, capturedChat.CustomerName);
+
+        // Row = the click-through button + an overflow menu (mark handled elsewhere / snooze).
+        var rowGrid = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(button, 0);
+        rowGrid.Children.Add(button);
+
+        var overflow = BuildAwaitingActionButton(inst.Id, chat, displayName);
+        Grid.SetColumn(overflow, 1);
+        overflow.VerticalAlignment = VerticalAlignment.Center;
+        overflow.Margin = new Thickness(4, 0, 0, 0);
+        rowGrid.Children.Add(overflow);
+        return rowGrid;
+    }
+
+    /// <summary>
+    /// The per-chat overflow menu on an awaiting row: mark it handled elsewhere (drops off the list until a
+    /// newer customer message arrives) or snooze it for a while. Both suppress it from every awaiting metric
+    /// via <see cref="AwaitingOverrideStore"/> and self-expire.
+    /// </summary>
+    private Button BuildAwaitingActionButton(string instanceId, OversightChatSnapshotService.ChatEntry chat, string displayName)
+    {
+        var flyout = new MenuFlyout();
+
+        void Refresh()
+        {
+            _lastRenderSignature = string.Empty;
+            Render();
+        }
+
+        var handled = new MenuFlyoutItem { Text = "Mark handled (replied elsewhere)", Icon = new FontIcon { Glyph = "" } };
+        handled.Click += (_, _) =>
+        {
+            AwaitingOverrideStore.Instance.MarkHandled(instanceId, chat.ConversationKey, chat.LastActivityUtc);
+            Refresh();
+        };
+        flyout.Items.Add(handled);
+        flyout.Items.Add(new MenuFlyoutSeparator());
+
+        void AddSnooze(string label, TimeSpan duration)
+        {
+            var item = new MenuFlyoutItem { Text = label };
+            item.Click += (_, _) =>
+            {
+                AwaitingOverrideStore.Instance.Snooze(instanceId, chat.ConversationKey, DateTimeOffset.UtcNow + duration);
+                Refresh();
+            };
+            flyout.Items.Add(item);
+        }
+
+        AddSnooze("Snooze 1 hour", TimeSpan.FromHours(1));
+        AddSnooze("Snooze 4 hours", TimeSpan.FromHours(4));
+        AddSnooze("Snooze until tomorrow", TimeSpan.FromHours(Math.Max(1, 24 - DateTime.Now.Hour)));
+
+        var button = new Button
+        {
+            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(8),
+            Content = new FontIcon { Glyph = "", FontSize = 14 }, // More (…)
+            Flyout = flyout
+        };
+        ToolTipService.SetToolTip(button, $"Handle or snooze {displayName}");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"Actions for {displayName}");
         return button;
     }
 
@@ -1308,13 +1419,15 @@ public sealed partial class CommandCenterPanel : UserControl
         }
         else if (entity.AwaitingCount > 0)
         {
-            awaitingVisual = new Border
+            // Clickable: opens the flat Needs-reply list scoped to just this account/location.
+            var pill = new Button
             {
                 Background = Brush("SystemFillColorCriticalBackgroundBrush"),
+                BorderThickness = new Thickness(0),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(9, 3, 9, 3),
                 VerticalAlignment = VerticalAlignment.Center,
-                Child = new TextBlock
+                Content = new TextBlock
                 {
                     Text = entity.AwaitingCount == 1 ? "1 awaiting" : $"{entity.AwaitingCount} awaiting",
                     Foreground = danger,
@@ -1322,9 +1435,13 @@ public sealed partial class CommandCenterPanel : UserControl
                     FontSize = 12
                 }
             };
-            ToolTipService.SetToolTip(awaitingVisual, oldestWait is { } ow
-                ? $"Customers still waiting on a reply — the longest has waited {FormatMinutes(ow.TotalMinutes)}. Expand the card to see who and jump straight to their chat."
-                : "Customers still waiting on a reply. Expand the card to see who and jump straight to their chat.");
+            var filterIds = entity.MemberInstanceIds.ToList();
+            var filterLabel = entity.DisplayName;
+            pill.Click += (_, _) => ShowNeedsReplyFor(filterIds, filterLabel);
+            ToolTipService.SetToolTip(pill, oldestWait is { } ow
+                ? $"{entity.AwaitingCount} waiting — longest {FormatMinutes(ow.TotalMinutes)}. Click to work through just this account's replies."
+                : "Click to work through just this account's waiting customers.");
+            awaitingVisual = pill;
         }
         else
         {
@@ -1749,7 +1866,19 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private void OnGroupByLocationClick(object sender, RoutedEventArgs e) => SelectMode(GroupByLocationButton);
 
-    private void OnNeedsReplyClick(object sender, RoutedEventArgs e) => SelectMode(NeedsReplyButton);
+    private void OnNeedsReplyClick(object sender, RoutedEventArgs e)
+    {
+        _needsReplyFilterIds = null; // the toolbar button shows the full backlog
+        SelectMode(NeedsReplyButton);
+    }
+
+    /// <summary>Switches to the Needs-reply list scoped to one account/location (from a card's awaiting pill).</summary>
+    private void ShowNeedsReplyFor(List<string> instanceIds, string label)
+    {
+        _needsReplyFilterIds = instanceIds is { Count: > 0 } ? instanceIds : null;
+        _needsReplyFilterLabel = label;
+        SelectMode(NeedsReplyButton);
+    }
 
     // Segmented control: exactly one of {By account, By location, Needs reply} is active.
     private void SelectMode(ToggleButton active)
@@ -1757,6 +1886,12 @@ public sealed partial class CommandCenterPanel : UserControl
         GroupByAccountButton.IsChecked = ReferenceEquals(active, GroupByAccountButton);
         GroupByLocationButton.IsChecked = ReferenceEquals(active, GroupByLocationButton);
         NeedsReplyButton.IsChecked = ReferenceEquals(active, NeedsReplyButton);
+        // Leaving Needs-reply mode clears any per-account scope.
+        if (!ReferenceEquals(active, NeedsReplyButton))
+        {
+            _needsReplyFilterIds = null;
+        }
+
         _lastRenderSignature = string.Empty;
         Render();
     }
