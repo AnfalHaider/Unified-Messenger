@@ -995,6 +995,15 @@ public sealed partial class CommandCenterPanel : UserControl
             overallPct = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
         }
 
+        var totalAwaiting = entities.Sum(e => e.AwaitingCount);
+        var behind = entities.Count(e => e.AwaitingCount > 0);
+
+        // Record today's whole-business KPIs so the two tiles can show a daily micro-trend.
+        if (overallPct is { } recPct)
+        {
+            KpiTrendStore.Instance.Record(recPct, totalAwaiting);
+        }
+
         tiles.Add(new KpiTileViewModel
         {
             Label = "Caught up",
@@ -1002,11 +1011,10 @@ public sealed partial class CommandCenterPanel : UserControl
             ValueBrush = overallPct is { } pp ? StatusBrushForPercent(pp) : secondary,
             Hint = "unread cleared, across accounts",
             ActionKey = overallPct is null ? string.Empty : "caughtup",
+            Trend = KpiTrendStore.Instance.GetCaughtUpTrend(),
             Tooltip = "Share of active chats with no unread messages. This measures unread cleared — not reply speed (see Response time)."
         });
 
-        var totalAwaiting = entities.Sum(e => e.AwaitingCount);
-        var behind = entities.Count(e => e.AwaitingCount > 0);
         tiles.Add(new KpiTileViewModel
         {
             Label = "Awaiting reply",
@@ -1014,6 +1022,7 @@ public sealed partial class CommandCenterPanel : UserControl
             ValueBrush = totalAwaiting > 0 ? primary : success,
             Hint = behind switch { 0 => "all accounts clear", 1 => "1 account behind", _ => $"{behind} accounts behind" },
             ActionKey = totalAwaiting > 0 ? "awaiting" : string.Empty,
+            Trend = KpiTrendStore.Instance.GetAwaitingTrend(),
             Tooltip = "Customers still waiting on a first reply. Click to see them, most urgent first."
         });
 

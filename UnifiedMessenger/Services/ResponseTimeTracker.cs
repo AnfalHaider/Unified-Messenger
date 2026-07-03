@@ -28,6 +28,9 @@ public sealed class ResponseTimeTracker
         int SlaCompliancePercent,
         int AnsweredToday);
 
+    /// <summary>One day's median first-reply time (minutes) and the number of replies it's based on.</summary>
+    public readonly record struct DailyResponsePoint(string Label, double MedianMinutes, int Count);
+
     // A reply taking longer than this is treated as a stale/abandoned thread, not a real response, so it
     // doesn't distort the median (e.g. a chat answered weeks later out-of-band).
     private static readonly TimeSpan MaxCredibleResponse = TimeSpan.FromDays(7);
@@ -212,6 +215,55 @@ public sealed class ResponseTimeTracker
         var slaPercent = (int)Math.Round(withinSla * 100.0 / values.Count);
 
         return new ResponseStats(true, values.Count, median, average, p90, slaPercent, answeredToday);
+    }
+
+    /// <summary>One point per local day (last <paramref name="days"/> days): the median FRT and reply count
+    /// for replies answered that day, oldest→newest. Days with no replies are included with count 0 so the
+    /// trend chart has a continuous x-axis.</summary>
+    public IReadOnlyList<DailyResponsePoint> GetDailyMedians(IEnumerable<MessengerInstance> instances, int days = 7)
+    {
+        var ids = ResolveInstanceIds(instances);
+        var byDay = new Dictionary<DateTime, List<double>>();
+        foreach (var id in ids)
+        {
+            if (!_samples.TryGetValue(id, out var list))
+            {
+                continue;
+            }
+
+            lock (list)
+            {
+                foreach (var sample in list)
+                {
+                    var day = sample.AnsweredAtUtc.ToLocalTime().Date;
+                    if (!byDay.TryGetValue(day, out var bucket))
+                    {
+                        bucket = [];
+                        byDay[day] = bucket;
+                    }
+
+                    bucket.Add(sample.FrtMinutes);
+                }
+            }
+        }
+
+        var today = DateTime.Today;
+        var points = new List<DailyResponsePoint>(days);
+        for (var i = days - 1; i >= 0; i--)
+        {
+            var day = today.AddDays(-i);
+            if (byDay.TryGetValue(day, out var bucket) && bucket.Count > 0)
+            {
+                bucket.Sort();
+                points.Add(new DailyResponsePoint(day.ToString("ddd"), Percentile(bucket, 0.50), bucket.Count));
+            }
+            else
+            {
+                points.Add(new DailyResponsePoint(day.ToString("ddd"), 0, 0));
+            }
+        }
+
+        return points;
     }
 
     private static double Percentile(IReadOnlyList<double> sortedAscending, double fraction)

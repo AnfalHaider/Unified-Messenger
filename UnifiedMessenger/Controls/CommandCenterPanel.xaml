@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:vm="using:UnifiedMessenger.ViewModels"
+    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     mc:Ignorable="d">
 
     <Grid RowSpacing="12">
@@ -119,6 +120,7 @@
                                     Visibility="{x:Bind DeltaVisibility}" />
                             </StackPanel>
                             <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{x:Bind Hint}" />
+                            <shared:MiniSparkline Margin="0,3,0,0" Values="{x:Bind Trend}" />
                         </StackPanel>
                     </Border>
                 </DataTemplate>

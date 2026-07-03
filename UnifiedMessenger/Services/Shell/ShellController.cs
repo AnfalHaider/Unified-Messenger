@@ -194,6 +194,8 @@ public sealed class ShellController
         await ResponseTimeTracker.Instance.LoadAsync().ConfigureAwait(true);
         // Manual "handled elsewhere" / snooze overrides for the awaiting lists.
         await AwaitingOverrideStore.Instance.LoadAsync().ConfigureAwait(true);
+        // Daily caught-up% / awaiting history for the KPI micro-trend sparklines.
+        await KpiTrendStore.Instance.LoadAsync().ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);

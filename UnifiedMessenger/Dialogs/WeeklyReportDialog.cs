@@ -67,9 +67,17 @@ public sealed class WeeklyReportDialog : ContentDialog
             }
         }
 
+        // Response-time trend (last 7 days) — median first reply per day, if any replies were measured.
+        var trend = ResponseTimeTracker.Instance.GetDailyMedians(instances, 7);
+        var trendChart = BuildResponseTrend(trend);
+        if (trendChart is not null)
+        {
+            insightHost.Children.Add(trendChart);
+        }
+
         body.Children.Add(new ScrollViewer
         {
-            MaxHeight = 340,
+            MaxHeight = 360,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             Content = insightHost
         });
@@ -116,6 +124,65 @@ public sealed class WeeklyReportDialog : ContentDialog
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(11, 9, 11, 9),
             Child = grid
+        };
+    }
+
+    /// <summary>A small bar chart of median first-reply time per day (last 7 days). Null when no replies measured.</summary>
+    private FrameworkElement? BuildResponseTrend(IReadOnlyList<ResponseTimeTracker.DailyResponsePoint> points)
+    {
+        if (points.Count == 0 || points.All(p => p.Count == 0))
+        {
+            return null;
+        }
+
+        var max = Math.Max(1.0, points.Max(p => p.MedianMinutes));
+        var chart = new Grid { Height = 90, ColumnSpacing = 6 };
+        var axis = new Grid { ColumnSpacing = 6, Margin = new Thickness(0, 3, 0, 0) };
+        for (var i = 0; i < points.Count; i++)
+        {
+            chart.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            axis.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var p = points[i];
+            var col = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom };
+            if (p.Count > 0)
+            {
+                col.Children.Add(new TextBlock
+                {
+                    Text = BusinessReport.FormatMinutes(p.MedianMinutes),
+                    FontSize = 9,
+                    Foreground = Res("TextFillColorTertiaryBrush"),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 2)
+                });
+                col.Children.Add(new Border
+                {
+                    Height = Math.Max(3, p.MedianMinutes / max * 60),
+                    Background = Res("AccentFillColorDefaultBrush"),
+                    CornerRadius = new CornerRadius(3, 3, 0, 0),
+                    Margin = new Thickness(3, 0, 3, 0)
+                });
+            }
+
+            Grid.SetColumn(col, i);
+            chart.Children.Add(col);
+
+            var lbl = new TextBlock { Text = p.Label, FontSize = 10, Foreground = Res("TextFillColorTertiaryBrush"), HorizontalAlignment = HorizontalAlignment.Center };
+            Grid.SetColumn(lbl, i);
+            axis.Children.Add(lbl);
+        }
+
+        var wrap = new StackPanel { Spacing = 2 };
+        wrap.Children.Add(new TextBlock { Text = "Median first reply, last 7 days", FontSize = 12, FontWeight = FontWeights.SemiBold });
+        wrap.Children.Add(chart);
+        wrap.Children.Add(axis);
+
+        return new Border
+        {
+            Background = Res2("CardBackgroundFillColorSecondaryBrush"),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(11, 9, 11, 9),
+            Child = wrap
         };
     }
 

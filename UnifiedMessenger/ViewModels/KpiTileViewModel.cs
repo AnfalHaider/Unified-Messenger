@@ -28,6 +28,9 @@ public sealed class KpiTileViewModel
 
     public string Tooltip { get; init; } = string.Empty;
 
+    /// <summary>Optional recent daily trend for a mini-sparkline (null/short = hidden).</summary>
+    public IReadOnlyList<int>? Trend { get; init; }
+
     public bool HasAction => !string.IsNullOrEmpty(ActionKey);
 
     public bool HasDelta => !string.IsNullOrEmpty(Delta);
