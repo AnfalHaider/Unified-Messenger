@@ -1,17 +1,43 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-06-29 · **Baseline:** v4.45.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-07-03 · **Baseline:** v4.53.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 Everything in the v4.22–v4.24 UI/UX modernization plan and the reported bugs (delete crash, reorder
 hang, opened≠replied, Google-Business sidebar, embed channels, Work-Queue→Needs-reply merge, new
 channels + UA) is **shipped through v4.28.1**. Phase 1 is complete; P1-A→D and **P2-A (unsaved-contact
 phone resolution + message-preview harvest)** all shipped through v4.39.10. What follows is the
 substantive roadmap that remains — what's left is gated on external dependencies (live Telegram/Meta
-accounts, or a chosen ONNX model).
+accounts, or a chosen ONNX model) or is an optional follow-up.
 
 Task numbers (#NN) match the running list referenced in `CLAUDE.md`.
 
-### Shipped v4.42.0 → v4.45.0 (this work-stream)
+### Shipped v4.46.0 → v4.53.0 (metrics, accuracy, and command-center depth)
+- **Response-speed metrics** (v4.46.0): forward-tracked **First Response Time** (`ResponseTimeTracker`,
+  persisted, watch-start excludes pre-tracking backlog), **SLA met %**, answered-today; responsive,
+  clickable KPI band (Awaiting→Needs-reply, Busiest/Messages→activity graph).
+- **Redesigned account cards** (v4.47.0): live detail chips (reply ~Xm, answered today, N past target,
+  urgent, dropped), per-card freshness stamp, longest-wait nudge, plain-language tooltips, skeleton
+  loaders, card motion, status legend. Fixed the contradictory "N late" figure (now from the live snapshot).
+- **Data-accuracy audit fixes** (v4.48.0): JS now excludes groups/status/broadcast/newsletter from counts,
+  keys by LOCAL day (was UTC), and builds a day×hour matrix so the hour-of-day chart honours the date range;
+  customer-only volume fixes the "751 msgs/day" inflation.
+- **Notifications by account** (v4.49.0): grouped by account (was platform) with avatar + name per section
+  and per row. **Activity graph per-account stacked colours** + legend + range total. **Reviews** now list
+  which reviews need a reply (reviewer + snippet, best-effort) with click-through.
+- **Distinct chart colours** for same-platform accounts (v4.50.1, `ChartPalette`).
+- **Weekly business report** (v4.50.0): anomaly detection (response-time degradation, rising backlog,
+  neglected accounts), comparative call-outs, SLA/volume trends, per-account table; Save .md / Export .csv.
+- **Command-center improvements #1–#7** (v4.51.0–v4.53.0):
+  - **#1** awaiting is **current-state, not date-windowed** (a chat waiting since yesterday no longer drops
+    out of "Today"); caught-up % stays windowed.
+  - **#7** a card's awaiting pill opens the **Needs-reply list scoped to that account**.
+  - **#5** per-row **mark-handled / snooze** (`AwaitingOverrideStore`, self-expiring).
+  - **#3** **KPI micro-trend sparklines** (`KpiTrendStore`, `MiniSparkline`) under Caught-up % and Awaiting.
+  - **#6** **response-time trend chart** in the weekly report.
+  - **#2** per-account **L1 drill-down dialog** (`AccountDetailDialog`) before the raw WebView.
+  - **#4** **quiet hours** — awaiting toasts muted overnight (`QuietHours` + Settings toggle).
+
+### Shipped v4.42.0 → v4.45.0 (prior work-stream)
 - **#32 Google review-health** (v4.42.0): dashboard Reviews section — unanswered + reply rate per account.
 - **Tier-2 AI narration suite** (v4.43.0–v4.44.0): #25 shift briefing, #33 anomaly, #34 ranking rationale,
   #36 end-of-day projection, #37 week-over-week. See P2-D below.
@@ -169,12 +195,24 @@ eviction/reap policy at scale: strict-LRU across 200 instances, visible-never-ev
 
 ## Recommended order
 
-Everything doable without an external dependency is now shipped (#26, P3-C, dead-code/contrast polish,
-Settings change-icon, the Google + Tier-2 AI suite). What remains is **gated**:
+Everything doable without an external dependency is shipped (the response-speed metrics, the accuracy
+audit fixes, the weekly report, and the full command-center improvement set #1–#7 through v4.53.0). What
+remains is **gated** or an **optional follow-up**:
 
+**Gated on external dependencies**
 1. **#24 Telegram / Messenger / Instagram scrapers** — needs a live logged-in account per channel to tune the
    DOM queries (Meta read-only; it fights automation). Highest user-facing value once unblocked.
-2. **P3-D L1 channel-aware entity view** — depends on #24 (the per-entity tabs would be empty without scrapers).
+2. **P3-D full multi-channel L1 view** — the per-account drill-down exists for WhatsApp (`AccountDetailDialog`,
+   v4.53.0); the channel-tabbed version depends on #24.
 3. **P3-B Tier-1 ONNX** — needs a chosen, downloaded model + runtime packaging; can't be built/validated blind.
 4. **Icon import-from-account robustness · brand-logo import for other channels** — live per-platform DOM tuning.
-5. **Sidebar-rail density at very large counts** — minor; wants a visual pass.
+
+**Optional follow-ups (feasible now, not blocked)**
+5. **Business-hours-aware FRT** — measure response time against open hours (the `BusinessHoursCalculator`
+   engine exists) so overnight gaps don't count against you. The one remaining data-accuracy hardening.
+6. **AI narration of the weekly-report headline** — deferred; `OversightInsightService` uses a background
+   callback, not a simple await. The deterministic report stands alone.
+7. **True OS-scheduled report** (fires when the app is closed) — currently on-demand via the Report button.
+8. **Snapshot export as PNG/PDF** — export is currently Markdown + CSV (no dependency).
+9. **Dedicated empty-state sweep** across every remaining surface (empty states were folded into touched panels).
+10. **Sidebar-rail density at very large counts** — minor; wants a visual pass.

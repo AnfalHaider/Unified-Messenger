@@ -1,7 +1,27 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-06-29 · **Baseline:** v4.45.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-07-03 · **Baseline:** v4.53.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
+
+> **Session 8 update (v4.46.0 → v4.53.0): real response-speed metrics, a data-accuracy audit, and the
+> full command-center improvement set.**
+> - **Response-speed metrics** (v4.46.0): forward-tracked **First Response Time** (`ResponseTimeTracker`,
+>   persisted; watch-start excludes pre-tracking backlog), **SLA met %**, answered-today; responsive,
+>   clickable KPI band. This is the biggest data gap closed — the app now measures reply *speed*, not just
+>   the unread-based caught-up %.
+> - **Redesigned account cards** (v4.47.0): live detail chips, per-card freshness, longest-wait nudge,
+>   skeleton loaders, motion, status legend; fixed the contradictory "N late" figure.
+> - **Data-accuracy audit** (v4.48.0): customer-only counts (exclude groups/status/broadcast/newsletter),
+>   LOCAL-day keying, day×hour matrix so the hour chart honours the date range. Fixes inflated volume.
+> - **Notifications by account, per-account stacked activity colours, actionable reviews** (v4.49.0);
+>   distinct chart colours for same-platform accounts (v4.50.1).
+> - **Weekly business report** (v4.50.0): anomaly detection + comparative insights + Save .md / Export .csv.
+> - **Command-center #1–#7** (v4.51.0–v4.53.0): current-state awaiting, card→needs-reply filter,
+>   mark-handled/snooze (`AwaitingOverrideStore`), KPI micro-trend sparklines (`KpiTrendStore`), response
+>   trend in the report, per-account L1 drill-down (`AccountDetailDialog`), quiet hours (`QuietHours`).
+> - **Still gated:** #24 Telegram/Meta scrapers (live accounts), P3-D multi-channel L1 (depends on #24),
+>   P3-B Tier-1 ONNX (a model), icon import-from-account robustness. Optional follow-ups: business-hours-aware
+>   FRT, AI-narrated report headline, OS-scheduled report, PNG/PDF export.
 
 > **Session 7 update (v4.42.0 → v4.45.0): channel + AI features, then infrastructure + polish.**
 > - **#32 Google review-health** (v4.42.0): dashboard Reviews section (unanswered + reply rate).
