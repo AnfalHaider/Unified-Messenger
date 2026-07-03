@@ -147,8 +147,10 @@ public sealed partial class ActivityPatternsPanel : UserControl
         }
 
         // Colour each account's contribution: with a single visible series, one accent + a highlighted peak;
-        // with several, stack each account's segment in its own accent so you can see who drives each bar.
+        // with several, stack each account's segment in a distinct colour so you can see who drives each bar.
+        // (Same-platform accounts share one brand accent, so ChartPalette assigns distinct hues when needed.)
         var multiSeries = breakdown.Series.Count > 1;
+        var seriesColors = ChartPalette.ResolveSeriesColors(breakdown.Series);
         var labelBrush = Brush("TextFillColorTertiaryBrush");
         var peakLabelBrush = Brush("SystemFillColorCautionBrush");
         var singleFill = Brush("AccentFillColorDefaultBrush");
@@ -197,10 +199,11 @@ public sealed partial class ActivityPatternsPanel : UserControl
                     {
                         var (series, value, _) = segments[s];
                         var segHeight = Math.Max(2, value / (double)total * fullHeight);
+                        var colorHex = seriesColors.TryGetValue(series.InstanceId, out var hex) ? hex : series.AccentColor;
                         stack.Children.Add(new Border
                         {
                             Height = segHeight,
-                            Background = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(series.AccentColor)),
+                            Background = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(colorHex)),
                             // Round only the very top segment.
                             CornerRadius = s == 0 ? new CornerRadius(3, 3, 0, 0) : new CornerRadius(0),
                             HorizontalAlignment = HorizontalAlignment.Stretch
@@ -241,7 +244,7 @@ public sealed partial class ActivityPatternsPanel : UserControl
             AxisHost.Children.Add(axisLabel);
         }
 
-        RenderLegend(multiSeries ? breakdown.Series : []);
+        RenderLegend(multiSeries ? breakdown.Series : [], seriesColors);
 
         var prep = _dimension switch
         {
@@ -258,7 +261,9 @@ public sealed partial class ActivityPatternsPanel : UserControl
     }
 
     /// <summary>Renders the per-account colour legend (empty list hides it — single-account or no data).</summary>
-    private void RenderLegend(IReadOnlyList<ActivityAccountSeries> series)
+    private void RenderLegend(
+        IReadOnlyList<ActivityAccountSeries> series,
+        IReadOnlyDictionary<string, string> seriesColors)
     {
         if (series.Count == 0)
         {
@@ -268,13 +273,14 @@ public sealed partial class ActivityPatternsPanel : UserControl
 
         var chips = series.Select(s =>
         {
+            var colorHex = seriesColors.TryGetValue(s.InstanceId, out var hex) ? hex : s.AccentColor;
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
             row.Children.Add(new Microsoft.UI.Xaml.Shapes.Ellipse
             {
                 Width = 9,
                 Height = 9,
                 VerticalAlignment = VerticalAlignment.Center,
-                Fill = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(s.AccentColor))
+                Fill = new SolidColorBrush(PlatformBrandingHelper.ParseAccentColor(colorHex))
             });
             row.Children.Add(new TextBlock
             {

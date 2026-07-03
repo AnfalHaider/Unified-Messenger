@@ -306,6 +306,41 @@ public class ActivityPatternsTests : IDisposable
     }
 
     [Fact]
+    public void ChartPalette_SamePlatformAccents_GetDistinctColours()
+    {
+        // Three WhatsApp accounts all carry the same brand green — the stacked chart must not be monochrome.
+        var series = new List<ActivityAccountSeries>
+        {
+            new() { InstanceId = "b", DisplayName = "B", AccentColor = "#25D366", Values = new int[24], Total = 5 },
+            new() { InstanceId = "a", DisplayName = "A", AccentColor = "#25D366", Values = new int[24], Total = 9 },
+            new() { InstanceId = "c", DisplayName = "C", AccentColor = "#25D366", Values = new int[24], Total = 2 }
+        };
+
+        var colors = ChartPalette.ResolveSeriesColors(series);
+
+        Assert.Equal(3, colors.Values.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        // Stable by instance id, not by series order.
+        Assert.Equal(ChartPalette.Palette[0], colors["a"]);
+        Assert.Equal(ChartPalette.Palette[1], colors["b"]);
+        Assert.Equal(ChartPalette.Palette[2], colors["c"]);
+    }
+
+    [Fact]
+    public void ChartPalette_DistinctAccents_AreKept()
+    {
+        var series = new List<ActivityAccountSeries>
+        {
+            new() { InstanceId = "a", DisplayName = "A", AccentColor = "#111111", Values = new int[7], Total = 1 },
+            new() { InstanceId = "b", DisplayName = "B", AccentColor = "#222222", Values = new int[7], Total = 1 }
+        };
+
+        var colors = ChartPalette.ResolveSeriesColors(series);
+
+        Assert.Equal("#111111", colors["a"]);
+        Assert.Equal("#222222", colors["b"]);
+    }
+
+    [Fact]
     public void BuildActivityPatterns_FiltersByAccount()
     {
         var service = new MessageAnalyticsService(_storePath);
