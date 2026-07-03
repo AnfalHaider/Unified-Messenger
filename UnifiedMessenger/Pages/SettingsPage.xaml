@@ -145,6 +145,39 @@
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
 
+                        <ToggleSwitch
+                            x:Name="QuietHoursToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="QuietHoursToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Quiet hours" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Mute awaiting-reply alerts overnight. They resume when quiet hours end."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+                        <StackPanel x:Name="QuietHoursRange" Orientation="Horizontal" Spacing="10" Margin="0,-4,0,0">
+                            <NumberBox
+                                x:Name="QuietHoursStartBox"
+                                Header="From (hour)"
+                                Minimum="0"
+                                Maximum="23"
+                                SpinButtonPlacementMode="Compact"
+                                ValueChanged="QuietHoursBox_ValueChanged" />
+                            <NumberBox
+                                x:Name="QuietHoursEndBox"
+                                Header="To (hour)"
+                                Minimum="0"
+                                Maximum="23"
+                                SpinButtonPlacementMode="Compact"
+                                ValueChanged="QuietHoursBox_ValueChanged" />
+                        </StackPanel>
+
                         <Button
                             x:Name="ClearNotificationsButton"
                             HorizontalAlignment="Left"

@@ -166,6 +166,10 @@ public sealed partial class SettingsPage : Page
         IncludeMutedBadgesToggle.IsOn = settings.IncludeMutedChatBadges;
         ToastGroupToggle.IsOn = settings.ToastGroupByInstance;
         ToastBrandingToggle.IsOn = settings.ToastUsePlatformBranding;
+        QuietHoursToggle.IsOn = settings.QuietHoursEnabled;
+        QuietHoursStartBox.Value = settings.QuietHoursStartHour;
+        QuietHoursEndBox.Value = settings.QuietHoursEndHour;
+        QuietHoursRange.Visibility = settings.QuietHoursEnabled ? Visibility.Visible : Visibility.Collapsed;
         EnableLazyWebViewLoadingToggle.IsOn = settings.EnableLazyWebViewLoading;
         EnablePerInstanceSleepUnloadToggle.IsOn = settings.EnablePerInstanceSleepUnload;
         EnableEditInstanceMetadataToggle.IsOn = settings.EnableEditInstanceMetadata;

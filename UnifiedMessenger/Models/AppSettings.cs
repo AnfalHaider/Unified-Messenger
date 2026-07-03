@@ -38,6 +38,15 @@ public sealed class AppSettings
 
     public ToastSoundPreference ToastSound { get; set; } = ToastSoundPreference.Default;
 
+    /// <summary>When on, threshold/awaiting toasts are suppressed during quiet hours (e.g. overnight).</summary>
+    public bool QuietHoursEnabled { get; set; }
+
+    /// <summary>Quiet-hours start hour (0–23, local). Wraps past midnight when start &gt; end.</summary>
+    public int QuietHoursStartHour { get; set; } = 21;
+
+    /// <summary>Quiet-hours end hour (0–23, local).</summary>
+    public int QuietHoursEndHour { get; set; } = 8;
+
     public bool EnableAutoUpdate { get; set; } = true;
 
     public bool PromptBeforeAutoUpdate { get; set; }

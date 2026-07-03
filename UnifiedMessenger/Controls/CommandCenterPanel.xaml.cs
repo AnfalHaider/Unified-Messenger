@@ -1488,6 +1488,28 @@ public sealed partial class CommandCenterPanel : UserControl
             trailingCell = trailing;
         }
 
+        // A "details" button (per-account only) opens the account's L1 insight view before the raw WebView.
+        if (entity.Kind == OversightEntityKind.Instance && _services is not null)
+        {
+            var detailsButton = new Button
+            {
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(6),
+                VerticalAlignment = VerticalAlignment.Center,
+                Content = new FontIcon { Glyph = "", FontSize = 14 } // BarChart
+            };
+            ToolTipService.SetToolTip(detailsButton, "Account details — reply speed, backlog, and who's waiting");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(detailsButton, $"{entity.DisplayName} details");
+            var instanceKey = entity.Key;
+            detailsButton.Click += (_, _) => ShowAccountDetail(instanceKey);
+
+            var wrapped = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+            wrapped.Children.Add(detailsButton);
+            wrapped.Children.Add(trailingCell);
+            trailingCell = wrapped;
+        }
+
         Grid.SetColumn(trailingCell, 2);
         topRow.Children.Add(avatar);
         topRow.Children.Add(nameColumn);
@@ -1879,6 +1901,20 @@ public sealed partial class CommandCenterPanel : UserControl
     {
         _needsReplyFilterIds = null; // the toolbar button shows the full backlog
         SelectMode(NeedsReplyButton);
+    }
+
+    /// <summary>Opens the per-account L1 detail dialog (reply speed, backlog, waiting customers).</summary>
+    private async void ShowAccountDetail(string instanceId)
+    {
+        var instance = _services?.Registry.Instances.FirstOrDefault(i =>
+            string.Equals(i.Id, instanceId, StringComparison.OrdinalIgnoreCase));
+        if (_services is null || instance is null)
+        {
+            return;
+        }
+
+        var dialog = new UnifiedMessenger.Dialogs.AccountDetailDialog(_services, instance) { XamlRoot = XamlRoot };
+        await dialog.ShowAsync();
     }
 
     /// <summary>Switches to the Needs-reply list scoped to one account/location (from a card's awaiting pill).</summary>

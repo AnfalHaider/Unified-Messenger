@@ -86,6 +86,13 @@ public sealed class OversightAlertMonitor
                     continue; // alerts disabled — snapshot still refreshed above
                 }
 
+                // Quiet hours: don't ping overnight. Skip before Evaluate so the edge is preserved and the
+                // alert fires once quiet hours end (rather than being consumed silently).
+                if (QuietHours.IsQuietNow(AppSettingsService.Instance.Settings))
+                {
+                    continue;
+                }
+
                 var awaiting = result.Value.Awaiting;
                 var alreadyAlerted = _alerted.TryGetValue(instance.Id, out var a) && a;
                 var (fire, alerted) = Evaluate(awaiting, threshold, alreadyAlerted);

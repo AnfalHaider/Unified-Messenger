@@ -68,6 +68,33 @@ public sealed partial class SettingsPage
             settings.PanelAutoOpen = option.Mode);
     }
 
+    private async void QuietHoursToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents)
+        {
+            return;
+        }
+
+        QuietHoursRange.Visibility = QuietHoursToggle.IsOn ? Visibility.Visible : Visibility.Collapsed;
+        await _services.AppSettings.UpdateAsync(settings => settings.QuietHoursEnabled = QuietHoursToggle.IsOn);
+    }
+
+    private async void QuietHoursBox_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+    {
+        if (_suppressToggleEvents)
+        {
+            return;
+        }
+
+        var start = (int)Math.Clamp(double.IsNaN(QuietHoursStartBox.Value) ? 21 : QuietHoursStartBox.Value, 0, 23);
+        var end = (int)Math.Clamp(double.IsNaN(QuietHoursEndBox.Value) ? 8 : QuietHoursEndBox.Value, 0, 23);
+        await _services.AppSettings.UpdateAsync(settings =>
+        {
+            settings.QuietHoursStartHour = start;
+            settings.QuietHoursEndHour = end;
+        });
+    }
+
     private async void ToastSoundBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressToggleEvents || ToastSoundBox.SelectedItem is not ToastSoundOption option)
