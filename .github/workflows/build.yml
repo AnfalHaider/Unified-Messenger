@@ -48,9 +48,13 @@ jobs:
             --verbosity normal `
             --collect:"XPlat Code Coverage" `
             --results-directory "${{ runner.temp }}/coverage" 2>&1 | Out-String
+          $testExit = $LASTEXITCODE
           Write-Host $output
-          if ($output -notmatch 'Passed!\s+- Failed:\s+0') {
-            throw "Unit tests did not all pass."
+          # Trust dotnet test's exit code, not a summary-string match: the wording differs between the
+          # standalone runner ("Passed!  - Failed: 0") and the MSBuild-integrated build+test path
+          # ("Test Run Successful."), and a brittle regex previously failed the release even when 0 tests failed.
+          if ($testExit -ne 0) {
+            throw "Unit tests did not all pass (dotnet test exit code $testExit)."
           }
           $match = [regex]::Match($output, 'Total tests:\s+(\d+)')
           if (-not $match.Success) {
