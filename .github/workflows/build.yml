@@ -95,7 +95,7 @@ jobs:
         # Diagnostic artifact only — must never fail the job (e.g. on a transient artifact-storage-quota
         # hit), or it would block the whole release even when tests + coverage passed.
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: code-coverage
           path: ${{ runner.temp }}/coverage/**/coverage.cobertura.xml
@@ -211,7 +211,7 @@ jobs:
           Write-Host "Wrote $sidecar"
 
       - name: Upload publish output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: publish-${{ matrix.rid }}
           path: UnifiedMessenger/bin/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish/
@@ -222,7 +222,7 @@ jobs:
           compression-level: 9
 
       - name: Upload installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.rid }}
           path: |
