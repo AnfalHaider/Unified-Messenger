@@ -65,3 +65,13 @@ third_party/ollama/*.sha256
 .crawl4ai/
 .env
 .env.local
+
+# Transient test/run output
+test_out.txt
+test_err.txt
+test_result.txt
+
+# Cursor run logs & swarm artifacts (keep rules/settings/tools)
+.cursor/*.txt
+.cursor/*-summary.md
+.cursor/adversarial-swarm/

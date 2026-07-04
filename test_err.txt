@@ -1,3 +1,0 @@
-[xUnit.net 00:00:00.27]     UnifiedMessenger.Tests.AdapterCoreScriptTests.AdapterCoreScript_ContainsMutedBadgePlaceholder [FAIL]
-The active test run was aborted. Reason: Test host process crashed
-Test Run Aborted.
