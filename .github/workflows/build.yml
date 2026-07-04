@@ -38,14 +38,13 @@ jobs:
       - name: Test with coverage
         shell: pwsh
         run: |
-          # NOTE: do NOT pass -p:Platform here. The Tests project has no <Platforms> (only RuntimeIdentifier
-          # win-x64), so an x64 solution build lands its dll in bin\Release\...\win-x64 — but `dotnet test
-          # -p:Platform=x64` then looks in bin\x64\Release\... and fails with "test source file not found",
-          # which aborts the whole release. Letting the test project resolve its default (AnyCPU) output path
-          # matches where the build step placed it.
+          # Build+run the test project in ONE evaluation (no --no-build, no -p:Platform). The solution build
+          # above maps the Tests project to AnyCPU (bin\Release\...\win-x64), but `dotnet test` evaluated
+          # per-project resolves it to bin\x64\Release\...\win-x64 — so --no-build could never find the dll
+          # ("test source file not found" → Build FAILED → the whole release aborted). Letting dotnet test
+          # compile the project itself keeps the produce/consume path consistent.
           $output = dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj `
             --configuration ${{ env.CONFIGURATION }} `
-            --no-build `
             --verbosity normal `
             --collect:"XPlat Code Coverage" `
             --results-directory "${{ runner.temp }}/coverage" 2>&1 | Out-String
