@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="UnifiedMessenger.Controls.MessageVolumeLineChart"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    AutomationProperties.Name="Message volume trend"
+    mc:Ignorable="d">
+
+    <StackPanel Spacing="{StaticResource UmSpacingSm}">
+        <TextBlock
+            Style="{StaticResource UmSectionLabelTextStyle}"
+            Text="MESSAGE VOLUME" />
+        <TextBlock
+            x:Name="SummaryTextBlock"
+            Style="{StaticResource UmBodyTextStyle}"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            Text="No message volume in the selected range."
+            TextWrapping="WrapWholeWords" />
+        <Grid
+            x:Name="ChartPlotGrid"
+            MinWidth="200"
+            Height="{StaticResource UmChartHeight}">
+            <Path
+                x:Name="AreaPath"
+                Fill="{StaticResource UmBrandTealBrush}"
+                Opacity="{StaticResource UmOpacitySubtle}"
+                Stretch="None" />
+            <Path
+                x:Name="LinePath"
+                Stroke="{StaticResource UmBrandTealBrush}"
+                StrokeThickness="{StaticResource UmChartStrokeThickness}"
+                Stretch="None" />
+            <TextBlock
+                x:Name="EmptyHintText"
+                HorizontalAlignment="Center"
+                Style="{StaticResource UmEmptyHintTextStyle}"
+                Text="Activity will appear after WhatsApp messages are detected."
+                VerticalAlignment="Center"
+                Visibility="Visible" />
+        </Grid>
+        <Grid ColumnSpacing="{StaticResource UmSpacingMd}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition MinWidth="0" Width="*" />
+                <ColumnDefinition MinWidth="0" Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                x:Name="AxisStartLabel"
+                Style="{StaticResource UmChartAxisLabelStyle}"
+                Text="—" />
+            <TextBlock
+                x:Name="AxisEndLabel"
+                Grid.Column="1"
+                HorizontalAlignment="Right"
+                Style="{StaticResource UmChartAxisLabelStyle}"
+                Text="—" />
+        </Grid>
+    </StackPanel>
+</UserControl>

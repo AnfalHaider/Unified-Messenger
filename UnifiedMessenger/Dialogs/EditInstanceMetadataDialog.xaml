@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentDialog
+    x:Class="UnifiedMessenger.Dialogs.EditInstanceMetadataDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="Edit instance metadata"
+    DefaultButton="Primary"
+    PrimaryButtonText="Save"
+    SecondaryButtonText="Cancel"
+    PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
+    Title="Edit instance metadata">
+
+    <StackPanel MinWidth="360" Spacing="12">
+        <TextBox
+            x:Name="DisplayNameBox"
+            Header="Display name"
+            PlaceholderText="e.g. WhatsApp Work" />
+
+        <TextBox
+            x:Name="BranchKeyBox"
+            Header="Branch key (optional)"
+            PlaceholderText="e.g. DHA-2 — leave blank to infer from display name" />
+
+        <ComboBox
+            x:Name="PlatformBox"
+            Header="Platform"
+            SelectionChanged="PlatformBox_SelectionChanged" />
+
+        <TextBox
+            x:Name="CustomUrlBox"
+            Header="Start URL"
+            PlaceholderText="https://" />
+
+        <TextBox
+            x:Name="NotesBox"
+            Header="Notes (optional)"
+            AcceptsReturn="True"
+            PlaceholderText="Internal notes for this account"
+            TextWrapping="Wrap"
+            Visibility="Collapsed" />
+
+        <TextBlock
+            x:Name="ValidationMessage"
+            Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+            TextWrapping="WrapWholeWords"
+            Visibility="Collapsed" />
+    </StackPanel>
+</ContentDialog>

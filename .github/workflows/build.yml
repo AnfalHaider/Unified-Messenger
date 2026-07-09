@@ -1,0 +1,345 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: 8.0.x
+  CONFIGURATION: Release
+  PLATFORM: x64
+  # Line-coverage floor. Re-baselined 2026-07 from 38% → 25%: the codebase grew ~10k lines of WinUI
+  # (dialogs, imperative card/chart builders) that isn't practically unit-testable, so measured coverage
+  # is ~28% (7.1k/25.2k lines) with 637 passing tests. 25% is a regression floor, not the aspiration.
+  COVERAGE_LINE_THRESHOLD: 25
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore UnifiedMessenger.sln
+
+      - name: Build
+        run: dotnet build UnifiedMessenger.sln --configuration ${{ env.CONFIGURATION }} --no-restore -p:Platform=${{ env.PLATFORM }}
+
+      - name: Test with coverage
+        shell: pwsh
+        run: |
+          # Build+run the test project in ONE evaluation (no --no-build, no -p:Platform). The solution build
+          # above maps the Tests project to AnyCPU (bin\Release\...\win-x64), but `dotnet test` evaluated
+          # per-project resolves it to bin\x64\Release\...\win-x64 — so --no-build could never find the dll
+          # ("test source file not found" → Build FAILED → the whole release aborted). Letting dotnet test
+          # compile the project itself keeps the produce/consume path consistent.
+          $output = dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj `
+            --configuration ${{ env.CONFIGURATION }} `
+            --verbosity normal `
+            --collect:"XPlat Code Coverage" `
+            --results-directory "${{ runner.temp }}/coverage" 2>&1 | Out-String
+          $testExit = $LASTEXITCODE
+          Write-Host $output
+          # Trust dotnet test's exit code, not a summary-string match: the wording differs between the
+          # standalone runner ("Passed!  - Failed: 0") and the MSBuild-integrated build+test path
+          # ("Test Run Successful."), and a brittle regex previously failed the release even when 0 tests failed.
+          if ($testExit -ne 0) {
+            throw "Unit tests did not all pass (dotnet test exit code $testExit)."
+          }
+          $match = [regex]::Match($output, 'Total tests:\s+(\d+)')
+          if (-not $match.Success) {
+            throw "Could not parse unit test count from dotnet test output."
+          }
+          $count = [int]$match.Groups[1].Value
+          Write-Host "Unit test count: $count"
+          $docPath = "docs/validation/completion-criteria.md"
+          $doc = Get-Content $docPath -Raw
+          if ($doc -notmatch "$count") {
+            Write-Warning "completion-criteria.md may be stale (expected mention of ~$count tests)."
+          }
+
+      - name: Report and enforce coverage threshold
+        shell: pwsh
+        run: |
+          $threshold = [int]$env:COVERAGE_LINE_THRESHOLD
+          $reports = Get-ChildItem -Path "${{ runner.temp }}/coverage" -Filter "coverage.cobertura.xml" -Recurse
+          if (-not $reports) {
+            throw "No coverage report found under ${{ runner.temp }}/coverage"
+          }
+          $report = $reports | Select-Object -First 1
+          [xml]$xml = Get-Content $report.FullName
+          $lineRate = [double]$xml.coverage.'line-rate'
+          $pct = [math]::Round($lineRate * 100, 2)
+          $covered = $xml.coverage.'lines-covered'
+          $valid = $xml.coverage.'lines-valid'
+          Write-Host "Line coverage: $pct% ($covered / $valid lines)"
+          Write-Host "Threshold: $threshold%"
+          if ($pct -lt $threshold) {
+            throw "Line coverage $pct% is below threshold $threshold%"
+          }
+
+      - name: Upload coverage report
+        if: always()
+        # Diagnostic artifact only — must never fail the job (e.g. on a transient artifact-storage-quota
+        # hit), or it would block the whole release even when tests + coverage passed.
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage
+          path: ${{ runner.temp }}/coverage/**/coverage.cobertura.xml
+          if-no-files-found: warn
+          retention-days: 5
+
+      - name: Enforce shell DI gate
+        shell: pwsh
+        run: |
+          $forbidden = @(
+            'AppSettingsService.Instance',
+            'MessageAnalyticsService.Instance',
+            'NotificationHub.Instance',
+            'ThreadRegistryService.Instance',
+            'WebViewProfileManager.Instance',
+            'SystemTrayService.Instance',
+            'AppNotificationService.Instance',
+            'TaskbarBadgeService.Instance',
+            'GitHubUpdateService.Instance'
+          )
+          $shellFiles = Get-ChildItem -Path "UnifiedMessenger/Services/Shell" -Filter *.cs -Recurse
+          foreach ($file in $shellFiles) {
+            $text = Get-Content $file.FullName -Raw
+            foreach ($pattern in $forbidden) {
+              if ($text -match [regex]::Escape($pattern)) {
+                throw "Forbidden singleton in shell layer: $($file.Name) uses $pattern"
+              }
+            }
+          }
+
+      - name: Check vulnerable packages
+        shell: pwsh
+        run: |
+          $output = dotnet list UnifiedMessenger.sln package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $output
+          if ($output -match 'has the following vulnerable packages') {
+            throw "Vulnerable packages detected. Resolve before merging."
+          }
+
+  package:
+    runs-on: windows-latest
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            platform: x64
+            installer_script: installer.iss
+            setup_artifact: UnifiedMessengerSetup.exe
+          - rid: win-arm64
+            platform: ARM64
+            installer_script: installer-arm64.iss
+            setup_artifact: UnifiedMessengerSetup-arm64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish ${{ matrix.rid }}
+        shell: pwsh
+        run: |
+          $publishDir = "UnifiedMessenger/bin/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish"
+          dotnet publish UnifiedMessenger/UnifiedMessenger.csproj `
+            -c ${{ env.CONFIGURATION }} `
+            -r ${{ matrix.rid }} `
+            --self-contained true `
+            -p:Platform=${{ matrix.platform }} `
+            -p:PublishSingleFile=false `
+            -p:WindowsAppSDKSelfContained=true `
+            -p:PublishReadyToRun=false `
+            -o $publishDir
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $isccCandidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress
+            $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if ($iscc) {
+            & $iscc "${{ matrix.installer_script }}"
+          } elseif ("${{ github.ref }}" -like 'refs/tags/v*') {
+            throw "Inno Setup is required to compile installers for release tags."
+          } else {
+            Write-Warning "Inno Setup not available; using installers committed under dist/ if present."
+          }
+
+      - name: Verify installer artifact
+        shell: pwsh
+        run: |
+          $path = "dist/${{ matrix.setup_artifact }}"
+          if (-not (Test-Path $path)) {
+            throw "Missing installer: $path"
+          }
+
+      - name: Write installer SHA-256 sidecar
+        shell: pwsh
+        run: |
+          $installer = "dist/${{ matrix.setup_artifact }}"
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sidecar = "$installer.sha256"
+          Set-Content -Path $sidecar -Value "$hash  ${{ matrix.setup_artifact }}" -Encoding ascii -NoNewline
+          Write-Host "Wrote $sidecar"
+
+      - name: Upload publish output
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-${{ matrix.rid }}
+          path: UnifiedMessenger/bin/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish/
+          if-no-files-found: error
+          # Only ui-smoke consumes this (same run), and it's ~200 MB per RID — the main private-repo
+          # artifact-storage-quota hog. Auto-prune fast so it can't accumulate and block future runs.
+          retention-days: 1
+          compression-level: 9
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.rid }}
+          path: |
+            dist/${{ matrix.setup_artifact }}
+            dist/${{ matrix.setup_artifact }}.sha256
+          if-no-files-found: error
+          retention-days: 5
+
+  ui-smoke:
+    runs-on: windows-latest
+    needs: package
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Download x64 publish output
+        uses: actions/download-artifact@v4
+        with:
+          name: publish-win-x64
+          path: publish/win-x64
+
+      - name: Build UI smoke harness
+        run: dotnet build UnifiedMessenger.UiSmokeTests/UnifiedMessenger.UiSmokeTests.csproj -c ${{ env.CONFIGURATION }}
+
+      - name: Run UI smoke validation
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/win-x64/UnifiedMessenger.exe"
+          dotnet run --project UnifiedMessenger.UiSmokeTests/UnifiedMessenger.UiSmokeTests.csproj `
+            -c ${{ env.CONFIGURATION }} `
+            --no-build `
+            -- $exe.Path
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    needs: package
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download x64 installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-win-x64
+          path: dist
+
+      - name: Download ARM64 installer
+        uses: actions/download-artifact@v4
+        with:
+          name: installer-win-arm64
+          path: dist
+
+      - name: Verify release artifacts
+        shell: pwsh
+        run: |
+          $files = @(
+            "dist/UnifiedMessengerSetup.exe",
+            "dist/UnifiedMessengerSetup.exe.sha256",
+            "dist/UnifiedMessengerSetup-arm64.exe",
+            "dist/UnifiedMessengerSetup-arm64.exe.sha256"
+          )
+          foreach ($file in $files) {
+            if (-not (Test-Path $file)) {
+              throw "Release package job did not produce $file"
+            }
+            Write-Host "Found $file ($((Get-Item $file).Length) bytes)"
+          }
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $repo = "${{ github.repository }}"
+          $notes = @"
+          ## Unified Messenger $tag
+
+          Installers built by GitHub Actions from tag ``$tag``.
+
+          - x64: ``UnifiedMessengerSetup.exe`` (+ ``.sha256`` sidecar)
+          - ARM64: ``UnifiedMessengerSetup-arm64.exe`` (+ ``.sha256`` sidecar)
+
+          Requires Windows 10 1809+ and WebView2 Runtime.
+          "@
+
+          $assets = @(
+            "dist/UnifiedMessengerSetup.exe",
+            "dist/UnifiedMessengerSetup.exe.sha256",
+            "dist/UnifiedMessengerSetup-arm64.exe",
+            "dist/UnifiedMessengerSetup-arm64.exe.sha256"
+          )
+
+          $view = gh release view $tag --repo $repo 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag exists; uploading assets."
+            gh release upload $tag `
+              --repo $repo `
+              --clobber `
+              dist/UnifiedMessengerSetup.exe `
+              dist/UnifiedMessengerSetup.exe.sha256 `
+              dist/UnifiedMessengerSetup-arm64.exe `
+              dist/UnifiedMessengerSetup-arm64.exe.sha256
+            exit $LASTEXITCODE
+          }
+
+          gh release create $tag `
+            --repo $repo `
+            --title "Unified Messenger $tag" `
+            --notes $notes `
+            dist/UnifiedMessengerSetup.exe `
+            dist/UnifiedMessengerSetup.exe.sha256 `
+            dist/UnifiedMessengerSetup-arm64.exe `
+            dist/UnifiedMessengerSetup-arm64.exe.sha256

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Grid
+    x:Class="UnifiedMessenger.Controls.WorkspaceSidebar"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    AutomationProperties.AutomationId="WorkspaceSidebar"
+    AutomationProperties.Name="Workspace navigation"
+    HorizontalAlignment="Stretch"
+    VerticalAlignment="Stretch"
+    mc:Ignorable="d">
+
+    <Grid.RowDefinitions>
+        <RowDefinition MinHeight="0" Height="*" />
+        <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <ScrollViewer
+        Grid.Row="0"
+        HorizontalAlignment="Stretch"
+        HorizontalScrollBarVisibility="Disabled"
+        VerticalAlignment="Stretch"
+        VerticalScrollBarVisibility="Auto">
+        <StackPanel
+            x:Name="MenuRoot"
+            Padding="{StaticResource UmPaddingSidebarMenu}"
+            Spacing="2"
+            VerticalAlignment="Top">
+            <Grid
+                x:Name="BrandHeaderPanel"
+                Margin="{StaticResource UmMarginBrandHeader}">
+                <Image
+                    x:Name="BrandWordmarkImage"
+                    MaxHeight="40"
+                    AutomationProperties.Name="Unified Messenger brand"
+                    HorizontalAlignment="Left"
+                    Stretch="Uniform"
+                    Source="Assets/Branding/wordmark-inline-light.png" />
+            </Grid>
+
+            <!-- Account scope is now selected from the title-bar scope selector (see MainWindow). -->
+            <StackPanel x:Name="MenuStack" Spacing="2" />
+        </StackPanel>
+    </ScrollViewer>
+
+    <StackPanel
+        x:Name="FooterPanel"
+        Grid.Row="1"
+        Padding="{StaticResource UmPaddingFooter}"
+        Spacing="{StaticResource UmSpacingSm}"
+        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+        BorderThickness="0,1,0,0">
+        <Button
+            x:Name="AddInstanceButton"
+            AutomationProperties.AutomationId="SidebarAddInstance"
+            AutomationProperties.Name="Add account"
+            TabIndex="90"
+            HorizontalAlignment="Stretch"
+            Click="AddInstanceButton_Click"
+            Style="{StaticResource AccentButtonStyle}"
+            ToolTipService.ToolTip="Add account">
+            <StackPanel x:Name="AddInstanceContent" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
+                <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE710;" />
+                <TextBlock
+                    x:Name="AddInstanceLabel"
+                    MinWidth="0"
+                    Style="{StaticResource UmBodyTextStyle}"
+                    Text="Add account"
+                    TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Button>
+
+        <!-- Work Queue (OCC kanban) fully removed — its purpose is the Dashboard's "Needs reply" view-mode. -->
+
+        <Button
+            x:Name="NotificationsButton"
+            AutomationProperties.AutomationId="SidebarNotifications"
+            AutomationProperties.Name="Notification Hub"
+            TabIndex="92"
+            HorizontalAlignment="Stretch"
+            Click="NotificationsButton_Click"
+            Style="{StaticResource SubtleButtonStyle}"
+            ToolTipService.ToolTip="Notification Hub">
+            <Grid x:Name="NotificationsContent" HorizontalAlignment="Stretch">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    FontSize="{StaticResource UmIconSizeSm}"
+                    Glyph="&#xEA8F;" />
+                <TextBlock
+                    x:Name="NotificationsLabel"
+                    Grid.Column="1"
+                    MinWidth="0"
+                    Margin="{StaticResource UmMarginIconLabelGap}"
+                    Style="{StaticResource UmBodyTextStyle}"
+                    Text="Notification Hub"
+                    VerticalAlignment="Center" />
+                <InfoBadge
+                    x:Name="NotificationHubBadge"
+                    Grid.Column="2"
+                    Margin="{StaticResource UmMarginBadgeGap}"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed" />
+            </Grid>
+        </Button>
+
+        <Button
+            x:Name="SettingsButton"
+            AutomationProperties.AutomationId="SidebarSettings"
+            AutomationProperties.Name="Settings"
+            TabIndex="93"
+            HorizontalAlignment="Stretch"
+            Click="SettingsButton_Click"
+            Style="{StaticResource SubtleButtonStyle}"
+            ToolTipService.ToolTip="Settings">
+            <StackPanel x:Name="SettingsContent" Orientation="Horizontal" Spacing="{StaticResource UmSpacingSm}">
+                <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE713;" />
+                <TextBlock
+                    x:Name="SettingsLabel"
+                    MinWidth="0"
+                    Style="{StaticResource UmBodyTextStyle}"
+                    Text="Settings"
+                    TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Button>
+    </StackPanel>
+</Grid>

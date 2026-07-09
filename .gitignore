@@ -1,0 +1,73 @@
+## .NET / Visual Studio
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+artifacts/
+
+# Build logs
+[Ll]og/
+[Ll]ogs/
+*.log
+*.binlog
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets
+project.lock.json
+
+# MSIX packaging output
+AppPackages/
+BundleArtifacts/
+*.msix
+*.msixupload
+*.appx
+*.appxbundle
+*.appxupload
+
+# Publish output
+publish/
+*.pubxml
+PublishScripts/
+
+# Code analysis and tooling
+_ReSharper*/
+*.DotSettings.user
+*.dotCover
+.idea/
+
+# Generated files
+Generated\ Files/
+*_wpftmp.csproj
+
+# Benchmark output
+BenchmarkDotNet.Artifacts/
+
+# Ollama runtime zips (fetched at build time; see scripts/fetch-ollama-runtime.ps1)
+third_party/ollama/*.zip
+third_party/ollama/*.sha256
+
+# Firecrawl / Crawl4AI web research output and secrets
+.firecrawl/
+.crawl4ai/
+.env
+.env.local
+
+# Transient test/run output
+test_out.txt
+test_err.txt
+test_result.txt
+.testlogs/

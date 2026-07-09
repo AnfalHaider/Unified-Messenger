@@ -1,0 +1,13 @@
+/* Unified Messenger — WhatsApp Web chrome blend (platform-specific) */
+html, body, #app {
+  box-sizing: border-box;
+}
+
+#side, #pane-side {
+  box-shadow: inset 1px 0 0 var(--um-shell-seam);
+}
+
+header[data-testid="chatlist-header"],
+header[data-testid="conversation-header"] {
+  border-top-left-radius: 0 !important;
+}

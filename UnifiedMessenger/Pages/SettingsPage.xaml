@@ -1,0 +1,910 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="UnifiedMessenger.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:UnifiedMessenger.Pages"
+    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
+    xmlns:vm="using:UnifiedMessenger.ViewModels"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid Padding="24,16,24,24" ColumnSpacing="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <ListView
+            x:Name="SectionNavList"
+            Grid.Column="0"
+            AutomationProperties.Name="Settings sections"
+            TabIndex="10"
+            VerticalAlignment="Top"
+            IsItemClickEnabled="True"
+            SelectionMode="Single"
+            ItemClick="SectionNavList_ItemClick">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="vm:SettingsSectionNavItemViewModel">
+                    <TextBlock Padding="8,6" Text="{x:Bind Label}" />
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <ScrollViewer
+            x:Name="SettingsScrollViewer"
+            Grid.Column="1"
+            TabIndex="20"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="20" MaxWidth="720">
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.Name="Settings" Text="Settings" />
+            <TextBlock
+                FontSize="12"
+                Opacity="0.65"
+                Text="About opens from the navigation list on the left."
+                TextWrapping="WrapWholeWords" />
+
+            <StackPanel x:Name="NotificationsSection" Tag="notifications" Spacing="8">
+                <shared:SectionHeaderView Title="NOTIFICATIONS" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <ToggleSwitch
+                            x:Name="BackgroundToastsToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="BackgroundToastsToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Background toast notifications" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Show Windows toasts when the app is minimized or in the background."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="TaskbarBadgeToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="TaskbarBadgeToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Taskbar badge" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Show unread count on the taskbar icon."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ComboBox
+                            x:Name="PanelAutoOpenBox"
+                            Header="Auto-open notification panel"
+                            SelectionChanged="PanelAutoOpenBox_SelectionChanged" />
+
+                        <ComboBox
+                            x:Name="ToastSoundBox"
+                            Header="Toast sound"
+                            SelectionChanged="ToastSoundBox_SelectionChanged" />
+
+                        <ToggleSwitch
+                            x:Name="IncludeMutedBadgesToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="IncludeMutedBadgesToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Include muted chats in badge counts" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="When off, muted WhatsApp chats are excluded from sidebar badges."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="ToastGroupToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="ToastGroupToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Group toasts by instance" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Stack Windows toasts per account instead of per message."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="ToastBrandingToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="ToastBrandingToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Platform branding in toasts" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Use instance display name as the toast header line."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="QuietHoursToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="QuietHoursToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Quiet hours" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Mute awaiting-reply alerts overnight. They resume when quiet hours end."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+                        <StackPanel x:Name="QuietHoursRange" Orientation="Horizontal" Spacing="10" Margin="0,-4,0,0">
+                            <NumberBox
+                                x:Name="QuietHoursStartBox"
+                                Header="From (hour)"
+                                Minimum="0"
+                                Maximum="23"
+                                SpinButtonPlacementMode="Compact"
+                                ValueChanged="QuietHoursBox_ValueChanged" />
+                            <NumberBox
+                                x:Name="QuietHoursEndBox"
+                                Header="To (hour)"
+                                Minimum="0"
+                                Maximum="23"
+                                SpinButtonPlacementMode="Compact"
+                                ValueChanged="QuietHoursBox_ValueChanged" />
+                        </StackPanel>
+
+                        <ToggleSwitch
+                            x:Name="WeeklyReportReminderToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="WeeklyReportReminderToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Weekly report reminder" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Show a once-a-week nudge in the command center to review your business report. Fully local — no scheduled task."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <Button
+                            x:Name="ClearNotificationsButton"
+                            HorizontalAlignment="Left"
+                            Click="ClearNotificationsButton_Click"
+                            Content="Clear notification history" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="AppearanceSection" Tag="appearance" Spacing="8">
+                <shared:SectionHeaderView Title="APPEARANCE" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <ComboBox
+                            x:Name="ThemePreferenceBox"
+                            Header="App theme"
+                            SelectionChanged="ThemePreferenceBox_SelectionChanged" />
+
+                        <ComboBox
+                            x:Name="PanelDockBox"
+                            Header="Notification panel dock"
+                            SelectionChanged="PanelDockBox_SelectionChanged" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="SessionPerformanceSection" Tag="session-performance" Spacing="8">
+                <shared:SectionHeaderView Title="SESSION &amp; PERFORMANCE" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <ComboBox
+                            x:Name="StartupWarmModeBox"
+                            Header="Startup warm mode"
+                            SelectionChanged="StartupWarmModeBox_SelectionChanged" />
+
+                        <NumberBox
+                            x:Name="MaxConcurrentWebViewsBox"
+                            Header="Max concurrent WebViews (0 = unlimited)"
+                            Maximum="32"
+                            Minimum="0"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="MaxConcurrentWebViewsBox_ValueChanged" />
+
+                        <Button
+                            x:Name="RefreshAllWebViewsButton"
+                            HorizontalAlignment="Left"
+                            Click="RefreshAllWebViewsButton_Click"
+                            Content="Refresh all WebViews" />
+
+                        <NumberBox
+                            x:Name="SlaThresholdBox"
+                            Header="SLA response threshold (minutes)"
+                            Maximum="120"
+                            Minimum="5"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="SlaThresholdBox_ValueChanged" />
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Replies slower than this count as SLA breaches on the Operations Command Center."
+                            TextWrapping="WrapWholeWords" />
+
+                        <NumberBox
+                            x:Name="DashboardUrgencyThresholdBox"
+                            Header="Dashboard urgency threshold"
+                            Minimum="15"
+                            Maximum="50"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="DashboardUrgencyThresholdBox_ValueChanged">
+                            <NumberBox.Description>
+                                <TextBlock
+                                    Text="Minimum urgency score (15–50) for the professional urgent triage queue."
+                                    TextWrapping="WrapWholeWords" />
+                            </NumberBox.Description>
+                        </NumberBox>
+
+                        <ToggleSwitch
+                            x:Name="OccCompactCardDensityToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="OccCompactCardDensityToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Compact Operations card density" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Use tighter thread cards in the Operations Command Center work queue."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnableStartupBackfillToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableStartupBackfillToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Enable startup backfill" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="After connect, reconcile unread WhatsApp threads into triage and analytics."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ComboBox
+                            x:Name="WhatsAppBackfillModeBox"
+                            Header="WhatsApp backfill mode"
+                            SelectionChanged="WhatsAppBackfillModeBox_SelectionChanged" />
+
+                        <NumberBox
+                            x:Name="WhatsAppBackfillMaxChatsBox"
+                            Header="Max chats per backfill run"
+                            Maximum="100"
+                            Minimum="5"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="WhatsAppBackfillMaxChatsBox_ValueChanged" />
+
+                        <NumberBox
+                            x:Name="WhatsAppBackfillRecentDaysBox"
+                            Header="Recent backfill window (days)"
+                            Maximum="30"
+                            Minimum="1"
+                            SpinButtonPlacementMode="Inline"
+                            ValueChanged="WhatsAppBackfillRecentDaysBox_ValueChanged" />
+
+                        <ToggleSwitch
+                            x:Name="EnableDeepBackfillToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableDeepBackfillToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Deep backfill (experimental)" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Opt-in bounded sidebar walk (max 3 chats). Full automation deferred."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <Expander
+                            x:Name="ExperimentalExpander"
+                            Header="Advanced options"
+                            IsExpanded="True">
+                            <StackPanel Spacing="12">
+                                <TextBlock
+                                    FontSize="12"
+                                    Opacity="0.65"
+                                    Text="Opt-in features and memory management options. Changes take effect immediately."
+                                    TextWrapping="WrapWholeWords" />
+
+                        <ToggleSwitch
+                            x:Name="EnableLazyWebViewLoadingToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableLazyWebViewLoadingToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Lazy WebView loading" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Load non-visible instances in the background after startup instead of all at once."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnablePerInstanceSleepUnloadToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnablePerInstanceSleepUnloadToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Sleep unload inactive instances" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Unload the WebView of instances not used for a while to reduce memory usage."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnableEditInstanceMetadataToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableEditInstanceMetadataToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Edit instance metadata" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Adds an 'Edit instance metadata' option to the instance context menu for changing display name, URL, platform, notes, and branch tag."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnableImportExportInstancesToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableImportExportInstancesToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Import and export instance registry" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Shows import and export controls in Data &amp; Privacy to back up or migrate your instance list between devices."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnableInstanceNotesTagsToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableInstanceNotesTagsToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Instance notes and branch tags" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Allows attaching free-text notes and a branch tag to each instance for team or multi-workspace setups."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="AiSection" Tag="ai" Spacing="8">
+                <shared:SectionHeaderView Title="AI" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <ToggleSwitch
+                            x:Name="EnableLocalAiToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableLocalAiToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Enable local AI" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Message text is sent to your local Ollama instance only. Nothing leaves your PC."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <StackPanel x:Name="AiAdvancedPanel" Spacing="12" Visibility="Collapsed">
+                            <TextBox
+                                x:Name="OllamaEndpointBox"
+                                Header="Ollama endpoint"
+                                IsReadOnly="True"
+                                Text="http://127.0.0.1:11434/" />
+
+                            <ComboBox
+                                x:Name="LocalAiModelBox"
+                                Header="Model"
+                                SelectionChanged="LocalAiModelBox_SelectionChanged" />
+
+                            <ToggleSwitch
+                                x:Name="OllamaAutoBootstrapToggle"
+                                OffContent="Off"
+                                OnContent="On"
+                                Toggled="OllamaAutoBootstrapToggle_Toggled">
+                                <ToggleSwitch.Header>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Auto-bootstrap Ollama runtime" />
+                                        <TextBlock
+                                            FontSize="12"
+                                            Opacity="0.65"
+                                            Text="Start embedded Ollama or download the official CLI when the engine is missing."
+                                            TextWrapping="WrapWholeWords" />
+                                    </StackPanel>
+                                </ToggleSwitch.Header>
+                            </ToggleSwitch>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button
+                                    x:Name="DownloadAiRuntimeButton"
+                                    Click="DownloadAiRuntimeButton_Click"
+                                    Content="Download AI runtime"
+                                    Visibility="Collapsed" />
+                                <Button
+                                    x:Name="TestOllamaConnectionButton"
+                                    Click="TestOllamaConnectionButton_Click"
+                                    Content="Test connection" />
+                                <Button
+                                    x:Name="PullLocalAiModelButton"
+                                    Click="PullLocalAiModelButton_Click"
+                                    Content="Pull selected model" />
+                            </StackPanel>
+
+                            <ProgressBar
+                                x:Name="AiRuntimeDownloadProgressBar"
+                                Maximum="100"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="AiRuntimeDownloadStatusText"
+                                FontSize="12"
+                                Opacity="0.75"
+                                TextWrapping="WrapWholeWords"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="AiConnectionStatusText"
+                                FontSize="12"
+                                Opacity="0.75"
+                                TextWrapping="WrapWholeWords" />
+
+                            <ProgressBar
+                                x:Name="AiModelPullProgressBar"
+                                Maximum="100"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="AiModelPullStatusText"
+                                FontSize="12"
+                                Opacity="0.75"
+                                TextWrapping="WrapWholeWords"
+                                Visibility="Collapsed" />
+                        </StackPanel>
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="WorkspaceManagementSection" Tag="workspace-management" Spacing="8">
+                <shared:SectionHeaderView Title="WORKSPACE MANAGEMENT" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Configure locations, SLA thresholds, and operating hours for professional inboxes."
+                            TextWrapping="WrapWholeWords" />
+                        <TextBlock
+                            x:Name="WorkspaceProfilesSummaryText"
+                            FontSize="12"
+                            Opacity="0.8"
+                            TextWrapping="WrapWholeWords" />
+                        <Button
+                            x:Name="OpenWorkspaceManagerButton"
+                            HorizontalAlignment="Left"
+                            Click="OpenWorkspaceManagerButton_Click"
+                            Content="Open workspace manager" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="DataPrivacySection" Tag="data-privacy" Spacing="8">
+                <shared:SectionHeaderView Title="DATA &amp; PRIVACY" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Destructive actions clear local operational telemetry stored on this device."
+                            TextWrapping="WrapWholeWords" />
+                        <Button
+                            x:Name="ClearAnalyticsButton"
+                            HorizontalAlignment="Left"
+                            Click="ClearAnalyticsButton_Click"
+                            Content="Clear operational data" />
+
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Margin="0,4,0,0"
+                            Text="Back up your settings, accounts, analytics and custom icons to a single .zip on this device (sign-in sessions and AI models are not included). Restore replaces the current data — restart required."
+                            TextWrapping="WrapWholeWords" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button
+                                x:Name="BackupDataButton"
+                                Click="BackupDataButton_Click"
+                                Content="Back up all data (.zip)" />
+                            <Button
+                                x:Name="RestoreDataButton"
+                                Click="RestoreDataButton_Click"
+                                Content="Restore from backup (.zip)" />
+                        </StackPanel>
+
+                        <StackPanel
+                            x:Name="ImportExportPanel"
+                            Spacing="8"
+                            Visibility="Collapsed">
+                            <Button
+                                x:Name="ExportInstancesButton"
+                                HorizontalAlignment="Left"
+                                Click="ExportInstancesButton_Click"
+                                Content="Export instances.json" />
+                            <Button
+                                x:Name="ImportInstancesButton"
+                                HorizontalAlignment="Left"
+                                Click="ImportInstancesButton_Click"
+                                Content="Import instances.json" />
+                        </StackPanel>
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="KeyboardShortcutsSection" Tag="keyboard-shortcuts" Spacing="8">
+                <shared:SectionHeaderView Title="KEYBOARD SHORTCUTS" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Shortcuts work when the main window is focused and no modal overlay is open."
+                            TextWrapping="WrapWholeWords" />
+                        <TextBlock FontWeight="SemiBold" Text="Shell navigation" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+K — Open command palette" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+D — Go to dashboard" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+, — Open settings" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+Shift+N — Toggle notification panel" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+1–9 — Switch to instance by sidebar order" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Alt+Up / Alt+Down — Reorder cards in a kanban column" />
+                        <TextBlock FontSize="12" Opacity="0.75" Text="Escape — Cancel keyboard panel move" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="SystemSection" Tag="system" Spacing="8">
+                <shared:SectionHeaderView Title="SYSTEM" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <ToggleSwitch
+                            x:Name="RunInBackgroundOnCloseToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="RunInBackgroundOnCloseToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Run in background when closing" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Hide to the system tray instead of quitting. Use tray Quit to exit fully."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="LaunchAtStartupToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="LaunchAtStartupToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Launch at startup" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Start Unified Messenger when you sign in to Windows."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="PromptPinToTaskbarToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="PromptPinToTaskbarToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Suggest pin to taskbar" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Show a one-time prompt to pin Unified Messenger to the taskbar."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="EnableAutoUpdateToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="EnableAutoUpdateToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Enable automatic updates" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <ToggleSwitch
+                            x:Name="PromptBeforeAutoUpdateToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="PromptBeforeAutoUpdateToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <TextBlock Text="Prompt before auto-update installs" />
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+
+                        <Button
+                            x:Name="CheckForUpdatesButton"
+                            HorizontalAlignment="Left"
+                            Click="CheckForUpdatesButton_Click"
+                            Content="Check for updates" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="AccountsSection" Tag="accounts" Spacing="8">
+                <shared:SectionHeaderView Title="ACCOUNTS" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Change the icon shown in the sidebar and dashboard for each account — pick a brand logo or general icon, import the account's profile photo, or upload an image."
+                            TextWrapping="WrapWholeWords" />
+                        <ListView
+                            x:Name="AccountsList"
+                            SelectionMode="None">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ArchivedAccountRowViewModel">
+                                    <Grid Padding="4,8" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon
+                                            VerticalAlignment="Center"
+                                            FontSize="16"
+                                            Glyph="{x:Bind IconGlyph}" />
+                                        <StackPanel
+                                            Grid.Column="1"
+                                            Spacing="2"
+                                            VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Opacity="0.65"
+                                                Text="{x:Bind PlatformLabel}" />
+                                        </StackPanel>
+                                        <Button
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Click="ChangeAccountIconButton_Click"
+                                            Content="Change icon..."
+                                            Tag="{x:Bind InstanceId}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <TextBlock
+                            x:Name="NoAccountsText"
+                            Opacity="0.55"
+                            Text="No accounts yet. Add one from the sidebar."
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="RemovedAccountsSection" Tag="removed-accounts" Spacing="8">
+                <shared:SectionHeaderView Title="REMOVED ACCOUNTS" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Accounts removed from the sidebar keep their login session on disk and can be restored here."
+                            TextWrapping="WrapWholeWords" />
+                        <ListView
+                            x:Name="ArchivedAccountsList"
+                            SelectionMode="None">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ArchivedAccountRowViewModel">
+                                    <Grid Padding="4,8" ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon
+                                            VerticalAlignment="Center"
+                                            FontSize="16"
+                                            Glyph="{x:Bind IconGlyph}" />
+                                        <StackPanel
+                                            Grid.Column="1"
+                                            Spacing="2"
+                                            VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Opacity="0.65"
+                                                Text="{x:Bind PlatformLabel}" />
+                                            <TextBlock
+                                                FontSize="11"
+                                                Opacity="0.55"
+                                                Text="{x:Bind ProfileLine}" />
+                                        </StackPanel>
+                                        <StackPanel
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Orientation="Horizontal"
+                                            Spacing="8">
+                                            <Button
+                                                Click="RestoreAccountButton_Click"
+                                                Content="Restore"
+                                                Tag="{x:Bind InstanceId}" />
+                                            <Button
+                                                Click="PermanentDeleteAccountButton_Click"
+                                                Content="Delete permanently"
+                                                Tag="{x:Bind InstanceId}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                        <TextBlock
+                            x:Name="NoArchivedAccountsText"
+                            Opacity="0.55"
+                            Text="No removed accounts."
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="StorageSection" Tag="storage" Spacing="8">
+                <shared:SectionHeaderView Title="STORAGE" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Instance registry" />
+                        <TextBlock
+                            x:Name="InstancesPathText"
+                            IsTextSelectionEnabled="True"
+                            TextWrapping="WrapWholeWords" />
+                        <TextBlock
+                            Margin="0,8,0,0"
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="WebView profiles" />
+                        <TextBlock
+                            x:Name="ProfilesPathText"
+                            IsTextSelectionEnabled="True"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+
+            <StackPanel x:Name="AboutSection" Tag="about" Spacing="8">
+                <shared:SectionHeaderView Title="ABOUT" />
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <TextBlock
+                            x:Name="VersionText"
+                            Opacity="0.8" />
+                        <TextBlock
+                            FontSize="12"
+                            Opacity="0.65"
+                            Text="Select About in the settings navigation list to view version details and credits."
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+            </StackPanel>
+        </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

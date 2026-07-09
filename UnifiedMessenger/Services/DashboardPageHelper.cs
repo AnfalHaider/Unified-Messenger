@@ -1,0 +1,624 @@
+using UnifiedMessenger.Models;
+
+namespace UnifiedMessenger.Services;
+
+public static class DashboardPageHelper
+{
+    public const int ResourceRefreshIntervalSeconds = 30;
+
+    public const int MaxSearchSuggestions = 6;
+
+    public static IEnumerable<MessengerInstance> FilterProfessionalInstances(
+        IEnumerable<MessengerInstance> professionalInstances,
+        string? selectedBranchKey) =>
+        BranchWorkspaceHelper.FilterByBranchKey(professionalInstances, selectedBranchKey);
+
+    public static ProfessionalDashboardTelemetry CaptureProfessionalDashboardTelemetry(
+        IEnumerable<MessengerInstance> professionalInstances,
+        NotificationHub notificationHub,
+        string? branchInstanceId = null) =>
+        CaptureProfessionalDashboardTelemetry(
+            professionalInstances,
+            notificationHub,
+            branchInstanceId,
+            fromUtc: null,
+            toUtc: null);
+
+    public static ProfessionalDashboardTelemetry CaptureProfessionalDashboardTelemetry(
+        IEnumerable<MessengerInstance> professionalInstances,
+        NotificationHub notificationHub,
+        string? branchInstanceId,
+        DateTimeOffset? fromUtc,
+        DateTimeOffset? toUtc)
+    {
+        ArgumentNullException.ThrowIfNull(professionalInstances);
+        ArgumentNullException.ThrowIfNull(notificationHub);
+
+        var snapshot = MessageAnalyticsService.Instance.CaptureProfessionalSnapshot(
+            professionalInstances,
+            notificationHub,
+            branchInstanceId,
+            fromUtc,
+            toUtc);
+
+        return new ProfessionalDashboardTelemetry
+        {
+            Snapshot = snapshot,
+            Display = BuildProfessionalDisplay(snapshot),
+            FilteredInstances = FilterProfessionalInstances(professionalInstances, branchInstanceId).ToList()
+        };
+    }
+
+    public static IReadOnlyList<ExecutiveInsightCardDisplay> BuildExecutiveInsights(
+        IEnumerable<MessengerInstance> professionalInstances,
+        string? branchInstanceId = null,
+        MessageTriageService? triageService = null,
+        bool? includeHeuristic = null)
+    {
+        ArgumentNullException.ThrowIfNull(professionalInstances);
+
+        var allowedIds = FilterProfessionalInstances(professionalInstances, branchInstanceId)
+            .Select(instance => instance.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var service = triageService ?? MessageTriageService.Instance;
+        var showHeuristic = includeHeuristic ?? true;
+
+        var items = service.GetAllItems()
+            .Where(item => allowedIds.Contains(item.InstanceId))
+            .OrderByDescending(item => item.UrgencyScore)
+            .ThenByDescending(item => item.TimestampUtc)
+            .ToList();
+
+        var cards = new List<ExecutiveInsightCardDisplay>();
+        foreach (var item in items.Where(HasExecutiveInsightContent))
+        {
+            var sourceLabel = TriageInferenceLabelFormatter.Format(item.InferenceSource);
+            cards.Add(BuildExecutiveInsightCard(item, sourceLabel));
+            if (cards.Count >= 12)
+            {
+                return cards;
+            }
+        }
+
+        if (!showHeuristic)
+        {
+            return cards;
+        }
+
+        foreach (var item in items.Where(item => !HasExecutiveInsightContent(item)))
+        {
+            cards.Add(BuildHeuristicInsightCard(item));
+            if (cards.Count >= 12)
+            {
+                break;
+            }
+        }
+
+        return cards;
+    }
+
+    internal static ExecutiveInsightCardDisplay BuildHeuristicInsightCard(MessageTriageItem item) =>
+        BuildExecutiveInsightCard(item, "Heuristic");
+
+    internal static bool HasExecutiveInsightContent(MessageTriageItem item) =>
+        !string.IsNullOrWhiteSpace(item.CoreSummary) ||
+        HasHeuristicInsightFields(item);
+
+    private static bool HasHeuristicInsightFields(MessageTriageItem item) =>
+        (!string.IsNullOrWhiteSpace(item.CustomerName) &&
+         !item.CustomerName.Equals("Customer", StringComparison.OrdinalIgnoreCase)) ||
+        !string.IsNullOrWhiteSpace(item.NextActionSummary) ||
+        !string.IsNullOrWhiteSpace(item.SuggestedAction);
+
+    internal static ExecutiveInsightCardDisplay BuildExecutiveInsightCard(
+        MessageTriageItem item,
+        string sourceLabel)
+    {
+        var fields = new List<ExecutiveInsightFieldDisplay>();
+
+        AddField(
+            fields,
+            "Customer",
+            "\uE77B",
+            item.CustomerName.Equals("Customer", StringComparison.OrdinalIgnoreCase) ? null : item.CustomerName);
+        AddField(fields, "Next action", "\uE72C", item.NextActionSummary, emphasize: true);
+        AddField(fields, "Suggested", "\uE8FD", item.SuggestedAction);
+
+        if (fields.Count == 0 && sourceLabel.Equals("Heuristic", StringComparison.OrdinalIgnoreCase))
+        {
+            AddField(fields, "Sentiment", "\uE8BD", item.Sentiment.ToString());
+            AddField(fields, "Urgency", "\uE7BA", item.UrgencyScore.ToString());
+        }
+
+        return new ExecutiveInsightCardDisplay
+        {
+            CustomerName = string.IsNullOrWhiteSpace(item.CustomerName) ? "Customer" : item.CustomerName.Trim(),
+            BranchName = string.IsNullOrWhiteSpace(item.BranchName)
+                ? BranchNameResolver.Resolve(item.InstanceDisplayName)
+                : item.BranchName.Trim(),
+            CoreSummary = ResolveInsightSummary(item),
+            IntentLabel = FormatIntentLabel(item.AiIntentCategory),
+            UrgencyLabel = item.UrgencyLabel,
+            SourceLabel = sourceLabel,
+            Fields = fields
+        };
+    }
+
+    private static void AddField(
+        ICollection<ExecutiveInsightFieldDisplay> fields,
+        string label,
+        string iconGlyph,
+        string? value,
+        bool emphasize = false)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        fields.Add(new ExecutiveInsightFieldDisplay
+        {
+            Label = label,
+            Value = value.Trim(),
+            IconGlyph = iconGlyph,
+            Emphasize = emphasize
+        });
+    }
+
+    private static string ResolveInsightSummary(MessageTriageItem item)
+    {
+        if (item.IsSpamOrPromo)
+        {
+            return "Promotional message — no action required";
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.NextActionSummary))
+        {
+            return item.NextActionSummary.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.CoreSummary))
+        {
+            return item.CoreSummary.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.MessagePreview))
+        {
+            return item.MessagePreview.Trim();
+        }
+
+        var intentLabel = FormatIntentLabel(item.AiIntentCategory);
+        if (!intentLabel.Equals("Inquiry", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{intentLabel} — review thread";
+        }
+
+        return "—";
+    }
+
+    private static string FormatIntentLabel(string? intentCategory) =>
+        UnifiedMessengerDashboardPresentationHelper.FormatIntentLabel(intentCategory);
+
+    public static string BuildWelcomeSubtitle(int professionalCount, int personalCount) =>
+        (professionalCount, personalCount) switch
+        {
+            (0, 0) => "Add an account to start receiving unified notifications.",
+            ( > 0, > 0) => $"{professionalCount} professional and {personalCount} personal accounts connected.",
+            ( > 0, 0) => $"{professionalCount} professional account{(professionalCount == 1 ? "" : "s")} connected.",
+            _ => $"{personalCount} personal account{(personalCount == 1 ? "" : "s")} connected."
+        };
+
+    public static string FormatInboundOnlyResponseRate(int receivedCount, int replyPairCount)
+    {
+        if (receivedCount <= 0)
+        {
+            return Placeholder;
+        }
+
+        var percent = replyPairCount <= 0
+            ? 0
+            : (int)Math.Round(replyPairCount * 100.0 / receivedCount, MidpointRounding.AwayFromZero);
+
+        return $"Inbound events: {receivedCount} · Replied: {replyPairCount} ({percent}%)";
+    }
+
+    public static ProfessionalDashboardDisplay BuildProfessionalDisplay(ProfessionalAnalyticsSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var slaThreshold = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
+        var averageReply = snapshot.HasReplyMetrics
+            ? snapshot.AverageReplyTimeDisplay
+            : snapshot.ReceivedCount > 0
+                ? "No replies logged yet"
+                : Placeholder;
+
+        var responseRate = snapshot.HasReplyMetrics
+            ? snapshot.ResponseRateDisplay
+            : FormatInboundOnlyResponseRate(snapshot.ReceivedCount, snapshot.ReplyPairCount);
+
+        return new ProfessionalDashboardDisplay
+        {
+            AverageReplyTime = averageReply,
+            AverageReplyTimeSubtext = snapshot.HasReplyMetrics
+                ? string.Empty
+                : snapshot.ReceivedCount > 0
+                    ? "Reply in a professional inbox to measure response time"
+                    : string.Empty,
+            SlaBreaches = snapshot.HasMessageVolume
+                ? snapshot.SlaBreaches.ToString()
+                : Placeholder,
+            SlaThresholdSubtext = snapshot.HasMessageVolume
+                ? $"Threshold: {slaThreshold} min"
+                : string.Empty,
+            ResponseRate = responseRate,
+            PeakHour = snapshot.HasMessageVolume
+                ? snapshot.PeakHourDisplay
+                : Placeholder,
+            DailyTrend = snapshot.HasMessageVolume
+                ? snapshot.DailyTrendDisplay
+                : Placeholder,
+            SentCount = snapshot.HasMessageVolume
+                ? snapshot.SentCount.ToString()
+                : Placeholder,
+            ReceivedCount = snapshot.HasMessageVolume
+                ? snapshot.ReceivedCount.ToString()
+                : Placeholder,
+            WeeklyActivity = snapshot.WeeklyActivity,
+            Highlights = snapshot.Highlights,
+            Triage = snapshot.Triage,
+            HasMessageVolume = snapshot.HasMessageVolume,
+            HasReplyMetrics = snapshot.HasReplyMetrics
+        };
+    }
+
+    private const string Placeholder = "—";
+
+    public static string FormatConnectionPillLabel(InstanceConnectionStatus connectionStatus) =>
+        connectionStatus switch
+        {
+            InstanceConnectionStatus.Connected => "Connected",
+            InstanceConnectionStatus.LoggedOut => "Logged out",
+            InstanceConnectionStatus.Error => "Error",
+            InstanceConnectionStatus.Initializing => "Connecting",
+            _ => "Connecting"
+        };
+
+    public static string FormatConnectionColorHex(
+        InstanceConnectionStatus connectionStatus,
+        AdapterHealthState adapterState)
+    {
+        var color = WorkspaceSidebarHelper.ResolveConnectionIndicatorColor(connectionStatus, adapterState);
+        return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+    }
+
+    public static string BuildPersonalTileDetailLine(
+        InstanceResourceTile tile,
+        InstanceConnectionStatus connectionStatus,
+        bool notificationsMuted,
+        string? connectionDetail = null)
+    {
+        ArgumentNullException.ThrowIfNull(tile);
+
+        if (notificationsMuted)
+        {
+            return "Notifications muted";
+        }
+
+        var healthLine = AdapterHealthStatus.GetDescription(tile.HealthState);
+        var parts = new List<string>();
+
+        if (tile.IsVisible)
+        {
+            parts.Add("Visible");
+        }
+
+        if (tile.UnreadCount > 0)
+        {
+            parts.Add($"{tile.UnreadCount} unread");
+        }
+
+        parts.Add(healthLine);
+
+        if (!string.IsNullOrWhiteSpace(connectionDetail) &&
+            connectionStatus is InstanceConnectionStatus.Connected
+                or InstanceConnectionStatus.LoggedOut
+                or InstanceConnectionStatus.Error)
+        {
+            parts.Add(connectionDetail.Trim());
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    public static string FormatPersonalQuickActionLabel(string displayName, int unreadCount) =>
+        unreadCount == 1
+            ? $"Open {displayName} (1 unread)"
+            : $"Open {displayName} ({unreadCount} unread)";
+
+    public static string FormatPersonalLastUpdated(DateTimeOffset capturedAtUtc)
+    {
+        var elapsed = DateTimeOffset.UtcNow - capturedAtUtc;
+        if (elapsed.TotalSeconds < 45)
+        {
+            return "Updated just now";
+        }
+
+        if (elapsed.TotalMinutes < 2)
+        {
+            return "Updated 1 min ago";
+        }
+
+        if (elapsed.TotalHours < 1)
+        {
+            return $"Updated {(int)elapsed.TotalMinutes} min ago";
+        }
+
+        return $"Updated at {capturedAtUtc.ToLocalTime():t}";
+    }
+
+    public static string ResolvePersonalEmptyTitle(PersonalDashboardEmptyReason emptyReason) =>
+        emptyReason switch
+        {
+            PersonalDashboardEmptyReason.NoPersonalAccounts => "No personal accounts yet",
+            PersonalDashboardEmptyReason.AllAccountsMuted => "Notifications are muted",
+            PersonalDashboardEmptyReason.NoRecentActivity => "No recent activity",
+            _ => "No activity to show"
+        };
+
+    public static string ResolvePersonalEmptyHint(PersonalDashboardEmptyReason emptyReason) =>
+        emptyReason switch
+        {
+            PersonalDashboardEmptyReason.NoPersonalAccounts =>
+                "Use Add Instance in the sidebar to connect a WhatsApp or WhatsApp Business account.",
+            PersonalDashboardEmptyReason.AllAccountsMuted =>
+                "Unmute an account in Settings or the sidebar to see notifications again.",
+            PersonalDashboardEmptyReason.NoRecentActivity =>
+                "New messages from personal accounts will appear here as they arrive.",
+            _ => string.Empty
+        };
+
+    public static string BuildInstanceStatusLine(InstanceResourceTile tile)
+    {
+        ArgumentNullException.ThrowIfNull(tile);
+
+        var parts = new List<string>();
+        if (tile.IsVisible)
+        {
+            parts.Add("Visible");
+        }
+
+        parts.Add(tile.MemoryTier);
+        if (tile.UnreadCount > 0)
+        {
+            parts.Add($"{tile.UnreadCount} unread");
+        }
+
+        parts.Add(tile.HealthState.ToString());
+        return string.Join(" · ", parts);
+    }
+
+    public static bool ActivityMatches(
+        string title,
+        string body,
+        string instanceDisplayName,
+        string? query)
+    {
+        query = CommandPaletteHelper.NormalizeQuery(query);
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        return title.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || body.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || instanceDisplayName.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string ResolveEmptyActivityMessage(bool hasSearchQuery) =>
+        hasSearchQuery
+            ? "No personal activity matches your search."
+            : "No recent notifications from personal accounts.";
+
+    public static string ResolvePersonalActivityEmptyMessage(
+        PersonalDashboardEmptyReason emptyReason,
+        bool hasSearchQuery) =>
+        hasSearchQuery
+            ? ResolveEmptyActivityMessage(true)
+            : emptyReason switch
+            {
+                PersonalDashboardEmptyReason.NoPersonalAccounts =>
+                    "Add a personal account to see activity here.",
+                PersonalDashboardEmptyReason.AllAccountsMuted =>
+                    "Personal notifications are muted for all accounts.",
+                PersonalDashboardEmptyReason.NoRecentActivity =>
+                    ResolveEmptyActivityMessage(false),
+                _ => ResolveEmptyActivityMessage(false)
+            };
+
+    public static bool PersonalTileMatches(
+        string displayName,
+        string platformLabel,
+        string detailLine,
+        string? query)
+    {
+        query = CommandPaletteHelper.NormalizeQuery(query);
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        return displayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || platformLabel.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || detailLine.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static IReadOnlyList<DashboardSearchMatch> FilterPersonalSearchMatches(
+        IEnumerable<MessengerInstance> personalInstances,
+        string? query,
+        IEnumerable<NotificationAlert>? personalAlerts = null,
+        int maxResults = MaxSearchSuggestions)
+    {
+        ArgumentNullException.ThrowIfNull(personalInstances);
+
+        query = CommandPaletteHelper.NormalizeQuery(query);
+        if (string.IsNullOrWhiteSpace(query) || maxResults <= 0)
+        {
+            return [];
+        }
+
+        var instanceList = personalInstances
+            .Where(instance => !string.IsNullOrWhiteSpace(instance.Id))
+            .ToList();
+
+        var instanceLookup = instanceList.ToDictionary(
+            instance => instance.Id.Trim(),
+            instance => instance,
+            StringComparer.OrdinalIgnoreCase);
+
+        var matches = new List<DashboardSearchMatch>();
+        var matchedInstanceIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var instance in instanceList)
+        {
+            var platform = PlatformDefinition.FindById(instance.Platform);
+            var platformLabel = platform?.DisplayName ?? instance.Platform;
+            if (!instance.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+                && !platformLabel.Contains(query, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var instanceId = instance.Id.Trim();
+            matches.Add(new DashboardSearchMatch(
+                instanceId,
+                instance.DisplayName,
+                platformLabel,
+                instance.AccentColor));
+            matchedInstanceIds.Add(instanceId);
+
+            if (matches.Count >= maxResults)
+            {
+                return matches;
+            }
+        }
+
+        if (personalAlerts is null)
+        {
+            return matches;
+        }
+
+        foreach (var alert in personalAlerts.OrderByDescending(alert => alert.ReceivedAt))
+        {
+            if (!instanceLookup.ContainsKey(alert.InstanceId))
+            {
+                continue;
+            }
+
+            if (!ActivityMatches(alert.Title, alert.Body, alert.InstanceDisplayName, query))
+            {
+                continue;
+            }
+
+            if (matchedInstanceIds.Contains(alert.InstanceId)
+                && matches.Any(match =>
+                    match.InstanceId.Equals(alert.InstanceId, StringComparison.OrdinalIgnoreCase)
+                    && match.Label.Equals(alert.InstanceDisplayName, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            var accentColor = instanceLookup[alert.InstanceId].AccentColor;
+            matches.Add(new DashboardSearchMatch(
+                alert.InstanceId,
+                alert.Title,
+                alert.InstanceDisplayName,
+                accentColor));
+            matchedInstanceIds.Add(alert.InstanceId);
+
+            if (matches.Count >= maxResults)
+            {
+                break;
+            }
+        }
+
+        return matches;
+    }
+}
+
+public readonly record struct DashboardSearchMatch(
+    string InstanceId,
+    string Label,
+    string SubLabel,
+    string AccentColorHex);
+
+public sealed class ProfessionalDashboardDisplay
+{
+    public required string AverageReplyTime { get; init; }
+
+    public string AverageReplyTimeSubtext { get; init; } = string.Empty;
+
+    public required string SlaBreaches { get; init; }
+
+    public string SlaThresholdSubtext { get; init; } = string.Empty;
+
+    public required string ResponseRate { get; init; }
+
+    public required string PeakHour { get; init; }
+
+    public required string DailyTrend { get; init; }
+
+    public required string SentCount { get; init; }
+
+    public required string ReceivedCount { get; init; }
+
+    public bool HasMessageVolume { get; init; }
+
+    public bool HasReplyMetrics { get; init; }
+
+    public IReadOnlyList<DailyActivityPoint> WeeklyActivity { get; init; } = [];
+
+    public IReadOnlyList<OperationalHighlightItem> Highlights { get; init; } = [];
+
+    public MessageTriageDashboardSnapshot Triage { get; init; } = MessageTriageDashboardSnapshot.Empty;
+}
+
+public sealed class ProfessionalDashboardTelemetry
+{
+    public required ProfessionalAnalyticsSnapshot Snapshot { get; init; }
+
+    public required ProfessionalDashboardDisplay Display { get; init; }
+
+    public IReadOnlyList<MessengerInstance> FilteredInstances { get; init; } = [];
+}
+
+public sealed class ExecutiveInsightFieldDisplay
+{
+    public required string Label { get; init; }
+
+    public required string Value { get; init; }
+
+    public required string IconGlyph { get; init; }
+
+    public bool Emphasize { get; init; }
+}
+
+public sealed class ExecutiveInsightCardDisplay
+{
+    public required string CustomerName { get; init; }
+
+    public required string BranchName { get; init; }
+
+    public required string CoreSummary { get; init; }
+
+    public required string IntentLabel { get; init; }
+
+    public required string UrgencyLabel { get; init; }
+
+    public string SourceLabel { get; init; } = "Heuristic";
+
+    public IReadOnlyList<ExecutiveInsightFieldDisplay> Fields { get; init; } = [];
+}
+

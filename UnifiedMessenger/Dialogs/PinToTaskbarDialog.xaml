@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentDialog
+    x:Class="UnifiedMessenger.Dialogs.PinToTaskbarDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="Pin to taskbar"
+    PrimaryButtonText="Pin to taskbar"
+    CloseButtonText="Not now"
+    Title="Pin Unified Messenger?">
+
+    <TextBlock
+        MinWidth="320"
+        Text="Pin this app to your taskbar for quick access to all your messaging accounts."
+        TextWrapping="WrapWholeWords" />
+</ContentDialog>

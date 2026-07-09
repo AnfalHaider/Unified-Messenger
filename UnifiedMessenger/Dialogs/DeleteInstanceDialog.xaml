@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentDialog
+    x:Class="UnifiedMessenger.Dialogs.DeleteInstanceDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="Remove instance"
+    CloseButtonText="Cancel"
+    DefaultButton="Close"
+    PrimaryButtonText="Remove from sidebar"
+    Title="Remove instance">
+
+    <StackPanel MinWidth="380" Spacing="12">
+        <TextBlock
+            x:Name="DescriptionText"
+            TextWrapping="WrapWholeWords" />
+        <TextBlock
+            Opacity="0.75"
+            Text="Remove from sidebar keeps your login session on disk so you can restore the account later without scanning the QR code again."
+            TextWrapping="WrapWholeWords" />
+        <Button
+            x:Name="PermanentDeleteButton"
+            HorizontalAlignment="Left"
+            Click="PermanentDeleteButton_Click"
+            Content="Permanent delete…"
+            Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+        <TextBlock
+            Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+            Text="Permanent delete wipes all cookies, cache, and profile data from disk. This cannot be undone."
+            TextWrapping="WrapWholeWords" />
+    </StackPanel>
+</ContentDialog>

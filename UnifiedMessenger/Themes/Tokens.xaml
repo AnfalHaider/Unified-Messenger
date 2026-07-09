@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Theme-aware brand tokens. UmBrandSlate is a near-black text colour on light, but must lighten on dark
+         or section headers/badges vanish (they used to be a fixed #1E293B in both themes). Consumers MUST use
+         {ThemeResource ...}, not {StaticResource ...}, for these to switch. High-contrast is handled by the
+         runtime-merged Themes/HighContrast.xaml (see ThemeService). -->
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+            <Color x:Key="UmBrandSlateColor">#1E293B</Color>
+            <SolidColorBrush x:Key="UmBrandSlateBrush" Color="#1E293B" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Default">
+            <Color x:Key="UmBrandSlateColor">#DCE3EC</Color>
+            <SolidColorBrush x:Key="UmBrandSlateBrush" Color="#DCE3EC" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <Color x:Key="UmBrandBlueStartColor">#1B75BB</Color>
+    <Color x:Key="UmBrandBlueEndColor">#2E3191</Color>
+    <Color x:Key="UmBrandTealColor">#1B75BB</Color>
+    <Color x:Key="UmBrandTealDarkColor">#2E3191</Color>
+    <Color x:Key="UmBrandBlueColor">#1B75BB</Color>
+    <Color x:Key="UmBrandVioletColor">#2E3191</Color>
+
+    <SolidColorBrush x:Key="UmBrandBlueStartBrush" Color="{StaticResource UmBrandBlueStartColor}" />
+    <SolidColorBrush x:Key="UmBrandBlueEndBrush" Color="{StaticResource UmBrandBlueEndColor}" />
+    <SolidColorBrush x:Key="UmBrandTealBrush" Color="{StaticResource UmBrandTealColor}" />
+    <SolidColorBrush x:Key="UmBrandTealDarkBrush" Color="{StaticResource UmBrandTealDarkColor}" />
+    <SolidColorBrush x:Key="UmBrandBlueBrush" Color="{StaticResource UmBrandBlueColor}" />
+    <SolidColorBrush x:Key="UmBrandVioletBrush" Color="{StaticResource UmBrandVioletColor}" />
+
+    <x:Double x:Key="UmSpacingXs">4</x:Double>
+    <x:Double x:Key="UmSpacingSm">8</x:Double>
+    <x:Double x:Key="UmSpacingMd">12</x:Double>
+    <x:Double x:Key="UmSpacingLg">16</x:Double>
+    <x:Double x:Key="UmSpacingXl">24</x:Double>
+    <x:Double x:Key="UmCornerRadiusMd">8</x:Double>
+    <x:Double x:Key="UmCornerRadiusSm">6</x:Double>
+
+    <x:Double x:Key="UmFontSizeCaption">10</x:Double>
+    <x:Double x:Key="UmFontSizeSectionLabel">11</x:Double>
+    <x:Double x:Key="UmFontSizeBody">12</x:Double>
+    <x:Double x:Key="UmFontSizeScope">14</x:Double>
+    <x:Double x:Key="UmFontSizeMetricValue">20</x:Double>
+    <x:Double x:Key="UmChartHeight">110</x:Double>
+    <x:Double x:Key="UmChartPlotHeight">96</x:Double>
+    <x:Double x:Key="UmChartStrokeThickness">2.5</x:Double>
+    <x:Double x:Key="UmBadgeFontSize">10</x:Double>
+    <x:Double x:Key="UmIconSizeSm">14</x:Double>
+    <x:Double x:Key="UmKanbanColumnMinHeight">120</x:Double>
+    <x:Double x:Key="UmOpacityMuted">0.65</x:Double>
+    <x:Double x:Key="UmOpacityHint">0.75</x:Double>
+    <x:Double x:Key="UmOpacitySubtle">0.55</x:Double>
+
+    <Thickness x:Key="UmPaddingMd">12</Thickness>
+    <Thickness x:Key="UmMetricCardPadding">16</Thickness>
+    <Thickness x:Key="UmMarginSectionHeader">4,14,4,6</Thickness>
+    <Thickness x:Key="UmMarginSectionHeaderFirst">4,0,4,6</Thickness>
+    <Thickness x:Key="UmMarginActiveAccountsHeader">4,8,4,4</Thickness>
+    <Thickness x:Key="UmPaddingThreadCard">12,10,10,10</Thickness>
+    <Thickness x:Key="UmPaddingThreadCardImmediate">14</Thickness>
+    <Thickness x:Key="UmPaddingBadge">6,2,6,2</Thickness>
+    <Thickness x:Key="UmPaddingKanbanColumn">4</Thickness>
+    <Thickness x:Key="UmMarginBrandHeader">4,0,4,12</Thickness>
+    <Thickness x:Key="UmMarginIconLabelGap">10,0,0,0</Thickness>
+    <Thickness x:Key="UmMarginBadgeGap">8,0,0,0</Thickness>
+    <Thickness x:Key="UmPaddingLg">16</Thickness>
+    <Thickness x:Key="UmPaddingSm">8</Thickness>
+    <Thickness x:Key="UmPaddingFooter">12,10,12,12</Thickness>
+    <Thickness x:Key="UmPaddingSidebarMenu">8,12,8,8</Thickness>
+    <Thickness x:Key="UmPaddingSidebarMenuCompact">6,12,6,8</Thickness>
+    <Thickness x:Key="UmPaddingFooterCompact">8,10,8,12</Thickness>
+    <Color x:Key="UmModalOverlayColor">#66000000</Color>
+    <SolidColorBrush x:Key="UmModalOverlayBrush" Color="{StaticResource UmModalOverlayColor}" />
+    <SolidColorBrush x:Key="UmTransparentBrush" Color="#00000000" />
+    <Thickness x:Key="UmPaddingBottomSm">0,0,0,8</Thickness>
+    <Thickness x:Key="UmPaddingBottomXl">0,0,0,24</Thickness>
+    <Thickness x:Key="UmMarginBottomSm">0,0,0,8</Thickness>
+    <CornerRadius x:Key="UmCornerRadiusMdValue">8</CornerRadius>
+    <CornerRadius x:Key="UmCornerRadiusSmValue">6</CornerRadius>
+    <CornerRadius x:Key="UmCornerRadiusXsValue">2</CornerRadius>
+
+    <!-- Semantic status (light theme defaults) -->
+    <Color x:Key="UmStatusSuccessColor">#22C55E</Color>
+    <Color x:Key="UmStatusWarningColor">#F59E0B</Color>
+    <Color x:Key="UmStatusDangerColor">#DC2626</Color>
+    <Color x:Key="UmStatusNeutralColor">#64748B</Color>
+    <Color x:Key="UmStatusMutedColor">#94A3B8</Color>
+    <Color x:Key="UmStatusReadColor">#2563EB</Color>
+    <Color x:Key="UmStatusDeliveredColor">#64748B</Color>
+    <Color x:Key="UmStatusSentColor">#94A3B8</Color>
+    <Color x:Key="UmStatusPendingColor">#94A3B8</Color>
+
+    <SolidColorBrush x:Key="UmStatusSuccessBrush" Color="{StaticResource UmStatusSuccessColor}" />
+    <SolidColorBrush x:Key="UmStatusWarningBrush" Color="{StaticResource UmStatusWarningColor}" />
+    <SolidColorBrush x:Key="UmStatusDangerBrush" Color="{StaticResource UmStatusDangerColor}" />
+    <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="{StaticResource UmStatusNeutralColor}" />
+    <SolidColorBrush x:Key="UmStatusMutedBrush" Color="{StaticResource UmStatusMutedColor}" />
+    <SolidColorBrush x:Key="UmStatusReadBrush" Color="{StaticResource UmStatusReadColor}" />
+    <SolidColorBrush x:Key="UmStatusDeliveredBrush" Color="{StaticResource UmStatusDeliveredColor}" />
+    <SolidColorBrush x:Key="UmStatusSentBrush" Color="{StaticResource UmStatusSentColor}" />
+    <SolidColorBrush x:Key="UmStatusPendingBrush" Color="{StaticResource UmStatusPendingColor}" />
+
+    <!-- Layout tokens (DIPs) -->
+    <x:Double x:Key="UmMetricCardWidth">180</x:Double>
+    <x:Double x:Key="UmMetricCardMinWidth">140</x:Double>
+    <x:Double x:Key="UmDatePickerMinWidth">140</x:Double>
+    <x:Double x:Key="UmChartMinWidth">200</x:Double>
+    <x:Double x:Key="UmChipMaxWidth">96</x:Double>
+    <x:Double x:Key="UmKanbanColumnMinWidth">240</x:Double>
+    <x:Double x:Key="UmKanbanBoardMinWidth">720</x:Double>
+    <x:Double x:Key="UmCornerRadiusXs">2</x:Double>
+    <x:Double x:Key="UmEmptyStateMaxWidth">420</x:Double>
+
+    <Thickness x:Key="UmFilterChipPadding">10,4</Thickness>
+    <Thickness x:Key="UmAiChipPadding">8,2</Thickness>
+</ResourceDictionary>

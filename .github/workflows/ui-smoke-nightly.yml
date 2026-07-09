@@ -1,0 +1,54 @@
+name: UI Smoke (Nightly)
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: 8.0.x
+  CONFIGURATION: Release
+  PLATFORM: x64
+
+permissions:
+  contents: read
+
+jobs:
+  ui-smoke-nightly:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore UnifiedMessenger.sln
+
+      - name: Publish win-x64
+        shell: pwsh
+        run: |
+          $publishDir = "publish/win-x64"
+          dotnet publish UnifiedMessenger/UnifiedMessenger.csproj `
+            -c ${{ env.CONFIGURATION }} `
+            -r win-x64 `
+            --self-contained true `
+            -p:Platform=${{ env.PLATFORM }} `
+            -p:PublishSingleFile=false `
+            -p:WindowsAppSDKSelfContained=true `
+            -p:PublishReadyToRun=false `
+            -o $publishDir
+
+      - name: Build UI smoke harness
+        run: dotnet build UnifiedMessenger.UiSmokeTests/UnifiedMessenger.UiSmokeTests.csproj -c ${{ env.CONFIGURATION }}
+
+      - name: Run UI smoke validation
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/win-x64/UnifiedMessenger.exe"
+          dotnet run --project UnifiedMessenger.UiSmokeTests/UnifiedMessenger.UiSmokeTests.csproj `
+            -c ${{ env.CONFIGURATION }} `
+            --no-build `
+            -- $exe.Path

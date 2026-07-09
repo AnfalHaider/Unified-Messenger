@@ -1,0 +1,148 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Unified Messenger â€” WinUI 3 unpackaged desktop app (.NET 8).
+    Publish: see README "Build a release installer" (dotnet publish commands).
+    Native AOT / trimming: intentionally disabled (WinUI 3 + WebView2 require full runtime).
+    ReadyToRun: disabled â€” breaks self-contained WinUI publish (0xC0000139).
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>UnifiedMessenger</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <Platforms>x86;x64;ARM64</Platforms>
+    <UseWinUI>true</UseWinUI>
+    <WinUISDKReferences>false</WinUISDKReferences>
+    <!-- Standalone WinExe â€” no MSIX container or packaging project. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
+    <AppxPackage>false</AppxPackage>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+
+    <!-- Versioning (keep in sync with app.manifest assemblyIdentity and installer.iss). -->
+    <Version>4.61.2</Version>
+    <AssemblyVersion>4.61.2.0</AssemblyVersion>
+    <FileVersion>4.61.2.0</FileVersion>
+    <ApplicationDisplayVersion>4.61.2</ApplicationDisplayVersion>
+    <NoWarn>$(NoWarn);CS9057</NoWarn>
+
+    <!-- Match host CPU for local `dotnet run`; use README publish commands for shipping. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <!-- Self-contained shipping (see also PublishProfiles). Dev builds stay framework-dependent unless publishing. -->
+  <PropertyGroup>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsAppSdkUndockedRegFreeWinRTInitialize>true</WindowsAppSdkUndockedRegFreeWinRTInitialize>
+    <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishAot>false</PublishAot>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\AppIcon.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Branding\icon-master.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Branding\wide-master.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Branding\wordmark-hero.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Branding\wordmark-inline-dark.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Branding\wordmark-inline-light.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Config\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Scripts\*.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Styles\*-chrome.css">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\Fonts\*.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.1.3" />
+    <PackageReference Include="H.NotifyIcon.WinUI" Version="2.2.0" />
+    <PackageReference Include="OllamaSharp" Version="5.4.12" />
+    <PackageReference Include="System.Text.Json" Version="10.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="UnifiedMessenger.Tests" />
+  </ItemGroup>
+
+  <!-- WinUI publish omits compiled XAML (.xbf) and app PRI; copy from build output. -->
+  <Target Name="CopyWinUIResourcesToPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <_PublishDir>$([MSBuild]::EnsureTrailingSlash('$(PublishDir)'))</_PublishDir>
+      <_ResourceSourceDir>$([MSBuild]::EnsureTrailingSlash('$(OutputPath)'))</_ResourceSourceDir>
+      <_ResourceSourceDir Condition="!Exists('$(_ResourceSourceDir)UnifiedMessenger.pri') and '$(Platform)' != '' and '$(Platform)' != 'AnyCPU'">
+        $([MSBuild]::EnsureTrailingSlash('$(MSBuildProjectDirectory)\bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)'))
+      </_ResourceSourceDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_WinUIResourceFiles Include="$(_ResourceSourceDir)**\*.xbf" Exclude="$(_PublishDir)**\*" />
+      <_WinUIResourceFiles Include="$(_ResourceSourceDir)UnifiedMessenger.pri" Condition="Exists('$(_ResourceSourceDir)UnifiedMessenger.pri')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_WinUIResourceFiles)" DestinationFiles="@(_WinUIResourceFiles->'$(_PublishDir)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Guard: fail the build/publish if a runtime asset is missing from the output. The v4.4.0 tray
+       crash was caused by Assets\AppIcon.ico not being copied; this turns that class of bug into a
+       build error instead of a runtime crash. -->
+  <Target Name="VerifyRuntimeAssetsPresent" AfterTargets="Build;Publish">
+    <PropertyGroup>
+      <!-- Use PublishDir only when actually publishing. It has a non-empty SDK default (OutDir\publish\)
+           even on a plain build/test, so guard on Exists() to fall back to OutDir for non-publish builds. -->
+      <_AssetCheckDir Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)')">$(PublishDir)</_AssetCheckDir>
+      <_AssetCheckDir Condition="'$(_AssetCheckDir)' == ''">$(OutDir)</_AssetCheckDir>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_AssetCheckDir)Assets\AppIcon.ico')"
+           Text="Runtime asset missing: '$(_AssetCheckDir)Assets\AppIcon.ico'. Ensure Assets are marked &lt;CopyToOutputDirectory&gt;." />
+    <Error Condition="!Exists('$(_AssetCheckDir)Assets\Branding')"
+           Text="Runtime asset missing: '$(_AssetCheckDir)Assets\Branding'. Ensure branding images are copied to output." />
+  </Target>
+
+  <!-- Self-contained .NET 8 publish ships STJ 8 from the runtime pack; OllamaSharp/MEAI require STJ 10. -->
+  <Target Name="EnsureSystemTextJson10InPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <_PublishOutDir>$([MSBuild]::EnsureTrailingSlash('$(PublishDir)'))</_PublishOutDir>
+      <_Stj10Dir>$(NuGetPackageRoot)system.text.json\10.0.0\lib\net8.0\</_Stj10Dir>
+      <_StjEncDir>$(NuGetPackageRoot)system.text.encodings.web\10.0.0\lib\net8.0\</_StjEncDir>
+      <_PipeDir>$(NuGetPackageRoot)system.io.pipelines\10.0.0\lib\net8.0\</_PipeDir>
+    </PropertyGroup>
+    <Copy SourceFiles="$(_Stj10Dir)System.Text.Json.dll" DestinationFolder="$(_PublishOutDir)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="$(_StjEncDir)System.Text.Encodings.Web.dll" DestinationFolder="$(_PublishOutDir)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="$(_PipeDir)System.IO.Pipelines.dll" DestinationFolder="$(_PublishOutDir)" SkipUnchangedFiles="false" />
+  </Target>
+</Project>

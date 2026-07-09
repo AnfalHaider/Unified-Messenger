@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="UnifiedMessenger.Pages.DashboardPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:UnifiedMessenger.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    x:DataType="local:DashboardPage"
+    xmlns:local="using:UnifiedMessenger.Pages">
+
+    <ScrollViewer
+        x:Name="DashboardScrollViewer"
+        Padding="24,20"
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollMode="Disabled">
+        <StackPanel Spacing="16" HorizontalAlignment="Stretch">
+            <!-- Header: greeting + a "Personal" button (top) that opens the personal overview in a flyout. -->
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4" VerticalAlignment="Center">
+                    <TextBlock
+                        x:Name="WelcomeTitle"
+                        AutomationProperties.Name="Welcome back"
+                        Style="{StaticResource TitleTextBlockStyle}"
+                        Text="Welcome back" />
+                    <TextBlock
+                        x:Name="WelcomeSubtitle"
+                        Opacity="0.7"
+                        Text="Your unified messaging workspace"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <Button
+                    x:Name="PersonalButton"
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    AutomationProperties.AutomationId="DashboardPersonalOverviewButton"
+                    AutomationProperties.Name="Personal overview"
+                    ToolTipService.ToolTip="Personal accounts overview">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE716;" />
+                        <TextBlock x:Name="PersonalButtonLabel" Text="Personal" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout x:Name="PersonalFlyout" Placement="Bottom" Opened="PersonalFlyout_Opened">
+                            <Flyout.FlyoutPresenterStyle>
+                                <Style TargetType="FlyoutPresenter">
+                                    <Setter Property="MaxWidth" Value="760" />
+                                    <Setter Property="MaxHeight" Value="580" />
+                                    <Setter Property="Padding" Value="12" />
+                                    <Setter Property="CornerRadius" Value="10" />
+                                </Style>
+                            </Flyout.FlyoutPresenterStyle>
+                            <controls:PersonalOverviewPanel
+                                x:Name="PersonalOverviewPanel"
+                                Width="660"
+                                MaxHeight="540" />
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </Grid>
+
+            <controls:CommandCenterPanel x:Name="CommandCenterPanel" />
+
+            <!-- Bento row: Activity + Reviews sit side by side on wide screens, stack on narrow ones.
+                 The command center stays full-width above; these two secondary panels use the horizontal
+                 space instead of a long scroll. Reflow is animated. -->
+            <Grid x:Name="BentoRow" ColumnSpacing="16" RowSpacing="16">
+                <Grid.ChildrenTransitions>
+                    <TransitionCollection>
+                        <RepositionThemeTransition />
+                        <EntranceThemeTransition FromVerticalOffset="12" />
+                    </TransitionCollection>
+                </Grid.ChildrenTransitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <controls:ActivityPatternsPanel
+                    x:Name="ActivityPatternsPanel"
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    VerticalAlignment="Top" />
+                <controls:ReviewHealthPanel
+                    x:Name="ReviewHealthPanel"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    VerticalAlignment="Top" />
+
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup>
+                        <!-- Wide: markup default (side by side). Setters auto-revert on entry. -->
+                        <VisualState x:Name="BentoWide">
+                            <VisualState.StateTriggers>
+                                <AdaptiveTrigger MinWindowWidth="1360" />
+                            </VisualState.StateTriggers>
+                        </VisualState>
+                        <!-- Narrow (always-true fallback): stack Reviews under Activity, each full-width. -->
+                        <VisualState x:Name="BentoStacked">
+                            <VisualState.StateTriggers>
+                                <AdaptiveTrigger MinWindowWidth="0" />
+                            </VisualState.StateTriggers>
+                            <VisualState.Setters>
+                                <Setter Target="ActivityPatternsPanel.(Grid.ColumnSpan)" Value="2" />
+                                <Setter Target="ReviewHealthPanel.(Grid.Row)" Value="1" />
+                                <Setter Target="ReviewHealthPanel.(Grid.Column)" Value="0" />
+                                <Setter Target="ReviewHealthPanel.(Grid.ColumnSpan)" Value="2" />
+                            </VisualState.Setters>
+                        </VisualState>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

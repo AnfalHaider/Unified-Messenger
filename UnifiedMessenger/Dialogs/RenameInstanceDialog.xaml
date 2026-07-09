@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentDialog
+    x:Class="UnifiedMessenger.Dialogs.RenameInstanceDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AutomationProperties.Name="Rename instance"
+    DefaultButton="Primary"
+    PrimaryButtonText="Rename"
+    SecondaryButtonText="Cancel"
+    PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
+    Title="Rename instance">
+
+    <StackPanel MinWidth="360" Spacing="12">
+        <TextBox
+            x:Name="DisplayNameBox"
+            Header="Display name"
+            PlaceholderText="e.g. WhatsApp Work" />
+
+        <TextBlock
+            x:Name="ValidationMessage"
+            Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+            TextWrapping="WrapWholeWords"
+            Visibility="Collapsed" />
+    </StackPanel>
+</ContentDialog>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="UnifiedMessenger.Pages.AboutPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:UnifiedMessenger.Pages"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="24,16,24,24" Spacing="16" MaxWidth="720">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <HyperlinkButton
+                    AutomationProperties.Name="Back to Settings"
+                    Click="SettingsBreadcrumb_Click"
+                    Content="Settings" />
+                <TextBlock VerticalAlignment="Center" Opacity="0.65" Text="›" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontWeight="SemiBold"
+                    Text="About" />
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.Name="About" Text="About" />
+
+            <Border
+                Padding="20"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <StackPanel Spacing="16">
+                    <Image
+                        MaxWidth="320"
+                        HorizontalAlignment="Left"
+                        Stretch="Uniform"
+                        Source="Assets/Branding/wordmark-hero.png" />
+                    <TextBlock
+                        x:Name="VersionText"
+                        Margin="0,-4,0,0"
+                        Opacity="0.7" />
+
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="WhatsApp operations in one native workspace"
+                        TextWrapping="WrapWholeWords" />
+
+                    <TextBlock
+                        Opacity="0.85"
+                        Text="Unified Messenger runs multiple isolated WhatsApp and WhatsApp Business Web sessions in a single WinUI desktop shell with a unified notification hub and operations dashboard."
+                        TextWrapping="WrapWholeWords" />
+
+                    <TextBlock
+                        Opacity="0.85"
+                        Text="The Operations Command Center tracks response metrics, branch workload, and message volume over selectable date ranges. Personal Overview keeps non-business accounts separated so you can switch context without juggling browser windows."
+                        TextWrapping="WrapWholeWords" />
+
+                    <StackPanel Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="Key features" />
+
+                        <TextBlock
+                            Opacity="0.85"
+                            Text="• Multi-profile isolation with shared WebView2 environment optimization."
+                            TextWrapping="WrapWholeWords" />
+
+                        <TextBlock
+                            Opacity="0.85"
+                            Text="• Unified notification feed with native navigation to the right account."
+                            TextWrapping="WrapWholeWords" />
+
+                        <TextBlock
+                            Opacity="0.85"
+                            Text="• Heuristic triage, KPI dashboard, and date-filtered analytics without cloud LLM dependencies."
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

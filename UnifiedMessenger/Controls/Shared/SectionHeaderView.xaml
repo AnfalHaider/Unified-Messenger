@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="UnifiedMessenger.Controls.Shared.SectionHeaderView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid ColumnSpacing="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <TextBlock
+            Style="{StaticResource DashboardSectionHeaderStyle}"
+            Foreground="{ThemeResource UmBrandSlateBrush}"
+            Text="{x:Bind Title, Mode=OneWay}" />
+        <Border
+            Grid.Column="1"
+            Padding="6,2"
+            Background="{StaticResource UmBrandVioletBrush}"
+            CornerRadius="10"
+            Visibility="{x:Bind BadgeVisibility, Mode=OneWay}">
+            <TextBlock
+                FontSize="10"
+                Foreground="White"
+                Text="{x:Bind BadgeText, Mode=OneWay}" />
+        </Border>
+    </Grid>
+</UserControl>
