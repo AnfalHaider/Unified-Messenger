@@ -76,6 +76,25 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
         return await CheckForUpdatesInternalAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task ApplyUpdateAsync(UpdateCheckResult result, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        if (result.Status != UpdateCheckStatus.UpdateAvailable ||
+            string.IsNullOrWhiteSpace(result.DownloadUrl) ||
+            result.LatestVersion is null)
+        {
+            throw new InvalidOperationException("There is no applicable update to install.");
+        }
+
+        await ApplyUpdateAsync(
+                result.DownloadUrl,
+                result.LatestVersion,
+                result.ExpectedSha256,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     private async Task<UpdateCheckResult> CheckForUpdatesInternalAsync(CancellationToken cancellationToken)
     {
         var currentVersion = GetCurrentVersion();

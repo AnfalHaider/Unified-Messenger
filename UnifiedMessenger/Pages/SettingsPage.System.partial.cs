@@ -1,5 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using UnifiedMessenger.Dialogs;
+using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Pages;
@@ -75,6 +77,46 @@ public sealed partial class SettingsPage
     private async void CheckForUpdatesButton_Click(object sender, RoutedEventArgs e)
     {
         var result = await _services.GitHubUpdate.CheckForUpdatesManualAsync();
+
+        // When an update is available, offer to install it — not just report the version.
+        if (result.Status == UpdateCheckStatus.UpdateAvailable &&
+            !string.IsNullOrWhiteSpace(result.DownloadUrl) &&
+            result.LatestVersion is not null)
+        {
+            var prompt = new AutoUpdateDialog(
+                result.CurrentVersion?.ToString() ?? "this version",
+                result.LatestVersion.ToString())
+            {
+                XamlRoot = XamlRoot
+            };
+
+            if (await prompt.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+
+            try
+            {
+                // Downloads, verifies SHA-256, launches the installer, and exits the app.
+                await _services.GitHubUpdate.ApplyUpdateAsync(result);
+            }
+            catch (Exception ex)
+            {
+                await new ContentDialog
+                {
+                    Title = "Update failed",
+                    CloseButtonText = "OK",
+                    XamlRoot = XamlRoot,
+                    Content = new TextBlock
+                    {
+                        Text = $"Could not install the update: {ex.Message}",
+                        TextWrapping = TextWrapping.WrapWholeWords
+                    }
+                }.ShowAsync();
+            }
+
+            return;
+        }
 
         var dialog = new ContentDialog
         {
