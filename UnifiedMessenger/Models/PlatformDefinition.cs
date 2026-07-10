@@ -40,10 +40,11 @@ public sealed class PlatformDefinition
             Id = "googlebusiness",
             DisplayName = "Google Business",
             Description = "Google Business reviews — embedded. (Review metrics scraping is planned.)",
-            // Business Profile Manager (locations dashboard). The bare business.google.com root redirects
-            // single-location managers straight into a raw Google Search results page; /locations lands on the
-            // stable manager dashboard instead. (Google moved single-location editing into Search/Maps.)
-            DefaultUrl = "https://business.google.com/locations",
+            // Land on the Business Profile Manager REVIEWS page — that's the oversight surface for this app
+            // (which reviews need a reply). The bare business.google.com root redirects single-location
+            // managers into a raw Google Search results page instead. (Google moved single-location editing
+            // into Search/Maps, but the /reviews manager view still works.)
+            DefaultUrl = "https://business.google.com/reviews",
             IconGlyph = "\uE774", // TODO: Replace with brand-specific glyph or image asset when Phase 5 is implemented.
             AccentColor = "#4285F4"
         },

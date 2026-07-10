@@ -785,10 +785,16 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         }
     }
 
-    // Rewrites start URLs that Google (or we) have since superseded, so existing accounts don't stay stuck on
-    // a worse landing page. Google Business accounts created before v4.61.4 point at the bare
-    // business.google.com root, which redirects single-location managers into a raw Search results page; move
-    // them to the /locations manager dashboard. Only touches the exact legacy default, never a user override.
+    // Move Google Business accounts off superseded landing pages onto the current default (the /reviews
+    // manager view). Covers the bare business.google.com root (redirects single-location managers into a raw
+    // Search results page) and the short-lived /locations default. Only rewrites those exact legacy values,
+    // never a user's own override.
+    private static readonly HashSet<string> LegacyGoogleBusinessStartUrls = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "https://business.google.com",
+        "https://business.google.com/locations",
+    };
+
     private static void MigrateLegacyStartUrl(MessengerInstance instance)
     {
         if (!PlatformDefinition.NormalizePlatformId(instance.Platform)
@@ -798,9 +804,9 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         }
 
         var current = instance.StartUrl?.Trim().TrimEnd('/');
-        if (string.Equals(current, "https://business.google.com", StringComparison.OrdinalIgnoreCase))
+        if (current is not null && LegacyGoogleBusinessStartUrls.Contains(current))
         {
-            instance.StartUrl = "https://business.google.com/locations";
+            instance.StartUrl = "https://business.google.com/reviews";
         }
     }
 

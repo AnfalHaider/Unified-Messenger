@@ -1285,7 +1285,16 @@
                 // rendered DOM hint; only as a last resort the unread marker (which wrongly clears the moment
                 // a chat is opened). awaiting is just "the last message was NOT from us".
                 var fromMe = last ? !!last.fromMe : (hint ? hint.lastFromMe : (unread === 0));
-                var awaiting = !fromMe;
+                // A deleted-for-everyone message stays as lastMessage with type 'revoked' and its original
+                // (inbound) fromMe=false, which would keep the chat "awaiting" forever. A retracted question
+                // is no longer pending, so don't count it. (subtype guards older WA builds.)
+                var lastRevoked = !!(last && (last.type === 'revoked' || last.subtype === 'revoke'));
+                var awaiting = !fromMe && !lastRevoked;
+                // ponytail: this reads WhatsApp's PERSISTED chat store, which lags in a throttled background
+                // webview — a reply sent from the phone can take a while to sync here, so a just-answered chat
+                // may still read as awaiting until the next sync. Ceiling: snapshot freshness. Upgrade path:
+                // the manual Re-sync reloads the webview (forces a fresh sync); a background reconciliation or
+                // shorter re-scan cadence would tighten it further.
 
                 var preview = body || (hint && hint.preview) || (harvested && harvested.preview) || '';
                 var iso = new Date(t * 1000).toISOString();

@@ -80,9 +80,9 @@ public class PlatformDefinitionTests
         Assert.Equal("Google Business", google!.DisplayName);
         Assert.Equal("googlebusiness", PlatformDefinition.NormalizePlatformId("googlebusiness"));
         Assert.False(string.IsNullOrWhiteSpace(google.DefaultUrl));
-        // Land on the Business Profile Manager dashboard, not the bare root (which redirects single-location
-        // managers into a raw Google Search results page).
-        Assert.Equal("https://business.google.com/locations", google.DefaultUrl);
+        // Land on the Business Profile Manager reviews page (the oversight surface), not the bare root
+        // (which redirects single-location managers into a raw Google Search results page).
+        Assert.Equal("https://business.google.com/reviews", google.DefaultUrl);
     }
 
     [Fact]
