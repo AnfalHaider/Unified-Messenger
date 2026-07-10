@@ -301,26 +301,48 @@
             CornerRadius="8"
             Padding="12,10"
             Visibility="Collapsed">
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <FontIcon
-                    VerticalAlignment="Center"
-                    FontSize="16"
-                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                    Glyph="&#xE7BA;" />
-                <TextBlock x:Name="AttentionText" Grid.Column="1" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
-                <Button
-                    x:Name="AttentionJumpButton"
-                    Grid.Column="2"
-                    Content="Jump"
-                    Click="OnAttentionJump"
-                    Visibility="Collapsed"
-                    VerticalAlignment="Center" />
-            </Grid>
+            <StackPanel Spacing="8">
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon
+                        VerticalAlignment="Center"
+                        FontSize="16"
+                        Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                        Glyph="&#xE7BA;" />
+                    <TextBlock x:Name="AttentionText" Grid.Column="1" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+                    <Button
+                        x:Name="AttentionJumpButton"
+                        Grid.Column="2"
+                        Content="Jump"
+                        Click="OnAttentionJump"
+                        Visibility="Collapsed"
+                        VerticalAlignment="Center" />
+                </Grid>
+                <!-- Re-sync progress: determinate bar anchored to per-account completion, eased between anchors. -->
+                <Grid x:Name="ResyncProgressRow" ColumnSpacing="10" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ProgressBar
+                        x:Name="ResyncProgressBar"
+                        Grid.Column="0"
+                        Minimum="0"
+                        Maximum="1"
+                        VerticalAlignment="Center" />
+                    <TextBlock
+                        x:Name="ResyncProgressPercent"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        MinWidth="38"
+                        TextAlignment="Right"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Grid>
+            </StackPanel>
         </Border>
 
         <!-- Row 6 — weekly-report reminder (once a week; opening the report resets it) -->

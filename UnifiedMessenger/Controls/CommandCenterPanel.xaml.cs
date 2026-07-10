@@ -2393,37 +2393,115 @@ public sealed partial class CommandCenterPanel : UserControl
         _resyncInProgress = true;
         ResyncButton.IsEnabled = false;
         AttentionBanner.Visibility = Visibility.Visible;
+        BeginResyncProgress();
 
-        // Reload each account's WebView first so the latest scraper script is (re)injected — script is only
-        // injected on document creation, so without this an app update wouldn't take effect until a manual
-        // "Refresh WebView". Loaded sessions get reloaded; not-yet-loaded ones inject the current script when
-        // they warm during the probe. The probe below waits for each page to re-render before harvesting.
-        AttentionText.Text = "Reloading accounts to apply the latest sync…";
-        foreach (var instance in pros)
+        try
         {
-            await _services.SessionManager.ReloadSessionAsync(instance.Id);
+            var n = pros.Count;
+
+            // Reload each account's WebView first so the latest scraper script is (re)injected — script is
+            // only injected on document creation, so without this an app update wouldn't take effect until a
+            // manual "Refresh WebView". The probe below waits for each page to re-render before harvesting.
+            // Reload phase carries the first 15% of the bar; the slow per-account probe carries the rest.
+            for (var i = 0; i < n; i++)
+            {
+                AttentionText.Text = $"Reloading {pros[i].DisplayName} ({i + 1} of {n})…";
+                ResyncEaseToward(0.13 * (i + 1) / n);
+                await _services.SessionManager.ReloadSessionAsync(pros[i].Id);
+                ResyncAnchor(0.15 * (i + 1) / n);
+            }
+
+            // Direct diagnostic: run the IndexedDB scan straight on each webview and read the raw result,
+            // bypassing the backfill pipeline so we isolate whether the read itself works. Each account owns
+            // an equal 85%/n slot; the bar eases up to just below its boundary, then snaps there when the
+            // probe returns — so it moves during the long wait and stays honest at every account boundary.
+            var parts = new List<string>();
+            for (var i = 0; i < n; i++)
+            {
+                var instance = pros[i];
+                var boundary = 0.15 + 0.85 * (i + 1) / n;
+                AttentionText.Text = $"Reading {instance.DisplayName}'s history ({i + 1} of {n})…";
+                ResyncEaseToward(boundary - 0.02);
+
+                var line = await ProbeInstanceDbAsync(instance);
+                parts.Add($"{instance.DisplayName}: {line}");
+
+                // Also kick off the real backfill so reconciliation still happens when the read works.
+                BackfillSyncManager.Instance.Schedule(instance, force: true);
+                ResyncAnchor(boundary);
+            }
+
+            ResyncAnchor(1.0);
+            Render();
+
+            AttentionBanner.Visibility = Visibility.Visible;
+            AttentionText.Text = "Probe · " + string.Join("   |   ", parts);
+        }
+        finally
+        {
+            EndResyncProgress();
+            ResyncButton.IsEnabled = true;
+            _resyncInProgress = false;
+        }
+    }
+
+    // Re-sync progress bar: a UI-thread timer eases the displayed value toward a soft ceiling between real
+    // completion anchors, so the bar visibly moves during the long per-account probe (rather than freezing on
+    // an indeterminate spinner) yet only ever advances and snaps to truth as each account finishes.
+    private Microsoft.UI.Xaml.DispatcherTimer? _resyncEaseTimer;
+    private double _resyncDisplayed;
+    private double _resyncCeiling;
+
+    private void BeginResyncProgress()
+    {
+        _resyncDisplayed = 0;
+        _resyncCeiling = 0;
+        ResyncProgressRow.Visibility = Visibility.Visible;
+        ApplyResyncBar(0);
+
+        if (_resyncEaseTimer is null)
+        {
+            _resyncEaseTimer = new Microsoft.UI.Xaml.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(150)
+            };
+            _resyncEaseTimer.Tick += (_, _) =>
+            {
+                _resyncDisplayed += (_resyncCeiling - _resyncDisplayed) * 0.04;
+                if (_resyncDisplayed > _resyncCeiling)
+                {
+                    _resyncDisplayed = _resyncCeiling;
+                }
+                ApplyResyncBar(_resyncDisplayed);
+            };
         }
 
-        AttentionText.Text = "Probing each account's local history…";
+        _resyncEaseTimer.Start();
+    }
 
-        // Direct diagnostic: run the IndexedDB scan straight on each webview and read the raw result,
-        // bypassing the backfill pipeline so we isolate whether the read itself works.
-        var parts = new List<string>();
-        foreach (var instance in pros)
-        {
-            var line = await ProbeInstanceDbAsync(instance);
-            parts.Add($"{instance.DisplayName}: {line}");
+    /// <summary>Moves the eased soft-cap forward (never backward), so the bar creeps toward it.</summary>
+    private void ResyncEaseToward(double ceiling) =>
+        _resyncCeiling = Math.Max(_resyncCeiling, Math.Clamp(ceiling, 0, 1));
 
-            // Also kick off the real backfill so reconciliation still happens when the read works.
-            BackfillSyncManager.Instance.Schedule(instance, force: true);
-        }
+    /// <summary>Snaps the bar forward to a real completion point.</summary>
+    private void ResyncAnchor(double value)
+    {
+        value = Math.Clamp(value, 0, 1);
+        _resyncCeiling = Math.Max(_resyncCeiling, value);
+        _resyncDisplayed = Math.Max(_resyncDisplayed, value);
+        ApplyResyncBar(_resyncDisplayed);
+    }
 
-        Render();
+    private void ApplyResyncBar(double value)
+    {
+        ResyncProgressBar.Value = value;
+        ResyncProgressPercent.Text = $"{(int)Math.Round(value * 100)}%";
+    }
 
-        AttentionBanner.Visibility = Visibility.Visible;
-        AttentionText.Text = "Probe · " + string.Join("   |   ", parts);
-        ResyncButton.IsEnabled = true;
-        _resyncInProgress = false;
+    private void EndResyncProgress()
+    {
+        _resyncEaseTimer?.Stop();
+        ResyncProgressRow.Visibility = Visibility.Collapsed;
     }
 
     private static async Task<string> ProbeInstanceDbAsync(MessengerInstance instance)
