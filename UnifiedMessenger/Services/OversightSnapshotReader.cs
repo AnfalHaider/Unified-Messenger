@@ -149,33 +149,6 @@ public static class OversightSnapshotReader
         return null;
     }
 
-    public static List<OversightChatSnapshotService.ChatEntry> ParseChatEntries(JsonElement root)
-    {
-        var list = new List<OversightChatSnapshotService.ChatEntry>();
-        if (!root.TryGetProperty("conversations", out var convs) || convs.ValueKind != JsonValueKind.Array)
-        {
-            return list;
-        }
-
-        foreach (var c in convs.EnumerateArray())
-        {
-            var unread = c.TryGetProperty("unreadCount", out var u) && u.TryGetInt32(out var uv) ? uv : 0;
-            var ts = c.TryGetProperty("lastActivityTimestampUtc", out var t) ? t.GetString() : null;
-            var key = c.TryGetProperty("conversationKey", out var k) ? k.GetString() ?? "" : "";
-            var name = c.TryGetProperty("customerName", out var n) ? n.GetString() ?? "" : "";
-            var preview = c.TryGetProperty("lastMessagePreview", out var p) ? p.GetString() ?? "" : "";
-            var awaiting = c.TryGetProperty("awaiting", out var a)
-                ? a.ValueKind == JsonValueKind.True
-                : unread > 0;
-            var fromMe = c.TryGetProperty("lastMessageFromMe", out var fm) && fm.ValueKind == JsonValueKind.True;
-            var contactPhone = c.TryGetProperty("contactPhone", out var cp) ? cp.GetString() ?? "" : "";
-            if (DateTimeOffset.TryParse(ts, out var when))
-            {
-                list.Add(new OversightChatSnapshotService.ChatEntry(
-                    key, name, unread, when.ToUniversalTime(), preview, awaiting, fromMe, contactPhone));
-            }
-        }
-
-        return list;
-    }
+    public static List<OversightChatSnapshotService.ChatEntry> ParseChatEntries(JsonElement root) =>
+        ChatEntryParser.ParseConversations(root);
 }

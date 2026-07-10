@@ -423,21 +423,9 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         }
 
         // Cache WhatsApp's unread-based caught-up snapshot (per-chat unread + last activity) — the command
-        // center's primary on-time source; the date window scopes it by last activity at render time.
-        var chatEntries = new List<OversightChatSnapshotService.ChatEntry>();
-        foreach (var conversation in conversations.EnumerateArray())
-        {
-            var unread = conversation.TryGetProperty("unreadCount", out var uEl) && uEl.TryGetInt32(out var uv) ? uv : 0;
-            var when = ParseTimestamp(ReadString(conversation, "lastActivityTimestampUtc"));
-            var key = ReadString(conversation, "conversationKey") ?? string.Empty;
-            var name = ReadString(conversation, "customerName") ?? string.Empty;
-            var preview = ReadString(conversation, "lastMessagePreview") ?? string.Empty;
-            var awaiting = conversation.TryGetProperty("awaiting", out var awEl)
-                ? awEl.ValueKind == JsonValueKind.True
-                : unread > 0;
-            var contactPhone = ReadString(conversation, "contactPhone") ?? string.Empty;
-            chatEntries.Add(new OversightChatSnapshotService.ChatEntry(key, name, unread, when, preview, awaiting, ContactPhone: contactPhone));
-        }
+        // center's primary on-time source; the date window scopes it by last activity at render time. Shared
+        // parser so this and the live OversightSnapshotReader read every field (incl. lastMessageFromMe) alike.
+        var chatEntries = ChatEntryParser.ParseConversations(payload.Value);
 
         if (chatEntries.Count > 0)
         {
