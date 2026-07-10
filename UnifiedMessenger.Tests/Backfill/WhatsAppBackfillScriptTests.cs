@@ -44,6 +44,18 @@ public class WhatsAppBackfillScriptTests
         Assert.Contains("__umRunDeepBackfillWalk", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void WhatsAppAdapter_AwaitingIgnoresDeletedLastMessage()
+    {
+        // Regression guard for the v4.61.4 fix: a deleted-for-everyone message (type 'revoked') must NOT keep
+        // a chat flagged awaiting. No JS engine in the harness, so assert the guard is present in the scan.
+        var script = ReadScript("whatsapp-adapter.js");
+
+        Assert.Contains("type === 'revoked'", script, StringComparison.Ordinal);
+        Assert.Contains("!lastRevoked", script, StringComparison.Ordinal);
+        Assert.Contains("var awaiting = !fromMe && !lastRevoked", script, StringComparison.Ordinal);
+    }
+
     private static string ReadScript(string scriptFileName)
     {
         var scriptPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Scripts", scriptFileName);
