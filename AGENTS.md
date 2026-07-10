@@ -105,12 +105,20 @@ UnifiedMessenger/
   App.xaml / App.xaml.cs          — application entry, DI composition root
   MainWindow.xaml / .cs           — shell host, single window
   Models/                         — plain data models (AppSettings, PlatformDefinition, ChatEntry, …)
-  Services/                       — all business logic (no UI dependencies)
+  Services/                       — all business logic (no UI dependencies). Files stay in the flat
+                                    `UnifiedMessenger.Services` namespace regardless of folder, so a file can
+                                    be moved between module folders with zero code changes.
+    Oversight/                    — command-center engine (rollup, snapshot reader, awaiting, response time)
+    Analytics/                    — message analytics, contact history, business report
+    Session/                      — WebView2 session lifecycle, nav guard, connection
+    Notifications/                — toast/tray/taskbar-badge notification surfaces
+    Distribution/                 — GitHub auto-update, startup, single-instance
     Adapters/                     — platform scraper adapters
     Ai/                           — Ollama client + insight service
     Backfill/                     — IndexedDB backfill pipeline
     Shell/                        — shell navigation + controller
     Contracts/                    — service interfaces
+    (root)                        — cross-cutting infra (DI, paths, logging, theme, UI helpers)
   Controls/                       — reusable XAML controls (.xaml + .cs)
     CommandCenterPanel.xaml.cs    — the L0 command-center (imperative card builder)
     WorkspaceSidebar.xaml.cs      — left rail with scope switch + location groups
