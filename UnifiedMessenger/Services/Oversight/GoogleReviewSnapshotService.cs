@@ -34,6 +34,17 @@ public sealed class GoogleReviewSnapshotService
         "if(!/\\/reviews(\\/|$)/.test(location.pathname)){" +
         "if(/business\\.google\\.com/.test(location.host)){if(!window.__umGRnav){window.__umGRnav=1;location.href='https://business.google.com/reviews';}window.__umGR={state:'navigating'};return;}" +
         "window.__umGR={state:'notreviews'};return;}" +
+        // Bump "Rows per page" to its max once, so the counts below cover more than the default 10.
+        // ponytail: synthetic .click() drives Google's jsaction listbox (opener jsname=LgbsSe, options carry
+        // data-value); if a Google build ignores it this simply no-ops and we count the default page — no
+        // regression. Upgrade path if it stops working: dispatch a real MouseEvent instead of .click().
+        "if(!window.__umGRrowsDone){window.__umGRrowsDone=1;try{" +
+        "var rb=document.querySelector('[aria-label=\"Number of rows per page\"]');" +
+        "if(rb){var op=rb.querySelector('[jsname=\"LgbsSe\"]');if(op)op.click();" +
+        "setTimeout(function(){try{var o=[].slice.call(rb.querySelectorAll('[data-value]'));" +
+        "var m=o.reduce(function(a,c){return (+(c.getAttribute('data-value')||0))>(+(a.getAttribute('data-value')||0))?c:a;},o[0]);" +
+        "if(m)m.click();}catch(e){}},250);" +
+        "window.__umGR={state:'loading'};return;}}catch(e){}}" +
         "var b=[].slice.call(document.querySelectorAll('button'));" +
         "var replyBtns=b.filter(function(x){return /(^|\\b)reply\\b/i.test((x.innerText||'').trim());});" +
         "var reply=replyBtns.length;" +
