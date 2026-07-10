@@ -780,7 +780,27 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
                     $"Instance '{instance.DisplayName}' uses unknown platform '{instance.Platform}'.");
             }
 
+            MigrateLegacyStartUrl(instance);
             instance.StartUrl = ResolveStartUrl(platform, instance.StartUrl);
+        }
+    }
+
+    // Rewrites start URLs that Google (or we) have since superseded, so existing accounts don't stay stuck on
+    // a worse landing page. Google Business accounts created before v4.61.4 point at the bare
+    // business.google.com root, which redirects single-location managers into a raw Search results page; move
+    // them to the /locations manager dashboard. Only touches the exact legacy default, never a user override.
+    private static void MigrateLegacyStartUrl(MessengerInstance instance)
+    {
+        if (!PlatformDefinition.NormalizePlatformId(instance.Platform)
+                .Equals("googlebusiness", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var current = instance.StartUrl?.Trim().TrimEnd('/');
+        if (string.Equals(current, "https://business.google.com", StringComparison.OrdinalIgnoreCase))
+        {
+            instance.StartUrl = "https://business.google.com/locations";
         }
     }
 
