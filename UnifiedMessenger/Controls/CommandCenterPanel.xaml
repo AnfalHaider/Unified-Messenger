@@ -309,6 +309,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <FontIcon
+                        x:Name="AttentionIcon"
                         VerticalAlignment="Center"
                         FontSize="16"
                         Foreground="{ThemeResource SystemFillColorCautionBrush}"
@@ -338,8 +339,9 @@
                         x:Name="ResyncProgressPercent"
                         Grid.Column="1"
                         VerticalAlignment="Center"
-                        MinWidth="38"
+                        MinWidth="40"
                         TextAlignment="Right"
+                        FontWeight="SemiBold"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </Grid>
             </StackPanel>

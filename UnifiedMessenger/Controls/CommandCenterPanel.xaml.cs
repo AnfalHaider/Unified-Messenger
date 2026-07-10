@@ -2405,7 +2405,7 @@ public sealed partial class CommandCenterPanel : UserControl
             // Reload phase carries the first 15% of the bar; the slow per-account probe carries the rest.
             for (var i = 0; i < n; i++)
             {
-                AttentionText.Text = $"Reloading {pros[i].DisplayName} ({i + 1} of {n})…";
+                SetResyncStep(pros[i].DisplayName, i + 1, n, reloading: true);
                 ResyncEaseToward(0.13 * (i + 1) / n);
                 await _services.SessionManager.ReloadSessionAsync(pros[i].Id);
                 ResyncAnchor(0.15 * (i + 1) / n);
@@ -2420,7 +2420,7 @@ public sealed partial class CommandCenterPanel : UserControl
             {
                 var instance = pros[i];
                 var boundary = 0.15 + 0.85 * (i + 1) / n;
-                AttentionText.Text = $"Reading {instance.DisplayName}'s history ({i + 1} of {n})…";
+                SetResyncStep(instance.DisplayName, i + 1, n, reloading: false);
                 ResyncEaseToward(boundary - 0.02);
 
                 var line = await ProbeInstanceDbAsync(instance);
@@ -2452,12 +2452,44 @@ public sealed partial class CommandCenterPanel : UserControl
     private double _resyncDisplayed;
     private double _resyncCeiling;
 
+    // Witty status lines, rotated on a slow cadence so the wait has some personality while still naming the
+    // account and its position. {0} = account name. Kept light — this isn't a serious operation.
+    private static readonly string[] ResyncReadingQuips =
+    {
+        "Rifling through {0}'s chat history",
+        "Counting who's still waiting at {0}",
+        "Seeing who {0} left on read",
+        "Tallying {0}'s unanswered questions",
+        "Catching up on {0}'s conversations",
+        "Asking {0}'s inbox to spill the tea",
+        "Reading {0}'s history",
+    };
+    private static readonly string[] ResyncReloadQuips =
+    {
+        "Waking up {0}",
+        "Nudging {0} back to life",
+        "Reloading {0}",
+    };
+
+    private string _resyncAccountName = "";
+    private int _resyncStepIndex;
+    private int _resyncStepTotal;
+    private bool _resyncReloading;
+    private int _resyncQuipIndex;
+    private int _resyncTickCount;
+
+    // ~150ms tick × 24 ≈ every 3.6s the quip rotates.
+    private const int ResyncQuipRotateTicks = 24;
+
     private void BeginResyncProgress()
     {
         _resyncDisplayed = 0;
         _resyncCeiling = 0;
+        _resyncQuipIndex = 0;
+        _resyncTickCount = 0;
         ResyncProgressRow.Visibility = Visibility.Visible;
         ApplyResyncBar(0);
+        AttentionIcon.Glyph = ""; // Sync glyph reads as working, not the caution triangle
 
         if (_resyncEaseTimer is null)
         {
@@ -2473,10 +2505,38 @@ public sealed partial class CommandCenterPanel : UserControl
                     _resyncDisplayed = _resyncCeiling;
                 }
                 ApplyResyncBar(_resyncDisplayed);
+
+                if (++_resyncTickCount % ResyncQuipRotateTicks == 0)
+                {
+                    _resyncQuipIndex++;
+                    ApplyResyncStatusText();
+                }
             };
         }
 
         _resyncEaseTimer.Start();
+    }
+
+    /// <summary>Records which account/phase the re-sync is on, and refreshes the (witty) status line.</summary>
+    private void SetResyncStep(string accountName, int index, int total, bool reloading)
+    {
+        _resyncAccountName = accountName;
+        _resyncStepIndex = index;
+        _resyncStepTotal = total;
+        _resyncReloading = reloading;
+        ApplyResyncStatusText();
+    }
+
+    private void ApplyResyncStatusText()
+    {
+        if (string.IsNullOrEmpty(_resyncAccountName))
+        {
+            return;
+        }
+
+        var pool = _resyncReloading ? ResyncReloadQuips : ResyncReadingQuips;
+        var quip = string.Format(pool[_resyncQuipIndex % pool.Length], _resyncAccountName);
+        AttentionText.Text = $"{quip} ({_resyncStepIndex} of {_resyncStepTotal})…";
     }
 
     /// <summary>Moves the eased soft-cap forward (never backward), so the bar creeps toward it.</summary>
@@ -2502,6 +2562,7 @@ public sealed partial class CommandCenterPanel : UserControl
     {
         _resyncEaseTimer?.Stop();
         ResyncProgressRow.Visibility = Visibility.Collapsed;
+        AttentionIcon.Glyph = ""; // restore the caution triangle for normal backlog use
     }
 
     private static async Task<string> ProbeInstanceDbAsync(MessengerInstance instance)
