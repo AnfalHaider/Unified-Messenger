@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-07-10 · **Baseline:** v4.62.5 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-07-10 · **Baseline:** v4.62.6 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
 > **Session 8 update (v4.46.0 → v4.53.0): real response-speed metrics, a data-accuracy audit, and the

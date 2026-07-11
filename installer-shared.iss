@@ -5,7 +5,7 @@
 #define MyAppExeName "UnifiedMessenger.exe"
 #define MyAppPublisher "AnfalHaider"
 #define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "4.62.5"
+#define MyAppVersion "4.62.6"
 #define MyAppMutex "UnifiedMessenger_AppMutex"
 
 #define OllamaRuntimeDir "{localappdata}\UnifiedMessenger\ollama\runtime"
@@ -23,11 +23,12 @@ Name: "uninstallremoveaimodels"; Description: "Remove downloaded AI models (~2 G
 [Code]
 function IsPreservedRootFile(const FileName: String): Boolean;
 begin
-  Result :=
-    (CompareText(FileName, 'settings.json') = 0) or
-    (CompareText(FileName, 'instances.json') = 0) or
-    (CompareText(FileName, 'analytics.json') = 0) or
-    (CompareText(FileName, 'triage_v2.json') = 0);
+  { Preserve ALL user-data JSON stores. This directory is shared with the legacy install location, so
+    CleanAppPayload runs here to strip stale binaries on update — but it must never delete accrued app data.
+    Enumerating individual files drifted badly: response-times, contact-history, kpi-trend, awaiting-overrides
+    and oversight-snapshot were all being wiped on every update (so First Response Time / SLA never
+    accumulated, and cards showed "waiting for first sync" after an update). Any *.json here is app state. }
+  Result := (CompareText(ExtractFileExt(FileName), '.json') = 0);
 end;
 
 function IsPreservedRootDir(const DirName: String): Boolean;
