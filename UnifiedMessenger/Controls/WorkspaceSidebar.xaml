@@ -27,17 +27,7 @@
             Padding="{StaticResource UmPaddingSidebarMenu}"
             Spacing="2"
             VerticalAlignment="Top">
-            <Grid
-                x:Name="BrandHeaderPanel"
-                Margin="{StaticResource UmMarginBrandHeader}">
-                <Image
-                    x:Name="BrandWordmarkImage"
-                    MaxHeight="40"
-                    AutomationProperties.Name="Unified Messenger brand"
-                    HorizontalAlignment="Left"
-                    Stretch="Uniform"
-                    Source="Assets/Branding/wordmark-inline-light.png" />
-            </Grid>
+            <!-- Brand mark removed from the sidebar — the title bar already shows the app icon + name. -->
 
             <!-- Account scope is now selected from the title-bar scope selector (see MainWindow). -->
             <StackPanel x:Name="MenuStack" Spacing="2" />

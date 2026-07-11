@@ -63,22 +63,8 @@ public sealed partial class WorkspaceSidebar : Grid
     public WorkspaceSidebar()
     {
         InitializeComponent();
-        ApplyBrandWordmarkForTheme();
-        ActualThemeChanged += (_, _) => ApplyBrandWordmarkForTheme();
+        // Brand mark is a static image + theme-aware TextBlocks now — no per-theme wordmark swap needed.
         Unloaded += OnUnloaded;
-    }
-
-    private void ApplyBrandWordmarkForTheme()
-    {
-        var useDarkWordmark = ActualTheme == ElementTheme.Dark;
-        var assetPath = ApplicationPaths.TryResolveBrandingAssetPath(
-            useDarkWordmark ? "wordmark-inline-dark.png" : "wordmark-inline-light.png");
-        if (string.IsNullOrWhiteSpace(assetPath))
-        {
-            return;
-        }
-
-        BrandWordmarkImage.Source = new BitmapImage(new Uri(assetPath));
     }
 
     public event EventHandler? DashboardRequested;
@@ -402,7 +388,6 @@ public sealed partial class WorkspaceSidebar : Grid
     private void ApplyCompactDisplay()
     {
         var labelVisibility = _isCompact ? Visibility.Collapsed : Visibility.Visible;
-        BrandWordmarkImage.Visibility = labelVisibility;
         AddInstanceLabel.Visibility = labelVisibility;
         NotificationsLabel.Visibility = labelVisibility;
         SettingsLabel.Visibility = labelVisibility;

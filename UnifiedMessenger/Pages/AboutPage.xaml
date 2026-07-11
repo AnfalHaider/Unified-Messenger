@@ -31,11 +31,14 @@
                 BorderThickness="1"
                 CornerRadius="8">
                 <StackPanel Spacing="16">
+                    <!-- Brand icon from the app .ico (the one asset the decoder renders reliably); the
+                         "Unified Messenger vX.Y.Z" line below acts as the wordmark. Colourful icon reads on
+                         both light and dark cards, so no dark panel needed. -->
                     <Image
-                        MaxWidth="320"
+                        Width="88"
+                        Height="88"
                         HorizontalAlignment="Left"
-                        Stretch="Uniform"
-                        Source="Assets/Branding/wordmark-hero.png" />
+                        Source="Assets/AppIcon.ico" />
                     <TextBlock
                         x:Name="VersionText"
                         Margin="0,-4,0,0"
