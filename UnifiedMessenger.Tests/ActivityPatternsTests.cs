@@ -88,6 +88,37 @@ public class ActivityPatternsTests : IDisposable
     }
 
     [Fact]
+    public void AllDimensions_CountTheSameTotal_FromTheHourMatrix()
+    {
+        // Regression for the "18003 vs 18013" bug: hour-of-day summed the day×hour matrix while day-of-week and
+        // month summed the separate DailyReceived map, so the totals drifted. Give the two sources DIFFERENT
+        // totals for the same day; every dimension must report the matrix's total (10), not the daily map (13).
+        var service = new MessageAnalyticsService(_storePath);
+        var day = DateTime.Today.ToString("yyyy-MM-dd");
+        var hours = new int[24];
+        hours[10] = 6;
+        hours[14] = 4; // matrix total = 10
+        service.RecordBackfillDailyAggregate(
+            "inst-1",
+            new Dictionary<string, int> { [day] = 13 }, // drifted daily-total map
+            new Dictionary<string, int>(),
+            null,
+            new Dictionary<string, int[]> { [day] = hours });
+
+        var instances = new List<MessengerInstance>
+        {
+            new() { Id = "inst-1", DisplayName = "One", Platform = "whatsapp", AccentColor = "#111111" }
+        };
+
+        // Both the combined and the per-account (chart) paths, all three dimensions.
+        foreach (var dim in new[] { ActivityDimension.HourOfDay, ActivityDimension.DayOfWeek, ActivityDimension.Month })
+        {
+            Assert.Equal(10, service.BuildActivityPatterns(dim, instances, null, null).Total);
+            Assert.Equal(10, service.BuildActivityBreakdown(dim, instances, null, null).Total);
+        }
+    }
+
+    [Fact]
     public void BuildActivityPatterns_NoData_ReturnsEmptyPattern()
     {
         var service = new MessageAnalyticsService(_storePath);

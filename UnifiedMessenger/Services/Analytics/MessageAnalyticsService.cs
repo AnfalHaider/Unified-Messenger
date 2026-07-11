@@ -771,6 +771,8 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         return Finalize(labels, totals, peak => full[peak]);
     }
 
+    // Delegates to the single matrix-based per-day helper so the combined day-of-week/month charts count the
+    // same message set as hour-of-day (was reading DailyReceived directly, which drifts from the matrix).
     private void ForEachDayInRange(
         IReadOnlyList<InstanceMessageStats> selected,
         DateTimeOffset? fromUtc,
@@ -779,21 +781,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
     {
         foreach (var stats in selected)
         {
-            foreach (var (day, count) in stats.DailyReceived)
-            {
-                if (count <= 0 ||
-                    !DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
-                {
-                    continue;
-                }
-
-                if (!IsDayInRange(day, fromUtc, toUtc))
-                {
-                    continue;
-                }
-
-                bucket(date, count);
-            }
+            ForEachDailyTotal(stats, fromUtc, toUtc, bucket);
         }
     }
 
@@ -1024,39 +1012,61 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         return totals;
     }
 
-    private static int[] DayOfWeekBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    // Per-day totals from the SAME source the hour-of-day chart uses (the day×hour matrix summed per day), so
+    // hour / day-of-week / month always count the identical message set and their totals agree. Mirrors
+    // HourBucketsForStats' fallback exactly: the daily-total map is only used when there is no matrix at all
+    // AND no date filter (legacy accounts, all-time view).
+    private static void ForEachDailyTotal(
+        InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc, Action<DateTime, int> emit)
     {
-        var totals = new int[7];
-        foreach (var (day, count) in stats.DailyReceived)
+        var anyMatrix = false;
+        foreach (var (day, hours) in stats.HourlyReceivedByDay)
         {
-            if (count <= 0 ||
-                !DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ||
-                !IsDayInRange(day, fromUtc, toUtc))
+            if (hours is not { Length: 24 } || !IsDayInRange(day, fromUtc, toUtc) ||
+                !DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
             {
                 continue;
             }
 
-            totals[((int)date.DayOfWeek + 6) % 7] += count;
+            anyMatrix = true;
+            var sum = 0;
+            for (var h = 0; h < 24; h++)
+            {
+                sum += hours[h];
+            }
+
+            if (sum > 0)
+            {
+                emit(date, sum);
+            }
         }
 
+        if (anyMatrix || fromUtc is not null || toUtc is not null)
+        {
+            return;
+        }
+
+        foreach (var (day, count) in stats.DailyReceived)
+        {
+            if (count > 0 &&
+                DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            {
+                emit(date, count);
+            }
+        }
+    }
+
+    private static int[] DayOfWeekBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    {
+        var totals = new int[7];
+        ForEachDailyTotal(stats, fromUtc, toUtc, (date, count) => totals[((int)date.DayOfWeek + 6) % 7] += count);
         return totals;
     }
 
     private static int[] MonthBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
     {
         var totals = new int[12];
-        foreach (var (day, count) in stats.DailyReceived)
-        {
-            if (count <= 0 ||
-                !DateTime.TryParseExact(day, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ||
-                !IsDayInRange(day, fromUtc, toUtc))
-            {
-                continue;
-            }
-
-            totals[date.Month - 1] += count;
-        }
-
+        ForEachDailyTotal(stats, fromUtc, toUtc, (date, count) => totals[date.Month - 1] += count);
         return totals;
     }
 
