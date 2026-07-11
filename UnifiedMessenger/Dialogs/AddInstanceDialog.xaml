@@ -14,6 +14,7 @@
         <ComboBox
             x:Name="RestoreBox"
             Header="Restore removed account (optional)"
+            HorizontalAlignment="Stretch"
             DisplayMemberPath="DisplayName"
             SelectionChanged="RestoreBox_SelectionChanged"
             Visibility="Collapsed" />
@@ -26,11 +27,13 @@
         <ComboBox
             x:Name="PlatformBox"
             Header="Platform"
+            HorizontalAlignment="Stretch"
             SelectionChanged="PlatformBox_SelectionChanged" />
 
         <ComboBox
             x:Name="CategoryBox"
             Header="Workspace"
+            HorizontalAlignment="Stretch"
             SelectionChanged="CategoryBox_SelectionChanged" />
 
         <TextBox

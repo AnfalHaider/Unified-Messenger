@@ -42,7 +42,7 @@
             <TextBlock
                 FontSize="12"
                 Opacity="0.65"
-                Text="About opens from the navigation list on the left."
+                Text="Notifications, appearance, accounts, AI, and data — pick a section on the left."
                 TextWrapping="WrapWholeWords" />
 
             <StackPanel x:Name="NotificationsSection" Tag="notifications" Spacing="8">
