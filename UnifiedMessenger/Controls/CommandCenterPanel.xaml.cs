@@ -1968,6 +1968,8 @@ public sealed partial class CommandCenterPanel : UserControl
 
             var chips = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
 
+            // Show reply speed only once there's live data; a perpetual "measuring…" on every card just
+            // reads as stuck (the KPI band's "Response time — · builds as you reply" sets that once).
             if (resp.HasData)
             {
                 var replies = resp.SampleCount == 1 ? "1 reply measured" : $"{resp.SampleCount} replies measured";
@@ -1976,14 +1978,6 @@ public sealed partial class CommandCenterPanel : UserControl
                     $"reply ~{FormatMinutes(resp.MedianMinutes)}",
                     ResponseBrush(resp.MedianMinutes, slaMinutes),
                     $"Median time from a customer's message to this account's first reply ({replies}). Target: under {slaMinutes} min."));
-            }
-            else
-            {
-                chips.Children.Add(BuildMetricChip(
-                    "",
-                    "reply speed: measuring…",
-                    secondary,
-                    "Reply speed is measured live as chats go from waiting to answered across syncs — it fills in after a few replies. No history is guessed."));
             }
 
             if (resp.AnsweredToday > 0)
@@ -2029,7 +2023,7 @@ public sealed partial class CommandCenterPanel : UserControl
             {
                 card.Children.Add(new TextBlock
                 {
-                    Text = $"Longest wait right now: {FormatMinutes(worst.TotalMinutes)} — expand this card to see who's waiting and open their chat.",
+                    Text = $"Longest wait: {FormatMinutes(worst.TotalMinutes)} — expand to see who's waiting.",
                     FontSize = 11,
                     Foreground = Brush("TextFillColorTertiaryBrush"),
                     TextWrapping = TextWrapping.WrapWholeWords

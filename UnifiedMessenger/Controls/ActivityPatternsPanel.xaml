@@ -21,20 +21,17 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <!-- Header + account/range filters -->
-            <Grid Grid.Row="0" ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Spacing="2" VerticalAlignment="Center">
+            <!-- Header + account/range filters. Stacked (title over filters) so the title never gets clipped
+                 by the dropdowns in the narrow bento column. -->
+            <StackPanel Grid.Row="0" Spacing="10">
+                <StackPanel Spacing="2">
                     <TextBlock FontSize="15" FontWeight="SemiBold" Text="Activity patterns" />
                     <TextBlock
                         FontSize="12"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Text="When your customers message most" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="8">
                     <ComboBox x:Name="AccountSelector" MinWidth="150" SelectionChanged="OnFilterChanged" />
                     <ComboBox x:Name="RangeSelector" MinWidth="130" SelectionChanged="OnFilterChanged">
                         <ComboBoxItem Content="Last 90 days" IsSelected="True" Tag="90" />
@@ -43,7 +40,7 @@
                         <ComboBoxItem Content="All time" Tag="all" />
                     </ComboBox>
                 </StackPanel>
-            </Grid>
+            </StackPanel>
 
             <!-- Dimension segmented control -->
             <Border
