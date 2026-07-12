@@ -1074,7 +1074,8 @@
       }
       preview = preview ? preview.slice(0, 90) : '';
 
-      var hint = { title: title, preview: preview, lastFromMe: umRowLastFromMe(row), present: true };
+      // data-icon="recalled" marks a deleted-for-everyone last message ("This message was deleted").
+      var hint = { title: title, preview: preview, lastFromMe: umRowLastFromMe(row), recalled: !!row.querySelector('[data-icon="recalled"]'), present: true };
       var key = umDigits(did);
       if (key) {
         byId[key] = hint;
@@ -1108,7 +1109,7 @@
 
         if (!title && !preview) { continue; }
 
-        var entry = { preview: preview, title: title };
+        var entry = { preview: preview, title: title, recalled: !!row.querySelector('[data-icon="recalled"]') };
 
         // Key by the title's phone digits (unsaved contacts show their number as the title); the scan joins
         // by the resolved contact phone. Rows carry no data-id, so this is the primary key.
@@ -1295,7 +1296,11 @@
                 // A deleted-for-everyone message stays as lastMessage with type 'revoked' and its original
                 // (inbound) fromMe=false, which would keep the chat "awaiting" forever. A retracted question
                 // is no longer pending, so don't count it. (subtype guards older WA builds.)
-                var lastRevoked = !!(last && (last.type === 'revoked' || last.subtype === 'revoke'));
+                // Persisted lastMessage is authoritative when present; but in a throttled background webview it
+                // is often absent, so also trust the live "recalled" icon from the rendered row / harvested preview.
+                var lastRevoked = !!(last && (last.type === 'revoked' || last.subtype === 'revoke')) ||
+                  !!(hint && hint.recalled) ||
+                  !!(harvested && harvested.recalled);
                 var awaiting = !fromMe && !lastRevoked;
                 // ponytail: this reads WhatsApp's PERSISTED chat store, which lags in a throttled background
                 // webview — a reply sent from the phone can take a while to sync here, so a just-answered chat
