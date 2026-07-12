@@ -173,56 +173,69 @@
 
     if (platformKey === 'whatsapp' || platformKey === 'whatsappbusiness') {
       var keyLower = key.toLowerCase();
+      var isLid = keyLower.indexOf('@lid') >= 0;
       var at = keyLower.indexOf('@');
       var bareId = at > 0 ? keyLower.slice(0, at) : keyLower;
       var nameLower = name.toLowerCase();
-      var ignoreName = !nameLower || nameLower === 'new message';
+      // A real name to match on — NOT the "New message" placeholder, and NOT a bare number (unsaved
+      // contacts carry their number as the name, which we handle via digits instead).
+      var hasRealName = !!nameLower && nameLower !== 'new message' && /[a-z]/i.test(name);
+      // A searchable phone exists ONLY for @c.us JIDs (real E.164). An @lid is a privacy id, not a phone,
+      // and is not searchable — searching it matches unrelated message text (once opened the self/Notes chat).
+      var phoneDigits = isLid ? '' : bareId.replace(/\D/g, '');
 
-      // 1) Fast path — a currently-rendered row matching by data-id (older builds) or a visible title.
-      //    Current WhatsApp Web rows carry no data-id, so this mainly catches saved contacts on screen.
+      function umDigitsOf(s) { return String(s || '').replace(/\D/g, ''); }
+
+      // A rendered row identifies OUR chat only if its visible title matches by phone digits or by real name.
+      // This is the guard that stops us ever clicking the wrong chat (e.g. a search hit on message text).
+      function umRowIsTarget(row) {
+        var el = row.querySelector('span[title]');
+        var raw = el ? (el.getAttribute('title') || el.textContent || '') : '';
+        var lc = window.__umCollapseWhitespace(raw).toLowerCase();
+        if (!lc) { return null; }
+        var td = umDigitsOf(raw);
+        if (phoneDigits && phoneDigits.length >= 8 && td.length >= 8 &&
+            (td.indexOf(phoneDigits) >= 0 || phoneDigits.indexOf(td) >= 0)) {
+          return el || row;
+        }
+        if (hasRealName && lc.indexOf(nameLower) >= 0) {
+          return el || row;
+        }
+        return null;
+      }
+
+      // 1) Already-rendered row (saved contacts on screen, or a chat whose number is visible).
       var rows = document.querySelectorAll(
         '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
       );
       for (var r = 0; r < rows.length; r++) {
-        var idEl = rows[r].querySelector('[data-id]');
-        var did = ((idEl && idEl.getAttribute('data-id')) ||
-          (rows[r].getAttribute && rows[r].getAttribute('data-id')) || '').toLowerCase();
-        var rowTitleEl = rows[r].querySelector('span[title]');
-        var rowTitle = rowTitleEl
-          ? window.__umCollapseWhitespace(rowTitleEl.getAttribute('title') || rowTitleEl.textContent || '').toLowerCase()
-          : '';
-        if ((bareId && did && (did.indexOf(keyLower) >= 0 || did.indexOf(bareId) >= 0)) ||
-            (!ignoreName && rowTitle && rowTitle.indexOf(nameLower) >= 0)) {
-          (rowTitleEl || idEl || rows[r]).click();
-          return true;
-        }
+        var hit = umRowIsTarget(rows[r]);
+        if (hit) { hit.click(); return true; }
       }
 
-      // 2) Search path — the only reliable way for off-screen and unsaved (@lid) chats, which never
-      //    expose a matchable data-id. Type the contact's name/number into WhatsApp's own chat search so
-      //    it renders the row, then (on the retry) click the top result. Unsaved contacts already carry
-      //    their phone number as the name; otherwise fall back to the JID's digits.
+      // 2) Search — only with a REAL identifier (a name or a @c.us phone). A nameless @lid has neither, so
+      //    we do NOT search or guess: returning false opens the inbox, never the wrong chat.
+      var term = hasRealName ? name : phoneDigits;
+      if (!term) { return false; }
+
       var search = document.querySelector(
         'input[aria-label="Search or start a new chat"], #side input[role="textbox"], #side input[type="text"]'
       );
       if (search) {
-        var term = ignoreName ? bareId.replace(/\D/g, '') : name;
-        if (term) {
-          var current = window.__umCollapseWhitespace(search.value || '');
-          if (current.toLowerCase() !== window.__umCollapseWhitespace(term).toLowerCase()) {
-            // First pass: apply the filter and let the caller retry once the list re-renders.
-            umSetReactInputValue(search, term);
-            return false;
-          }
-          // Filter already applied — click the top result row, then clear the search box.
-          var first = document.querySelector('#pane-side [role="row"], #side [role="row"]');
-          if (first) {
-            (first.querySelector('span[title]') || first).click();
-            umSetReactInputValue(search, '');
-            return true;
-          }
-          return false; // filtered but nothing rendered yet — retry.
+        var current = window.__umCollapseWhitespace(search.value || '');
+        if (current.toLowerCase() !== window.__umCollapseWhitespace(term).toLowerCase()) {
+          // Apply the filter and let the focus-helper retry once the list re-renders.
+          umSetReactInputValue(search, term);
+          return false;
         }
+        // Filtered — click a result ONLY if it verifies as our chat; otherwise clear and give up (inbox).
+        var results = document.querySelectorAll('#pane-side [role="row"], #side [role="row"]');
+        for (var i = 0; i < results.length; i++) {
+          var vhit = umRowIsTarget(results[i]);
+          if (vhit) { vhit.click(); umSetReactInputValue(search, ''); return true; }
+        }
+        umSetReactInputValue(search, '');
+        return false;
       }
     }
 
