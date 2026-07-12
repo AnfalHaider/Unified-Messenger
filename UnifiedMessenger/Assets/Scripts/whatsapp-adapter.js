@@ -1305,6 +1305,17 @@
                   else if (harvested && harvested.title) { name = harvested.title; }
                 }
 
+                // Drop fully-anonymous @lid privacy contacts: no resolved phone (not in the lid→phone map)
+                // AND no real name (empty, the "New message" placeholder, or just the @lid digits). WhatsApp
+                // exposes no way to identify or open these, so they're non-actionable noise in the needs-reply
+                // list. @lid chats that DO resolve to a phone or carry a name are kept — real, reachable customers.
+                if (jidLower.indexOf('@lid') >= 0 && !lidPhoneMap[jid]) {
+                  var nm = (name || '').trim();
+                  if (!nm || nm === 'New message' || nm.replace(/\D/g, '') === umExtractDigits(jid)) {
+                    continue;
+                  }
+                }
+
                 // Awaiting = the CUSTOMER had the last word (we haven't replied), even if the message was
                 // opened/read. Direction-first: the persisted lastMessage.fromMe is authoritative; then the
                 // rendered DOM hint; only as a last resort the unread marker (which wrongly clears the moment
