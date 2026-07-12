@@ -1228,6 +1228,15 @@
             var conversations = [];
             var domHints = umBuildDomChatHints();
 
+            // This account's own number — the "Message yourself" chat is keyed by it, and you never owe
+            // yourself a reply, so it must be excluded from oversight. Source: WhatsApp Web's own
+            // last-wid-md localStorage entry, e.g. "923262104455:95@c.us" -> ownDigits "923262104455".
+            var ownDigits = '';
+            try {
+              var widMatch = (window.localStorage.getItem('last-wid-md') || '').replace(/"/g, '').match(/(\d{6,})/);
+              ownDigits = widMatch ? widMatch[1] : '';
+            } catch (e) { ownDigits = ''; }
+
             for (var i = 0; i < chats.length; i++) {
               try {
                 var ch = chats[i];
@@ -1250,6 +1259,14 @@
                     // reply to, so they must never count as an awaiting customer chat. "0@" only ever prefixes
                     // this account — real E.164 numbers never have a leading-zero local part.
                     jidLower.indexOf('0@') === 0) {
+                  continue;
+                }
+
+                // Skip the self-chat ("Message yourself" — this account's own number). Strip an optional
+                // device suffix (":95") before the "@", then compare digits to the own WID.
+                var selfHead = jidLower.indexOf('@') > 0 ? jidLower.slice(0, jidLower.indexOf('@')) : jidLower;
+                if (selfHead.indexOf(':') > 0) { selfHead = selfHead.slice(0, selfHead.indexOf(':')); }
+                if (ownDigits && selfHead.replace(/\D/g, '') === ownDigits) {
                   continue;
                 }
 
