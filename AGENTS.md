@@ -87,12 +87,17 @@ Also update `docs/phase-status.md` header date + baseline version.
 
 ```powershell
 # Targeted (safe, fast):
-dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj --nologo -v quiet `
+dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet `
   --filter "FullyQualifiedName~PlatformDefinitionTests|FullyQualifiedName~PlatformAdapterFactoryTests"
 
 # Avoid filters like "~PlatformAdapter" — grabs extra classes that hang headless.
 # Use exact class names, not substrings of substrings.
 ```
+
+**Always test the Release (live/shipping) build — never Debug.** `Directory.Build.props` defaults the repo
+to Release when no `-c` is passed, so a bare `dotnet test`/`dotnet build` no longer produces a stale Debug
+`UnifiedMessenger.exe`. The `-c Release` above is explicit belt-and-suspenders; don't pass `-p:Platform` to
+`dotnet test` (it breaks the test-dll path resolution — see `.github/workflows/build.yml`).
 
 Test fixtures: `UnifiedMessenger.Tests/Fixtures/` (HTML files for script tests). Assets (JS, CSS) are linked into the test output via the `.csproj`.
 

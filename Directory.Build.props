@@ -1,0 +1,10 @@
+<Project>
+
+  <!-- Default the whole repo to Release when no configuration is passed, so `dotnet build`/`dotnet test`
+       with no -c never produce or run a stale Debug build. Tests must exercise the live (shipping) build.
+       Explicit `-c Debug` and the VS debugger (which sets Configuration=Debug) still win via this guard. -->
+  <PropertyGroup Condition="'$(Configuration)' == ''">
+    <Configuration>Release</Configuration>
+  </PropertyGroup>
+
+</Project>

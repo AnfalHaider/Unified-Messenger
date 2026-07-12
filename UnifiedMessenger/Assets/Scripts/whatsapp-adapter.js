@@ -792,7 +792,10 @@
     return key.indexOf('@g.us') >= 0 ||
            key.indexOf('status@broadcast') >= 0 ||
            key.indexOf('@broadcast') >= 0 ||
-           key.indexOf('@newsletter') >= 0;
+           key.indexOf('@newsletter') >= 0 ||
+           // WhatsApp's official/system account (0@c.us), whether the key is the bare JID or the serialized
+           // "<fromMe>_<chatJid>_<msgId>" form — bounded by start/underscore so a phone ending in 0 can't match.
+           /(^|_)0@c\.us(_|$)/.test(key);
   }
 
   // The user's LOCAL calendar day (yyyy-MM-dd). The old toISOString() sliced the UTC day, which pushed
@@ -1241,7 +1244,11 @@
                 if (jidLower.indexOf('@g.us') >= 0 ||
                     jidLower.indexOf('@broadcast') >= 0 ||
                     jidLower.indexOf('@newsletter') >= 0 ||
-                    jidLower.indexOf('status@') >= 0) {
+                    jidLower.indexOf('status@') >= 0 ||
+                    // WhatsApp's official/system account (0@c.us): one-way marketing/notice messages you can't
+                    // reply to, so they must never count as an awaiting customer chat. "0@" only ever prefixes
+                    // this account — real E.164 numbers never have a leading-zero local part.
+                    jidLower.indexOf('0@') === 0) {
                   continue;
                 }
 

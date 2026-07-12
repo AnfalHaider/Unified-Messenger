@@ -203,8 +203,20 @@ public static class WebViewNavigationGuard
         return IsHostAllowed(parsed.Host, allowlist);
     }
 
+    // In-page downloads and media resolve to blob:/data: URIs — e.g. WhatsApp decrypts a received file to a
+    // blob before saving it. These are not cross-origin navigations; blocking them kills the download.
+    private static bool IsDownloadLikeScheme(string? uri) =>
+        !string.IsNullOrWhiteSpace(uri) &&
+        (uri.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) ||
+         uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase));
+
     private static void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
     {
+        if (IsDownloadLikeScheme(args.Uri))
+        {
+            return;
+        }
+
         if (sender is CoreWebView2 coreWebView &&
             WebViewAllowlists.TryGetValue(coreWebView, out var allowlist))
         {

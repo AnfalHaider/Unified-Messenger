@@ -44,6 +44,12 @@
                         Margin="0,-4,0,0"
                         Opacity="0.7" />
 
+                    <Button
+                        x:Name="CheckForUpdatesButton"
+                        HorizontalAlignment="Left"
+                        Click="CheckForUpdatesButton_Click"
+                        Content="Check for updates" />
+
                     <TextBlock
                         FontSize="16"
                         FontWeight="SemiBold"

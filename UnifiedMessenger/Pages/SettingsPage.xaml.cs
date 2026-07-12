@@ -87,7 +87,6 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(PromptPinToTaskbarToggle, "Suggest pin to taskbar");
         AutomationProperties.SetName(EnableAutoUpdateToggle, "Enable auto update");
         AutomationProperties.SetName(PromptBeforeAutoUpdateToggle, "Prompt before auto-update installs");
-        AutomationProperties.SetName(CheckForUpdatesButton, "Check for updates");
         AutomationProperties.SetName(AccountsList, "Accounts");
         AutomationProperties.SetName(ArchivedAccountsList, "Removed accounts");
     }

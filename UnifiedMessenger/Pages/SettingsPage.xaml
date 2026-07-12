@@ -728,11 +728,7 @@
                             </ToggleSwitch.Header>
                         </ToggleSwitch>
 
-                        <Button
-                            x:Name="CheckForUpdatesButton"
-                            HorizontalAlignment="Left"
-                            Click="CheckForUpdatesButton_Click"
-                            Content="Check for updates" />
+                        <!-- "Check for updates" moved to the About page (next to the version). -->
                     </StackPanel>
                     </shared:SurfaceCard.CardBody>
                 </shared:SurfaceCard>

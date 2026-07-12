@@ -136,9 +136,17 @@ public static class OversightSnapshotReader
                 var chats = ParseChatEntries(root);
                 OversightChatSnapshotService.Instance.Update(instance.Id, chats, DateTimeOffset.UtcNow);
 
-                var active = chats.Count;
-                var caughtUp = chats.Count(c => c.Unread <= 0);
-                return new RefreshResult(active, caughtUp, active - caughtUp);
+                // Report the SAME direction-based, sticky, override-aware number the dashboard shows (via
+                // TryGetWindowed) — not the raw unread badge. Unread is per-device read-state: reading a chat
+                // on the phone clears it without anyone replying, and it lags per linked device, so two installs
+                // of the same accounts disagree. Direction (last message fromMe) is message content, so it syncs
+                // identically to every device. Update() ran synchronously above, so the snapshot is present.
+                if (OversightChatSnapshotService.Instance.TryGetWindowed(instance.Id, null, out var active, out var caughtUp))
+                {
+                    return new RefreshResult(active, caughtUp, active - caughtUp);
+                }
+
+                return new RefreshResult(chats.Count, chats.Count, 0);
             }
             catch
             {
