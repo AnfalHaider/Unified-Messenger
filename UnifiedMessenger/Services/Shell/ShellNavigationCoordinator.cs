@@ -141,17 +141,16 @@ public sealed class ShellNavigationCoordinator
 
             if (!focused)
             {
+                // The account is open on its inbox — a good-enough fallback. Some chats genuinely can't be
+                // auto-located (e.g. WhatsApp @lid privacy contacts with no name or number), so blocking the
+                // user with a modal error on every such click is wrong. Surface the event for any future
+                // non-modal listener, but don't interrupt — landing on the inbox is the graceful outcome.
                 _services.Navigation.NotifyNavigationFailed(new InstanceNavigationFailedEventArgs
                 {
                     InstanceId = request.InstanceId,
                     ConversationKey = request.ConversationKey,
                     Message = "The account opened, but Unified Messenger could not focus the requested chat."
                 });
-
-                _ui.DispatcherQueue.TryEnqueue(() =>
-                    _ = _services.Dialog.ShowErrorAsync(
-                        "Could not open conversation",
-                        "The account opened, but Unified Messenger could not focus the requested chat. Open it manually in the inbox."));
             }
         }
         finally
