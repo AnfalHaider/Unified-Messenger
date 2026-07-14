@@ -30,13 +30,13 @@
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel HorizontalAlignment="Center" Spacing="14">
-                    <!-- Brand logo: the 1024px RGBA master PNG renders reliably in Image (a multi-frame .ico
-                         does not) and is transparent, so it needs no backing tile. -->
+                    <!-- Brand logo: source is set in code-behind from a file:// URI (ms-appx Image sources
+                         don't resolve in this unpackaged app — same reason avatars load via BitmapImage). -->
                     <Image
+                        x:Name="LogoImage"
                         Width="112"
                         Height="112"
-                        HorizontalAlignment="Center"
-                        Source="Assets/Branding/icon-master.png" />
+                        HorizontalAlignment="Center" />
 
                     <TextBlock
                         x:Name="VersionText"

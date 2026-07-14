@@ -36,6 +36,14 @@ public sealed partial class AboutPage : Page
     private void RefreshContent()
     {
         VersionText.Text = AboutPageHelper.BuildAboutVersionLabel(typeof(App).Assembly.GetName().Version);
+
+        // Load the logo from its physical path — ms-appx Image sources don't resolve in this unpackaged app,
+        // so brand images load via a file:// BitmapImage (same as profile avatars / the tray icon).
+        var logoUri = ApplicationPaths.TryResolveIconMasterUri();
+        if (!string.IsNullOrWhiteSpace(logoUri))
+        {
+            LogoImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(logoUri));
+        }
     }
 
     private async void CheckForUpdatesButton_Click(object sender, RoutedEventArgs e)

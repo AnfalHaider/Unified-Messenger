@@ -72,6 +72,11 @@ public static class ApplicationPaths
     public static string? TryResolveWordmarkInlineUri(bool useDarkTheme) =>
         TryResolveBrandingUri(useDarkTheme ? "wordmark-inline-dark.png" : "wordmark-inline-light.png");
 
+    /// <summary>The 1024px app-logo master as a file:// URI (for a BitmapImage). Relative ms-appx Image
+    /// sources don't resolve in this unpackaged app, so brand images load from the physical path instead.</summary>
+    public static string? TryResolveIconMasterUri() =>
+        TryResolveBrandingUri("icon-master.png");
+
     private static string? TryResolveBrandingUri(string fileName)
     {
         var path = TryResolveBrandingAssetPath(fileName);
