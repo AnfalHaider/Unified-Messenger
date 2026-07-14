@@ -231,11 +231,19 @@
           umSetReactInputValue(search, term);
           return false;
         }
-        // Filtered — click a result ONLY if it verifies as our chat; otherwise clear and give up (inbox).
+        // Filtered — prefer a verified match (row shows the number, or the real name we searched for).
         var results = document.querySelectorAll('#pane-side [role="row"], #side [role="row"]');
         for (var i = 0; i < results.length; i++) {
           var vhit = umRowIsTarget(results[i]);
           if (vhit) { vhit.click(); umSetReactInputValue(search, ''); return true; }
+        }
+        // A SAVED contact is shown by NAME (no digits), so nothing verifies when we searched by number —
+        // which previously looped (clear → re-search → clear …). A full-number search is precise: WhatsApp
+        // lists the matching contact/chat FIRST, above any message-text hits, so accept the top result.
+        if (term === phoneDigits && phoneDigits.length >= 10 && results.length > 0) {
+          (results[0].querySelector('span[title]') || results[0]).click();
+          umSetReactInputValue(search, '');
+          return true;
         }
         umSetReactInputValue(search, '');
         return false;
