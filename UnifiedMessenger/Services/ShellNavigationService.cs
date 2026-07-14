@@ -47,7 +47,7 @@ public sealed class ShellNavigationService : INavigationService
     public void OpenInstance(string instanceId) =>
         OpenInstance(instanceId, conversationKey: null, customerName: null);
 
-    public void OpenInstance(string instanceId, string? conversationKey, string? customerName = null)
+    public void OpenInstance(string instanceId, string? conversationKey, string? customerName = null, string? contactPhone = null)
     {
         if (!IsValidInstanceId(instanceId))
         {
@@ -58,7 +58,8 @@ public sealed class ShellNavigationService : INavigationService
         {
             InstanceId = instanceId.Trim(),
             ConversationKey = string.IsNullOrWhiteSpace(conversationKey) ? null : conversationKey.Trim(),
-            CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim()
+            CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim(),
+            ContactPhone = string.IsNullOrWhiteSpace(contactPhone) ? null : contactPhone.Trim()
         });
     }
 

@@ -50,7 +50,7 @@ public interface INavigationService
 
     void OpenInstance(string instanceId);
 
-    void OpenInstance(string instanceId, string? conversationKey, string? customerName = null);
+    void OpenInstance(string instanceId, string? conversationKey, string? customerName = null, string? contactPhone = null);
 
     void NotifyNavigationFailed(InstanceNavigationFailedEventArgs args);
 }

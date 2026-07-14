@@ -722,7 +722,7 @@ public sealed partial class CommandCenterPanel : UserControl
             var capturedInstanceId = instanceId;
             var capturedChat = chat;
             item.Click += (_, _) =>
-                _services?.Navigation.OpenInstance(capturedInstanceId, capturedChat.ConversationKey, capturedChat.CustomerName);
+                _services?.Navigation.OpenInstance(capturedInstanceId, capturedChat.ConversationKey, capturedChat.CustomerName, capturedChat.ContactPhone);
             panel.Children.Add(item);
         }
 
@@ -1020,7 +1020,7 @@ public sealed partial class CommandCenterPanel : UserControl
         var capturedId = inst.Id;
         var capturedChat = chat;
         button.Click += (_, _) =>
-            _services?.Navigation.OpenInstance(capturedId, capturedChat.ConversationKey, capturedChat.CustomerName);
+            _services?.Navigation.OpenInstance(capturedId, capturedChat.ConversationKey, capturedChat.CustomerName, capturedChat.ContactPhone);
 
         // Row = the click-through button + an overflow menu (mark handled elsewhere / snooze).
         var rowGrid = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };

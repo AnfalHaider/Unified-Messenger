@@ -128,10 +128,11 @@ public sealed class AccountDetailDialog : ContentDialog
         };
         var key = chat.ConversationKey;
         var customer = chat.CustomerName;
+        var phone = chat.ContactPhone;
         button.Click += (_, _) =>
         {
             Hide();
-            _services.Navigation.OpenInstance(_instance.Id, key, customer);
+            _services.Navigation.OpenInstance(_instance.Id, key, customer, phone);
         };
         return button;
     }

@@ -166,7 +166,7 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  window.__umFocusConversation = function (platform, conversationKey, customerName) {
+  window.__umFocusConversation = function (platform, conversationKey, customerName, contactPhone) {
     var platformKey = String(platform || '').toLowerCase();
     var key = window.__umCollapseWhitespace(conversationKey || '');
     var name = window.__umCollapseWhitespace(customerName || '');
@@ -180,9 +180,12 @@
       // A real name to match on — NOT the "New message" placeholder, and NOT a bare number (unsaved
       // contacts carry their number as the name, which we handle via digits instead).
       var hasRealName = !!nameLower && nameLower !== 'new message' && /[a-z]/i.test(name);
-      // A searchable phone exists ONLY for @c.us JIDs (real E.164). An @lid is a privacy id, not a phone,
-      // and is not searchable — searching it matches unrelated message text (once opened the self/Notes chat).
-      var phoneDigits = isLid ? '' : bareId.replace(/\D/g, '');
+      // The searchable/verifiable phone: prefer the resolved contactPhone (from the lid→phone map for @lid
+      // privacy chats) — it's what WhatsApp search matches and what the sidebar row shows. Fall back to the
+      // @c.us JID's own digits. Never search a bare @lid id — it isn't a phone (matched unrelated message
+      // text before, opening the wrong chat), which is why an @lid with no resolved phone stays unfocusable.
+      var phoneDigits = String(contactPhone || '').replace(/\D/g, '');
+      if (!phoneDigits && !isLid) { phoneDigits = bareId.replace(/\D/g, ''); }
 
       function umDigitsOf(s) { return String(s || '').replace(/\D/g, ''); }
 

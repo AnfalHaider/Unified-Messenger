@@ -28,7 +28,8 @@ public static class ConversationFocusHelper
         MessengerInstance instance,
         string? conversationKey,
         string? customerName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? contactPhone = null)
     {
         ArgumentNullException.ThrowIfNull(sessionManager);
         ArgumentNullException.ThrowIfNull(instance);
@@ -40,7 +41,7 @@ public static class ConversationFocusHelper
 
         var script = WebViewScriptBuilder.BuildIifeFunctionCall(
             "__umFocusConversation",
-            [instance.Platform, conversationKey.Trim(), customerName ?? string.Empty]);
+            [instance.Platform, conversationKey.Trim(), customerName ?? string.Empty, contactPhone ?? string.Empty]);
 
         for (var attempt = 0; attempt < MaxAttempts; attempt++)
         {

@@ -136,7 +136,8 @@ public sealed class ShellNavigationCoordinator
                     _services.SessionManager,
                     instance,
                     request.ConversationKey,
-                    request.CustomerName)
+                    request.CustomerName,
+                    contactPhone: request.ContactPhone)
                 .ConfigureAwait(true);
 
             if (!focused)
