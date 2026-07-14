@@ -9,7 +9,7 @@
     mc:Ignorable="d">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Padding="24,16,24,24" Spacing="16" MaxWidth="720">
+        <StackPanel Padding="24,16,24,32" Spacing="18" MaxWidth="680">
             <StackPanel Orientation="Horizontal" Spacing="4">
                 <HyperlinkButton
                     AutomationProperties.Name="Back to Settings"
@@ -22,66 +22,129 @@
                     Text="About" />
             </StackPanel>
 
-            <TextBlock Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.Name="About" Text="About" />
-
+            <!-- Hero: app logo, name + version, value badges, and the update action. -->
             <Border
-                Padding="20"
+                Padding="28,32,28,28"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
-                CornerRadius="8">
-                <StackPanel Spacing="16">
-                    <!-- Brand icon from the app .ico (the one asset the decoder renders reliably); the
-                         "Unified Messenger vX.Y.Z" line below acts as the wordmark. Colourful icon reads on
-                         both light and dark cards, so no dark panel needed. -->
-                    <Image
-                        Width="88"
-                        Height="88"
-                        HorizontalAlignment="Left"
-                        Source="Assets/AppIcon.ico" />
+                CornerRadius="12">
+                <StackPanel HorizontalAlignment="Center" Spacing="14">
+                    <!-- Brand logo from the app .ico (the asset the WinUI decoder renders reliably). -->
+                    <Border
+                        Width="120"
+                        Height="120"
+                        HorizontalAlignment="Center"
+                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                        CornerRadius="24">
+                        <Image
+                            Width="84"
+                            Height="84"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Source="Assets/AppIcon.ico" />
+                    </Border>
+
                     <TextBlock
                         x:Name="VersionText"
-                        Margin="0,-4,0,0"
-                        Opacity="0.7" />
+                        HorizontalAlignment="Center"
+                        FontSize="20"
+                        FontWeight="SemiBold" />
+
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        MaxWidth="440"
+                        FontSize="15"
+                        Opacity="0.8"
+                        Text="WhatsApp operations in one native workspace."
+                        TextAlignment="Center"
+                        TextWrapping="WrapWholeWords" />
+
+                    <StackPanel
+                        Margin="0,2,0,0"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="11,4">
+                            <TextBlock FontSize="12" Opacity="0.9" Text="100% local" />
+                        </Border>
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="11,4">
+                            <TextBlock FontSize="12" Opacity="0.9" Text="No cloud" />
+                        </Border>
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="11,4">
+                            <TextBlock FontSize="12" Opacity="0.9" Text="Free forever" />
+                        </Border>
+                    </StackPanel>
 
                     <Button
                         x:Name="CheckForUpdatesButton"
-                        HorizontalAlignment="Left"
+                        Margin="0,6,0,0"
+                        HorizontalAlignment="Center"
                         Click="CheckForUpdatesButton_Click"
-                        Content="Check for updates" />
+                        Content="Check for updates"
+                        Style="{StaticResource AccentButtonStyle}" />
+                </StackPanel>
+            </Border>
 
-                    <TextBlock
-                        FontSize="16"
-                        FontWeight="SemiBold"
-                        Text="WhatsApp operations in one native workspace"
-                        TextWrapping="WrapWholeWords" />
-
+            <!-- What it does -->
+            <Border
+                Padding="22"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="12">
+                <StackPanel Spacing="10">
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="What it does" />
                     <TextBlock
                         Opacity="0.85"
-                        Text="Unified Messenger runs multiple isolated WhatsApp and WhatsApp Business Web sessions in a single WinUI desktop shell with a unified notification hub and operations dashboard."
+                        Text="Unified Messenger runs multiple isolated WhatsApp and WhatsApp Business Web sessions in a single WinUI desktop shell, with a unified notification hub and an operations dashboard. The command center tracks response metrics, branch workload, and message volume over selectable date ranges — all on this machine, with no cloud dependency."
                         TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
 
-                    <TextBlock
-                        Opacity="0.85"
-                        Text="The Operations Command Center tracks response metrics, branch workload, and message volume over selectable date ranges. Personal Overview keeps non-business accounts separated so you can switch context without juggling browser windows."
-                        TextWrapping="WrapWholeWords" />
+            <!-- Key features -->
+            <Border
+                Padding="22"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="12">
+                <StackPanel Spacing="14">
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Key features" />
 
-                    <StackPanel Spacing="8">
-                        <TextBlock FontWeight="SemiBold" Text="Key features" />
-
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <FontIcon
+                            Glyph="&#xE73E;"
+                            FontSize="16"
+                            Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                            VerticalAlignment="Top" />
                         <TextBlock
                             Opacity="0.85"
-                            Text="• Multi-profile isolation with shared WebView2 environment optimization."
+                            Text="Multi-profile isolation — each account is its own logged-in WhatsApp session in a shared, optimized WebView2 environment."
                             TextWrapping="WrapWholeWords" />
+                    </StackPanel>
 
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <FontIcon
+                            Glyph="&#xE73E;"
+                            FontSize="16"
+                            Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                            VerticalAlignment="Top" />
                         <TextBlock
                             Opacity="0.85"
-                            Text="• Unified notification feed with native navigation to the right account."
+                            Text="Unified notification feed that navigates straight to the right account and chat."
                             TextWrapping="WrapWholeWords" />
+                    </StackPanel>
 
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <FontIcon
+                            Glyph="&#xE73E;"
+                            FontSize="16"
+                            Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                            VerticalAlignment="Top" />
                         <TextBlock
                             Opacity="0.85"
-                            Text="• Heuristic triage, KPI dashboard, and date-filtered analytics without cloud LLM dependencies."
+                            Text="Needs-reply oversight, KPI dashboard, and date-filtered analytics — no cloud LLM dependency."
                             TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </StackPanel>

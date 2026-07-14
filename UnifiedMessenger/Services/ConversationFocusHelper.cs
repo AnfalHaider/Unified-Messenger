@@ -4,9 +4,13 @@ namespace UnifiedMessenger.Services;
 
 public static class ConversationFocusHelper
 {
-    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(700);
 
-    private const int MaxAttempts = 5;
+    // ~11s of attempts: a cold/just-switched WhatsApp webview needs several seconds to restore its session
+    // and render the chat list before __umFocusConversation can find (or search for) the target. The old
+    // 2.5s window expired first — the account opened, showed "loading", then gave up ("nothing"). Success
+    // returns on the first ready attempt, so warm accounts still focus instantly.
+    private const int MaxAttempts = 16;
 
     public static bool ParseScriptBoolean(string? raw)
     {

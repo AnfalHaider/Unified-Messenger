@@ -2445,6 +2445,7 @@ public sealed partial class CommandCenterPanel : UserControl
     private Microsoft.UI.Xaml.DispatcherTimer? _resyncEaseTimer;
     private double _resyncDisplayed;
     private double _resyncCeiling;
+    private System.Diagnostics.Stopwatch? _resyncStopwatch;
 
     // Witty status lines, rotated on a slow cadence so the wait has some personality while still naming the
     // account and its position. {0} = account name. Kept light — this isn't a serious operation.
@@ -2481,6 +2482,7 @@ public sealed partial class CommandCenterPanel : UserControl
         _resyncCeiling = 0;
         _resyncQuipIndex = 0;
         _resyncTickCount = 0;
+        _resyncStopwatch = System.Diagnostics.Stopwatch.StartNew();
         ResyncProgressRow.Visibility = Visibility.Visible;
         ApplyResyncBar(0);
         AttentionIcon.Glyph = ""; // Sync glyph reads as working, not the caution triangle
@@ -2500,9 +2502,14 @@ public sealed partial class CommandCenterPanel : UserControl
                 }
                 ApplyResyncBar(_resyncDisplayed);
 
-                if (++_resyncTickCount % ResyncQuipRotateTicks == 0)
+                _resyncTickCount++;
+                if (_resyncTickCount % ResyncQuipRotateTicks == 0)
                 {
                     _resyncQuipIndex++;
+                }
+                // Refresh the status line ~every 900ms so the ETA counts down smoothly (quip rotates slower).
+                if (_resyncTickCount % 6 == 0)
+                {
                     ApplyResyncStatusText();
                 }
             };
@@ -2530,7 +2537,37 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var pool = _resyncReloading ? ResyncReloadQuips : ResyncReadingQuips;
         var quip = string.Format(pool[_resyncQuipIndex % pool.Length], _resyncAccountName);
-        AttentionText.Text = $"{quip} ({_resyncStepIndex} of {_resyncStepTotal})…";
+        AttentionText.Text = $"{quip} ({_resyncStepIndex} of {_resyncStepTotal})…{ResyncEtaText()}";
+    }
+
+    /// <summary>
+    /// Best-effort "~time left" from elapsed time vs progress. Shown only once the bar is past the quick
+    /// reload phase (>15%) so the estimate is stable; hidden near completion. Approximate by nature.
+    /// </summary>
+    private string ResyncEtaText()
+    {
+        if (_resyncStopwatch is null)
+        {
+            return string.Empty;
+        }
+
+        var frac = _resyncDisplayed;
+        if (frac < 0.15 || frac >= 0.99)
+        {
+            return string.Empty;
+        }
+
+        var remaining = _resyncStopwatch.Elapsed.TotalSeconds * (1 - frac) / frac;
+        if (remaining < 1 || remaining > 3600)
+        {
+            return string.Empty;
+        }
+
+        var span = TimeSpan.FromSeconds(remaining);
+        var text = span.TotalMinutes >= 1
+            ? $"{(int)span.TotalMinutes}m {span.Seconds:00}s"
+            : $"{(int)Math.Ceiling(span.TotalSeconds)}s";
+        return $"  ·  ~{text} left";
     }
 
     /// <summary>Moves the eased soft-cap forward (never backward), so the bar creeps toward it.</summary>

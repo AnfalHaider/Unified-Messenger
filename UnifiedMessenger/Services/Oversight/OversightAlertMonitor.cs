@@ -12,7 +12,10 @@ namespace UnifiedMessenger.Services;
 public sealed class OversightAlertMonitor
 {
     public const int DefaultAwaitingThreshold = 5;
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(3);
+    // Re-read each account's unread snapshot every 90s so the command center reflects new activity on its own
+    // (the dashboard already re-renders every 20s) — the owner rarely needs a manual Re-sync for awaiting
+    // counts. The scan is a bounded chat-store read, so this cadence stays light.
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(90);
 
     private static readonly Lazy<OversightAlertMonitor> LazyInstance = new(() => new OversightAlertMonitor());
 
