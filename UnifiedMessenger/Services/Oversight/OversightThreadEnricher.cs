@@ -24,10 +24,15 @@ internal static class OversightThreadEnricher
     {
         var convKey = chat.ConversationKey;
 
-        // Primary: the JS IndexedDB scan may have resolved the phone number directly from
-        // chat.contact.id.user — works for @lid JIDs without any cross-pipeline join.
+        // Prefer a real saved/display name (resolved by the scan from the contact store or sidebar) over the
+        // raw number — a saved contact should show as "Muzzamil Naaz", not "+92…". Fall back to the resolved
+        // phone only when we have no real name.
         string? resolvedName = null;
-        if (!string.IsNullOrWhiteSpace(chat.ContactPhone))
+        if (!IsGenericName(chat.CustomerName) && chat.CustomerName.Any(char.IsLetter))
+        {
+            resolvedName = chat.CustomerName;
+        }
+        else if (!string.IsNullOrWhiteSpace(chat.ContactPhone))
         {
             resolvedName = "+" + chat.ContactPhone.TrimStart('+');
         }

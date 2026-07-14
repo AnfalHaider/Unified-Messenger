@@ -1182,9 +1182,10 @@
 
       function buildLidPhoneMap(db, callback) {
         var map = Object.create(null);
+        var nameMap = Object.create(null);
         try {
           if (!db.objectStoreNames.contains('contact')) {
-            callback(map);
+            callback(map, nameMap);
             return;
           }
           var req = db.transaction('contact', 'readonly').objectStore('contact').getAll(null, 5000);
@@ -1193,18 +1194,26 @@
             for (var i = 0; i < contacts.length; i++) {
               try {
                 var c = contacts[i];
-                if (!c || !c.id || !c.phoneNumber) { continue; }
+                if (!c || !c.id) { continue; }
                 var key = typeof c.id === 'string' ? c.id : (c.id._serialized || '');
                 if (!key) { continue; }
-                var digits = umExtractDigits(c.phoneNumber);
-                if (digits) { map[key] = digits; }
+                if (c.phoneNumber) {
+                  var digits = umExtractDigits(c.phoneNumber);
+                  if (digits) { map[key] = digits; }
+                }
+                // Saved/display name so a saved contact shows its NAME, not the raw number. Try several
+                // candidate fields (address-book name → verified business name → self-set pushname); any
+                // that don't exist are simply undefined and skipped — no regression, falls back to phone.
+                var nm = c.name || c.verifiedName || c.pushname || c.shortName || '';
+                nm = (typeof nm === 'string') ? nm.trim() : '';
+                if (nm && /[a-z]/i.test(nm)) { nameMap[key] = nm; }
               } catch (ce) { /* skip malformed contact */ }
             }
-            callback(map);
+            callback(map, nameMap);
           };
-          req.onerror = function () { callback(map); };
+          req.onerror = function () { callback(map, nameMap); };
         } catch (e) {
-          callback(map);
+          callback(map, nameMap);
         }
       }
 
@@ -1217,7 +1226,7 @@
           }
 
           diag.stage = 'getall-contact';
-          buildLidPhoneMap(db, function (lidPhoneMap) {
+          buildLidPhoneMap(db, function (lidPhoneMap, lidNameMap) {
 
           diag.stage = 'getall-chat';
           var req = db.transaction('chat', 'readonly').objectStore('chat').getAll(null, 1000);
@@ -1301,7 +1310,10 @@
                 // Unsaved contacts have no chat-store name ("New message"); the sidebar shows their phone
                 // number — use it.
                 if ((!name || name === 'New message')) {
-                  if (hint && hint.title) { name = hint.title; }
+                  // Saved contact name from the contact store first (covers off-screen chats), then the
+                  // rendered sidebar row's title, then a harvested preview title.
+                  if (lidNameMap[jid]) { name = lidNameMap[jid]; }
+                  else if (hint && hint.title) { name = hint.title; }
                   else if (harvested && harvested.title) { name = harvested.title; }
                 }
 
