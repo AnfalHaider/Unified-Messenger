@@ -185,6 +185,13 @@
       // @c.us JID's own digits. Never search a bare @lid id — it isn't a phone (matched unrelated message
       // text before, opening the wrong chat), which is why an @lid with no resolved phone stays unfocusable.
       var phoneDigits = String(contactPhone || '').replace(/\D/g, '');
+      // If the resolved contactPhone is missing/short (the contact-store lid→phone map can miss, and an @lid
+      // JID isn't itself a phone), fall back to the digits WhatsApp actually shows as the row title — which
+      // the scan captured into customerName. That's the real, searchable number even when ContactPhone is empty.
+      if (phoneDigits.length < 10 && !hasRealName) {
+        var umNameDigits = name.replace(/\D/g, '');
+        if (umNameDigits.length >= 10) { phoneDigits = umNameDigits; }
+      }
       if (!phoneDigits && !isLid) { phoneDigits = bareId.replace(/\D/g, ''); }
 
       function umDigitsOf(s) { return String(s || '').replace(/\D/g, ''); }
