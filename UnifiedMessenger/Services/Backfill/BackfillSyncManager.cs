@@ -99,6 +99,79 @@ public sealed class BackfillSyncManager
         _ = Task.Run(() => RunBackfillAsync(instance, provider));
     }
 
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastAnalyticsRefreshUtc =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly ConcurrentDictionary<string, byte> _analyticsRefreshInFlight =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>How often the background analytics (message counts / activity graph) refresh on their own.</summary>
+    public static readonly TimeSpan AnalyticsRefreshInterval = TimeSpan.FromMinutes(8);
+
+    /// <summary>
+    /// Throttled background refresh of the message-count analytics for a connected account, so the activity
+    /// graph updates on its own between manual Re-syncs. Runs ONLY the message-aggregate scan (separate JS
+    /// global from the oversight snapshot scan, so no clobbering). No-op if a full backfill is running for the
+    /// account, an analytics refresh is already in flight, or one ran within <see cref="AnalyticsRefreshInterval"/>.
+    /// WhatsApp only (the only platform with a message-store aggregate scan today).
+    /// </summary>
+    public void SchedulePeriodicAnalyticsRefresh(MessengerInstance instance)
+    {
+        if (instance is null || !instance.IsProfessional)
+        {
+            return;
+        }
+
+        if (!AppSettingsService.Instance.Settings.EnableStartupBackfill)
+        {
+            return;
+        }
+
+        var platform = instance.Platform ?? string.Empty;
+        if (!platform.Equals("whatsapp", StringComparison.OrdinalIgnoreCase) &&
+            !platform.Equals("whatsappbusiness", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // A full backfill uses the same __umMsgAgg global — don't overlap it.
+        if (GetState(instance.Id) == BackfillSyncState.Running)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_lastAnalyticsRefreshUtc.TryGetValue(instance.Id, out var last) && now - last < AnalyticsRefreshInterval)
+        {
+            return;
+        }
+
+        if (!_analyticsRefreshInFlight.TryAdd(instance.Id, 1))
+        {
+            return; // one is already running for this account
+        }
+
+        _lastAnalyticsRefreshUtc[instance.Id] = now;
+        var id = instance.Id;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownCts.Token);
+                cts.CancelAfter(TimeSpan.FromSeconds(45));
+                await WhatsAppBackfillProvider.RefreshMessageAggregatesAsync(id, cts.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Periodic analytics refresh failed for {id}: {ex.Message}");
+            }
+            finally
+            {
+                _analyticsRefreshInFlight.TryRemove(id, out _);
+            }
+        });
+    }
+
     internal async Task<BackfillResult> RunBackfillForTestsAsync(
         MessengerInstance instance,
         CancellationToken cancellationToken = default)

@@ -2393,37 +2393,47 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             var n = pros.Count;
 
-            // Reload each account's WebView first so the latest scraper script is (re)injected — script is
-            // only injected on document creation, so without this an app update wouldn't take effect until a
-            // manual "Refresh WebView". The probe below waits for each page to re-render before harvesting.
-            // Reload phase carries the first 15% of the bar; the slow per-account probe carries the rest.
-            for (var i = 0; i < n; i++)
-            {
-                SetResyncStep(pros[i].DisplayName, i + 1, n, reloading: true);
-                ResyncEaseToward(0.13 * (i + 1) / n);
-                await _services.SessionManager.ReloadSessionAsync(pros[i].Id);
-                ResyncAnchor(0.15 * (i + 1) / n);
-            }
+            // Reload + probe each account through a small concurrency window instead of strictly one at a
+            // time. The slow part is WAITING on each webview's reload + IndexedDB scan, so overlapping a few
+            // accounts cuts the wall-clock roughly by the concurrency factor. Everything stays on the UI
+            // thread (WebView2 is UI-affine) — the awaits interleave, so the browser process runs the scans
+            // concurrently. The bar advances as each account finishes, order-independent. Reload is still
+            // needed so a freshly-updated scraper script is (re)injected (injected on document creation only).
+            var concurrency = Math.Min(3, n);
+            using var gate = new System.Threading.SemaphoreSlim(concurrency);
+            var parts = new string[n];
+            var completed = 0;
+            ResyncEaseToward(Math.Min(0.85, concurrency / (double)n));
 
-            // Direct diagnostic: run the IndexedDB scan straight on each webview and read the raw result,
-            // bypassing the backfill pipeline so we isolate whether the read itself works. Each account owns
-            // an equal 85%/n slot; the bar eases up to just below its boundary, then snaps there when the
-            // probe returns — so it moves during the long wait and stays honest at every account boundary.
-            var parts = new List<string>();
-            for (var i = 0; i < n; i++)
+            async Task ProcessAccountAsync(int i)
             {
                 var instance = pros[i];
-                var boundary = 0.15 + 0.85 * (i + 1) / n;
-                SetResyncStep(instance.DisplayName, i + 1, n, reloading: false);
-                ResyncEaseToward(boundary - 0.02);
+                await gate.WaitAsync().ConfigureAwait(true);
+                try
+                {
+                    SetResyncStep(instance.DisplayName, Math.Min(completed + 1, n), n, reloading: true);
+                    await _services.SessionManager.ReloadSessionAsync(instance.Id).ConfigureAwait(true);
 
-                var line = await ProbeInstanceDbAsync(instance);
-                parts.Add($"{instance.DisplayName}: {line}");
+                    SetResyncStep(instance.DisplayName, Math.Min(completed + 1, n), n, reloading: false);
+                    parts[i] = $"{instance.DisplayName}: {await ProbeInstanceDbAsync(instance).ConfigureAwait(true)}";
 
-                // Also kick off the real backfill so reconciliation still happens when the read works.
-                BackfillSyncManager.Instance.Schedule(instance, force: true);
-                ResyncAnchor(boundary);
+                    // Kick off the real backfill so reconciliation still happens when the read works.
+                    BackfillSyncManager.Instance.Schedule(instance, force: true);
+                }
+                catch (Exception ex)
+                {
+                    parts[i] = $"{instance.DisplayName}: {ex.Message}";
+                }
+                finally
+                {
+                    gate.Release();
+                    var done = ++completed; // continuations run on the UI thread — no torn writes
+                    ResyncAnchor((double)done / n);
+                    ResyncEaseToward(Math.Min(1.0, (done + concurrency) / (double)n));
+                }
             }
+
+            await Task.WhenAll(Enumerable.Range(0, n).Select(ProcessAccountAsync)).ConfigureAwait(true);
 
             ResyncAnchor(1.0);
             Render();

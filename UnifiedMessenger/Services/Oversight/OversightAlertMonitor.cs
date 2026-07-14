@@ -77,6 +77,10 @@ public sealed class OversightAlertMonitor
                     continue;
                 }
 
+                // Keep the message-count analytics (activity graph) fresh on their own — throttled internally
+                // to its own (slower) cadence, and it runs a separate scan that won't clobber the read below.
+                Backfill.BackfillSyncManager.Instance.SchedulePeriodicAnalyticsRefresh(instance);
+
                 var result = await OversightSnapshotReader.RefreshAsync(instance).ConfigureAwait(true);
                 if (result is null)
                 {

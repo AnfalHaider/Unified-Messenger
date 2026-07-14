@@ -194,6 +194,15 @@ public sealed class WhatsAppBackfillProvider : IBackfillSyncProvider
         await InstanceConnection.Current.ExecuteScriptAsync(instanceId, script).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Re-runs ONLY the message-store daily-aggregate scan for a connected account and records it to
+    /// analytics — no conversation scan, so it uses the separate <c>window.__umMsgAgg</c> global and won't
+    /// clobber the oversight snapshot scan. Backs the periodic background analytics refresh (activity graph
+    /// updates without a manual Re-sync).
+    /// </summary>
+    public static Task<int> RefreshMessageAggregatesAsync(string instanceId, CancellationToken cancellationToken = default)
+        => MergeDailyAggregatesAsync(instanceId, cancellationToken);
+
     private static async Task<int> MergeDailyAggregatesAsync(string instanceId, CancellationToken cancellationToken)
     {
         // ExecuteScriptAsync does not await promises, so kick off the IndexedDB read and poll window.__umMsgAgg.
