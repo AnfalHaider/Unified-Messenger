@@ -30,20 +30,13 @@
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel HorizontalAlignment="Center" Spacing="14">
-                    <!-- Brand logo from the app .ico (the asset the WinUI decoder renders reliably). -->
-                    <Border
-                        Width="120"
-                        Height="120"
+                    <!-- Brand logo: the 1024px RGBA master PNG renders reliably in Image (a multi-frame .ico
+                         does not) and is transparent, so it needs no backing tile. -->
+                    <Image
+                        Width="112"
+                        Height="112"
                         HorizontalAlignment="Center"
-                        Background="{ThemeResource SubtleFillColorSecondaryBrush}"
-                        CornerRadius="24">
-                        <Image
-                            Width="84"
-                            Height="84"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Source="Assets/AppIcon.ico" />
-                    </Border>
+                        Source="Assets/Branding/icon-master.png" />
 
                     <TextBlock
                         x:Name="VersionText"
@@ -70,9 +63,6 @@
                         </Border>
                         <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="11,4">
                             <TextBlock FontSize="12" Opacity="0.9" Text="No cloud" />
-                        </Border>
-                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="11,4">
-                            <TextBlock FontSize="12" Opacity="0.9" Text="Free forever" />
                         </Border>
                     </StackPanel>
 
