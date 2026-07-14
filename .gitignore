@@ -71,3 +71,6 @@ test_out.txt
 test_err.txt
 test_result.txt
 .testlogs/
+
+# Build output / release installers — distributed via GitHub Releases, not committed to git.
+dist/
