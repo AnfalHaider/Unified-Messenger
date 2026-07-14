@@ -223,9 +223,12 @@
         if (hit) { hit.click(); return true; }
       }
 
-      // 2) Search — only with a REAL identifier (a name or a @c.us phone). A nameless @lid has neither, so
-      //    we do NOT search or guess: returning false opens the inbox, never the wrong chat.
-      var term = hasRealName ? name : phoneDigits;
+      // 2) Search. The phone NUMBER is the most reliable key: WhatsApp matches it to the contact whether the
+      //    number is saved under a name or not. Searching by a saved name is flaky (formatting/status noise),
+      //    so prefer the number whenever we have one — the row that comes back (shown by name for a saved
+      //    contact) is still verified by umRowIsTarget's name check, or by the top-result fallback below.
+      //    Only fall back to the name when there is no number, and never search a bare @lid (not a real number).
+      var term = phoneDigits.length >= 8 ? phoneDigits : (hasRealName ? name : '');
       if (!term) { return false; }
 
       var search = document.querySelector(
