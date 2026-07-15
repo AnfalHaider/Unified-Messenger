@@ -199,23 +199,41 @@ public sealed partial class ReviewHealthPanel : UserControl
             var list = new StackPanel { Spacing = 4, Margin = new Thickness(40, 2, 0, 0) };
             foreach (var review in pending.Take(6))
             {
-                var row = new StackPanel { Spacing = 0 };
-                row.Children.Add(new TextBlock
+                var row = new StackPanel { Spacing = 1 };
+
+                var head = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+                head.Children.Add(new TextBlock
                 {
                     Text = review.Reviewer,
                     FontSize = 12,
                     FontWeight = FontWeights.SemiBold,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 });
-                if (!string.IsNullOrWhiteSpace(review.Snippet))
+                var meta = ReviewMeta(review);
+                if (!string.IsNullOrEmpty(meta))
                 {
-                    row.Children.Add(new TextBlock
+                    head.Children.Add(new TextBlock
                     {
-                        Text = review.Snippet,
+                        Text = meta,
                         FontSize = 11,
                         Foreground = secondary,
-                        TextTrimming = TextTrimming.CharacterEllipsis,
-                        TextWrapping = TextWrapping.NoWrap
+                        VerticalAlignment = VerticalAlignment.Center
+                    });
+                }
+                row.Children.Add(head);
+
+                if (!string.IsNullOrWhiteSpace(review.Text))
+                {
+                    // Wraps to 3 lines rather than the old single clipped line — enough to judge a review
+                    // without opening it. The tooltip carries the whole thing.
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = review.Text,
+                        FontSize = 11,
+                        Foreground = secondary,
+                        TextWrapping = TextWrapping.Wrap,
+                        MaxLines = 3,
+                        TextTrimming = TextTrimming.CharacterEllipsis
                     });
                 }
 
@@ -226,11 +244,19 @@ public sealed partial class ReviewHealthPanel : UserControl
                     Padding = new Thickness(8, 5, 8, 5),
                     HorizontalAlignment = HorizontalAlignment.Stretch,
                     HorizontalContentAlignment = HorizontalAlignment.Left,
-                    Tag = instance.Id,
+                    Tag = (instance.Id, review.Reviewer, review.Index),
                     Content = row
                 };
-                ToolTipService.SetToolTip(rowButton, "Open this account's reviews to reply");
-                rowButton.Click += OnOpenReviewsClick;
+                ToolTipService.SetToolTip(
+                    rowButton,
+                    new ToolTip
+                    {
+                        Content = string.IsNullOrWhiteSpace(review.Text)
+                            ? "Open this review in Google"
+                            : review.Text + "\n\nClick to open this review in Google",
+                        MaxWidth = 460
+                    });
+                rowButton.Click += OnOpenReviewClick;
                 list.Children.Add(rowButton);
             }
 
@@ -273,6 +299,45 @@ public sealed partial class ReviewHealthPanel : UserControl
         if (sender is FrameworkElement { Tag: string instanceId } && !string.IsNullOrWhiteSpace(instanceId))
         {
             _services?.Navigation.OpenInstance(instanceId, null, null);
+        }
+    }
+
+    /// <summary>"★★★☆☆ · 2 days ago" — either half is omitted when the page didn't yield it.</summary>
+    private static string ReviewMeta(GoogleReviewSnapshotService.PendingReview review)
+    {
+        var parts = new List<string>(2);
+        if (review.Stars is >= 1 and <= 5)
+        {
+            parts.Add(new string('★', review.Stars) + new string('☆', 5 - review.Stars));
+        }
+
+        if (!string.IsNullOrWhiteSpace(review.Age))
+        {
+            parts.Add(review.Age);
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    // Opens the account and scrolls straight to that review, highlighted. Google gives reviews no individual
+    // URL, so this finds the card on the page instead of deep-linking. If it can't (list never renders), the
+    // account is still open on its reviews page — no error, just a manual scroll.
+    private async void OnOpenReviewClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: ValueTuple<string, string, int> tag } ||
+            string.IsNullOrWhiteSpace(tag.Item1))
+        {
+            return;
+        }
+
+        _services?.Navigation.OpenInstance(tag.Item1, null, null);
+        try
+        {
+            await GoogleReviewSnapshotService.Instance.FocusReviewAsync(tag.Item1, tag.Item2, tag.Item3);
+        }
+        catch
+        {
+            // Best-effort — the account is open regardless.
         }
     }
 
