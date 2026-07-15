@@ -237,25 +237,29 @@
       if (search) {
         var current = window.__umCollapseWhitespace(search.value || '');
         if (current.toLowerCase() !== window.__umCollapseWhitespace(term).toLowerCase()) {
-          // Apply the filter and let the focus-helper retry once the list re-renders.
+          // Apply the filter once, then let the focus-helper retry while the filtered list renders. Do NOT
+          // clear it on later misses — clearing caused a set→clear→set oscillation that made focus flaky
+          // (worked or not depending on which retry the async filter happened to land on).
           umSetReactInputValue(search, term);
           return false;
         }
-        // Filtered — prefer a verified match (row shows the number, or the real name we searched for).
+        // Filter is applied. Results render asynchronously, so early retries may see zero rows — that's fine,
+        // we keep the filter and try again next tick (no clearing).
         var results = document.querySelectorAll('#pane-side [role="row"], #side [role="row"]');
+        // Prefer an explicitly verified row (matches our number, or our name).
         for (var i = 0; i < results.length; i++) {
           var vhit = umRowIsTarget(results[i]);
-          if (vhit) { vhit.click(); umSetReactInputValue(search, ''); return true; }
+          if (vhit) { vhit.click(); return true; }
         }
-        // A SAVED contact is shown by NAME (no digits), so nothing verifies when we searched by number —
-        // which previously looped (clear → re-search → clear …). A full-number search is precise: WhatsApp
-        // lists the matching contact/chat FIRST, above any message-text hits, so accept the top result.
-        if (term === phoneDigits && phoneDigits.length >= 10 && results.length > 0) {
+        // Otherwise, once results have rendered, take the TOP one. A specific number/name search lists the
+        // matching chat/contact first (above any message-text hits), and a saved contact is shown by name
+        // (no digits) so a number search verifies nothing — the top row is still the right chat.
+        if (results.length > 0) {
           (results[0].querySelector('span[title]') || results[0]).click();
-          umSetReactInputValue(search, '');
           return true;
         }
-        umSetReactInputValue(search, '');
+        // No results rendered yet — keep the filter, retry. (If focus ultimately gives up, the box stays
+        // filtered to the target chat, so it's one manual click away rather than lost.)
         return false;
       }
     }
