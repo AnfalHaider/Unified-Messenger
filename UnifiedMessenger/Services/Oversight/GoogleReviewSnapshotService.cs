@@ -31,8 +31,10 @@ public sealed class GoogleReviewSnapshotService
     // Google Business webview is on a different page. Idempotent — safe to run repeatedly while polling.
     private const string KickoffScript =
         "(function(){try{" +
+        // Only navigate to /reviews when explicitly allowed (a user-driven Re-sync). A background refresh
+        // passes allowNavigate:false so it can never yank the owner off whatever Google page they're reading.
         "if(!/\\/reviews(\\/|$)/.test(location.pathname)){" +
-        "if(/business\\.google\\.com/.test(location.host)){if(!window.__umGRnav){window.__umGRnav=1;location.href='https://business.google.com/reviews';}window.__umGR={state:'navigating'};return;}" +
+        "if(window.__umGRAllowNav&&/business\\.google\\.com/.test(location.host)){if(!window.__umGRnav){window.__umGRnav=1;location.href='https://business.google.com/reviews';}window.__umGR={state:'navigating'};return;}" +
         "window.__umGR={state:'notreviews'};return;}" +
         // Bump "Rows per page" to its max once, so the counts below cover more than the default 10.
         // ponytail: synthetic .click() drives Google's jsaction listbox (opener jsname=LgbsSe, options carry
@@ -84,19 +86,22 @@ public sealed class GoogleReviewSnapshotService
     /// Scrapes the account's reviews page (navigating to it if needed) and stores the result. Returns null
     /// when the webview isn't loaded, isn't a Google Business page, or the reviews list never renders.
     /// </summary>
-    public async Task<ReviewHealth?> ScrapeAsync(string instanceId)
+    public async Task<ReviewHealth?> ScrapeAsync(string instanceId, bool allowNavigate = true)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
             return null;
         }
 
+        // The kickoff only navigates to /reviews when this is set — background refreshes pass false.
+        var kickoff = $"window.__umGRAllowNav={(allowNavigate ? "true" : "false")};" + KickoffScript;
+
         var connection = InstanceConnection.Current;
         for (var attempt = 0; attempt < 24; attempt++)
         {
             try
             {
-                await connection.ExecuteScriptAsync(instanceId, KickoffScript).ConfigureAwait(true);
+                await connection.ExecuteScriptAsync(instanceId, kickoff).ConfigureAwait(true);
             }
             catch
             {

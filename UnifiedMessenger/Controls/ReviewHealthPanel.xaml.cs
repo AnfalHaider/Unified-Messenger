@@ -17,14 +17,41 @@ public sealed partial class ReviewHealthPanel : UserControl
 {
     private ApplicationServices? _services;
     private bool _refreshing;
+    private DispatcherTimer? _autoRefreshTimer;
+
+    /// <summary>
+    /// Reviews used to re-scrape ONLY on a manual Re-sync, so a review you had already replied to kept
+    /// showing as "pending" until you remembered to Re-sync. Now we re-scrape whenever the dashboard opens
+    /// and every few minutes while it's on screen. Reviews change slowly, so this cadence is plenty — and the
+    /// refresh is passive (allowNavigate:false), so it can never pull the owner off the page they're reading.
+    /// </summary>
+    private static readonly TimeSpan AutoRefreshInterval = TimeSpan.FromMinutes(5);
 
     public ReviewHealthPanel()
     {
         InitializeComponent();
-        Loaded += (_, _) => Render();
+        Loaded += (_, _) =>
+        {
+            Render();
+            StartAutoRefresh();
+        };
+        Unloaded += (_, _) => _autoRefreshTimer?.Stop();
         // Redraw on theme resolve/change so the code-drawn secondary/tertiary text is re-picked per theme.
         ActualThemeChanged += (_, _) => Render();
     }
+
+    private void StartAutoRefresh()
+    {
+        // One straight away — the owner has often just replied to a review and come back to the dashboard.
+        _ = RefreshAsync(allowNavigate: false);
+
+        _autoRefreshTimer ??= new DispatcherTimer { Interval = AutoRefreshInterval };
+        _autoRefreshTimer.Tick -= OnAutoRefreshTick;
+        _autoRefreshTimer.Tick += OnAutoRefreshTick;
+        _autoRefreshTimer.Start();
+    }
+
+    private void OnAutoRefreshTick(object? sender, object e) => _ = RefreshAsync(allowNavigate: false);
 
     public void ConfigureServices(ApplicationServices services) => _services = services;
 
@@ -255,7 +282,7 @@ public sealed partial class ReviewHealthPanel : UserControl
     /// Scrapes review health from each Google account's live session and re-renders. Public so the dashboard's
     /// single Re-sync button drives it (the per-section Refresh button was removed).
     /// </summary>
-    public async Task RefreshAsync()
+    public async Task RefreshAsync(bool allowNavigate = true)
     {
         if (_services is null || _refreshing)
         {
@@ -273,7 +300,7 @@ public sealed partial class ReviewHealthPanel : UserControl
         {
             foreach (var instance in accounts)
             {
-                await GoogleReviewSnapshotService.Instance.ScrapeAsync(instance.Id);
+                await GoogleReviewSnapshotService.Instance.ScrapeAsync(instance.Id, allowNavigate);
                 Render();
             }
         }
