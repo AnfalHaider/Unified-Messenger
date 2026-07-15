@@ -15,6 +15,12 @@ public sealed class GoogleReviewSnapshotService
     /// <summary>A best-effort preview of one review still awaiting a reply (reviewer + snippet from the card DOM).</summary>
     public readonly record struct PendingReview(string Reviewer, string Snippet);
 
+    /// <summary>
+    /// The profile's OFFICIAL Google rating and lifetime review count (e.g. 4.6 / 239) — verified live on the
+    /// Google Search merchant view. The reviews manager carries neither, so this is scraped separately.
+    /// </summary>
+    public readonly record struct ProfileRating(string Rating, int? Total, DateTimeOffset CapturedAtUtc);
+
     public readonly record struct ReviewHealth(
         int Unanswered,
         int Answered,
@@ -66,6 +72,37 @@ public sealed class GoogleReviewSnapshotService
 
     private const string ReadScript = "(window.__umGR?JSON.stringify(window.__umGR):'{\"state\":\"none\"}')";
 
+    // Scrapes the profile's official rating + lifetime review count. These live ONLY on the Google Search
+    // merchant view — business.google.com/reviews has neither. Verified live on that page:
+    //   • rating  → an aria-label reading exactly "Rated 4.6 out of 5,"  (cleanest, locale-stable-ish source)
+    //   • total   → body text "239 Google reviews"
+    // NOTE: innerText renders them CONCATENATED ("4.6239 Google reviews"), which is why a \b-anchored number
+    // regex finds nothing — hence the aria-label for the rating rather than parsing the run-together text.
+    // business.google.com/ (root) redirects a single-location profile to that view, so we use Google's own
+    // redirect instead of guessing a search URL. Navigation is allowed on the first attempt only.
+    private const string RatingKickoff =
+        "(function(){try{" +
+        "var a=[].slice.call(document.querySelectorAll('[aria-label]'));var r=null;" +
+        "for(var i=0;i<a.length;i++){var m=/Rated\\s+([0-5][.,]\\d)\\s+out\\s+of\\s+5/i.exec(a[i].getAttribute('aria-label')||'');" +
+        "if(m){r=m[1].replace(',','.');break;}}" +
+        "var t=(document.body&&document.body.innerText)||'';" +
+        // innerText renders the rating and count RUN TOGETHER ("4.6239 Google reviews"), so a bare ([\d,]+)
+        // before "Google reviews" swallows the rating's decimal digit -> 6239 instead of 239 (and "4.81,234"
+        // -> 81234). Anchor on the rating so the two split correctly; the [^\d]{0,6} also tolerates a layout
+        // that separates them ("4.6 ★ 239 Google reviews").
+        "var c=/([0-5][.,]\\d)[^\\d]{0,6}([\\d,]+)\\s+Google\\s+reviews/i.exec(t);" +
+        "var tot=c?c[2].replace(/,/g,''):null;" +
+        // Fallback for a layout with no rating next to the count: require a non-digit/dot before it so we
+        // still can't slice a number out of the middle of another one.
+        "if(!tot){var c2=/(?:^|[^\\d.,])([\\d,]{1,7})\\s+Google\\s+reviews/i.exec(t);tot=c2?c2[1].replace(/,/g,''):null;}" +
+        "if(!r&&c){r=c[1].replace(',','.');}" +
+        "if(r||tot){window.__umGRate={state:'done',rating:r,total:tot};return;}" +
+        "if(window.__umGRateAllowNav){location.href='https://business.google.com/';window.__umGRate={state:'navigating'};return;}" +
+        "window.__umGRate={state:'loading'};" +
+        "}catch(e){window.__umGRate={state:'error'};}})()";
+
+    private const string RatingReadScript = "(window.__umGRate?JSON.stringify(window.__umGRate):'{\"state\":\"none\"}')";
+
     private static readonly Lazy<GoogleReviewSnapshotService> LazyInstance = new(() => new GoogleReviewSnapshotService());
 
     public static GoogleReviewSnapshotService Instance => LazyInstance.Value;
@@ -73,10 +110,119 @@ public sealed class GoogleReviewSnapshotService
     private readonly ConcurrentDictionary<string, ReviewHealth> _byInstance =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly ConcurrentDictionary<string, ProfileRating> _ratingByInstance =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A profile rating barely moves, and each scrape costs a visible round-trip to the Search view
+    /// and back — so re-scrape at most this often.</summary>
+    public static readonly TimeSpan RatingRefreshInterval = TimeSpan.FromHours(6);
+
     public ReviewHealth Get(string instanceId) =>
         !string.IsNullOrWhiteSpace(instanceId) && _byInstance.TryGetValue(instanceId.Trim(), out var health)
             ? health
             : default;
+
+    /// <summary>The account's official rating/total, or null if never scraped.</summary>
+    public ProfileRating? GetRating(string instanceId) =>
+        !string.IsNullOrWhiteSpace(instanceId) && _ratingByInstance.TryGetValue(instanceId.Trim(), out var r)
+            ? r
+            : null;
+
+    /// <summary>
+    /// Scrapes the official rating + lifetime review count from the Google Search merchant view (reached via
+    /// business.google.com/'s own redirect). Throttled by <see cref="RatingRefreshInterval"/>. The caller must
+    /// run the reviews scrape afterwards, which navigates back to /reviews.
+    /// </summary>
+    public async Task<ProfileRating?> ScrapeRatingAsync(string instanceId, bool force = false)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return null;
+        }
+
+        var id = instanceId.Trim();
+        if (!force && _ratingByInstance.TryGetValue(id, out var cached) &&
+            DateTimeOffset.UtcNow - cached.CapturedAtUtc < RatingRefreshInterval)
+        {
+            return cached;
+        }
+
+        var connection = InstanceConnection.Current;
+        for (var attempt = 0; attempt < 24; attempt++)
+        {
+            // Only the first attempt may navigate; later ones just poll the redirected page.
+            var kickoff = $"window.__umGRateAllowNav={(attempt == 0 ? "true" : "false")};" + RatingKickoff;
+            try
+            {
+                await connection.ExecuteScriptAsync(id, kickoff).ConfigureAwait(true);
+            }
+            catch
+            {
+                return null;
+            }
+
+            await Task.Delay(400).ConfigureAwait(true);
+
+            string? raw;
+            try
+            {
+                raw = await connection.ExecuteScriptAsync(id, RatingReadScript).ConfigureAwait(true);
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                continue;
+            }
+
+            string inner;
+            try
+            {
+                inner = JsonSerializer.Deserialize<string>(raw) ?? raw.Trim('"');
+            }
+            catch
+            {
+                inner = raw.Trim('"');
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(inner);
+                var root = doc.RootElement;
+                if ((root.TryGetProperty("state", out var s) ? s.GetString() : null) != "done")
+                {
+                    continue; // navigating / loading — keep polling.
+                }
+
+                var rating = root.TryGetProperty("rating", out var rEl) ? rEl.GetString() : null;
+                int? total = null;
+                if (root.TryGetProperty("total", out var tEl) &&
+                    tEl.ValueKind == JsonValueKind.String &&
+                    int.TryParse(tEl.GetString(), out var tVal))
+                {
+                    total = tVal;
+                }
+
+                if (string.IsNullOrWhiteSpace(rating) && total is null)
+                {
+                    return null;
+                }
+
+                var result = new ProfileRating(rating ?? string.Empty, total, DateTimeOffset.UtcNow);
+                _ratingByInstance[id] = result;
+                return result;
+            }
+            catch
+            {
+                // transient parse race — keep polling.
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>The most recent capture time across all accounts — the "as of" stamp for the Reviews section.</summary>
     public DateTimeOffset? LastCapturedUtc =>

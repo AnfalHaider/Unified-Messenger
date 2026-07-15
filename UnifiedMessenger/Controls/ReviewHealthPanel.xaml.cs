@@ -130,9 +130,7 @@ public sealed partial class ReviewHealthPanel : UserControl
         });
         nameCol.Children.Add(new TextBlock
         {
-            Text = health.HasData
-                ? $"{health.ReplyRatePercent}% replied · {health.Total} reviewed (this page)"
-                : "Open this account, then Refresh reviews to load.",
+            Text = BuildSubtitle(instance.Id, health),
             FontSize = 11,
             Foreground = Brush("TextFillColorTertiaryBrush"),
             TextTrimming = TextTrimming.CharacterEllipsis
@@ -300,6 +298,15 @@ public sealed partial class ReviewHealthPanel : UserControl
         {
             foreach (var instance in accounts)
             {
+                // Manual Re-sync only: the official rating + lifetime total live on the Google Search merchant
+                // view, not the reviews manager, so grab them first (this navigates there via
+                // business.google.com's redirect). Throttled to 6h internally. The reviews scrape below then
+                // navigates back to /reviews. The passive background refresh skips this entirely.
+                if (allowNavigate)
+                {
+                    await GoogleReviewSnapshotService.Instance.ScrapeRatingAsync(instance.Id);
+                }
+
                 await GoogleReviewSnapshotService.Instance.ScrapeAsync(instance.Id, allowNavigate);
                 Render();
             }
@@ -308,6 +315,36 @@ public sealed partial class ReviewHealthPanel : UserControl
         {
             _refreshing = false;
         }
+    }
+
+    /// <summary>
+    /// e.g. "4.6 ★ · 239 reviews · 100% replied (50 on this page)". The rating and lifetime total come from the
+    /// Google Search merchant view — the only surface that carries them. The replied % is still computed from
+    /// the loaded reviews page, so it stays explicitly labelled rather than implying it covers every review.
+    /// </summary>
+    private static string BuildSubtitle(string instanceId, GoogleReviewSnapshotService.ReviewHealth health)
+    {
+        if (!health.HasData)
+        {
+            return "Open this account, then Re-sync to load.";
+        }
+
+        var parts = new List<string>();
+        if (GoogleReviewSnapshotService.Instance.GetRating(instanceId) is { } r)
+        {
+            if (!string.IsNullOrWhiteSpace(r.Rating))
+            {
+                parts.Add($"{r.Rating} ★");
+            }
+
+            if (r.Total is { } total)
+            {
+                parts.Add($"{total} reviews");
+            }
+        }
+
+        parts.Add($"{health.ReplyRatePercent}% replied ({health.Total} on this page)");
+        return string.Join(" · ", parts);
     }
 
     private static string RelativeAge(DateTimeOffset whenUtc)
