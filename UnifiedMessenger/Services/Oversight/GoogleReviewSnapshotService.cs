@@ -61,22 +61,53 @@ public sealed class GoogleReviewSnapshotService
         "if(acts>1)break;" +
         "if(((n.innerText||'').trim()).length>=25)best=n;" +
         "n=n.parentElement;}return best;};" +
+        // Verified against a live pending card (DevTools dump, v4.83.0). Its innerText lines are:
+        //   0 "Depilex DHA-2 Islamabad"            <- location header: name…
+        //   1 "Jinnah Boulevard, Islamabad"        <- …and address, on EVERY card
+        //   2 "Anjum Afzal"                        <- the reviewer
+        //   3 " 5 days ago"   <- stars AND age share one line
+        //   4 "I had an excellent experience… More" <- review text, truncated by Google
+        //   5 "reply"  6 "Reply"  7 "more_vert"    <- icon ligature + label + ⋮ menu
+        // So the meta line is the anchor: the reviewer is the line directly above it (which drops the header
+        // whatever its size), and the text is everything below it. The page carries NO rating aria-label —
+        // its only aria-labels are "Open review options"/"Review options" — so the glyphs are the sole source.
+        "window.__umGRPua=/[\\uE000-\\uF8FF]/g;" +
         "window.__umGRAgeRe=/^(a|an|\\d+)\\s+(second|minute|hour|day|week|month|year)s?\\s+ago$/i;" +
-        // Reads one pending review out of its card: reviewer, full text, star rating, age. Best-effort by
-        // nature (Google's DOM carries no stable per-review hooks) — every field degrades to empty on its own,
-        // and the Reply/Edit counts stay the reliable signal.
+        // Stars are Material icon-font glyphs (filled star = U+E838), not text — five slots rendered
+        // filled-first, so the rating is the leading run of the FIRST codepoint. Deriving it that way avoids
+        // hard-coding which codepoint means filled vs outline (only the 5-star case was observable live).
+        "window.__umGRStars=function(s){var first=s.charCodeAt(0);" +
+        "if(!(first>=57344&&first<=63743))return 0;" +
+        "var total=0,lead=0,leading=true;" +
+        "for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);if(!(c>=57344&&c<=63743))break;" +
+        "total++;if(leading&&c===first)lead++;else leading=false;}" +
+        "return (total>=1&&total<=5)?lead:0;};" +
+        // Google truncates long reviews in the DOM ("…impressed by the... More"), so full text only exists
+        // after its More expander is clicked. Scoped to the cards we actually read, once per page load.
+        // ponytail: synthetic .click() on the leaf element whose exact text is "More" — same jsaction bet as
+        // the rows-per-page bump. If a build ignores it, text simply stays truncated (we strip the "More").
+        "window.__umGRExpand=function(btns){if(window.__umGRexpDone)return false;window.__umGRexpDone=1;var n=0;" +
+        "try{for(var i=0;i<btns.length&&i<8;i++){var c=window.__umGRCard(btns[i]);if(!c)continue;" +
+        "var els=c.querySelectorAll('*');" +
+        "for(var j=0;j<els.length;j++){var e=els[j];" +
+        "if(e.children.length===0&&/^(more|read more)$/i.test((e.textContent||'').trim())){try{e.click();n++;}catch(x){}}}}}" +
+        "catch(x){}return n>0;};" +
+        // Reads one pending review out of its card. Best-effort by nature (Google exposes no stable per-review
+        // hooks) — each field degrades on its own, and the Reply/Edit counts stay the reliable signal.
         "window.__umGRRead=function(btn,idx){var card=window.__umGRCard(btn);" +
-        "var lines=(((card&&card.innerText)||'').split('\\n')).map(function(s){return s.trim();})" +
-        ".filter(function(s){return s.length>0&&" +
-        "!/^(reply|edit|share|delete|report|read more|show (more|less)|like|helpful|new|owner|responded)$/i.test(s);});" +
-        "var age='',name='';" +
-        "for(var i=0;i<lines.length;i++){if(window.__umGRAgeRe.test(lines[i])){age=lines[i];break;}}" +
-        "for(var i=0;i<lines.length;i++){if(!window.__umGRAgeRe.test(lines[i])&&!/^\\d+$/.test(lines[i])){name=lines[i];break;}}" +
-        "var body=lines.filter(function(l){return l!==name&&l!==age&&!/^\\d+$/.test(l)&&!/^[\\u2605\\u2606\\s]+$/.test(l);}).join(' ');" +
-        "var stars=0;try{var els=card?card.querySelectorAll('[aria-label]'):[];" +
-        "for(var i=0;i<els.length;i++){var al=els[i].getAttribute('aria-label')||'';" +
-        "var m=/Rated\\s+([1-5])(?:[.,]0)?\\s+out\\s+of\\s+5/i.exec(al)||/^\\s*([1-5])\\s+stars?\\s*$/i.exec(al);" +
-        "if(m){stars=+m[1];break;}}}catch(e){}" +
+        "var raw=(((card&&card.innerText)||'').split('\\n')).map(function(s){return s.trim();})" +
+        ".filter(function(s){return s.length>0;});" +
+        "var isAct=function(l){return /^(reply|edit|share|delete|report|more_vert|more|less|read more|show (more|less)|\\(owner\\))$/i.test(l);};" +
+        "var mi=-1;for(var i=0;i<raw.length;i++){" +
+        "if(window.__umGRAgeRe.test(raw[i].replace(window.__umGRPua,'').trim())){mi=i;break;}}" +
+        "var stars=0,age='',name='',body='';" +
+        "if(mi>=0){age=raw[mi].replace(window.__umGRPua,'').trim();stars=window.__umGRStars(raw[mi]);" +
+        "name=mi>0?raw[mi-1]:'';" +
+        "body=raw.slice(mi+1).filter(function(l){return !isAct(l);}).join(' ');}" +
+        // No meta line (locale/layout drift): show the text but NO name — the first line is the location, and
+        // a wrong reviewer name is worse than a generic one.
+        "else{body=raw.filter(function(l){return !isAct(l);}).join(' ');}" +
+        "body=body.replace(/\\s*(\\.\\.\\.|\\u2026)\\s*More$/i,'\\u2026').replace(window.__umGRPua,'').trim();" +
         "return {reviewer:(name||'Reviewer').slice(0,60),text:body.slice(0,1200),stars:stars,age:age,idx:idx};};";
 
     // Counts Reply (unanswered) vs Edit (answered) buttons on the reviews page; navigates there first if the
@@ -93,6 +124,7 @@ public sealed class GoogleReviewSnapshotService
         "var reply=replyBtns.length;" +
         "var edit=window.__umGRButtons(/\\bedit\\b/i).length;" +
         "if(reply+edit===0){window.__umGR={state:'loading'};return;}" +
+        "if(window.__umGRExpand(replyBtns)){window.__umGR={state:'loading'};return;}" +
         "var pending=replyBtns.slice(0,8).map(function(btn,i){return window.__umGRRead(btn,i);});" +
         "window.__umGR={state:'done',unanswered:reply,answered:edit,pending:pending};" +
         "}catch(e){window.__umGR={state:'error'};}})()";
