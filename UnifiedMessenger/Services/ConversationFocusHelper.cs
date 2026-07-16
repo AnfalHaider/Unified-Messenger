@@ -12,6 +12,20 @@ public static class ConversationFocusHelper
     // returns on the first ready attempt, so warm accounts still focus instantly.
     private const int MaxAttempts = 16;
 
+    /// <summary>Let the clicked chat render before reading back which one is open.</summary>
+    private static readonly TimeSpan OpenChatSettleDelay = TimeSpan.FromMilliseconds(900);
+
+    // Reads the conversation currently open in the main pane. Several selectors because WhatsApp's header
+    // markup shifts between builds — reports which one hit so a "<none>" is distinguishable from "wrong chat".
+    private const string OpenChatHeaderScript =
+        "(function(){try{" +
+        "var sels=['#main header span[title]','#main header [data-testid=\"conversation-info-header\"] span'," +
+        "'#main header span[dir=\"auto\"]','[data-testid=\"conversation-header\"] span[title]'];" +
+        "for(var i=0;i<sels.length;i++){var e=document.querySelector(sels[i]);" +
+        "if(e){var t=(e.getAttribute('title')||e.textContent||'').trim();if(t)return '['+i+'] '+t;}}" +
+        "return document.querySelector('#main')?'<main-but-no-header>':'<no-main-pane>';" +
+        "}catch(e){return '<err>';}})()";
+
     public static bool ParseScriptBoolean(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -94,10 +108,20 @@ public static class ConversationFocusHelper
                 .TryExecuteScriptOnInstanceAsync(instance.Id, "JSON.stringify(window.__umFocusTrace||[])")
                 .ConfigureAwait(false);
 
+            // Nothing in the click paths verifies that clicking a row actually OPENED the chat — they click
+            // and report true. If WhatsApp's row handler wants pointerdown/mousedown rather than click, then
+            // .click() does nothing and still logs a clean success. So read back the conversation actually on
+            // screen: that is the only thing that distinguishes "focused" from "claims to have focused".
+            await Task.Delay(OpenChatSettleDelay).ConfigureAwait(false);
+            var header = await sessionManager
+                .TryExecuteScriptOnInstanceAsync(instance.Id, OpenChatHeaderScript)
+                .ConfigureAwait(false);
+
             var trace = string.IsNullOrWhiteSpace(raw) ? "<none>" : raw.Trim();
+            var opened = string.IsNullOrWhiteSpace(header) ? "<null>" : header.Trim();
             AppLogger.LogInfo(
                 "focus",
-                $"{instance.DisplayName}: want={want} focused={focused} attempts={attempts} trace={trace}");
+                $"{instance.DisplayName}: want={want} focused={focused} attempts={attempts} opened={opened} trace={trace}");
         }
         catch (Exception ex)
         {
