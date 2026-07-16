@@ -166,6 +166,28 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  // Diagnostic breadcrumb trail for click-to-focus. Focus has been "flaky, works sometimes" across v4.75-4.79
+  // and every fix so far was a hypothesis (name vs number as the search term) shipped without ever seeing what
+  // the page actually did on a failing attempt. This records ONE line per attempt; ConversationFocusHelper
+  // drains it to app.log after the retry loop ends. Routed through the log rather than a DevTools global on
+  // purpose: focus runs on the instance's own webview, and attaching DevTools to the wrong one has produced
+  // false readings (callCount:0) twice before.
+  window.__umFocusTrace = [];
+  function umTrace(step, extra) {
+    try {
+      var e = { step: step };
+      for (var k in extra) { if (Object.prototype.hasOwnProperty.call(extra, k)) { e[k] = extra[k]; } }
+      window.__umFocusTrace.push(e);
+      if (window.__umFocusTrace.length > 40) { window.__umFocusTrace.shift(); }
+    } catch (err) { /* never break focus for a trace */ }
+  }
+  function umTitleOf(row) {
+    try {
+      var el = row.querySelector('span[title]');
+      return el ? window.__umCollapseWhitespace(el.getAttribute('title') || el.textContent || '') : '';
+    } catch (err) { return '?'; }
+  }
+
   window.__umFocusConversation = function (platform, conversationKey, customerName, contactPhone) {
     var platformKey = String(platform || '').toLowerCase();
     var key = window.__umCollapseWhitespace(conversationKey || '');
@@ -220,7 +242,11 @@
       );
       for (var r = 0; r < rows.length; r++) {
         var hit = umRowIsTarget(rows[r]);
-        if (hit) { hit.click(); return true; }
+        if (hit) {
+          umTrace('click-rendered', { title: umTitleOf(rows[r]), rows: rows.length });
+          hit.click();
+          return true;
+        }
       }
 
       // 2) Search. The phone NUMBER is the most reliable key: WhatsApp matches it to the contact whether the
@@ -229,7 +255,10 @@
       //    contact) is still verified by umRowIsTarget's name check, or by the top-result fallback below.
       //    Only fall back to the name when there is no number, and never search a bare @lid (not a real number).
       var term = phoneDigits.length >= 8 ? phoneDigits : (hasRealName ? name : '');
-      if (!term) { return false; }
+      if (!term) {
+        umTrace('no-term', { name: name, phone: phoneDigits, key: key });
+        return false;
+      }
 
       var search = document.querySelector(
         'input[aria-label="Search or start a new chat"], #side input[role="textbox"], #side input[type="text"]'
@@ -240,6 +269,7 @@
           // Apply the filter once, then let the focus-helper retry while the filtered list renders. Do NOT
           // clear it on later misses — clearing caused a set→clear→set oscillation that made focus flaky
           // (worked or not depending on which retry the async filter happened to land on).
+          umTrace('apply-filter', { term: term, was: current });
           umSetReactInputValue(search, term);
           return false;
         }
@@ -249,15 +279,30 @@
         // Prefer an explicitly verified row (matches our number, or our name).
         for (var i = 0; i < results.length; i++) {
           var vhit = umRowIsTarget(results[i]);
-          if (vhit) { vhit.click(); return true; }
+          if (vhit) {
+            umTrace('click-verified', { title: umTitleOf(results[i]), at: i, rows: results.length });
+            vhit.click();
+            return true;
+          }
         }
         // Otherwise, once results have rendered, take the TOP one. A specific number/name search lists the
         // matching chat/contact first (above any message-text hits), and a saved contact is shown by name
         // (no digits) so a number search verifies nothing — the top row is still the right chat.
         if (results.length > 0) {
+          // SUSPECT: if the filtered list hasn't re-rendered yet, these rows are still the UNFILTERED sidebar
+          // and results[0] is simply the top chat — i.e. the wrong one. The trace records what we're about to
+          // click plus the next two titles, so a failing click shows whether the list had actually updated.
+          umTrace('click-top-unverified', {
+            title: umTitleOf(results[0]),
+            next: results.length > 1 ? umTitleOf(results[1]) : '',
+            next2: results.length > 2 ? umTitleOf(results[2]) : '',
+            rows: results.length,
+            term: term
+          });
           (results[0].querySelector('span[title]') || results[0]).click();
           return true;
         }
+        umTrace('no-results-yet', { term: term });
         // No results rendered yet — keep the filter, retry. (If focus ultimately gives up, the box stays
         // filtered to the target chat, so it's one manual click away rather than lost.)
         return false;
