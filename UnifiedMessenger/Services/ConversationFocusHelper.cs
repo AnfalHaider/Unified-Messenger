@@ -43,6 +43,8 @@ public static class ConversationFocusHelper
             "__umFocusConversation",
             [instance.Platform, conversationKey.Trim(), customerName ?? string.Empty, contactPhone ?? string.Empty]);
 
+        var want = $"name='{customerName}' phone='{contactPhone}' key='{conversationKey.Trim()}'";
+
         // Start each focus session with a clean trail so the drained log covers this click only.
         await sessionManager
             .TryExecuteScriptOnInstanceAsync(instance.Id, "window.__umFocusTrace=[];")
@@ -58,7 +60,7 @@ public static class ConversationFocusHelper
 
             if (ParseScriptBoolean(raw))
             {
-                await DrainTraceAsync(sessionManager, instance, attempt, true).ConfigureAwait(false);
+                await DrainTraceAsync(sessionManager, instance, want, attempt, true).ConfigureAwait(false);
                 return true;
             }
 
@@ -68,16 +70,21 @@ public static class ConversationFocusHelper
             }
         }
 
-        await DrainTraceAsync(sessionManager, instance, MaxAttempts, false).ConfigureAwait(false);
+        await DrainTraceAsync(sessionManager, instance, want, MaxAttempts, false).ConfigureAwait(false);
         return false;
     }
 
-    // Writes the page-side breadcrumb trail to app.log. Focus reporting "true" is NOT the same as the right
-    // chat opening — an unverified top-result click also returns true — so this logs on success too, and the
-    // trace is what tells the two apart.
+    // Writes the page-side breadcrumb trail to app.log. Two things make the obvious signals untrustworthy, so
+    // both halves have to be logged together:
+    //   • focus returning "true" is NOT the same as the right chat opening (an unverified top-result click
+    //     also returns true), and
+    //   • the trace records the title it CLICKED, which only means anything next to the target it WANTED —
+    //     row matching is a substring test across every rendered row, so a wrong-but-plausible match reads
+    //     identically to a correct one unless you can compare the two.
     private static async Task DrainTraceAsync(
         IInstanceSessionManager sessionManager,
         MessengerInstance instance,
+        string want,
         int attempts,
         bool focused)
     {
@@ -90,7 +97,7 @@ public static class ConversationFocusHelper
             var trace = string.IsNullOrWhiteSpace(raw) ? "<none>" : raw.Trim();
             AppLogger.LogInfo(
                 "focus",
-                $"{instance.DisplayName}: focused={focused} attempts={attempts} trace={trace}");
+                $"{instance.DisplayName}: want={want} focused={focused} attempts={attempts} trace={trace}");
         }
         catch (Exception ex)
         {
