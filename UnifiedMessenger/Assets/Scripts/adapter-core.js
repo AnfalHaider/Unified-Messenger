@@ -181,6 +181,40 @@
       if (window.__umFocusTrace.length > 40) { window.__umFocusTrace.shift(); }
     } catch (err) { /* never break focus for a trace */ }
   }
+  // WhatsApp's chat rows do NOT respond to element.click(): a synthetic click dispatches only a `click` event,
+  // and the row's handler wants the pointer/mouse sequence a real mouse produces. Proven live in v4.86.0 —
+  // focus clicked the correct row every time, reported success, and no conversation ever opened
+  // (opened=<no-main-pane>). That silent no-op is the whole "click-to-focus is flaky" story; the search term
+  // (name vs number, v4.76/v4.78) was never the variable.
+  // Dispatch on the DEEPEST element (the title span), never the row: React listens at the document root and
+  // maps the event by its target, so an event fired at the row would skip handlers bound to its children.
+  function umRealClick(el) {
+    if (!el) { return false; }
+    try { el.scrollIntoView({ block: 'center' }); } catch (err) { /* not fatal */ }
+    var base = { bubbles: true, cancelable: true, view: window, button: 0, detail: 1 };
+    var seq = [
+      ['pointerdown', 1], ['mousedown', 1],
+      ['pointerup', 0], ['mouseup', 0], ['click', 0]
+    ];
+    try {
+      for (var i = 0; i < seq.length; i++) {
+        var type = seq[i][0];
+        var opts = Object.assign({}, base, { buttons: seq[i][1] });
+        var ev;
+        if (type.indexOf('pointer') === 0 && typeof window.PointerEvent === 'function') {
+          ev = new PointerEvent(type, Object.assign({ pointerId: 1, isPrimary: true, pointerType: 'mouse' }, opts));
+        } else {
+          ev = new MouseEvent(type, opts);
+        }
+        el.dispatchEvent(ev);
+      }
+      return true;
+    } catch (err) {
+      // Last resort: the plain click that never worked, rather than nothing at all.
+      try { el.click(); return true; } catch (err2) { return false; }
+    }
+  }
+
   function umTitleOf(row) {
     try {
       var el = row.querySelector('span[title]');
@@ -244,7 +278,7 @@
         var hit = umRowIsTarget(rows[r]);
         if (hit) {
           umTrace('click-rendered', { title: umTitleOf(rows[r]), rows: rows.length });
-          hit.click();
+          umRealClick(hit);
           return true;
         }
       }
@@ -281,7 +315,7 @@
           var vhit = umRowIsTarget(results[i]);
           if (vhit) {
             umTrace('click-verified', { title: umTitleOf(results[i]), at: i, rows: results.length });
-            vhit.click();
+            umRealClick(vhit);
             return true;
           }
         }
@@ -299,7 +333,7 @@
             rows: results.length,
             term: term
           });
-          (results[0].querySelector('span[title]') || results[0]).click();
+          umRealClick(results[0].querySelector('span[title]') || results[0]);
           return true;
         }
         umTrace('no-results-yet', { term: term });

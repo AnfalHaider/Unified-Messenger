@@ -15,15 +15,20 @@ public static class ConversationFocusHelper
     /// <summary>Let the clicked chat render before reading back which one is open.</summary>
     private static readonly TimeSpan OpenChatSettleDelay = TimeSpan.FromMilliseconds(900);
 
-    // Reads the conversation currently open in the main pane. Several selectors because WhatsApp's header
-    // markup shifts between builds — reports which one hit so a "<none>" is distinguishable from "wrong chat".
+    // Reads back the conversation actually on screen. Several header selectors because WhatsApp's markup
+    // shifts between builds, and it also reports the composer box — which only exists while a chat is open, so
+    // "no chat opened" stays distinguishable from "my header selector is wrong". Without that second signal a
+    // stale selector would look exactly like the no-op click it is meant to detect.
     private const string OpenChatHeaderScript =
         "(function(){try{" +
         "var sels=['#main header span[title]','#main header [data-testid=\"conversation-info-header\"] span'," +
         "'#main header span[dir=\"auto\"]','[data-testid=\"conversation-header\"] span[title]'];" +
+        "var hdr='',hit=-1;" +
         "for(var i=0;i<sels.length;i++){var e=document.querySelector(sels[i]);" +
-        "if(e){var t=(e.getAttribute('title')||e.textContent||'').trim();if(t)return '['+i+'] '+t;}}" +
-        "return document.querySelector('#main')?'<main-but-no-header>':'<no-main-pane>';" +
+        "if(e){var t=(e.getAttribute('title')||e.textContent||'').trim();if(t){hdr=t;hit=i;break;}}}" +
+        "var main=!!document.querySelector('#main');" +
+        "var composer=!!document.querySelector('#main [contenteditable=\"true\"],footer [contenteditable=\"true\"]');" +
+        "return JSON.stringify({header:hdr,sel:hit,main:main,composer:composer});" +
         "}catch(e){return '<err>';}})()";
 
     public static bool ParseScriptBoolean(string? raw)
