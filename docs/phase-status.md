@@ -114,7 +114,15 @@
 | Generic-URL webview instances | ☐ | `PlatformDefinition` is WhatsApp-only |
 
 ## Phase 4 — Google Business reviews channel
-☐ **Not started.** Net-new: embed Business Profile web UI, scrape reviews (rating/% responded/unanswered), reply-from-web, review-metrics module. (API exists but excluded by no-cloud rule.)
+✅ **Done** (this section was written pre-v4.20 and said "Not started" — that is stale; `AGENTS.md` is
+current). Shipped: embedded Business Profile web UI; review-health scraper (unanswered + reply rate,
+v4.42.0); which-reviews-need-a-reply + click-through (v4.49.0); and the **official star rating +
+lifetime review total** via `GoogleReviewSnapshotService.ProfileRating`, read from the Google Search
+merchant view on a 6-hour throttle. The Business Profile API remains excluded by the no-cloud rule.
+
+**Reviews + Q&A only, permanently** — Google Business Messages was sunset (new chats stopped
+2024-07-15, feature removed 2024-07-31, history deleted, Takeout closed 2024-08-30). There is no
+Google message channel to build.
 
 ## Phase 5 — Additional channels (Telegram, then Meta)
 ◑ **Embed slice done (v4.21.0).** Telegram (`web.telegram.org`) and Messenger (`messenger.com`) are registered platforms — selectable in "Add account", each gets its own isolated WebView session and branded accent colour. Routes to `NullPlatformAdapter` (no metric scraping yet). A Telegram adapter reading unread/awaiting from `web.telegram.org` DOM and a Messenger adapter (passive read-only; Meta fights automation) are future work that need a live logged-in account to tune.
@@ -150,7 +158,7 @@ Remaining work, highest-leverage first:
 0. **UI/UX modernization (v4.22–4.24, cross-cutting).** ☐ Three-increment visual redesign tracked below. Highest priority — the product works but the dashboard doesn't look or feel premium compared to the proposed design.
 1. **Phase 2 — deeper AI tiers.** ✅ Insight strips now have optional Ollama-phrased lines (v4.17.0, heuristic fallback). Remaining: **outbound staff-reply tone/quality** scoring; Tier-1 lightweight ONNX (net-new).
 2. **Phase 3 leftovers.** ✅ Command-center entity search + compact density (v4.18.0); ✅ generic-URL webview instances (v4.19.0). Remaining: sidebar-rail search/density at very large account counts.
-3. **Phase 4 — Google Business reviews channel.** ◑ Embed slice done (v4.20.0). Remaining: metric-scraping adapter — needs live logged-in account.
+3. **Phase 4 — Google Business reviews channel.** ✅ Complete — embed (v4.20.0), review-health scraper (v4.42.0), actionable reviews + click-through (v4.49.0), rating + lifetime total. Reviews + Q&A only; Google has no message channel.
 4. **Phase 5 — Telegram, then Meta.** ◑ Embed slice done (v4.21.0). Remaining: metric-scraping adapters — needs live logged-in accounts.
 5. **Polish/cleanup.** Remove dead drag code; awaiting-list preview reliability; contrast remediation; CI stress fixtures.
 

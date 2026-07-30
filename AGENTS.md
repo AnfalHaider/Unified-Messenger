@@ -2,14 +2,23 @@
 
 ## What this project is
 
-A **free, fully-local Windows oversight app** for a multi-location business owner to monitor customer conversations (WhatsApp first, then Google Business / Telegram / Messenger). The app passively scrapes connected web clients and surfaces health metrics — on-time %, awaiting reply, stale accounts — in a command-center dashboard.
+A **free, fully-local Windows oversight app** for a multi-location business owner to monitor customer conversations (WhatsApp first, then Telegram / Messenger / Instagram) **plus Google Business reviews** — Google is a *reviews* channel, not a conversation channel, because Google Business Messages was shut down in 2024. The app passively scrapes connected web clients and surfaces health metrics — on-time %, awaiting reply, stale accounts — in a command-center dashboard.
 
 **Hard constraints (never violate):**
-- Nothing on cloud. No APIs. No recurring cost. Zero data leaves the machine.
+- Nothing on cloud. No APIs. No recurring cost.
+- **Zero *oversight* data leaves the machine.** The app must never transmit metrics, message
+  content, customer identities, or AI prompts off-box — no telemetry, no analytics, no crash
+  upload, ever. This governs data *the app derives*. It does **not** prohibit the user's own
+  browsing traffic in a browse tab: a page the owner deliberately opens is their own request,
+  isolated in a separate WebView2 profile, and is not app-originated exfiltration. Never
+  conflate the two — and never let oversight data reach a browse tab.
 - App never auto-sends. Automation is read-only scraping only.
 - All AI is fully on-device via Ollama. No cloud LLM.
 - No roles/permissions. Anyone with access to the installed machine sees the same data.
 - No unofficial protocol libraries (Baileys, whatsmeow, etc.) — ban risk. Use real web clients in WebView2.
+  Such projects may be **read** for DOM/protocol knowledge; their code may not be vendored or copied.
+  GPL/AGPL sources (Telegram Web A/K, mautrix) are reference-only. MIT sources (Ferdium recipes) may be
+  adapted with attribution in `THIRD-PARTY-NOTICES.md`.
 
 ---
 
@@ -175,6 +184,23 @@ These were confirmed by reading the live WhatsApp Web IndexedDB via F12 DevTools
 - **`OnResyncHistory` reloads each account's WebView before probing** so freshly-installed scraper JS takes effect (the adapter script is injected only on document creation). `HarvestPreviewsAsync` waits ~25s for the chat list to re-render before harvesting. Preview harvest runs on the manual Re-sync path only — never the background `OversightAlertMonitor` (so it never scrolls the visible list passively).
 - Known limits (accepted): previews only for chats among the ~60 rendered rows (awaiting chats are near the top) and only when the last message has text. Re-sync is slower because it reloads each account first.
 
+### Google Business channel — VERIFIED FACTS
+
+- **Google Business Messages is permanently dead.** Customers could no longer start new chats from
+  **2024-07-15**; the chat feature was removed from Google Business Profile on **2024-07-31**; historic
+  chat data was deleted; the Google Takeout export window closed **2024-08-30**. There is no Google
+  message channel to build, now or later. The Google channel is **reviews + Q&A only, forever** — do
+  not add awaiting-reply/FRT/message-count plumbing for it, and do not reintroduce roadmap language
+  implying one. (`docs/MASTER-PLAN.md` §channel table already records this.)
+- **Rating and lifetime review total ARE obtainable** — `GoogleReviewSnapshotService.ProfileRating`
+  ships them. They are *not* on the `business.google.com/reviews` manager page; they live only on the
+  Google **Search merchant view** (reached via business.google.com's own redirect). Rating comes from
+  an `aria-label` reading `"Rated 4.6 out of 5,"`; the total is anchored off the rating because
+  `innerText` renders them run together (`"4.6239 Google reviews"` → a naive `([\d,]+)` yields 6239).
+  Throttled by `RatingRefreshInterval` (6h) because each scrape costs a visible round-trip.
+- The **Business Profile API** would give both cleanly and is free, but it is excluded by the no-cloud/
+  no-API rule *and* gated behind a manual Google approval (new GCP projects start at zero quota).
+
 ### AI layer
 - **`OllamaInferenceClient`** — wraps OllamaSharp; `GenerateTextAsync(prompt, systemPrompt, model, ct)` returns trimmed text or null on failure. `GenerateStructuredAsync<T>` for schema-constrained output.
 - **`OversightInsightService.Instance`** (singleton) — `TryGet(key, sig)` for cached AI text; `Request(key, sig, facts, onReady)` for background generation.
@@ -236,6 +262,9 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 | Scraper JS change doesn't take effect after install | Adapter is injected on document creation only. Reload the page (Re-sync now does this automatically) or right-click account → Refresh WebView. |
 | Background webview throttles `setTimeout` (~1/sec) | Don't rely on timed loops (e.g. scroll harvest) in non-visible webviews; do synchronous single-pass DOM reads. |
 | `ChatEntry` field added but not populated | TWO parse paths build it: `WhatsAppBackfillProvider.ProcessIndexedDbConversationsAsync` AND `OversightSnapshotReader.ParseChatEntries`. Update both. |
+| Tempted to add messaging metrics to the Google channel | Google Business Messages was shut down in July 2024 and the data deleted. Reviews + Q&A only, permanently. |
+| Google rating/total "isn't available" | It is — `GoogleReviewSnapshotService.ProfileRating`. It's on the Search merchant view, not the reviews manager page. Don't re-derive; see the Google Business verified-facts section. |
+| Browsing traffic looks like it breaks "zero data leaves the machine" | It doesn't. That rule governs *oversight* data the app derives. User-initiated browse tabs are the owner's own traffic, on a separate WebView2 profile. Oversight data must never reach a browse tab. |
 
 ---
 
@@ -261,7 +290,7 @@ See `docs/remaining-work.md` for the detailed backlog. Summary:
 | 1 — WhatsApp oversight foundation | ✅ Complete |
 | 2 — AI tiers (insight strips + Ollama) | ✅ Core done · ✅ P2-A unsaved-contact phone + preview · ✅ Tier-2 narration suite · ✅ weekly report + anomaly detection (v4.50.0) · ☐ Tier-1 ONNX (needs a model) |
 | 3 — Oversight depth & scale | ✅ Mostly done · ✅ First Response Time / SLA metrics (v4.46.0) · ✅ current-state awaiting, mark-handled/snooze, KPI micro-trends, per-account L1 drill-down, quiet hours (v4.51–4.53) · ☐ Sidebar-rail density at very large counts |
-| 4 — Google Business embed + metrics | ◑ Embed done · ✅ Review-health scraper + which-reviews-need-a-reply + click-through (v4.42.0/v4.49.0); no rating/total (Google doesn't expose them) |
+| 4 — Google Business embed + metrics | ✅ Embed · ✅ Review-health scraper + which-reviews-need-a-reply + click-through (v4.42.0/v4.49.0) · ✅ **official rating + lifetime review total** (`GoogleReviewSnapshotService.ProfileRating`, scraped from the Search merchant view, 6-hour throttle). **Reviews + Q&A only — Google has no message channel** (see below) |
 | 5 — Telegram + Meta embed + metrics | ◑ Embed done · ☐ DOM metric scrapers pending (#24 — need live accounts) |
 
 **Shipped v4.46.0 → v4.53.0:** forward-tracked **First Response Time** + SLA met % + answered-today
