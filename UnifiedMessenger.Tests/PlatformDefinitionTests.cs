@@ -139,6 +139,100 @@ public class PlatformDefinitionTests
     }
 
     [Theory]
+    [InlineData("whatsapp")]
+    [InlineData("whatsappbusiness")]
+    public void WhatsAppFamily_DeclaresConversationCapabilities(string id)
+    {
+        var caps = PlatformDefinition.CapabilitiesFor(id);
+
+        Assert.True(caps.IsMessageChannel);
+        Assert.True(caps.CanReadUnread);
+        Assert.True(caps.CanReadPreview);
+        Assert.True(caps.CanReadTimestamps);
+        Assert.True(caps.CanReadContactIdentity);
+        Assert.True(caps.SupportsFrt);
+        Assert.True(caps.UsesWhatsAppIndexedDbPipeline);
+        Assert.False(caps.RequiresThreadOpenToRead);
+        Assert.True(caps.ContributesConversationMetrics);
+        // Not claimed yet: delivery/read acknowledgement is inferred from DOM tick glyphs today, so the
+        // flag stays false until the in-page Store bridge reads it as data.
+        Assert.False(caps.CanReadAck);
+    }
+
+    [Theory]
+    [InlineData("messenger")]
+    [InlineData("instagram")]
+    [InlineData("metabusinesssuite")]
+    public void MetaChannels_ForbidThreadOpening(string id)
+    {
+        // Opening a Meta thread marks it read and fires a read receipt to the customer, which would destroy
+        // the very signal this app measures. The prohibition is declared before any Meta adapter exists so
+        // that it constrains whoever writes one.
+        Assert.True(PlatformDefinition.CapabilitiesFor(id).RequiresThreadOpenToRead);
+    }
+
+    [Fact]
+    public void GoogleBusiness_IsNotAMessageChannel()
+    {
+        // Google Business Messages was shut down in July 2024 and the data deleted. Reviews + Q&A only,
+        // permanently -- so awaiting-reply and response-time metrics must never be requested here.
+        var caps = PlatformDefinition.CapabilitiesFor("googlebusiness");
+
+        Assert.False(caps.IsMessageChannel);
+        Assert.False(caps.ContributesConversationMetrics);
+        Assert.False(caps.SupportsFrt);
+    }
+
+    [Theory]
+    [InlineData("telegram")]
+    [InlineData("messenger")]
+    [InlineData("instagram")]
+    [InlineData("discord")]
+    [InlineData("metabusinesssuite")]
+    [InlineData("generic")]
+    public void ChannelsWithoutAnAdapter_ClaimNoReads(string id)
+    {
+        // Capability flags describe what the adapter implements TODAY, not what the platform could support.
+        // Every channel still routed to NullPlatformAdapter must therefore claim nothing readable -- the
+        // task that builds each adapter flips these as the corresponding read lands.
+        var caps = PlatformDefinition.CapabilitiesFor(id);
+
+        Assert.False(caps.CanReadUnread);
+        Assert.False(caps.CanReadPreview);
+        Assert.False(caps.CanReadTimestamps);
+        Assert.False(caps.CanReadAck);
+        Assert.False(caps.CanReadContactIdentity);
+        Assert.False(caps.SupportsFrt);
+        Assert.False(caps.UsesWhatsAppIndexedDbPipeline);
+        Assert.False(caps.ContributesConversationMetrics);
+    }
+
+    [Fact]
+    public void CapabilitiesFor_UnknownPlatformFallsBackToWhatsAppCapabilities()
+    {
+        // NormalizePlatformId collapses an unknown id to "whatsapp", so capabilities follow it rather than
+        // silently returning embed-only for a legitimate-but-misspelled WhatsApp account.
+        Assert.True(PlatformDefinition.CapabilitiesFor("not-a-platform").UsesWhatsAppIndexedDbPipeline);
+        Assert.True(PlatformDefinition.CapabilitiesFor(null).UsesWhatsAppIndexedDbPipeline);
+    }
+
+    [Fact]
+    public void IsPlatformModuleEnabled_StillMeansWhatsAppFamilyOnly()
+    {
+        // The WhatsApp IndexedDB gate is now derived from a capability flag rather than a hard-coded id
+        // list. Same answer as before -- this guards against the derivation accidentally broadening it.
+        Assert.True(UnifiedMessenger.Services.PlatformModuleSettingsHelper.IsPlatformModuleEnabled("whatsapp"));
+        Assert.True(UnifiedMessenger.Services.PlatformModuleSettingsHelper.IsPlatformModuleEnabled("whatsappbusiness"));
+
+        foreach (var id in new[] { "googlebusiness", "telegram", "messenger", "discord", "metabusinesssuite", "instagram", "generic" })
+        {
+            Assert.False(
+                UnifiedMessenger.Services.PlatformModuleSettingsHelper.IsPlatformModuleEnabled(id),
+                $"{id} must not join the WhatsApp IndexedDB pipelines");
+        }
+    }
+
+    [Theory]
     [InlineData("business.google.com", "google.com")]
     [InlineData("www.messenger.com", "messenger.com")]
     [InlineData("web.whatsapp.com", "whatsapp.com")]

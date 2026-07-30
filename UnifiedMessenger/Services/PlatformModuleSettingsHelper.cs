@@ -15,8 +15,27 @@ namespace UnifiedMessenger.Services;
 /// </summary>
 public static class PlatformModuleSettingsHelper
 {
+    /// <summary>
+    /// Participates in the WhatsApp IndexedDB pipelines. Now derived from
+    /// <see cref="PlatformCapabilities.UsesWhatsAppIndexedDbPipeline"/> rather than a hard-coded id list,
+    /// but the semantics and the result are unchanged: WhatsApp family only. A new channel earns oversight
+    /// metrics by declaring its own capabilities and shipping its own adapter -- never by being added here.
+    /// </summary>
     public static bool IsPlatformModuleEnabled(string? platformId) =>
-        PlatformDefinition.NormalizePlatformId(platformId) is "whatsapp" or "whatsappbusiness";
+        PlatformDefinition.CapabilitiesFor(platformId).UsesWhatsAppIndexedDbPipeline;
+
+    /// <summary>
+    /// True when the channel contributes conversation metrics the command center can render today. Broader
+    /// than <see cref="IsPlatformModuleEnabled"/> by design: a channel can contribute unread/awaiting
+    /// without joining the WhatsApp pipelines. Use this for command-center inclusion; use
+    /// <see cref="IsPlatformModuleEnabled"/> only for WhatsApp-specific plumbing.
+    /// </summary>
+    public static bool ContributesConversationMetrics(string? platformId) =>
+        PlatformDefinition.CapabilitiesFor(platformId).ContributesConversationMetrics;
+
+    public static IEnumerable<MessengerInstance> FilterConversationMetricInstances(
+        IEnumerable<MessengerInstance> instances) =>
+        instances.Where(instance => ContributesConversationMetrics(instance.Platform));
 
     public static IEnumerable<MessengerInstance> FilterEnabledInstances(IEnumerable<MessengerInstance> instances) =>
         instances.Where(instance => IsPlatformModuleEnabled(instance.Platform));

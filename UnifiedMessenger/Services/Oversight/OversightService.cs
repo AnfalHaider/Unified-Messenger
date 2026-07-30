@@ -58,6 +58,14 @@ public sealed class OversightService
                 group => BranchWorkspaceHelper.ResolveBranchKey(group.First()),
                 StringComparer.OrdinalIgnoreCase);
 
+        var platformByInstance = professionalInstances
+            .Where(instance => !string.IsNullOrWhiteSpace(instance.Id))
+            .GroupBy(instance => instance.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First().Platform,
+                StringComparer.OrdinalIgnoreCase);
+
         return OversightRollupBuilder.Build(
             threads,
             professionalInstances,
@@ -73,6 +81,14 @@ public sealed class OversightService
             chatSnapshot: instanceId =>
                 OversightChatSnapshotService.Instance.TryGetWindowed(instanceId, windowStart, out var active, out var caughtUp, windowEnd)
                     ? (active, caughtUp)
-                    : null);
+                    : null,
+            // Per-instance channel capabilities, so a channel that cannot supply reply timing is excluded
+            // from the on-time denominator instead of being scored as a miss. Resolved from the instance's
+            // platform; an instance we can't find falls back to embed-only (measure nothing), which is the
+            // safe direction — it withholds a number rather than inventing one.
+            capabilitiesForInstance: instanceId =>
+                platformByInstance.TryGetValue(instanceId, out var platform)
+                    ? PlatformDefinition.CapabilitiesFor(platform)
+                    : PlatformCapabilities.EmbedOnly);
     }
 }

@@ -312,13 +312,17 @@ public sealed partial class CommandCenterPanel : UserControl
         var grouping = GroupByLocationButton.IsChecked == true ? OversightGrouping.ByLocation : OversightGrouping.ByInstance;
         var window = SelectedWindow();
         var (rangeStart, rangeEnd) = WindowRange();
-        // Oversight cards are only meaningful for platforms that contribute scraped metrics (WhatsApp
-        // family). Embed channels (Google Business / Telegram / Messenger / generic) are visible+usable in
-        // the sidebar but have no chat store to scan, so including them here would strand them at "syncing…"
-        // forever. They simply don't appear in the command center.
+        // Oversight cards are only meaningful for channels that contribute conversation metrics. Embed
+        // channels (Google Business reviews / Discord / generic URL) have nothing to scan, so including them
+        // would strand them at "syncing…" forever — they simply don't appear in the command center.
+        //
+        // This now asks a CAPABILITY question rather than "is this WhatsApp". Same result today (only the
+        // WhatsApp family declares CanReadUnread), but it is the seam a new channel arrives through: a
+        // Telegram or Meta adapter earns its card by declaring CanReadUnread, without being dragged into the
+        // WhatsApp IndexedDB pipelines that IsPlatformModuleEnabled still gates.
         var instances = _services.Registry.Instances
             .Where(instance => instance.IsProfessional &&
-                               PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
+                               PlatformModuleSettingsHelper.ContributesConversationMetrics(instance.Platform))
             .ToList();
         var snapshot = _services.Oversight.BuildSnapshot(grouping, instances, window, rangeStart, rangeEnd);
 

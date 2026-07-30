@@ -61,6 +61,15 @@ public sealed class OversightEntityHealth
     /// <summary>Share of LIVE actionable threads replied within (or still inside) the SLA, 0–100.</summary>
     public int OnTimePercent { get; init; } = 100;
 
+    /// <summary>
+    /// True when at least one member channel can actually supply reply-timing data
+    /// (<see cref="PlatformCapabilities.SupportsFrt"/>). When false, <see cref="OnTimePercent"/> carries no
+    /// information and the UI must say so rather than print a flattering 100% — a channel we cannot measure
+    /// is not a channel that succeeded. Latency-incapable channels are excluded from the on-time
+    /// denominator entirely, so they can neither inflate nor deflate the number.
+    /// </summary>
+    public bool SupportsResponseTiming { get; init; } = true;
+
     public int UrgentCount { get; init; }
 
     public int DroppedCount { get; init; }

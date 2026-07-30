@@ -10,6 +10,20 @@ namespace UnifiedMessenger.Services;
 /// </summary>
 public static class OversightRollupBuilder
 {
+    /// <summary>
+    /// Fallback capabilities when no resolver is supplied: assume the channel can supply everything, which
+    /// reproduces the behaviour from before capabilities existed. Only the flags this builder reads matter.
+    /// </summary>
+    private static readonly PlatformCapabilities FullyMeasurable = new()
+    {
+        IsMessageChannel = true,
+        CanReadUnread = true,
+        CanReadPreview = true,
+        CanReadTimestamps = true,
+        CanReadContactIdentity = true,
+        SupportsFrt = true
+    };
+
     public static OversightCommandCenterSnapshot Build(
         IReadOnlyList<ThreadData> threads,
         IReadOnlyList<MessengerInstance> instances,
@@ -20,11 +34,17 @@ public static class OversightRollupBuilder
         Func<string, string>? locationForInstance = null,
         DateTimeOffset? windowStartUtc = null,
         DateTimeOffset? windowEndUtc = null,
-        Func<string, (int Active, int CaughtUp)?>? chatSnapshot = null)
+        Func<string, (int Active, int CaughtUp)?>? chatSnapshot = null,
+        Func<string, PlatformCapabilities>? capabilitiesForInstance = null)
     {
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(instances);
         ArgumentNullException.ThrowIfNull(slaThresholdMinutes);
+
+        // Null resolver => every instance is treated as fully measurable, which is exactly the pre-capability
+        // behaviour. Callers that mix channels pass a real resolver so a channel that cannot supply reply
+        // timing is dropped from the on-time DENOMINATOR rather than scored as a miss.
+        var capabilities = capabilitiesForInstance ?? (_ => FullyMeasurable);
 
         var today = (nowUtc ?? DateTimeOffset.UtcNow).UtcDateTime.Date;
 
@@ -61,6 +81,12 @@ public static class OversightRollupBuilder
             var open = list.Where(t => !t.IsReplied).ToList();
             var replied = list.Where(t => t.IsReplied).ToList();
 
+            var instanceIds = list
+                .Select(t => t.InstanceId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var threshold = slaThresholdMinutes(
                 grouping == OversightGrouping.ByLocation ? group.Key : FirstBranch(list));
 
@@ -70,15 +96,24 @@ public static class OversightRollupBuilder
             // separately rather than saturating today's number.
             var measuredReplied = replied.Where(InWindow).ToList();
             var measuredOpen = open.Where(InWindow).ToList();
-            var measuredCount = measuredReplied.Count + measuredOpen.Count;
+
+            // Reply-timing metrics are only defined for channels whose adapter can read message timestamps
+            // and direction. A Meta channel, for instance, can report an unread BADGE but must never be
+            // asked for per-conversation timing (opening a thread there marks it read and notifies the
+            // customer). Such threads are excluded from BOTH sides of the on-time fraction — counting them
+            // as breaches would invent failures, and counting them as on-time would invent successes.
+            var timingReplied = measuredReplied.Where(t => capabilities(t.InstanceId).SupportsFrt).ToList();
+            var timingOpen = measuredOpen.Where(t => capabilities(t.InstanceId).SupportsFrt).ToList();
+            var supportsTiming = instanceIds.Count == 0 || instanceIds.Any(id => capabilities(id).SupportsFrt);
+            var measuredCount = timingReplied.Count + timingOpen.Count;
 
             // §8 business-hours SLA breach count — open in-window threads past their reply-latency SLA.
             // Independent of the unread-based caught-up % below, so the plan's "on-time" signal is preserved
             // even when the headline % comes from WhatsApp's unread snapshot. 0 when there's no thread data.
-            var slaBreachedCount = measuredOpen.Count(t => t.IsSlaBreached);
+            var slaBreachedCount = timingOpen.Count(t => t.IsSlaBreached);
 
-            var onTimeCount = measuredReplied.Count(t => t.ReplyLatencyMinutes <= threshold)
-                + measuredOpen.Count(t => !t.IsSlaBreached);
+            var onTimeCount = timingReplied.Count(t => t.ReplyLatencyMinutes <= threshold)
+                + timingOpen.Count(t => !t.IsSlaBreached);
             var onTimePercent = measuredCount > 0
                 ? (int)Math.Round((double)onTimeCount / measuredCount * 100)
                 : 100;
@@ -86,12 +121,6 @@ public static class OversightRollupBuilder
                 ? 0
                 : open.Count(t => t.LastMessageTime < windowStartUtc.Value);
             var awaitingCount = measuredOpen.Count;
-
-            var instanceIds = list
-                .Select(t => t.InstanceId)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
 
             // Prefer WhatsApp's own unread signal when we have it: on-time = caught-up % across this
             // entity's instances, over chats active in the window. Reliable for every chat, no name
@@ -153,6 +182,7 @@ public static class OversightRollupBuilder
                 AwaitingCount = awaitingCount,
                 HasChatData = hasChatData,
                 OnTimePercent = onTimePercent,
+                SupportsResponseTiming = supportsTiming,
                 UrgentCount = open.Count(t => t.IsUrgent),
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
                 SlaBreachedCount = slaBreachedCount,

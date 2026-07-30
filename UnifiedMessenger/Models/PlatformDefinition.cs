@@ -14,6 +14,45 @@ public sealed class PlatformDefinition
 
     public string AccentColor { get; init; } = "#6B7280";
 
+    /// <summary>
+    /// What this channel can honestly contribute to oversight. Defaults to
+    /// <see cref="PlatformCapabilities.EmbedOnly"/> — a new platform is measured only once it declares a
+    /// capability and ships the adapter that backs it. See <see cref="PlatformCapabilities"/> for the
+    /// platform-fact vs adapter-capability distinction.
+    /// </summary>
+    public PlatformCapabilities Capabilities { get; init; } = PlatformCapabilities.EmbedOnly;
+
+    /// <summary>Capabilities for <paramref name="platformId"/>, or embed-only for anything unrecognised.</summary>
+    public static PlatformCapabilities CapabilitiesFor(string? platformId) =>
+        FindById(NormalizePlatformId(platformId))?.Capabilities ?? PlatformCapabilities.EmbedOnly;
+
+    // WhatsApp and WhatsApp Business share one adapter, so they share one capability set. CanReadAck and
+    // CanReadPreview-for-every-chat are deliberately NOT claimed here: today previews come from a
+    // single synchronous pass over the ~60 rendered sidebar rows (bodies are encrypted at rest in
+    // msgRowOpaqueData), and delivery state is inferred from DOM tick glyphs rather than read as data.
+    // The in-page Store bridge is what earns those two flags — flip them in the same change that lands it.
+    private static readonly PlatformCapabilities WhatsAppFamily = new()
+    {
+        IsMessageChannel = true,
+        RequiresThreadOpenToRead = false,
+        CanReadUnread = true,
+        CanReadPreview = true,
+        CanReadTimestamps = true,
+        CanReadAck = false,
+        CanReadContactIdentity = true,
+        SupportsFrt = true,
+        UsesWhatsAppIndexedDbPipeline = true
+    };
+
+    // Meta web clients mark a thread READ and fire a read receipt to the customer the moment it is opened,
+    // so per-conversation reads are permanently off limits here — badge-level aggregates only. The flag is
+    // set before any Meta adapter exists precisely so it constrains whoever writes one.
+    private static readonly PlatformCapabilities MetaAggregateOnly = new()
+    {
+        IsMessageChannel = true,
+        RequiresThreadOpenToRead = true
+    };
+
     public static IReadOnlyList<PlatformDefinition> All { get; } =
     [
         new PlatformDefinition
@@ -22,7 +61,8 @@ public sealed class PlatformDefinition
             DisplayName = "WhatsApp",
             DefaultUrl = "https://web.whatsapp.com/",
             IconGlyph = "\uE8BD",
-            AccentColor = "#25D366"
+            AccentColor = "#25D366",
+            Capabilities = WhatsAppFamily
         },
         new PlatformDefinition
         {
@@ -30,7 +70,8 @@ public sealed class PlatformDefinition
             DisplayName = "WhatsApp Business",
             DefaultUrl = "https://web.whatsapp.com/",
             IconGlyph = "\uE8BD",
-            AccentColor = "#128C7E"
+            AccentColor = "#128C7E",
+            Capabilities = WhatsAppFamily
         },
         new PlatformDefinition
         {
@@ -46,7 +87,12 @@ public sealed class PlatformDefinition
             // into Search/Maps, but the /reviews manager view still works.)
             DefaultUrl = "https://business.google.com/reviews",
             IconGlyph = "\uE774", // TODO: Replace with brand-specific glyph or image asset when Phase 5 is implemented.
-            AccentColor = "#4285F4"
+            AccentColor = "#4285F4",
+            // Reviews + Q&A only, permanently: Google Business Messages was shut down in July 2024 and the
+            // data deleted. So IsMessageChannel is false and stays false. Google DOES contribute review
+            // metrics (GoogleReviewSnapshotService: rating, lifetime total, unanswered, reply rate) - those
+            // are a separate review-health surface, not conversation metrics, so they are not modelled here.
+            Capabilities = PlatformCapabilities.EmbedOnly
         },
         new PlatformDefinition
         {
@@ -57,7 +103,13 @@ public sealed class PlatformDefinition
             Description = "Telegram Web — embedded. (Unread/awaiting adapter is planned.)",
             DefaultUrl = "https://web.telegram.org/",
             IconGlyph = "\uE8BD", // TODO: Replace with brand-specific glyph or image asset when Phase 5 is implemented.
-            AccentColor = "#0088CC"
+            AccentColor = "#0088CC",
+            // Embed-only until the Telegram adapter ships. Telegram is the EASIEST channel to read once
+            // started (both web clients are open source, and dialogs are cached UNENCRYPTED in IndexedDB,
+            // unlike WhatsApp), so expect CanReadUnread / CanReadPreview / CanReadTimestamps /
+            // CanReadContactIdentity to go true together, and SupportsFrt only once history reads land.
+            // Do not flip a flag ahead of the read that backs it.
+            Capabilities = PlatformCapabilities.EmbedOnly
         },
         new PlatformDefinition
         {
@@ -68,7 +120,8 @@ public sealed class PlatformDefinition
             Description = "Meta Messenger — embedded. (Unread/awaiting adapter is planned.)",
             DefaultUrl = "https://www.messenger.com/",
             IconGlyph = "\uE8F2", // TODO: Replace with brand-specific glyph or image asset when Phase 5 is implemented.
-            AccentColor = "#0084FF"
+            AccentColor = "#0084FF",
+            Capabilities = MetaAggregateOnly
         },
         new PlatformDefinition
         {
@@ -78,7 +131,8 @@ public sealed class PlatformDefinition
             DisplayName = "Discord",
             Description = "Discord — embedded. No oversight metrics.",
             DefaultUrl = "https://discord.com/app",
-            AccentColor = "#5865F2"
+            AccentColor = "#5865F2",
+            Capabilities = PlatformCapabilities.EmbedOnly
         },
         new PlatformDefinition
         {
@@ -87,7 +141,10 @@ public sealed class PlatformDefinition
             DisplayName = "Meta Business Suite",
             Description = "Meta Business Suite — embedded. No oversight metrics.",
             DefaultUrl = "https://business.facebook.com/",
-            AccentColor = "#0064E0"
+            AccentColor = "#0064E0",
+            // Not modelled as a message channel (it is a management console), but it does surface Meta
+            // inboxes, so the read-receipt prohibition applies to anything that ever scrapes it.
+            Capabilities = new PlatformCapabilities { RequiresThreadOpenToRead = true }
         },
         new PlatformDefinition
         {
@@ -96,7 +153,8 @@ public sealed class PlatformDefinition
             DisplayName = "Instagram",
             Description = "Instagram — embedded. No oversight metrics.",
             DefaultUrl = "https://www.instagram.com/",
-            AccentColor = "#E4405F"
+            AccentColor = "#E4405F",
+            Capabilities = MetaAggregateOnly
         },
         new PlatformDefinition
         {
@@ -109,7 +167,8 @@ public sealed class PlatformDefinition
             Description = "Any website — monitored in its own tab with back / forward / reload controls. No oversight metrics.",
             DefaultUrl = string.Empty,
             IconGlyph = "\uE774",
-            AccentColor = "#6B7280"
+            AccentColor = "#6B7280",
+            Capabilities = PlatformCapabilities.EmbedOnly
         }
     ];
 
