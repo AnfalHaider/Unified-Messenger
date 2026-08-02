@@ -1,7 +1,30 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-07-14 · **Baseline:** v4.80.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-08-02 · **Baseline:** v4.92.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
+
+> **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
+> Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.
+> None can serve as a foundation — they are Node gateways over banned protocol libraries or redundant
+> headless browsers, and are send-oriented — but four techniques were adopted. See
+> [ADR-005](architecture/adr/005-whatsapp-store-bridge.md),
+> [ADR-006](architecture/adr/006-channel-events-and-session-state.md),
+> [ADR-007](architecture/adr/007-custom-site-browsing.md).
+> - **v4.88.0 — in-memory store bridge** (wa-js / whatsapp-web.js technique): previews for *every* chat
+>   instead of the ~60 rendered sidebar rows, and no lag on replies sent from the phone. Read-only,
+>   capability-based discovery, falls back to the IndexedDB scan on any failure.
+> - **v4.89.0 — channel events + session state** (WAHA/Evolution payload shape, in-process only):
+>   `ChannelEventBus`, `SessionState` projection incl. the new **Degraded**, adaptive 25s/90s polling.
+> - **v4.90.0 — custom-site browsing** (Ferdium model): editable address bar + save-the-current-page for
+>   Custom URL tabs only; http/https only, no search fallback.
+> - **v4.91.0 — surfacing silent failures**: session chips on unhealthy accounts only; Settings → Data
+>   reports which WhatsApp reader is live.
+> - **v4.92.0 — dead-code sweep**: ~850 lines removed after a full reference audit.
+>
+> **Still gated on external dependencies (unchanged):** Telegram/Messenger/Instagram DOM scrapers need
+> live logged-in accounts; Tier-1 ONNX needs a chosen model. **New known debt:** three near-duplicate
+> sidebar preview harvesters in `whatsapp-adapter.js` (kept — they are the bridge's fallback);
+> `PersonalOverviewViewModel.ReplaceCollection` still does Clear+Add reset-churn.
 
 > **Session 8 update (v4.46.0 → v4.53.0): real response-speed metrics, a data-accuracy audit, and the
 > full command-center improvement set.**

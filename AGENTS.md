@@ -51,7 +51,8 @@ The app uses a single-instance mutex (`UnifiedMessenger_AppMutex`). If a stale p
 
 **Compile installer:**
 ```
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "D:\Projects\Unified Messenger\installer.iss"
+# ISCC is NOT on PATH, and on this machine it is a per-user install — not Program Files.
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" "D:\Projects\Unified Messenger\installer.iss"
 # Output: dist\UnifiedMessengerSetup.exe
 ```
 

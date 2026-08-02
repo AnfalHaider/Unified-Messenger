@@ -176,8 +176,12 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
+          # A per-user Inno Setup install lands in LOCALAPPDATA\Programs\, not LOCALAPPDATA\ directly —
+          # the old candidate list missed that and would have fallen through to the choco install.
           $isccCandidates = @(
             "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
             "$env:LOCALAPPDATA\Inno Setup 6\ISCC.exe"
           )
           $iscc = $isccCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
