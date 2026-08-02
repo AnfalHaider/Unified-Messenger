@@ -16,6 +16,31 @@ public sealed partial class SettingsPage
         ImportExportPanel.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private async void UseStoreBridgeToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressToggleEvents)
+        {
+            return;
+        }
+
+        await _services.AppSettings.UpdateAsync(settings =>
+            settings.UseStoreBridge = UseStoreBridgeToggle.IsOn);
+
+        RefreshStoreBridgeHealth();
+    }
+
+    /// <summary>
+    /// Shows which WhatsApp reader is actually live. The fast reader falls back silently on purpose — a
+    /// WhatsApp change should cost previews, not metrics — so this line is the only place the degradation
+    /// becomes visible.
+    /// </summary>
+    private void RefreshStoreBridgeHealth()
+    {
+        StoreBridgeHealthText.Text = UseStoreBridgeToggle.IsOn
+            ? StoreBridgeHealth.Describe()
+            : "Turned off — using the saved-copy reader, so previews are limited to the chats WhatsApp has on screen.";
+    }
+
     private async void ClearAnalyticsButton_Click(object sender, RoutedEventArgs e)
     {
         var confirm = new ContentDialog

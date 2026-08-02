@@ -1,4 +1,4 @@
-namespace UnifiedMessenger.Models;
+﻿namespace UnifiedMessenger.Models;
 
 public sealed class PlatformDefinition
 {
@@ -26,11 +26,25 @@ public sealed class PlatformDefinition
     public static PlatformCapabilities CapabilitiesFor(string? platformId) =>
         FindById(NormalizePlatformId(platformId))?.Capabilities ?? PlatformCapabilities.EmbedOnly;
 
-    // WhatsApp and WhatsApp Business share one adapter, so they share one capability set. CanReadAck and
-    // CanReadPreview-for-every-chat are deliberately NOT claimed here: today previews come from a
-    // single synchronous pass over the ~60 rendered sidebar rows (bodies are encrypted at rest in
-    // msgRowOpaqueData), and delivery state is inferred from DOM tick glyphs rather than read as data.
-    // The in-page Store bridge is what earns those two flags — flip them in the same change that lands it.
+    /// <summary>
+    /// Whether this platform's tab lets the owner type any address and browse freely. True only for the
+    /// generic "Custom URL" platform: a real service tab is pinned to its own site by the navigation
+    /// guard, so an address bar there would only ever produce blocked navigations.
+    /// </summary>
+    /// <remarks>Derived from <see cref="DefaultUrl"/> being empty — the same signal the start-URL
+    /// resolver already uses to decide a platform isn't host-restricted, so the two can't disagree.</remarks>
+    public bool AllowsCustomUrl => string.IsNullOrWhiteSpace(DefaultUrl);
+
+    /// <summary>Convenience lookup by platform id; unknown ids are treated as pinned (the safe default).</summary>
+    public static bool AllowsFreeBrowsing(string? platformId) =>
+        FindById(platformId)?.AllowsCustomUrl ?? false;
+
+    // WhatsApp and WhatsApp Business share one adapter, so they share one capability set.
+    // CanReadPreview is earned by the in-page Store bridge (whatsapp-store-bridge.js), which reads
+    // WhatsApp Web's already-decrypted in-memory models: verified live at 82-88% preview coverage
+    // across ALL chats, not the ~60 rendered sidebar rows the IndexedDB path was limited to (bodies
+    // are encrypted at rest in msgRowOpaqueData). CanReadAck stays FALSE: the bridge reads message
+    // direction (message.id.fromMe), not delivery/read acks - those are still only DOM tick glyphs.
     private static readonly PlatformCapabilities WhatsAppFamily = new()
     {
         IsMessageChannel = true,

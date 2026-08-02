@@ -138,11 +138,14 @@
                             <Button x:Name="NavHomeButton" Click="NavHomeButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="8" AutomationProperties.Name="Home" ToolTipService.ToolTip="Home — back to this account's start page">
                                 <FontIcon FontSize="14" Glyph="&#xE80F;" />
                             </Button>
+                            <!-- Address: read-only for platform tabs (their session is pinned to that
+                                 service by the nav guard), editable for Custom URL tabs so the owner can
+                                 actually browse and then save where they landed. -->
                             <Border
                                 Margin="4,0,0,0"
                                 Padding="10,0"
                                 Height="32"
-                                MinWidth="200"
+                                MinWidth="220"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                                 BorderThickness="1"
@@ -150,8 +153,34 @@
                                 <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
                                     <FontIcon FontSize="12" Glyph="&#xE72E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
                                     <TextBlock x:Name="NavAddressText" VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBox
+                                        x:Name="NavAddressBox"
+                                        MinWidth="220"
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        BorderThickness="0"
+                                        Background="Transparent"
+                                        Padding="0"
+                                        Visibility="Collapsed"
+                                        KeyDown="NavAddressBox_KeyDown"
+                                        PlaceholderText="Type a web address and press Enter"
+                                        AutomationProperties.Name="Web address" />
                                 </StackPanel>
                             </Border>
+
+                            <Button
+                                x:Name="NavSaveSiteButton"
+                                Click="NavSaveSiteButton_Click"
+                                Style="{StaticResource SubtleButtonStyle}"
+                                Padding="8"
+                                Visibility="Collapsed"
+                                AutomationProperties.Name="Save this site as an account"
+                                ToolTipService.ToolTip="Save this site — adds the page you're on as its own account in the sidebar">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon FontSize="14" Glyph="&#xE74E;" />
+                                    <TextBlock FontSize="12" Text="Save site" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </StackPanel>
                 </Border>

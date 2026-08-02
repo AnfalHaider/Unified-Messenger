@@ -46,6 +46,11 @@ public sealed partial class MainWindow : Window, IShellUiHost
     private WebView2? _navBarWebView;
     private string? _navHomeUrl;
 
+    // Only Custom URL tabs get an editable address and a "Save site" button. Platform tabs (WhatsApp,
+    // Google Business, …) stay pinned to their service by the nav guard, so letting someone type a URL
+    // into one would just produce a blocked navigation and a confusing dead end.
+    private bool _navBarAllowsFreeBrowsing;
+
     void IShellUiHost.ShowWebNavBar(MessengerInstance? instance)
     {
         DetachNavBarWebView();
@@ -70,6 +75,11 @@ public sealed partial class MainWindow : Window, IShellUiHost
         _navHomeUrl = !string.IsNullOrWhiteSpace(instance.StartUrl)
             ? instance.StartUrl
             : PlatformDefinition.FindById(instance.Platform)?.DefaultUrl;
+
+        _navBarAllowsFreeBrowsing = PlatformDefinition.AllowsFreeBrowsing(instance.Platform);
+        NavAddressBox.Visibility = _navBarAllowsFreeBrowsing ? Visibility.Visible : Visibility.Collapsed;
+        NavAddressText.Visibility = _navBarAllowsFreeBrowsing ? Visibility.Collapsed : Visibility.Visible;
+        NavSaveSiteButton.Visibility = _navBarAllowsFreeBrowsing ? Visibility.Visible : Visibility.Collapsed;
 
         _navBarWebView = _services.SessionManager.TryGetWebView(instance.Id);
         if (_navBarWebView?.CoreWebView2 is { } core)
@@ -123,11 +133,53 @@ public sealed partial class MainWindow : Window, IShellUiHost
         NavForwardButton.IsEnabled = core?.CanGoForward ?? false;
 
         var source = core?.Source;
-        NavAddressText.Text = string.IsNullOrWhiteSpace(source)
-            ? string.Empty
-            : Uri.TryCreate(source, UriKind.Absolute, out var u)
-                ? (u.Host + u.PathAndQuery).TrimEnd('/')
-                : source;
+        var display = BrowserAddressNormalizer.ToDisplayForm(source);
+        NavAddressText.Text = display;
+
+        // Don't stomp on what the owner is mid-way through typing.
+        if (_navBarAllowsFreeBrowsing &&
+            !ReferenceEquals(Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(Content.XamlRoot), NavAddressBox))
+        {
+            NavAddressBox.Text = display;
+        }
+
+        NavSaveSiteButton.IsEnabled = !string.IsNullOrWhiteSpace(source);
+    }
+
+    private async void NavAddressBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var result = BrowserAddressNormalizer.Normalize(NavAddressBox.Text);
+        if (!result.IsValid)
+        {
+            await _services.Dialog
+                .ShowErrorAsync("Can't open that address", result.Error ?? "That doesn't look like a web address.")
+                .ConfigureAwait(true);
+            return;
+        }
+
+        _navBarWebView?.CoreWebView2?.Navigate(result.Url);
+    }
+
+    private async void NavSaveSiteButton_Click(object sender, RoutedEventArgs e)
+    {
+        var source = _navBarWebView?.CoreWebView2?.Source;
+        var result = BrowserAddressNormalizer.Normalize(source);
+        if (!result.IsValid)
+        {
+            await _services.Dialog
+                .ShowErrorAsync("Nothing to save", "Open a page first, then save it.")
+                .ConfigureAwait(true);
+            return;
+        }
+
+        await _shell.SaveCurrentSiteAsInstanceAsync(result.Url).ConfigureAwait(true);
     }
 
     private void NavBackButton_Click(object sender, RoutedEventArgs e)

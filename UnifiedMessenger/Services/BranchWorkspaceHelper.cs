@@ -1,4 +1,4 @@
-using UnifiedMessenger.Models;
+﻿using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
@@ -210,94 +210,6 @@ public static class BranchWorkspaceHelper
             .Where(thread => !thread.IsReplied && !thread.IsSpamOrPromo)
             .GroupBy(thread => PlatformDefinition.NormalizePlatformId(thread.Platform), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
-
-    public sealed record BranchTabCounts(int OpenCount, int ImmediateCount);
-
-    public static IReadOnlyDictionary<string, BranchTabCounts> ComputeBranchTabCounts(
-        IEnumerable<ThreadData> threads) =>
-        ComputeBranchTabCounts(threads, instancesById: null);
-
-    public static IReadOnlyDictionary<string, BranchTabCounts> ComputeBranchTabCounts(
-        IEnumerable<ThreadData> threads,
-        IReadOnlyDictionary<string, MessengerInstance>? instancesById)
-    {
-        ArgumentNullException.ThrowIfNull(threads);
-
-        return threads
-            .Select(thread =>
-            {
-                var branchKey = string.Empty;
-                if (instancesById is not null &&
-                    instancesById.TryGetValue(thread.InstanceId, out var instance))
-                {
-                    branchKey = ResolveEffectiveBranchKey(thread, instance);
-                }
-                else if (!string.IsNullOrWhiteSpace(thread.BranchName))
-                {
-                    branchKey = thread.BranchName.Trim();
-                }
-
-                return (thread, branchKey);
-            })
-            .Where(entry => !string.IsNullOrWhiteSpace(entry.branchKey))
-            .GroupBy(entry => entry.branchKey, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group => new BranchTabCounts(
-                    OpenCount: group.Count(entry =>
-                        !entry.thread.IsReplied && !entry.thread.IsSpamOrPromo),
-                    ImmediateCount: group.Count(entry =>
-                        entry.thread.IsUrgent && !entry.thread.IsReplied)),
-                StringComparer.OrdinalIgnoreCase);
-    }
-
-    public static BranchTabCounts SumBranchTabCounts(IReadOnlyDictionary<string, BranchTabCounts> counts)
-    {
-        ArgumentNullException.ThrowIfNull(counts);
-
-        if (counts.Count == 0)
-        {
-            return new BranchTabCounts(0, 0);
-        }
-
-        return new BranchTabCounts(
-            counts.Values.Sum(count => count.OpenCount),
-            counts.Values.Sum(count => count.ImmediateCount));
-    }
-
-    public static string FormatBranchPillLabel(string branchLabel) =>
-        string.IsNullOrWhiteSpace(branchLabel) ? string.Empty : branchLabel.Trim();
-
-    public static string FormatBranchPillBadge(BranchTabCounts counts) =>
-        counts.OpenCount > 0 ? counts.OpenCount.ToString() : string.Empty;
-
-    public static string FormatBranchPillTooltip(string branchLabel, BranchTabCounts counts) =>
-        FormatBranchTabHeader(branchLabel, counts);
-
-    public static string FormatBranchTabHeader(string branchLabel, BranchTabCounts counts)
-    {
-        if (string.IsNullOrWhiteSpace(branchLabel))
-        {
-            return string.Empty;
-        }
-
-        if (counts.OpenCount == 0 && counts.ImmediateCount == 0)
-        {
-            return branchLabel.Trim();
-        }
-
-        var parts = new List<string>
-        {
-            counts.OpenCount == 1 ? "1 open" : $"{counts.OpenCount} open"
-        };
-
-        if (counts.ImmediateCount > 0)
-        {
-            parts.Add(counts.ImmediateCount == 1 ? "1 urgent" : $"{counts.ImmediateCount} urgent");
-        }
-
-        return $"{branchLabel.Trim()} ({string.Join(" · ", parts)})";
-    }
 
     internal static UnifiedMessengerBranchMetrics BuildBranchMetrics(
         string branchName,

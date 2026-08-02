@@ -63,7 +63,7 @@ Gate 0 / Wave 12 architecture reference (updated v3.2.0).
 | OCC | OperationsCommandCenterViewModel, BranchWorkspacePillBarViewModel | OccSnapshotPresenter, OccThreadCardPresenter |
 | Personal | PersonalOverviewViewModel | PersonalSnapshotPresenter, PersonalOverviewSearchPresenter |
 | Settings | SettingsViewModel | SettingsArchivedAccountsPresenter, SettingsImportExportPresenter |
-| Charts | WeeklyActivityChartViewModel, SentimentActivityChartViewModel | WeeklyActivityChartHelper, DashboardTriageHelper |
+| Charts | WeeklyActivityChartViewModel | WeeklyActivityChartHelper |
 
 ## CI / release
 

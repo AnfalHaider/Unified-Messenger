@@ -384,6 +384,50 @@ public sealed class ShellController
         }
     }
 
+    /// <summary>
+    /// Saves the page currently open in a Custom URL tab as its own account in the sidebar, so a site the
+    /// owner browsed to can be kept rather than re-found next time. Confirms first (this adds a permanent
+    /// sidebar entry and its own isolated browser profile) and names it after the site's host by default.
+    /// </summary>
+    public async Task SaveCurrentSiteAsInstanceAsync(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        var suggestedName = BrowserAddressNormalizer.SuggestDisplayName(url);
+        var display = BrowserAddressNormalizer.ToDisplayForm(url);
+
+        var confirmed = await _services.Dialog.ConfirmAsync(
+            "Save this site?",
+            $"Add \"{suggestedName}\" ({display}) to your sidebar as its own account. " +
+            "It gets its own separate sign-in, and no oversight metrics are collected for it.",
+            "Save site").ConfigureAwait(true);
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        try
+        {
+            var instance = await _services.Registry.AddInstanceAsync(
+                suggestedName,
+                "generic",
+                url,
+                WorkspaceCategory.Personal).ConfigureAwait(true);
+
+            _chrome.RebuildInstanceNavigation();
+            _navigation.RefreshDashboardIfVisible();
+            await _navigation.SelectInstanceAsync(instance.Id).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            await _services.Dialog.ShowErrorAsync("Could not save this site", ex.Message).ConfigureAwait(true);
+        }
+    }
+
     public async Task RestoreArchivedInstanceAsync(string instanceId)
     {
         var restored = await _services.Registry.RestoreArchivedInstanceAsync(instanceId);

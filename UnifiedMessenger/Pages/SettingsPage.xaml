@@ -578,6 +578,38 @@
 
             <StackPanel x:Name="DataPrivacySection" Tag="data-privacy" Spacing="8">
                 <shared:SectionHeaderView Title="DATA &amp; PRIVACY" />
+
+                <!-- Which reader is producing the WhatsApp numbers. The fast reader falls back silently by
+                     design (so a WhatsApp change costs previews, not metrics) — which means without this
+                     card the degradation would be invisible. -->
+                <shared:SurfaceCard>
+                    <shared:SurfaceCard.CardBody>
+                    <StackPanel Spacing="12">
+                        <ToggleSwitch
+                            x:Name="UseStoreBridgeToggle"
+                            OffContent="Off"
+                            OnContent="On"
+                            Toggled="UseStoreBridgeToggle_Toggled">
+                            <ToggleSwitch.Header>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="Fast WhatsApp reader" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Opacity="0.65"
+                                        Text="Reads WhatsApp's live in-memory copy of your chats instead of its saved copy. Gives every waiting customer a message preview and notices replies you sent from your phone much sooner. Leave this on unless you're diagnosing a problem — it falls back on its own if WhatsApp changes."
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </ToggleSwitch.Header>
+                        </ToggleSwitch>
+                        <TextBlock
+                            x:Name="StoreBridgeHealthText"
+                            FontSize="12"
+                            Opacity="0.8"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                    </shared:SurfaceCard.CardBody>
+                </shared:SurfaceCard>
+
                 <shared:SurfaceCard>
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">

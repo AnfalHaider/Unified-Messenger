@@ -10,7 +10,10 @@ public abstract class WhatsAppPlatformAdapterBase : BasePlatformAdapter
 
     protected override bool SupportsInboundAutoDraft => false;
 
-    protected override IReadOnlyList<string> AdditionalScriptFileNames => ["thread-status-auditor.js"];
+    // The store bridge reads WhatsApp Web's in-memory (already-decrypted) model collections. It is
+    // additive: when it can't find the collections it reports so and the IndexedDB scan stays in charge.
+    protected override IReadOnlyList<string> AdditionalScriptFileNames =>
+        ["thread-status-auditor.js", "whatsapp-store-bridge.js"];
 
     protected override bool HandleCustomMessage(
         string? type,

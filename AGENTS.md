@@ -1,4 +1,4 @@
-# Unified Messenger — AGENTS.md
+﻿# Unified Messenger — AGENTS.md
 
 ## What this project is
 
@@ -60,7 +60,8 @@ The app uses a single-instance mutex (`UnifiedMessenger_AppMutex`). If a stale p
 
 **Compile installer:**
 ```
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "D:\Projects\Unified Messenger\installer.iss"
+# ISCC is NOT on PATH, and on this machine it is a per-user install — not Program Files.
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" "D:\Projects\Unified Messenger\installer.iss"
 # Output: dist\UnifiedMessengerSetup.exe
 ```
 
@@ -258,13 +259,18 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 | Test filter too broad → hangs headless | Use exact class names in `--filter`, not loose substrings |
 | `NullPlatformAdapter.PlatformId` is `"generic"` not `"whatsapp"` | Adapter factory tests for new platforms expect `"generic"` |
 | Unsaved contacts show `@lid` JIDs, not phone numbers | Phone is in the `contact` store's `phoneNumber` field, keyed by `@lid` id. The `lid-pn-mapping` store is empty — don't use it. (See P2-A section.) |
-| Message preview is blank | Bodies are encrypted at rest (`msgRowOpaqueData`); harvest preview from the live sidebar DOM (`__umStartPreviewHarvest`), not IndexedDB. |
+| Message preview is blank | **Preferred:** the store bridge (`whatsapp-store-bridge.js`) reads the decrypted in-memory models — previews for every chat. **Fallback only:** bodies are encrypted at rest (`msgRowOpaqueData`), so the IndexedDB path harvests preview from the live sidebar DOM (`__umStartPreviewHarvest`). |
 | Scraper JS change doesn't take effect after install | Adapter is injected on document creation only. Reload the page (Re-sync now does this automatically) or right-click account → Refresh WebView. |
 | Background webview throttles `setTimeout` (~1/sec) | Don't rely on timed loops (e.g. scroll harvest) in non-visible webviews; do synchronous single-pass DOM reads. |
-| `ChatEntry` field added but not populated | TWO parse paths build it: `WhatsAppBackfillProvider.ProcessIndexedDbConversationsAsync` AND `OversightSnapshotReader.ParseChatEntries`. Update both. |
+| `ChatEntry` field added but not populated | All readers now funnel through `ChatEntryParser.ParseConversations` (backfill, oversight, and the store bridge). Add the field there once — but make sure **both producers** emit it: `whatsapp-adapter.js` (IndexedDB scan) and `whatsapp-store-bridge.js` (in-memory scan). |
 | Tempted to add messaging metrics to the Google channel | Google Business Messages was shut down in July 2024 and the data deleted. Reviews + Q&A only, permanently. |
 | Google rating/total "isn't available" | It is — `GoogleReviewSnapshotService.ProfileRating`. It's on the Search merchant view, not the reviews manager page. Don't re-derive; see the Google Business verified-facts section. |
 | Browsing traffic looks like it breaks "zero data leaves the machine" | It doesn't. That rule governs *oversight* data the app derives. User-initiated browse tabs are the owner's own traffic, on a separate WebView2 profile. Oversight data must never reach a browse tab. |
+| Store bridge silently stops working after a WhatsApp Web update | By design it fails soft to the IndexedDB scan, so metrics keep flowing and the regression is invisible. Check Settings → Data → "Store bridge" health line, or run `window.__umStoreBridgeProbe()` in DevTools on the account's page — it reports which discovery strategy matched and which collections resolved. |
+| Store-bridge scan returns `stage:"empty"` with 1–8 "chats" | You are reading module **descriptors** instead of exports. `require('__debug').modulesMap` values are `{id, refcount, exports, defaultExport, factory, factoryFinished…}` — `entry.exports` is empty until materialized. Pull every module through `require(name)`. (Verified live: the real collections are `WAWebChatCollection.ChatCollection` ≈850 chats and `WAWebContactCollection.ContactCollection` ≈11.5k contacts, out of ~16,400 modules.) |
+| Store-bridge model field reads as `undefined` | Fields are prototype getters over mangled storage: read `unreadCount`, never `__x_unreadCount` (that's an object). Verified-live accessors: `chat.formattedTitle` (NOT `chat.name`), `chat.t`, `chat.unreadCount`, `chat.msgs.last()` (NOT `chat.lastMessage`), `message.id.fromMe` (NOT `message.fromMe`), `contact.phoneNumber`. `chat.isGroup` doesn't exist — filter groups by the JID suffix. |
+| Store-bridge preview count is low right after an account loads | Expected. `chat.msgs` fills in lazily as WhatsApp syncs — measured 2% previews at load, 82% a minute later. Phone/name/awaiting are correct immediately; only preview text lags. |
+| Need to run JS inside the app's WebView2 from outside | Launch with `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9333"` (no code change needed), then drive CDP over the WebSocket at `http://127.0.0.1:9333/json/list`. Kill the app first — the installer auto-launches it and the single-instance mutex will silently swallow your launch, leaving a port-less instance. Relaunch without the variable when done. |
 
 ---
 
