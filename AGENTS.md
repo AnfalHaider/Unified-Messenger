@@ -85,7 +85,8 @@ When bumping to a new version (e.g. `4.22.0`):
 | `UnifiedMessenger/UnifiedMessenger.csproj` | `<Version>`, `<AssemblyVersion>`, `<FileVersion>` |
 | `UnifiedMessenger/app.manifest` | `assemblyIdentity version=` |
 | `installer-shared.iss` | `#define MyAppVersion` |
-| `README.md` | `**Current release:**` line + new `### What's in vX.Y.Z` section |
+| `README.md` | `**Current release:**` line only — the README is a *product* README, not a changelog |
+| `CHANGELOG.md` | new `## vX.Y.Z` section at the top (this is where release notes live now) |
 
 Also update `docs/phase-status.md` header date + baseline version.
 
