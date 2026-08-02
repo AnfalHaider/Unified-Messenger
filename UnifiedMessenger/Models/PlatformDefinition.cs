@@ -14,6 +14,19 @@ public sealed class PlatformDefinition
 
     public string AccentColor { get; init; } = "#6B7280";
 
+    /// <summary>
+    /// Whether this platform's tab lets the owner type any address and browse freely. True only for the
+    /// generic "Custom URL" platform: a real service tab is pinned to its own site by the navigation
+    /// guard, so an address bar there would only ever produce blocked navigations.
+    /// </summary>
+    /// <remarks>Derived from <see cref="DefaultUrl"/> being empty — the same signal the start-URL
+    /// resolver already uses to decide a platform isn't host-restricted, so the two can't disagree.</remarks>
+    public bool AllowsCustomUrl => string.IsNullOrWhiteSpace(DefaultUrl);
+
+    /// <summary>Convenience lookup by platform id; unknown ids are treated as pinned (the safe default).</summary>
+    public static bool AllowsFreeBrowsing(string? platformId) =>
+        FindById(platformId)?.AllowsCustomUrl ?? false;
+
     public static IReadOnlyList<PlatformDefinition> All { get; } =
     [
         new PlatformDefinition
