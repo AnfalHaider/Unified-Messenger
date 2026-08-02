@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using UnifiedMessenger.Services.Ai;
 
 namespace UnifiedMessenger.Services;
@@ -37,11 +37,9 @@ public static class ServiceRegistration
         services.AddSingleton(_ => PersonalDashboardService.Instance);
         services.AddSingleton(_ => DashboardRefreshCoordinator.Instance);
         services.AddSingleton(_ => UnifiedMessengerStateSyncService.Instance);
-        services.AddSingleton(_ => ThreadDisplayOrderService.Instance);
         services.AddSingleton(_ => TriagePersistenceService.Instance);
         services.AddSingleton(_ => InstanceWebViewRegistry.Instance);
         services.AddSingleton(_ => ResourceMonitorService.Instance);
-        services.AddSingleton(_ => WhatsAppBusinessContextService.Instance);
         services.AddSingleton(_ => OllamaRuntimeService.Instance);
         services.AddSingleton(_ => AiInferenceQueue.Instance);
 

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Services.Ai;
 
@@ -42,11 +42,9 @@ public sealed partial class ApplicationServices
         PersonalDashboard = provider.GetRequiredService<PersonalDashboardService>();
         DashboardRefresh = provider.GetRequiredService<DashboardRefreshCoordinator>();
         StateSync = provider.GetRequiredService<UnifiedMessengerStateSyncService>();
-        ThreadDisplayOrder = provider.GetRequiredService<ThreadDisplayOrderService>();
         TriagePersistence = provider.GetRequiredService<TriagePersistenceService>();
         WebViewRegistry = provider.GetRequiredService<InstanceWebViewRegistry>();
         ResourceMonitor = provider.GetRequiredService<ResourceMonitorService>();
-        WhatsAppBusinessContext = provider.GetRequiredService<WhatsAppBusinessContextService>();
         AiInferenceClient = provider.GetRequiredService<IAiInferenceClient>();
         OllamaRuntime = provider.GetRequiredService<OllamaRuntimeService>();
         AiInferenceQueue = provider.GetRequiredService<AiInferenceQueue>();
@@ -96,15 +94,11 @@ public sealed partial class ApplicationServices
 
     public UnifiedMessengerStateSyncService StateSync { get; }
 
-    public ThreadDisplayOrderService ThreadDisplayOrder { get; }
-
     public TriagePersistenceService TriagePersistence { get; }
 
     public InstanceWebViewRegistry WebViewRegistry { get; }
 
     public ResourceMonitorService ResourceMonitor { get; }
-
-    public WhatsAppBusinessContextService WhatsAppBusinessContext { get; }
 
     public IAiInferenceClient AiInferenceClient { get; }
 

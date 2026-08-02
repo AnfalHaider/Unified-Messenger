@@ -70,7 +70,7 @@
 
 | Item | Status | Evidence / gap |
 |---|---|---|
-| Live view of a chat (L2) | ✅ | `InstanceSessionManager` + `ConversationNavigationCoordinator.NavigateToThreadAsync` |
+| Live view of a chat (L2) | ✅ | `InstanceSessionManager` + `ShellNavigationCoordinator.NavigateToInstanceAsync` |
 | Analytics baseline, no-AI (Tier 0) | ✅ | `HeuristicTriageProcessor` (keyword urgency/sentiment) |
 | SLA integrity (exclude backfilled, at-risk) | ✅ | shipped v4.5.0 (`ThreadData.IsSlaBreached/IsSlaAtRisk`) |
 | L1 WhatsApp metrics + work queue | ✅ | OCC KPIs + work queue (`OperationsCommandCenterService`) |
