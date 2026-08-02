@@ -28,6 +28,21 @@ public static class OversightSnapshotReader
         await gate.WaitAsync().ConfigureAwait(false);
         try
         {
+            // Preferred path: WhatsApp Web's in-memory model collections. They are already decrypted (so
+            // every chat carries a real preview, not just the ~60 rendered sidebar rows) and never lag a
+            // reply sent from the phone. Returns null when the bridge can't reach the collections — e.g.
+            // WhatsApp changed its module layout, or the page hasn't booted yet — and we fall through.
+            if (AppSettingsService.Instance.Settings.UseStoreBridge)
+            {
+                var viaBridge = await RunStoreBridgeScanAsync(instance).ConfigureAwait(false);
+                if (viaBridge is not null)
+                {
+                    return viaBridge;
+                }
+            }
+
+            // Fallback: the persisted IndexedDB chat store, plus a sidebar-DOM preview harvest (the only
+            // plaintext preview source available to that path, since bodies are encrypted at rest).
             if (harvestPreviews)
             {
                 await HarvestPreviewsAsync(instance).ConfigureAwait(false);
@@ -40,6 +55,132 @@ public static class OversightSnapshotReader
             gate.Release();
         }
     }
+
+    /// <summary>
+    /// Runs the in-memory store-bridge scan. The read itself is synchronous inside the page, but module
+    /// discovery can miss while WhatsApp Web is still booting, so this keeps the start/poll shape and
+    /// retries briefly. Returns null on any failure so the caller falls back to the IndexedDB scan.
+    /// </summary>
+    private static async Task<RefreshResult?> RunStoreBridgeScanAsync(MessengerInstance instance)
+    {
+        for (var attempt = 0; attempt < 6; attempt++) // ~3s of retries while the page finishes booting
+        {
+            var started = await InstanceConnection.Current
+                .ExecuteScriptAsync(
+                    instance.Id,
+                    "window.__umStartStoreScan ? window.__umStartStoreScan(2000) : 'NOFN'")
+                .ConfigureAwait(false);
+
+            if (started is not null && started.Contains("NOFN", StringComparison.Ordinal))
+            {
+                RecordBridgeFailure(instance.Id, "not-injected");
+                return null; // bridge script isn't present on this page at all
+            }
+
+            var raw = await InstanceConnection.Current
+                .ExecuteScriptAsync(
+                    instance.Id,
+                    "window.__umGetStoreScanResult ? window.__umGetStoreScanResult() : 'NOFN'")
+                .ConfigureAwait(false);
+
+            if (string.IsNullOrWhiteSpace(raw) || raw == "null" || raw == "\"\"")
+            {
+                await Task.Delay(500).ConfigureAwait(false);
+                continue;
+            }
+
+            if (raw.Contains("NOFN", StringComparison.Ordinal))
+            {
+                RecordBridgeFailure(instance.Id, "not-injected");
+                return null;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(JsonSerializer.Deserialize<string>(raw) ?? "");
+                var root = doc.RootElement;
+                var diag = root.TryGetProperty("diag", out var d) ? d : default;
+                var stage = diag.ValueKind == JsonValueKind.Object &&
+                            diag.TryGetProperty("stage", out var s)
+                    ? s.GetString() ?? "unknown"
+                    : "unknown";
+
+                if (stage != "done")
+                {
+                    // 'no-store' means discovery failed (WhatsApp shape changed, or still booting);
+                    // 'empty' means it resolved but found nothing yet. Retry briefly, then fall back.
+                    await Task.Delay(500).ConfigureAwait(false);
+                    if (attempt == 5)
+                    {
+                        RecordBridgeFailure(instance.Id, stage);
+                    }
+                    continue;
+                }
+
+                var chats = ChatEntryParser.ParseConversations(root);
+                if (chats.Count == 0)
+                {
+                    RecordBridgeFailure(instance.Id, "parsed-empty");
+                    return null;
+                }
+
+                OversightChatSnapshotService.Instance.Update(instance.Id, chats, DateTimeOffset.UtcNow);
+
+                StoreBridgeHealth.Record(instance.Id, new StoreBridgeHealth.Entry(
+                    Succeeded: true,
+                    Stage: stage,
+                    Strategy: ReadDiagString(diag, "strategy"),
+                    Conversations: chats.Count,
+                    WithPreview: ReadDiagInt(diag, "withPreview"),
+                    AtUtc: DateTimeOffset.UtcNow));
+
+                if (OversightChatSnapshotService.Instance.TryGetWindowed(
+                        instance.Id, null, out var active, out var caughtUp))
+                {
+                    return new RefreshResult(active, caughtUp, active - caughtUp);
+                }
+
+                return new RefreshResult(chats.Count, chats.Count, 0);
+            }
+            catch (JsonException)
+            {
+                RecordBridgeFailure(instance.Id, "parse-error");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.LogWarning($"StoreBridge.{instance.Id}", $"Bridge scan failed: {ex.Message}");
+                RecordBridgeFailure(instance.Id, "exception");
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static void RecordBridgeFailure(string instanceId, string stage) =>
+        StoreBridgeHealth.Record(instanceId, new StoreBridgeHealth.Entry(
+            Succeeded: false,
+            Stage: stage,
+            Strategy: string.Empty,
+            Conversations: 0,
+            WithPreview: 0,
+            AtUtc: DateTimeOffset.UtcNow));
+
+    private static string ReadDiagString(JsonElement diag, string name) =>
+        diag.ValueKind == JsonValueKind.Object &&
+        diag.TryGetProperty(name, out var v) &&
+        v.ValueKind == JsonValueKind.String
+            ? v.GetString() ?? string.Empty
+            : string.Empty;
+
+    private static int ReadDiagInt(JsonElement diag, string name) =>
+        diag.ValueKind == JsonValueKind.Object &&
+        diag.TryGetProperty(name, out var v) &&
+        v.ValueKind == JsonValueKind.Number &&
+        v.TryGetInt32(out var i)
+            ? i
+            : 0;
 
     /// <summary>
     /// Scrolls the sidebar to harvest last-message previews for off-screen chats into a persistent JS map

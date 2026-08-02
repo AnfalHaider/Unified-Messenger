@@ -32,6 +32,15 @@ public sealed class AppSettings
 
     public bool IncludeMutedChatBadges { get; set; }
 
+    /// <summary>
+    /// Read oversight data from WhatsApp Web's in-memory model collections instead of its persisted
+    /// IndexedDB store. The in-memory models are already decrypted (so every chat gets a real preview,
+    /// not just the ~60 rendered sidebar rows) and never lag behind a reply sent from the phone. Falls
+    /// back to the IndexedDB scan automatically whenever the bridge can't reach the collections, so
+    /// turning this off is only needed to force the legacy path for diagnosis.
+    /// </summary>
+    public bool UseStoreBridge { get; set; } = true;
+
     public bool ToastGroupByInstance { get; set; } = true;
 
     public bool ToastUsePlatformBranding { get; set; } = true;

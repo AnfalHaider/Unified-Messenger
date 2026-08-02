@@ -232,10 +232,11 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 | Test filter too broad → hangs headless | Use exact class names in `--filter`, not loose substrings |
 | `NullPlatformAdapter.PlatformId` is `"generic"` not `"whatsapp"` | Adapter factory tests for new platforms expect `"generic"` |
 | Unsaved contacts show `@lid` JIDs, not phone numbers | Phone is in the `contact` store's `phoneNumber` field, keyed by `@lid` id. The `lid-pn-mapping` store is empty — don't use it. (See P2-A section.) |
-| Message preview is blank | Bodies are encrypted at rest (`msgRowOpaqueData`); harvest preview from the live sidebar DOM (`__umStartPreviewHarvest`), not IndexedDB. |
+| Message preview is blank | **Preferred:** the store bridge (`whatsapp-store-bridge.js`) reads the decrypted in-memory models — previews for every chat. **Fallback only:** bodies are encrypted at rest (`msgRowOpaqueData`), so the IndexedDB path harvests preview from the live sidebar DOM (`__umStartPreviewHarvest`). |
 | Scraper JS change doesn't take effect after install | Adapter is injected on document creation only. Reload the page (Re-sync now does this automatically) or right-click account → Refresh WebView. |
 | Background webview throttles `setTimeout` (~1/sec) | Don't rely on timed loops (e.g. scroll harvest) in non-visible webviews; do synchronous single-pass DOM reads. |
-| `ChatEntry` field added but not populated | TWO parse paths build it: `WhatsAppBackfillProvider.ProcessIndexedDbConversationsAsync` AND `OversightSnapshotReader.ParseChatEntries`. Update both. |
+| `ChatEntry` field added but not populated | All readers now funnel through `ChatEntryParser.ParseConversations` (backfill, oversight, and the store bridge). Add the field there once — but make sure **both producers** emit it: `whatsapp-adapter.js` (IndexedDB scan) and `whatsapp-store-bridge.js` (in-memory scan). |
+| Store bridge silently stops working after a WhatsApp Web update | By design it fails soft to the IndexedDB scan, so metrics keep flowing and the regression is invisible. Check Settings → Data → "Store bridge" health line, or run `window.__umStoreBridgeProbe()` in DevTools on the account's page — it reports which discovery strategy matched and which collections resolved. |
 
 ---
 
