@@ -174,6 +174,8 @@ public sealed partial class SettingsPage : Page
         EnablePerInstanceSleepUnloadToggle.IsOn = settings.EnablePerInstanceSleepUnload;
         EnableEditInstanceMetadataToggle.IsOn = settings.EnableEditInstanceMetadata;
         EnableImportExportInstancesToggle.IsOn = settings.EnableImportExportInstances;
+        UseStoreBridgeToggle.IsOn = settings.UseStoreBridge;
+        RefreshStoreBridgeHealth();
         EnableInstanceNotesTagsToggle.IsOn = settings.EnableInstanceNotesTags;
         RunInBackgroundOnCloseToggle.IsOn = settings.RunInBackgroundOnClose;
         DashboardUrgencyThresholdBox.Value = settings.DashboardUrgencyThreshold;

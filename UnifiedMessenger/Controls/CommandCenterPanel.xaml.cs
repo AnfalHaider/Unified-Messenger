@@ -1108,6 +1108,85 @@ public sealed partial class CommandCenterPanel : UserControl
         return stack;
     }
 
+    /// <summary>
+    /// A chip naming this entity's session state — but only when there is something worth saying.
+    /// A healthy (Working) session gets no chip: putting one on every card would turn the signal into
+    /// wallpaper, and the whole point is that a stalled account stands out.
+    /// </summary>
+    /// <remarks>
+    /// A location card rolls up to its <b>worst</b> member, so a branch with one signed-out account can't
+    /// hide behind its healthy siblings — the same reasoning as the least-fresh freshness stamp above.
+    /// </remarks>
+    private FrameworkElement? BuildSessionStateChip(OversightEntityHealth entity)
+    {
+        var state = ResolveWorstSessionState(entity);
+        if (state == SessionState.Working)
+        {
+            return null;
+        }
+
+        var (background, foreground) = state switch
+        {
+            SessionState.Failed => ("SystemFillColorCriticalBackgroundBrush", "SystemFillColorCriticalBrush"),
+            SessionState.ScanQr => ("SystemFillColorCautionBackgroundBrush", "SystemFillColorCautionBrush"),
+            SessionState.Degraded => ("SystemFillColorCautionBackgroundBrush", "SystemFillColorCautionBrush"),
+            _ => ("SystemFillColorNeutralBackgroundBrush", "TextFillColorSecondaryBrush")
+        };
+
+        var label = SessionStateProjection.ToLabel(state);
+        var chip = new Border
+        {
+            Background = Brush(background),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(6, 1, 6, 1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = label,
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brush(foreground)
+            }
+        };
+
+        var description = SessionStateProjection.ToDescription(state);
+        ToolTipService.SetToolTip(chip, description);
+        // Colour alone can't carry this (WCAG 1.4.1) — the text label does, and screen readers get the
+        // full explanation rather than just the one-word chip.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(chip, $"{label}. {description}");
+
+        return chip;
+    }
+
+    private static SessionState ResolveWorstSessionState(OversightEntityHealth entity)
+    {
+        var nowUtc = DateTimeOffset.UtcNow;
+        var worst = SessionState.Working;
+        var sawAny = false;
+
+        foreach (var instanceId in entity.MemberInstanceIds)
+        {
+            var state = SessionStateProjection.Resolve(instanceId, nowUtc);
+            sawAny = true;
+            if (SessionSeverity(state) > SessionSeverity(worst))
+            {
+                worst = state;
+            }
+        }
+
+        return sawAny ? worst : SessionState.Working;
+    }
+
+    private static int SessionSeverity(SessionState state) => state switch
+    {
+        SessionState.Working => 0,
+        SessionState.Starting => 1,
+        SessionState.Degraded => 2,
+        SessionState.ScanQr => 3,
+        SessionState.Failed => 4,
+        _ => 0
+    };
+
     private static string RelativeAge(DateTimeOffset whenUtc)
     {
         var span = DateTimeOffset.UtcNow - whenUtc;
@@ -1744,13 +1823,31 @@ public sealed partial class CommandCenterPanel : UserControl
             : entity.DisplayName;
         var nameColumn = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 1 };
         Grid.SetColumn(nameColumn, 1);
-        nameColumn.Children.Add(new TextBlock
+
+        // Name line, plus a session-state chip when (and only when) the session isn't healthy. A chip on
+        // every card would be decoration; a chip that appears only for Starting / Scan QR / Stale / Failed
+        // is signal, and matches the panel's worst-first philosophy.
+        var nameLine = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        nameLine.Children.Add(new TextBlock
         {
             Text = nameText,
             FontWeight = FontWeights.SemiBold,
             FontSize = 14,
+            VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
+
+        if (BuildSessionStateChip(entity) is { } sessionChip)
+        {
+            nameLine.Children.Add(sessionChip);
+        }
+
+        nameColumn.Children.Add(nameLine);
         if (!_compact)
         {
             // Per-card data freshness: when this account's chats were last read. Locations show their
@@ -1777,7 +1874,7 @@ public sealed partial class CommandCenterPanel : UserControl
             nameColumn.Children.Add(freshnessBlock);
         }
 
-        // Awaiting pill (right-aligned): a soft danger chip when behind, quiet text when caught up.
+            // Awaiting pill (right-aligned): a soft danger chip when behind, quiet text when caught up.
         FrameworkElement awaitingVisual;
         if (!entity.HasChatData || !hasLiveData)
         {
