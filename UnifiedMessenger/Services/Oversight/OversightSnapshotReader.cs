@@ -134,13 +134,13 @@ public static class OversightSnapshotReader
                     WithPreview: ReadDiagInt(diag, "withPreview"),
                     AtUtc: DateTimeOffset.UtcNow));
 
-                if (OversightChatSnapshotService.Instance.TryGetWindowed(
-                        instance.Id, null, out var active, out var caughtUp))
-                {
-                    return new RefreshResult(active, caughtUp, active - caughtUp);
-                }
+                var result = OversightChatSnapshotService.Instance.TryGetWindowed(
+                    instance.Id, null, out var active, out var caughtUp)
+                    ? new RefreshResult(active, caughtUp, active - caughtUp)
+                    : new RefreshResult(chats.Count, chats.Count, 0);
 
-                return new RefreshResult(chats.Count, chats.Count, 0);
+                PublishSnapshotEvent(instance, result, "store-bridge");
+                return result;
             }
             catch (JsonException)
             {
@@ -157,6 +157,20 @@ public static class OversightSnapshotReader
 
         return null;
     }
+
+    /// <summary>
+    /// Announces a fresh read so consumers (dashboard, rollup) can react immediately instead of waiting
+    /// for their own redraw timer. Carries the source so a "why is this stale?" question is answerable.
+    /// </summary>
+    private static void PublishSnapshotEvent(MessengerInstance instance, RefreshResult result, string source) =>
+        ChannelEventBus.Instance.Publish(new ChannelSnapshotEvent(
+            instance.Id,
+            PlatformDefinition.NormalizePlatformId(instance.Platform),
+            DateTimeOffset.UtcNow,
+            result.Active,
+            result.CaughtUp,
+            result.Awaiting,
+            source));
 
     private static void RecordBridgeFailure(string instanceId, string stage) =>
         StoreBridgeHealth.Record(instanceId, new StoreBridgeHealth.Entry(
@@ -282,12 +296,13 @@ public static class OversightSnapshotReader
                 // on the phone clears it without anyone replying, and it lags per linked device, so two installs
                 // of the same accounts disagree. Direction (last message fromMe) is message content, so it syncs
                 // identically to every device. Update() ran synchronously above, so the snapshot is present.
-                if (OversightChatSnapshotService.Instance.TryGetWindowed(instance.Id, null, out var active, out var caughtUp))
-                {
-                    return new RefreshResult(active, caughtUp, active - caughtUp);
-                }
+                var result = OversightChatSnapshotService.Instance.TryGetWindowed(
+                    instance.Id, null, out var active, out var caughtUp)
+                    ? new RefreshResult(active, caughtUp, active - caughtUp)
+                    : new RefreshResult(chats.Count, chats.Count, 0);
 
-                return new RefreshResult(chats.Count, chats.Count, 0);
+                PublishSnapshotEvent(instance, result, "indexeddb");
+                return result;
             }
             catch
             {

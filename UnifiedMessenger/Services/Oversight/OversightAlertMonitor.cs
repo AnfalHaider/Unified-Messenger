@@ -12,10 +12,21 @@ namespace UnifiedMessenger.Services;
 public sealed class OversightAlertMonitor
 {
     public const int DefaultAwaitingThreshold = 5;
-    // Re-read each account's unread snapshot every 90s so the command center reflects new activity on its own
-    // (the dashboard already re-renders every 20s) — the owner rarely needs a manual Re-sync for awaiting
-    // counts. The scan is a bounded chat-store read, so this cadence stays light.
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(90);
+
+    // Cadence is adaptive because the two readers cost wildly different amounts. The IndexedDB scan does a
+    // bounded getAll over the whole chat store behind a 20s watchdog, so 90s is about as often as it can
+    // reasonably run. The store bridge is a synchronous read of already-loaded in-memory models — cheap
+    // enough to run far more often, which is what actually makes awaiting counts feel live.
+    internal static readonly TimeSpan LegacyPollInterval = TimeSpan.FromSeconds(90);
+    internal static readonly TimeSpan BridgePollInterval = TimeSpan.FromSeconds(25);
+
+    /// <summary>
+    /// Poll on the fast cadence only once the bridge is actually carrying every account we're polling.
+    /// A mixed fleet (one account on the bridge, one fallen back to IndexedDB) keeps the slow cadence, so
+    /// we never hammer the expensive reader just because a different account happens to be cheap.
+    /// </summary>
+    internal static TimeSpan ResolvePollInterval(int bridgeActive, int attempted) =>
+        attempted > 0 && bridgeActive == attempted ? BridgePollInterval : LegacyPollInterval;
 
     private static readonly Lazy<OversightAlertMonitor> LazyInstance = new(() => new OversightAlertMonitor());
 
@@ -48,7 +59,7 @@ public sealed class OversightAlertMonitor
         _ui = ui;
 
         _timer = ui.CreateTimer();
-        _timer.Interval = PollInterval;
+        _timer.Interval = LegacyPollInterval; // starts cautious; speeds up once the bridge proves itself
         _timer.Tick += (_, _) => _ = TickAsync();
         _timer.Start();
 
@@ -122,6 +133,25 @@ public sealed class OversightAlertMonitor
         finally
         {
             _running = false;
+            ApplyAdaptiveCadence();
+        }
+    }
+
+    /// <summary>
+    /// Retunes the timer after each pass. Done here rather than at Start because whether the bridge works
+    /// isn't knowable until we've actually tried it against a loaded page.
+    /// </summary>
+    private void ApplyAdaptiveCadence()
+    {
+        if (_timer is null)
+        {
+            return;
+        }
+
+        var interval = ResolvePollInterval(StoreBridgeHealth.ActiveCount, StoreBridgeHealth.AttemptedCount);
+        if (_timer.Interval != interval)
+        {
+            _timer.Interval = interval;
         }
     }
 }
