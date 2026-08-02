@@ -28,9 +28,64 @@ public class WhatsAppStoreBridgeTests
         var script = ReadScript();
 
         // Module names churn between WhatsApp Web releases, so discovery must have more than one route in.
+        Assert.Contains("known-name", script, StringComparison.Ordinal);
         Assert.Contains("debug-require", script, StringComparison.Ordinal);
         Assert.Contains("webpack-chunk", script, StringComparison.Ordinal);
         Assert.Contains("module-cache", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StoreBridge_MaterializesModulesThroughRequire()
+    {
+        var script = ReadScript();
+
+        // Regression guard for the bug found on the live page: modulesMap values are module
+        // DESCRIPTORS, not exports. Reading entry.exports directly returns an empty object, which made
+        // discovery match a 1-element decoy instead of the real 851-chat collection. Every discovery
+        // path must pull the module through require(name).
+        Assert.Contains("req(moduleName)", script, StringComparison.Ordinal);
+        Assert.Contains("req(key)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("entry.defaultExport || entry.exports", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StoreBridge_KnowsTheVerifiedCollectionNames()
+    {
+        var script = ReadScript();
+
+        Assert.Contains("WAWebChatCollection", script, StringComparison.Ordinal);
+        Assert.Contains("WAWebContactCollection", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StoreBridge_UsesTheAccessorsThatActuallyExist()
+    {
+        var script = ReadScript();
+
+        // Verified live: chat.name, chat.isGroup, message.fromMe and chat.lastMessage are all absent or
+        // unreliable on the real models. These are the accessors that work.
+        Assert.Contains("formattedTitle", script, StringComparison.Ordinal);
+        Assert.Contains("msgs.last", script, StringComparison.Ordinal);
+        Assert.Contains("message.id.fromMe", script, StringComparison.Ordinal);
+        // The mangled backing fields must never be READ — they hold wrapper objects, not values.
+        // (Matches property access like `chat.__x_unreadCount`; the header comment naming the field is
+        // documentation and is intentionally allowed.)
+        Assert.DoesNotContain(".__x_", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StoreBridge_DiscoveryCapExceedsTheRealModuleCount()
+    {
+        var script = ReadScript();
+
+        // WhatsApp Web ships ~16,400 modules (measured live). A cap below that silently truncates
+        // discovery before it reaches the collections — the original 12000 did exactly that.
+        var match = System.Text.RegularExpressions.Regex.Match(
+            script, @"MAX_DISCOVERY_MODULES\s*=\s*(\d+)");
+        Assert.True(match.Success, "MAX_DISCOVERY_MODULES not found");
+        Assert.True(
+            int.Parse(match.Groups[1].Value) >= 20000,
+            $"Discovery cap {match.Groups[1].Value} is too low for a ~16,400-module page.");
     }
 
     [Fact]

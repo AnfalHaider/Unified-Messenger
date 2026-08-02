@@ -1,4 +1,4 @@
-// whatsapp-store-bridge.js — READ-ONLY access to WhatsApp Web's in-memory model collections.
+﻿// whatsapp-store-bridge.js — READ-ONLY access to WhatsApp Web's in-memory model collections.
 //
 // Why this exists
 // ---------------
@@ -21,9 +21,25 @@
 // * SAME ENVELOPE. The scan result is byte-compatible with the IndexedDB scan's shape, so the C# side
 //   (ChatEntryParser) parses either source with no changes.
 //
-// Discovery is by CAPABILITY, not by module name. Module names (WAWebChatCollection, …) churn between
-// releases and several look-alike modules export a `Chat` property; matching on the actual shape of the
-// data ("has getModelsArray(), models have an id and a numeric unreadCount") survives renames.
+// Discovery tries the KNOWN module names first (WAWebChatCollection / WAWebContactCollection — two
+// lookups instead of walking 16k modules), then falls back to a CAPABILITY scan if those are renamed.
+// Either way the result is validated by the same shape probe, so a rename degrades to the scan rather
+// than silently handing back a look-alike collection.
+//
+// Two facts, both established against a live logged-in account (Aug 2026) and both easy to get wrong:
+//   * `require('__debug').modulesMap` values are module DESCRIPTORS, not exports. You must pull each
+//     module through `require(name)`. Reading `entry.exports` directly yields an empty object, which is
+//     how the first version of this file matched a 1-element decoy instead of the real 851-chat store.
+//   * Model fields are prototype getters over mangled backing storage: `__x_unreadCount` is an object,
+//     `unreadCount` is the number. Always read the clean name. Several obvious names simply don't
+//     exist — `chat.name`, `chat.isGroup` and `message.fromMe` are all undefined; the working accessors
+//     are `chat.formattedTitle`, the JID suffix, and `message.id.fromMe`. `chat.lastMessage` is also
+//     absent — `chat.msgs.last()` is the path that works.
+//
+// Preview coverage WARMS UP. `chat.msgs` is populated lazily as WhatsApp syncs, so a scan run seconds
+// after load reports very few previews (measured: 2% at load, 82% a minute later on the same account).
+// Phone/name/awaiting are correct immediately — only the preview text lags. Nothing to fix; just don't
+// read a low withPreview on a freshly-loaded account as a discovery failure.
 (function () {
   'use strict';
 
@@ -31,7 +47,15 @@
     return;
   }
 
-  var MAX_DISCOVERY_MODULES = 12000;
+  // WhatsApp Web ships ~16,400 modules (measured live, Aug 2026). The cap only bounds the fallback
+  // capability scan; keep it comfortably above the real count or discovery silently truncates before
+  // reaching the collections — which is exactly how the first version of this file failed.
+  var MAX_DISCOVERY_MODULES = 40000;
+
+  // Verified against a live logged-in account (Aug 2026). These are checked with the same capability
+  // probe as everything else, so a rename degrades to the scan instead of silently yielding a decoy.
+  var KNOWN_CHAT_COLLECTIONS = [['WAWebChatCollection', 'ChatCollection']];
+  var KNOWN_CONTACT_COLLECTIONS = [['WAWebContactCollection', 'ContactCollection']];
 
   // Diagnostics are cheap and the only way to tune this against a live account without guessing.
   // Read them from DevTools with: window.__umStore.diagnostics()
@@ -39,17 +63,16 @@
     strategy: null,
     strategiesTried: [],
     moduleCount: 0,
+    moduleTotal: 0,
     chatCollection: false,
     contactCollection: false,
-    connState: false,
     discoveredAtMs: 0,
     errors: []
   };
 
   var store = {
     chat: null,      // collection of chat models
-    contact: null,   // collection of contact models
-    conn: null       // connection/socket state model
+    contact: null    // collection of contact models
   };
 
   function note(error, where) {
@@ -62,36 +85,107 @@
   }
 
   // ---------------------------------------------------------------------------------------------
-  // Module discovery — three strategies, most-modern first.
+  // Module discovery — known names first, then three capability-scan fallbacks.
   // ---------------------------------------------------------------------------------------------
 
-  // Strategy 1 (current WhatsApp Web): the app ships a debug hook exposing its module map keyed by
-  // readable names. Cheapest and most stable when present.
-  function collectViaDebugRequire() {
-    var out = [];
+  function requireFn() {
+    var req = window.require || (window.self && window.self.require);
+    return typeof req === 'function' ? req : null;
+  }
+
+  /// Returns the module-name map from the debug hook, or null.
+  //
+  // IMPORTANT: the values in this map are module DESCRIPTORS
+  // ({ id, refcount, exports, defaultExport, factory, factoryFinished, … }) — NOT the loaded exports.
+  // Reading `entry.exports` directly gives you an empty object for anything not yet materialized, so
+  // the module must be pulled through require(name) to get the real thing. Getting this wrong is what
+  // made the first version of this file match a 1-element decoy instead of the 851-chat collection.
+  function debugModuleMap() {
     try {
-      var req = window.require || (window.self && window.self.require);
-      if (typeof req !== 'function') {
-        return out;
+      var req = requireFn();
+      if (!req) {
+        return null;
       }
       var debugModule = req('__debug');
       if (!debugModule) {
-        return out;
+        return null;
       }
-      var map = debugModule.modulesMap || debugModule.modules || null;
-      if (!map) {
-        return out;
-      }
-      var keys = Object.keys(map);
-      for (var i = 0; i < keys.length && out.length < MAX_DISCOVERY_MODULES; i++) {
+      return debugModule.modulesMap || debugModule.modules || null;
+    } catch (error) {
+      note(error, 'debug-map');
+      return null;
+    }
+  }
+
+  // Strategy 1: pull the known collection modules straight through require(). Cheapest by far — two
+  // lookups instead of walking 16k modules — and it does not force any lazy module to load.
+  function discoverByKnownName() {
+    var req = requireFn();
+    var map = debugModuleMap();
+    if (!req || !map) {
+      return false;
+    }
+
+    function tryPairs(pairs, validate) {
+      for (var i = 0; i < pairs.length; i++) {
+        var moduleName = pairs[i][0];
+        var propertyName = pairs[i][1];
         try {
-          var entry = map[keys[i]];
-          // Entries are either the loaded exports or a wrapper carrying them.
-          var exports = entry && (entry.defaultExport || entry.exports || entry);
+          if (!(moduleName in map)) {
+            continue;
+          }
+          var exports = req(moduleName);
+          if (!exports) {
+            continue;
+          }
+          var candidate = exports[propertyName] || exports;
+          if (validate(candidate)) {
+            return candidate;
+          }
+        } catch (perModule) { /* fall through to the next candidate */ }
+      }
+      return null;
+    }
+
+    try {
+      diag.moduleTotal = Object.keys(map).length;
+    } catch (ignored) { /* count is diagnostics only */ }
+
+    store.chat = store.chat || tryPairs(KNOWN_CHAT_COLLECTIONS, looksLikeChatCollection);
+    store.contact = store.contact || tryPairs(KNOWN_CONTACT_COLLECTIONS, looksLikeContactCollection);
+    return !!store.chat;
+  }
+
+  // Strategy 2: capability scan over the named module map, materializing each candidate via require().
+  // Restricted to modules WhatsApp has already finished loading (`factoryFinished`) so we never execute
+  // an unrelated lazy module's factory inside the owner's live session just to look at it.
+  function collectViaDebugRequire() {
+    var out = [];
+    try {
+      var req = requireFn();
+      var map = debugModuleMap();
+      if (!req || !map) {
+        return out;
+      }
+
+      var keys = Object.keys(map);
+      diag.moduleTotal = keys.length;
+      for (var i = 0; i < keys.length && out.length < MAX_DISCOVERY_MODULES; i++) {
+        var key = keys[i];
+        // Only collections can hold the models we want; skip the rest to keep this cheap.
+        if (!/collection|store/i.test(key)) {
+          continue;
+        }
+        try {
+          var descriptor = map[key];
+          if (descriptor && descriptor.factoryFinished === false) {
+            continue; // not loaded yet — requiring it would run its factory
+          }
+          var exports = req(key);
           if (exports) {
             out.push(exports);
           }
-        } catch (perModule) { /* a module that throws on access is not one we want */ }
+        } catch (perModule) { /* a module that throws when required is not one we want */ }
       }
     } catch (error) {
       note(error, 'debug-require');
@@ -99,7 +193,7 @@
     return out;
   }
 
-  // Strategy 2 (moduleRaid technique): push a synthetic chunk onto the webpack chunk array and use the
+  // Strategy 3 (moduleRaid technique): push a synthetic chunk onto the webpack chunk array and use the
   // require function handed to our callback to materialize every registered module.
   function collectViaWebpackChunk() {
     var out = [];
@@ -143,7 +237,7 @@
     return out;
   }
 
-  // Strategy 3 (last resort): some builds keep a populated module cache we can read directly.
+  // Strategy 4 (last resort): some builds keep a populated module cache we can read directly.
   function collectViaModuleCache() {
     var out = [];
     try {
@@ -190,27 +284,35 @@
     return null;
   }
 
+  // A chat model carries a serialized id, a numeric unread count, a numeric last-activity stamp, and a
+  // `msgs` sub-collection. Requiring all four together is what separates the real 851-chat collection
+  // from the small look-alikes that also expose an id and an unreadCount.
+  //
+  // Note the accessors are prototype getters over mangled backing fields (`__x_unreadCount` is an
+  // object, `unreadCount` is the number) — always read the clean name, never the `__x_` one.
   function looksLikeChatCollection(candidate) {
     var models = modelsOf(candidate);
     if (!models || models.length === 0) {
       return false;
     }
-    // Sample the front of the collection: a chat model has an id and a numeric unread count, and
-    // virtually always a numeric last-activity stamp (`t`).
     var sampled = 0;
-    for (var i = 0; i < models.length && sampled < 5; i++) {
+    for (var i = 0; i < models.length && sampled < 8; i++) {
       var m = models[i];
-      if (!m || !m.id) {
+      if (!m || !m.id || !serializedId(m.id)) {
         continue;
       }
       sampled++;
-      if (typeof m.unreadCount === 'number' && (typeof m.t === 'number' || typeof m.t === 'undefined')) {
+      if (typeof m.unreadCount === 'number' && typeof m.t === 'number' && m.msgs) {
         return true;
       }
     }
     return false;
   }
 
+  // A contact model carries a serialized id plus a push name / display name, and — for the @lid privacy
+  // contacts this app depends on — a phoneNumber. It has no `msgs`, which is what separates it from a
+  // chat collection. (Only ~44% of contacts carry a phoneNumber, so presence of the accessor is checked
+  // rather than a value on the first model.)
   function looksLikeContactCollection(candidate) {
     var models = modelsOf(candidate);
     if (!models || models.length === 0) {
@@ -219,30 +321,17 @@
     var sampled = 0;
     for (var i = 0; i < models.length && sampled < 8; i++) {
       var m = models[i];
-      if (!m || !m.id) {
+      if (!m || !m.id || !serializedId(m.id) || m.msgs) {
         continue;
       }
       sampled++;
-      // Contact models carry a phone number and/or a push name; chat models carry neither.
-      if ('phoneNumber' in m || 'pushname' in m || 'isMyContact' in m) {
+      if ('phoneNumber' in m || 'pushname' in m || typeof m.name === 'string') {
         return true;
       }
     }
     return false;
   }
 
-  function looksLikeConnState(candidate) {
-    try {
-      if (!candidate || typeof candidate !== 'object') {
-        return false;
-      }
-      return ('state' in candidate && 'stream' in candidate) ||
-        typeof candidate.canSend === 'boolean' ||
-        ('state' in candidate && 'displayInfo' in candidate);
-    } catch (error) {
-      return false;
-    }
-  }
 
   // Walk a module's exports and its shallow properties looking for our collections.
   function inspectModule(exports) {
@@ -269,15 +358,27 @@
       if (!store.contact && looksLikeContactCollection(candidate)) {
         store.contact = candidate;
       }
-      if (!store.conn && looksLikeConnState(candidate)) {
-        store.conn = candidate;
-      }
     }
   }
 
   function discover() {
     if (store.chat) {
       return true;
+    }
+
+    // Fast path first: the known module names, verified by the same capability probe as everything
+    // else so a WhatsApp rename falls through to the scan rather than yielding a decoy collection.
+    try {
+      diag.strategiesTried.push('known-name');
+      if (discoverByKnownName()) {
+        diag.strategy = 'known-name';
+        diag.chatCollection = !!store.chat;
+        diag.contactCollection = !!store.contact;
+        diag.discoveredAtMs = Date.now();
+        return true;
+      }
+    } catch (error) {
+      note(error, 'known-name');
     }
 
     var strategies = [
@@ -299,7 +400,7 @@
         try {
           inspectModule(modules[i]);
         } catch (perModule) { /* keep scanning */ }
-        if (store.chat && store.contact && store.conn) {
+        if (store.chat && store.contact) {
           break;
         }
       }
@@ -312,7 +413,6 @@
 
     diag.chatCollection = !!store.chat;
     diag.contactCollection = !!store.contact;
-    diag.connState = !!store.conn;
     diag.discoveredAtMs = Date.now();
     return !!store.chat;
   }
@@ -483,8 +583,14 @@
 
     if (!discover()) {
       scanDiag.stage = 'no-store';
+      scanDiag.strategy = diag.strategy;
       return { ok: false, conversations: [], diag: scanDiag };
     }
+
+    // Read the strategy AFTER discovery — it isn't known before, and reporting null here is what makes
+    // the Settings health line unable to say how the bridge got in.
+    scanDiag.strategy = diag.strategy;
+    scanDiag.moduleTotal = diag.moduleTotal;
 
     var models = modelsOf(store.chat);
     if (!models) {
@@ -597,36 +703,6 @@
     return { ok: conversations.length > 0, conversations: conversations, diag: scanDiag };
   }
 
-  // ---------------------------------------------------------------------------------------------
-  // Connection state — mapped onto the session status machine the host understands.
-  // ---------------------------------------------------------------------------------------------
-
-  function connectionState() {
-    try {
-      if (!discover() || !store.conn) {
-        return 'unknown';
-      }
-      var raw = String(store.conn.state || store.conn.stream || '').toUpperCase();
-      if (raw.indexOf('CONNECTED') >= 0 || raw === 'MAIN') {
-        return 'working';
-      }
-      if (raw.indexOf('SYNCING') >= 0 || raw.indexOf('RESUMING') >= 0 || raw.indexOf('OPENING') >= 0) {
-        return 'syncing';
-      }
-      if (raw.indexOf('UNPAIRED') >= 0 || raw.indexOf('QR') >= 0 || raw.indexOf('LOGOUT') >= 0) {
-        return 'scan-qr';
-      }
-      if (raw.indexOf('CONFLICT') >= 0 || raw.indexOf('DEPRECATED') >= 0 || raw.indexOf('PROXYBLOCK') >= 0) {
-        return 'failed';
-      }
-      if (raw.indexOf('OFFLINE') >= 0 || raw.indexOf('DISCONNECTED') >= 0) {
-        return 'degraded';
-      }
-    } catch (error) {
-      note(error, 'conn-state');
-    }
-    return 'unknown';
-  }
 
   // ---------------------------------------------------------------------------------------------
   // Host-facing API. Start/poll shape mirrors the IndexedDB scan even though the read is synchronous:
@@ -642,7 +718,6 @@
         return false;
       }
     },
-    connectionState: connectionState,
     diagnostics: function () {
       return JSON.stringify(diag);
     }
@@ -679,10 +754,10 @@
       ready: ready,
       strategy: diag.strategy,
       moduleCount: diag.moduleCount,
+      moduleTotal: diag.moduleTotal,
       chat: diag.chatCollection,
       contact: diag.contactCollection,
-      conn: diag.connState,
-      connectionState: ready ? connectionState() : 'unknown'
+      contact: diag.contactCollection
     });
   };
 
