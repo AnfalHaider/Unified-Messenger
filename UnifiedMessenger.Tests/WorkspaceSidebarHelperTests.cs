@@ -6,15 +6,61 @@ namespace UnifiedMessenger.Tests;
 public class WorkspaceSidebarHelperTests
 {
     [Theory]
-    [InlineData(true, "inst-1", WorkspaceSidebarHelper.DashboardSelectionKey)]
-    [InlineData(false, null, WorkspaceSidebarHelper.DashboardSelectionKey)]
-    [InlineData(false, "  inst-whatsapp  ", "inst-whatsapp")]
-    public void ResolveSelectionKey_NormalizesDashboardAndInstanceSelection(
-        bool dashboardSelected,
+    [InlineData(ShellSection.Dashboard, null, WorkspaceSidebarHelper.DashboardSelectionKey)]
+    [InlineData(ShellSection.Analytics, null, WorkspaceSidebarHelper.AnalyticsSelectionKey)]
+    [InlineData(ShellSection.Reviews, null, WorkspaceSidebarHelper.ReviewsSelectionKey)]
+    [InlineData(ShellSection.Reports, null, WorkspaceSidebarHelper.ReportsSelectionKey)]
+    [InlineData(ShellSection.Settings, null, WorkspaceSidebarHelper.SettingsSelectionKey)]
+    // An open account is what's actually on screen, so it wins over whichever section is loaded behind it.
+    [InlineData(ShellSection.Dashboard, "  inst-whatsapp  ", "inst-whatsapp")]
+    [InlineData(ShellSection.Analytics, "inst-1", "inst-1")]
+    public void ResolveSelectionKey_PrefersAnOpenAccountOverTheSection(
+        ShellSection section,
         string? instanceId,
         string expected)
     {
-        Assert.Equal(expected, WorkspaceSidebarHelper.ResolveSelectionKey(dashboardSelected, instanceId));
+        Assert.Equal(expected, WorkspaceSidebarHelper.ResolveSelectionKey(section, instanceId));
+    }
+
+    [Fact]
+    public void ResolveSelectionKey_NotificationDockOutranksBoth()
+    {
+        // The dock overlays the current destination rather than replacing it, so while it's open it is
+        // the thing the sidebar should highlight.
+        Assert.Equal(
+            WorkspaceSidebarHelper.NotificationHubSelectionKey,
+            WorkspaceSidebarHelper.ResolveSelectionKey(
+                ShellSection.Analytics,
+                "inst-1",
+                notificationHubSelected: true));
+    }
+
+    [Fact]
+    public void ParseSection_RoundTripsEverySection()
+    {
+        foreach (var section in Enum.GetValues<ShellSection>())
+        {
+            var key = WorkspaceSidebarHelper.SectionSelectionKey(section);
+            Assert.Equal(section, WorkspaceSidebarHelper.ParseSection(key));
+        }
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("not-a-section")]
+    public void ParseSection_FallsBackToDashboardOnAnythingUnrecognised(string? key)
+    {
+        // This value is persisted to settings.json and can be hand-edited or written by an older build,
+        // so it must never be able to stop the shell from opening.
+        Assert.Equal(ShellSection.Dashboard, WorkspaceSidebarHelper.ParseSection(key));
+    }
+
+    [Fact]
+    public void ParseSection_IsCaseAndWhitespaceInsensitive()
+    {
+        Assert.Equal(ShellSection.Reviews, WorkspaceSidebarHelper.ParseSection("  REVIEWS "));
     }
 
     [Theory]

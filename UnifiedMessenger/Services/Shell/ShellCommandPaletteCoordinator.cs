@@ -1,4 +1,4 @@
-using UnifiedMessenger.Models;
+﻿using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services.Shell;
 
@@ -22,6 +22,42 @@ public sealed class ShellCommandPaletteCoordinator
                 Category = "Navigation",
                 IconGlyph = "\uE80F",
                 Selection = new CommandPaletteSelection { Action = CommandPaletteAction.OpenDashboard }
+            },
+            new()
+            {
+                Title = "Analytics",
+                Subtitle = "Message volume and activity patterns",
+                Category = "Navigation",
+                IconGlyph = "\uE9D2",
+                Selection = new CommandPaletteSelection
+                {
+                    Action = CommandPaletteAction.OpenSection,
+                    Section = ShellSection.Analytics
+                }
+            },
+            new()
+            {
+                Title = "Reviews",
+                Subtitle = "Google Business review health",
+                Category = "Navigation",
+                IconGlyph = "\uE734",
+                Selection = new CommandPaletteSelection
+                {
+                    Action = CommandPaletteAction.OpenSection,
+                    Section = ShellSection.Reviews
+                }
+            },
+            new()
+            {
+                Title = "Reports",
+                Subtitle = "Business report for any recent period",
+                Category = "Navigation",
+                IconGlyph = "\uE9F9",
+                Selection = new CommandPaletteSelection
+                {
+                    Action = CommandPaletteAction.OpenSection,
+                    Section = ShellSection.Reports
+                }
             },
             new()
             {

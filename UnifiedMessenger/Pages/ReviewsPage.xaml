@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="UnifiedMessenger.Pages.ReviewsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:UnifiedMessenger.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    xmlns:local="using:UnifiedMessenger.Pages">
+
+    <ScrollViewer Padding="24,20" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+        <StackPanel Spacing="16" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="2">
+                <TextBlock Text="Reviews" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock
+                    FontSize="13"
+                    Opacity="0.7"
+                    Text="Google Business review health — which reviews are still waiting for a reply."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <controls:ReviewHealthPanel x:Name="ReviewHealthPanel" />
+
+            <!-- The panel collapses itself when no Google Business account is connected, which would leave
+                 this page blank. This is the page's own honest empty state for that case. -->
+            <StackPanel
+                x:Name="NoAccountsState"
+                Spacing="8"
+                Padding="24"
+                HorizontalAlignment="Center"
+                Visibility="Collapsed">
+                <FontIcon FontSize="28" Glyph="&#xE734;" HorizontalAlignment="Center" Opacity="0.55" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource SubtitleTextBlockStyle}"
+                    Text="No Google Business account connected" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    MaxWidth="420"
+                    Opacity="0.7"
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords"
+                    Text="Add a Google Business account to track your rating, reply rate, and which reviews still need a response." />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

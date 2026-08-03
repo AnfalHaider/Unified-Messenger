@@ -5,6 +5,29 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.95.0
+
+**A real left navigation: Analytics, Reviews and Reports are now their own sections.**
+
+The sidebar used to list only your accounts. It now has navigable sections above them:
+
+- **Analytics** — message volume and activity patterns (hour of day, day of week, month, heat map,
+  week-over-week), previously reachable only by scrolling the dashboard.
+- **Reviews** — Google Business review health on its own page, with a proper empty state when no Google
+  account is connected.
+- **Reports** — the business report as a browsable page rather than a dialog, with the period picker and
+  Markdown/CSV export. It renders from the same builder as the dialog, so the two can't disagree.
+
+The app also **reopens on whichever section you were last using** instead of always starting on the
+dashboard, and all three sections are reachable from the command palette (`Ctrl+K`).
+
+Your accounts, the scope switch, location groups, right-click menus, badges, and the notification and
+settings buttons are all exactly where they were.
+
+*Under the hood: "which screen is showing" used to be three separate true/false flags copied across four
+files, including one left over from a feature that had been deleted. It's now a single value, so future
+sections are a small change rather than a risky one.*
+
 ## v4.94.0
 
 **Merges the API-modernization stream (v4.88–v4.93) with the Phase-5 channel-capability work.**

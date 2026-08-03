@@ -1,4 +1,4 @@
-using Microsoft.UI.Windowing;
+﻿using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -45,8 +45,7 @@ public sealed class ShellController
             ui,
             services,
             () => new ShellSelectionState(
-                _navigation.IsDashboardSelected,
-                _navigation.IsSettingsSelected,
+                _navigation.CurrentSection,
                 _navigation.SelectedInstanceId));
         _navigation.BindChrome(_chrome);
         _commandPalette = new ShellCommandPaletteCoordinator(services);
@@ -112,6 +111,9 @@ public sealed class ShellController
         {
             case CommandPaletteAction.OpenDashboard:
                 await _navigation.ShowDashboardAsync();
+                break;
+            case CommandPaletteAction.OpenSection when selection.Section is { } paletteSection:
+                await _navigation.ShowSectionAsync(paletteSection);
                 break;
             case CommandPaletteAction.OpenSettings:
                 await _navigation.ShowSettingsAsync();
@@ -240,7 +242,11 @@ public sealed class ShellController
             }
         }
 
-        await _navigation.ShowDashboardAsync().ConfigureAwait(true);
+        // Reopen wherever the owner left off. ParseSection defaults to Dashboard for anything it doesn't
+        // recognise, so a stale or hand-edited settings value can't stop the shell from starting.
+        var startupSection = WorkspaceSidebarHelper.ParseSection(
+            _services.AppSettings.Settings.LastVisitedSection);
+        await _navigation.ShowSectionAsync(startupSection).ConfigureAwait(true);
         _ = MaybeShowWorkspaceOnboardingAsync();
         _ = MaybePromptPinToTaskbarAsync();
 

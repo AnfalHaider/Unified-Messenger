@@ -1,4 +1,4 @@
-using UnifiedMessenger.Models;
+﻿using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
@@ -171,6 +171,8 @@ public static class CommandPaletteHelper
                 && ShellNavigationService.IsValidInstanceId(selection.InstanceId),
             CommandPaletteAction.FilterBranch =>
                 !string.IsNullOrWhiteSpace(selection.BranchKey),
+            CommandPaletteAction.OpenSection =>
+                selection.Section is not null,
             CommandPaletteAction.OpenSettingsSection =>
                 !string.IsNullOrWhiteSpace(selection.SettingsSectionKey),
             CommandPaletteAction.RefreshOcc or CommandPaletteAction.OpenImmediateQueue =>

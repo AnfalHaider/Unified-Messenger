@@ -1,9 +1,9 @@
-namespace UnifiedMessenger.Models;
+﻿namespace UnifiedMessenger.Models;
 
 public sealed class AppSettings
 {
-    /// <summary>v18 adds the in-app weekly-report reminder.</summary>
-    public const int CurrentVersion = 18;
+    /// <summary>v19 adds the remembered left-navigation section.</summary>
+    public const int CurrentVersion = 19;
 
     public const int MinSlaThresholdMinutes = 5;
 
@@ -150,6 +150,13 @@ public sealed class AppSettings
 
     /// <summary>Sidebar scope filter: "All", "Professional", or "Personal".</summary>
     public string SidebarScopeFilter { get; set; } = "All";
+
+    /// <summary>
+    /// The section the shell reopens on. Stored as the sidebar selection key (e.g. "analytics") and
+    /// parsed defensively via <c>WorkspaceSidebarHelper.ParseSection</c>, so an unknown or hand-edited
+    /// value falls back to Dashboard rather than failing to start.
+    /// </summary>
+    public string LastVisitedSection { get; set; } = "dashboard";
 
     /// <summary>
     /// When on, the command center surfaces a "your weekly report is ready" banner once a week (the app

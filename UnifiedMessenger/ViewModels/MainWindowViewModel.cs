@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.ViewModels;
@@ -6,13 +7,7 @@ namespace UnifiedMessenger.ViewModels;
 public partial class MainWindowViewModel : ViewModelBase
 {
     [ObservableProperty]
-    private bool _isDashboardSelected = true;
-
-    [ObservableProperty]
-    private bool _isSettingsSelected;
-
-    [ObservableProperty]
-    private bool _isWorkQueueSelected;
+    private ShellSection _currentSection = ShellSection.Dashboard;
 
     [ObservableProperty]
     private string? _selectedInstanceId;
@@ -48,10 +43,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 ? $"Starting accounts ({StartupWarmCompleted} of {StartupWarmTotal})…"
                 : $"Starting {StartupWarmAccountName} ({StartupWarmCompleted} of {StartupWarmTotal})…";
 
-    public void ApplySelection(bool dashboardSelected, string? instanceId, bool settingsSelected)
+    public void ApplySelection(ShellSection section, string? instanceId)
     {
-        IsDashboardSelected = dashboardSelected;
-        IsSettingsSelected = settingsSelected;
+        CurrentSection = section;
         SelectedInstanceId = instanceId;
     }
 

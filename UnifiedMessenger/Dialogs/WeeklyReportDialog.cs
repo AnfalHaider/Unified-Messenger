@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices.WindowsRuntime;
+﻿using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -96,8 +96,21 @@ public sealed class WeeklyReportDialog : ContentDialog
     }
 
     /// <summary>Fills the capturable surface with the period label, headline, ranked insights, and trend.</summary>
-    private void PopulateContent(ReportInputs inputs, BusinessReportResult report, string? aiSummary)
+    private void PopulateContent(ReportInputs inputs, BusinessReportResult report, string? aiSummary) =>
+        Populate(_contentStack, inputs, report, aiSummary, _instances);
+
+    /// <summary>
+    /// Fills <paramref name="target"/> with the period label, headline, ranked insights and trend chart.
+    /// Shared with <c>ReportsPage</c> so the dialog and the page can never drift apart.
+    /// </summary>
+    internal static void Populate(
+        StackPanel target,
+        ReportInputs inputs,
+        BusinessReportResult report,
+        string? aiSummary,
+        IReadOnlyList<MessengerInstance> instances)
     {
+        var _contentStack = target;
         _contentStack.Children.Clear();
 
         _contentStack.Children.Add(new TextBlock
@@ -149,14 +162,14 @@ public sealed class WeeklyReportDialog : ContentDialog
         }
 
         // Response-time trend — median first reply per day over the recent window.
-        var trendChart = BuildResponseTrend(ResponseTimeTracker.Instance.GetDailyMedians(_instances, 7));
+        var trendChart = BuildResponseTrend(ResponseTimeTracker.Instance.GetDailyMedians(instances, 7));
         if (trendChart is not null)
         {
             _contentStack.Children.Add(trendChart);
         }
     }
 
-    private FrameworkElement BuildInsightRow(BusinessInsight insight)
+    private static FrameworkElement BuildInsightRow(BusinessInsight insight)
     {
         var (glyph, brushKey) = insight.Severity switch
         {
@@ -196,7 +209,7 @@ public sealed class WeeklyReportDialog : ContentDialog
     }
 
     /// <summary>A small bar chart of median first-reply time per day (last 7 days). Null when no replies measured.</summary>
-    private FrameworkElement? BuildResponseTrend(IReadOnlyList<ResponseTimeTracker.DailyResponsePoint> points)
+    private static FrameworkElement? BuildResponseTrend(IReadOnlyList<ResponseTimeTracker.DailyResponsePoint> points)
     {
         if (points.Count == 0 || points.All(p => p.Count == 0))
         {
@@ -348,7 +361,7 @@ public sealed class WeeklyReportDialog : ContentDialog
         }
     }
 
-    private static async Task<string?> PickSavePathAsync(string suggestedName, string typeName, string extension)
+    internal static async Task<string?> PickSavePathAsync(string suggestedName, string typeName, string extension)
     {
         var file = await PickSaveFileAsync(suggestedName, typeName, extension);
         return file?.Path;

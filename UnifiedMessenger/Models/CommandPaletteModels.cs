@@ -1,4 +1,4 @@
-namespace UnifiedMessenger.Models;
+﻿namespace UnifiedMessenger.Models;
 
 public sealed class CommandPaletteEntry
 {
@@ -28,12 +28,19 @@ public sealed class CommandPaletteSelection
     public string? ConversationKey { get; init; }
 
     public string? CustomerName { get; init; }
+
+    /// <summary>Target for <see cref="CommandPaletteAction.OpenSection"/>.</summary>
+    public ShellSection? Section { get; init; }
 }
 
 public enum CommandPaletteAction
 {
     OpenInstance,
     OpenDashboard,
+
+    /// <summary>Navigate to a left-nav section; the target is <c>CommandPaletteSelection.Section</c>.</summary>
+    OpenSection,
+
     OpenSettings,
     OpenSettingsSection,
     OpenAlert,

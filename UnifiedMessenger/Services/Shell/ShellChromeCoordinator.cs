@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Controls;
@@ -67,10 +67,8 @@ public sealed class ShellChromeCoordinator
         _ui.WorkspaceSidebar.Refresh(
             _services.Registry.Instances,
             selection.SelectedInstanceId,
-            selection.IsDashboardSelected,
-            selection.IsSettingsSelected,
-            NotificationPanelVisible,
-            selection.IsWorkQueueSelected);
+            selection.Section,
+            NotificationPanelVisible);
 
         foreach (var instance in _services.Registry.Instances)
         {
@@ -94,11 +92,9 @@ public sealed class ShellChromeCoordinator
     {
         var selection = _getSelection();
         _ui.WorkspaceSidebar.SetSelection(
-            selection.IsDashboardSelected,
+            selection.Section,
             selection.SelectedInstanceId,
-            selection.IsSettingsSelected,
-            NotificationPanelVisible,
-            selection.IsWorkQueueSelected);
+            NotificationPanelVisible);
 
         var notificationSelected = NotificationPanelVisible;
         _ui.NotificationToggleButton.Background = notificationSelected

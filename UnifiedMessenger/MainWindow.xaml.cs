@@ -225,6 +225,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         _services.SessionManager.AttachHost(InstanceWebViewHost);
 
         WorkspaceSidebar.DashboardRequested += (_, _) => _ = _shell.Navigation.ShowDashboardAsync();
+        WorkspaceSidebar.SectionRequested += (_, section) => _ = _shell.Navigation.ShowSectionAsync(section);
         WorkspaceSidebar.InstanceRequested += (_, id) => _ = _shell.Navigation.SelectInstanceAsync(id);
         WorkspaceSidebar.AddInstanceRequested += (_, _) => _ = _shell.ShowAddInstanceDialogAsync();
         WorkspaceSidebar.NotificationsRequested += (_, _) =>

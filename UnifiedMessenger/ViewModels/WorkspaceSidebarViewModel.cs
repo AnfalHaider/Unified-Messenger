@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.ViewModels;
@@ -12,17 +13,10 @@ public partial class WorkspaceSidebarViewModel : ViewModelBase
     private int _notificationHubBadgeCount;
 
     public void ApplySelection(
-        bool dashboardSelected,
+        ShellSection section,
         string? instanceId,
-        bool settingsSelected,
-        bool notificationHubSelected = false,
-        bool workQueueSelected = false) =>
-        SelectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
-            dashboardSelected,
-            instanceId,
-            settingsSelected,
-            notificationHubSelected,
-            workQueueSelected);
+        bool notificationHubSelected = false) =>
+        SelectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(section, instanceId, notificationHubSelected);
 
     public void ApplyNotificationHubBadge(int totalUnread) =>
         NotificationHubBadgeCount = WorkspaceSidebarHelper.ClampBadgeCount(totalUnread);

@@ -8,70 +8,57 @@ public static class WorkspaceSidebarHelper
 
     public const string DashboardSelectionKey = "dashboard";
 
+    public const string AnalyticsSelectionKey = "analytics";
+
+    public const string ReviewsSelectionKey = "reviews";
+
+    public const string ReportsSelectionKey = "reports";
+
     public const string SettingsSelectionKey = "settings";
 
     public const string NotificationHubSelectionKey = "notifications";
 
-    public const string WorkQueueSelectionKey = "work-queue";
+    /// <summary>The sidebar row key for a navigable section.</summary>
+    public static string SectionSelectionKey(ShellSection section) => section switch
+    {
+        ShellSection.Analytics => AnalyticsSelectionKey,
+        ShellSection.Reviews => ReviewsSelectionKey,
+        ShellSection.Reports => ReportsSelectionKey,
+        ShellSection.Settings => SettingsSelectionKey,
+        _ => DashboardSelectionKey
+    };
 
+    /// <summary>Parses a persisted section key back to a <see cref="ShellSection"/>, defaulting to Dashboard.</summary>
+    public static ShellSection ParseSection(string? key) => (key ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        AnalyticsSelectionKey => ShellSection.Analytics,
+        ReviewsSelectionKey => ShellSection.Reviews,
+        ReportsSelectionKey => ShellSection.Reports,
+        SettingsSelectionKey => ShellSection.Settings,
+        _ => ShellSection.Dashboard
+    };
+
+    /// <summary>
+    /// Which sidebar row should render as selected. The notification dock wins when open (it overlays the
+    /// current destination without replacing it); otherwise an open account beats the section, because the
+    /// account's WebView is what is actually on screen.
+    /// </summary>
     public static string ResolveSelectionKey(
-        bool dashboardSelected,
+        ShellSection section,
         string? instanceId,
-        bool settingsSelected = false,
-        bool notificationHubSelected = false,
-        bool workQueueSelected = false)
+        bool notificationHubSelected = false)
     {
         if (notificationHubSelected)
         {
             return NotificationHubSelectionKey;
         }
 
-        if (settingsSelected)
+        if (!string.IsNullOrWhiteSpace(instanceId))
         {
-            return SettingsSelectionKey;
+            return instanceId.Trim();
         }
 
-        if (workQueueSelected)
-        {
-            return WorkQueueSelectionKey;
-        }
-
-        if (dashboardSelected || string.IsNullOrWhiteSpace(instanceId))
-        {
-            return DashboardSelectionKey;
-        }
-
-        return instanceId.Trim();
-    }
-
-    public static ShellViewState ResolveShellViewState(
-        bool dashboardSelected,
-        string? instanceId,
-        bool settingsSelected,
-        bool notificationHubOpen,
-        bool workQueueSelected = false)
-    {
-        if (notificationHubOpen)
-        {
-            return ShellViewState.NotificationHub;
-        }
-
-        if (settingsSelected)
-        {
-            return ShellViewState.Settings;
-        }
-
-        if (workQueueSelected)
-        {
-            return ShellViewState.WorkQueue;
-        }
-
-        if (!dashboardSelected && !string.IsNullOrWhiteSpace(instanceId))
-        {
-            return ShellViewState.Instance;
-        }
-
-        return ShellViewState.Dashboard;
+        return SectionSelectionKey(section);
     }
 
     public static bool IsSelectionMatch(string? selectedKey, string rowKey) =>

@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -40,11 +40,13 @@ public sealed partial class WorkspaceSidebar : Grid
     private bool _scopeInitialized;
     private IReadOnlyList<MessengerInstance> _lastInstances = [];
     private string? _lastSelectedInstanceId;
-    private bool _lastDashboardSelected;
-    private bool _lastSettingsSelected;
+    private ShellSection _lastSection = ShellSection.Dashboard;
     private bool _lastNotificationHubSelected;
-    private bool _lastWorkQueueSelected;
     private int _nextSidebarTabIndex = AccessibilityTabOrderHelper.SidebarMenuBase;
+
+    /// <summary>Section rows (Analytics / Reviews / Reports), keyed by selection key, for selection visuals.</summary>
+    private readonly Dictionary<string, Border> _sectionRows = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _sectionTitles = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Thickness s_compactRowPadding = new(6, 8, 4, 8);
     private static readonly Thickness s_normalRowPadding = new(10, 8, 8, 8);
@@ -69,6 +71,9 @@ public sealed partial class WorkspaceSidebar : Grid
 
     public event EventHandler? DashboardRequested;
 
+    /// <summary>A section row (Analytics / Reviews / Reports) was activated.</summary>
+    public event EventHandler<ShellSection>? SectionRequested;
+
     public event EventHandler<string>? InstanceRequested;
 
     public event EventHandler? AddInstanceRequested;
@@ -83,34 +88,23 @@ public sealed partial class WorkspaceSidebar : Grid
     public void Refresh(
         IEnumerable<MessengerInstance> instances,
         string? selectedInstanceId,
-        bool dashboardSelected,
-        bool settingsSelected = false,
-        bool notificationHubSelected = false,
-        bool workQueueSelected = false)
+        ShellSection section,
+        bool notificationHubSelected = false)
     {
         ArgumentNullException.ThrowIfNull(instances);
 
         var instanceList = instances as IReadOnlyList<MessengerInstance> ?? instances.ToList();
         _lastInstances = instanceList;
         _lastSelectedInstanceId = selectedInstanceId;
-        _lastDashboardSelected = dashboardSelected;
-        _lastSettingsSelected = settingsSelected;
+        _lastSection = section;
         _lastNotificationHubSelected = notificationHubSelected;
-        _lastWorkQueueSelected = workQueueSelected;
         EnsureScopeInitialized();
 
         _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
-            dashboardSelected,
+            section,
             selectedInstanceId,
-            settingsSelected,
-            notificationHubSelected,
-            workQueueSelected);
-        _viewModel.ApplySelection(
-            dashboardSelected,
-            selectedInstanceId,
-            settingsSelected,
-            notificationHubSelected,
-            workQueueSelected);
+            notificationHubSelected);
+        _viewModel.ApplySelection(section, selectedInstanceId, notificationHubSelected);
 
         // The scope switch only applies (and shows) when both scopes have accounts; otherwise it would
         // hide the user's only scope. The selector itself lives in the title bar — tell it to show/hide.
@@ -170,13 +164,7 @@ public sealed partial class WorkspaceSidebar : Grid
         _scope = scope;
         _ = AppSettingsService.Instance.UpdateAsync(s => s.SidebarScopeFilter = _scope.ToString());
 
-        Refresh(
-            _lastInstances,
-            _lastSelectedInstanceId,
-            _lastDashboardSelected,
-            _lastSettingsSelected,
-            _lastNotificationHubSelected,
-            _lastWorkQueueSelected);
+        Refresh(_lastInstances, _lastSelectedInstanceId, _lastSection, _lastNotificationHubSelected);
     }
 
     private static SidebarScope ParseScope(string? value) => value switch
@@ -215,6 +203,8 @@ public sealed partial class WorkspaceSidebar : Grid
         _compactHiddenElements.Clear();
         _groupMembers.Clear();
         _groupChevrons.Clear();
+        _sectionRows.Clear();
+        _sectionTitles.Clear();
         _dashboardRow = null;
 
         // Member counts per location group, so each group header can show "DHA-2 · 3".
@@ -331,6 +321,7 @@ public sealed partial class WorkspaceSidebar : Grid
                 ? CreateLocationHeader(entry.SectionTitle ?? string.Empty, entry.Key)
                 : CreateSectionHeader(entry.SectionTitle ?? string.Empty, entry.Key),
             SidebarMenuEntryKind.Dashboard => CreateDashboardRow(),
+            SidebarMenuEntryKind.Section when entry.Section is { } section => CreateSectionRow(entry, section),
             SidebarMenuEntryKind.EmptyHint => CreateEmptyHint(entry.HintText ?? string.Empty, entry.Key),
             SidebarMenuEntryKind.Instance when entry.Instance is not null => CreateInstanceRow(entry.Instance),
             _ => throw new InvalidOperationException($"Unsupported sidebar entry: {entry.Key}")
@@ -415,24 +406,15 @@ public sealed partial class WorkspaceSidebar : Grid
     }
 
     public void SetSelection(
-        bool dashboardSelected,
+        ShellSection section,
         string? instanceId,
-        bool settingsSelected = false,
-        bool notificationHubSelected = false,
-        bool workQueueSelected = false)
+        bool notificationHubSelected = false)
     {
-        _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(
-            dashboardSelected,
-            instanceId,
-            settingsSelected,
-            notificationHubSelected,
-            workQueueSelected);
-        _viewModel.ApplySelection(
-            dashboardSelected,
-            instanceId,
-            settingsSelected,
-            notificationHubSelected,
-            workQueueSelected);
+        _lastSection = section;
+        _lastSelectedInstanceId = instanceId;
+        _lastNotificationHubSelected = notificationHubSelected;
+        _selectedKey = WorkspaceSidebarHelper.ResolveSelectionKey(section, instanceId, notificationHubSelected);
+        _viewModel.ApplySelection(section, instanceId, notificationHubSelected);
         ApplySelectionVisuals();
     }
 
@@ -718,6 +700,31 @@ public sealed partial class WorkspaceSidebar : Grid
     private void ActivateDashboardRow() =>
         DashboardRequested?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>
+    /// A navigable section row. Built with the same <see cref="CreateSelectableRow"/> the Dashboard and
+    /// account rows use, so selection visuals, compact density, focus and tab order all behave identically
+    /// without a second code path.
+    /// </summary>
+    private Border CreateSectionRow(SidebarMenuEntry entry, ShellSection section)
+    {
+        var title = entry.SectionTitle ?? WorkspaceSidebarMenuPlanner.SectionTitle(section);
+        var row = CreateSelectableRow(entry.Key, null, title, "Overview", null, entry.IconGlyph ?? string.Empty);
+
+        row.PointerPressed += (_, _) => SectionRequested?.Invoke(this, section);
+        row.KeyDown += (_, args) =>
+        {
+            if (args.Key is VirtualKey.Enter or VirtualKey.Space)
+            {
+                SectionRequested?.Invoke(this, section);
+                args.Handled = true;
+            }
+        };
+
+        _sectionRows[entry.Key] = row;
+        _sectionTitles[entry.Key] = title;
+        return row;
+    }
+
     private static FrameworkElement CreateFallbackIcon(string glyph, SolidColorBrush accentBrush, double size)
     {
         var host = new Grid { Width = size, Height = size };
@@ -809,7 +816,8 @@ public sealed partial class WorkspaceSidebar : Grid
         MessengerInstance? instance,
         string title,
         string subtitle,
-        SolidColorBrush? accentBrush)
+        SolidColorBrush? accentBrush,
+        string iconGlyph = "")
     {
         accentBrush ??= PlatformBrandingHelper.GetAccentBrush((string?)null);
 
@@ -833,7 +841,10 @@ public sealed partial class WorkspaceSidebar : Grid
 
         var iconHost = instance is not null
             ? ProfileAvatarService.CreateAvatar(instance, 28)
-            : (FrameworkElement)CreateFallbackIcon("\uE9D9", accentBrush, 28);
+            : (FrameworkElement)CreateFallbackIcon(
+                  string.IsNullOrEmpty(iconGlyph) ? "\uE9D9" : iconGlyph,
+                  accentBrush,
+                  28);
         iconHost.VerticalAlignment = VerticalAlignment.Center;
 
         var textPanel = new StackPanel
@@ -971,6 +982,19 @@ public sealed partial class WorkspaceSidebar : Grid
                 "Dashboard",
                 "Overview",
                 dashboardSelected,
+                badgeCount: 0);
+        }
+
+        foreach (var (key, row) in _sectionRows)
+        {
+            var sectionSelected = WorkspaceSidebarHelper.IsSelectionMatch(_selectedKey, key);
+            ApplyRowSelection(row, sectionSelected);
+            UpdateSelectableRowAccessibility(
+                row,
+                key,
+                _sectionTitles.TryGetValue(key, out var sectionTitle) ? sectionTitle : key,
+                "Overview",
+                sectionSelected,
                 badgeCount: 0);
         }
 

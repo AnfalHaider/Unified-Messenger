@@ -1,11 +1,18 @@
-using UnifiedMessenger.Models;
+﻿using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
 public enum SidebarMenuEntryKind
 {
     SectionHeader,
+
+    /// <summary>The Dashboard row. Kept distinct from <see cref="Section"/> so its existing automation
+    /// id and visuals (which the UI smoke harness clicks by name) stay exactly as they were.</summary>
     Dashboard,
+
+    /// <summary>A navigable section row — Analytics, Reviews, Reports.</summary>
+    Section,
+
     EmptyHint,
     Instance
 }
@@ -23,7 +30,9 @@ public sealed record SidebarMenuEntry(
     SidebarMenuEntryKind Kind,
     MessengerInstance? Instance = null,
     string? SectionTitle = null,
-    string? HintText = null);
+    string? HintText = null,
+    ShellSection? Section = null,
+    string? IconGlyph = null);
 
 public sealed class SidebarMenuPlan
 {
@@ -76,6 +85,8 @@ public static class WorkspaceSidebarMenuPlanner
             new(WorkspaceSidebarHelper.DashboardSelectionKey, SidebarMenuEntryKind.Dashboard)
         };
 
+        entries.AddRange(BuildSectionEntries());
+
         if (enabledInstances.Count == 0)
         {
             entries.Add(new SidebarMenuEntry(
@@ -108,6 +119,36 @@ public static class WorkspaceSidebarMenuPlanner
 
         return new SidebarMenuPlan { Entries = entries };
     }
+
+    /// <summary>
+    /// The section rows that sit under "Overview" beside Dashboard. Notifications and Settings are
+    /// deliberately absent: they already exist as footer buttons with working badges and automation ids,
+    /// and duplicating a destination in two places is worse than an unconventional position.
+    /// </summary>
+    /// <remarks>Glyphs are Segoe Fluent Icons, matching the rest of the shell.</remarks>
+    private static IEnumerable<SidebarMenuEntry> BuildSectionEntries()
+    {
+        yield return SectionEntry(ShellSection.Analytics, "\uE9D2"); // chart
+        yield return SectionEntry(ShellSection.Reviews, "\uE734");   // star
+        yield return SectionEntry(ShellSection.Reports, "\uE9F9");   // report
+    }
+
+    private static SidebarMenuEntry SectionEntry(ShellSection section, string glyph) =>
+        new(
+            WorkspaceSidebarHelper.SectionSelectionKey(section),
+            SidebarMenuEntryKind.Section,
+            SectionTitle: SectionTitle(section),
+            Section: section,
+            IconGlyph: glyph);
+
+    public static string SectionTitle(ShellSection section) => section switch
+    {
+        ShellSection.Analytics => "Analytics",
+        ShellSection.Reviews => "Reviews",
+        ShellSection.Reports => "Reports",
+        ShellSection.Settings => "Settings",
+        _ => "Dashboard"
+    };
 
     private static void AddSection(
         List<SidebarMenuEntry> entries,

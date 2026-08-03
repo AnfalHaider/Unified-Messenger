@@ -26,11 +26,15 @@ public sealed class ShellNavigationCoordinator
 
     public void BindChrome(ShellChromeCoordinator chrome) => _chrome = chrome;
 
-    public bool IsDashboardSelected { get; private set; } = true;
+    /// <summary>The section whose page is loaded in the ContentFrame.</summary>
+    public ShellSection CurrentSection { get; private set; } = ShellSection.Dashboard;
 
-    public bool IsSettingsSelected { get; private set; }
-
+    /// <summary>Non-null when an account's WebView is showing instead of the section page.</summary>
     public string? SelectedInstanceId { get; private set; }
+
+    public bool IsDashboardSelected => CurrentSection == ShellSection.Dashboard && SelectedInstanceId is null;
+
+    public bool IsSettingsSelected => CurrentSection == ShellSection.Settings && SelectedInstanceId is null;
 
     public Frame ContentFrame => _ui.ContentFrame;
 
@@ -52,15 +56,21 @@ public sealed class ShellNavigationCoordinator
     }
 
 
-    public async Task ShowDashboardAsync()
-    {
-        IsDashboardSelected = true;
-        IsSettingsSelected = false;
-        SelectedInstanceId = null;
+    public Task ShowDashboardAsync() => ShowSectionAsync(ShellSection.Dashboard);
 
-        _viewModel.IsDashboardSelected = true;
-        _viewModel.IsSettingsSelected = false;
-        _viewModel.IsWorkQueueSelected = false;
+    public Task ShowSettingsAsync(string? sectionKey = null) =>
+        ShowSectionAsync(ShellSection.Settings, sectionKey);
+
+    /// <summary>
+    /// Navigates to a top-level section. This is the single place the shell swaps from an account's
+    /// WebView back to a page: the WebView host and the ContentFrame are z-stacked siblings, so exactly
+    /// one is visible at a time and the two visibility flips must stay paired.
+    /// </summary>
+    public async Task ShowSectionAsync(ShellSection section, string? settingsSectionKey = null)
+    {
+        CurrentSection = section;
+        SelectedInstanceId = null;
+        _viewModel.ApplySelection(section, null);
 
         await _services.SessionManager.HideVisibleSessionAsync();
         _ui.InstanceWebViewHost.Visibility = Visibility.Collapsed;
@@ -68,35 +78,35 @@ public sealed class ShellNavigationCoordinator
         SetInstanceLoading(false, null);
         _ui.ContentFrame.Visibility = Visibility.Visible;
 
-        var navArgs = PageServices.CreateRegistryArgs(_services);
-        NavigateShellFrame(typeof(DashboardPage), navArgs);
-        ActiveWorkspaceContext.SetDashboardVisible();
-        _ui.AppTitleBar.Subtitle = "Dashboard";
+        var navArgs = PageServices.CreateRegistryArgs(_services, settingsSectionKey);
+        NavigateShellFrame(ResolvePageType(section), navArgs);
+
+        // ActiveWorkspaceContext only models the two destinations that existed before sections; the new
+        // pages are read-only views over the same data, so they ride along as "dashboard visible".
+        if (section == ShellSection.Settings)
+        {
+            ActiveWorkspaceContext.SetSettingsVisible();
+        }
+        else
+        {
+            ActiveWorkspaceContext.SetDashboardVisible();
+        }
+
+        _ui.AppTitleBar.Subtitle = WorkspaceSidebarMenuPlanner.SectionTitle(section);
         _chrome?.UpdateShellChromeSelection();
+
+        _ = _services.AppSettings.UpdateAsync(
+            s => s.LastVisitedSection = WorkspaceSidebarHelper.SectionSelectionKey(section));
     }
 
-    public async Task ShowSettingsAsync(string? sectionKey = null)
+    private static Type ResolvePageType(ShellSection section) => section switch
     {
-        IsDashboardSelected = false;
-        IsSettingsSelected = true;
-        SelectedInstanceId = null;
-
-        _viewModel.IsDashboardSelected = false;
-        _viewModel.IsSettingsSelected = true;
-        _viewModel.IsWorkQueueSelected = false;
-
-        await _services.SessionManager.HideVisibleSessionAsync();
-        _ui.InstanceWebViewHost.Visibility = Visibility.Collapsed;
-        _ui.ShowWebNavBar(null);
-        SetInstanceLoading(false, null);
-        _ui.ContentFrame.Visibility = Visibility.Visible;
-
-        var navArgs = PageServices.CreateRegistryArgs(_services, sectionKey);
-        NavigateShellFrame(typeof(SettingsPage), navArgs);
-        ActiveWorkspaceContext.SetSettingsVisible();
-        _ui.AppTitleBar.Subtitle = "Settings";
-        _chrome?.UpdateShellChromeSelection();
-    }
+        ShellSection.Analytics => typeof(AnalyticsPage),
+        ShellSection.Reviews => typeof(ReviewsPage),
+        ShellSection.Reports => typeof(ReportsPage),
+        ShellSection.Settings => typeof(SettingsPage),
+        _ => typeof(DashboardPage)
+    };
 
     public async Task SelectInstanceAsync(string instanceId)
     {
@@ -168,12 +178,10 @@ public sealed class ShellNavigationCoordinator
             return;
         }
 
+        // The section stays as-is: it's the page the owner returns to when they leave the account, and
+        // "Back to dashboard" is a separate explicit action.
         SelectedInstanceId = instanceId;
-        IsDashboardSelected = false;
-        IsSettingsSelected = false;
-        _viewModel.IsDashboardSelected = false;
-        _viewModel.IsSettingsSelected = false;
-        _viewModel.IsWorkQueueSelected = false;
+        _viewModel.ApplySelection(CurrentSection, instanceId);
         ActiveWorkspaceContext.SetActiveInstance(instanceId);
         _chrome?.UpdateShellChromeSelection();
         _ui.ContentFrame.Visibility = Visibility.Collapsed;
