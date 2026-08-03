@@ -60,6 +60,33 @@ public sealed class KpiTrendStore
     /// <summary>Awaiting count for the last <paramref name="days"/> days, oldest→newest.</summary>
     public IReadOnlyList<int> GetAwaitingTrend(int days = 14) => Series(days, p => p.Awaiting);
 
+    /// <summary>
+    /// The caught-up % as a date-keyed map (yyyy-MM-dd → value) over the last <paramref name="days"/> days.
+    /// Unlike <see cref="GetCaughtUpTrend"/>, this preserves which day each value belongs to, so
+    /// <see cref="ChartSeriesBuilder.BuildZeroPaddedDailySeries"/> can index-align it and slice it into
+    /// week-over-week — the omit-empty-days list cannot be sliced reliably.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> GetCaughtUpByDay(int days = 14) => DateKeyed(days, p => p.CaughtUpPercent);
+
+    /// <summary>The awaiting count as a date-keyed map over the last <paramref name="days"/> days.</summary>
+    public IReadOnlyDictionary<string, int> GetAwaitingByDay(int days = 14) => DateKeyed(days, p => p.Awaiting);
+
+    private IReadOnlyDictionary<string, int> DateKeyed(int days, Func<DayPoint, int> select)
+    {
+        var today = DateTime.Now.Date;
+        var map = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = days - 1; i >= 0; i--)
+        {
+            var key = today.AddDays(-i).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            if (_byDay.TryGetValue(key, out var p))
+            {
+                map[key] = select(p);
+            }
+        }
+
+        return map;
+    }
+
     private IReadOnlyList<int> Series(int days, Func<DayPoint, int> select)
     {
         var today = DateTime.Now.Date;

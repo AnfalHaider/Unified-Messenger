@@ -5,6 +5,26 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.96.0
+
+**Groundwork for the redesigned dashboard — the charts and the numbers behind them.**
+
+The first step toward the new design: the reusable chart building blocks and, more importantly, the data
+shaping they need. No screen looks different yet; this is the foundation the new Dashboard, Analytics and
+Reports pages are built on next.
+
+- **Delta badges that mean the right thing.** A "12% vs last week" chip now colours by whether the change
+  is *good for that metric*, not by its arrow — response time falling shows green, raw message volume
+  falling shows neutral (not alarming red).
+- **Honest chart data.** New calculations that were missing: percentages that add up to exactly 100, a
+  three-way SLA split that counts un-measurable channels as "no SLA" rather than faking a pass or fail, a
+  "top performing accounts" ranking that won't crown an account we haven't synced yet, and per-day
+  "replies within 15 minutes" trends.
+- **A clearer type scale** so cards read label → value → headline instead of jumping straight from small
+  text to one big number.
+
+Everything here is covered by unit tests. The visible redesign lands in the following updates.
+
 ## v4.95.0
 
 **A real left navigation: Analytics, Reviews and Reports are now their own sections.**

@@ -45,6 +45,12 @@
     <x:Double x:Key="UmFontSizeBody">12</x:Double>
     <x:Double x:Key="UmFontSizeScope">14</x:Double>
     <x:Double x:Key="UmFontSizeMetricValue">20</x:Double>
+    <!-- Redesign type ramp: fills the gap between body (12) and the old lone 20/22 metric size, so a card
+         reads label → value → hero instead of "small dense text then one big jump". -->
+    <x:Double x:Key="UmFontSizeSubtitle">15</x:Double>
+    <x:Double x:Key="UmFontSizeMetricSm">18</x:Double>
+    <x:Double x:Key="UmFontSizeMetric">24</x:Double>
+    <x:Double x:Key="UmFontSizeHero">34</x:Double>
     <x:Double x:Key="UmChartHeight">110</x:Double>
     <x:Double x:Key="UmChartPlotHeight">96</x:Double>
     <x:Double x:Key="UmChartStrokeThickness">2.5</x:Double>

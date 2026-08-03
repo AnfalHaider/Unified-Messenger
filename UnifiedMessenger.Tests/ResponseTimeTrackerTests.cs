@@ -154,6 +154,29 @@ public class ResponseTimeTrackerTests : IDisposable
         tracker.Observe(instanceId, conv, isAwaiting: false, lastMessageFromMe: true, answeredAt);
     }
 
+    [Fact]
+    public void GetDailyWithinThreshold_ComputesPerDayPercentAndPadsEmptyDays()
+    {
+        var tracker = NewTracker(_storePath, "inst-1");
+
+        // Today: two replies, one within 15m one not → 50%. Yesterday: one within → 100%.
+        var todayNoon = DateTimeOffset.Now.Date.AddHours(12);
+        Record(tracker, "inst-1", "a", todayNoon, frtMinutes: 8);
+        Record(tracker, "inst-1", "b", todayNoon, frtMinutes: 40);
+        Record(tracker, "inst-1", "c", todayNoon.AddDays(-1), frtMinutes: 5);
+
+        var series = tracker.GetDailyWithinThreshold([Inst("inst-1")], thresholdMinutes: 15, days: 3);
+
+        Assert.Equal(3, series.Count);
+        // oldest→newest: day-2 has no replies (padded), day-1 = 100%, today = 50%.
+        Assert.Equal(0, series[0].Percent);
+        Assert.Equal(0, series[0].Count);
+        Assert.Equal(100, series[1].Percent);
+        Assert.Equal(1, series[1].Count);
+        Assert.Equal(50, series[2].Percent);
+        Assert.Equal(2, series[2].Count);
+    }
+
     public void Dispose()
     {
         try

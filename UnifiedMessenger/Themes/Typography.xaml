@@ -76,4 +76,24 @@
         <Setter Property="TextWrapping" Value="WrapWholeWords" />
         <Setter Property="TextAlignment" Value="Center" />
     </Style>
+
+    <!-- Redesign type ramp styles (used by the chart suite and KPI cards). -->
+    <Style x:Key="UmSubtitleTextStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeSubtitle}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- The big number on a KPI card: value size, primary colour, tabular figures so digits don't jitter. -->
+    <Style x:Key="UmMetricValueStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeMetric}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <!-- The one hero number that answers "am I caught up?" at the top of the command center. -->
+    <Style x:Key="UmHeroValueStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeHero}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+    </Style>
 </ResourceDictionary>
