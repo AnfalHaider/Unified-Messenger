@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml;
+﻿using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Controls.Shared;
@@ -41,6 +41,10 @@ public sealed class KpiStatCard : ContentControl
     public KpiStatCard()
     {
         IsTabStop = false;
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+        HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        VerticalAlignment = VerticalAlignment.Stretch;
+        VerticalContentAlignment = VerticalAlignment.Stretch;
         _value.SetValue(FrameworkElement.StyleProperty, TryStyle("UmMetricValueStyle"));
 
         _iconChip = new Border

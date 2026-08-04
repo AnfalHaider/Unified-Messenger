@@ -50,6 +50,7 @@ public sealed class DonutChartView : ContentControl
     public DonutChartView()
     {
         IsTabStop = false;
+        HorizontalContentAlignment = HorizontalAlignment.Stretch;
         _plot.Children.Add(_ring);
         _plot.Children.Add(_centre);
 

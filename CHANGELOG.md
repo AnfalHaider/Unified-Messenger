@@ -5,6 +5,24 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.97.0
+
+**The Analytics page, redesigned.**
+
+Analytics is now a real dashboard instead of a single chart:
+
+- **Four KPI cards** — Messages, Response Time, Replies (15m) and SLA Met — each with its change versus
+  the previous period. A drop in response time shows green; a drop in raw message volume shows neutral,
+  not alarming red.
+- **Messages Over Time** — a bar chart with the busiest day highlighted and labelled.
+- **Average Response Time** and **Replies Within 15 Minutes** — trend charts with a shaded fill.
+- **SLA Performance** — a ring showing met vs missed, with anything the app genuinely can't time counted
+  separately as "no SLA" rather than being quietly scored as a pass or a fail.
+- A **period picker** (this week / 30 days / 90 days) and **Export** to CSV.
+
+The existing activity patterns section (hour of day, day of week, month, heat map) is unchanged and still
+sits below, so nothing you were using has gone away.
+
 ## v4.96.0
 
 **Groundwork for the redesigned dashboard — the charts and the numbers behind them.**

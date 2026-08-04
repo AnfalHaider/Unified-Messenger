@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:UnifiedMessenger.Controls"
+    xmlns:charts="using:UnifiedMessenger.Controls.Charts"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -11,16 +12,98 @@
 
     <ScrollViewer Padding="24,20" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
         <StackPanel Spacing="16" HorizontalAlignment="Stretch">
-            <StackPanel Spacing="2">
-                <TextBlock Text="Analytics" Style="{StaticResource TitleTextBlockStyle}" />
-                <TextBlock
-                    FontSize="13"
-                    Opacity="0.7"
-                    Text="Message volume and activity patterns across your accounts."
-                    TextWrapping="WrapWholeWords" />
-            </StackPanel>
 
-            <controls:ActivityPatternsPanel x:Name="ActivityPatternsPanel" />
+            <!-- Header: title + range + export -->
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="Analytics" Style="{StaticResource TitleTextBlockStyle}" />
+                    <TextBlock
+                        FontSize="13"
+                        Opacity="0.7"
+                        Text="Your communication performance and key metrics."
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+                <ComboBox
+                    x:Name="RangeBox"
+                    Grid.Column="1"
+                    MinWidth="170"
+                    VerticalAlignment="Center"
+                    SelectionChanged="RangeBox_SelectionChanged" />
+                <Button
+                    x:Name="ExportButton"
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Click="ExportButton_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon FontSize="14" Glyph="&#xEDE1;" />
+                        <TextBlock Text="Export" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <!-- KPI row -->
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <charts:KpiStatCard x:Name="MessagesKpi" Grid.Column="0" Label="Messages" IconGlyph="&#xE8BD;" />
+                <charts:KpiStatCard x:Name="ResponseKpi" Grid.Column="1" Label="Response Time" IconGlyph="&#xE916;" />
+                <charts:KpiStatCard x:Name="RepliesKpi" Grid.Column="2" Label="Replies (15m)" IconGlyph="&#xE8BD;" />
+                <charts:KpiStatCard x:Name="SlaKpi" Grid.Column="3" Label="SLA Met" IconGlyph="&#xE9D5;" />
+            </Grid>
+
+            <!-- 2x2 chart grid -->
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource UmSurfaceCardStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Messages Over Time" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                        <charts:BarChartView x:Name="MessagesChart" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource UmSurfaceCardStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Average Response Time" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                        <charts:AreaLineChartView x:Name="ResponseChart" Height="180" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource UmSurfaceCardStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="SLA Performance" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                        <charts:DonutChartView x:Name="SlaChart" MinHeight="180" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource UmSurfaceCardStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Replies Within 15 Minutes" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                        <charts:AreaLineChartView x:Name="RepliesChart" Height="180" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Preserve the shipped activity-patterns detail (hour/day/month + heat map + week-over-week). -->
+            <Border Style="{StaticResource UmSurfaceCardStyle}">
+                <controls:ActivityPatternsPanel x:Name="ActivityPatternsPanel" />
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </Page>
