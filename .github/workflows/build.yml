@@ -162,7 +162,13 @@ jobs:
       - name: Publish ${{ matrix.rid }}
         shell: pwsh
         run: |
-          $publishDir = "UnifiedMessenger/bin/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish"
+          # The path MUST include the platform segment: installer.iss reads
+          # UnifiedMessenger\bin\x64\Release\...\win-x64\publish and installer-arm64.iss reads
+          # ...\bin\ARM64\Release\...\win-arm64\publish. Publishing to bin\Release\... instead (which is
+          # what -o without the platform segment produces) leaves those directories empty, and ISCC then
+          # aborts with "No files found matching ...\publish\*" — failing package, skipping release, and
+          # silently leaving the Releases page stuck on the previous version.
+          $publishDir = "UnifiedMessenger/bin/${{ matrix.platform }}/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish"
           dotnet publish UnifiedMessenger/UnifiedMessenger.csproj `
             -c ${{ env.CONFIGURATION }} `
             -r ${{ matrix.rid }} `
@@ -172,6 +178,17 @@ jobs:
             -p:WindowsAppSDKSelfContained=true `
             -p:PublishReadyToRun=false `
             -o $publishDir
+
+      - name: Verify publish output is where the installer expects it
+        shell: pwsh
+        run: |
+          # Fail here with an actionable message rather than letting ISCC fail later with a cryptic
+          # "No files found matching" — this is the exact mismatch that broke the release pipeline.
+          $exe = "UnifiedMessenger/bin/${{ matrix.platform }}/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish/UnifiedMessenger.exe"
+          if (-not (Test-Path $exe)) {
+            throw "Publish output missing at '$exe'. ${{ matrix.installer_script }} reads this exact path; the publish -o path and the installer's PublishDir must stay in lockstep."
+          }
+          Write-Host "Publish output verified: $exe"
 
       - name: Build installer
         shell: pwsh
@@ -218,7 +235,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: publish-${{ matrix.rid }}
-          path: UnifiedMessenger/bin/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish/
+          path: UnifiedMessenger/bin/${{ matrix.platform }}/Release/net8.0-windows10.0.19041.0/${{ matrix.rid }}/publish/
           if-no-files-found: error
           # Only ui-smoke consumes this (same run), and it's ~200 MB per RID — the main private-repo
           # artifact-storage-quota hog. Auto-prune fast so it can't accumulate and block future runs.

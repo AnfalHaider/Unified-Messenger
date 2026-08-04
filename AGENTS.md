@@ -251,6 +251,7 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 |---|---|
 | Smoke test exits immediately (not ALIVE) | Kill leftover process before testing: `Stop-Process -Name UnifiedMessenger -Force` |
 | Installer ships stale binary (UI changes don't appear after install) | Publish with `-p:Platform=x64` — installer reads `bin\x64\Release\...\publish`, but a plain publish writes to `bin\Release\...\publish`. Verify installed exe `FileVersion` after every install. |
+| CI `package` job fails; `release` skipped; Releases page stuck on an old version | Same path trap, CI edition. `installer.iss` reads `bin\x64\Release\...\win-x64\publish` and `installer-arm64.iss` reads `bin\ARM64\Release\...\win-arm64\publish`. If the workflow's `dotnet publish -o` (or the artifact upload `path:`) omits the `<Platform>` segment, those dirs stay empty and ISCC aborts with `No files found matching ...\publish\*` (exit 2). The publish `-o`, the artifact `path:`, and the installer's `PublishDir` must stay in lockstep — the workflow now has a "Verify publish output is where the installer expects it" step that fails with an actionable message instead. |
 | WinUI publish omits `.xbf` and `.pri` files | `CopyWinUIResourcesToPublish` MSBuild target handles this — don't work around it |
 | STJ 10 conflict with self-contained .NET 8 | `EnsureSystemTextJson10InPublish` MSBuild target copies STJ 10 dlls post-publish |
 | `ReadyToRun` breaks self-contained WinUI publish | Intentionally disabled (`PublishReadyToRun=false`) — don't re-enable |
