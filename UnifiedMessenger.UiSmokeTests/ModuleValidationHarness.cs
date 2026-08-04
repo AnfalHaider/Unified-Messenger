@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
@@ -92,7 +92,7 @@ internal static class ModuleValidationHarness
     {
         try
         {
-            UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
+            UiAutomationHelpers.ClickByNameOrAutomationId(window, "Sidebar Dashboard", "SidebarDashboard");
             UiAutomationHelpers.EnsureDashboardOperationsTab(window);
             UiAutomationHelpers.WaitForDashboardOccReady(window, TimeSpan.FromSeconds(10));
             UiAutomationHelpers.ScrollDashboardOccIntoView(window);
@@ -288,17 +288,20 @@ internal static class ModuleValidationHarness
     private static ModuleValidationResult ValidateDashboardOperations(AutomationElement window)
     {
         if (UiAutomationHelpers.EnsureDashboardOperationsTab(window) ||
-            UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard"))
+            UiAutomationHelpers.ClickByNameOrAutomationId(window, "Sidebar Dashboard", "SidebarDashboard"))
         {
             Thread.Sleep(1000);
         }
 
+        // Names the command center actually renders today. The previous list referenced UI that was
+        // removed long ago, so this check could only ever fail. "Sidebar Dashboard, selected" is the
+        // dashboard row's name while it IS the active section — FindByName is an exact match.
         var markers = new[]
         {
-            "Operations Command Center Tab",
-            "DATE RANGE",
-            "From date",
-            "Showing: All Branches",
+            "Command center",
+            "Caught up",
+            "Awaiting reply",
+            "Sidebar Dashboard, selected",
             "Sidebar Dashboard"
         };
         foreach (var marker in markers)
@@ -320,7 +323,7 @@ internal static class ModuleValidationHarness
 
     private static ModuleValidationResult ValidatePersonalOverview(AutomationElement window)
     {
-        UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
+        UiAutomationHelpers.ClickByNameOrAutomationId(window, "Sidebar Dashboard", "SidebarDashboard");
         Thread.Sleep(500);
         UiAutomationHelpers.EnsurePersonalOverviewTab(window);
         Thread.Sleep(900);
@@ -433,7 +436,7 @@ internal static class ModuleValidationHarness
 
     private static ModuleValidationResult ValidateWorkspaceSidebar(AutomationElement window)
     {
-        var markers = new[] { "Unified Messenger brand", "Sidebar Dashboard", "Add Instance", "Notification Hub", "Settings" };
+        var markers = new[] { "Unified Messenger brand", "Sidebar Dashboard", "Add account", "Notification Hub", "Settings" };
         var found = markers.Where(marker => UiAutomationHelpers.FindByName(window, marker) is not null).ToList();
         return found.Count >= 2
             ? ModuleValidationResult.Pass("WorkspaceSidebar", "Control", $"Markers: {string.Join(", ", found)}")
@@ -445,10 +448,10 @@ internal static class ModuleValidationHarness
 
     private static ModuleValidationResult ValidateAddInstanceDialog(AutomationElement window)
     {
-        UiAutomationHelpers.ClickByName(window, "Sidebar Dashboard");
+        UiAutomationHelpers.ClickByNameOrAutomationId(window, "Sidebar Dashboard", "SidebarDashboard");
         Thread.Sleep(400);
 
-        if (!UiAutomationHelpers.ClickByName(window, "Add Instance"))
+        if (!UiAutomationHelpers.ClickByNameOrAutomationId(window, "Add account", "SidebarAddInstance"))
         {
             return ModuleValidationResult.Fail("AddInstanceDialog", "Dialog", "Add Instance button not found");
         }
