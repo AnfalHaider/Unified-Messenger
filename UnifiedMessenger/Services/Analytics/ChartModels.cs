@@ -60,14 +60,14 @@ public readonly record struct SlaBreakdown(int Met, int Missed, int NoSla)
 }
 
 /// <summary>
-/// An account's place on the top-performers leaderboard: a 0–100 composite plus the inputs it was built
-/// from, so the UI can show the score and explain it. Only accounts with real measured data are ranked —
-/// an unsynced account is not "100%", it is unranked (<see cref="ChartSeriesBuilder.RankTopPerformers"/>).
+/// An account's place on the top-performers leaderboard. Every field is a real, nameable measurement —
+/// there is deliberately no blended "score", so the number on screen is one the owner can act on. Only
+/// accounts with real measured data are ranked — an unsynced account is not "100%", it is unranked
+/// (<see cref="ChartSeriesBuilder.RankTopPerformers"/>).
 /// </summary>
 public readonly record struct TopPerformer(
     string Key,
     string DisplayName,
-    int Score,
     int OnTimePercent,
     int AwaitingCount,
     int MeasuredCount);

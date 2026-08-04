@@ -2,6 +2,7 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using UnifiedMessenger.Controls.Shared;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
@@ -17,6 +18,10 @@ public sealed class AccountDetailDialog : ContentDialog
     private readonly ApplicationServices _services;
     private readonly MessengerInstance _instance;
 
+    // Rebuilt in place rather than built once, so marking a waiting customer as done updates the metric
+    // tiles and the list together without closing the dialog.
+    private readonly StackPanel _root = new() { Spacing = 14, MinWidth = 440 };
+
     public AccountDetailDialog(ApplicationServices services, MessengerInstance instance)
     {
         _services = services;
@@ -28,10 +33,11 @@ public sealed class AccountDetailDialog : ContentDialog
         DefaultButton = ContentDialogButton.Primary;
         PrimaryButtonClick += (_, _) => _services.Navigation.OpenInstance(instance.Id, null, null);
 
-        Content = Build();
+        Content = _root;
+        Build();
     }
 
-    private FrameworkElement Build()
+    private void Build()
     {
         var sla = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
         var weekStart = DateTimeOffset.Now.AddDays(-7);
@@ -41,7 +47,8 @@ public sealed class AccountDetailDialog : ContentDialog
         OversightChatSnapshotService.Instance.TryGetWindowed(_instance.Id, null, out var active, out var caughtUp);
         var caughtPct = active > 0 ? (int)Math.Round(100.0 * caughtUp / active) : 100;
 
-        var body = new StackPanel { Spacing = 14, MinWidth = 440 };
+        var body = _root;
+        body.Children.Clear();
 
         // Metric tiles.
         var metrics = new Grid { ColumnSpacing = 10, RowSpacing = 10 };
@@ -100,8 +107,6 @@ public sealed class AccountDetailDialog : ContentDialog
                 Foreground = Res("TextFillColorSecondaryBrush")
             });
         }
-
-        return body;
     }
 
     private FrameworkElement BuildWaitingRow(OversightChatSnapshotService.ChatEntry chat)
@@ -134,7 +139,19 @@ public sealed class AccountDetailDialog : ContentDialog
             Hide();
             _services.Navigation.OpenInstance(_instance.Id, key, customer, phone);
         };
-        return button;
+
+        // Not every last-message-from-the-customer needs an answer. Without this the row can only be opened,
+        // never closed, and the backlog grows a permanent tail of "thanks!" that no metric can drain.
+        var row = new Grid { ColumnSpacing = 6, HorizontalAlignment = HorizontalAlignment.Stretch };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var action = AwaitingChatActions.Build(_instance.Id, chat, display, Build, compact: true);
+        Grid.SetColumn(button, 0);
+        Grid.SetColumn(action, 1);
+        row.Children.Add(button);
+        row.Children.Add(action);
+        return row;
     }
 
     private FrameworkElement Tile(string label, string value, string valueBrushKey)

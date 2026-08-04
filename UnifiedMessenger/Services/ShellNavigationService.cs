@@ -31,6 +31,8 @@ public sealed class ShellNavigationService : INavigationService
 
     public event EventHandler<string?>? SettingsOpenRequested;
 
+    public event EventHandler<ShellSection>? SectionNavigationRequested;
+
     public event EventHandler<InstanceNavigationFailedEventArgs>? InstanceNavigationFailed;
 
     internal static ShellNavigationService CreateForTests() => new();
@@ -104,6 +106,9 @@ public sealed class ShellNavigationService : INavigationService
 
     public void RequestOpenSettings(string? sectionKey = null) =>
         SettingsOpenRequested?.Invoke(this, sectionKey);
+
+    public void RequestSection(ShellSection section) =>
+        SectionNavigationRequested?.Invoke(this, section);
 
     public void NotifyNavigationFailed(InstanceNavigationFailedEventArgs args)
     {

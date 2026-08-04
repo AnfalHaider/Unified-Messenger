@@ -24,6 +24,10 @@ public interface INavigationService
 
     event EventHandler<string?>? SettingsOpenRequested;
 
+    /// <summary>Raised when a control asks the shell to switch to a top-level section (Analytics, Reviews…).
+    /// Lets a dashboard card link to the page that owns a subject instead of duplicating it in place.</summary>
+    event EventHandler<ShellSection>? SectionNavigationRequested;
+
     event EventHandler<InstanceNavigationFailedEventArgs>? InstanceNavigationFailed;
 
     void RequestInstance(string instanceId);
@@ -47,6 +51,8 @@ public interface INavigationService
     void RequestOccUrgentQueueFilter();
 
     void RequestOpenSettings(string? sectionKey = null);
+
+    void RequestSection(ShellSection section);
 
     void OpenInstance(string instanceId);
 

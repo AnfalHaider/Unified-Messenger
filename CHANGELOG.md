@@ -5,6 +5,33 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.0
+
+**Custom URL accounts now load.** A Custom URL account opened to a blank page and stayed there. The
+navigation guard kept its per-account list of allowed sites in a lookup that could silently lose its
+entry, after which it fell back to the built-in platform list — which contains WhatsApp, Google,
+Telegram, Messenger, Discord and Instagram, so every built-in account carried on working and only Custom
+URL accounts broke. Each account now carries its own list directly, and the guard also stops logging a
+scary "blocked navigation" warning for the blank page every WebView starts on.
+
+**"Mark as done" is now a real button on every waiting customer.** Some customers send the last message
+and simply don't need an answer, and there was no visible way to close those — the action existed, but
+only behind an unlabelled "…" on the dashboard, and not at all in the per-account view. Every waiting row
+now has a **Done** button, with snooze on its dropdown. As before, done isn't permanent: the conversation
+comes straight back if that customer sends something new, and snoozes expire on their own.
+
+**The dashboard stopped repeating the other pages.** The overview charts, the activity graph and the
+review-health panel each have their own section now, so the dashboard's copies were a second thing to
+maintain and a second thing to disagree with the first. The dashboard is what needs attention right now;
+underneath it, three cards link to Analytics, Reviews and Reports, each carrying the one number that says
+whether it's worth opening.
+
+**The account leaderboard shows a number that means something.** It ranked accounts on a blended score
+that subtracted a backlog penalty from the on-time rate — which pushed every account to 0% whenever
+on-time was genuinely low, so the whole list read "0%". It now ranks and shows the real **on-time reply
+rate**, numbered 1–5, with the backlog beside it instead of buried inside it. It has moved to Analytics,
+alongside a new **Messages by Account** ring.
+
 ## v4.98.0
 
 **The dashboard gains the overview row from the new design.**

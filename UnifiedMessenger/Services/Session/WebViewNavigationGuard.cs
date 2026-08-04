@@ -37,7 +37,13 @@ public static class WebViewNavigationGuard
 
     private static readonly HashSet<string> DefaultAllowedHosts = BuildDefaultAllowedHosts();
 
-    private static readonly ConditionalWeakTable<CoreWebView2, HashSet<string>> WebViewAllowlists = new();
+    // Bookkeeping only, so a re-Attach can unsubscribe the previous handlers. The navigation decision must
+    // NEVER depend on a lookup here: CoreWebView2 is a CsWinRT projection, so the managed wrapper we key on
+    // can be collected and re-created for the same native object, which silently drops the entry. That used
+    // to fail back to DefaultAllowedHosts — invisible for built-in platforms (their hosts are in the
+    // defaults) but it cancelled every Custom-URL tab's navigation and left it on about:blank.
+    // Each binding therefore captures its own allowlist in the handler closure.
+    private static readonly ConditionalWeakTable<CoreWebView2, GuardBinding> Bindings = new();
 
     public static void Attach(CoreWebView2 coreWebView) => Attach(coreWebView, additionalHosts: null);
 
@@ -45,20 +51,64 @@ public static class WebViewNavigationGuard
     {
         ArgumentNullException.ThrowIfNull(coreWebView);
 
+        if (Bindings.TryGetValue(coreWebView, out var previous))
+        {
+            previous.Detach();
+            Bindings.Remove(coreWebView);
+        }
+
         var allowlist = CreateAllowlist(additionalHosts);
-        WebViewAllowlists.AddOrUpdate(coreWebView, allowlist);
-        coreWebView.NavigationStarting -= OnNavigationStarting;
-        coreWebView.NavigationStarting += OnNavigationStarting;
-        coreWebView.NewWindowRequested -= OnNewWindowRequested;
-        coreWebView.NewWindowRequested += OnNewWindowRequested;
+        var binding = new GuardBinding(allowlist);
+        binding.Attach(coreWebView);
+        Bindings.Add(coreWebView, binding);
+
+        AppLogger.LogInfo(
+            "WebView.Nav",
+            $"Navigation guard attached: allowAllHosts={allowlist.Contains(AllowAllHostsSentinel)} hosts={allowlist.Count}");
     }
 
     public static void Detach(CoreWebView2 coreWebView)
     {
         ArgumentNullException.ThrowIfNull(coreWebView);
-        coreWebView.NavigationStarting -= OnNavigationStarting;
-        coreWebView.NewWindowRequested -= OnNewWindowRequested;
-        WebViewAllowlists.Remove(coreWebView);
+
+        if (Bindings.TryGetValue(coreWebView, out var binding))
+        {
+            binding.Detach();
+            Bindings.Remove(coreWebView);
+        }
+    }
+
+    /// <summary>
+    /// One WebView's guard subscription. Holds the allowlist and its own handler delegates so the decision
+    /// path never needs a table lookup, and so Detach can unsubscribe exactly what Attach subscribed.
+    /// </summary>
+    private sealed class GuardBinding(HashSet<string> allowlist)
+    {
+        private Action? _unsubscribe;
+
+        internal void Attach(CoreWebView2 coreWebView)
+        {
+            void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args) =>
+                HandleNavigationStarting(args, allowlist);
+
+            void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs args) =>
+                HandleNewWindowRequested(sender, args, allowlist);
+
+            coreWebView.NavigationStarting += OnNavigationStarting;
+            coreWebView.NewWindowRequested += OnNewWindowRequested;
+
+            _unsubscribe = () =>
+            {
+                coreWebView.NavigationStarting -= OnNavigationStarting;
+                coreWebView.NewWindowRequested -= OnNewWindowRequested;
+            };
+        }
+
+        internal void Detach()
+        {
+            _unsubscribe?.Invoke();
+            _unsubscribe = null;
+        }
     }
 
     public static bool IsAllowedNavigationUri(string? uri, IEnumerable<string>? additionalHosts = null) =>
@@ -205,38 +255,36 @@ public static class WebViewNavigationGuard
 
     // In-page downloads and media resolve to blob:/data: URIs — e.g. WhatsApp decrypts a received file to a
     // blob before saving it. These are not cross-origin navigations; blocking them kills the download.
+    // Every WebView2 starts on about:blank, so it shows up as a navigation. Cancelling it changes nothing
+    // (the page is already blank) but it logged a "Blocked navigation" warning on every session start.
+    private static bool IsBlankPage(string? uri) =>
+        string.IsNullOrWhiteSpace(uri) || uri.Equals("about:blank", StringComparison.OrdinalIgnoreCase);
+
     private static bool IsDownloadLikeScheme(string? uri) =>
         !string.IsNullOrWhiteSpace(uri) &&
         (uri.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) ||
          uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase));
 
-    private static void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
+    private static void HandleNavigationStarting(
+        CoreWebView2NavigationStartingEventArgs args,
+        IReadOnlySet<string> allowlist)
     {
-        if (IsDownloadLikeScheme(args.Uri))
+        if (IsDownloadLikeScheme(args.Uri) || IsBlankPage(args.Uri))
         {
             return;
         }
 
-        if (sender is CoreWebView2 coreWebView &&
-            WebViewAllowlists.TryGetValue(coreWebView, out var allowlist))
-        {
-            if (!IsAllowedNavigationUri(args.Uri, allowlist))
-            {
-                args.Cancel = true;
-                AppLogger.LogWarning("WebView.Nav", $"Blocked navigation to disallowed URI: {args.Uri}");
-            }
-
-            return;
-        }
-
-        if (!IsAllowedNavigationUri(args.Uri, DefaultAllowedHosts))
+        if (!IsAllowedNavigationUri(args.Uri, allowlist))
         {
             args.Cancel = true;
             AppLogger.LogWarning("WebView.Nav", $"Blocked navigation to disallowed URI: {args.Uri}");
         }
     }
 
-    private static void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs args)
+    private static void HandleNewWindowRequested(
+        object? sender,
+        CoreWebView2NewWindowRequestedEventArgs args,
+        IReadOnlySet<string> allowlist)
     {
         // Always suppress popup windows. If the target URL is in the allow-list, navigate the
         // current WebView frame instead; otherwise discard silently.
@@ -247,10 +295,7 @@ public static class WebViewNavigationGuard
             return;
         }
 
-        WebViewAllowlists.TryGetValue(coreWebView, out var allowlist);
-        var effectiveAllowlist = (IReadOnlySet<string>?)allowlist ?? DefaultAllowedHosts;
-
-        if (IsAllowedNavigationUri(args.Uri, effectiveAllowlist))
+        if (IsAllowedNavigationUri(args.Uri, allowlist))
         {
             coreWebView.Navigate(args.Uri);
         }

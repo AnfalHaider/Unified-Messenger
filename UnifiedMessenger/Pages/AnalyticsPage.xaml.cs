@@ -1,7 +1,11 @@
+using System.Globalization;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Controls.Charts;
+using UnifiedMessenger.Controls.Shared;
 using UnifiedMessenger.Dialogs;
 using UnifiedMessenger.Services;
 
@@ -74,6 +78,114 @@ public sealed partial class AnalyticsPage : Page
 
         SlaChart.Slices = BuildSlaSlices(view.Sla);
         SlaChart.CentreCaption = view.Sla.HasData ? $"{SlaMetPercent(view.Sla)}%\nSLA met" : string.Empty;
+
+        ShareChart.Slices = view.AccountShare;
+        ShareChart.CentreCaption = view.TotalMessages > 0
+            ? $"{ChartSeriesBuilder.FormatAxisCount(view.TotalMessages)}\nmessages"
+            : string.Empty;
+        ShareChart.EmptyHint = "No messages in this period";
+
+        RenderLeaderboard(view.TopPerformers);
+    }
+
+    /// <summary>
+    /// The account leaderboard. Shows on-time reply % — the real, nameable measurement — rather than a
+    /// blended score, and puts backlog beside it instead of inside it, so a row says what it means.
+    /// </summary>
+    private void RenderLeaderboard(IReadOnlyList<TopPerformer> performers)
+    {
+        TopAccountsHost.Children.Clear();
+
+        if (performers.Count == 0)
+        {
+            // Accounts without measured reply data are excluded rather than shown at a flattering 100%,
+            // so "nothing here yet" is the honest state early on.
+            TopAccountsHost.Children.Add(new EmptyStateView
+            {
+                IconGlyph = "",
+                Title = "No ranked accounts yet",
+                Hint = "Accounts appear here once enough replies have been measured to rank them fairly."
+            });
+            return;
+        }
+
+        for (var i = 0; i < performers.Count; i++)
+        {
+            TopAccountsHost.Children.Add(BuildLeaderboardRow(performers[i], rank: i + 1));
+        }
+    }
+
+    private static FrameworkElement BuildLeaderboardRow(TopPerformer performer, int rank)
+    {
+        var row = new Grid { ColumnSpacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var rankBadge = new Border
+        {
+            Width = 24,
+            Height = 24,
+            CornerRadius = new CornerRadius(12),
+            Background = Application.Current.Resources.TryGetValue("CardBackgroundFillColorSecondaryBrush", out var bg)
+                && bg is Brush brush ? brush : null,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = rank.ToString(CultureInfo.InvariantCulture),
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+        Grid.SetColumn(rankBadge, 0);
+
+        var detail = performer.AwaitingCount > 0
+            ? $"{performer.MeasuredCount} replies measured · {performer.AwaitingCount} waiting"
+            : $"{performer.MeasuredCount} replies measured";
+
+        var text = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock
+        {
+            Text = performer.DisplayName,
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = detail,
+            FontSize = 11,
+            Opacity = 0.7,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        Grid.SetColumn(text, 1);
+
+        var percent = new TextBlock
+        {
+            Text = $"{performer.OnTimePercent}%",
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = UmSemanticBrushes.Get(performer.OnTimePercent switch
+            {
+                >= 80 => "UmStatusSuccessBrush",
+                >= 50 => "UmStatusWarningBrush",
+                _ => "UmStatusDangerBrush"
+            })
+        };
+        Grid.SetColumn(percent, 2);
+
+        row.Children.Add(rankBadge);
+        row.Children.Add(text);
+        row.Children.Add(percent);
+
+        ToolTipService.SetToolTip(row,
+            $"{performer.DisplayName} replied on time to {performer.OnTimePercent}% of {performer.MeasuredCount} measured conversations.");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(row,
+            $"Rank {rank}. {performer.DisplayName}, {performer.OnTimePercent}% on time. {detail}");
+        return row;
     }
 
     private static void BindKpi(KpiStatCard card, AnalyticsKpi kpi)

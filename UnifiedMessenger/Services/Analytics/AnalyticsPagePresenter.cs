@@ -26,6 +26,19 @@ public sealed class AnalyticsView
 
     /// <summary>SLA met / missed / no-SLA across accounts (donut).</summary>
     public SlaBreakdown Sla { get; init; }
+
+    /// <summary>Accounts ranked by on-time reply %, best first (only those with real measured data).</summary>
+    public IReadOnlyList<TopPerformer> TopPerformers { get; init; } = [];
+
+    /// <summary>
+    /// Share of messages per <b>account</b> — deliberately not per platform. Google Business has no message
+    /// channel (its Messages product shut down in 2024), so a "62% WhatsApp / 28% Google" split of messages
+    /// would be fiction. Accounts are the honest unit.
+    /// </summary>
+    public IReadOnlyList<DonutSlice> AccountShare { get; init; } = [];
+
+    /// <summary>Total messages in the range — the donut's centre caption.</summary>
+    public int TotalMessages { get; init; }
 }
 
 /// <summary>
@@ -73,6 +86,17 @@ public static class AnalyticsPagePresenter
             .Entities;
         var slaBreakdown = ChartSeriesBuilder.BuildSlaBreakdown(entities);
 
+        // ── Per-account message share (donut) ──
+        var breakdown = MessageAnalyticsService.Instance
+            .BuildActivityBreakdown(ActivityDimension.DayOfWeek, instances, periodStart, now);
+        var colors = ChartPalette.ResolveSeriesColors(breakdown.Series);
+        var shareRows = breakdown.Series
+            .Select(s => (
+                Label: s.DisplayName,
+                ColorHex: colors.TryGetValue(s.InstanceId, out var hex) ? hex : s.AccentColor,
+                Value: s.Total))
+            .ToList();
+
         return new AnalyticsView
         {
             Messages = new AnalyticsKpi(ChartSeriesBuilder.FormatAxisCount(messagesNow.Total), messagesDelta),
@@ -86,7 +110,10 @@ public static class AnalyticsPagePresenter
             ResponseLabels = medians.Select(p => p.Label).ToList(),
             Replies15Daily = within.Select(p => (double)p.Percent).ToList(),
             Replies15Labels = within.Select(p => p.Label).ToList(),
-            Sla = slaBreakdown
+            Sla = slaBreakdown,
+            TopPerformers = ChartSeriesBuilder.RankTopPerformers(entities),
+            AccountShare = ChartSeriesBuilder.BuildShareSlices(shareRows),
+            TotalMessages = messagesNow.Total
         };
     }
 }

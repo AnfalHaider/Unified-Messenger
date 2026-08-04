@@ -100,6 +100,43 @@
                 </Border>
             </Grid>
 
+            <!-- Account comparison. Moved off the dashboard, which had grown a second copy of these two:
+                 comparing accounts is analysis, and it belongs on the page that owns analysis. -->
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource UmSurfaceCardStyle}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Account Leaderboard" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                            <TextBlock
+                                FontSize="11"
+                                Opacity="0.65"
+                                Text="Ranked by on-time reply rate."
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                        <StackPanel x:Name="TopAccountsHost" Spacing="8" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource UmSurfaceCardStyle}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="Messages by Account" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                            <TextBlock
+                                FontSize="11"
+                                Opacity="0.65"
+                                Text="Share of message volume across your accounts."
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                        <charts:DonutChartView x:Name="ShareChart" MinHeight="180" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
             <!-- Preserve the shipped activity-patterns detail (hour/day/month + heat map + week-over-week). -->
             <Border Style="{StaticResource UmSurfaceCardStyle}">
                 <controls:ActivityPatternsPanel x:Name="ActivityPatternsPanel" />

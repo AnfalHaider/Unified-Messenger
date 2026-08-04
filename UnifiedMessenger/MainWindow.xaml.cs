@@ -296,6 +296,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         nav.InstanceRegistryRefreshRequested += OnInstanceRegistryRefreshRequested;
         nav.AddInstanceRequested += OnAddInstanceRequested;
         nav.SettingsOpenRequested += OnSettingsOpenRequested;
+        nav.SectionNavigationRequested += OnSectionNavigationRequested;
 
         _services.NotificationHub.Changed += OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested += OnToastActivationRequested;
@@ -313,6 +314,9 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     private void OnSettingsOpenRequested(object? sender, string? sectionKey) =>
         DispatcherQueue.TryEnqueue(() => _ = _shell.Navigation.ShowSettingsAsync(sectionKey));
+
+    private void OnSectionNavigationRequested(object? sender, ShellSection section) =>
+        DispatcherQueue.TryEnqueue(() => _ = _shell.Navigation.ShowSectionAsync(section));
 
     private void OnInstanceNavigationRequested(object? sender, InstanceNavigationRequest request) =>
         DispatcherQueue.TryEnqueue(() => _ = _shell.Navigation.NavigateToInstanceAsync(request));
@@ -346,6 +350,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         nav.InstanceRegistryRefreshRequested -= OnInstanceRegistryRefreshRequested;
         nav.AddInstanceRequested -= OnAddInstanceRequested;
         nav.SettingsOpenRequested -= OnSettingsOpenRequested;
+        nav.SectionNavigationRequested -= OnSectionNavigationRequested;
 
         _services.NotificationHub.Changed -= OnNotificationHubChanged;
         _services.AppNotification.ActivationRequested -= OnToastActivationRequested;

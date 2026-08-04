@@ -67,63 +67,11 @@
 
             <controls:CommandCenterPanel x:Name="CommandCenterPanel" />
 
-            <!-- Mockup overview row: volume over time, top performing accounts, per-account distribution.
-                 Additive — the command center above keeps every shipped capability. -->
-            <controls:DashboardOverviewPanel x:Name="DashboardOverviewPanel" />
-
-            <!-- Bento row: Activity + Reviews sit side by side on wide screens, stack on narrow ones.
-                 The command center stays full-width above; these two secondary panels use the horizontal
-                 space instead of a long scroll. Reflow is animated. -->
-            <Grid x:Name="BentoRow" ColumnSpacing="16" RowSpacing="16">
-                <Grid.ChildrenTransitions>
-                    <TransitionCollection>
-                        <RepositionThemeTransition />
-                        <EntranceThemeTransition FromVerticalOffset="12" />
-                    </TransitionCollection>
-                </Grid.ChildrenTransitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <controls:ActivityPatternsPanel
-                    x:Name="ActivityPatternsPanel"
-                    Grid.Row="0"
-                    Grid.Column="0"
-                    VerticalAlignment="Top" />
-                <controls:ReviewHealthPanel
-                    x:Name="ReviewHealthPanel"
-                    Grid.Row="0"
-                    Grid.Column="1"
-                    VerticalAlignment="Top" />
-
-                <VisualStateManager.VisualStateGroups>
-                    <VisualStateGroup>
-                        <!-- Wide: markup default (side by side). Setters auto-revert on entry. -->
-                        <VisualState x:Name="BentoWide">
-                            <VisualState.StateTriggers>
-                                <AdaptiveTrigger MinWindowWidth="1360" />
-                            </VisualState.StateTriggers>
-                        </VisualState>
-                        <!-- Narrow (always-true fallback): stack Reviews under Activity, each full-width. -->
-                        <VisualState x:Name="BentoStacked">
-                            <VisualState.StateTriggers>
-                                <AdaptiveTrigger MinWindowWidth="0" />
-                            </VisualState.StateTriggers>
-                            <VisualState.Setters>
-                                <Setter Target="ActivityPatternsPanel.(Grid.ColumnSpan)" Value="2" />
-                                <Setter Target="ReviewHealthPanel.(Grid.Row)" Value="1" />
-                                <Setter Target="ReviewHealthPanel.(Grid.Column)" Value="0" />
-                                <Setter Target="ReviewHealthPanel.(Grid.ColumnSpan)" Value="2" />
-                            </VisualState.Setters>
-                        </VisualState>
-                    </VisualStateGroup>
-                </VisualStateManager.VisualStateGroups>
-            </Grid>
+            <!-- The dashboard is the *action* surface: what needs attention right now, and nothing else.
+                 Analytics charts, the activity graph, the business report and Google review health each have
+                 their own section, so repeating any of them here would be a second copy that drifts. This
+                 row links to them instead, carrying only the one number that says whether it's worth a look. -->
+            <controls:DashboardSectionLinks x:Name="SectionLinks" />
         </StackPanel>
     </ScrollViewer>
 </Page>

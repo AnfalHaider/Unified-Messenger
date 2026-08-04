@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using UnifiedMessenger.Controls.Shared;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Ai;
@@ -1042,56 +1043,16 @@ public sealed partial class CommandCenterPanel : UserControl
     }
 
     /// <summary>
-    /// The per-chat overflow menu on an awaiting row: mark it handled elsewhere (drops off the list until a
-    /// newer customer message arrives) or snooze it for a while. Both suppress it from every awaiting metric
-    /// via <see cref="AwaitingOverrideStore"/> and self-expire.
+    /// The per-chat action on an awaiting row — see <see cref="AwaitingChatActions"/>, which both this panel
+    /// and the per-account drill-down share so the capability can't go missing from one of them again.
     /// </summary>
-    private Button BuildAwaitingActionButton(string instanceId, OversightChatSnapshotService.ChatEntry chat, string displayName)
-    {
-        var flyout = new MenuFlyout();
-
-        void Refresh()
+    private FrameworkElement BuildAwaitingActionButton(string instanceId, OversightChatSnapshotService.ChatEntry chat, string displayName) =>
+        AwaitingChatActions.Build(instanceId, chat, displayName, () =>
         {
             _lastRenderSignature = string.Empty;
             Render();
-        }
-
-        var handled = new MenuFlyoutItem { Text = "Mark handled (replied elsewhere)", Icon = new FontIcon { Glyph = "" } };
-        handled.Click += (_, _) =>
-        {
-            AwaitingOverrideStore.Instance.MarkHandled(instanceId, chat.ConversationKey, chat.LastActivityUtc);
-            Refresh();
-        };
-        flyout.Items.Add(handled);
-        flyout.Items.Add(new MenuFlyoutSeparator());
-
-        void AddSnooze(string label, TimeSpan duration)
-        {
-            var item = new MenuFlyoutItem { Text = label };
-            item.Click += (_, _) =>
-            {
-                AwaitingOverrideStore.Instance.Snooze(instanceId, chat.ConversationKey, DateTimeOffset.UtcNow + duration);
-                Refresh();
-            };
-            flyout.Items.Add(item);
-        }
-
-        AddSnooze("Snooze 1 hour", TimeSpan.FromHours(1));
-        AddSnooze("Snooze 4 hours", TimeSpan.FromHours(4));
-        AddSnooze("Snooze until tomorrow", TimeSpan.FromHours(Math.Max(1, 24 - DateTime.Now.Hour)));
-
-        var button = new Button
-        {
-            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-            BorderThickness = new Thickness(0),
-            Padding = new Thickness(8),
-            Content = new FontIcon { Glyph = "", FontSize = 14 }, // More (…)
-            Flyout = flyout
-        };
-        ToolTipService.SetToolTip(button, $"Handle or snooze {displayName}");
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"Actions for {displayName}");
-        return button;
-    }
+        },
+        compact: _compact);
 
     /// <summary>
     /// The accordion header: the health row, plus (when the account needs attention) an insight strip —

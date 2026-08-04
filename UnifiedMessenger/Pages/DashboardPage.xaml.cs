@@ -24,9 +24,7 @@ public sealed partial class DashboardPage : Page
         _services.ThreadRegistry.RefreshOperationalFlags(raiseChanged: false);
         PersonalOverviewPanel.ScheduleRefresh(PersonalInstances);
         CommandCenterPanel.Render();
-        ActivityPatternsPanel.Render();
-        ReviewHealthPanel.Render();
-        DashboardOverviewPanel.Render();
+        SectionLinks.Render();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -41,9 +39,7 @@ public sealed partial class DashboardPage : Page
             }
 
             PersonalOverviewPanel.ConfigureServices(_services);
-            ActivityPatternsPanel.ConfigureServices(_services);
-            ReviewHealthPanel.ConfigureServices(_services);
-            DashboardOverviewPanel.ConfigureServices(_services);
+            SectionLinks.ConfigureServices(_services);
         }
 
         if (_registry is not null)
@@ -84,20 +80,15 @@ public sealed partial class DashboardPage : Page
 
     private void OnDashboardResyncRequested(object? sender, EventArgs e) => _ = RunDashboardResyncAsync();
 
-    // A KPI tile (Busiest window / Messages per day) asked to open the activity graph — scroll it into view.
-    private void OnDashboardActivityRequested(object? sender, EventArgs e)
-    {
-        DispatcherQueue.TryEnqueue(() =>
-        {
-            var transform = ActivityPatternsPanel.TransformToVisual(DashboardScrollViewer.Content as UIElement);
-            var target = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-            DashboardScrollViewer.ChangeView(null, Math.Max(0, target.Y - 12), null, disableAnimation: false);
-        });
-    }
+    // A KPI tile (Busiest window / Messages per day) asked to open the activity graph. It lives on the
+    // Analytics page now — the dashboard no longer keeps a second copy of it — so this navigates there
+    // rather than scrolling to a panel that isn't on this page any more.
+    private void OnDashboardActivityRequested(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => _services.Navigation.RequestSection(ShellSection.Analytics));
 
     /// <summary>
-    /// The dashboard's single Re-sync action: re-read oversight history, then refresh the activity graph and
-    /// Google reviews. One button drives all three (the per-section Refresh/Refresh-reviews buttons were removed).
+    /// The dashboard's single Re-sync action: re-read oversight history, then refresh the Google review
+    /// snapshots the section-links card reports on. One button drives both.
     /// </summary>
     private async Task RunDashboardResyncAsync()
     {
@@ -110,8 +101,7 @@ public sealed partial class DashboardPage : Page
         try
         {
             await CommandCenterPanel.RunResyncAsync();
-            await ReviewHealthPanel.RefreshAsync();
-            ActivityPatternsPanel.Render();
+            SectionLinks.Render();
         }
         finally
         {
@@ -146,6 +136,7 @@ public sealed partial class DashboardPage : Page
         {
             PersonalOverviewPanel.ScheduleRefresh(PersonalInstances);
             CommandCenterPanel.Render();
+            SectionLinks.Render();
         });
     }
 
@@ -184,6 +175,7 @@ public sealed partial class DashboardPage : Page
 
         PersonalOverviewPanel.Refresh(PersonalInstances);
         CommandCenterPanel.Render();
+        SectionLinks.Render();
     }
 
     // Refresh the personal overview each time its flyout opens so it's current when viewed.

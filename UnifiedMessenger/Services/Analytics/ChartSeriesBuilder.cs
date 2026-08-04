@@ -124,9 +124,12 @@ public static class ChartSeriesBuilder
     /// know nothing about. Only entities with real, timeable data are ranked; the rest are omitted.
     /// </summary>
     /// <remarks>
-    /// Score (0–100) = on-time % penalised by current backlog: <c>onTime − min(20, awaiting·2)</c>. Backlog
-    /// caps its penalty so a fast-replying busy account isn't buried, and the cap is documented rather than
-    /// magic. Ties break on more measured data (a track record beats a single lucky sample).
+    /// Ranked on the number the owner already understands — <b>on-time reply %</b> — with a smaller backlog
+    /// winning ties, then a longer track record. An earlier version ranked and displayed a blended score
+    /// (<c>onTime − min(20, awaiting·2)</c>); that was worse in both directions. It hid what it meant, and
+    /// because the penalty was subtracted flat it drove every account to a meaningless 0 whenever on-time %
+    /// was genuinely low — a leaderboard reading "0%" five times over. Backlog is still shown, as its own
+    /// number, next to the percentage.
     /// </remarks>
     public static IReadOnlyList<TopPerformer> RankTopPerformers(
         IEnumerable<OversightEntityHealth> entities,
@@ -136,13 +139,14 @@ public static class ChartSeriesBuilder
 
         return entities
             .Where(e => e.SupportsResponseTiming && e.MeasuredCount > 0 && e.HasChatData)
-            .Select(e =>
-            {
-                var backlogPenalty = Math.Min(20, Math.Max(0, e.AwaitingCount) * 2);
-                var score = Math.Clamp(Math.Clamp(e.OnTimePercent, 0, 100) - backlogPenalty, 0, 100);
-                return new TopPerformer(e.Key, e.DisplayName, score, e.OnTimePercent, e.AwaitingCount, e.MeasuredCount);
-            })
-            .OrderByDescending(p => p.Score)
+            .Select(e => new TopPerformer(
+                e.Key,
+                e.DisplayName,
+                Math.Clamp(e.OnTimePercent, 0, 100),
+                Math.Max(0, e.AwaitingCount),
+                e.MeasuredCount))
+            .OrderByDescending(p => p.OnTimePercent)
+            .ThenBy(p => p.AwaitingCount)
             .ThenByDescending(p => p.MeasuredCount)
             .ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Take(Math.Max(0, max))

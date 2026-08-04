@@ -127,7 +127,7 @@ public class ChartSeriesBuilderTests
     }
 
     [Fact]
-    public void RankTopPerformers_BacklogPenalisesButIsCapped()
+    public void RankTopPerformers_SmallerBacklogBreaksTheTieButNeverRewritesOnTime()
     {
         var entities = new[]
         {
@@ -138,8 +138,27 @@ public class ChartSeriesBuilderTests
         var ranked = ChartSeriesBuilder.RankTopPerformers(entities);
 
         Assert.Equal("clean", ranked[0].Key);
-        // Penalty caps at 20, so even a 50-deep backlog only drops a 90 to 70 — not to zero.
-        Assert.Equal(70, ranked.Single(p => p.Key == "swamped").Score);
+        // Backlog orders the tie; it must not be folded into the reported percentage. Both really did
+        // reply on time 90% of the time, and that is what the leaderboard shows.
+        Assert.Equal(90, ranked.Single(p => p.Key == "swamped").OnTimePercent);
+        Assert.Equal(50, ranked.Single(p => p.Key == "swamped").AwaitingCount);
+    }
+
+    [Fact]
+    public void RankTopPerformers_RanksByOnTimePercentNotABlendedScore()
+    {
+        // The regression that made the shipped leaderboard read "0%" for every account: a low on-time %
+        // minus a flat backlog penalty floored everything at zero, losing the ordering entirely.
+        var entities = new[]
+        {
+            Entity(key: "better", measured: 10, onTime: 18, supportsTiming: true, hasChat: true, awaiting: 30),
+            Entity(key: "worse", measured: 10, onTime: 5, supportsTiming: true, hasChat: true, awaiting: 0)
+        };
+
+        var ranked = ChartSeriesBuilder.RankTopPerformers(entities);
+
+        Assert.Equal("better", ranked[0].Key);
+        Assert.Equal(18, ranked[0].OnTimePercent);
     }
 
     [Fact]
