@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="UnifiedMessenger.Controls.DashboardOverviewPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:charts="using:UnifiedMessenger.Controls.Charts"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid ColumnSpacing="12" RowSpacing="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Overview bar chart -->
+        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource UmSurfaceCardStyle}">
+            <StackPanel Spacing="10">
+                <Grid>
+                    <TextBlock Text="Overview" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                    <TextBlock
+                        x:Name="OverviewTotal"
+                        HorizontalAlignment="Right"
+                        FontSize="12"
+                        Opacity="0.7" />
+                </Grid>
+                <charts:BarChartView x:Name="MessagesChart" />
+            </StackPanel>
+        </Border>
+
+        <!-- Top performing accounts -->
+        <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource UmSurfaceCardStyle}">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Top Performing Accounts" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                <StackPanel x:Name="TopAccountsHost" Spacing="10" />
+            </StackPanel>
+        </Border>
+
+        <!-- Channel (per-account) distribution -->
+        <Border Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource UmSurfaceCardStyle}">
+            <StackPanel Spacing="10">
+                <TextBlock Text="Message distribution by account" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                <charts:DonutChartView x:Name="ShareChart" MinHeight="180" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

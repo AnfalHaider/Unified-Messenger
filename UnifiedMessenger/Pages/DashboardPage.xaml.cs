@@ -26,6 +26,7 @@ public sealed partial class DashboardPage : Page
         CommandCenterPanel.Render();
         ActivityPatternsPanel.Render();
         ReviewHealthPanel.Render();
+        DashboardOverviewPanel.Render();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -42,6 +43,7 @@ public sealed partial class DashboardPage : Page
             PersonalOverviewPanel.ConfigureServices(_services);
             ActivityPatternsPanel.ConfigureServices(_services);
             ReviewHealthPanel.ConfigureServices(_services);
+            DashboardOverviewPanel.ConfigureServices(_services);
         }
 
         if (_registry is not null)

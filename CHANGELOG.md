@@ -5,6 +5,25 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.98.0
+
+**The dashboard gains the overview row from the new design.**
+
+Below your command center there's now:
+
+- **Overview** — message volume across the last 7 days, with the busiest day highlighted.
+- **Top Performing Accounts** — your accounts ranked by a score combining how often they reply on time
+  with how big their current backlog is. Accounts the app hasn't measured enough replies for are left
+  out rather than shown at a flattering 100%.
+- **Message distribution by account** — a ring showing which accounts your messages actually come from.
+
+**Response time and SLA met now show how they've changed** versus the previous period, alongside the
+existing Messages/day change. A falling response time shows green because that's an improvement — the
+arrow direction alone doesn't decide the colour.
+
+Everything already on the dashboard is untouched: the waiting-customers headline, account cards,
+needs-reply list, mark-handled and snooze, AI notes, and Re-sync all work exactly as before.
+
 ## v4.97.0
 
 **The Analytics page, redesigned.**

@@ -1256,6 +1256,28 @@ public sealed partial class CommandCenterPanel : UserControl
     /// (+ accounts behind), total past-SLA, and the single oldest waiting conversation. Computed from the
     /// by-instance entities so the headline numbers are stable across grouping modes.
     /// </summary>
+    /// <summary>
+    /// Renders a delta for a KPI tile. Colour follows the delta's SENTIMENT, not its arrow: response time
+    /// falling is a down-arrow in green, while a neutral-polarity metric moving either way stays muted.
+    /// </summary>
+    private static (string Text, Brush? Brush) FormatKpiDelta(MetricDelta delta, Brush neutral)
+    {
+        if (!delta.HasData || delta.Direction == DeltaDirection.None)
+        {
+            return (string.Empty, null);
+        }
+
+        var arrow = delta.Direction == DeltaDirection.Up ? "▲" : "▼";
+        var brush = delta.Sentiment switch
+        {
+            DeltaSentiment.Favourable => UmSemanticBrushes.Get("UmStatusSuccessBrush"),
+            DeltaSentiment.Adverse => UmSemanticBrushes.Get("UmStatusDangerBrush"),
+            _ => neutral
+        };
+
+        return ($"{arrow} {delta.Percent}%", brush);
+    }
+
     private void RenderKpiBand(
         IReadOnlyList<OversightEntityHealth> entities,
         IReadOnlyList<MessengerInstance> instances,
@@ -1311,11 +1333,36 @@ public sealed partial class CommandCenterPanel : UserControl
         // Response time (FRT) + SLA compliance — forward-tracked from real message timestamps.
         var slaThreshold = AppSettingsService.Instance.Settings.SlaThresholdMinutes;
         var response = ResponseTimeTracker.Instance.GetStats(instances, rangeStart, rangeEnd, slaThreshold);
+
+        // Change vs the prior equal-length period. Only meaningful when the range is bounded — an
+        // all-time view has no "previous period" to compare against, so no delta is shown rather than a
+        // fabricated one.
+        var responseDelta = MetricDelta.None;
+        var slaDelta = MetricDelta.None;
+        if (rangeStart is { } periodStart && response.HasData)
+        {
+            var periodEnd = rangeEnd ?? DateTimeOffset.Now;
+            var prior = ResponseTimeTracker.Instance.GetStats(
+                instances, periodStart - (periodEnd - periodStart), periodStart, slaThreshold);
+            if (prior.HasData)
+            {
+                responseDelta = ChartSeriesBuilder.ComputeDelta(
+                    response.MedianMinutes, prior.MedianMinutes, MetricPolarity.LowerIsBetter);
+                slaDelta = ChartSeriesBuilder.ComputeDelta(
+                    response.SlaCompliancePercent, prior.SlaCompliancePercent, MetricPolarity.HigherIsBetter);
+            }
+        }
+
+        var (responseDeltaText, responseDeltaBrush) = FormatKpiDelta(responseDelta, secondary);
+        var (slaDeltaText, slaDeltaBrush) = FormatKpiDelta(slaDelta, secondary);
+
         tiles.Add(new KpiTileViewModel
         {
             Label = "Response time",
             Value = response.HasData ? FormatMinutes(response.MedianMinutes) : "—",
             ValueBrush = response.HasData ? ResponseBrush(response.MedianMinutes, slaThreshold) : secondary,
+            Delta = responseDeltaText,
+            DeltaBrush = responseDeltaBrush,
             Hint = response.HasData ? $"median · {response.SampleCount} replies" : "builds as you reply",
             Tooltip = $"Median time from a customer's message to your first reply (measured live since tracking began). Target: under {slaThreshold} min."
         });
@@ -1325,6 +1372,8 @@ public sealed partial class CommandCenterPanel : UserControl
             Label = "SLA met",
             Value = response.HasData ? $"{response.SlaCompliancePercent}%" : "—",
             ValueBrush = response.HasData ? StatusBrushForPercent(response.SlaCompliancePercent) : secondary,
+            Delta = slaDeltaText,
+            DeltaBrush = slaDeltaBrush,
             Hint = response.HasData ? $"replied within {slaThreshold} min" : $"target {slaThreshold} min",
             Tooltip = $"Share of replies sent within your {slaThreshold}-minute SLA target. Adjust the target in Settings → Session & performance."
         });

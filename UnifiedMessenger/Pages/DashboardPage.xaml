@@ -67,6 +67,10 @@
 
             <controls:CommandCenterPanel x:Name="CommandCenterPanel" />
 
+            <!-- Mockup overview row: volume over time, top performing accounts, per-account distribution.
+                 Additive — the command center above keeps every shipped capability. -->
+            <controls:DashboardOverviewPanel x:Name="DashboardOverviewPanel" />
+
             <!-- Bento row: Activity + Reviews sit side by side on wide screens, stack on narrow ones.
                  The command center stays full-width above; these two secondary panels use the horizontal
                  space instead of a long scroll. Reflow is animated. -->
