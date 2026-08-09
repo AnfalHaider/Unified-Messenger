@@ -160,6 +160,143 @@ not `telegram`. This is recorded so no one "fixes" a problem that was already so
 
 ---
 
+---
+
+### F-ORCH-05 — The AI layer sends customer names and full message bodies to Ollama; AGENTS.md documents the opposite, and no guard keeps the endpoint on-box
+
+- **Severity:** S2
+- **Confidence:** confirmed (code paths read directly; not yet demonstrated with a captured request)
+- **Where:** `UnifiedMessenger/Services/Ai/TranscriptBuilder.cs:9-30` (composes name + up to 800 chars of body)
+- **Where:** `UnifiedMessenger/Services/Ai/AiInferenceQueue.cs:194` (sole caller)
+- **Where:** `UnifiedMessenger/Models/AppSettings.cs:177` (`OllamaEndpoint`, unvalidated string)
+- **Where:** `UnifiedMessenger/Services/Ai/OllamaInferenceClient.cs:86,129` (`new OllamaApiClient(new Uri(endpoint))`)
+- **Where:** `AGENTS.md:175` (the incorrect "aggregate counts only" claim)
+- **User-visible symptom:** None in the default configuration — and that matters, so state it plainly:
+  **out of the box there is no leak.** The symptom appears if `OllamaEndpoint` is ever repointed at a
+  remote host, at which point every triaged customer's name and message text is POSTed off the machine
+  while Settings continues to display "Nothing leaves your PC." The user has no way to tell.
+- **Repro:** `static-analysis-only` for the leak. The two facts underneath it are confirmed by reading:
+  `TranscriptBuilder` embeds `item.CustomerName` and `item.MessageFullText`; no loopback guard exists.
+- **Root cause:** Two separate issues that compound.
+  1. **Documentation is wrong.** AGENTS.md's AI-layer section states prompts send "only aggregate counts —
+     never customer names or message text". That is true of `OversightInsightService` but there is a
+     second, entirely undocumented AI path (`AiInferenceQueue` → `TranscriptBuilder`) that sends both.
+     Anyone auditing privacy from AGENTS.md — including a buyer's technical reviewer — would reach a
+     wrong conclusion. The in-app Settings string at `SettingsPage.xaml:468` is, by contrast, **accurate**.
+  2. **No host validation.** `AppSettings.Validate` (`AppSettings.cs:237-247`) and
+     `OllamaOptions.NormalizeEndpoint` only check for empty, trim, and append a trailing slash. A grep for
+     `IsLoopback` / `127.0.0.1` / `localhost` across every `.cs` finds no guard on this value anywhere.
+  **Verified mitigation — do not report this as UI-editable:** the Settings text box is
+  `IsReadOnly="True"` (`SettingsPage.xaml:476-479`) and `SettingsPage.Ai.partial.cs:49` only *writes* to
+  it; there is no change handler and no write-back. The endpoint cannot be changed from the UI. The
+  exposure is limited to hand-editing `settings.json` on disk, or any process with file access doing so.
+- **Proposed fix:** Enforce the invariant in code rather than by convention — validate `OllamaEndpoint` at
+  the point of use and reject any host that is not loopback, falling back to the default with a logged
+  warning and a visible notice in Settings → AI. This is defence in depth that costs nothing and makes the
+  "Nothing leaves your PC" claim structurally true instead of merely conventionally true. Separately,
+  correct AGENTS.md to document both AI paths. **Constraint check:** the fix adds no egress and no
+  telemetry; it only removes a capability.
+- **Blast radius:** `OllamaInferenceClient`, `OllamaModelPullHelper`, `OllamaRuntimeService`, and
+  `AppSettings.Validate`. Would break any user deliberately running Ollama on another machine on their
+  LAN — that is the tradeoff, and constraint 2 says it is the correct one.
+- **Evidence:**
+  ```
+  $ grep -rn "IsLoopback\|127\.0\.0\.1\|localhost" UnifiedMessenger/ --include=*.cs | grep -v obj/
+  (only default-value constants and status strings — no validation of the configured endpoint)
+
+  TranscriptBuilder.cs:
+      Customer: {customer}      <- item.CustomerName
+      Platform: {item.Platform}
+      Message: {message}        <- item.MessageFullText, truncated to 800 chars
+  ```
+  Referred to the privacy auditor for independent confirmation and for generalisation to other
+  user-settable URLs/paths.
+
+---
+
+### F-ORCH-06 — Settings speaks the developer's vocabulary, not the owner's: "instances", "WebViews", and raw filenames are on screen
+
+- **Severity:** S3
+- **Confidence:** confirmed
+- **Where:** `UnifiedMessenger/Pages/SettingsPage.xaml` (18+ distinct strings; representative sites below)
+- **User-visible symptom:** A non-technical business owner opens Settings and reads "Sleep unload inactive
+  instances", "Max concurrent WebViews (0 = unlimited)", "Export instances.json", "Refresh all WebViews",
+  and "Use tighter thread cards in the Operations Command Center work queue." They do not know what an
+  instance, a WebView, or a work queue is. The product calls the same thing an "account" everywhere else —
+  in the README, in the "Add account" dialog, in the sidebar — so the user cannot even map the words onto
+  what they are looking at. The likely outcome is that they leave memory and session settings alone,
+  including the ones that would fix a real performance complaint.
+- **Repro:**
+  1. Launch the app → Settings.
+  2. Read the Session, Data, and Appearance sections.
+  3. Count the terms that appear nowhere in the product's own onboarding or README.
+- **Root cause:** `MessengerInstance` is the internal model name and it leaked into the presentation layer
+  wholesale. `WebView` is the implementation of a session and should never have been a user-facing noun.
+  `instances.json` is an internal artifact name used as a button label.
+- **Proposed fix:** Retitle to the owner's vocabulary — "accounts" for instances, "account sessions" or
+  "background accounts" for WebViews, "Export account list" / "Import account list" for the JSON buttons,
+  "Command centre" for "Operations Command Center work queue". **Do not blanket-rename**: at least one use
+  is correct English and must stay — "Message text is sent to your local Ollama **instance** only"
+  (`SettingsPage.xaml:468`) refers to a server instance, not an account. Rename by review, not by sed.
+- **Blast radius:** Display strings only, no model or API renames. `SettingsPage.xaml` plus a few helper
+  strings. Zero behaviour change, which makes it low-risk and worth doing.
+- **Evidence:**
+  ```
+  Content="Export instances.json"          Content="Import instances.json"
+  Content="Refresh all WebViews"           Header="Max concurrent WebViews (0 = unlimited)"
+  Text="Sleep unload inactive instances"   Text="Lazy WebView loading"
+  Text="Unload the WebView of instances not used for a while to reduce memory usage."
+  Text="Use tighter thread cards in the Operations Command Center work queue."
+  Text="After connect, reconcile unread WhatsApp threads into triage and analytics."
+  ```
+
+---
+
+### F-ORCH-07 — THIRD-PARTY-NOTICES.md omits half the direct package dependencies
+
+- **Severity:** S3
+- **Confidence:** confirmed
+- **Where:** `THIRD-PARTY-NOTICES.md`; `UnifiedMessenger/UnifiedMessenger.csproj:88-97`
+- **User-visible symptom:** None for the end user directly. It matters because §9 of the audit requires
+  third-party notices accurate to what ships, and because incomplete attribution is precisely what a
+  buyer's legal due diligence checks. Shipping software with half its dependencies unattributed is a
+  defect in the product's paperwork even when every licence is permissive.
+- **Repro:** `static-analysis-only`
+- **Root cause:** The notices file was written once and not maintained as packages were added. Five of the
+  ten direct `PackageReference` entries have no entry: `Microsoft.Extensions.DependencyInjection`,
+  `Microsoft.Extensions.AI.Abstractions`, `Microsoft.Windows.SDK.BuildTools`, `System.Text.Json`, and
+  `System.Drawing.Common`.
+- **Proposed fix:** Add the five missing entries with their licences (all MIT). Orchestrator-owned file —
+  I will do this in Wave 6 alongside the version-sync pass. Worth also noting the transitive set, but
+  direct references are the minimum bar.
+- **Blast radius:** Documentation only.
+- **Evidence:**
+  ```
+  $ for p in ...; do echo "$(grep -ci "$p" THIRD-PARTY-NOTICES.md)  $p"; done
+  1  CommunityToolkit.Mvvm          0  Microsoft.Extensions.DependencyInjection
+  2  WebView2                       0  Microsoft.Extensions.AI.Abstractions
+  1  WindowsAppSDK                  0  SDK.BuildTools
+  1  NotifyIcon                     0  System.Text.Json
+  1  OllamaSharp                    0  System.Drawing.Common
+  ```
+
+---
+
+## Checks that came back CLEAN (recorded so no one re-audits them)
+
+- **Version sync.** All five files agree at `4.99.0`: `UnifiedMessenger.csproj:29-31`,
+  `app.manifest:4`, `installer-shared.iss:8`, `README.md:10`, and `docs/phase-status.md` baseline.
+  No finding.
+- **README's "business-hours aware" FRT claim is backed by real code.** AGENTS.md lists business-hours-aware
+  FRT as an unshipped optional follow-up, which would have made the README claim a broken promise — but
+  `UnifiedMessenger/Services/Oversight/BusinessHoursCalculator.cs:13` (`ElapsedBusinessMinutes`) exists and
+  is consumed by `OversightRollupBuilder`. The README is correct; AGENTS.md is stale (see F-ORCH-04).
+  **No finding.** Recorded because this looked like an S1 and was not one.
+- **The Ollama endpoint is not user-editable from the UI.** `IsReadOnly="True"`. This knocks the severity
+  of F-ORCH-05 down from S1 to S2. Recorded because it is the kind of mitigation an auditor skips.
+- **README does not over-promise channels.** It scopes the product to WhatsApp, WhatsApp Business, and
+  Google Business reviews, and never claims Telegram, Messenger, Instagram, or Discord support. No finding.
+
 ## Tech debt (no user symptom — not findings)
 
 Recorded here for `DEFERRED.md`; none of these are worth a fix on their own.
