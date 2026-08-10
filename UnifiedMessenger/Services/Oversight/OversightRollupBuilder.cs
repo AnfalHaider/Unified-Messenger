@@ -47,7 +47,12 @@ public static class OversightRollupBuilder
         // timing is dropped from the on-time DENOMINATOR rather than scored as a miss.
         var capabilities = capabilitiesForInstance ?? (_ => FullyMeasurable);
 
-        var today = (nowUtc ?? DateTimeOffset.UtcNow).UtcDateTime.Date;
+        // LOCAL day, not UTC. Every other daily figure in the product keys locally — MessageAnalyticsService
+        // buckets on receivedAtUtc.LocalDateTime and prunes with DateTime.Now.Date, and KpiTrendStore keys
+        // with LocalDateTime. Keying this one in UTC put every message between local midnight and the UTC
+        // offset into the previous day's bucket, so at UTC+5 the card's sparkline disagreed with the
+        // Analytics chart for the same account until 05:00 every morning.
+        var today = (nowUtc ?? DateTimeOffset.UtcNow).LocalDateTime.Date;
 
         var nameByInstance = instances
             .GroupBy(i => i.Id, StringComparer.OrdinalIgnoreCase)
@@ -116,7 +121,7 @@ public static class OversightRollupBuilder
             var onTimeCount = timingReplied.Count(t => t.ReplyLatencyMinutes <= threshold)
                 + timingOpen.Count(t => !t.IsSlaBreached);
             var onTimePercent = measuredCount > 0
-                ? (int)Math.Round((double)onTimeCount / measuredCount * 100)
+                ? HonestPercent(onTimeCount, measuredCount)
                 : 100;
             var historicalOpenCount = windowStartUtc is null
                 ? 0
@@ -147,7 +152,7 @@ public static class OversightRollupBuilder
                 if (hasSnapshot)
                 {
                     measuredCount = snapActive;
-                    onTimePercent = snapActive > 0 ? (int)Math.Round((double)snapCaught / snapActive * 100) : 100;
+                    onTimePercent = snapActive > 0 ? HonestPercent(snapCaught, snapActive) : 100;
                     historicalOpenCount = 0;
                     awaitingCount = Math.Max(0, snapActive - snapCaught);
                 }
@@ -240,7 +245,9 @@ public static class OversightRollupBuilder
         var buckets = new int[TrendDays];
         foreach (var thread in list)
         {
-            var daysAgo = (today - thread.LastMessageTime.UtcDateTime.Date).Days;
+            // Both sides of this subtraction must use the same clock as `today` above, or the fix is
+            // only half applied and the boundary moves rather than closing.
+            var daysAgo = (today - thread.LastMessageTime.LocalDateTime.Date).Days;
             if (daysAgo is >= 0 and < TrendDays)
             {
                 buckets[TrendDays - 1 - daysAgo]++;
@@ -276,4 +283,39 @@ public static class OversightRollupBuilder
 
     private static string? FirstBranch(IReadOnlyList<ThreadData> list) =>
         list.Select(t => t.BranchName).FirstOrDefault(b => !string.IsNullOrWhiteSpace(b));
+
+    /// <summary>
+    /// Percentage that never claims more than the counts support: 100 only when nothing is outstanding,
+    /// 0 only when nothing was handled.
+    /// </summary>
+    /// <remarks>
+    /// Plain <c>Math.Round</c> rounds 996/1000 (99.6%) up to <b>100</b>, so a card could show a green
+    /// "100% caught up" with a tick glyph directly beside "4 awaiting" — two figures on the same card
+    /// contradicting each other, with the reassuring one wrong. It also rounds 1/1000 down to <b>0</b>,
+    /// telling an account that handled work that it handled none.
+    ///
+    /// Both directions are fixed by reserving the endpoints for the exact cases that earn them and
+    /// clamping everything else into 1..99. The headline can now under-claim by less than a point, never
+    /// over-claim — the safe direction for a number the owner acts on.
+    /// </remarks>
+    internal static int HonestPercent(int part, int total)
+    {
+        if (total <= 0)
+        {
+            return 100;
+        }
+
+        if (part >= total)
+        {
+            return 100;
+        }
+
+        if (part <= 0)
+        {
+            return 0;
+        }
+
+        var exact = (double)part / total * 100;
+        return Math.Clamp((int)Math.Round(exact), 1, 99);
+    }
 }

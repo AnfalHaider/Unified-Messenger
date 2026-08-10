@@ -5,6 +5,24 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.9
+
+**"100% caught up" now means nobody is waiting.** The caught-up percentage was rounded, so an account with
+996 of 1000 chats handled — 99.6% — displayed as **100%**, complete with a green tick, directly beside
+"4 awaiting" on the same card. Two numbers on one card disagreed, and the reassuring one was the wrong
+one. The same rounding also reported 0% for an account that had handled a small number of chats.
+
+100% is now reserved for genuinely nothing outstanding, and 0% for genuinely nothing handled; everything
+in between shows 1–99%. The figure can now be up to a point pessimistic, but it will never tell you that
+you are finished when you are not. The whole-business percentage follows the same rule: it only reaches
+100% when every account has.
+
+**The trend sparkline no longer disagrees with the Analytics chart.** The small 7-day chart on each
+account card grouped messages by UTC date, while every other daily figure in the app groups by your local
+date. If you are five hours ahead of UTC, everything that arrived between midnight and 5am was counted
+against the previous day — so today's bar read low every morning, and the card and the Analytics page
+showed different histories for the same account.
+
 ## v4.99.8
 
 **An account the app can't read now says so, instead of looking quiet.** Until now, a branch with nothing

@@ -77,6 +77,80 @@ Only metrics actually traced are listed. An empty verdict means not examined —
   the sum of the three cards' awaiting counts (165 + 131 + 84 = 380), and `oldest since May 27, 2:58 PM`
   is consistent with 75 days before the capture date.
 
+---
+
+### F-METRICS-02 — A card could show "100% caught up" beside "4 awaiting", because the percentage rounds up
+
+- **Severity:** S1
+- **Confidence:** confirmed (reproduced by test against the real rollup, before and after)
+- **Where:** `UnifiedMessenger/Services/Oversight/OversightRollupBuilder.cs:118` and `:150` (both percentage sites)
+- **Where:** `UnifiedMessenger/Controls/CommandCenterPanel.xaml.cs:1258` (the weighted aggregate)
+- **Status:** **FIXED** in `v4.99.9`.
+- **User-visible symptom:** An account with 996 of 1000 chats handled computes 99.6%, which `Math.Round`
+  turns into **100**. The same card renders "4 awaiting" from the exact counts, and the status glyph turns
+  into a success tick. So the owner sees a green *100% caught up* immediately beside *4 awaiting* — two
+  figures on one card contradicting each other, and the reassuring one is the wrong one. A busy owner
+  reads the big green number and moves on, leaving four customers waiting.
+  The defect runs in **both** directions: 1 of 1000 handled computes 0.1%, which rounds to **0**, telling
+  an account that did some work that it did none.
+- **Repro:**
+  1. Build a rollup with `chatSnapshot: _ => (1000, 996)`.
+  2. Pre-fix: `OnTimePercent == 100` while `AwaitingCount == 4`.
+  3. Post-fix: `OnTimePercent == 99`, `AwaitingCount == 4`.
+  Pinned by `CaughtUpRoundingTests` (10 tests), including the exact 99.5 midpoint and a 10,000-chat case.
+- **Root cause:** `(int)Math.Round((double)part / total * 100)` with no reservation of the endpoints. 100
+  and 0 are not ordinary values on this scale — they are claims ("nothing outstanding" / "nothing done")
+  that the rounding could manufacture from counts that did not support them. Present at **two** rollup
+  sites (the thread-based path and the snapshot-based path), and then **a third time** in the KPI tile,
+  where a weighted average re-introduced it: a large fully-caught-up account beside a small one at 90%
+  averages to 99.9 and rounds back to 100, so the headline tile would read "100% caught up" while the hero
+  line beside it read "1 customer is waiting".
+- **Fix applied:** One shared `OversightRollupBuilder.HonestPercent(part, total)` used by both rollup
+  sites: 100 only when `part >= total`, 0 only when `part <= 0`, everything else clamped into 1..99. The
+  KPI aggregate applies the same rule again at its own level — 100 only when **every** measured account is
+  at 100. The headline can now under-claim by less than a point but can never over-claim, which is the
+  safe direction for a number the owner acts on.
+- **Blast radius:** Both percentage paths in the rollup plus the KPI tile. 122 tests across the rollup,
+  response-time and chart suites confirm nothing else moved.
+- **Evidence:** test output before the fix —
+  ```
+  CaughtUpRoundingTests.NinetyNinePointSixPercentDoesNotDisplayAsOneHundred [FAIL]
+    4 customers are waiting but the card claims 100% caught up
+  CaughtUpRoundingTests.RoundingDownNeverProducesZeroForAnAccountDoingSomeWork [FAIL]
+    reported 0% despite 1 chat handled
+  ```
+
+---
+
+### F-METRICS-03 — The card sparkline bucketed by UTC day while every other daily figure buckets by local day
+
+- **Severity:** S2
+- **Confidence:** confirmed (reproduced by test; fails only in a non-UTC zone — see caveat)
+- **Where:** `UnifiedMessenger/Services/Oversight/OversightRollupBuilder.cs:50` and `:243` (pre-fix)
+- **Status:** **FIXED** in `v4.99.9`.
+- **User-visible symptom:** For an owner at UTC+5, every message between local midnight and 05:00 was filed
+  under the **previous** day in the account card's 7-day sparkline, while the Analytics daily chart filed
+  it correctly under today. The two views of the same account and the same period disagreed, and today's
+  sparkline bar read low every morning until 05:00. Roughly a fifth of each day's messages land in that
+  window.
+- **Repro:** a thread with `LastMessageTime` at 00:30 local — pre-fix the newest sparkline bucket was 0,
+  post-fix it is 1. Pinned by `TrendDayKeyingTests`.
+- **Root cause:** `BuildTrend` keyed both sides of its day subtraction with `UtcDateTime.Date`, while the
+  rest of the product keys locally: `MessageAnalyticsService.cs:590,596` buckets on
+  `receivedAtUtc.LocalDateTime`, `:560` prunes with `DateTime.Now.Date`, and `KpiTrendStore.cs:1478` keys
+  with `LocalDateTime`. A single mixed clock is all it takes for two on-screen views to disagree.
+- **Fix applied:** `today` and the per-thread date both use `LocalDateTime.Date`, matching analytics.
+  Changing only one side would have moved the boundary rather than closing it, so the comment at the
+  subtraction says so.
+- **Blast radius:** `BuildTrend` only — `today` had no other consumer, which was verified before changing it.
+- **Evidence:** pre-fix `AMessageJustAfterLocalMidnightCountsAsToday` failed with `Expected: 1, Actual: 0`,
+  while the five surrounding tests passed — isolating the boundary rather than a general miscount.
+- **Test sensitivity caveat, stated plainly:** these tests only discriminate in a non-UTC time zone. On a
+  UTC machine (typical CI) local and UTC days coincide and they would pass against the old code too. They
+  are written against `TimeZoneInfo.Local` so they are meaningful on a developer machine in a real zone —
+  this one runs at UTC+5 — but **they are not a reliable CI guard for this defect class.** A
+  timezone-injectable clock would be needed for that, and was not built.
+
 ## What was NOT covered
 
 Stated plainly so this is not mistaken for a completed audit of the highest-stakes domain.

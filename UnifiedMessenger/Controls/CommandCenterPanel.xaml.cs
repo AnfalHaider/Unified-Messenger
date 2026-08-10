@@ -1261,7 +1261,14 @@ public sealed partial class CommandCenterPanel : UserControl
         int? overallPct = null;
         if (measured > 0)
         {
-            overallPct = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
+            var weighted = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
+
+            // Same honesty rule the per-entity percentage uses, applied again here because a weighted
+            // average re-introduces the problem: a large fully-caught-up account beside a small one at 90%
+            // averages to 99.9, which rounds back up to 100 — so the headline tile would read "100% caught
+            // up" while the hero beside it reads "1 customer is waiting". The whole business is only 100%
+            // caught up when every measured account is.
+            overallPct = weighted >= 100 && live.Any(e => e.OnTimePercent < 100) ? 99 : weighted;
         }
 
         var totalAwaiting = entities.Sum(e => e.AwaitingCount);
