@@ -74,3 +74,6 @@ test_result.txt
 
 # Build output / release installers — distributed via GitHub Releases, not committed to git.
 dist/
+
+# graphify knowledge-graph output (regenerable build artifact)
+graphify-out/
