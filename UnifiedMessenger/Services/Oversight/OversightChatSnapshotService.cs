@@ -149,15 +149,22 @@ public sealed class OversightChatSnapshotService
                         continue;
                     }
 
-                    var chats = dto.Chats.Select(c => new ChatEntry(
-                        c.ConversationKey ?? string.Empty,
-                        c.CustomerName ?? string.Empty,
-                        c.Unread,
-                        c.LastActivityUtc,
-                        c.Preview ?? string.Empty,
-                        c.IsAwaiting,
-                        c.LastMessageFromMe,
-                        c.ContactPhone ?? string.Empty)).ToList();
+                    // The same two guards the parser applies to a fresh scan must be applied on LOAD, or a
+                    // snapshot written by an older build keeps its bad rows across restarts until a
+                    // re-scan happens to replace it. Without this, an upgrading install would carry on
+                    // counting WhatsApp's own 0@c.us notice account as a waiting customer, and would keep
+                    // rendering base64 image payloads where message text belongs.
+                    var chats = dto.Chats
+                        .Where(c => !ChatEntryParser.IsNonCustomerConversation(c.ConversationKey))
+                        .Select(c => new ChatEntry(
+                            c.ConversationKey ?? string.Empty,
+                            c.CustomerName ?? string.Empty,
+                            c.Unread,
+                            c.LastActivityUtc,
+                            ChatEntryParser.SanitizePreview(c.Preview ?? string.Empty),
+                            c.IsAwaiting,
+                            c.LastMessageFromMe,
+                            c.ContactPhone ?? string.Empty)).ToList();
                     _byInstance[instanceId] = new InstanceChats(chats, dto.CapturedAtUtc);
                 }
             }

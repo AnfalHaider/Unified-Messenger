@@ -5,6 +5,23 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.11
+
+**WhatsApp's own account no longer sits in your list of waiting customers.** WhatsApp sends occasional
+one-way notices from an official account you cannot reply to. That account was being counted as a customer
+waiting for an answer — and since replying is impossible, it never went away. On the machine this was found
+on it had been "waiting" for 26 days. On a busy branch that is one extra; on a branch that is otherwise
+caught up, it is the entire number, and you would go looking for a customer who does not exist.
+
+**Photo messages show as "Photo" instead of a wall of characters.** When a customer's last message was an
+image, the preview in your needs-reply list showed the image's raw encoded data —
+`/9j/4AAQSkZJRgABAQAAAQABAAD…` — rather than anything readable. Around 3% of previews were affected. They
+now read "Photo". Ordinary text is untouched, including messages that happen to start with a slash or the
+word "data".
+
+Both corrections also apply to data already saved on your machine, so they take effect as soon as you
+update rather than waiting for the next sync.
+
 ## v4.99.10
 
 **"SLA met" no longer reads 100% when replies missed the target.** The same rounding problem fixed for the

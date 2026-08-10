@@ -44,6 +44,16 @@ public static class ChatEntryParser
             {
                 if (TryParseConversation(conversation, out var entry))
                 {
+                    // Non-customer conversations are filtered here, at the single point BOTH producers
+                    // funnel through, rather than trusting each of them to do it. That trust was already
+                    // misplaced: whatsapp-adapter.js excluded WhatsApp's own `0@c.us` notice account but
+                    // whatsapp-store-bridge.js did not, so on the default path it counted as a customer
+                    // awaiting a reply — and being one-way, it could never be cleared by replying.
+                    if (IsNonCustomerConversation(entry.ConversationKey))
+                    {
+                        continue;
+                    }
+
                     if (!HasExplicitAwaiting(conversation))
                     {
                         awaitingInferred++;
@@ -119,7 +129,7 @@ public static class ChatEntryParser
         var unread = ReadInt(conversation, "unreadCount");
         var key = ReadString(conversation, "conversationKey");
         var name = ReadString(conversation, "customerName");
-        var preview = ReadString(conversation, "lastMessagePreview");
+        var preview = SanitizePreview(ReadString(conversation, "lastMessagePreview"));
         var awaiting = conversation.TryGetProperty("awaiting", out var a) && a.ValueKind != JsonValueKind.Null
             ? a.ValueKind == JsonValueKind.True
             : unread > 0;
@@ -129,6 +139,62 @@ public static class ChatEntryParser
         entry = new OversightChatSnapshotService.ChatEntry(
             key, name, unread, when.ToUniversalTime(), preview, awaiting, fromMe, contactPhone);
         return true;
+    }
+
+    /// <summary>
+    /// True for conversation keys that are not a 1:1 customer chat and must never reach the metrics.
+    /// </summary>
+    /// <remarks>
+    /// Groups (<c>@g.us</c>), broadcast lists and Status (<c>@broadcast</c>, which also covers
+    /// <c>status@broadcast</c>), channels (<c>@newsletter</c>), and WhatsApp's own official account
+    /// (<c>0@c.us</c>) are all excluded. The last one matters most and was the live defect: its messages
+    /// are one-way notices you cannot reply to, so once it went unanswered it sat in the awaiting count
+    /// permanently — verified in real data as "WhatsApp Business", <c>isAwaiting: true</c>, 26 days old.
+    /// A leading <c>0@</c> only ever prefixes that account; real E.164 numbers have no leading-zero local
+    /// part.
+    /// </remarks>
+    internal static bool IsNonCustomerConversation(string? conversationKey)
+    {
+        if (string.IsNullOrWhiteSpace(conversationKey))
+        {
+            return false;
+        }
+
+        var key = conversationKey.Trim().ToLowerInvariant();
+
+        return key.Contains("@g.us", StringComparison.Ordinal)
+            || key.Contains("@broadcast", StringComparison.Ordinal)
+            || key.Contains("@newsletter", StringComparison.Ordinal)
+            || key.StartsWith("status@", StringComparison.Ordinal)
+            || key.StartsWith("0@", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Replaces a preview that is raw encoded media with a short human label.
+    /// </summary>
+    /// <remarks>
+    /// Measured on real data: 85 of 3,027 stored previews (2.8%) were base64 image payloads, so the
+    /// needs-reply list rendered <c>/9j/4AAQSkZJRgABAQAAAQABAAD…</c> where the README promises "the actual
+    /// text of their last message". Detection is by the standard base64 signatures for JPEG (<c>/9j/</c>)
+    /// and PNG (<c>iVBORw0</c>) plus data URIs — deliberately narrow, so ordinary message text that merely
+    /// looks unusual is never relabelled.
+    /// </remarks>
+    internal static string SanitizePreview(string preview)
+    {
+        if (string.IsNullOrWhiteSpace(preview))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = preview.TrimStart();
+
+        var looksLikeEncodedMedia =
+            trimmed.StartsWith("/9j/", StringComparison.Ordinal)          // JPEG
+            || trimmed.StartsWith("iVBORw0", StringComparison.Ordinal)    // PNG
+            || trimmed.StartsWith("R0lGOD", StringComparison.Ordinal)     // GIF
+            || trimmed.StartsWith("data:image", StringComparison.OrdinalIgnoreCase);
+
+        return looksLikeEncodedMedia ? "Photo" : preview;
     }
 
     /// <summary>True when the row carries a usable boolean <c>awaiting</c> rather than relying on inference.</summary>

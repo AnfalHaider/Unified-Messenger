@@ -209,6 +209,82 @@ which would render 100% compliance for a disabled threshold. The settings defaul
 path that sets 0, so this is not reachable today — but "disabled" arguably ought to suppress the metric
 rather than score it perfect. Left alone deliberately rather than changed on speculation.
 
+---
+
+### F-METRICS-05 — WhatsApp's own notice account was counted as a customer waiting for a reply, on the default path
+
+- **Severity:** S1
+- **Confidence:** confirmed (found in the owner's live persisted snapshot, fixed, and re-verified there)
+- **Where:** `UnifiedMessenger/Assets/Scripts/whatsapp-store-bridge.js:619-623` (pre-fix filter)
+- **Where:** `UnifiedMessenger/Services/Oversight/OversightChatSnapshotService.cs:152` (unfiltered load path)
+- **Status:** **FIXED** in `v4.99.11`.
+- **User-visible symptom:** `0@c.us` — WhatsApp's official account, which sends one-way notices you
+  **cannot reply to** — appeared in the awaiting count as a customer named "WhatsApp Business". Because
+  replying is impossible, it could never be cleared: it had been sitting in the owner's backlog for
+  **26 days** at the time of the audit. On a busy account it is +1 noise; on a well-run account showing
+  "1 awaiting", it is 100% of the number, and the owner would go hunting for a customer who does not exist.
+- **Repro:** verified directly in `%LOCALAPPDATA%\UnifiedMessenger\oversight-snapshot.json`:
+  ```json
+  {"conversationKey":"0@c.us","customerName":"WhatsApp Business","unread":0,
+   "lastActivityUtc":"2026-07-15T06:07:23+00:00","isAwaiting":true, ...}
+  ```
+- **Root cause:** **producer divergence.** `whatsapp-adapter.js:1263-1270` excludes `@g.us`, `@broadcast`,
+  `@newsletter`, `status@` **and `0@`**, with a comment explaining exactly why the last one matters.
+  `whatsapp-store-bridge.js` excluded only the first three — and the store bridge is the **preferred**
+  path (`UseStoreBridge` defaults true), so the unfiltered version is what users actually saw. The bridge
+  also carried a `chat.isGroup === true` check which AGENTS.md explicitly documents as non-existent on the
+  model: always `undefined === true`, i.e. dead code implying a safety net that was not there.
+- **Fix applied:** the filter now lives in `ChatEntryParser.IsNonCustomerConversation` — the single point
+  **both** producers funnel through — so it cannot diverge again. `whatsapp-store-bridge.js` was brought
+  into line as well (so the row never even arrives) and the dead `isGroup` check removed with a note.
+  Critically, the same guard was added to `OversightChatSnapshotService`'s **load** path: without it, a
+  snapshot written by an older build keeps its bad rows across restarts until a re-scan happens to replace
+  it, so an upgrading install would carry the defect forward.
+- **Blast radius:** awaiting counts, caught-up %, the needs-reply list, and the oldest-wait attribution —
+  everything downstream of the snapshot. 81 tests across the parser, persistence, snapshot-service, rollup
+  and rounding suites confirm nothing else moved.
+- **Evidence (owner's real data, before → after):** `0@` conversation keys **1 → 0**.
+
+---
+
+### F-METRICS-06 — 2.8% of message previews rendered as raw base64 image data
+
+- **Severity:** S2
+- **Confidence:** confirmed (measured in the owner's live snapshot, fixed, re-measured)
+- **Where:** `UnifiedMessenger/Services/Oversight/ChatEntryParser.cs` (preview passthrough, pre-fix)
+- **Status:** **FIXED** in `v4.99.11`.
+- **User-visible symptom:** The needs-reply list showed
+  `/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQ…` where the README promises "the customer's name,
+  phone number and **the actual text of their last message**". **85 of 3,027 stored previews (2.8%)** were
+  base64 JPEG payloads. For those chats the owner cannot tell what the customer sent without opening the
+  conversation, which defeats the purpose of the list.
+- **Repro:** count previews matching a base64 image signature in `oversight-snapshot.json` — 85 before.
+- **Root cause:** an image message's preview arrives as the encoded thumbnail payload rather than a text
+  body, and the parser passed it straight through. Nothing validated that a "preview" was human-readable.
+- **Fix applied:** `ChatEntryParser.SanitizePreview` replaces a preview carrying a JPEG (`/9j/`), PNG
+  (`iVBORw0`), GIF (`R0lGOD`) or `data:image` signature with the label **"Photo"**. Detection is
+  deliberately narrow — anchored on the standard signatures at the start of the string — so ordinary
+  message text is never relabelled; four tests cover near-miss text such as
+  `"/9 out of 10 would recommend"` and `"data on my bill looks wrong"`. Applied on the load path too, so
+  existing snapshots are cleaned on upgrade rather than only on the next scan.
+- **Blast radius:** preview display only; no metric depends on preview text.
+- **Evidence (owner's real data, before → after):** base64 previews **85 → 0**, `"Photo"` labels **0 → 84**.
+  The arithmetic cross-checks: one of the 85 belonged to the `0@c.us` row now removed entirely by
+  F-METRICS-05, leaving exactly 84 to relabel.
+
+---
+
+## Message volumes and the end-of-day projection — CLEAN
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| Day bucketing for volumes | **correct** | `ApplyReceivedIncrement` keys on `receivedAtUtc.LocalDateTime` for both the daily and hourly-by-day buckets — consistent with the F-METRICS-03 fix. |
+| End-of-day projection divide-by-zero | **correct** | `fraction = total > 0 ? … : 0`, and a `fraction <= 0.05` floor returns "just what's in so far" rather than extrapolating wildly from a nearly-empty day. |
+| Projection undercutting actuals | **correct** | `Math.Max(soFar, …)` — the projection can never be below what has already arrived. |
+| Projection day/hour clock consistency | **correct** | `todayKey` and `nowHour` both from `DateTime.Now` (local). |
+| "Busier than usual" threshold | **correct** | Requires `HasData` on both sides and `AveragePerDay > 0` before comparing at 1.4×. |
+| Group / Status / broadcast / channel exclusion | **correct in the snapshot** | Verified in the owner's real data: `@g.us` keys **0**, `status@` keys **0**. Only the `0@` case had escaped (F-METRICS-05). |
+
 ## What was NOT covered
 
 Stated plainly so this is not mistaken for a completed audit of the highest-stakes domain.
