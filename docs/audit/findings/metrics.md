@@ -151,6 +151,64 @@ Only metrics actually traced are listed. An empty verdict means not examined —
   this one runs at UTC+5 — but **they are not a reliable CI guard for this defect class.** A
   timezone-injectable clock would be needed for that, and was not built.
 
+---
+
+### F-METRICS-04 — "SLA met 100%" while replies were breaching the target, in the metric the README advertises
+
+- **Severity:** S1
+- **Confidence:** confirmed (reproduced by test against the real tracker, before and after)
+- **Where:** `UnifiedMessenger/Services/Oversight/ResponseTimeTracker.cs:218` (headline SLA %)
+- **Where:** `UnifiedMessenger/Services/Oversight/ResponseTimeTracker.cs` `GetDailyWithinThreshold` (the per-day trend series)
+- **Status:** **FIXED** in `v4.99.10`.
+- **User-visible symptom:** 499 of 500 replies inside the 15-minute target is 99.8%, which rounded to
+  **100**. The KPI tile read "SLA met 100%" with the breach still counted in the sample line beside it.
+  This is the number an owner would use to judge whether a branch is meeting its commitments — and the
+  README advertises it by name. It failed in both directions: 1 of 501 within target rounded to **0%**,
+  reporting that nothing met the target when something did.
+- **Repro:** record 499 replies at 5 minutes and 1 at 60 minutes with a 15-minute threshold. Pre-fix
+  `SlaCompliancePercent == 100`. Post-fix `99`. Pinned by `SlaPercentRoundingTests` (7 tests).
+- **Root cause:** identical to F-METRICS-02 — `(int)Math.Round(part * 100.0 / total)` with the endpoints
+  unreserved. This was the **third and fourth** occurrence of the same defect, in a second file. Each site
+  looked innocuous alone; collectively the product could tell an owner they were finished when they were
+  not, on more than one screen.
+- **Fix applied:** the rounding rule was extracted to `Services/Oversight/MetricMath.HonestPercent` and all
+  four sites now share it — the two in `OversightRollupBuilder` and the two here. Consolidating was the
+  point: this defect had already been fixed once and recurred in a file I had not yet read, so leaving
+  four copies would have guaranteed a fifth.
+- **Blast radius:** SLA compliance headline and the daily SLA trend series. 129 tests across every metric
+  suite (rollup, capability, response-time, chart-series, analytics presenter) confirm nothing else moved.
+- **Evidence:** test output before the fix —
+  ```
+  SlaPercentRoundingTests.OneBreachAmongManyKeepsSlaBelowOneHundred [FAIL]
+    a reply breached the 15-minute target but SLA met reads 100%
+  SlaPercentRoundingTests.ASingleReplyWithinTargetDoesNotRoundAwayToZero [FAIL]
+    one reply met the target but SLA met reads 0%
+  SlaPercentRoundingTests.DailyWithinThresholdAppliesTheSameHonestyRule [FAIL]
+    day 'Sun' had a breach among 500 replies but reads 100%
+  ```
+
+---
+
+## FRT and SLA — everything else traced came back CLEAN
+
+Recorded so these are not re-audited. All read directly at `ResponseTimeTracker` and `ChartSeriesBuilder`.
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| Median / p90 percentile maths | **correct** | `Percentile` uses a clamped ceiling rank; a single sample returns itself for both median and p90 rather than 0 or an index error. Pinned by `ASingleSampleGivesACoherentMedianAndPercentile`. |
+| Empty sample set | **correct** | `GetStats` returns `HasData: false` with zero counts — it does not report a perfect score for an account with nothing measured. Pinned by `NoSamplesReportsNoDataRatherThanAPerfectScore`. |
+| Outlier contamination | **correct** | `MaxCredibleResponse = 7 days` caps what can become a sample, so one chat answered after a fortnight cannot wreck the median. |
+| Pre-existing backlog poisoning FRT | **correct, and thoughtfully done** | `Observe` records a `watchStart` per account and refuses to sample any inbound that predates it. Without this, the first sync after connecting an account would attribute the owner's entire historical backlog to their response time and report a huge misleading FRT. |
+| "Answered today" day-keying | **correct** | `sample.AnsweredAtUtc.ToLocalTime().Date == DateTime.Today` — local on both sides, consistent with analytics (and with the F-METRICS-03 fix). |
+| Daily SLA series day-keying | **correct** | `ToLocalTime().Date` against `DateTime.Today`. |
+| Trend delta divide-by-zero | **correct** | `ComputeDelta` returns `MetricDelta.None` when `previous <= 0`; the comment reads *"dividing by zero is a lie."* No fabricated percentage from a zero baseline. |
+| Trend arrow vs good/bad | **correct** | `MetricPolarity.LowerIsBetter` is applied to response time and `HigherIsBetter` to SLA. Crucially the arrow direction tracks the *actual* change while the sentiment (colour) tracks good/bad — they are separate fields, so a rising response time shows an up arrow styled as adverse rather than a misleading "improvement". |
+
+**Observation, not a finding:** `GetStats` treats `slaThresholdMinutes <= 0` as "everything is within SLA",
+which would render 100% compliance for a disabled threshold. The settings default is 15 and I found no UI
+path that sets 0, so this is not reachable today — but "disabled" arguably ought to suppress the metric
+rather than score it perfect. Left alone deliberately rather than changed on speculation.
+
 ## What was NOT covered
 
 Stated plainly so this is not mistaken for a completed audit of the highest-stakes domain.

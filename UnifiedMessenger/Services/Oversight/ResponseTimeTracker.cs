@@ -215,7 +215,10 @@ public sealed class ResponseTimeTracker
         var median = Percentile(values, 0.50);
         var p90 = Percentile(values, 0.90);
         var average = values.Average();
-        var slaPercent = (int)Math.Round(withinSla * 100.0 / values.Count);
+        // Shared with the caught-up percentage: 100 is reserved for "no breaches", 0 for "no successes".
+        // Plain rounding reported "SLA met 100%" for 499 of 500 replies inside the target — with the
+        // breach still visible in the sample count beside it.
+        var slaPercent = MetricMath.HonestPercent(withinSla, values.Count);
 
         return new ResponseStats(true, values.Count, median, average, p90, slaPercent, answeredToday);
     }
@@ -309,7 +312,7 @@ public sealed class ResponseTimeTracker
             var day = today.AddDays(-i);
             if (byDay.TryGetValue(day, out var acc) && acc.Total > 0)
             {
-                var pct = (int)Math.Round(acc.Within * 100.0 / acc.Total);
+                var pct = MetricMath.HonestPercent(acc.Within, acc.Total);
                 points.Add(new DailyPercentPoint(day.ToString("ddd"), pct, acc.Total));
             }
             else

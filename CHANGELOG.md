@@ -5,6 +5,20 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.10
+
+**"SLA met" no longer reads 100% when replies missed the target.** The same rounding problem fixed for the
+caught-up percentage in v4.99.9 was also present in your SLA figure — 499 replies inside your target and
+one outside is 99.8%, which displayed as **100%**, with the breach still counted in the reply total right
+beside it. It also reported 0% when a small number of replies had met the target.
+
+As with caught-up, 100% now means no breaches and 0% means none met, with everything else shown as 1–99%.
+The daily SLA trend follows the same rule. All four places in the app that turn a count into a percentage
+now share one piece of code, so this cannot drift apart again.
+
+Nothing else in the response-time figures changed: the median, the 90th-percentile, "answered today" and
+the week-on-week arrows were all checked and were already correct.
+
 ## v4.99.9
 
 **"100% caught up" now means nobody is waiting.** The caught-up percentage was rounded, so an account with
