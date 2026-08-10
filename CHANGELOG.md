@@ -5,6 +5,23 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.4
+
+**If your settings file can't be read, that now gets recorded.** When the settings file is damaged — a
+half-finished write, a backup tool holding it open — the app falls back to factory defaults and carries
+on. That part was working, and the unreadable file was already kept aside as a `.corrupt-….bak` so
+nothing was destroyed. What was missing is that the message saying so was written in a way that gets
+stripped out of the released build, so it appeared nowhere at all. Testing this on a real settings file
+showed local AI switching itself off, "ask before updating" turning itself off, the account memory limit
+reverting to unlimited, and one location losing its response-time target and opening hours — all
+silently. The reset is now written to the log file, and a file that is locked rather than damaged no
+longer stops the app from starting.
+
+**Known limitation:** the app still does not *tell you on screen* when this has happened. If your
+settings ever look like they have reset themselves, check the log and look for a
+`settings.json.corrupt-….bak` file next to your settings — your previous values are in it. An on-screen
+notice is still to come.
+
 ## v4.99.3
 
 **An account that has stopped reporting now says so in plain English.** The warning on an out-of-date

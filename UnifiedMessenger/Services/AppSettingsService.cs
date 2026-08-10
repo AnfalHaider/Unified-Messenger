@@ -66,10 +66,19 @@ public sealed class AppSettingsService : IAppSettingsService
                     .DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken)
                     .ConfigureAwait(false) ?? new AppSettings();
             }
-            catch (JsonException ex)
+            // JsonException alone was too narrow: a settings file locked by a backup tool or antivirus, or
+            // sitting on an unavailable network profile, throws IOException/UnauthorizedAccessException and
+            // used to escape LoadAsync entirely — failing startup rather than degrading to defaults.
+            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
             {
-                Debug.WriteLine($"Settings file is corrupt; resetting to defaults: {ex.Message}");
-                BackupCorruptFile();
+                // Must be AppLogger, not Debug.WriteLine. Debug.WriteLine is compiled out of the Release
+                // build that ships, which is why a real corrupt-settings reset left NO trace in app.log —
+                // verified by corrupting settings.json against the shipping binary and finding nothing
+                // logged. Losing the user's configuration silently is not acceptable; at minimum it must
+                // be on the record.
+                AppLogger.LogError("Settings.Load.Corrupt", ex);
+                RecoveredFromCorruptFile = true;
+                CorruptFileBackupPath = BackupCorruptFile();
                 loaded = new AppSettings();
             }
 
@@ -155,21 +164,33 @@ public sealed class AppSettingsService : IAppSettingsService
             StartupWarmMode = StartupWarmMode.VisibleOnly
         };
 
-    private void BackupCorruptFile()
+    /// <summary>
+    /// True when the last <see cref="LoadAsync"/> could not read the settings file and fell back to
+    /// defaults. The user's saved preferences are gone from the live session; tell them.
+    /// </summary>
+    public bool RecoveredFromCorruptFile { get; private set; }
+
+    /// <summary>Where the unreadable settings file was preserved, when it could be preserved.</summary>
+    public string? CorruptFileBackupPath { get; private set; }
+
+    /// <summary>Moves the unreadable settings file aside. Returns the backup path, or null on failure.</summary>
+    private string? BackupCorruptFile()
     {
         try
         {
             if (!File.Exists(_storePath))
             {
-                return;
+                return null;
             }
 
             var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
             File.Move(_storePath, backupPath, overwrite: true);
+            return backupPath;
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Could not back up corrupt settings file: {ex.Message}");
+            AppLogger.LogError("Settings.BackupCorruptFile", ex);
+            return null;
         }
     }
 }
