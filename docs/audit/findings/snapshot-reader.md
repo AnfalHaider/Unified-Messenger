@@ -82,8 +82,7 @@ Also checked and clean: `awaitingCount = Math.Max(0, snapActive - snapCaught)`
 - **Severity:** S2
 - **Confidence:** confirmed (rendering paths read directly; the two states provably converge on the same UI)
 - **Where:** `UnifiedMessenger/Controls/CommandCenterPanel.xaml.cs:2069-2079`
-- **Status:** **OPEN.** Partially mitigated by F-SNAP-01 (the distinction now exists in the log), but not
-  fixed in the UI.
+- **Status:** **FIXED** in `v4.99.8` — see the resolution section at the end of this file.
 - **User-visible symptom:** Both a genuinely quiet account and an account the app can no longer read render
   as `"no activity <window>"` with an `"—"` awaiting pill. These demand opposite responses: one is good
   news, the other means the owner's oversight of that branch has stopped working and customers may be
@@ -132,3 +131,47 @@ Also checked and clean: `awaitingCount = Math.Max(0, snapActive - snapCaught)`
   not the other would make metrics differ depending on which path ran. **This is now the highest-value
   remaining target in this area.**
 - **`HarvestPreviewsAsync` (lines 204-250) was not reviewed.**
+
+---
+
+## F-SNAP-02 — RESOLUTION (v4.99.8)
+
+**Status: FIXED.**
+
+A recorded read outcome is now carried from the reader to the card, so the two states that previously
+converged on `"no activity"` are distinguishable:
+
+- **New service** `Services/Oversight/AccountReadHealth.cs` records the *final* outcome of a refresh per
+  instance. Deliberately separate from `StoreBridgeHealth`: a bridge failure that falls back to a working
+  IndexedDB scan is a preview-quality story, not data loss, and must not be reported as "can't read".
+- **Recorded at the single point that knows the answer** — `OversightSnapshotReader.RefreshAsync`, after
+  every fallback has been tried.
+- **Threaded through the rollup** as `Func<string, bool>? readFailed`, mirroring the existing `isStale`
+  parameter, onto a new `OversightEntityHealth.ReadFailed`.
+- **Rendered** in `CommandCenterPanel` as `"can't read this account — click Re-sync"` in the danger colour,
+  with recovery steps in the tooltip and an accessible name naming the account.
+
+Three decisions worth recording, because each one is where this fix could have gone wrong:
+
+1. **`Any`, not `All`, for locations.** `IsStale` requires every member account to be stale; `ReadFailed`
+   fires if *any* member failed. A location whose three branches include one unreadable is reporting
+   incomplete totals, and requiring all three to fail would hide precisely the case that matters — one
+   branch quietly dropping out of the rollup.
+2. **Never inferred from a zero count.** The finding warned that a false positive here is costly: telling
+   an owner their scraper is broken when the branch is genuinely quiet erodes trust in the opposite
+   direction. `LastReadFailed` returns false for an account never read, so the warning cannot fire on
+   every launch before the first scan lands. Four of the eleven tests exist solely to pin this.
+3. **`ReadFailed` added to the render signature.** It changes the card's text and colour without changing
+   any count, so omitting it from `_lastRenderSignature` would have suppressed the transition as a no-op
+   redraw — the fix would have been invisible in exactly the moment it mattered.
+
+**Verification:** `AccountReadHealthTests` — 11 tests, green. 80/80 across all regression suites plus the
+existing rollup suites. Published with `-p:Platform=x64` and driven live via UI Automation: **no false
+positive** — the three healthy connected accounts show no warning, and the v4.99.2 hero attribution fix
+still reads correctly alongside it.
+
+**Not verified live:** the *positive* case. I confirmed by unit test that a recorded failure produces the
+flag, and confirmed live that a healthy account does not, but I did not force a real read failure against
+the running app and watch the warning appear. Forcing one cleanly would need a code change or a
+disconnected account; I chose not to contrive it. The negative case is the one carrying the risk I
+flagged, and that is the one verified live.

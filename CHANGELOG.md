@@ -5,6 +5,22 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.8
+
+**An account the app can't read now says so, instead of looking quiet.** Until now, a branch with nothing
+to report and a branch the app had stopped being able to read looked exactly the same on the command
+centre — both showed "no activity". Those need opposite responses from you: one is good news, the other
+means you have lost sight of that branch and customers may be waiting without you knowing.
+
+Cards for an unreadable account now say "can't read this account — click Re-sync", in the same colour used
+for anything else needing attention, with the recovery steps in the tooltip. Screen readers announce which
+account it refers to. A location made up of several accounts flags if *any* one of them can't be read,
+because its totals are then incomplete.
+
+The warning only ever appears after a read has genuinely been attempted and failed — it is never guessed
+at from an account simply having no messages, and it clears itself as soon as a read succeeds. An account
+that hasn't been read yet, such as just after launch, is not flagged.
+
 ## v4.99.7
 
 **One odd conversation can no longer wipe out an account's whole reading.** When the app read your chat

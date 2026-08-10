@@ -256,7 +256,11 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             sb.Append(e.Key).Append(',').Append(e.OnTimePercent).Append(',').Append(e.AwaitingCount)
                 .Append(',').Append(e.MeasuredCount).Append(',').Append(e.HasChatData ? 1 : 0)
-                .Append(',').Append(e.HistoricalOpenCount).Append(',').Append(e.IsStale ? 1 : 0).Append(';');
+                .Append(',').Append(e.HistoricalOpenCount).Append(',').Append(e.IsStale ? 1 : 0)
+                // ReadFailed changes the card's text and colour without changing any count, so it must be
+                // in the signature or the transition into (and out of) "can't read this account" would be
+                // suppressed as a no-op redraw.
+                .Append(',').Append(e.ReadFailed ? 1 : 0).Append(';');
         }
 
         return sb.ToString();
@@ -2068,13 +2072,35 @@ public sealed partial class CommandCenterPanel : UserControl
 
         if (!entity.HasChatData || !hasLiveData)
         {
+            // Three distinct states, not two. "Can't read" used to render as "no activity", which reads as
+            // reassuring — the owner concludes the branch is quiet when in fact oversight of it has stopped
+            // and customers may be waiting unseen. It is shown in the danger colour because it is the only
+            // one of the three that needs action.
+            var couldNotRead = entity.ReadFailed;
             var stateBlock = new TextBlock
             {
-                Text = !entity.HasChatData ? "syncing…" : $"no activity {_emptyStateWindowLabel}",
-                Foreground = secondary,
+                Text = couldNotRead
+                    ? "can't read this account — click Re-sync"
+                    : !entity.HasChatData
+                        ? "syncing…"
+                        : $"no activity {_emptyStateWindowLabel}",
+                Foreground = couldNotRead ? danger : secondary,
                 FontSize = 13,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.WrapWholeWords
             };
+
+            ToolTipService.SetToolTip(stateBlock, couldNotRead
+                ? "The last attempt to read this account returned no usable data, so its numbers are "
+                  + "missing rather than zero. This account is left out of your caught-up percentage "
+                  + "instead of counting as perfect. Click Re-sync; if it persists, right-click the "
+                  + "account in the sidebar and choose Refresh."
+                : "No customer activity was recorded for this account in the selected period.");
+
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(stateBlock, couldNotRead
+                ? $"{entity.DisplayName}: cannot read this account, click Re-sync"
+                : $"{entity.DisplayName}: no activity {_emptyStateWindowLabel}");
+
             Grid.SetColumn(stateBlock, 0);
             metricRow.Children.Add(stateBlock);
         }

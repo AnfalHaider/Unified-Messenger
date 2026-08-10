@@ -30,6 +30,7 @@ public static class OversightRollupBuilder
         OversightGrouping grouping,
         Func<string?, double> slaThresholdMinutes,
         Func<string, bool>? isStale = null,
+        Func<string, bool>? readFailed = null,
         DateTimeOffset? nowUtc = null,
         Func<string, string>? locationForInstance = null,
         DateTimeOffset? windowStartUtc = null,
@@ -164,6 +165,14 @@ public static class OversightRollupBuilder
                 && instanceIds.Count > 0
                 && instanceIds.All(id => isStale(id));
 
+            // ANY failed member, not ALL — unlike `stale` above. A location whose three branch accounts
+            // include one the app cannot read is reporting incomplete numbers, and the owner needs to know
+            // that before acting on them. Requiring all three to fail would hide exactly the case that
+            // matters: one branch quietly dropping out of the rollup.
+            var couldNotRead = readFailed is not null
+                && instanceIds.Count > 0
+                && instanceIds.Any(id => readFailed(id));
+
             var displayName = grouping == OversightGrouping.ByLocation
                 ? group.Key
                 : nameByInstance.TryGetValue(group.Key, out var name) && !string.IsNullOrWhiteSpace(name)
@@ -187,6 +196,7 @@ public static class OversightRollupBuilder
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
                 SlaBreachedCount = slaBreachedCount,
                 IsStale = stale,
+                ReadFailed = couldNotRead,
                 LastActivityUtc = list.Count > 0 ? list.Max(t => t.LastMessageTime) : null,
                 MemberInstanceIds = instanceIds,
                 TrendCounts = BuildTrend(list, today)

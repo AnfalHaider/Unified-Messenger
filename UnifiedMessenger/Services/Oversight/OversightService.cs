@@ -73,6 +73,9 @@ public sealed class OversightService
             OperationalThresholds.GetSlaThresholdMinutes,
             instanceId => InstanceConnectionStatusService.Instance.GetStatus(instanceId)
                 != InstanceConnectionStatus.Connected,
+            // Recorded read outcomes only. An account never read yet reports false, so the warning cannot
+            // fire on every launch before the first scan lands.
+            readFailed: AccountReadHealth.LastReadFailed,
             nowUtc: null,
             locationForInstance: instanceId =>
                 locationByInstance.TryGetValue(instanceId, out var location) ? location : string.Empty,

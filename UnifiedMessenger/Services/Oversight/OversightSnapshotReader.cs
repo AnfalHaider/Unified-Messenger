@@ -37,6 +37,7 @@ public static class OversightSnapshotReader
                 var viaBridge = await RunStoreBridgeScanAsync(instance).ConfigureAwait(false);
                 if (viaBridge is not null)
                 {
+                    AccountReadHealth.RecordSuccess(instance.Id);
                     return viaBridge;
                 }
             }
@@ -48,7 +49,21 @@ public static class OversightSnapshotReader
                 await HarvestPreviewsAsync(instance).ConfigureAwait(false);
             }
 
-            return await RunScanAsync(instance).ConfigureAwait(false);
+            var viaScan = await RunScanAsync(instance).ConfigureAwait(false);
+
+            // This is the only place that knows the FINAL outcome — after every fallback has been tried.
+            // Recording it here is what lets the command centre tell "this account is quiet" apart from
+            // "the app can no longer read this account", which previously rendered identically.
+            if (viaScan is not null)
+            {
+                AccountReadHealth.RecordSuccess(instance.Id);
+            }
+            else
+            {
+                AccountReadHealth.RecordFailure(instance.Id, "No ingestion path returned usable data.");
+            }
+
+            return viaScan;
         }
         finally
         {

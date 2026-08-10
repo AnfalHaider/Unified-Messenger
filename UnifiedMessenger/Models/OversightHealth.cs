@@ -84,6 +84,18 @@ public sealed class OversightEntityHealth
 
     public bool IsStale { get; init; }
 
+    /// <summary>
+    /// True when the most recent read of at least one member account failed outright, so this entity's
+    /// numbers are missing data rather than reporting a quiet period.
+    /// </summary>
+    /// <remarks>
+    /// Set only from a <see cref="UnifiedMessenger.Services.AccountReadHealth"/> record of an actual
+    /// failure — never inferred from a zero count, because a genuinely quiet account must not be accused
+    /// of being broken. Distinct from <see cref="IsStale"/>: stale means "the data we have is old",
+    /// this means "we could not get data at all".
+    /// </remarks>
+    public bool ReadFailed { get; init; }
+
     public DateTimeOffset? LastActivityUtc { get; init; }
 
     /// <summary>Instance ids rolled into this entity — used to expand a location into its accounts.</summary>
