@@ -5,6 +5,20 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.6
+
+**When an account can't be read, that now leaves a trace.** Reading an account has two routes: a fast one,
+and a fallback used when the fast one fails. The fallback recorded nothing at all — no log entry, no
+status — so an account that had stopped reporting entirely produced no evidence anywhere. The fast route
+had always recorded its failures; the fallback now does too, including the case where a scan finishes but
+finds no conversations, which is what a change on WhatsApp's side looks like.
+
+**Known limitation, worth being clear about:** on screen, an account the app cannot read still looks the
+same as an account that is simply quiet — both show "no activity". The numbers themselves are not
+affected: an unreadable account is left out of your caught-up percentage rather than counted as perfect,
+so it cannot flatter your figures. But if a branch shows "no activity" and you expected traffic, check the
+log or click Re-sync. Telling these apart on screen is still to come.
+
 ## v4.99.5
 
 **A damaged data file no longer disappears without trace.** The same weakness fixed for the settings file

@@ -272,7 +272,12 @@ public static class OversightSnapshotReader
 
             if (raw.Contains("NOFN", StringComparison.Ordinal))
             {
-                return null; // scan function not injected
+                // Both paths are now unavailable: the store bridge already declined or this is the
+                // fallback. Say so — this used to return null in silence.
+                AppLogger.LogWarning(
+                    $"IndexedDbScan.{instance.Id}",
+                    "Conversation scan function is not injected on this page; no oversight data was read.");
+                return null;
             }
 
             try
@@ -285,10 +290,27 @@ public static class OversightSnapshotReader
 
                 if (stage != "done")
                 {
-                    return null; // settled but unusable (e.g. watchdog-timeout) — the account is still loading
+                    // Settled but unusable (e.g. watchdog-timeout) — usually the account is still loading.
+                    AppLogger.LogWarning(
+                        $"IndexedDbScan.{instance.Id}",
+                        $"Conversation scan settled at stage '{stage ?? "unknown"}' instead of 'done'; no oversight data was read.");
+                    return null;
                 }
 
                 var chats = ParseChatEntries(root);
+
+                // A scan that completes but yields nothing is ambiguous: it looks identical to a genuinely
+                // quiet account, yet it is also exactly what a WhatsApp Web schema change produces. The UI
+                // correctly refuses to invent a number here (MeasuredCount stays 0, so the card shows
+                // "no activity" and the caught-up tile shows "—" rather than a false 100%), but without
+                // this line there would be nothing anywhere to distinguish the two cases.
+                if (chats.Count == 0)
+                {
+                    AppLogger.LogWarning(
+                        $"IndexedDbScan.{instance.Id}",
+                        "Conversation scan completed but parsed 0 conversations — either the account is empty "
+                        + "or the scraped shape no longer matches the parser.");
+                }
                 OversightChatSnapshotService.Instance.Update(instance.Id, chats, DateTimeOffset.UtcNow);
 
                 // Report the SAME direction-based, sticky, override-aware number the dashboard shows (via
@@ -304,8 +326,15 @@ public static class OversightSnapshotReader
                 PublishSnapshotEvent(instance, result, "indexeddb");
                 return result;
             }
-            catch
+            catch (Exception ex)
             {
+                // This was a bare `catch { return null; }`. The IndexedDB scan is the LAST-RESORT path —
+                // when it fails the account contributes nothing at all — and it was the one path that
+                // recorded no log line and no health entry, so a total oversight failure left no evidence
+                // anywhere. The store-bridge path above already reports its failures; this now matches.
+                AppLogger.LogWarning(
+                    $"IndexedDbScan.{instance.Id}",
+                    $"Conversation scan failed: {ex.GetType().Name}: {ex.Message}");
                 return null;
             }
         }
