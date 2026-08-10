@@ -1517,14 +1517,29 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var parts = new List<string>(3);
 
-        var ids = instances.Where(i => !string.IsNullOrWhiteSpace(i.Id)).Select(i => i.Id).ToList();
-        var digest = OversightChatSnapshotService.Instance.BuildDigest(ids, null);
-        if (digest.OldestActivityUtc is { } oldest)
+        // The oldest wait must be attributed to the account it actually belongs to, and must be measured
+        // over the SAME window-bounded awaiting snapshot the per-account cards use.
+        //
+        // This line previously read "oldest 75d · <name of the account with the most awaiting>", which the
+        // " · " join renders as one sentence — so it claimed the 75-day-old customer was at that account.
+        // It usually was not. Observed live: the hero read "oldest 75d · Depilex DHA-2 WhatsApp" while that
+        // account's own card read "Longest wait: 50d"; the 75d belonged to a different account entirely.
+        // The two figures also came from different windows (an unbounded digest here vs. the card's
+        // WindowRange()), so they could disagree even for the same account.
+        var (windowStart, windowEnd) = WindowRange();
+        var nowUtc = DateTimeOffset.UtcNow;
+
+        (string Name, double Minutes)? oldestWait = null;
+        foreach (var entity in entities)
         {
-            var mins = (DateTimeOffset.UtcNow - oldest).TotalMinutes;
-            if (mins >= 1)
+            foreach (var chat in entity.MemberInstanceIds.SelectMany(id =>
+                         OversightChatSnapshotService.Instance.GetAwaiting(id, windowStart, windowEnd)))
             {
-                parts.Add($"oldest {FormatMinutes(mins)}");
+                var minutes = (nowUtc - chat.LastActivityUtc).TotalMinutes;
+                if (oldestWait is null || minutes > oldestWait.Value.Minutes)
+                {
+                    oldestWait = (entity.DisplayName, minutes);
+                }
             }
         }
 
@@ -1532,9 +1547,52 @@ public sealed partial class CommandCenterPanel : UserControl
             .OrderByDescending(e => e.AwaitingCount)
             .ThenBy(e => e.OnTimePercent)
             .FirstOrDefault();
-        if (worst is not null && !string.IsNullOrWhiteSpace(worst.DisplayName))
+
+        var worstName = worst is not null && !string.IsNullOrWhiteSpace(worst.DisplayName)
+            ? worst.DisplayName
+            : null;
+
+        return ComposeHeroSubtext(
+            oldestWait?.Name,
+            oldestWait?.Minutes,
+            worstName,
+            overallPct);
+    }
+
+    /// <summary>
+    /// Formats the hero's supporting line from already-resolved facts.
+    /// </summary>
+    /// <remarks>
+    /// Split out from <see cref="BuildHeroSubtext"/> so the attribution contract is testable without a
+    /// live snapshot service. The contract that matters: whatever name appears beside "oldest" must be the
+    /// account that oldest wait actually belongs to. Joining the parts with " · " makes them read as one
+    /// sentence, so an unlabelled name next to a duration is read as owning that duration — which is how
+    /// this line came to claim a 75-day-old customer was at an account whose own longest wait was 50 days.
+    /// </remarks>
+    internal static string ComposeHeroSubtext(
+        string? oldestAccountName,
+        double? oldestMinutes,
+        string? worstAccountName,
+        int overallPct)
+    {
+        var parts = new List<string>(3);
+
+        if (oldestMinutes is { } minutes && minutes >= 1)
         {
-            parts.Add(worst.DisplayName);
+            // Name the owning account only when it is not the one already named as furthest behind,
+            // so the line does not repeat itself in the common case.
+            var attributed = !string.IsNullOrWhiteSpace(oldestAccountName)
+                             && !string.Equals(oldestAccountName, worstAccountName, StringComparison.Ordinal);
+
+            parts.Add(attributed
+                ? $"oldest {FormatMinutes(minutes)} ({oldestAccountName})"
+                : $"oldest {FormatMinutes(minutes)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(worstAccountName))
+        {
+            // Labelled, so it reads as its own fact rather than as a qualifier on the oldest wait.
+            parts.Add($"furthest behind: {worstAccountName}");
         }
 
         parts.Add($"{overallPct}% caught up overall");

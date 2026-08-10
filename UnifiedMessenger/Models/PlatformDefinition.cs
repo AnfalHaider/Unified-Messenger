@@ -73,6 +73,7 @@ public sealed class PlatformDefinition
         {
             Id = "whatsapp",
             DisplayName = "WhatsApp",
+            Description = "Full oversight — who's waiting, response times, on-time %.",
             DefaultUrl = "https://web.whatsapp.com/",
             IconGlyph = "\uE8BD",
             AccentColor = "#25D366",
@@ -82,6 +83,7 @@ public sealed class PlatformDefinition
         {
             Id = "whatsappbusiness",
             DisplayName = "WhatsApp Business",
+            Description = "Full oversight — who's waiting, response times, on-time %.",
             DefaultUrl = "https://web.whatsapp.com/",
             IconGlyph = "\uE8BD",
             AccentColor = "#128C7E",
@@ -94,7 +96,10 @@ public sealed class PlatformDefinition
             // unanswered from the embedded DOM is future work that needs a live logged-in account to tune).
             Id = "googlebusiness",
             DisplayName = "Google Business",
-            Description = "Google Business reviews — embedded. (Review metrics scraping is planned.)",
+            // Keep this in step with what GoogleReviewSnapshotService actually ships. It previously read
+            // "(Review metrics scraping is planned.)" long after that scraping shipped, and the drift went
+            // unnoticed for releases because nothing rendered Description. Something renders it now.
+            Description = "Reviews and Q&A — rating, unanswered reviews, reply rate. No message channel.",
             // Land on the Business Profile Manager REVIEWS page — that's the oversight surface for this app
             // (which reviews need a reply). The bare business.google.com root redirects single-location
             // managers into a raw Google Search results page instead. (Google moved single-location editing
@@ -114,7 +119,10 @@ public sealed class PlatformDefinition
             // reads unread/awaiting from the web DOM (like the WhatsApp one) is future per-channel work.
             Id = "telegram",
             DisplayName = "Telegram",
-            Description = "Telegram Web — embedded. (Unread/awaiting adapter is planned.)",
+            // Hidden from the picker today (HiddenFromPicker), but existing accounts still resolve through
+            // here and the description is held to the same bar as every other channel: say what it does
+            // now, not what it might do later.
+            Description = "Opens in its own tab. No oversight metrics — this channel is not measured.",
             DefaultUrl = "https://web.telegram.org/",
             IconGlyph = "\uE8BD", // TODO: Replace with brand-specific glyph or image asset when Phase 5 is implemented.
             AccentColor = "#0088CC",
@@ -131,7 +139,10 @@ public sealed class PlatformDefinition
             // (and an Instagram sibling) reading unread/awaiting is future per-channel work.
             Id = "messenger",
             DisplayName = "Messenger",
-            Description = "Meta Messenger — embedded. (Unread/awaiting adapter is planned.)",
+            // "Planned" is not something to tell a paying customer. Opening a Meta thread fires a read
+            // receipt to the customer, so per-conversation reads are permanently off limits here (see
+            // MetaAggregateOnly above) — this is a browse-only channel, and the copy says so plainly.
+            Description = "Opens in its own tab. No oversight metrics — this channel is not measured.",
             DefaultUrl = "https://www.messenger.com/",
             IconGlyph = "\uE8F2", // TODO: Replace with brand-specific glyph or image asset when Phase 5 is implemented.
             AccentColor = "#0084FF",
@@ -143,7 +154,7 @@ public sealed class PlatformDefinition
             // Configurator gives discord a desktop Chrome UA + in-app new-window handling so login works.
             Id = "discord",
             DisplayName = "Discord",
-            Description = "Discord — embedded. No oversight metrics.",
+            Description = "Opens in its own tab. No oversight metrics — this channel is not measured.",
             DefaultUrl = "https://discord.com/app",
             AccentColor = "#5865F2",
             Capabilities = PlatformCapabilities.EmbedOnly
@@ -178,7 +189,7 @@ public sealed class PlatformDefinition
             // guard when DefaultUrl is blank) and so a custom URL is required.
             Id = "generic",
             DisplayName = "Custom URL (any website)",
-            Description = "Any website — monitored in its own tab with back / forward / reload controls. No oversight metrics.",
+            Description = "Any website, in its own tab with back / forward / reload. No oversight metrics.",
             DefaultUrl = string.Empty,
             IconGlyph = "\uE774",
             AccentColor = "#6B7280",

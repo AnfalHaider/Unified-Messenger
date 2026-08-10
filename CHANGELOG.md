@@ -5,6 +5,26 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.2
+
+**The command centre no longer blames the wrong branch for the oldest waiting customer.** The summary
+line under the headline showed the longest wait next to an account name — but the name it showed was
+whichever account had the *most* customers waiting, not the account the longest wait actually belonged
+to. Because the two sit side by side, it read as one statement. On real data it claimed a 75-day-old
+customer was at a branch whose own card said its longest wait was 50 days.
+
+The longest wait is now labelled with the account it belongs to, the busiest account is labelled
+separately as "furthest behind", and both are measured over the same time window the account cards use —
+previously the headline and the cards measured over different windows and could disagree even about the
+same account.
+
+**Adding an account now tells you what that channel actually does.** The platform list showed six
+channels as if they were equivalent, when only WhatsApp and WhatsApp Business produce oversight metrics
+and Google Business produces review metrics. Picking Messenger or Discord created an account that worked
+as a browsing tab but never appeared on the dashboard, with nothing explaining why. Each channel now
+describes what it delivers before you add it, and channels that are not measured say so plainly. The
+Google entry also stopped describing its review scraping as "planned" — that shipped some time ago.
+
 ## v4.99.1
 
 **Closing the app no longer loses your work when one file can't be saved.** On shutdown the app saves
