@@ -1929,8 +1929,12 @@ public sealed partial class CommandCenterPanel : UserControl
                 .Where(t => t is not null)
                 .DefaultIfEmpty(null)
                 .Min();
+            // Keep this line SHORT. It is character-ellipsis trimmed inside a card, so a long string gets
+            // cut mid-sentence — which is how the stale state came to read "stale — right-click the accou…".
+            // The recovery steps belong in the tooltip, in the owner's vocabulary: "WebView" is an
+            // implementation detail and means nothing to the person paying for this.
             var freshness = entity.IsStale
-                ? "stale — right-click the account → Refresh WebView, then Re-sync"
+                ? "out of date — click Re-sync"
                 : capturedAt is { } cap
                     ? $"updated {RelativeAge(cap)}{(entity.HistoricalOpenCount > 0 ? $" · {entity.HistoricalOpenCount} chats tracked" : string.Empty)}"
                     : "waiting for first sync…";
@@ -1941,8 +1945,15 @@ public sealed partial class CommandCenterPanel : UserControl
                 Foreground = entity.IsStale ? danger : Brush("TextFillColorTertiaryBrush"),
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
-            ToolTipService.SetToolTip(freshnessBlock,
-                "When this account's chat data was last read. Numbers on this card are only as fresh as this stamp — click Re-sync to update.");
+            ToolTipService.SetToolTip(freshnessBlock, entity.IsStale
+                ? "This account has stopped reporting, so the numbers on this card are out of date. "
+                  + "Click Re-sync at the top of the command centre. If that doesn't help, right-click the "
+                  + "account in the sidebar and choose Refresh, then Re-sync again."
+                : "When this account's chat data was last read. Numbers on this card are only as fresh as "
+                  + "this stamp — click Re-sync to update.");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(freshnessBlock, entity.IsStale
+                ? $"{entity.DisplayName}: data out of date, click Re-sync"
+                : $"{entity.DisplayName}: {freshness}");
             nameColumn.Children.Add(freshnessBlock);
         }
 

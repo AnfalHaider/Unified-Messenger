@@ -5,6 +5,17 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.3
+
+**An account that has stopped reporting now says so in plain English.** The warning on an out-of-date
+account card read "stale — right-click the account → Refresh WebView, then Re-sync". "WebView" is an
+internal term, and the line was long enough to be cut off mid-instruction inside the card. It now reads
+"out of date — click Re-sync", with the full recovery steps in the tooltip. Screen readers now announce
+which account the warning belongs to, which they previously did not.
+
+Third-party notices now list every dependency the app ships, and the developer documentation was
+corrected where it disagreed with the code.
+
 ## v4.99.2
 
 **The command centre no longer blames the wrong branch for the oldest waiting customer.** The summary
