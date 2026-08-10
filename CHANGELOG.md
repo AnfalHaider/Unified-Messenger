@@ -5,6 +5,21 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.7
+
+**One odd conversation can no longer wipe out an account's whole reading.** When the app read your chat
+list, a single conversation coming back in an unexpected shape — a date arriving as a number instead of
+text, say — threw away *every* conversation in that read, not just the odd one. The account then showed as
+having no activity, which for a branch with customers waiting is the worst possible thing to get wrong
+quietly. The scraper side already skipped bad conversations one at a time; the app side now does the same,
+and notes in the log how many were skipped.
+
+**A change in WhatsApp's data no longer quietly changes what "waiting for a reply" means.** If the
+information the app relies on to tell whether you have replied goes missing, it falls back to using unread
+badges instead. That fallback is deliberate — it keeps a number on screen rather than showing nothing —
+but unread is a weaker signal, because opening a chat on your phone clears it even though nobody replied.
+That substitution used to happen invisibly; it is now recorded in the log so it can be spotted and fixed.
+
 ## v4.99.6
 
 **When an account can't be read, that now leaves a trace.** Reading an account has two routes: a fast one,
