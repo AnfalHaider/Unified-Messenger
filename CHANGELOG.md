@@ -5,6 +5,17 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.5
+
+**A damaged data file no longer disappears without trace.** The same weakness fixed for the settings file
+in v4.99.4 also affected the file holding your marked-handled and snoozed chats, and the one holding your
+KPI trend history. If either became unreadable, the app quietly started over with an empty one — nothing
+in the log, and the damaged file was not kept, so there was nothing left to recover from. For the
+marked-handled file that means every chat you had closed out reappears as waiting for a reply.
+
+Both files are now kept aside as `.corrupt-….bak` next to your data, and the problem is written to the
+log. All three data files now behave the same way, through shared code, so they cannot drift apart again.
+
 ## v4.99.4
 
 **If your settings file can't be read, that now gets recorded.** When the settings file is damaged — a

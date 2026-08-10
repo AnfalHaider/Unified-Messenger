@@ -69,16 +69,11 @@ public sealed class AppSettingsService : IAppSettingsService
             // JsonException alone was too narrow: a settings file locked by a backup tool or antivirus, or
             // sitting on an unavailable network profile, throws IOException/UnauthorizedAccessException and
             // used to escape LoadAsync entirely — failing startup rather than degrading to defaults.
-            catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
+            // Recording and preserving are shared with the other durable stores so all three behave alike.
+            catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
             {
-                // Must be AppLogger, not Debug.WriteLine. Debug.WriteLine is compiled out of the Release
-                // build that ships, which is why a real corrupt-settings reset left NO trace in app.log —
-                // verified by corrupting settings.json against the shipping binary and finding nothing
-                // logged. Losing the user's configuration silently is not acceptable; at minimum it must
-                // be on the record.
-                AppLogger.LogError("Settings.Load.Corrupt", ex);
                 RecoveredFromCorruptFile = true;
-                CorruptFileBackupPath = BackupCorruptFile();
+                CorruptFileBackupPath = CorruptFileRecovery.Preserve(_storePath, "Settings", ex);
                 loaded = new AppSettings();
             }
 
@@ -172,25 +167,4 @@ public sealed class AppSettingsService : IAppSettingsService
 
     /// <summary>Where the unreadable settings file was preserved, when it could be preserved.</summary>
     public string? CorruptFileBackupPath { get; private set; }
-
-    /// <summary>Moves the unreadable settings file aside. Returns the backup path, or null on failure.</summary>
-    private string? BackupCorruptFile()
-    {
-        try
-        {
-            if (!File.Exists(_storePath))
-            {
-                return null;
-            }
-
-            var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
-            File.Move(_storePath, backupPath, overwrite: true);
-            return backupPath;
-        }
-        catch (Exception ex)
-        {
-            AppLogger.LogError("Settings.BackupCorruptFile", ex);
-            return null;
-        }
-    }
 }

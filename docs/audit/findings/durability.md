@@ -82,6 +82,75 @@ hash-verified again after restore (all 11 files matched byte-for-byte). No owner
   Owner data safety: 11/11 files SHA256-matched the pre-test backup after restore.
   ```
 
+---
+
+### F-DURA-02 — The awaiting-overrides and KPI-trend stores discarded an unreadable file without preserving it, and reported nothing in the shipping build
+
+- **Severity:** S1
+- **Confidence:** **split — read this carefully, the two halves are not equally proven.**
+  - *Confirmed:* the silence, the too-narrow catch, and the absence of any file preservation.
+  - *Likely, NOT demonstrated:* that the next flush then overwrites the file and destroys it permanently.
+    See "What I did not prove" below. I attempted this and my test was invalid.
+- **Where:** `UnifiedMessenger/Services/Oversight/AwaitingOverrideStore.cs:140` (pre-fix)
+- **Where:** `UnifiedMessenger/Services/Oversight/KpiTrendStore.cs:126` (pre-fix)
+- **Status:** **FIXED** in `v4.99.5`.
+- **User-visible symptom:** Every chat the owner marked handled or snoozed silently comes back as
+  "awaiting". This is worse than it sounds: the whole point of mark-handled is to let the owner close out
+  a chat that genuinely needs no reply, and `AwaitingOverrideStore` is what stops the backlog being
+  permanently faked. If it empties, the owner's triage work is undone and the awaiting count jumps with no
+  explanation — they will assume the metric is broken, which is the one thing this product cannot afford.
+  The KPI-trend equivalent is milder: sparklines and week-over-week comparisons lose their history.
+- **Repro (executed against the shipping binary):**
+  1. Close the app.
+  2. Truncate `%LOCALAPPDATA%\UnifiedMessenger\awaiting-overrides.json` mid-value, leaving recognisable
+     content (`{ "instances": { "acct-REAL-DATA-MARKER": { "chat-123": { "kind": "Handled"`).
+  3. Do the same to `kpi-trend.json`.
+  4. Launch. App starts normally. Pre-fix: **nothing** in `app.log`, and **no** `.bak` written.
+- **Root cause:** Same shape as F-DURA-01 but without its saving grace. Both stores reported via
+  `Debug.WriteLine` (stripped from Release), caught `JsonException` only, and — unlike
+  `AppSettingsService` — had **no equivalent of `BackupCorruptFile`**. A grep for `BackupCorruptFile|\.bak`
+  across both files returned **0**. The unreadable file was left exactly where it was, while
+  `_isLoaded` had already been set to `true` *before* the try block, leaving the store "loaded" and empty.
+- **Fix applied (v4.99.5):** Introduced `Services/CorruptFileRecovery.cs`, one shared helper answering the
+  three questions all three stores were answering differently — what counts as unreadable, where it gets
+  recorded, and whether the bytes are kept. All three stores now route through it, so they cannot drift
+  apart again. `AppSettingsService.BackupCorruptFile` was deleted as dead code once it did.
+  `IsUnreadable` deliberately **excludes** `OperationCanceledException` and programmer errors like
+  `NullReferenceException`: a load cancelled during shutdown is not a damaged file, and moving a perfectly
+  good store aside because of a cancellation would itself cause the data loss this is meant to prevent.
+- **Blast radius:** Three load paths. The behaviour change is additive (log + preserve); no store's
+  success path was touched.
+- **Evidence (live, published Release binary, after fix):**
+  ```
+  2026-08-10 12:18:33Z [ERR] [AwaitingOverrides.Load.Corrupt] System.Text.Json.JsonException: The JSON
+    value could not be converted to ...OverrideKind. Path: $.instances.acct-REAL-DATA-MARKER.chat-123.kind
+  2026-08-10 12:18:33Z [ERR] [KpiTrends.Load.Corrupt] System.Text.Json.JsonException: Expected end of
+    string, but instead reached end of data. Path: $.days.2026-08-09
+
+  awaiting-overrides.json.corrupt-20260810121833.bak  [78 bytes]
+    { "instances": { "acct-REAL-DATA-MARKER": { "chat-123": { "kind": "Handled"
+  kpi-trend.json.corrupt-20260810121833.bak  [40 bytes]
+    { "days": { "2026-08-09": { "awaiting
+  ```
+  The marker bytes survived — before the fix there was no `.bak` at all. Pre-fix code evidence:
+  ```
+  $ grep -c "BackupCorruptFile\|\.bak" AwaitingOverrideStore.cs KpiTrendStore.cs
+  AwaitingOverrideStore.cs:0
+  KpiTrendStore.cs:0
+  ```
+  Owner-data safety: 11/11 files SHA256-matched the pre-test backup after restore; no `.bak` debris left.
+
+#### What I did not prove (F-DURA-02)
+
+I claimed in an earlier report that the next flush overwrites the unreadable file and destroys it
+permanently. **I did not demonstrate that, and my attempt to was invalid.** I killed the app with
+`Stop-Process -Force`, which skips graceful shutdown entirely, so the flush never ran — the file was
+absent both before and after, which proves nothing either way. The reasoning behind the claim is sound
+(`_isLoaded = true` executes before the try, so a corrupt load leaves the store "loaded and empty", and
+`FlushAsync` writes in-memory state to that path) but it remains **inference, not observation**. A proper
+test would mark a chat handled, corrupt the file, restart, and exit via the app's own quit path. That is
+worth doing and was not done.
+
 ## What was NOT covered
 
 - **Only `settings.json` was tested.** The same `Debug.WriteLine`-in-a-catch pattern appears in the other
