@@ -151,6 +151,96 @@ absent both before and after, which proves nothing either way. The reasoning beh
 test would mark a chat handled, corrupt the file, restart, and exit via the app's own quit path. That is
 worth doing and was not done.
 
+---
+
+## F-DURA-03 — Torn-write investigation: the feared failure mode does NOT exist
+
+This was flagged across two earlier reports as the biggest open unknown, on the grounds that it could
+**invalidate the recovery work in v4.99.4 and v4.99.5**: if an interrupted write could leave a file that
+*parses cleanly but has lost records*, then corruption detection would never fire, no `.bak` would be
+written, and the store would silently reset. That would be strictly worse than the bugs already fixed,
+because none of the new machinery would engage.
+
+**Result: it cannot happen through the normal write path.** Reported as a clean check with evidence,
+because a negative result here is worth as much as a finding.
+
+### Why the main file can never be partially written
+
+Every durable store writes the same way. `AwaitingOverrideStore.cs:267-275` is representative:
+
+```csharp
+Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
+var tempPath = _storePath + ".tmp";
+await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
+{
+    await JsonSerializer.SerializeAsync(stream, store, JsonOptions, cancellationToken);
+    await stream.FlushAsync(cancellationToken);
+}
+File.Move(tempPath, _storePath, overwrite: true);   // atomic rename, same volume
+```
+
+Serialize to a temp, flush, close, then atomically replace. The live file is only ever swapped for a
+fully-written one. Kill the process at any point and the live file is either the old complete version or
+the new complete version — never a blend. Confirmed present in **all** durable stores:
+`AppSettingsService.cs:136-152`, `InstanceRegistryService.cs:548-564`, `ContactHistoryStore.cs:304-313`,
+`MessageAnalyticsService.cs:1781-1796`, `OversightChatSnapshotService.cs:432-441`,
+`AwaitingOverrideStore.cs:267-275`, `KpiTrendStore.cs:216-223`, `LocalBackupService.cs:58-73`.
+
+**Real-world confirmation on this machine:** a **zero-byte `triage_v2.json.tmp`** was sitting in the
+owner's data directory throughout this audit. That is the fingerprint of an interrupted write that
+actually occurred here — and the design handled it exactly as intended: the temp was orphaned and
+`triage_v2.json` itself was intact at 646,795 bytes. The mechanism is not theoretical; it has already
+been exercised in production on the owner's own data.
+
+### And why a truncated file still triggers recovery
+
+The remaining worry was a file that parses to *nothing* rather than failing. Tested directly
+(`TornWriteRecoveryTests`, 6 tests, green):
+
+| File content an interruption could leave | `DeserializeAsync` | Recovery fires? |
+|---|---|---|
+| zero bytes | **throws `JsonException`** | yes — logged + `.bak` |
+| whitespace only | **throws `JsonException`** | yes |
+| truncated mid-value | **throws `JsonException`** | yes |
+| literal `null` | returns `null`, no throw | no — but every store null-checks (below) |
+| `{}` | returns empty object | correctly treated as real empty data |
+
+The zero-byte case was the one that mattered, since it is the likeliest outcome of an interrupted write,
+and it throws — so `CorruptFileRecovery` engages and the bytes are preserved. The only shape that slips
+past detection is a literal `null`, and all three load paths already guard it:
+`AppSettingsService.cs:67` (`?? new AppSettings()`), `AwaitingOverrideStore.cs:151`
+(`store?.Instances ?? []`), `KpiTrendStore.cs:135` (`store?.Days ?? []`). Nothing anywhere reads a `.tmp`
+file, so orphaned temps are inert.
+
+### Residual gaps — real, but much smaller than feared
+
+**(a) No write-through, so power-loss durability is not guaranteed. Severity: S3, confidence: confirmed.**
+`stream.FlushAsync()` pushes the managed buffer to the OS, not to the physical disk. There is no
+`FileOptions.WriteThrough` and no `Flush(flushToDisk: true)` anywhere in the codebase (grep returns
+nothing). A process kill is therefore safe — the OS holds complete data and the rename is atomic — but a
+**power cut or bug-check** could complete the rename in the NTFS journal while the file's data blocks are
+still unwritten, yielding a zero-length or garbage file. The saving grace is that this lands squarely in
+the case handled above: it parses as corrupt, gets logged, and the previous content is preserved. So the
+worst outcome is "settings reset, recoverable from `.bak`", not silent record loss.
+*Proposed fix:* add `FileOptions.WriteThrough` to the temp-file `FileStream` in the durable stores. Cheap,
+localised. *Tradeoff:* write-through bypasses the OS cache and is measurably slower — on
+`analytics.json` (168 KB) and `oversight-snapshot.json` (908 KB), flushed on every shutdown and on
+hide-to-tray, that cost is paid frequently. Worth measuring before applying; I have **not** measured it,
+so I am not applying it blind.
+
+**(b) Orphaned `.tmp` files are never cleaned up. Severity: S4, confidence: confirmed.**
+Nothing deletes them (grep for `.tmp` deletion returns nothing), so each interrupted write leaves one
+behind permanently. Harmless — they are inert and small — but they accumulate, and a stray zero-byte
+`.tmp` next to a user's data looks alarming to anyone who goes looking. *Proposed fix:* best-effort delete
+of `<store>.tmp` on successful load.
+
+### Verdict
+
+The concern that motivated this investigation is **closed as not-a-defect**. The atomic write pattern is
+correctly implemented everywhere, and the truncation shapes it can produce all route into the recovery
+added in v4.99.4/.5 rather than around it. The durability work is not invalidated. Two small residual
+gaps are recorded above; neither is a blocker, and (a) should be measured before it is fixed.
+
 ## What was NOT covered
 
 - **Only `settings.json` was tested.** The same `Debug.WriteLine`-in-a-catch pattern appears in the other
