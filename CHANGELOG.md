@@ -5,6 +5,21 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.1
+
+**Closing the app no longer loses your work when one file can't be saved.** On shutdown the app saves
+seven things: analytics, triage, chat snapshots, response times, contact history, your marked-handled and
+snoozed chats, and KPI trends. They were saved as a single all-or-nothing step, so if the very first one
+failed — a file locked by a backup tool, a full disk, a permissions problem — every remaining one was
+skipped and the app still closed as if nothing had happened.
+
+The visible effect was chats you had already marked handled coming back the next morning, snoozes
+expiring early, and gaps in response-time history and trend charts. Because which items survived depended
+on which file failed first, it looked like the app was just being flaky rather than a specific bug.
+
+Each item is now saved independently, so one failure can no longer discard the others, and the names of
+anything that failed are recorded so the app can tell you your data may be out of date.
+
 ## v4.99.0
 
 **Custom URL accounts now load.** A Custom URL account opened to a blank page and stayed there. The
