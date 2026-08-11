@@ -5,6 +5,24 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.14
+
+**Updating no longer deletes your log file or your settings-recovery file.** Every update was clearing
+`app.log` — the only record of anything going wrong — and any `settings.json.corrupt-….bak` left behind
+when a data file could not be read. Since updates install themselves by default, that happened without you
+choosing it, and it meant updating to fix a problem destroyed the evidence of the problem. The v4.99.4
+notes tell you to look for that `.bak` file to get your settings back; it will now still be there.
+
+**Uninstalling can now erase your data if you want it to.** Uninstalling removed the program but left
+everything else — on the machine this was tested on, 7.2 GB, including your message history and signed-in
+accounts. That remains the default, because it means reinstalling picks up exactly where you left off. But
+it is now an explicit choice on the uninstall screen rather than something that just happens quietly.
+
+**A first launch no longer says "Welcome back".** On a fresh install the dashboard greeted you as a
+returning user and reported "1 personal account connected" — while telling you, further down the same
+screen, that no accounts were connected. It now welcomes you properly and invites you to add your first
+account.
+
 ## v4.99.13
 
 **The review reply rate no longer reads "100% replied" above reviews that still need a reply.** With 996

@@ -311,7 +311,7 @@ Do **not** add `Co-Authored-By` / tool-attribution trailers to commits in this r
 
 ---
 
-## Phase roadmap (current as of v4.99.13)
+## Phase roadmap (current as of v4.99.14)
 
 > ⚠️ The per-phase table and the "Shipped" paragraph below were last revised at **v4.53.0** and were not
 > maintained through v4.99.x. Treat them as a historical snapshot, not as current status — several items
