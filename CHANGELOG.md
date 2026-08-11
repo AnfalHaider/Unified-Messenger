@@ -5,6 +5,21 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.12
+
+**The weekly report no longer contradicts itself.** Two percentages in the report were rounded in a way
+that could produce nonsense in a single sentence — "996 messages this week — 100% of all customer volume"
+while naming that account the busiest of several, and "100% of the 1000 customers who messaged this week
+had contacted you before; 3 reached out for the first time." Both now follow the same rule as the rest of
+the app: 100% means all, 0% means none.
+
+The week-on-week volume change is untouched and can still exceed 100% — if your messages tripled, "up
+200%" is the right answer.
+
+**Your branch names keep their capitalisation.** The report's opening line lower-cased everything it
+quoted, so an account called "Depilex DHA-2 WhatsApp" appeared as "depilex dha-2 whatsapp" in the one
+sentence most likely to be forwarded to a manager.
+
 ## v4.99.11
 
 **WhatsApp's own account no longer sits in your list of waiting customers.** WhatsApp sends occasional

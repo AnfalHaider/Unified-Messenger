@@ -285,6 +285,74 @@ rather than score it perfect. Left alone deliberately rather than changed on spe
 | "Busier than usual" threshold | **correct** | Requires `HasData` on both sides and `AveragePerDay > 0` before comparing at 1.4×. |
 | Group / Status / broadcast / channel exclusion | **correct in the snapshot** | Verified in the owner's real data: `@g.us` keys **0**, `status@` keys **0**. Only the `0@` case had escaped (F-METRICS-05). |
 
+---
+
+### F-METRICS-07 — The weekly report's share percentages could round into sentences that contradict themselves
+
+- **Severity:** S2
+- **Confidence:** confirmed (reproduced by test against the real report builder, before and after)
+- **Where:** `UnifiedMessenger/Services/Analytics/BusinessReport.cs:168` (returning-customer rate)
+- **Where:** `UnifiedMessenger/Services/Analytics/BusinessReport.cs:182` (busiest account's share of volume)
+- **Status:** **FIXED** in `v4.99.12`.
+- **User-visible symptom:** The report is the artefact an owner reads carefully and may forward to a
+  manager, so self-contradiction there is disproportionately damaging. Both cases produce nonsense in a
+  single sentence:
+  - *"996 messages this week — **100%** of all customer volume"*, in a call-out that only fires when **two
+    or more** accounts are active and therefore names one account as "busiest" among several.
+  - *"**100%** of the 1000 customers who messaged this week had contacted you before; **3** reached out for
+    the first time."*
+  The inverse also occurred: 3 of 1000 returning rounds to **0%** while the sentence names returning
+  customers.
+- **Repro:** build a report with accounts `[Main: 996, Branch: 4]`, or with 997 returning and 3 new.
+  Pinned by `BusinessReportSharePercentTests`.
+- **Root cause:** the fifth and sixth instances of the rounding defect first fixed in `v4.99.9`. Both are
+  shares bounded 0–100 that used plain `Math.Round`.
+- **Fix applied:** both now use the shared `MetricMath.HonestPercent`. **Deliberately not changed:** the
+  volume delta at `:92` (`MessagesThisWeek` vs `MessagesLastWeek`) is a *change* percentage, legitimately
+  unbounded — tripling volume really is "up 200%" — so applying a 0–100 clamp there would have been a new
+  bug. A test pins that it still reports 200%.
+- **Blast radius:** two report strings. 153 tests across every metric and parser suite confirm nothing else
+  moved.
+- **Evidence:** three failing tests before the fix; `AnAllReturningWeekStillReportsOneHundredPercent`
+  confirms the honest 100% survives.
+
+---
+
+### F-METRICS-08 — The report's headline sentence lower-cased the owner's own branch names
+
+- **Severity:** S3
+- **Confidence:** confirmed
+- **Where:** `UnifiedMessenger/Services/Analytics/BusinessReport.cs:223` (pre-fix)
+- **Status:** **FIXED** in `v4.99.12`.
+- **User-visible symptom:** `BuildSummary` applied `ToLowerInvariant()` to insight titles when composing
+  the report's opening line. That reads tidily until a title contains an account name — the owner's real
+  data produces *"Focus this week: depilex dha-2 whatsapp may be neglected"*, mangling their own branch
+  naming in the single most prominent sentence of a document they may forward to a manager.
+- **Repro:** an account named "Depilex DHA-2 WhatsApp" with `AwaitingNow >= 3` and no measured replies
+  triggers the neglected-account warning, whose title carries the name. Pinned by
+  `TheSummaryPreservesAccountNameCasing`.
+- **Root cause:** lower-casing was applied to make titles read as clause fragments, without accounting for
+  titles that embed proper nouns. There is no way to lower-case safely here — the account name is
+  user-supplied and unbounded.
+- **Fix applied:** titles are joined verbatim. The sentence still reads correctly because insight titles
+  are already written as standalone clauses.
+- **Blast radius:** one string.
+
+---
+
+## Weekly report and anomaly detection — everything else CLEAN
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| Volume-trend divide-by-zero | **correct** | `MessagesLastWeek == 0` is special-cased into a "first period of tracked activity" insight before any division. |
+| Volume-trend noise floor | **correct** | Only reported when `Math.Abs(deltaPct) >= 15`, so ordinary week-to-week wobble is not raised as a finding. |
+| Response-time anomaly false alarms | **correct, and thoughtfully bounded** | "Slower" requires `FrtSamplesLastWeek > 0` **and** `lastWk > 0` **and** `thisWk >= lastWk * 1.5` **and** `thisWk >= 10` minutes. The floor is what stops a 1→3 minute change being reported as a degradation; the comment says exactly that. |
+| Over-SLA anomaly | **correct** | Guarded by `SlaThresholdMinutes > 0`, so a disabled target cannot trigger it. |
+| Quiet-account anomaly | **correct** | `AwaitingNow >= 3 && FrtSamples == 0` — requires a real backlog, so a genuinely idle account is not accused. |
+| Insight ordering | **correct** | Warn → Info → Good via a stable `OrderBy`, so the most actionable item leads and insertion order breaks ties deterministically. |
+| Markdown export arithmetic | **correct** | Uses absolute deltas (`+12 vs last week`), not percentages, so it sidesteps the rounding class entirely. |
+| SLA figure fed into the report | **correct as of v4.99.10** | `SlaMetPercent` is supplied by `ResponseTimeTracker`, so the report inherited the F-METRICS-04 fix automatically. |
+
 ## What was NOT covered
 
 Stated plainly so this is not mistaken for a completed audit of the highest-stakes domain.
