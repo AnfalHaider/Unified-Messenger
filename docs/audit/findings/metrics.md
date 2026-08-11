@@ -353,6 +353,51 @@ rather than score it perfect. Left alone deliberately rather than changed on spe
 | Markdown export arithmetic | **correct** | Uses absolute deltas (`+12 vs last week`), not percentages, so it sidesteps the rounding class entirely. |
 | SLA figure fed into the report | **correct as of v4.99.10** | `SlaMetPercent` is supplied by `ResponseTimeTracker`, so the report inherited the F-METRICS-04 fix automatically. |
 
+---
+
+### F-METRICS-09 — The review reply rate could read "100% replied" beside a list of unanswered reviews
+
+- **Severity:** S2
+- **Confidence:** confirmed (reproduced by test, before and after)
+- **Where:** `UnifiedMessenger/Services/Oversight/GoogleReviewSnapshotService.cs:35` (`ReplyRatePercent`)
+- **Status:** **FIXED** in `v4.99.13`.
+- **User-visible symptom:** The review panel's subtitle renders
+  `"{ReplyRatePercent}% replied ({Total} on this page)"` while a separate branch of the same panel
+  highlights reviews that still need a reply. With 996 of 1000 answered the subtitle read **"100% replied"**
+  directly above a list of four reviews awaiting a response. The inverse also occurred: 1 of 1000 answered
+  rounded to **0% replied**.
+- **Repro:** `ReviewHealth` with `Answered: 996, Unanswered: 4` — pre-fix `ReplyRatePercent == 100`,
+  post-fix `99`. Pinned by `ReviewReplyRateTests` (6 tests).
+- **Root cause:** the **seventh and final** instance of the rounding defect first fixed in `v4.99.9`.
+- **Fix applied:** `MetricMath.HonestPercent(Answered, Total)` **inside the existing `Total > 0` guard**.
+  That guard is load-bearing and was deliberately kept: `HonestPercent` returns 100 for a zero total —
+  correct for "nothing outstanding" in the oversight rollup, but here it would tell a business with **no
+  reviews at all** that it had replied to 100% of them. A test pins the zero-review case at 0.
+  This is worth recording as a general lesson: consolidating the six earlier sites was right, but applying
+  the shared helper mechanically to the seventh would have introduced a new defect. The helper's
+  `total <= 0` contract has to be read at each call site, not assumed.
+- **Blast radius:** one computed property on the review-health record.
+- **Evidence:** three failing tests before the fix, including
+  `"4 reviews are unanswered but the panel reads 100% replied"`.
+
+---
+
+## Google rating and review scraping — CLEAN
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| Rating extraction | **correct, and matches the documented trap** | Read from an `aria-label` matching `/Rated\s+([0-5][.,]\d)\s+out\s+of\s+5/i`, not from `innerText`. AGENTS.md records that `innerText` renders rating and count run together (`"4.6239 Google reviews"`); the code takes the aria-label precisely to avoid that. |
+| Lifetime review total | **correct** | Anchored on the rating — `/([0-5][.,]\d)[^\d]{0,6}([\d,]+)\s+Google\s+reviews/i` — so the two split correctly instead of a naive `([\d,]+)` yielding `6239` for `4.6` + `239`. The `[^\d]{0,6}` also tolerates a layout that separates them. |
+| Total fallback safety | **correct** | The no-rating fallback requires a non-digit/non-dot boundary before the count, so it still cannot slice a number out of the middle of another one. |
+| Decimal comma locales | **handled** | Both patterns accept `[.,]` and normalise with `.replace(',', '.')`. |
+| Rating scrape cost | **throttled** | `RatingRefreshInterval` (6h), because each scrape costs a visible navigation round-trip. |
+| Google message metrics | **correctly absent** | No awaiting-reply, FRT or message-count plumbing exists for the Google channel, consistent with Google Business Messages having been shut down in July 2024. |
+
+**Scope note, stated honestly:** the review counts are explicitly labelled "on this page" in the UI, which
+is accurate — they cover the loaded reviews page rather than the full lifetime history, and the code
+comments say so. I did **not** verify the row-count bump (`__umGRBumpRows`) against a live Google page, so
+how many reviews a "page" actually covers in practice is unverified.
+
 ## What was NOT covered
 
 Stated plainly so this is not mistaken for a completed audit of the highest-stakes domain.

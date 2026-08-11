@@ -5,6 +5,15 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.13
+
+**The review reply rate no longer reads "100% replied" above reviews that still need a reply.** With 996
+of 1000 reviews answered, the panel rounded to 100% while listing the four outstanding ones directly
+beneath. It also reported 0% when a small number had been answered. As everywhere else in the app, 100%
+now means none outstanding and 0% means none answered.
+
+A business with no reviews at all still reads 0%, not 100% — there is nothing to have replied to.
+
 ## v4.99.12
 
 **The weekly report no longer contradicts itself.** Two percentages in the report were rounded in a way

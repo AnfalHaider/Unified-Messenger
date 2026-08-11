@@ -32,7 +32,15 @@ public sealed class GoogleReviewSnapshotService
     {
         public int Total => Unanswered + Answered;
 
-        public int ReplyRatePercent => Total > 0 ? (int)Math.Round(100.0 * Answered / Total) : 0;
+        /// <summary>
+        /// Share of loaded reviews that have a reply. 100 means none outstanding; 0 means none replied to.
+        /// </summary>
+        /// <remarks>
+        /// The <c>Total &gt; 0</c> guard is load-bearing and must stay: <see cref="MetricMath.HonestPercent"/>
+        /// returns 100 for a zero total — correct for "nothing outstanding" elsewhere, but here it would
+        /// tell a business with no reviews that it had replied to 100% of them.
+        /// </remarks>
+        public int ReplyRatePercent => Total > 0 ? MetricMath.HonestPercent(Answered, Total) : 0;
     }
 
     // Page helpers shared by the counting scrape and the focus click-through. Re-installed on every call —
