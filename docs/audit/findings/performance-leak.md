@@ -93,12 +93,52 @@ No unbounded-growth mechanism was found to match the (absent) symptom.
   returned `null` in silence. They are doing their job — this degradation was invisible before. The
   `v4.99.8` work should now render those accounts as "can't read this account — click Re-sync" rather than
   as quiet.
-- **Not diagnosed.** Whether the injection failure is a WebView2 lifecycle issue, a navigation race, or
-  those accounts being embed-only channels (Discord/Messenger/generic, which legitimately have no scraper)
-  was **not** determined — I did not map the instance ids back to accounts. If they are embed-only, these
-  warnings are expected noise and the log message should say so rather than implying a fault. **That
-  distinction should be settled before shipping**, because a log full of routine warnings trains people to
-  ignore it.
+- **TRIAGED AND FIXED** in `v4.99.18` — see resolution below.
+
+#### F-PERF-01 resolution
+
+Mapping the instance ids against `instances.json` settled it immediately:
+
+| id | platform | account |
+|---|---|---|
+| `1e3697ce` | **googlebusiness** | Google Depilex Men DHA-2 |
+| `f13adf59` | **googlebusiness** | Google Depilex F-11 |
+| `efd5aa0b` | **googlebusiness** | Google Depilex DHA-2 |
+| `de1b5592` | whatsapp | Depilex F-11 WhatsApp (the `watchdog-timeout`, a genuinely different case) |
+
+**All three "not injected" warnings were Google Business accounts** — a reviews + Q&A channel that has no
+conversation scraper and, per the permanent product decision, never will. They were behaving exactly as
+designed. `OversightAlertMonitor` selects instances on `IsProfessional` and connection status alone
+(`OversightAlertMonitor.cs:83-90`), with no check for whether the platform participates in the WhatsApp
+pipeline — so the conversation scan ran against all three every cycle, forever.
+
+**This also exposed a regression introduced by my own `v4.99.8` change.** Because the scan reached
+`RefreshAsync`'s failure path, `AccountReadHealth.RecordFailure` fired for each Google account — which
+would render **"can't read this account — click Re-sync"** on three perfectly healthy accounts. That is the
+precise false positive `AccountReadHealth` was written to avoid, and I wrote the warning about it into the
+F-SNAP-02 finding before creating it here.
+
+**Confirmed, not assumed:** removing the new gate makes 4 tests fail, including
+`NoEmbedOnlyChannelIsEverMarkedUnreadable` for messenger, discord and generic. The false positive was live
+and reproducible.
+
+**Fix applied.** The gate goes in `OversightSnapshotReader.RefreshAsync` rather than at one call site, so
+both callers (the background monitor and the manual Re-sync probe) are covered. It returns `null`
+**without recording a read failure** — the distinction that matters: these accounts are not failing, the
+scan does not apply to them. `PlatformModuleSettingsHelper.IsPlatformModuleEnabled` was already the correct
+gate and already documented as "WhatsApp family only"; it simply was not being consulted here.
+
+A second, milder instance of the same category error was fixed alongside it: the manual Re-sync probe
+reported Google accounts as *"still loading — open this account once to finish loading"*, sending the owner
+to open a tab that could not change the outcome. It now says *"no conversation metrics for this channel"*.
+
+**Verified live:** 90 seconds of running produced **zero new log lines** (previously three warnings per
+scan cycle), and the UI shows **zero** "can't read this account" warnings with all three Google accounts
+present normally.
+
+**Still open:** the `watchdog-timeout` on `de1b5592` (a real WhatsApp account) is a genuine, separate
+condition and was **not** investigated. It means a scan started and did not settle — worth understanding,
+but it is a legitimate warning rather than noise, which is exactly the signal the fix above stops drowning.
 
 ---
 

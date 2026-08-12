@@ -2842,6 +2842,14 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private static async Task<string> ProbeInstanceDbAsync(MessengerInstance instance)
     {
+        // Channels with no conversation scraper are not "still loading" — they will never be scanned.
+        // Re-sync used to report all three Google Business accounts as "still loading — open this account
+        // once to finish loading", which sends the owner off to open a tab that cannot change the outcome.
+        if (!PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
+        {
+            return "no conversation metrics for this channel";
+        }
+
         // Retry a couple of rounds: a still-loading account settles with a non-'done' diag (the reader
         // returns null), and succeeds once its WhatsApp Web is ready.
         for (var round = 0; round < 3; round++)

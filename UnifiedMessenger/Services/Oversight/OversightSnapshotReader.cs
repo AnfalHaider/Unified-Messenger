@@ -24,6 +24,24 @@ public static class OversightSnapshotReader
             return null;
         }
 
+        // Only channels that participate in the WhatsApp IndexedDB pipeline have a conversation scraper.
+        // Without this gate, callers that filter merely on "professional and connected" — which is what
+        // OversightAlertMonitor does — ran the WhatsApp scan against Google Business accounts on every
+        // cycle. Observed on real data: three googlebusiness instances logging
+        // "Conversation scan function is not injected on this page" indefinitely. They were behaving
+        // exactly as designed (Google is reviews + Q&A only, permanently — it has no conversation
+        // scraper and never will), so the warning was pure noise, and a log full of routine warnings
+        // trains people to ignore the real ones.
+        //
+        // Returning null WITHOUT recording a read failure is the important part: these accounts are not
+        // failing, the scan simply does not apply to them. Recording a failure here would light up
+        // "can't read this account — click Re-sync" on three perfectly healthy Google accounts, which is
+        // the precise false positive AccountReadHealth was written to avoid.
+        if (!PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
+        {
+            return null;
+        }
+
         var gate = Gates.GetOrAdd(instance.Id, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync().ConfigureAwait(false);
         try

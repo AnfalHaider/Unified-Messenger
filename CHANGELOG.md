@@ -5,6 +5,22 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.18
+
+**Google Business accounts are no longer treated as if they were broken.** Google is a reviews and Q&A
+channel — it has no customer conversations to read, and never will. The app was nonetheless trying to read
+conversations from every Google account on every cycle, failing (correctly), and filling the log with
+warnings about it. Following v4.99.15, it had also started marking those accounts "can't read this
+account — click Re-sync" on the dashboard: three healthy accounts flagged as faulty.
+
+Channels that have no conversation data are now skipped for that read entirely, rather than attempted and
+reported as failures. Re-sync also stops telling you a Google account is "still loading", which sent you
+to open a tab that could not have changed anything; it now says plainly that the channel has no
+conversation metrics.
+
+The practical benefit beyond the false alarm: your log stops filling with routine warnings, so a real one
+is visible when it appears.
+
 ## v4.99.17
 
 **Internal:** running the test suite no longer writes fake error entries into your log file. Tests that
