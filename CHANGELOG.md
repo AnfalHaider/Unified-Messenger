@@ -5,6 +5,22 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.19
+
+**An account that simply hasn't opened yet is no longer reported as broken.** To save memory, accounts you
+haven't looked at are not loaded in the background. Reading such an account can't work — there is no loaded
+page to read — and after v4.99.15 that was being shown as "can't read this account — click Re-sync". Two
+things wrong with that: nothing is broken, and Re-sync can't load a page that was deliberately left
+unloaded. Those accounts now stay marked as syncing until you open them once, which is what actually
+resolves it.
+
+Genuine read failures — where the page *was* available and the read still failed — are unchanged and still
+reported.
+
+**Internal:** the fix in v4.99.17 for tests writing fake errors into your log file was incomplete; it
+covered one code path and missed several others. It is now handled centrally, and verified: running the
+affected test suites adds nothing to the log.
+
 ## v4.99.18
 
 **Google Business accounts are no longer treated as if they were broken.** Google is a reviews and Q&A

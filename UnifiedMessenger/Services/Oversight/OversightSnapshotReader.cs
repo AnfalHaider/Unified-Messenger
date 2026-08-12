@@ -67,7 +67,7 @@ public static class OversightSnapshotReader
                 await HarvestPreviewsAsync(instance).ConfigureAwait(false);
             }
 
-            var viaScan = await RunScanAsync(instance).ConfigureAwait(false);
+            var (viaScan, pageNotReady) = await RunScanAsync(instance).ConfigureAwait(false);
 
             // This is the only place that knows the FINAL outcome — after every fallback has been tried.
             // Recording it here is what lets the command centre tell "this account is quiet" apart from
@@ -76,11 +76,16 @@ public static class OversightSnapshotReader
             {
                 AccountReadHealth.RecordSuccess(instance.Id);
             }
-            else
+            else if (!pageNotReady)
             {
                 AccountReadHealth.RecordFailure(instance.Id, "No ingestion path returned usable data.");
             }
 
+            // pageNotReady is deliberately neither success nor failure: with lazy WebView loading on (the
+            // default), a background account simply has not navigated yet. Recording a failure would show
+            // "can't read this account — click Re-sync", and Re-sync cannot load a page that lazy loading
+            // intentionally left unloaded — so the advice would be both alarming and useless. Leaving the
+            // health state untouched keeps the account reading as "syncing…" until it genuinely loads.
             return viaScan;
         }
         finally
@@ -281,7 +286,7 @@ public static class OversightSnapshotReader
         }
     }
 
-    private static async Task<RefreshResult?> RunScanAsync(MessengerInstance instance)
+    private static async Task<(RefreshResult? Result, bool PageNotReady)> RunScanAsync(MessengerInstance instance)
     {
         await InstanceConnection.Current
             .ExecuteScriptAsync(
@@ -309,8 +314,12 @@ public static class OversightSnapshotReader
                 // fallback. Say so — this used to return null in silence.
                 AppLogger.LogWarning(
                     $"IndexedDbScan.{instance.Id}",
-                    "Conversation scan function is not injected on this page; no oversight data was read.");
-                return null;
+                    "Conversation scan function is not injected on this page — the account's page has "
+                    + "probably not loaded yet. Open the account once to finish loading.");
+
+                // Not injected means the adapter script never ran, which on a lazily-loaded account means
+                // the page was never navigated. That is "not loaded", not "broken".
+                return (null, true);
             }
 
             try
@@ -323,11 +332,27 @@ public static class OversightSnapshotReader
 
                 if (stage != "done")
                 {
-                    // Settled but unusable (e.g. watchdog-timeout) — usually the account is still loading.
+                    // Distinguish "this page has not finished loading" from "this account is broken".
+                    //
+                    // With lazy WebView loading on (the default), a background account's page has not
+                    // navigated to WhatsApp Web yet, so indexedDB.open blocks and the JS watchdog settles
+                    // at 'watchdog-timeout' after 20s — or the model-storage database simply is not there.
+                    // Neither means a fault: the account just needs opening once. Telling the owner
+                    // "can't read this account — click Re-sync" is wrong advice, because Re-sync cannot
+                    // load a page that lazy loading has deliberately not loaded.
+                    //
+                    // This is the same false-positive class as the Google Business one fixed in v4.99.18,
+                    // reached by a different route.
+                    var pageNotReady = IsPageNotReadyStage(stage);
+
                     AppLogger.LogWarning(
                         $"IndexedDbScan.{instance.Id}",
-                        $"Conversation scan settled at stage '{stage ?? "unknown"}' instead of 'done'; no oversight data was read.");
-                    return null;
+                        pageNotReady
+                            ? $"Conversation scan could not run yet (stage '{stage}') — this account's page is "
+                              + "not loaded. Open the account once to finish loading."
+                            : $"Conversation scan settled at stage '{stage ?? "unknown"}' instead of 'done'; no oversight data was read.");
+
+                    return (null, pageNotReady);
                 }
 
                 var chats = ParseChatEntries(root);
@@ -357,7 +382,7 @@ public static class OversightSnapshotReader
                     : new RefreshResult(chats.Count, chats.Count, 0);
 
                 PublishSnapshotEvent(instance, result, "indexeddb");
-                return result;
+                return (result, false);
             }
             catch (Exception ex)
             {
@@ -368,12 +393,37 @@ public static class OversightSnapshotReader
                 AppLogger.LogWarning(
                     $"IndexedDbScan.{instance.Id}",
                     $"Conversation scan failed: {ex.GetType().Name}: {ex.Message}");
-                return null;
+
+                // A genuine exception IS a failure worth flagging to the owner.
+                return (null, false);
             }
         }
 
-        return null;
+        // Polling ran out without the scan ever settling — the page never got far enough to answer.
+        return (null, true);
     }
+
+    /// <summary>
+    /// True when a settled-but-not-'done' scan stage means "this page has not loaded yet" rather than
+    /// "this account is broken".
+    /// </summary>
+    /// <remarks>
+    /// Lazy WebView loading is on by default, so a background account's page has never navigated to
+    /// WhatsApp Web. The adapter is therefore absent and <c>indexedDB.open</c> blocks until the JS
+    /// watchdog fires at 20 s. Treating that as a failure renders "can't read this account — click
+    /// Re-sync", which is wrong advice twice over: nothing is broken, and Re-sync cannot load a page that
+    /// lazy loading deliberately left unloaded. The account just needs opening once.
+    ///
+    /// Stages NOT listed here — <c>no-chat-store</c>, <c>getall-chat-error</c>, <c>chat-exception</c>,
+    /// <c>promise-error</c> — mean the page WAS reachable and the read still failed. Those are genuine
+    /// faults and must keep flagging.
+    /// </remarks>
+    internal static bool IsPageNotReadyStage(string? stage) =>
+        stage is "watchdog-timeout"     // JS watchdog fired: indexedDB.open never returned
+            or "no-model-storage"       // WhatsApp Web's database is absent — the page never loaded it
+            or "no-indexeddb"           // no IndexedDB on the page at all
+            or "no-databases-api"
+            or "databases-rejected";
 
     public static List<OversightChatSnapshotService.ChatEntry> ParseChatEntries(JsonElement root) =>
         ChatEntryParser.ParseConversations(root);

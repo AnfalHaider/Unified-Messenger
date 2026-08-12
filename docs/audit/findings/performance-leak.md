@@ -170,3 +170,69 @@ but it is a legitimate warning rather than noise, which is exactly the signal th
 - **Residual:** the owner's existing `app.log` still contains the historical fake entries from previous
   test runs. Not scrubbed — editing a user's log to hide evidence of our own defect would be worse than
   leaving it. It will rotate out.
+
+---
+
+### F-PERF-03 — An account that has simply not loaded yet was reported as unreadable
+
+- **Severity:** S2
+- **Confidence:** confirmed (root cause traced from the live log; classification pinned by test)
+- **Where:** `UnifiedMessenger/Services/Oversight/OversightSnapshotReader.cs` (`RunScanAsync` / `RefreshAsync`)
+- **Where:** `UnifiedMessenger/Assets/Scripts/whatsapp-adapter.js:1445` (the 20-second JS watchdog)
+- **Status:** **FIXED** in `v4.99.19`.
+- **What was happening.** `enableLazyWebViewLoading` is **on by default**, so a background account's page
+  has never navigated to WhatsApp Web. The injected adapter is therefore absent and `indexedDB.open`
+  blocks, so the JS watchdog settles the scan at `watchdog-timeout` after 20 seconds. The host treated any
+  stage other than `done` as a failure, so `AccountReadHealth.RecordFailure` fired.
+  Result: an account that had merely never been opened would render **"can't read this account — click
+  Re-sync"**. That advice is wrong twice over — nothing is broken, and **Re-sync cannot load a page that
+  lazy loading deliberately left unloaded**. The account just needs opening once, which is what the
+  Re-sync probe's own separate message ("open this account once to finish loading") already said.
+- **This is the third instance of one pattern.** Google Business (v4.99.18), the not-injected case, and
+  now the watchdog — all "the scan did not produce data" being conflated with "this account is faulty".
+  The lesson recorded for whoever maintains this: `AccountReadHealth` must only ever be told about a read
+  that genuinely *attempted and failed*, never about one that could not apply or could not start.
+- **Fix applied.** `RunScanAsync` now returns `(RefreshResult?, bool PageNotReady)`, and `RefreshAsync`
+  records **neither success nor failure** when the page was not ready — leaving the account reading
+  "syncing…" until it genuinely loads. Not recording success matters as much as not recording failure: a
+  success would wrongly clear a real prior failure, and a test pins that.
+  The stage classification is extracted to `IsPageNotReadyStage` and lists only stages that mean the page
+  never loaded (`watchdog-timeout`, `no-model-storage`, `no-indexeddb`, `no-databases-api`,
+  `databases-rejected`). Stages meaning the page *was* reachable and the read still failed
+  (`no-chat-store`, `getall-chat-error`, `chat-exception`, `promise-error`) still flag — a test pins that
+  too, so this guard cannot quietly re-create the silence fixed in v4.99.6. Unknown stages default to
+  "counts", so a stage added by a future scraper surfaces rather than being ignored.
+- **Test scope, stated honestly.** The classifier is tested directly, **not** end-to-end through
+  `RefreshAsync`. An attempt to test it end-to-end failed with
+  `COMException: ClassFactory cannot supply requested class` — `DispatcherQueue.GetForCurrentThread()`
+  cannot activate in a plain xUnit host. That is an environment limit, not a product behaviour, so those
+  tests were deleted rather than left failing or weakened into passing vacuously. The wiring between the
+  classifier and `AccountReadHealth` is therefore **verified by reading, not by execution**.
+- **Not investigated:** whether 20 seconds is the right watchdog for a *loaded but very busy* account.
+  AGENTS.md notes background webviews throttle timers, so on a slow machine a legitimate scan of ~850
+  chats could conceivably exceed it and now be silently classified "not ready" rather than surfaced. That
+  trade — quieter false alarms, but a real slow-scan failure now hidden — is worth measuring.
+
+---
+
+### F-PERF-02 — REVISED: the v4.99.17 fix was incomplete
+
+The original fix threaded a log callback through `ApplicationLifecycleService.FlushStoresAsync` and I
+reported the finding closed. **It was not.** Reading the live log again during this investigation showed
+three more fabricated entries from suites that fix never touched:
+
+```
+[ERR] [Settings.Load.Corrupt]          JsonException: x
+[ERR] [AwaitingOverrides.Load.Corrupt] JsonException: truncated
+[WRN] [ChatEntryParser]                Skipped 1 of 2 conversation rows as unparseable.
+```
+
+`x` and `truncated` are test fixtures; "1 of 2 rows" is a constructed input. Patching one call site was
+the wrong shape of fix for a problem that lives in `AppLogger`'s fixed path.
+
+**Proper fix (`v4.99.19`):** `AppLogger.SuppressWritesForTests`, set once by a `[ModuleInitializer]` in the
+test assembly. No per-suite opt-in, so a suite added later cannot forget it.
+
+**Verified:** running `CorruptFileRecoveryTests`, `ChatEntryParserResilienceTests` and
+`ApplicationLifecycleFlushTests` (32 tests) added **0 lines** to `app.log`, which stayed at 183. The same
+suites previously appended to it every run.
