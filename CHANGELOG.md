@@ -5,6 +5,14 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.17
+
+**Internal:** running the test suite no longer writes fake error entries into your log file. Tests that
+deliberately simulate a failed save were recording those simulated failures in the same `app.log` the app
+uses for real problems, so the log could contain errors that never actually happened.
+
+No change to how the app behaves.
+
 ## v4.99.16
 
 **The rest of the app now names its controls for screen readers.** Following v4.99.15, the remaining

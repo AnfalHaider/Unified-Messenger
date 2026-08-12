@@ -12,6 +12,16 @@ namespace UnifiedMessenger.Tests;
 /// </summary>
 public class ApplicationLifecycleFlushTests
 {
+    /// <summary>
+    /// Swallows the failure log. Without this, these tests append real-looking [ERR] lines
+    /// ("Lifecycle.Flush.third", "Lifecycle.Flush.a") to the developer's own
+    /// %LOCALAPPDATA%\UnifiedMessenger\app.log, because AppLogger writes to a fixed path under the real
+    /// user-data root. That file is the product's only diagnostic surface — it must not be filled with
+    /// failures that never happened. Found by reading app.log during the leak check and seeing test
+    /// fixture names in it.
+    /// </summary>
+    private static void NoLog(string scope, Exception ex) { }
+
     private static (string, Func<CancellationToken, Task>) Ok(string name, List<string> log) =>
         (name, _ =>
         {
@@ -32,7 +42,7 @@ public class ApplicationLifecycleFlushTests
         var log = new List<string>();
         var stores = new[] { Ok("a", log), Ok("b", log), Ok("c", log) };
 
-        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores);
+        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores, logFailure: NoLog);
 
         Assert.Equal(["a", "b", "c"], log);
         Assert.Empty(failed);
@@ -46,7 +56,7 @@ public class ApplicationLifecycleFlushTests
         var log = new List<string>();
         var stores = new[] { Throws("a", log), Ok("b", log), Ok("c", log) };
 
-        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores);
+        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores, logFailure: NoLog);
 
         Assert.Contains("b", log);
         Assert.Contains("c", log);
@@ -62,7 +72,7 @@ public class ApplicationLifecycleFlushTests
             Throws("first", log), Ok("second", log), Throws("third", log), Ok("fourth", log)
         };
 
-        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores);
+        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores, logFailure: NoLog);
 
         Assert.Contains("second", log);
         Assert.Contains("fourth", log);
@@ -75,7 +85,7 @@ public class ApplicationLifecycleFlushTests
         var log = new List<string>();
         var stores = new[] { Ok("MessageAnalytics", log), Throws("AwaitingOverrides", log) };
 
-        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores);
+        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores, logFailure: NoLog);
 
         // Losing AwaitingOverrides re-surfaces work the owner already handled, so it must be nameable.
         Assert.Equal(["AwaitingOverrides"], failed);
@@ -93,7 +103,7 @@ public class ApplicationLifecycleFlushTests
             Ok("after", log)
         };
 
-        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores);
+        var failed = await ApplicationLifecycleService.FlushStoresAsync(stores, logFailure: NoLog);
 
         Assert.Contains("after", log);
         Assert.Equal(["cancelled"], failed);

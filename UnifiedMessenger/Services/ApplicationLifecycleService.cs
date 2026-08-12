@@ -135,11 +135,22 @@ public static class ApplicationLifecycleService
     /// Split out from <see cref="FlushPersistentStateAsync"/> purely so the isolation guarantee is
     /// testable without standing up the seven real singleton stores and their file IO.
     /// </remarks>
+    /// <param name="logFailure">
+    /// Where a per-store failure is recorded. Defaults to <see cref="AppLogger"/>. Tests pass a no-op:
+    /// <see cref="AppLogger"/> writes to a fixed path under the real user-data root, so exercising this
+    /// method with deliberately-throwing fake stores was appending genuine-looking <c>[ERR]</c> lines —
+    /// "Lifecycle.Flush.third", "Lifecycle.Flush.a" — to the user's own app.log. That is the one file
+    /// support and the owner are told to consult, so filling it with failures that never happened to them
+    /// undermines the diagnostics the rest of this audit added.
+    /// </param>
     internal static async Task<IReadOnlyList<string>> FlushStoresAsync(
         IReadOnlyList<(string Name, Func<CancellationToken, Task> Flush)> stores,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<string, Exception>? logFailure = null)
     {
         ArgumentNullException.ThrowIfNull(stores);
+
+        logFailure ??= static (scope, ex) => AppLogger.LogError(scope, ex);
 
         List<string>? failed = null;
 
@@ -155,7 +166,7 @@ public static class ApplicationLifecycleService
                 // get their chance to persist. Cancellation is recorded too — a cancelled flush is data
                 // that did not reach disk, which is exactly what the user needs warning about.
                 Debug.WriteLine($"Lifecycle flush failed for {name}: {ex.Message}");
-                AppLogger.LogError($"Lifecycle.Flush.{name}", ex);
+                logFailure($"Lifecycle.Flush.{name}", ex);
                 (failed ??= []).Add(name);
             }
         }
