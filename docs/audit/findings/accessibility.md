@@ -105,6 +105,67 @@ the shipping theme files by computing WCAG 2.1 ratios directly.
 - **Existing accessibility helpers exist and are used** — `AccessibilityTabOrderHelper`,
   `FocusTrapHelper` (applied in `AddInstanceDialog`), and `WorkspaceSidebarAccessibility`.
 
+---
+
+### F-A11Y-03 — Second sweep: the remaining pages, and what the static analyser got wrong
+
+- **Severity:** S2
+- **Confidence:** confirmed for the controls fixed; **partial** for live verification (see below)
+- **Status:** **FIXED** in `v4.99.16`.
+- **Method.** Rather than navigate every page by hand, all 144 XAML files were swept for interactive
+  declarations carrying no name source (no `AutomationProperties.Name`, no string `Content`, no string
+  `Header`). That flagged **32** declarations. Live enumeration then showed the sweep **massively
+  over-reports**, and both reasons are worth recording because they would mislead anyone repeating this:
+  1. **`<ToggleSwitch.Header>` as a child element.** Settings declares its toggles with a `StackPanel`
+     inside a `Header` *property element*, which a regex over the opening tag cannot see — but WinUI **does**
+     derive an accessible name from it. Static sweep flagged 23 controls in `SettingsPage.xaml`; live
+     enumeration found **5**, and none of those 5 were the toggles.
+  2. **`<Button.Flyout>` matches `<Button\b`.** A property element was counted as a control declaration —
+     `DashboardPage.xaml`'s flagged entry was this, and `PersonalButton` above it was already correctly
+     named.
+  **Static analysis alone would have produced a wrong finding here.** The live tree is the authority.
+- **Genuinely unnamed and now fixed** (9 declarations across 6 files):
+  | Control | File | Name given |
+  |---|---|---|
+  | `ExportButton` | `AnalyticsPage.xaml` | "Export analytics data" |
+  | `RangeBox` | `AnalyticsPage.xaml` | "Date range for analytics" |
+  | `AccountSelector` | `ActivityPatternsPanel.xaml` | "Filter activity by account" |
+  | `RangeSelector` | `ActivityPatternsPanel.xaml` | "Date range for activity patterns" |
+  | `RangeBox` | `ReportsPage.xaml` | "Reporting period" |
+  | `SearchBox` | `CommandCenterPanel.xaml` | "Filter accounts or locations" |
+  | report-reminder dismiss | `CommandCenterPanel.xaml` | "Dismiss report reminder until next week" |
+  | per-notification dismiss | `NotificationFeedPanel.xaml` | "Dismiss notification" |
+  | (5 live instances of the above notification button) | — | — |
+- **Two sub-patterns worth naming**, both of which recurred:
+  - **`PlaceholderText` is not an accessible name.** `SearchBox` had a perfectly good placeholder and
+    announced nothing. Screen readers do not substitute placeholder text for a name.
+  - **A control inside a `DataTemplate` repeats.** The notification dismiss button appeared 5 times in the
+    live tree, all unnamed — one declaration, five silent controls.
+- **Live verification after the fix:**
+  ```
+  Dashboard   interactive=87  unnamed=0
+  Settings    interactive=87  unnamed=0
+  ```
+- **NOT live-verified:** Analytics, Reviews, Reports and About. Their flagged controls were fixed by
+  inspection, and the fixes are the same one-attribute pattern verified elsewhere, but I could not drive
+  UI Automation onto those pages to confirm — the section-link buttons did not respond to programmatic
+  invocation in the state the app was in. Stated rather than assumed.
+
+---
+
+## Observed in passing — confirms F-ORCH-06 is worse than recorded
+
+Enumerating Settings surfaced the accessible names, which are also the visible labels. The developer
+vocabulary recorded in F-ORCH-06 is therefore **also what a screen reader reads aloud**:
+
+> "Refresh all WebViews" · "Enable lazy WebView loading" · "Enable per-instance sleep unload" ·
+> "Enable edit instance metadata" · "Enable import export instances" · "Enable instance notes and tags" ·
+> "Compact Operations card density" · "Export instances" · "Import instances"
+
+A sighted owner can at least infer meaning from surrounding layout; a screen-reader user gets only the
+string. That raises the practical severity of F-ORCH-06 without changing its S3 classification, and is
+recorded here so the copy pass is not treated as purely cosmetic.
+
 ## What was NOT covered
 
 - **Only the dashboard/command-centre surface was enumerated.** Analytics, Reviews, Reports, Settings

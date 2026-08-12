@@ -5,6 +5,17 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.16
+
+**The rest of the app now names its controls for screen readers.** Following v4.99.15, the remaining
+pages were checked: the Analytics export button and its date range, the activity-pattern filters, the
+reporting-period selector, the command-centre search box, and the dismiss buttons on the weekly-report
+reminder and on every notification all announced only "button". They now say what they do.
+
+Two of these were easy to miss: a search box's placeholder text is not read out as its name, and the
+notification dismiss button is defined once but appears on every notification — so a single omission was
+silent on every row in the list.
+
 ## v4.99.15
 
 **Screen readers now name the buttons.** Nine controls on the command centre announced only "button" —

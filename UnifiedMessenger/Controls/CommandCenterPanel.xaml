@@ -206,8 +206,10 @@
                         ToolTipService.ToolTip="Every customer awaiting a reply across all accounts, most urgent first" />
                 </StackPanel>
             </Border>
+            <!-- PlaceholderText is not an accessible name; screen readers do not substitute it. -->
             <AutoSuggestBox
                 x:Name="SearchBox"
+                AutomationProperties.Name="Filter accounts or locations"
                 Grid.Column="1"
                 MaxWidth="280"
                 HorizontalAlignment="Left"
@@ -390,6 +392,7 @@
                     VerticalAlignment="Center" />
                 <Button
                     Grid.Column="3"
+                    AutomationProperties.Name="Dismiss report reminder until next week"
                     Click="OnDismissReportReminder"
                     Background="Transparent"
                     BorderThickness="0"

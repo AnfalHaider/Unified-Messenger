@@ -32,8 +32,8 @@
                         Text="When your customers message most" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <ComboBox x:Name="AccountSelector" MinWidth="150" SelectionChanged="OnFilterChanged" />
-                    <ComboBox x:Name="RangeSelector" MinWidth="130" SelectionChanged="OnFilterChanged">
+                    <ComboBox x:Name="AccountSelector" AutomationProperties.Name="Filter activity by account" MinWidth="150" SelectionChanged="OnFilterChanged" />
+                    <ComboBox x:Name="RangeSelector" AutomationProperties.Name="Date range for activity patterns" MinWidth="130" SelectionChanged="OnFilterChanged">
                         <ComboBoxItem Content="Last 90 days" IsSelected="True" Tag="90" />
                         <ComboBoxItem Content="Last 30 days" Tag="30" />
                         <ComboBoxItem Content="This year" Tag="year" />
