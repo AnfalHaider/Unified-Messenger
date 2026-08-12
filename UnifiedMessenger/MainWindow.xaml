@@ -51,8 +51,10 @@
                             <TextBlock Text="AI" />
                         </StackPanel>
                     </ToggleButton>
+                    <!-- Icon-only content carries no accessible name of its own; state it explicitly. -->
                     <Button
                         x:Name="PanePinButton"
+                        AutomationProperties.Name="Pin sidebar expanded"
                         Click="PanePinButton_Click"
                         ToolTipService.ToolTip="Pin sidebar expanded">
                         <FontIcon x:Name="PanePinIcon" Glyph="&#xE718;" />

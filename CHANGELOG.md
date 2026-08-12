@@ -5,6 +5,20 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.15
+
+**Screen readers now name the buttons.** Nine controls on the command centre announced only "button" —
+including **Re-sync**, which is the action the app itself tells you to take when something looks wrong.
+Each account's "N awaiting" pill also announced the same phrase with no way to tell which branch it
+belonged to; it now reads, for example, "Depilex F-11 WhatsApp: 137 customers waiting."
+
+**The chart and icons are readable in dark mode.** The brand blue was the same shade in both themes and,
+against a dark card, sat below the minimum contrast for something you are meant to be able to see — which
+included the message-volume chart line. It is now lighter in dark mode. The same change improves the
+Re-sync button, whose text was also marginally under the threshold on dark.
+
+Light mode is unchanged.
+
 ## v4.99.14
 
 **Updating no longer deletes your log file or your settings-recovery file.** Every update was clearing

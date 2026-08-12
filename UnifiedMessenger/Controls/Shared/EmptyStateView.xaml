@@ -14,7 +14,7 @@
         <FontIcon
             HorizontalAlignment="Center"
             FontSize="40"
-            Foreground="{StaticResource UmBrandTealBrush}"
+            Foreground="{ThemeResource UmBrandTealBrush}"
             Glyph="{x:Bind IconGlyph, Mode=OneWay}"
             Opacity="0.85" />
         <TextBlock

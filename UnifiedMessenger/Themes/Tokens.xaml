@@ -11,23 +11,34 @@
         <ResourceDictionary x:Key="Light">
             <Color x:Key="UmBrandSlateColor">#1E293B</Color>
             <SolidColorBrush x:Key="UmBrandSlateBrush" Color="#1E293B" />
+            <Color x:Key="UmBrandTealColor">#1B75BB</Color>
+            <SolidColorBrush x:Key="UmBrandTealBrush" Color="#1B75BB" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Default">
             <Color x:Key="UmBrandSlateColor">#DCE3EC</Color>
             <SolidColorBrush x:Key="UmBrandSlateBrush" Color="#DCE3EC" />
+            <!--
+                Lighter on dark for the same reason UmBrandSlate is: the brand blue #1B75BB measures
+                2.82:1 on a dark card, which fails even the 3:1 WCAG 1.4.11 bar for non-text UI — and it is
+                used for the message-volume chart line and the empty-state icon, where being hard to see is
+                the whole problem. #58A6FF measures 5.43:1 on a dark card and 6.6:1 on dark chrome.
+                It also improves the accent button, whose dark-theme foreground is near-black:
+                black on #1B75BB was 4.31:1 (a marginal fail), black on #58A6FF is 8.31:1.
+            -->
+            <Color x:Key="UmBrandTealColor">#58A6FF</Color>
+            <SolidColorBrush x:Key="UmBrandTealBrush" Color="#58A6FF" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
     <Color x:Key="UmBrandBlueStartColor">#1B75BB</Color>
     <Color x:Key="UmBrandBlueEndColor">#2E3191</Color>
-    <Color x:Key="UmBrandTealColor">#1B75BB</Color>
     <Color x:Key="UmBrandTealDarkColor">#2E3191</Color>
     <Color x:Key="UmBrandBlueColor">#1B75BB</Color>
     <Color x:Key="UmBrandVioletColor">#2E3191</Color>
 
     <SolidColorBrush x:Key="UmBrandBlueStartBrush" Color="{StaticResource UmBrandBlueStartColor}" />
     <SolidColorBrush x:Key="UmBrandBlueEndBrush" Color="{StaticResource UmBrandBlueEndColor}" />
-    <SolidColorBrush x:Key="UmBrandTealBrush" Color="{StaticResource UmBrandTealColor}" />
+    <!-- UmBrandTealBrush is defined per-theme above; do not redeclare it here or the theme switch is lost. -->
     <SolidColorBrush x:Key="UmBrandTealDarkBrush" Color="{StaticResource UmBrandTealDarkColor}" />
     <SolidColorBrush x:Key="UmBrandBlueBrush" Color="{StaticResource UmBrandBlueColor}" />
     <SolidColorBrush x:Key="UmBrandVioletBrush" Color="{StaticResource UmBrandVioletColor}" />

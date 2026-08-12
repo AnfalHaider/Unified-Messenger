@@ -24,12 +24,12 @@
             Height="{StaticResource UmChartHeight}">
             <Path
                 x:Name="AreaPath"
-                Fill="{StaticResource UmBrandTealBrush}"
+                Fill="{ThemeResource UmBrandTealBrush}"
                 Opacity="{StaticResource UmOpacitySubtle}"
                 Stretch="None" />
             <Path
                 x:Name="LinePath"
-                Stroke="{StaticResource UmBrandTealBrush}"
+                Stroke="{ThemeResource UmBrandTealBrush}"
                 StrokeThickness="{StaticResource UmChartStrokeThickness}"
                 Stretch="None" />
             <TextBlock

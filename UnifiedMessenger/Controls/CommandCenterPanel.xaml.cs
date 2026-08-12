@@ -728,6 +728,15 @@ public sealed partial class CommandCenterPanel : UserControl
                 CornerRadius = new CornerRadius(6)
             };
 
+            // Each needs-reply row is a Button whose Content is a panel, so it carries no accessible name
+            // of its own: a screen-reader user heard "button" for every waiting customer, with no way to
+            // tell one row from the next. This is the product's core workflow, so name it with the
+            // customer and what activating it does.
+            var rowName = string.IsNullOrWhiteSpace(chat.CustomerName)
+                ? "Open conversation"
+                : $"{chat.CustomerName}, open conversation";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(item, rowName);
+
             var capturedInstanceId = instanceId;
             var capturedChat = chat;
             item.Click += (_, _) =>
@@ -911,6 +920,10 @@ public sealed partial class CommandCenterPanel : UserControl
             Content = content
         };
         ToolTipService.SetToolTip(chip, "Show every account's waiting customers");
+        // Panel content again — a tooltip is not an accessible name, and screen readers do not announce it
+        // in place of one.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            chip, $"Showing {label}. Activate to show every account's waiting customers.");
         chip.Click += (_, _) =>
         {
             _needsReplyFilterIds = null;
@@ -1995,6 +2008,14 @@ public sealed partial class CommandCenterPanel : UserControl
                     FontSize = 12
                 }
             };
+            // "3 awaiting" alone does not say WHICH account, and every card renders one of these — so a
+            // screen-reader user heard the same phrase repeatedly with no way to tell them apart.
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+                pill,
+                $"{entity.DisplayName}: {entity.AwaitingCount} " +
+                (entity.AwaitingCount == 1 ? "customer waiting" : "customers waiting") +
+                ". Activate to work through this account's replies.");
+
             var filterIds = entity.MemberInstanceIds.ToList();
             var filterLabel = entity.DisplayName;
             pill.Click += (_, _) => ShowNeedsReplyFor(filterIds, filterLabel);
