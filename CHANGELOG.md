@@ -5,6 +5,16 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.20
+
+**Screen readers now announce the account cards themselves.** Each account on the command centre is a
+card you can expand to see who is waiting — and that card, the main thing you move to and activate on the
+product's busiest screen, announced only "button". It now reads, for example, "Depilex F-11 WhatsApp: 140
+customers waiting. Expand to see who is waiting."
+
+The review shortcuts got the same treatment: the "N to reply" button on each Google account now names the
+location it belongs to, and each pending review names its reviewer.
+
 ## v4.99.19
 
 **An account that simply hasn't opened yet is no longer reported as broken.** To save memory, accounts you

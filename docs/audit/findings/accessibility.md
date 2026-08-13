@@ -182,3 +182,39 @@ recorded here so the copy pass is not treated as purely cosmetic.
   glyph with the on-time percentage colour, which is the right pattern, but I did not audit every status
   surface for it.
 - **OS text scaling and reduced-motion** were not tested.
+
+---
+
+### F-A11Y-04 — The account card itself, and the review chips, announced nothing
+
+- **Severity:** S2
+- **Confidence:** confirmed (identified and verified live)
+- **Where:** `Controls/CommandCenterPanel.xaml.cs` `BuildRow` (the per-account `Expander`)
+- **Where:** `Controls/ReviewHealthPanel.xaml.cs:150` (per-account "N to reply" chip), `:240` (per-review row)
+- **Status:** **FIXED** in `v4.99.20`.
+- **How it was found.** Three unnamed buttons persisted on the dashboard through two previous accessibility
+  increments. Earlier passes could not identify them because `TreeWalker.ControlViewWalker.GetParent`
+  returned only the top-level window. Enumerating each unnamed button's **descendants** instead was what
+  cracked it — the first one contained "Depilex F-11 WhatsApp", "140 awaiting", "Longest wait: 66d…", i.e.
+  the entire account card. The card is an `Expander`, and WinUI renders its header as a `Button`; with no
+  name on the `Expander`, that button announced only "button".
+- **User-visible symptom:** the primary control on the product's main screen — one per account, the thing a
+  keyboard user tabs to and activates to see who is waiting — told a screen-reader user nothing. Its
+  children were individually named, so the *contents* could be read, but the control being focused
+  identified neither the account nor what activating it would do.
+- **Fix applied:** the `Expander` is named
+  `"{account}: {N} customers waiting. Expand to see who is waiting."`. The two `ReviewHealthPanel` buttons
+  were named in the same pass — the per-account chip carries its location
+  (`"{account}: N reviews need a reply."`) for the same reason the awaiting pills do, and each pending
+  review row names its reviewer so the rows are distinguishable, which is the point of the list.
+- **Evidence (live, dashboard):**
+  ```
+  before: interactive=42  UNNAMED=3
+  after : interactive=42  UNNAMED=0
+    "Depilex F-11 WhatsApp: 140 customers waiting. Expand to see who is waiting."
+    "Depilex DHA-2 WhatsApp: 178 customers waiting. Expand to see who is waiting."
+    "Depilex Men DHA-2 WhatsApp: 96 customers waiting. Expand to see who is waiting."
+  ```
+- **Not verified live:** the two `ReviewHealthPanel` names. They only render when a Google account has
+  unanswered reviews, and this machine's review data reads "Not scanned yet", so the chip and row branches
+  never ran. Fixed by inspection, same one-attribute pattern as the verified ones.

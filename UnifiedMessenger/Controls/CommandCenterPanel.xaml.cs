@@ -584,6 +584,18 @@ public sealed partial class CommandCenterPanel : UserControl
             IsExpanded = _expandedKeys.Contains(entity.Key)
         };
 
+        // The Expander's header renders as a Button, and with no name on the Expander that button
+        // announces only "button" — for the whole account card, on every card. Its children are all named
+        // individually, so a screen reader could read the contents, but the control the user actually
+        // focuses and activates said nothing about which account it was or what activating it does.
+        var awaitingSummary = entity.AwaitingCount == 1
+            ? "1 customer waiting"
+            : $"{entity.AwaitingCount} customers waiting";
+
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            expander,
+            $"{entity.DisplayName}: {awaitingSummary}. Expand to see who is waiting.");
+
         // Preserve open/closed state across the 20s auto-refresh re-render.
         expander.Expanding += (_, _) => _expandedKeys.Add(entity.Key);
         expander.Collapsed += (_, _) => _expandedKeys.Remove(entity.Key);
