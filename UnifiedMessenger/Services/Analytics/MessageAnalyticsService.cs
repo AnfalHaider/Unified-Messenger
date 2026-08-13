@@ -233,10 +233,29 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         _storePath = Path.Combine(ApplicationPaths.UserDataRoot, FileName);
     }
 
-    internal MessageAnalyticsService(string storePath)
+    /// <param name="zone">
+    /// The zone every daily bucket is keyed in. Defaults to the machine's, which is what production
+    /// always uses; it is a parameter only so day-bucketing can be exercised against a zone that observes
+    /// DST. This machine and CI both sit in zones that never transition, so without it a test could not
+    /// tell correct bucketing from broken bucketing. See DstMetricBucketingTests.
+    /// </param>
+    internal MessageAnalyticsService(string storePath, TimeZoneInfo? zone = null)
     {
         _storePath = storePath;
+        _zone = zone;
     }
+
+    private readonly TimeZoneInfo? _zone;
+
+    /// <summary>Today's calendar date in the bucketing zone.</summary>
+    private DateTime LocalToday => LocalDayBoundary.Today(_zone);
+
+    /// <summary>Wall-clock now in the bucketing zone.</summary>
+    private DateTimeOffset LocalNow => LocalDayBoundary.Now(_zone);
+
+    /// <summary>The 'yyyy-MM-dd' bucket key an instant belongs to.</summary>
+    private string DayKey(DateTimeOffset instant) =>
+        LocalDayBoundary.LocalDate(instant, _zone).ToString("yyyy-MM-dd");
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -555,9 +574,9 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         ScheduleSave();
     }
 
-    private static void PruneDayHourMatrix(Dictionary<string, int[]> matrix)
+    private void PruneDayHourMatrix(Dictionary<string, int[]> matrix)
     {
-        var cutoff = DateTime.Now.Date.AddDays(-DailyBucketRetentionDays).ToString("yyyy-MM-dd");
+        var cutoff = LocalToday.AddDays(-DailyBucketRetentionDays).ToString("yyyy-MM-dd");
         foreach (var key in matrix.Keys.Where(k => string.CompareOrdinal(k, cutoff) < 0).ToList())
         {
             matrix.Remove(key);
@@ -577,7 +596,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         NotifyChanged();
     }
 
-    private static void ApplyReceivedIncrement(InstanceMessageStats stats, DateTimeOffset receivedAtUtc, bool countHourly = true)
+    private void ApplyReceivedIncrement(InstanceMessageStats stats, DateTimeOffset receivedAtUtc, bool countHourly = true)
     {
         stats.ReceivedCount++;
         stats.LastReceivedUtc = receivedAtUtc;
@@ -587,13 +606,13 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         // histogram/matrix is authoritative for hour-of-day and replaces these on the next Re-sync).
         if (countHourly)
         {
-            var local = receivedAtUtc.LocalDateTime;
+            var local = TimeZoneInfo.ConvertTime(receivedAtUtc, _zone ?? TimeZoneInfo.Local);
             if (stats.HourlyReceived.Length == 24)
             {
                 stats.HourlyReceived[local.Hour]++;
             }
 
-            var dayKey = local.ToString("yyyy-MM-dd");
+            var dayKey = DayKey(receivedAtUtc);
             if (!stats.HourlyReceivedByDay.TryGetValue(dayKey, out var row) || row.Length != 24)
             {
                 row = new int[24];
@@ -681,7 +700,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         };
     }
 
-    private static ActivityPatterns BuildHourOfDay(
+    private ActivityPatterns BuildHourOfDay(
         IReadOnlyList<InstanceMessageStats> selected,
         DateTimeOffset? fromUtc,
         DateTimeOffset? toUtc)
@@ -983,7 +1002,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         };
     }
 
-    private static int[] HourBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    private int[] HourBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
     {
         var totals = new int[24];
         var anyMatrix = false;
@@ -1016,7 +1035,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
     // hour / day-of-week / month always count the identical message set and their totals agree. Mirrors
     // HourBucketsForStats' fallback exactly: the daily-total map is only used when there is no matrix at all
     // AND no date filter (legacy accounts, all-time view).
-    private static void ForEachDailyTotal(
+    private void ForEachDailyTotal(
         InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc, Action<DateTime, int> emit)
     {
         var anyMatrix = false;
@@ -1056,14 +1075,14 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
     }
 
-    private static int[] DayOfWeekBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    private int[] DayOfWeekBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
     {
         var totals = new int[7];
         ForEachDailyTotal(stats, fromUtc, toUtc, (date, count) => totals[((int)date.DayOfWeek + 6) % 7] += count);
         return totals;
     }
 
-    private static int[] MonthBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    private int[] MonthBucketsForStats(InstanceMessageStats stats, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
     {
         var totals = new int[12];
         ForEachDailyTotal(stats, fromUtc, toUtc, (date, count) => totals[date.Month - 1] += count);
@@ -1105,7 +1124,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var includeAll = ids.Count == 0;
 
-        var today = DateTime.Now.Date;
+        var today = LocalToday;
         var current = 0;
         var prior = 0;
         foreach (var pair in _stats)
@@ -1154,7 +1173,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var includeAll = ids.Count == 0;
 
-        var today = DateTime.Now.Date;
+        var today = LocalToday;
         var thisWeek = 0;
         var lastWeek = 0;
         var dayTotals = new int[7]; // Mon..Sun, this week.
@@ -1209,7 +1228,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var includeAll = ids.Count == 0;
 
-        var todayKey = DateTime.Now.ToString("yyyy-MM-dd");
+        var todayKey = LocalToday.ToString("yyyy-MM-dd");
         var hourly = new long[24];
         var soFar = 0;
         foreach (var pair in _stats)
@@ -1233,17 +1252,45 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             }
         }
 
-        if (soFar == 0)
+        return ProjectFromHourlyShape(hourly, soFar, LocalNow.Hour);
+    }
+
+    /// <summary>
+    /// The projection arithmetic on its own: today's count so far, scaled up by the share of a typical
+    /// day that has normally arrived by the end of hour <paramref name="nowHour"/>.
+    ///
+    /// <para>
+    /// Extracted so it can be tested at all — the public method reads the wall clock, which makes the
+    /// interesting cases (a 23- or 25-hour day, an empty shape, a spike) unreachable from a test.
+    /// </para>
+    /// <para>
+    /// <b>Known and accepted DST skew.</b> <paramref name="hourlyShape"/> is a histogram of local hours
+    /// learned over all history, so it always describes a 24-hour day. On a spring-forward day one local
+    /// hour does not occur, so the shape credits elapsed volume to an hour that could not have delivered
+    /// any, and the projection reads slightly low; on a fall-back day the repeated hour is counted once
+    /// in the shape but twice in today's total, and it reads slightly high. The error is bounded by that
+    /// single hour's share of a normal day — the small hours, typically a couple of percent — for two
+    /// days a year, on a figure that is explicitly a forecast. Correcting it would add a day-length code
+    /// path that runs every day for the benefit of two, so it is recorded rather than fixed
+    /// (F-METRICS-11). EndOfDayProjectionTests pins the bound at under 2%.
+    /// </para>
+    /// </summary>
+    internal static EndOfDayProjection ProjectFromHourlyShape(IReadOnlyList<long> hourlyShape, int soFar, int nowHour)
+    {
+        if (soFar <= 0)
         {
             return new EndOfDayProjection(0, 0, false);
         }
 
-        var total = hourly.Sum();
-        var nowHour = DateTime.Now.Hour;
+        long total = 0;
         long through = 0;
-        for (var h = 0; h <= nowHour && h < 24; h++)
+        for (var h = 0; h < hourlyShape.Count && h < 24; h++)
         {
-            through += hourly[h];
+            total += hourlyShape[h];
+            if (h <= nowHour)
+            {
+                through += hourlyShape[h];
+            }
         }
 
         // Without a learned shape, or too early in the day to extrapolate reliably, just report what's in.
@@ -1473,21 +1520,26 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
     }
 
-    private static void IncrementDaily(Dictionary<string, int> buckets, int amount, DateTimeOffset? atUtc = null)
+    private void IncrementDaily(Dictionary<string, int> buckets, int amount, DateTimeOffset? atUtc = null)
     {
-        var key = (atUtc ?? DateTimeOffset.UtcNow).LocalDateTime.ToString("yyyy-MM-dd");
+        // Keyed by the local calendar date the message actually arrived on. Conversion goes through the
+        // zone, so a message at 00:30 on a 25-hour day lands on that day rather than the one before.
+        var key = DayKey(atUtc ?? DateTimeOffset.UtcNow);
         buckets.TryGetValue(key, out var current);
         buckets[key] = current + amount;
     }
 
-    private static bool IsDayInRange(string dayKey, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
+    private bool IsDayInRange(string dayKey, DateTimeOffset? fromUtc, DateTimeOffset? toUtc)
     {
         if (!DateTime.TryParseExact(dayKey, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day))
         {
             return false;
         }
 
-        var timestamp = new DateTimeOffset(day, DateTimeOffset.Now.Offset);
+        // The key is a local calendar date; represent it by that day's real first instant. Stamping it
+        // with *today's* offset put a transition day's bucket an hour off its own boundary, so a range
+        // starting on that day could exclude the day it was asked for.
+        var timestamp = LocalDayBoundary.StartOfDay(day, _zone);
         return OccDateRangeFilterHelper.IsWithinRange(timestamp, fromUtc, toUtc);
     }
 
@@ -1502,9 +1554,9 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         stats.ReplyLatenciesMinutes.RemoveRange(0, overflow);
     }
 
-    private static void PruneDailyBuckets(Dictionary<string, int> buckets)
+    private void PruneDailyBuckets(Dictionary<string, int> buckets)
     {
-        var cutoff = DateTime.Now.Date.AddDays(-DailyBucketRetentionDays);
+        var cutoff = LocalToday.AddDays(-DailyBucketRetentionDays);
         var staleKeys = buckets.Keys
             .Where(key => DateTime.TryParseExact(key, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
                           && date < cutoff)
@@ -1516,7 +1568,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
     }
 
-    private static void NormalizeStats(InstanceMessageStats stats)
+    private void NormalizeStats(InstanceMessageStats stats)
     {
         stats.HourlyReceived = stats.HourlyReceived.Length == 24
             ? stats.HourlyReceived
@@ -1589,7 +1641,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         var points = new List<DailyActivityPoint>();
         for (var offset = 6; offset >= 0; offset--)
         {
-            var date = DateTime.Now.Date.AddDays(-offset);
+            var date = LocalToday.AddDays(-offset);
             var key = date.ToString("yyyy-MM-dd");
             sentByDay.TryGetValue(key, out var sent);
             receivedByDay.TryGetValue(key, out var received);
@@ -1616,8 +1668,8 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
 
     private string ComputeDailyTrend(IReadOnlyList<MessengerInstance> instances)
     {
-        var todayKey = DateTime.Now.ToString("yyyy-MM-dd");
-        var yesterdayKey = DateTime.Now.AddDays(-1).ToString("yyyy-MM-dd");
+        var todayKey = LocalToday.ToString("yyyy-MM-dd");
+        var yesterdayKey = LocalToday.AddDays(-1).ToString("yyyy-MM-dd");
         var today = 0;
         var yesterday = 0;
 
@@ -1846,7 +1898,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         };
     }
 
-    private static InstanceMessageStatsDto MapToDto(InstanceMessageStats stats)
+    private InstanceMessageStatsDto MapToDto(InstanceMessageStats stats)
     {
         NormalizeStats(stats);
 

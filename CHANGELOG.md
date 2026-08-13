@@ -5,6 +5,29 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.21
+
+**Your daily numbers are now correct on the two days a year the clocks change.** Every date filter in the
+app — Today, Last 7 days, the custom date pickers, "this year" — worked out when a day starts by taking
+midnight and attaching the time-zone offset that applied *at the moment you happened to be looking*. On an
+ordinary day those are the same thing. On the day the clocks go forward, "Today" secretly began an hour
+before midnight and swept in the last hour of the previous evening; on the day they go back, the first
+hour of the day was left out of today's figures entirely. Since those windows decide the caught-up
+percentage, the awaiting counts, SLA met % and everything on the account cards, the numbers were being
+measured over a set that quietly disagreed with the day they were labelled with — for one day, before
+correcting itself.
+
+Days are now worked out from the time zone properly, including the places where the clocks change at
+midnight itself and local midnight either never happens or happens twice.
+
+Nothing changes if you are somewhere that does not observe daylight saving.
+
+Also in this release: the 7-day activity sparkline, the response-time day charts and the analytics
+day/hour buckets were all checked across 23- and 25-hour days and found correct — that is now covered by
+tests so it stays that way. The end-of-day projection reads up to 2% off on a transition day, which is
+recorded and deliberately left alone; it is a forecast, and correcting it would cost more than it is
+worth.
+
 ## v4.99.20
 
 **Screen readers now announce the account cards themselves.** Each account on the command centre is a

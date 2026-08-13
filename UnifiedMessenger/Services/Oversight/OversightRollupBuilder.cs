@@ -36,7 +36,8 @@ public static class OversightRollupBuilder
         DateTimeOffset? windowStartUtc = null,
         DateTimeOffset? windowEndUtc = null,
         Func<string, (int Active, int CaughtUp)?>? chatSnapshot = null,
-        Func<string, PlatformCapabilities>? capabilitiesForInstance = null)
+        Func<string, PlatformCapabilities>? capabilitiesForInstance = null,
+        TimeZoneInfo? zone = null)
     {
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(instances);
@@ -52,7 +53,11 @@ public static class OversightRollupBuilder
         // with LocalDateTime. Keying this one in UTC put every message between local midnight and the UTC
         // offset into the previous day's bucket, so at UTC+5 the card's sparkline disagreed with the
         // Analytics chart for the same account until 05:00 every morning.
-        var today = (nowUtc ?? DateTimeOffset.UtcNow).LocalDateTime.Date;
+        //
+        // `zone` defaults to the machine's and exists only so this can be tested against a zone that
+        // observes DST — this machine is UTC+5, which never transitions, so a local-only test would pass
+        // vacuously on both correct and broken code.
+        var today = LocalDayBoundary.LocalDate(nowUtc ?? DateTimeOffset.UtcNow, zone);
 
         var nameByInstance = instances
             .GroupBy(i => i.Id, StringComparer.OrdinalIgnoreCase)
@@ -204,7 +209,7 @@ public static class OversightRollupBuilder
                 ReadFailed = couldNotRead,
                 LastActivityUtc = list.Count > 0 ? list.Max(t => t.LastMessageTime) : null,
                 MemberInstanceIds = instanceIds,
-                TrendCounts = BuildTrend(list, today)
+                TrendCounts = BuildTrend(list, today, zone)
             });
         }
 
@@ -240,14 +245,19 @@ public static class OversightRollupBuilder
     /// Bucket actionable threads into the last <see cref="TrendDays"/> days by their last-activity day
     /// (oldest → newest). Threads outside the window are ignored; the result is always 7 values.
     /// </summary>
-    private static IReadOnlyList<int> BuildTrend(IReadOnlyList<ThreadData> list, DateTime today)
+    private static IReadOnlyList<int> BuildTrend(IReadOnlyList<ThreadData> list, DateTime today, TimeZoneInfo? zone)
     {
         var buckets = new int[TrendDays];
         foreach (var thread in list)
         {
             // Both sides of this subtraction must use the same clock as `today` above, or the fix is
             // only half applied and the boundary moves rather than closing.
-            var daysAgo = (today - thread.LastMessageTime.LocalDateTime.Date).Days;
+            //
+            // Both are calendar dates at midnight, so the subtraction counts *days on the calendar*, not
+            // elapsed hours. That is what keeps the buckets right across a DST transition: a 23-hour day
+            // is still one day ago. Deriving `daysAgo` from a duration instead would round 23 hours to
+            // zero days and double-count a bar. Covered by DstMetricBucketingTests.
+            var daysAgo = (today - LocalDayBoundary.LocalDate(thread.LastMessageTime, zone)).Days;
             if (daysAgo is >= 0 and < TrendDays)
             {
                 buckets[TrendDays - 1 - daysAgo]++;

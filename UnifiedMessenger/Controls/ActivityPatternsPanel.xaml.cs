@@ -123,7 +123,9 @@ public sealed partial class ActivityPatternsPanel : UserControl
         return ((RangeSelector.SelectedItem as ComboBoxItem)?.Tag as string) switch
         {
             "30" => (now.AddDays(-30), (DateTimeOffset?)null),
-            "year" => (new DateTimeOffset(new DateTime(now.Year, 1, 1), now.Offset), null),
+            // 1 January's midnight, not 1 January paired with today's offset — in a DST zone those are an
+            // hour apart for half the year, so "this year" quietly started at 23:00 on 31 December.
+            "year" => (LocalDayBoundary.StartOfDay(new DateTime(now.Year, 1, 1)), null),
             "all" => (null, null),
             _ => (now.AddDays(-90), null)
         };

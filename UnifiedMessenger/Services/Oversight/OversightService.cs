@@ -28,11 +28,14 @@ public sealed class OversightService
 
         // Date window in the operator's local day. Caught-up % is measured over conversations active in
         // the window (today by default — including messages that arrived before connecting today).
+        // Boundaries come from LocalDayBoundary, not from `nowLocal.Offset`: on a DST transition day the
+        // offset in force now is not the offset that was in force at midnight, and pairing the two moved
+        // this window an hour in either direction. See LocalDayBoundaryTests.
         var nowLocal = DateTimeOffset.Now;
         DateTimeOffset? windowStart = window switch
         {
-            OversightWindow.Today => new DateTimeOffset(nowLocal.Date, nowLocal.Offset),
-            OversightWindow.Week => new DateTimeOffset(nowLocal.Date.AddDays(-6), nowLocal.Offset),
+            OversightWindow.Today => LocalDayBoundary.StartOfDay(nowLocal.Date),
+            OversightWindow.Week => LocalDayBoundary.StartOfDaysAgo(nowLocal.Date, 6),
             OversightWindow.Custom => customStartUtc,
             _ => null
         };

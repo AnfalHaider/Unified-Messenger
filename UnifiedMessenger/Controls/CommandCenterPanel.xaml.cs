@@ -65,19 +65,23 @@ public sealed partial class CommandCenterPanel : UserControl
     /// (To is inclusive through end-of-day).</summary>
     private (DateTimeOffset? Start, DateTimeOffset? End) WindowRange()
     {
+        // Must agree instant-for-instant with OversightService.BuildSnapshot, which computes the same
+        // window for the same selection — the two are compared against each other in the rendered card.
+        // LocalDayBoundary rather than `nowLocal.Offset` / `picker.Offset`: those are the offset of a
+        // different instant and are an hour wrong on both DST transition days.
         var nowLocal = DateTimeOffset.Now;
         switch (SelectedWindow())
         {
             case OversightWindow.Today:
-                return (new DateTimeOffset(nowLocal.Date, nowLocal.Offset), null);
+                return (LocalDayBoundary.StartOfDay(nowLocal.Date), null);
             case OversightWindow.Week:
-                return (new DateTimeOffset(nowLocal.Date.AddDays(-6), nowLocal.Offset), null);
+                return (LocalDayBoundary.StartOfDaysAgo(nowLocal.Date, 6), null);
             case OversightWindow.Custom:
                 DateTimeOffset? start = FromDatePicker?.Date is { } f
-                    ? new DateTimeOffset(f.Date, f.Offset)
+                    ? LocalDayBoundary.StartOfDay(f.LocalDateTime.Date)
                     : null;
                 DateTimeOffset? end = ToDatePicker?.Date is { } t
-                    ? new DateTimeOffset(t.Date, t.Offset).AddDays(1).AddTicks(-1)
+                    ? LocalDayBoundary.EndOfDay(t.LocalDateTime.Date)
                     : null;
                 return (start, end);
             default:

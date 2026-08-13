@@ -405,10 +405,10 @@ Stated plainly so this is not mistaken for a completed audit of the highest-stak
 - **Not examined at all:** caught-up %, on-time % per account, First Response Time, SLA met %,
   answered-today, messages/day, trend deltas, KPI sparklines, review counts, the Google profile rating,
   the weekly business report and its anomaly detection. That is the majority of the product's numbers.
-- **No boundary testing was performed.** Timezone/local-day keying, DST 23h and 25h days, empty and
-  single-sample sets, division by zero / NaN reaching the UI, group/status/broadcast exclusion
-  consistency, chats predating tracking, snooze and mark-handled overrides, quiet hours, and date-range
-  re-keying are all **unverified**. The brief called these out specifically and none were checked.
+- ~~**No boundary testing was performed.**~~ **DST boundary testing was completed in session 2** — see
+  "DST boundary testing" below. Still **unverified**: empty and single-sample sets, division by zero /
+  NaN reaching the UI, group/status/broadcast exclusion consistency, chats predating tracking, snooze and
+  mark-handled overrides, quiet hours, and date-range re-keying.
 - **Only one cross-figure contradiction was hunted and found.** There was no systematic sweep for others;
   the one found surfaced from a UI Automation dump taken for a different purpose. Given that a
   contradiction was found on the very first screen examined, the prior for more of them elsewhere should
@@ -417,3 +417,156 @@ Stated plainly so this is not mistaken for a completed audit of the highest-stak
   `GetAwaiting(id, windowStart, windowEnd)` (bounded) is a trap that produced this S1. Other callers of
   `BuildDigest` with a null window were **not** audited for the same defect. This is the single highest-value
   next step in this domain.
+
+---
+
+# DST boundary testing (session 2)
+
+The handoff ranked this first because two timezone-adjacent defects had already surfaced (UTC-vs-local
+day keying in F-METRICS-03, and the hero/card window mismatch in F-METRICS-01), which made a third
+plausible rather than hypothetical. It also flagged the blocker: `TrendDayKeyingTests` only discriminate
+in a non-UTC zone, and **the development machine runs at UTC+5 (Pakistan), which never observes DST** — so
+no test written against `TimeZoneInfo.Local` could tell correct code from broken code here, and CI at UTC
+is equally blind.
+
+## How it was made testable
+
+`UnifiedMessenger.Tests/DstTimeZones.cs` builds two synthetic zones with `CreateCustomTimeZone`:
+
+| Fixture | Models | Why it is needed |
+|---|---|---|
+| `TwoAmTransition` | US/EU style — 02:00 on the 2nd Sunday of March and the 1st Sunday of November | Local midnight is well behaved, but the day is 23 or 25 hours long and the offset at midnight differs from the offset at noon |
+| `MidnightTransition` | Cuba/Chile style — forward at 00:00, back at 01:00 | Local midnight itself is **skipped** in spring and happens **twice** in autumn |
+
+`DstGroundTruthTests` (7 tests) assert the framework behaviour these findings rest on, so a future .NET
+or fixture change fails there and loudly rather than surfacing as a mysterious product regression.
+
+Production code then took a `TimeZoneInfo? zone = null` parameter on the day-bucketing paths
+(`OversightRollupBuilder.Build`, `ResponseTimeTracker`'s three readers, `MessageAnalyticsService`'s
+internal constructor). It defaults to the machine zone; production never passes it. This is the
+"injectable clock/timezone which does not exist yet" the handoff named as the blocker.
+
+## F-METRICS-10 — Every date window was built from a local midnight paired with a *different* instant's UTC offset
+
+- **Severity:** S2
+- **Confidence:** confirmed — demonstrated by test, not inferred
+- **Status:** **FIXED** in `v4.99.21`. Guard: `LocalDayBoundaryTests` (13, green).
+- **Where — nine sites, five files:**
+
+  | File | What it scoped |
+  |---|---|
+  | `Services/Oversight/OversightService.cs:34,35` | the Today and Last-7-days windows behind every command-centre number |
+  | `Controls/CommandCenterPanel.xaml.cs:72,74,77,80` | the same two windows again, plus both custom date pickers |
+  | `Services/Oversight/OccDateRangeFilterState.cs:113,117` | the shared start-of-day / end-of-day normaliser |
+  | `Controls/ActivityPatternsPanel.xaml.cs:126` | the "this year" range |
+  | `Services/Analytics/MessageAnalyticsService.cs:1490` | a daily bucket's own position relative to a range |
+
+- **The defect:** the expression was `new DateTimeOffset(nowLocal.Date, nowLocal.Offset)`.
+  `nowLocal.Offset` is the offset in force **right now**, not the offset that was in force at midnight.
+  On 363 days a year those agree and the expression is harmless. On the two that do not:
+
+  - **Spring forward.** The owner opens the dashboard at 14:00, by which time the clock is on daylight
+    time. Midnight paired with the daylight offset names an instant **one hour before the day began**, so
+    every conversation from 23:00–23:59 the previous evening is counted as today's.
+  - **Fall back.** The mirror, and the more damaging direction: the window starts **one hour late** and
+    the first hour of the day is silently excluded from today's counts entirely.
+
+- **Why it matters beyond an hour of drift:** these windows are the denominator for the caught-up
+  percentage, the awaiting counts, SLA-met %, on-time % and the account cards. The numbers do not merely
+  shift — they are computed over a set that quietly disagrees with the calendar day the UI labels them
+  with. The error appears for one day and corrects itself, which is close to undiagnosable from a support
+  report.
+- **Additionally, two cases the naive expression cannot express at all.** In a zone that transitions at
+  midnight, local 00:00 either never occurs or occurs twice. `zone.GetUtcOffset(midnight)` picks the
+  *second* of two ambiguous midnights, which drops the first hour of a 25-hour day out of every window,
+  and for a skipped midnight it depends on undocumented invalid-time behaviour.
+- **The fix:** `Services/LocalDayBoundary.cs` — `StartOfDay` / `EndOfDay` / `EndOfDayExclusive` /
+  `LengthOfDay` / `StartOfDaysAgo`. Skipped midnights are resolved by walking forward to the first
+  wall-clock minute that exists (which is exactly the transition instant, asserted in ground truth);
+  ambiguous midnights take the **larger** offset, i.e. the first of the two.
+- **Evidence.** `LocalDayBoundaryTests` reproduces the old expression verbatim as `LegacyStartOfDay` and
+  asserts the difference, so the defect stays demonstrated rather than described:
+  `legacy - correct == -1h` on the spring day, `+1h` on the autumn day, and `== 0` on ordinary days.
+  A message at 23:30 the previous evening is shown falling inside the legacy window and outside the
+  correct one.
+
+## F-METRICS-11 — End-of-day projection skews on a transition day (accepted, not fixed)
+
+- **Severity:** S4 / informational
+- **Confidence:** confirmed, and **quantified**
+- **Where:** `MessageAnalyticsService.GetEndOfDayProjection`
+- **Status:** **WONTFIX, deliberately.** Arithmetic extracted to
+  `MessageAnalyticsService.ProjectFromHourlyShape` so it is testable; bound pinned by
+  `EndOfDayProjectionTests` (16, green).
+- The handoff flagged this as "the one that divides by an hour-fraction — a 23-hour day is where that
+  breaks". It does skew, but by a small and bounded amount. The learned hourly shape always describes a
+  24-hour day: on a spring-forward day it credits elapsed volume to an hour that could not have delivered
+  any (projection reads **low**); on a fall-back day the repeated hour is counted once in the shape but
+  twice in today's total (reads **high**).
+- **Measured error: under 2% in both directions**, at 10:00, 14:00, 18:00 and 21:00, against a realistic
+  business-hours inbound shape. The reason it is small is itself asserted as a test — real zones
+  transition between 00:00 and 03:00, which carry a negligible share of a business's inbound. *If a zone
+  ever transitioned at 10:00, this conclusion would change.*
+- **Why not fixed:** correcting it adds a day-length code path that runs 365 days a year to improve a
+  figure that is explicitly a forecast, on two of them, by less than its own inherent error. The
+  extraction also closed a real gap — the ordinary arithmetic (empty shape, the 5% guard, convergence at
+  end of day, never projecting below what has already arrived) had **no test at all** before, because the
+  public method reads the wall clock.
+
+## Verified CLEAN — recorded so the next person does not re-audit
+
+| Path | Verdict | Why it holds |
+|---|---|---|
+| `OversightRollupBuilder.BuildTrend` (7-day sparkline) | **clean** | Subtracts two calendar **dates**, not two instants, so a 23-hour day is still one day ago |
+| `ResponseTimeTracker.GetDailyMedians` | **clean** | Groups by locally-converted date; walks the axis with `AddDays` on a calendar date |
+| `ResponseTimeTracker.GetDailyWithinThreshold` | **clean** | Same shape as above |
+| `ResponseTimeTracker.GetStats` → `AnsweredToday` | **clean** | Local-date equality, same primitive |
+| `MessageAnalyticsService` daily buckets | **clean** | Keys from a true zone conversion; consumed by calendar-date subtraction |
+| `MessageAnalyticsService` hour-of-day + week×hour heatmap | **clean** | Hour comes from a real zone conversion, so 03:30 on a transition day is hour 3, not hour 2 |
+| `DashboardReportHelper` report period | **clean, by a different design** | Uses `now.AddDays(-7)` — a rolling 168-hour window, not a calendar one. Internally consistent and DST-neutral. Not a bug; noted so it is not "fixed" into inconsistency later |
+
+`DstMetricBucketingTests` (14, green) covers these end-to-end against the DST fixture zone.
+
+## Regression checks — each guard was proven to catch its defect
+
+Per the audit's own rule, no fix is reported as verified without the verification having been executed.
+
+1. **Sparkline.** Replaced the calendar-date subtraction with
+   `(int)(startOfToday - startOfThatDay).TotalDays`. **Result: initially caught nothing** — every test
+   placed the short day at *today*, where the gap to the previous day is still 24 hours. That was a real
+   hole in the coverage, not a false alarm. Added
+   `TheDayAfterASpringForwardStillSeesTheShortDayAsASeparateBar`, which views the chart on 9 March when
+   the 23-hour day is *behind* today; it fails against the injected arithmetic and passes against the
+   real code. **The regression check found a gap in my own tests before it found anything else.**
+2. **Analytics bucketing.** Replaced the zone conversion with a fixed base-offset conversion. Two tests
+   failed (`AnalyticsFilesEachMessageOnTheLocalDayAndLocalHourItReallyArrived`,
+   `BothHalvesOfARepeatedHourAreCountedOnTheSameDayAndHour`); the other twelve passed, confirming they
+   test the DST property specifically and not merely the zone plumbing.
+3. **Window boundary.** No injection needed — `LocalDayBoundaryTests` carries the old expression
+   permanently and asserts the exact hour of disagreement.
+
+## Test-authoring traps hit here (do not re-derive)
+
+- **A day-series that walks backwards from `DateTime.Today` cannot see a fixed future date.** Two tests
+  first failed with empty results that looked exactly like product defects. They were not: the 2026
+  fall-back date (1 November) is in the future relative to the current date, and `GetDailyMedians` only
+  walks back. `DstTimeZones.LatestPastSpringForward()` / `LatestPastFallBack()` now compute the most
+  recent transition already in the past, so those tests stay correct however far the calendar moves.
+  Tests that inject their own `nowUtc` (the sparkline ones) are free to use the fixed 2026 constants.
+- `EndOfDayProjection`'s member is `Projected`, not `ProjectedTotal`.
+- Threading the zone into `MessageAnalyticsService` required turning eight `private static` helpers into
+  instance methods (`ApplyReceivedIncrement`, `IncrementDaily`, `PruneDailyBuckets`, `PruneDayHourMatrix`,
+  `NormalizeStats`, `MapToDto`, `IsDayInRange`, and the four `*BucketsForStats`). Mechanical, but the
+  compiler surfaces them one layer at a time.
+
+## What was NOT covered by this DST pass
+
+- **`KpiTrendStore`** keys with `LocalDateTime` and was **not** given a zone seam or an end-to-end DST
+  test. Its keying is the same shape as the paths verified clean, so it is very likely fine, but that is
+  reasoning, not reproduction.
+- **`BusinessHoursCalculator`** was not examined for transition-day behaviour. A business-hours window
+  that straddles a transition is a plausible next defect and is untested.
+- **Quiet hours** (`QuietHours`) likewise untested across a transition.
+- **No live DST observation.** Everything here is against synthetic zones in tests, plus a smoke test of
+  the published binary on real data; the machine cannot be moved to a DST zone without disturbing the
+  owner's live data, so the fix has not been watched working through an actual transition.
