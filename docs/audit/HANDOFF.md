@@ -1,7 +1,8 @@
 # Product-hardening audit — handoff
 
-**Branch:** `audit/product-hardening` (26 commits ahead of `main`) · **Head version:** `v4.99.20`
-**Written:** end of session 1, for a cold start in a new chat.
+**Branch:** `audit/product-hardening` (27 commits ahead of `main`) · **Head version:** `v4.99.21`
+**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST pass
+(§5.2 item 1 is done; §2's tallies still describe session 1 only).
 
 Read this file first. It contains facts established the hard way; re-deriving them costs hours and
 several of them contradict `AGENTS.md`.
@@ -105,6 +106,12 @@ Also: `docs/audit/ASSUMPTIONS.md` (decisions made autonomously, with the cost of
 - **`python` is not available**; `perl` and `sed` are.
 - The `.iss` files are read as **ANSI, not UTF-8** — a pre-existing em-dash already renders as mojibake.
   Keep any user-visible installer string pure ASCII.
+- **Do not use PowerShell 5.1 to append to a UTF-8 doc.** `Get-Content` defaults to the ANSI codepage on
+  a file with no BOM, so a round-trip through `Get-Content`/`Set-Content -Encoding utf8` turned every
+  em-dash in `CHANGELOG.md` and `metrics.md` into `â€"` — including the *pre-existing* content, not just
+  the added text. Caught and reverted, but it silently corrupts the whole file. Use the Bash tools (`cat
+  >>`, or `head`/`tail` reassembly) which are byte-faithful. Bash heredocs also failed on this content;
+  writing the fragment to a scratch file and `cat`-ing it is the reliable path.
 - **UI Automation is the workhorse.** `Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes`, then
   find the window by `ProcessId`. This is the same tree a screen reader consumes.
 
@@ -130,6 +137,16 @@ Also: `docs/audit/ASSUMPTIONS.md` (decisions made autonomously, with the cost of
 - **`DispatcherQueue.GetForCurrentThread()` cannot activate in a plain xUnit host**
   (`COMException: ClassFactory cannot supply requested class`). Any test path reaching WinUI dispatching
   will fail for environmental reasons — extract the pure decision and test that instead.
+- **A day series that walks backwards from `DateTime.Today` cannot see a future fixture date.** Two DST
+  tests failed with empty results that looked exactly like product defects and were not: the 2026
+  fall-back date is in the future relative to now, and `GetDailyMedians` only walks back.
+  `DstTimeZones.LatestPastSpringForward()` / `LatestPastFallBack()` exist for this. Tests that inject
+  their own `nowUtc` are free to use fixed dates.
+- **A regression injection that catches nothing may mean your tests have a hole, not that the code is
+  fine.** Injecting duration-based day arithmetic into `BuildTrend` passed everything, because every test
+  had placed the short day at *today*, where the gap to the previous day is still 24 hours. The gap only
+  opens when the transition day is *behind* today. Worth remembering as a general habit: when a
+  deliberately broken build stays green, interrogate the test set first.
 - **`AppLogger` writes to the real user-data root.** Tests exercising production logging polluted the
   owner's `app.log` with fabricated `[ERR]` lines. Now suppressed globally via
   `AppLogger.SuppressWritesForTests`, set by a `[ModuleInitializer]` in `TestAssemblyInit.cs`.
@@ -187,17 +204,21 @@ work.
 |---|---|---|---|
 | **F-DURA-01** | S2 | Settings reset is logged and recoverable but **the user is still not told on screen**. `RecoveredFromCorruptFile` and `CorruptFileBackupPath` already exist on `AppSettingsService` — the state a notice needs is there; only the UI is missing. | `durability.md` |
 | **F-SNAP-02** (partial) | S2 | An unreadable account now says so, but the log is still the only place a *degraded* read (store bridge failed, IndexedDB succeeded) is visible. | `snapshot-reader.md` |
+| **F-METRICS-11** | S4 | End-of-day projection skews on a 23/25-hour day. **Deliberate WONTFIX** — measured under 2%, on a figure that is explicitly a forecast. Reasoning and the bound are recorded; do not "fix" it without reading why. | `metrics.md` |
 | **F-ORCH-06** | S3 | Settings speaks developer vocabulary — "instances", "Refresh all WebViews", "Export instances.json", "Enable per-instance sleep unload". These are also the **accessible names**, so screen-reader users get only the jargon. **Do not blanket-rename**: "your local Ollama **instance**" is correct English and must stay. | `orchestrator.md`, `accessibility.md` |
 
 ### 5.2 Highest-value remaining work, in the order I would do it
 
-**1. DST boundary testing (metrics).** Two timezone-adjacent bugs have already surfaced (UTC-vs-local day
-keying; the hero/card window mismatch), so this is a live risk, not hypothetical. Test a 23-hour and a
-25-hour day against: `OversightRollupBuilder.BuildTrend`, `MessageAnalyticsService` daily buckets,
-`ResponseTimeTracker.GetDailyMedians`/`GetDailyWithinThreshold`, and `GetEndOfDayProjection` (which divides
-by an hour-fraction — a 23-hour day is where that breaks).
-*Note:* `TrendDayKeyingTests` only discriminate in a non-UTC zone; on a UTC CI machine they pass
-vacuously. A DST test needs an injectable clock/timezone, which does not exist yet.
+**1. ~~DST boundary testing (metrics).~~ DONE in session 2 — `v4.99.21`, Increment 23.** Found and fixed
+**F-METRICS-10 (S2)**: nine sites across five files built a date window as
+`new DateTimeOffset(nowLocal.Date, nowLocal.Offset)`, pairing a local midnight with a *different* instant's
+UTC offset, so "Today" and "Last 7 days" were an hour wrong in one direction each transition day. The four
+paths named here were tested and are **clean** — they subtract calendar dates, not durations.
+`GetEndOfDayProjection` does skew, but under 2%, and is a recorded WONTFIX (**F-METRICS-11**).
+The blocker is now removed: `UnifiedMessenger.Tests/DstTimeZones.cs` provides two synthetic zones and the
+day-bucketing paths take an optional `TimeZoneInfo`. **Still untested across a transition:**
+`KpiTrendStore`, `BusinessHoursCalculator`, `QuietHours`. Full write-up in `metrics.md` → "DST boundary
+testing (session 2)".
 
 **2. Offline behaviour.** Completely untested, and the most conspicuous gap in the state matrix — for an
 app whose entire input is web clients. Disconnect the network and check: does the app stay responsive, do
@@ -269,7 +290,14 @@ dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --no
 The full regression filter used throughout (all 164 tests):
 
 ```
-FullyQualifiedName~NotLoadedIsNotUnreadableTests|FullyQualifiedName~ScanAppliesOnlyToScrapedChannelsTests|FullyQualifiedName~AccountReadHealthTests|FullyQualifiedName~ApplicationLifecycleFlushTests|FullyQualifiedName~BrandContrastTests|FullyQualifiedName~CaughtUpRoundingTests|FullyQualifiedName~SlaPercentRoundingTests|FullyQualifiedName~ChatEntryParserResilienceTests|FullyQualifiedName~NonCustomerConversationTests|FullyQualifiedName~PlatformDescriptionTests|FullyQualifiedName~EmptyScanNoFalseMetricTests|FullyQualifiedName~HeroSubtextAttributionTests|FullyQualifiedName~TornWriteRecoveryTests|FullyQualifiedName~CorruptFileRecoveryTests|FullyQualifiedName~FirstRunGreetingTests|FullyQualifiedName~ReviewReplyRateTests|FullyQualifiedName~BusinessReportSharePercentTests|FullyQualifiedName~TrendDayKeyingTests
+FullyQualifiedName~NotLoadedIsNotUnreadableTests|FullyQualifiedName~ScanAppliesOnlyToScrapedChannelsTests|FullyQualifiedName~AccountReadHealthTests|FullyQualifiedName~ApplicationLifecycleFlushTests|FullyQualifiedName~BrandContrastTests|FullyQualifiedName~CaughtUpRoundingTests|FullyQualifiedName~SlaPercentRoundingTests|FullyQualifiedName~ChatEntryParserResilienceTests|FullyQualifiedName~NonCustomerConversationTests|FullyQualifiedName~PlatformDescriptionTests|FullyQualifiedName~EmptyScanNoFalseMetricTests|FullyQualifiedName~HeroSubtextAttributionTests|FullyQualifiedName~TornWriteRecoveryTests|FullyQualifiedName~CorruptFileRecoveryTests|FullyQualifiedName~FirstRunGreetingTests|FullyQualifiedName~ReviewReplyRateTests|FullyQualifiedName~BusinessReportSharePercentTests|FullyQualifiedName~TrendDayKeyingTests|FullyQualifiedName~DstGroundTruthTests|FullyQualifiedName~LocalDayBoundaryTests|FullyQualifiedName~DstMetricBucketingTests|FullyQualifiedName~EndOfDayProjectionTests
+```
+
+That is **214 tests** as of `v4.99.21` (164 from session 1 + 50 DST). When a change touches day
+bucketing, also run the suites that cover the modified classes — the sweep used for Increment 23 was:
+
+```
+FullyQualifiedName~MessageAnalyticsServiceTests|FullyQualifiedName~MessageAnalyticsServiceBranchFilterTests|FullyQualifiedName~ActivityPatternsTests|FullyQualifiedName~ResponseTimeTrackerTests|FullyQualifiedName~OversightRollupBuilderTests|FullyQualifiedName~OversightRollupCapabilityTests|FullyQualifiedName~BusinessReportTests|FullyQualifiedName~KpiTrendStoreTests|FullyQualifiedName~InstallerScriptTests
 ```
 
 Installer (ISCC is a **per-user** install here, not Program Files):
