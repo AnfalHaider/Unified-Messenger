@@ -1,8 +1,8 @@
 # Product-hardening audit — handoff
 
-**Branch:** `audit/product-hardening` (32 commits ahead of `main`) · **Head version:** `v4.99.23`
-**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline and dialog passes
-(§5.2 items 1 and 2 done, 3 half done; §2's tallies still describe session 1 only).
+**Branch:** `audit/product-hardening` (35 commits ahead of `main`) · **Head version:** `v4.99.24`
+**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline, dialog and durability passes
+(§5.2 items 1, 2 and 4 done, 3 half done; §2's tallies still describe session 1 only).
 
 Read this file first. It contains facts established the hard way; re-deriving them costs hours and
 several of them contradict `AGENTS.md`.
@@ -130,6 +130,11 @@ Also: `docs/audit/ASSUMPTIONS.md` (decisions made autonomously, with the cost of
   **The live tree is the authority.**
 - ContentDialogs appear as a `Window` inside the main window's descendants, and **close when your script
   takes focus** — enumerate in the same call that opens them.
+- **A dialog missing from the UIA tree does not mean it never showed.** Chasing the F-DURA-01 notice, the
+  first capture found nothing and the app briefly reported `MainWindowHandle = 0`, which looked exactly
+  like a broken fix. It was a timing artefact. **Log the dialog's result after the `await`** — the
+  *absence* of that line proves it is still open and waiting, which is what finally distinguished "shown
+  and dismissed" from "never displayed".
 - **Menu flyouts are NOT under the main window.** A `FindAll` scoped to the app window returns zero
   `MenuItem`s even with the menu visibly open. Search from `RootElement` filtered by `ProcessId`.
 - **Sidebar account rows expose no `Invoke` or `SelectionItem` pattern**, so UIA cannot activate them.
@@ -213,7 +218,7 @@ work.
 
 | ID | Sev | What | Where |
 |---|---|---|---|
-| **F-DURA-01** | S2 | Settings reset is logged and recoverable but **the user is still not told on screen**. `RecoveredFromCorruptFile` and `CorruptFileBackupPath` already exist on `AppSettingsService` — the state a notice needs is there; only the UI is missing. | `durability.md` |
+| ~~**F-DURA-01**~~ | ~~S2~~ | **CLOSED** in `v4.99.24`. The plumbing did exist — and **nothing read it**, which is why the user was still never told. A modal notice now appears at startup in the session the recovery happened, verified live against the real corruption path. | `durability.md` |
 | **F-SNAP-02** (partial) | S2 | An unreadable account now says so, but the log is still the only place a *degraded* read (store bridge failed, IndexedDB succeeded) is visible. | `snapshot-reader.md` |
 | **F-OFFLINE-05** | S3 | **The sidebar wording fix did not take effect.** `ComposeRowSubtitle`/`ResolveStatusSubtitle` now use `NetworkFailureDescriber` and unit-test green, but a UIA capture of the running binary still read "Connection error" — the stored `Detail` at render time is not the `ConnectionAborted` the nav hook writes. Suspects listed; none eliminated. One publish-and-launch cycle with the detail logged should settle it. | `offline.md` |
 | **F-OFFLINE-06** | S3 | "this account's page is not loaded. Open the account once to finish loading" is shown when the real cause is **no network**, sending the owner to do something that cannot work. The scan knows its stage but not the connection status. | `offline.md` |
@@ -267,7 +272,17 @@ prompted), `AutoUpdateDialog` (needs a newer GitHub release to exist), `ConfirmP
 **3b. Tab order inside dialogs, and the 0-account empty states, are still unchecked.** The latter cannot
 be staged on this machine without deleting the owner's real accounts.
 
-**4. F-DURA-01's on-screen notice.** The plumbing exists; this is a contained UI increment.
+**4. ~~F-DURA-01's on-screen notice.~~ DONE in session 2 — `v4.99.24`, Increment 26.** It was contained,
+but the premise needed correcting first: the plumbing existed and **had no consumer at all**. Also fixed
+**F-DURA-03 (S3)** on the way — the two startup prompts were fire-and-forget and could both call
+`ShowAsync`, which WinUI forbids; the loser was swallowed, and the onboarding wizard's `finally` marked it
+complete anyway. Now sequenced.
+
+> **A test flake worth knowing about.** `SlaPercentRoundingTests` anchored its samples at
+> `UtcNow.AddDays(-1)` and its one breach has a 60-minute response, so **within an hour of local midnight**
+> the breach's reply landed on the next local day and the test failed with "day 'Thu' had a breach among
+> 499 replies but reads 100%" — while the product was correct. Re-anchored to 10:00 local. If a
+> date-sensitive metric test fails, check the clock before the code.
 
 **5. The remaining state-matrix cells.** All-caught-up (needs a synthetic zero-awaiting state — never seen
 live), AI on vs off (the heuristic-fallback path has never been observed), quiet hours, date-range
@@ -340,10 +355,10 @@ FullyQualifiedName~NotLoadedIsNotUnreadableTests|FullyQualifiedName~ScanAppliesO
 Append the offline suites too:
 
 ```
-|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests
+|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests|FullyQualifiedName~SettingsRecoveryNoticeTests
 ```
 
-That is **271 tests** as of `v4.99.23` (164 from session 1 + 50 DST + 52 offline + 5 dialog). Two of the retry tests
+That is **282 tests** as of `v4.99.24` (164 from session 1 + 50 DST + 52 offline + 5 dialog + 11 durability). Two of the retry tests
 wait on real timers, so the run takes ~23s rather than under a second. When a change touches day
 bucketing, also run the suites that cover the modified classes — the sweep used for Increment 23 was:
 
