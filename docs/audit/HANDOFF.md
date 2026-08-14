@@ -1,8 +1,8 @@
 # Product-hardening audit — handoff
 
-**Branch:** `audit/product-hardening` (29 commits ahead of `main`) · **Head version:** `v4.99.22`
-**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST and offline passes
-(§5.2 items 1 and 2 are done; §2's tallies still describe session 1 only).
+**Branch:** `audit/product-hardening` (32 commits ahead of `main`) · **Head version:** `v4.99.23`
+**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline and dialog passes
+(§5.2 items 1 and 2 done, 3 half done; §2's tallies still describe session 1 only).
 
 Read this file first. It contains facts established the hard way; re-deriving them costs hours and
 several of them contradict `AGENTS.md`.
@@ -114,6 +114,8 @@ Also: `docs/audit/ASSUMPTIONS.md` (decisions made autonomously, with the cost of
   writing the fragment to a scratch file and `cat`-ing it is the reliable path.
 - **UI Automation is the workhorse.** `Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes`, then
   find the window by `ProcessId`. This is the same tree a screen reader consumes.
+- **`$HOME` is a read-only PowerShell variable** — assigning to it aborts the script mid-way with a
+  confusing `VariableNotWritable`. Pick any other name.
 
 ### UI Automation pitfalls that produced false findings
 
@@ -128,6 +130,15 @@ Also: `docs/audit/ASSUMPTIONS.md` (decisions made autonomously, with the cost of
   **The live tree is the authority.**
 - ContentDialogs appear as a `Window` inside the main window's descendants, and **close when your script
   takes focus** — enumerate in the same call that opens them.
+- **Menu flyouts are NOT under the main window.** A `FindAll` scoped to the app window returns zero
+  `MenuItem`s even with the menu visibly open. Search from `RootElement` filtered by `ProcessId`.
+- **Sidebar account rows expose no `Invoke` or `SelectionItem` pattern**, so UIA cannot activate them.
+  Synthetic input is required — `SetCursorPos` + `mouse_event`, with a `MOVE` event and ~400 ms settle
+  before button-down or WinUI ignores it. Even then it is only about two-thirds reliable; retry.
+- **Never invoke every element named "Close".** It matches the **title-bar** Close button and shuts the
+  app. Scope the search to the dialog's own subtree.
+- **Menu items are found by their accessible name, which differs from the visible text** — "Rename
+  instance" vs "Rename instance...", "Remove instance permanently" vs "Remove instance...".
 
 ### Testing gotchas
 
@@ -235,11 +246,26 @@ was never retried, because the stale-adapter net only watches accounts that reac
 > processes, so a rule scoped to `UnifiedMessenger.exe` blocks the updater and leaves the web clients
 > online. Verified live: the real `CoreWebView2WebErrorStatus` offline is **`ConnectionAborted`**.
 
-**3. Open the remaining 11 dialogs.** All 12 were verified structurally (close path + accessible name, no
-dead ends), but only `AddInstanceDialog` and `WeeklyReportDialog` have ever been *opened*. Delete, rename,
-edit-metadata, set-location, workspace-management, change-icon, account-detail, auto-update,
-pin-to-taskbar, confirm-permanent-delete. Check each for: unnamed internal controls, empty states, and
-what happens on the destructive ones with 0 accounts.
+**3. ~~Open the remaining 11 dialogs.~~ HALF DONE in session 2 — `v4.99.23`, Increment 25.** Five more
+opened live: **AccountDetail, ChangeIcon, Rename, DeleteInstance, WorkspaceManagement**. Found
+**F-DIALOG-01 (S2)** — the icon picker announced **25 identical "button"s**, making it usable by sight
+only — and **F-DIALOG-02 (S3)**, unnamed customer rows in the drill-down. Both fixed and verified live.
+Three verified clean. Full write-up in `dialogs.md`.
+
+**Still not opened, with reasons:** `SetLocationDialog` (synthetic right-click is only ~⅔ reliable),
+`EditInstanceMetadataDialog` (trigger not located), `PinToTaskbarDialog` (once per install, already
+prompted), `AutoUpdateDialog` (needs a newer GitHub release to exist), `ConfirmPermanentDeleteDialog`
+(**deliberately not reached** — second step of permanent deletion, on a machine holding real accounts).
+
+> **Technique, recorded because it took several attempts.** Enumerate in the **same call** that opens the
+> dialog. Menu flyouts are **not** under the main window — search from `RootElement` filtered by
+> `ProcessId`. Sidebar rows expose **no `Invoke` pattern**, so synthetic `mouse_event` is required (with a
+> `MOVE` event and ~400 ms settle). Menu items are found by their *accessible* name, which differs from
+> the visible text. **Never invoke every element named "Close"** — that matches the title-bar button and
+> shuts the app; it happened here.
+
+**3b. Tab order inside dialogs, and the 0-account empty states, are still unchecked.** The latter cannot
+be staged on this machine without deleting the owner's real accounts.
 
 **4. F-DURA-01's on-screen notice.** The plumbing exists; this is a contained UI increment.
 
@@ -314,10 +340,10 @@ FullyQualifiedName~NotLoadedIsNotUnreadableTests|FullyQualifiedName~ScanAppliesO
 Append the offline suites too:
 
 ```
-|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests
+|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests
 ```
 
-That is **266 tests** as of `v4.99.22` (164 from session 1 + 50 DST + 52 offline). Two of the retry tests
+That is **271 tests** as of `v4.99.23` (164 from session 1 + 50 DST + 52 offline + 5 dialog). Two of the retry tests
 wait on real timers, so the run takes ~23s rather than under a second. When a change touches day
 bucketing, also run the suites that cover the modified classes — the sweep used for Increment 23 was:
 
