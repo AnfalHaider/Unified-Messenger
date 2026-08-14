@@ -1,8 +1,8 @@
 # Product-hardening audit — handoff
 
-**Branch:** `audit/product-hardening` (27 commits ahead of `main`) · **Head version:** `v4.99.21`
-**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST pass
-(§5.2 item 1 is done; §2's tallies still describe session 1 only).
+**Branch:** `audit/product-hardening` (29 commits ahead of `main`) · **Head version:** `v4.99.22`
+**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST and offline passes
+(§5.2 items 1 and 2 are done; §2's tallies still describe session 1 only).
 
 Read this file first. It contains facts established the hard way; re-deriving them costs hours and
 several of them contradict `AGENTS.md`.
@@ -204,6 +204,8 @@ work.
 |---|---|---|---|
 | **F-DURA-01** | S2 | Settings reset is logged and recoverable but **the user is still not told on screen**. `RecoveredFromCorruptFile` and `CorruptFileBackupPath` already exist on `AppSettingsService` — the state a notice needs is there; only the UI is missing. | `durability.md` |
 | **F-SNAP-02** (partial) | S2 | An unreadable account now says so, but the log is still the only place a *degraded* read (store bridge failed, IndexedDB succeeded) is visible. | `snapshot-reader.md` |
+| **F-OFFLINE-05** | S3 | **The sidebar wording fix did not take effect.** `ComposeRowSubtitle`/`ResolveStatusSubtitle` now use `NetworkFailureDescriber` and unit-test green, but a UIA capture of the running binary still read "Connection error" — the stored `Detail` at render time is not the `ConnectionAborted` the nav hook writes. Suspects listed; none eliminated. One publish-and-launch cycle with the detail logged should settle it. | `offline.md` |
+| **F-OFFLINE-06** | S3 | "this account's page is not loaded. Open the account once to finish loading" is shown when the real cause is **no network**, sending the owner to do something that cannot work. The scan knows its stage but not the connection status. | `offline.md` |
 | **F-METRICS-11** | S4 | End-of-day projection skews on a 23/25-hour day. **Deliberate WONTFIX** — measured under 2%, on a figure that is explicitly a forecast. Reasoning and the bound are recorded; do not "fix" it without reading why. | `metrics.md` |
 | **F-ORCH-06** | S3 | Settings speaks developer vocabulary — "instances", "Refresh all WebViews", "Export instances.json", "Enable per-instance sleep unload". These are also the **accessible names**, so screen-reader users get only the jargon. **Do not blanket-rename**: "your local Ollama **instance**" is correct English and must stay. | `orchestrator.md`, `accessibility.md` |
 
@@ -220,10 +222,18 @@ day-bucketing paths take an optional `TimeZoneInfo`. **Still untested across a t
 `KpiTrendStore`, `BusinessHoursCalculator`, `QuietHours`. Full write-up in `metrics.md` → "DST boundary
 testing (session 2)".
 
-**2. Offline behaviour.** Completely untested, and the most conspicuous gap in the state matrix — for an
-app whose entire input is web clients. Disconnect the network and check: does the app stay responsive, do
-accounts report "can't read" (correct) or something alarming, does the GitHub auto-updater fail quietly,
-does anything hang on a network timeout?
+**2. ~~Offline behaviour.~~ DONE in session 2 — `v4.99.22`, Increment 24.** Found **F-OFFLINE-01 (S1)**:
+auto-update has *never* been able to succeed — the installer is unsigned and the verifier required
+Authenticode, so with the shipped defaults it re-downloaded the whole installer at every launch, rejected
+it, and threw the failure away silently. Also **F-OFFLINE-04 (S2)**: an account whose page failed to load
+was never retried, because the stale-adapter net only watches accounts that reached `Ready`. Both fixed.
+**Two findings left open — F-OFFLINE-05 and F-OFFLINE-06 — see §5.1.** Full write-up in `offline.md`.
+
+> **Reuse this technique.** No elevation is needed and the machine never goes offline: launch with
+> `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--proxy-server=127.0.0.1:9"` to cut off only this app's
+> web clients. A firewall rule **would not have worked** — WebView2 runs as separate `msedgewebview2.exe`
+> processes, so a rule scoped to `UnifiedMessenger.exe` blocks the updater and leaves the web clients
+> online. Verified live: the real `CoreWebView2WebErrorStatus` offline is **`ConnectionAborted`**.
 
 **3. Open the remaining 11 dialogs.** All 12 were verified structurally (close path + accessible name, no
 dead ends), but only `AddInstanceDialog` and `WeeklyReportDialog` have ever been *opened*. Delete, rename,
@@ -256,8 +266,16 @@ read the UIA tree they consume, not the audio).
   failure could now hide. Measure a ~850-chat scan on a loaded page.
 - **The 20-account sidebar test passed; 50+ was not tested.**
 - **Migrations from schema versions older than `instances.json` v5 / `settings.json` v19** are unexercised.
-- **The auto-updater itself** (GitHub download, verification, failure-when-unreachable) is untested — only
-  the installer it invokes.
+- ~~**The auto-updater itself** is untested~~ — **verification is now tested and was badly broken**
+  (F-OFFLINE-01). Still untested: an actual GitHub download against a real outage. The dead-proxy trick
+  only affects WebView2; `HttpClient` ignores it, so the offline update messages are unit-tested against
+  the real .NET exception strings but no failed GitHub call was ever observed.
+- **A network that drops while the app is running and pages are already loaded** — the commoner real-world
+  case, where WhatsApp Web handles its own reconnection and no `NavigationCompleted` fires at all. The app
+  may keep reporting "Connected" while the web client itself is offline. Untested, and the retry added in
+  v4.99.22 does **not** cover it (it is driven by navigation failures).
+- **Recovery when the network returns** was never watched — the offline test was stopped while still
+  offline.
 - **The uninstall data-erasure option added in v4.99.14 is unverified at runtime** — confirming it would
   have destroyed the owner's live data. This is the one change in the branch not proven by execution.
 - **ARM64 has never been published or installed.** The new payload guard correctly *blocks* building an
@@ -293,7 +311,14 @@ The full regression filter used throughout (all 164 tests):
 FullyQualifiedName~NotLoadedIsNotUnreadableTests|FullyQualifiedName~ScanAppliesOnlyToScrapedChannelsTests|FullyQualifiedName~AccountReadHealthTests|FullyQualifiedName~ApplicationLifecycleFlushTests|FullyQualifiedName~BrandContrastTests|FullyQualifiedName~CaughtUpRoundingTests|FullyQualifiedName~SlaPercentRoundingTests|FullyQualifiedName~ChatEntryParserResilienceTests|FullyQualifiedName~NonCustomerConversationTests|FullyQualifiedName~PlatformDescriptionTests|FullyQualifiedName~EmptyScanNoFalseMetricTests|FullyQualifiedName~HeroSubtextAttributionTests|FullyQualifiedName~TornWriteRecoveryTests|FullyQualifiedName~CorruptFileRecoveryTests|FullyQualifiedName~FirstRunGreetingTests|FullyQualifiedName~ReviewReplyRateTests|FullyQualifiedName~BusinessReportSharePercentTests|FullyQualifiedName~TrendDayKeyingTests|FullyQualifiedName~DstGroundTruthTests|FullyQualifiedName~LocalDayBoundaryTests|FullyQualifiedName~DstMetricBucketingTests|FullyQualifiedName~EndOfDayProjectionTests
 ```
 
-That is **214 tests** as of `v4.99.21` (164 from session 1 + 50 DST). When a change touches day
+Append the offline suites too:
+
+```
+|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests
+```
+
+That is **266 tests** as of `v4.99.22` (164 from session 1 + 50 DST + 52 offline). Two of the retry tests
+wait on real timers, so the run takes ~23s rather than under a second. When a change touches day
 bucketing, also run the suites that cover the modified classes — the sweep used for Increment 23 was:
 
 ```
