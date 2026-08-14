@@ -5,6 +5,20 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.23
+
+**The icon picker can now be used without looking at it.** Choosing an account's icon offered twenty-five
+buttons — every social logo, every general icon, and the two import options — that a screen reader
+announced simply as "button". There was no way to tell WhatsApp from a shopping cart except by sight.
+Each one now says what it is.
+
+**Waiting customers in the account drill-down are named too.** Opening an account's details lists who is
+waiting; the button that opens each conversation announced as "button" while the "Mark as done" control
+right next to it read out properly. It now reads "Open chat with <customer> in <account>", matching what
+the main dashboard already said.
+
+Both were found by opening the dialogs and reading them the way a screen reader does.
+
 ## v4.99.22
 
 **Automatic updates now actually work.** They never have. The app checked GitHub at every launch,

@@ -131,6 +131,13 @@ public sealed class AccountDetailDialog : ContentDialog
             Padding = new Thickness(10, 7, 10, 7),
             Content = text
         };
+        // The command centre's equivalent row already names this button; the drill-down did not, so a
+        // live capture of this dialog read back eight bare "button" entries — one per waiting customer —
+        // each sitting beside a correctly-named "Mark X as done". Same wording as the panel version so
+        // the two surfaces announce identically.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            button, $"Open chat with {display} in {_instance.DisplayName}");
+
         var key = chat.ConversationKey;
         var customer = chat.CustomerName;
         var phone = chat.ContactPhone;
