@@ -26,6 +26,12 @@ public static class SettingsPageHelper
                 $"You are on the latest version ({FormatVersion(result.CurrentVersion)}).",
             UpdateCheckStatus.UpdateAvailable =>
                 $"Version {FormatVersion(result.LatestVersion)} is available. You are on {FormatVersion(result.CurrentVersion)}.",
+            // A failed check used to print ex.Message straight through, so a dropped connection produced
+            // "No such host is known. (api.github.com:443)" in a dialog. GitHubUpdateService now
+            // classifies connectivity failures at the point it catches them, where the exception TYPE is
+            // known; this is the backstop for anything that still arrives looking like Winsock.
+            _ when NetworkFailureDescriber.LooksLikeConnectivityFailure(result.ErrorMessage) =>
+                NetworkFailureDescriber.UpdateCheckOffline,
             _ => string.IsNullOrWhiteSpace(result.ErrorMessage)
                 ? "Could not check for updates. Try again later."
                 : result.ErrorMessage

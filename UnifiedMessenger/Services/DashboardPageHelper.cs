@@ -196,7 +196,11 @@ public static class DashboardPageHelper
                 or InstanceConnectionStatus.LoggedOut
                 or InstanceConnectionStatus.Error)
         {
-            parts.Add(connectionDetail.Trim());
+            // The detail is whatever WebView2 last reported, and for a network failure that is a raw enum
+            // name — an owner whose wifi dropped read "HostNameNotResolved" beside their WhatsApp
+            // account. Translate the ones that are error codes; pass through the ones that were already
+            // written for a human (the describer returns null for those).
+            parts.Add(NetworkFailureDescriber.DescribeWebViewStatus(connectionDetail) ?? connectionDetail.Trim());
         }
 
         return string.Join(" · ", parts);

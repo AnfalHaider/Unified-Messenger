@@ -105,16 +105,27 @@ public class GitHubUpdateServiceTests
             GitHubUpdateService.IsNewerVersion(new Version(current), new Version(latest)));
     }
 
-    [Fact]
-    public void DescribeUnavailableReleaseSource_ExplainsPrivateRepositoryWithoutToken()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DescribeUnavailableReleaseSource_TellsTheCustomerSomethingTheyCanUnderstand(bool tokenConfigured)
     {
+        // This test previously asserted the opposite — that the message named the installer asset and
+        // explained the repository was "not public". That was the right assertion for a message aimed at
+        // the developer, and this string is rendered in a dialog to whoever bought the product. It read:
+        // "Publish a GitHub release with asset 'UnifiedMessengerSetup.exe', or verify the token in
+        // UNIFIED_MESSENGER_GITHUB_TOKEN." The diagnostic detail moved to app.log, where it belongs, and
+        // this now checks it stays there. See F-OFFLINE-02.
         var message = GitHubUpdateService.DescribeUnavailableReleaseSource(
             GitHubUpdateService.DefaultGitHubOwner,
             GitHubUpdateService.DefaultGitHubRepo,
-            tokenConfiguredOverride: false);
+            tokenConfiguredOverride: tokenConfigured);
 
-        Assert.Contains("not public", message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(GitHubUpdateService.SetupAssetName, message, StringComparison.Ordinal);
+        Assert.DoesNotContain(GitHubUpdateService.SetupAssetName, message, StringComparison.Ordinal);
+        Assert.DoesNotContain(GitHubUpdateService.GitHubTokenEnvironmentVariable, message, StringComparison.Ordinal);
+        Assert.DoesNotContain("not public", message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("github", message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("newest version", message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

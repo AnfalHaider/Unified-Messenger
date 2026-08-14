@@ -622,6 +622,11 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
 
     private async Task DisposeSessionEntryCoreAsync(string instanceId, SessionEntry entry, bool unregister)
     {
+        // Drop any pending reconnect before the session goes away, so a retry scheduled against a dropped
+        // network cannot resurrect a reaped — or deleted — account. Reopening the account navigates
+        // again, which restarts the scheduler from a clean count anyway.
+        NavigationRetryScheduler.Instance.Forget(instanceId);
+
         DetachMessageHandler(entry);
         DetachNavigationHandler(entry);
 

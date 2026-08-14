@@ -5,6 +5,35 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.22
+
+**Automatic updates now actually work.** They never have. The app checked GitHub at every launch,
+downloaded the whole installer when a newer version existed, then refused to install it — and told
+nobody. The check it ran required the installer to carry a code signature that nothing in the build
+process has ever added, so it rejected every update it was ever offered, deleted the download, and threw
+the failure away where no log or message could show it. If you have been wondering why the app never
+updated itself, that is why. It now verifies the download against the published checksum instead, which
+is a real integrity check on the file you receive.
+
+**Accounts recover on their own after the internet drops.** If a page failed to load — a router
+rebooting, a wifi handover, a hotel network — the account simply stayed broken until you noticed and
+refreshed it by hand. There was a self-healing mechanism, but it only watched accounts that had already
+loaded successfully once, so it could never reach this case. The app now retries a failed account by
+itself, five times over about eight minutes, backing off as it goes, and stops trying for problems that
+retrying cannot fix.
+
+**Plainer language when the network is the problem.** A dropped connection used to surface as
+`HostNameNotResolved` beside an account, and clicking "Check for updates" with no internet produced
+`No such host is known. (api.github.com:443)`. Those now say what actually happened. The "no releases
+found" message also stopped handing you the developer's to-do list — it previously asked you to publish a
+GitHub release and check an environment variable.
+
+**A stalled update download can no longer hang.** If the connection died partway through, the download
+would wait on it indefinitely and leave a half-written file behind. It is now bounded, and the partial
+file is cleaned up.
+
+Nothing about this release changes what leaves your machine, which remains nothing.
+
 ## v4.99.21
 
 **Your daily numbers are now correct on the two days a year the clocks change.** Every date filter in the
