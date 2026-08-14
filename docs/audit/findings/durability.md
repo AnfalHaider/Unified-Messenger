@@ -13,7 +13,9 @@ hash-verified again after restore (all 11 files matched byte-for-byte). No owner
   values captured by diffing the live file against a verified backup)
 - **Where:** `UnifiedMessenger/Services/AppSettingsService.cs:62-74` (the load path)
 - **Where:** `UnifiedMessenger/Services/AppSettingsService.cs:158-174` (`BackupCorruptFile`)
-- **Status:** **FIXED** in `v4.99.4` — see "Fix applied". The user-facing notice remains **deferred**.
+- **Status:** **CLOSED** in `v4.99.24`. Logging and preservation landed in `v4.99.4`; the user-facing
+  notice — the part that mattered, and which this document was right to keep open — landed in
+  `v4.99.24`. See "F-DURA-01 closed" at the end of this document.
 - **User-visible symptom:** The owner's saved configuration silently reverts to factory defaults and
   nothing tells them. Measured on real data, these flipped:
 
@@ -258,3 +260,114 @@ gaps are recorded above; neither is a blocker, and (a) should be measured before
   parse successfully and silently lose records, defeating the corruption detection entirely) is
   **unknown and worth checking**.
 - **Disk-full, read-only-directory, and network-profile cases were not tested.**
+
+---
+
+# F-DURA-01 closed (session 2, `v4.99.24`)
+
+The finding was recorded as **"mitigated, not closed"** and said so plainly: since `v4.99.4` the event is
+logged and the unreadable file is preserved, and `AppSettingsService` exposes `RecoveredFromCorruptFile`
+and `CorruptFileBackupPath` — "the state a UI notice needs". What it did not say, because it was not
+checked, is that **nothing read either property**. A grep for both names returned only their own
+declaration and assignment. The owner of a salon does not read `app.log`, so in practice the reset was
+still silent.
+
+## What shipped
+
+A modal notice at startup, in the session where the recovery happened. Modal rather than a banner
+deliberately: one of the settings that silently reverts is whether updates install without asking, so
+this is consent-relevant, and a dismissible strip is exactly what a busy owner scrolls past.
+
+The wording lives in `SettingsRecoveryNotice` so the copy contract is testable. Most of the eleven tests
+assert what it must **not** say:
+
+- **It never claims to know which settings changed.** The file could not be parsed, so there is no
+  before-state to diff against. Any "the following settings were reset" would be invented.
+- **It never offers a restore it cannot perform.** The only bytes available are the ones that failed to
+  parse.
+- **It reassures that accounts and message history are untouched** — those live in separate stores.
+  Without that line the reasonable fear is "have I lost my conversations?", which is a much bigger worry
+  than what actually happened.
+- **It names the auto-update setting specifically**, because that is the one that changes what the app
+  does without asking.
+- **It speaks about settings, not about JSON.** Checked against the prose with the backup path removed —
+  the preserved file is genuinely called `settings.json.corrupt-<timestamp>.bak` and the owner needs that
+  name verbatim, so a blanket jargon scan flagged the one piece of actionable detail in the notice.
+
+`CanRevealBackup` checks the disk rather than trusting the recorded path, so "Show me the file" is only
+offered when there is a file to show.
+
+## Verified live, against the real corruption path
+
+The original repro, run twice against the published binary, with the owner's user-data directory backed
+up and SHA256-verified before and restored and re-verified after (11 files, hashes identical both times;
+the test's `.bak` artefacts removed).
+
+```
+[ERR] [Settings.Load.Corrupt] System.Text.Json.JsonException: Expected end of string,
+      but instead reached end of data. Path: $ | LineNumber: 0 | BytePositionInLine: 36.
+[INF] [Settings.Recovery] Telling the user their settings were reset
+      (preserved copy: …\settings.json.corrupt-20260814174910.bak).
+```
+
+UI Automation capture of the dialog as a screen reader would read it:
+
+```
+=== DIALOG: 'Your settings were reset' (6 controls) ===
+  [Text] 'Your settings were reset'
+  [Text] 'Unified Messenger could not read your saved settings when it started, so it is running on
+          default settings.
+          Anything you had changed is affected — reply-time targets and business hours for each
+          location, notification choices, and whether on-device AI is switched on. Your accounts and
+          message history are stored separately and are untouched.
+          Worth checking first: whether updates install automatically, under Settings.
+          Your previous settings file was not deleted. A copy was kept as:
+          C:\Users\anfal\AppData\Local\UnifiedMessenger\settings.json.corrupt-20260814174910.bak'
+  [Button] 'Show me the file'
+  [Button] 'OK'
+```
+
+**A note on how this was verified, because the first attempt failed misleadingly.** The initial run
+logged the pre-call line and then showed nothing in the UIA tree, and the app briefly had no window
+handle. That looked like the notice was broken. It was not — the capture had simply run at the wrong
+moment. The fix was to log the dialog's *result* after the `await`, which distinguishes "shown and
+dismissed" from "never displayed": on the second run the absence of that line proved the dialog was still
+open and waiting, and the capture above followed immediately. That line is kept, because the same
+ambiguity would face anyone diagnosing this later.
+
+## F-DURA-03 — Two startup prompts raced, and one was silently lost
+
+- **Severity:** S3 · **Confidence:** confirmed by inspection; the sequencing fix observed working live
+- **Status:** **FIXED** in `v4.99.24`
+
+Found while placing the notice. The two existing startup prompts were started as separate fire-and-forget
+calls:
+
+```csharp
+_ = MaybeShowWorkspaceOnboardingAsync();
+_ = MaybePromptPinToTaskbarAsync();
+```
+
+WinUI permits only one `ContentDialog` open at a time, and the second `ShowAsync` throws. Both call sites
+catch and log, so nothing crashes — the prompt simply never appears. For the onboarding wizard that is
+worse than it sounds, because its `finally` sets `HasCompletedWorkspaceOnboarding = true` whether or not
+the wizard was ever seen. **A swallowed wizard is marked done for good.**
+
+This is not hypothetical and it is not a tidy-up: after a settings reset *every* flag is back to its
+default, so onboarding and the taskbar prompt both come due in the same session — the exact session the
+recovery notice also wants to speak in. Three modals would have raced.
+
+Now sequenced in `RunStartupPromptsAsync`: recovery notice → onboarding → taskbar pin, each awaited, so
+the owner learns *why* they are being asked to set the app up again before they are asked. Observed live:
+dismissing the notice let the onboarding flow proceed to the "Add account" dialog.
+
+## What was NOT covered
+
+- **The "Show me the file" button was not clicked in the live test**, so the Explorer reveal is
+  unexercised. The failure path is caught and logged, and `CanRevealBackup` is unit-tested.
+- **The no-backup wording** (`CorruptFileBackupPath` null, when preservation itself fails) is unit-tested
+  but was not reproduced live — it needs a directory the app can read but not write.
+- **The notice was not seen by an actual screen reader**, only through the UIA tree it consumes.
+- **`HasCompletedWorkspaceOnboarding` being set after a swallowed wizard** is fixed by removing the race,
+  not by making the flag conditional on the wizard actually being seen. If a wizard ever fails for some
+  other reason, it will still be marked complete.

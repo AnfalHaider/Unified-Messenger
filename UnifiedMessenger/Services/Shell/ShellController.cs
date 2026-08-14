@@ -247,8 +247,7 @@ public sealed class ShellController
         var startupSection = WorkspaceSidebarHelper.ParseSection(
             _services.AppSettings.Settings.LastVisitedSection);
         await _navigation.ShowSectionAsync(startupSection).ConfigureAwait(true);
-        _ = MaybeShowWorkspaceOnboardingAsync();
-        _ = MaybePromptPinToTaskbarAsync();
+        _ = RunStartupPromptsAsync();
 
         if (_ui is MainWindow mainWindow)
         {
@@ -859,6 +858,57 @@ public sealed class ShellController
         var latest = result.LatestVersion?.ToString() ?? "unknown";
         var dialog = new AutoUpdateDialog(current, latest) { XamlRoot = _ui.XamlRoot };
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    /// <summary>
+    /// The startup prompts, run one after another.
+    ///
+    /// <para>
+    /// They used to be started as two separate <c>_ = …</c> calls, which meant both could reach
+    /// <c>ShowAsync</c> at once — and WinUI permits only one <see cref="ContentDialog"/> open at a time,
+    /// so the second threw. Both call sites caught and logged it, so nothing crashed; the prompt simply
+    /// never appeared. For the onboarding wizard that is worse than it sounds, because its <c>finally</c>
+    /// sets <c>HasCompletedWorkspaceOnboarding = true</c> whether or not the wizard was ever seen — so a
+    /// swallowed wizard is marked done for good.
+    /// </para>
+    /// <para>
+    /// The collision is not hypothetical, and this change is a prerequisite for the recovery notice
+    /// rather than tidying: after a settings reset <i>every</i> flag is back to its default, so
+    /// onboarding and the taskbar prompt both come due in the same session — the exact session the
+    /// recovery notice also wants to speak in. Recovery goes first, so the owner understands why they
+    /// are being asked to set the app up again.
+    /// </para>
+    /// </summary>
+    private async Task RunStartupPromptsAsync()
+    {
+        await MaybeShowSettingsRecoveryNoticeAsync().ConfigureAwait(true);
+        await MaybeShowWorkspaceOnboardingAsync().ConfigureAwait(true);
+        await MaybePromptPinToTaskbarAsync().ConfigureAwait(true);
+    }
+
+    private async Task MaybeShowSettingsRecoveryNoticeAsync()
+    {
+        if (!SettingsRecoveryNotice.ShouldShow(_services.AppSettings.RecoveredFromCorruptFile))
+        {
+            return;
+        }
+
+        try
+        {
+            AppLogger.LogInfo(
+                "Settings.Recovery",
+                "Telling the user their settings were reset " +
+                $"(preserved copy: {_services.AppSettings.CorruptFileBackupPath ?? "none"}).");
+
+            await SettingsRecoveryDialog
+                .ShowAsync(_ui.XamlRoot, _services.AppSettings.CorruptFileBackupPath)
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            // Never let the notice about a recovered failure become a failure of its own.
+            AppLogger.LogWarning("Settings.Recovery", ex.Message);
+        }
     }
 
     private async Task MaybeShowWorkspaceOnboardingAsync()

@@ -47,11 +47,29 @@ public class SlaPercentRoundingTests : IDisposable
     private static readonly List<MessengerInstance> Accounts =
         [new() { Id = "acct", DisplayName = "acct", ProfileName = "acct", Platform = "whatsapp" }];
 
-    /// <summary>Records one completed reply with the given response time.</summary>
+    /// <summary>
+    /// Records one completed reply with the given response time.
+    ///
+    /// <para>
+    /// Anchored to <b>10:00 local yesterday</b> rather than <c>UtcNow.AddDays(-1)</c>. The old anchor made
+    /// <see cref="DailyWithinThresholdAppliesTheSameHonestyRule"/> time-of-day dependent: that test's one
+    /// breach has a 60-minute response, so whenever the suite ran within an hour of local midnight the
+    /// breach's reply timestamp landed on the *next* local day. The per-day series then showed a clean
+    /// 499-reply day and reported 100% — failing with "day 'Thu' had a breach among 499 replies but reads
+    /// 100%" while the product was behaving correctly.
+    /// </para>
+    /// <para>
+    /// Caught by running the suite at 22:55 local. A one-hour-a-day flake in a metric-honesty guard is
+    /// exactly the kind that gets waved through as "probably nothing" at the wrong moment.
+    /// </para>
+    /// </summary>
     private void RecordReply(int index, double responseMinutes)
     {
         var key = $"chat-{index}";
-        var inbound = DateTimeOffset.UtcNow.AddDays(-1).AddSeconds(index);
+        var inbound = LocalDayBoundary
+            .StartOfDay(DateTime.Today.AddDays(-1))
+            .AddHours(10)
+            .AddSeconds(index);
 
         _tracker.Observe("acct", key, isAwaiting: true, lastMessageFromMe: false, inbound);
         _tracker.Observe("acct", key, isAwaiting: false, lastMessageFromMe: true,

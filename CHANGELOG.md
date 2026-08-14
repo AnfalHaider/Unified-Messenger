@@ -5,6 +5,27 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.24
+
+**If your settings ever get reset, the app now tells you.** When Unified Messenger cannot read your saved
+settings at startup — a file damaged by a crash, a backup tool, or antivirus holding it open — it falls
+back to defaults and carries on. That much already worked, and your old file was already being kept
+rather than deleted. What was missing is that nobody told you: your reply-time targets, business hours,
+notification choices and AI setting would quietly revert, and the only record was in a log file you have
+no reason to read.
+
+You now get a notice at startup explaining what happened, confirming that your accounts and message
+history are untouched, pointing out that automatic updates are worth re-checking, and giving you the
+exact location of the copy of your previous file — with a button to open the folder it is in.
+
+It does not claim to list which settings changed, because the file could not be read and there is
+genuinely no way to know. It does not offer to restore automatically, for the same reason.
+
+**Startup prompts no longer collide.** The setup wizard and the "pin to taskbar" prompt were both started
+at the same moment, and Windows allows only one dialog at a time — so on a first run where both were due,
+one of them silently never appeared, and the setup wizard was marked as completed anyway. They now run one
+after another.
+
 ## v4.99.23
 
 **The icon picker can now be used without looking at it.** Choosing an account's icon offered twenty-five
