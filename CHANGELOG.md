@@ -5,6 +5,27 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.25
+
+**"You're all caught up" now means it.** The dashboard decided you were caught up purely from the number
+of customers waiting being zero — and an account the app cannot read reports zero, because there is
+nothing to count. So if one branch's WhatsApp failed to load while the others happened to be quiet, you
+got a green tick and "You're all caught up" while that branch was not being watched at all. The card just
+below it said "couldn't read"; the headline above it never looked.
+
+It now says what it actually knows: "Nothing waiting — but not everything was counted", naming how many
+accounts could not be read, and distinguishing those from accounts that simply have not loaded yet. An
+account that is merely out of date does not block the message, because that happens routinely and would
+make the reassurance useless.
+
+**Caught up on a date range no longer sounds like caught up on everything.** With "Today" selected, a
+customer who wrote last week and is still unanswered is deliberately left out of today's count — that part
+is intended. But the summary line said "No customers are waiting on a reply", which was not true of them.
+It now reads "Caught up on this range" and tells you how many older conversations are still open.
+
+The start-of-shift briefing was making the same claim, so it got the same fix — including what the
+on-device AI is told, since it would otherwise write the same false reassurance more fluently.
+
 ## v4.99.24
 
 **If your settings ever get reset, the app now tells you.** When Unified Messenger cannot read your saved

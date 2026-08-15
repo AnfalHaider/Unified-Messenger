@@ -1440,9 +1440,21 @@ public sealed partial class CommandCenterPanel : UserControl
             return;
         }
 
-        var caughtUp = totalAwaiting == 0;
+        // `totalAwaiting == 0` alone was not enough to claim caught-up. An account whose read failed
+        // contributes zero awaiting because there is nothing to count, so a branch dropping out of the
+        // rollup pushed this number DOWN — and the hero showed a green tick while the card underneath
+        // said "couldn't read". See CaughtUpClaim / F-STATE-01.
+        var claim = CaughtUpClaim.Resolve(entities, totalAwaiting);
+        var caughtUp = claim.CanClaim;
+
         // Semantic red/green pops the same in both themes, so the app-level Brush() lookup is fine here.
-        var accent = caughtUp ? Brush("SystemFillColorSuccessBrush") : Brush("SystemFillColorCriticalBrush");
+        // "Nothing waiting but incomplete" gets caution rather than success or danger: there is no known
+        // backlog, but the tick would be a lie.
+        var accent = caughtUp
+            ? Brush("SystemFillColorSuccessBrush")
+            : claim.NothingWaitingButIncomplete
+                ? Brush("SystemFillColorCautionBrush")
+                : Brush("SystemFillColorCriticalBrush");
         // NOTE: neutral text (primary/secondary) must NOT be fetched via Brush() — that resolves the app's
         // default (dark) theme, so it renders near-white and vanishes on the light hero. Let the primary text
         // INHERIT the element-themed default foreground, and dim the secondary line with Opacity instead.
@@ -1483,9 +1495,30 @@ public sealed partial class CommandCenterPanel : UserControl
             });
             headline.Children.Add(new TextBlock
             {
-                Text = "You're all caught up",
+                Text = CaughtUpClaim.Headline(claim),
                 FontSize = 24,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+        else if (claim.NothingWaitingButIncomplete)
+        {
+            // Nothing is waiting in what could be read, but something could not be. Rendering the big "0"
+            // here would be the same overclaim in a different font — it states a count the app does not
+            // actually have. A warning glyph and an explicit headline instead.
+            headline.Children.Add(new FontIcon
+            {
+                Glyph = "", // warning
+                FontSize = 26,
+                Foreground = accent,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            headline.Children.Add(new TextBlock
+            {
+                Text = CaughtUpClaim.Headline(claim),
+                FontSize = 20,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextWrapping = TextWrapping.WrapWholeWords,
                 VerticalAlignment = VerticalAlignment.Center
             });
         }
@@ -1514,7 +1547,7 @@ public sealed partial class CommandCenterPanel : UserControl
 
         text.Children.Add(new TextBlock
         {
-            Text = BuildHeroSubtext(caughtUp, overallPct.Value, accountsBehind, entities, instances),
+            Text = BuildHeroSubtext(claim, overallPct.Value, accountsBehind, entities, instances),
             FontSize = 12.5,
             Opacity = 0.75, // dims the inherited (theme-correct) foreground instead of forcing a brush
             TextWrapping = TextWrapping.WrapWholeWords
@@ -1544,15 +1577,28 @@ public sealed partial class CommandCenterPanel : UserControl
 
     /// <summary>The hero's supporting line — oldest wait + the account furthest behind + overall caught-up %.</summary>
     private string BuildHeroSubtext(
-        bool caughtUp,
+        CaughtUpClaim.Verdict claim,
         int overallPct,
         int accountsBehind,
         IReadOnlyList<OversightEntityHealth> entities,
         IReadOnlyList<MessengerInstance> instances)
     {
-        if (caughtUp)
+        if (claim.CanClaim)
         {
-            return $"No customers are waiting on a reply · {overallPct}% caught up overall.";
+            // "No customers are waiting" is only true when nothing predates the window either. With
+            // "Today" selected and a week-old thread still unanswered, the unqualified line was false in
+            // exactly the way that costs a customer.
+            return claim.CaughtUpButCarryingBacklog
+                ? $"{CaughtUpClaim.CarriedBacklogClause(claim)} · {overallPct}% caught up overall."
+                : $"No customers are waiting on a reply · {overallPct}% caught up overall.";
+        }
+
+        if (claim.NothingWaitingButIncomplete)
+        {
+            // Say which accounts are missing rather than a bare reassurance. Without this the line read
+            // "No customers are waiting on a reply", which is only true of the accounts that answered.
+            return $"Nothing waiting in what could be read, but {CaughtUpClaim.IncompleteClause(claim)} " +
+                   $"· {overallPct}% caught up across the rest.";
         }
 
         var parts = new List<string>(3);
@@ -1729,10 +1775,22 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var busy = busyHour is "—" or "" ? string.Empty : $" Busiest around {busyHour}.";
 
+        // Same honesty gate as the hero — the briefing sits directly beneath it and must not contradict
+        // it, and it had the identical `totalAwaiting == 0` blind spot.
+        var claim = CaughtUpClaim.Resolve(entities, totalAwaiting);
+
         string heuristic;
-        if (totalAwaiting == 0)
+        if (claim.CanClaim)
         {
-            heuristic = $"All caught up — nothing waiting on a reply.{projectionNote}{busy}";
+            heuristic = claim.CaughtUpButCarryingBacklog
+                ? $"Caught up on this range — but {CaughtUpClaim.CarriedBacklogClause(claim)}.{projectionNote}{busy}"
+                : $"All caught up — nothing waiting on a reply.{projectionNote}{busy}";
+        }
+        else if (claim.NothingWaitingButIncomplete)
+        {
+            heuristic =
+                $"Nothing waiting in what could be read, but {CaughtUpClaim.IncompleteClause(claim)} — " +
+                $"check those before calling it a day.{projectionNote}{busy}";
         }
         else
         {
@@ -1748,7 +1806,13 @@ public sealed partial class CommandCenterPanel : UserControl
         var isAi = false;
         if (AppSettingsService.Instance.Settings.EnableLocalAi)
         {
-            var signature = $"{overallPct}|{totalAwaiting}|{accountsBehind}|{worst?.Key}|{worst?.AwaitingCount}|{busyHour}|{eod.Projected}|{busierThanUsual}";
+            // The unmeasured counts belong in the cache key. An account going from readable to unreadable
+            // changes none of the other terms — awaiting stays 0, the percentage stays the same — so
+            // without them the cached briefing, written before anything broke, would be served unchanged
+            // and the new warning would never reach the owner.
+            var signature =
+                $"{overallPct}|{totalAwaiting}|{accountsBehind}|{worst?.Key}|{worst?.AwaitingCount}|" +
+                $"{busyHour}|{eod.Projected}|{busierThanUsual}|{claim.UnreadableCount}|{claim.NotLoadedCount}";
             var cached = OversightInsightService.Instance.TryGet(BriefingCacheKey, signature);
             if (cached is not null)
             {
@@ -1757,9 +1821,16 @@ public sealed partial class CommandCenterPanel : UserControl
             }
             else
             {
+                // The model is told about the unmeasured accounts too. Feeding it only the counts would
+                // have it write the same falsely-reassuring briefing the heuristic used to, in better
+                // prose — and the AI line replaces the heuristic rather than sitting beside it.
+                var incomplete = CaughtUpClaim.IncompleteClause(claim);
                 var prompt =
                     $"Across {entities.Count} accounts: {totalAwaiting} customer(s) waiting, {accountsBehind} account(s) " +
                     $"behind, {overallPct}% caught up overall." +
+                    (string.IsNullOrEmpty(incomplete)
+                        ? string.Empty
+                        : $" Important: {incomplete}, so these figures do not cover the whole business.") +
                     (worst is not null ? $" Furthest behind: {worst.DisplayName} ({worst.AwaitingCount} waiting, {worst.OnTimePercent}% caught up)." : string.Empty) +
                     (eod.HasData ? $" {eod.SoFar} messages so far today, projected ~{eod.Projected} by end of day." : string.Empty) +
                     (busierThanUsual ? " That is busier than the usual daily average." : string.Empty) +
