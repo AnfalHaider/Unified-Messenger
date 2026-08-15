@@ -5,6 +5,25 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.26
+
+**The green, amber and red used for status are now readable in both themes.** They were one set of
+colours shared between the light and dark themes, and each of them failed in one of them. In light mode
+the green "on time" figure measured 2.28:1 against the card behind it and the amber 2.15:1 — well under
+the 4.5:1 minimum for readable text, and worse than the brand-colour problem fixed earlier. In dark mode
+it was the red that failed, at 2.84:1.
+
+Each theme now has its own set, measured against the surface it is actually drawn on: 5.02, 5.02 and 4.83
+in light; 6.03, 6.39 and 4.96 in dark. One shared set could never have worked — the contrast a colour
+needs to be readable on white and the contrast it needs on near-black are mutually exclusive.
+
+**Status is never signalled by colour alone.** Green and red are almost identical in brightness, so in
+greyscale — or to the many people with red/green colour blindness — they are the same colour. Every place
+the app uses status colour also says it in words or shows a symbol: the account rows spell out "Signed
+out", "No internet — reconnecting…" or "Connection error", the trend badges carry an up or down arrow,
+and the waiting pill reads "N awaiting" or "caught up". That was already true throughout; it is now
+checked automatically so it stays true.
+
 ## v4.99.25
 
 **"You're all caught up" now means it.** The dashboard decided you were caught up purely from the number
