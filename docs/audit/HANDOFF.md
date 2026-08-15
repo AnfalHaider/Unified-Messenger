@@ -1,8 +1,8 @@
 # Product-hardening audit — handoff
 
-**Branch:** `audit/product-hardening` (35 commits ahead of `main`) · **Head version:** `v4.99.24`
-**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline, dialog and durability passes
-(§5.2 items 1, 2 and 4 done, 3 half done; §2's tallies still describe session 1 only).
+**Branch:** `audit/product-hardening` (37 commits ahead of `main`) · **Head version:** `v4.99.25`
+**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline, dialog, durability and state-matrix passes
+(§5.2 items 1, 2, 4 and 5 done, 3 half done; §2's tallies still describe session 1 only).
 
 Read this file first. It contains facts established the hard way; re-deriving them costs hours and
 several of them contradict `AGENTS.md`.
@@ -284,9 +284,18 @@ complete anyway. Now sequenced.
 > 499 replies but reads 100%" — while the product was correct. Re-anchored to 10:00 local. If a
 > date-sensitive metric test fails, check the clock before the code.
 
-**5. The remaining state-matrix cells.** All-caught-up (needs a synthetic zero-awaiting state — never seen
-live), AI on vs off (the heuristic-fallback path has never been observed), quiet hours, date-range
-interactions.
+**5. ~~The remaining state-matrix cells.~~ DONE in session 2 — `v4.99.25`, Increment 27.** Reaching the
+all-caught-up cell is what found **F-STATE-01 (S2)**: an account whose read fails contributes **zero**
+awaiting, so a branch dropping out pushed the total *down* and the hero showed a green tick and "You're
+all caught up" while that branch was not being measured. Same shape as the rounding lie. Also
+**F-STATE-02** — "caught up" on a date range read as caught up on everything, while pre-window threads
+were still open. Both fixed via one shared `CaughtUpClaim`, used by the hero, the briefing **and the AI
+prompt**. Quiet hours and AI on/off came back **clean** and now have coverage. Full write-up in
+`state-matrix.md`.
+
+**Still not seen on screen:** the all-caught-up hero itself. Reaching it needs zero awaiting across every
+account, which cannot be staged here without overwriting the owner's live snapshot — the decision is
+covered by test, the three headline branches are not covered by observation.
 
 **6. Semantic status colours contrast.** Only the brand token was measured. Success/warning/danger — used
 for the awaiting pill and on-time percentages — are unmeasured in both themes, and status colour is
@@ -355,10 +364,10 @@ FullyQualifiedName~NotLoadedIsNotUnreadableTests|FullyQualifiedName~ScanAppliesO
 Append the offline suites too:
 
 ```
-|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests|FullyQualifiedName~SettingsRecoveryNoticeTests
+|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests|FullyQualifiedName~SettingsRecoveryNoticeTests|FullyQualifiedName~CaughtUpClaimTests|FullyQualifiedName~QuietHoursInteractionTests
 ```
 
-That is **282 tests** as of `v4.99.24` (164 from session 1 + 50 DST + 52 offline + 5 dialog + 11 durability). Two of the retry tests
+That is **304 tests** as of `v4.99.25` (164 from session 1 + 50 DST + 52 offline + 5 dialog + 11 durability + 22 state-matrix). Two of the retry tests
 wait on real timers, so the run takes ~23s rather than under a second. When a change touches day
 bucketing, also run the suites that cover the modified classes — the sweep used for Increment 23 was:
 
