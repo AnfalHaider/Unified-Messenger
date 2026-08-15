@@ -1,8 +1,8 @@
 # Product-hardening audit — handoff
 
-**Branch:** `audit/product-hardening` (37 commits ahead of `main`) · **Head version:** `v4.99.25`
-**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline, dialog, durability and state-matrix passes
-(§5.2 items 1, 2, 4 and 5 done, 3 half done; §2's tallies still describe session 1 only).
+**Branch:** `audit/product-hardening` (39 commits ahead of `main`) · **Head version:** `v4.99.26`
+**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline, dialog, durability, state-matrix and contrast passes
+(§5.2 items 1, 2, 4, 5 and 6 done, 3 half done; §2's tallies still describe session 1 only).
 
 Read this file first. It contains facts established the hard way; re-deriving them costs hours and
 several of them contradict `AGENTS.md`.
@@ -297,10 +297,23 @@ prompt**. Quiet hours and AI on/off came back **clean** and now have coverage. F
 account, which cannot be staged here without overwriting the owner's live snapshot — the decision is
 covered by test, the three headline branches are not covered by observation.
 
-**6. Semantic status colours contrast.** Only the brand token was measured. Success/warning/danger — used
-for the awaiting pill and on-time percentages — are unmeasured in both themes, and status colour is
-exactly where colour-only encoding hides. `BrandContrastTests` has a reusable WCAG calculator that parses
-`Tokens.xaml`; extend it.
+**6. ~~Semantic status colours contrast.~~ DONE in session 2 — `v4.99.26`, Increment 28.**
+**F-A11Y-04 (S2):** all three were a single value shared between themes, and **each failed in one of
+them** — success 2.28:1 and warning 2.15:1 in light (worse than the brand regression), danger 2.84:1 in
+dark. Now per-theme and all ≥4.5:1. A shared value was never possible: the luminance ranges for white and
+for the dark card do not overlap, which is now a test. WCAG 1.4.1 came back **clean** — every status
+surface carries words or a glyph, and `StatusCueTests` pins the rule. Write-up in
+`docs/design-system/contrast-audit.md`.
+
+> **The trap in this change, if you touch these again.** Moving the colours into theme dictionaries broke
+> `UmSemanticBrushes.Get`, which used `Application.Current.Resources.TryGetValue` — unsafe for theme-varying
+> resources, as `ThemeBrushResolver`'s own comment says, and its fallback was a **silent `Colors.Gray`**.
+> The palette now lives in an explicit C# table *and* `Tokens.xaml`, with a test asserting they match.
+
+**Still unmeasured:** the `SystemFillColor*` brushes, which are used **more** than the app's own tokens
+(36/33/29 vs 12/12/11). They come from WinUI with per-theme values so they are probably fine — but that is
+inference. High-contrast mode is still brand-token-only, and no colour was verified on screen (UIA exposes
+no fill colours).
 
 **7. A real multi-hour soak.** The leak check was an 11-minute accelerated proxy (160 navigations) and
 found no leak, but it cannot see a slow leak. **WebView2 held 1.7–2.0 GB across 17 processes** — several
@@ -364,10 +377,10 @@ FullyQualifiedName~NotLoadedIsNotUnreadableTests|FullyQualifiedName~ScanAppliesO
 Append the offline suites too:
 
 ```
-|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests|FullyQualifiedName~SettingsRecoveryNoticeTests|FullyQualifiedName~CaughtUpClaimTests|FullyQualifiedName~QuietHoursInteractionTests
+|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests|FullyQualifiedName~SettingsRecoveryNoticeTests|FullyQualifiedName~CaughtUpClaimTests|FullyQualifiedName~QuietHoursInteractionTests|FullyQualifiedName~StatusContrastTests|FullyQualifiedName~StatusCueTests
 ```
 
-That is **304 tests** as of `v4.99.25` (164 from session 1 + 50 DST + 52 offline + 5 dialog + 11 durability + 22 state-matrix). Two of the retry tests
+That is **331 tests** as of `v4.99.26` (164 from session 1 + 50 DST + 52 offline + 5 dialog + 11 durability + 22 state-matrix + 27 contrast). Two of the retry tests
 wait on real timers, so the run takes ~23s rather than under a second. When a change touches day
 bucketing, also run the suites that cover the modified classes — the sweep used for Increment 23 was:
 
