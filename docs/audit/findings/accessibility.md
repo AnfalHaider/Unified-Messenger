@@ -218,3 +218,65 @@ recorded here so the copy pass is not treated as purely cosmetic.
 - **Not verified live:** the two `ReviewHealthPanel` names. They only render when a Google account has
   unanswered reviews, and this machine's review data reads "Not scanned yet", so the chip and row branches
   never ran. Fixed by inspection, same one-attribute pattern as the verified ones.
+
+---
+
+# Tab order walked, and the screen-reader experience (session 2, `v4.99.27`)
+
+Session 1 read the UIA tree but never walked focus. This drove `Tab` through the running app with UIA
+reporting the focused element at each stop.
+
+**Method note worth keeping.** The first walk leaked: after eight stops the app lost foreground and the
+synthetic keystrokes went to a different application, which happily reported *its* controls as the "tab
+order". Eighteen of the first twenty-six stops were another program. Any focus walk driven by injected
+input has to re-assert the foreground window **and** discard stops whose `ProcessId` is not the app's,
+or it produces a confident, entirely fictional result.
+
+## Result: 51 stops, zero unnamed, cycle closes
+
+| Check | Result |
+|---|---|
+| Distinct focus stops in one cycle | **51** |
+| Unnamed stops | **0** |
+| Focus traps / dead ends | **none** — the order repeats after 51, so every stop is reachable and escapable |
+| Order follows reading order | **yes** — title-bar chrome → sidebar nav → locations and their accounts → command-centre controls → account cards → footer nav, then wraps |
+| Names carry state, not just identity | **yes** — e.g. *"Depilex F-11 WhatsApp: 97 customers waiting. Activate to work through this account's replies."* |
+
+Locations group their accounts in visual order, and each account card contributes exactly three stops
+(expand, details, activate) in a consistent pattern.
+
+## F-A11Y-05 — an account row never said it could be opened
+
+- **Severity:** S3 · **Confidence:** confirmed (observed in the walk, fixed, re-tested) · **Status:** **FIXED**
+
+The walk put the defect and its own solution next to each other:
+
+```
+[Group] 'DHA-2 location, 2 accounts, press to collapse or expand'
+[Group] 'Depilex DHA-2 WhatsApp, WhatsApp'
+```
+
+A sidebar row is a `Border` with a `KeyDown` handler, not a `Button`. It exposes **no Invoke pattern**, so
+a screen reader announces a plain `Group` with no indication that it does anything. Enter and Space *do*
+open the account (`InstanceRow_KeyDown`), so the capability was there and only the affordance was missing
+— and the location header immediately above already solved it, by baking the action into the name.
+
+Fixed the same way: unselected account rows now end with "press to open". Placed **last** in the name, so
+a user who interrupts the announcement still hears the account, its status and its unread count first; and
+omitted when the row is the selected one, where it would be noise.
+
+Not fixed by giving the row a real `Button` control type and an Invoke pattern, which is the more correct
+answer. That needs a custom `AutomationPeer` on a control used in the app's busiest surface, and the
+affordance — the thing a user actually loses — is fully addressed by the name. Recorded as the better fix
+if anyone revisits.
+
+## What this does NOT establish
+
+- **No screen reader was run.** This reads the UIA tree Narrator and NVDA consume, in focus order, which
+  is much closer to the real experience than a static dump — but nobody listened to it. Announcement
+  verbosity, punctuation handling and interruption behaviour are unverified.
+- **Only the dashboard shell was walked.** Settings, Analytics, Reviews, Reports and every dialog have
+  their own focus orders, none of them walked.
+- **Shift+Tab was not tested**, so reverse order is unverified.
+- **No modal was walked**, so focus containment inside a `ContentDialog` — and whether focus returns
+  sensibly on close — is untested.

@@ -31,6 +31,19 @@ internal static class WorkspaceSidebarAccessibility
         {
             parts.Add("selected");
         }
+        else
+        {
+            // The row is a Border with a KeyDown handler, not a Button, so it exposes no Invoke pattern —
+            // a screen reader announces it as a plain Group and gives no hint that it does anything.
+            // Enter and Space DO open the account (InstanceRow_KeyDown), so the capability is there and
+            // only the affordance was missing.
+            //
+            // The location headers directly above these rows already solve it the same way, by baking the
+            // action into the name ("…, press to collapse or expand"). A tab-order walk of the live app
+            // put the two side by side: the header said what it did, the account under it did not.
+            // Skipped when the row is already the selected one, where "press to open" is just noise.
+            parts.Add("press to open");
+        }
 
         return string.Join(", ", parts);
     }

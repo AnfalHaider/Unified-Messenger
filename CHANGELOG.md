@@ -5,6 +5,17 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.27
+
+**Accounts in the sidebar now tell screen-reader users they can be opened.** Pressing Enter or Space on
+an account has always worked, but the row announced only its name and status — nothing to suggest it did
+anything at all. The location headings directly above them already said "press to collapse or expand";
+the accounts underneath said nothing. They now end with "press to open", after the name, status and
+unread count so the useful part is heard first.
+
+Found by walking the keyboard focus order through the whole dashboard, which otherwise came back clean:
+51 stops, every one of them named, no dead ends, and an order that follows the screen.
+
 ## v4.99.26
 
 **The green, amber and red used for status are now readable in both themes.** They were one set of
