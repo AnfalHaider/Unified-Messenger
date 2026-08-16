@@ -28,10 +28,30 @@ internal static class InstallerIntegrityVerifier
             return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(expectedSha256))
+        // An installer is admitted on EITHER a verified SHA-256 digest OR a trusted Authenticode
+        // signature — and never on neither.
+        //
+        // It used to require Authenticode unconditionally, with the digest as an optional extra. Nothing
+        // in this repository signs anything: `installer.iss` has no SignTool directive, the CI workflow
+        // has no signing step, and Get-AuthenticodeSignature on the built installer reports NotSigned. So
+        // WinVerifyTrust returned TRUST_E_NOSIGNATURE for every update that has ever been offered, and
+        // auto-update — which is ON by default and does not prompt — could not succeed. It downloaded the
+        // full installer at every launch, rejected it, deleted it, and threw inside a discarded task
+        // where nothing reported the failure. Verified by execution: with a correct digest supplied, the
+        // old code still answered "Downloaded installer is not Authenticode-signed."
+        //
+        // The digest is published as a sidecar asset beside the installer and fetched over HTTPS from the
+        // same GitHub origin. That is a genuine integrity check against a truncated or corrupted download
+        // — which is exactly what a dropped connection produces — but it is NOT equivalent to
+        // Authenticode: it does not prove who built the file, so it does not defend against a compromised
+        // release. Authenticode remains the stronger control and should be restored to mandatory once a
+        // signing certificate exists (`ExpectedPublisherSubstring` is already wired for the pin).
+        // Recorded as F-OFFLINE-01 in docs/audit/findings/offline.md.
+        var hasDigest = !string.IsNullOrWhiteSpace(expectedSha256);
+        if (hasDigest)
         {
             var actualHash = ComputeSha256Hex(installerPath);
-            if (!actualHash.Equals(expectedSha256.Trim(), StringComparison.OrdinalIgnoreCase))
+            if (!actualHash.Equals(expectedSha256!.Trim(), StringComparison.OrdinalIgnoreCase))
             {
                 errorMessage = "Downloaded installer failed SHA-256 verification.";
                 return false;
@@ -40,19 +60,40 @@ internal static class InstallerIntegrityVerifier
 
         if (!OperatingSystem.IsWindows())
         {
+            if (!hasDigest)
+            {
+                errorMessage = MissingBothControlsMessage;
+                return false;
+            }
+
             return true;
         }
 
         // Authenticode policy validation: verifies the embedded signature is intact AND the signing
         // certificate chains to a trusted root (WinVerifyTrust), not merely that a signature exists.
-        if (!TryVerifyAuthenticodeTrust(installerPath, out var trustError))
+        var isSigned = TryVerifyAuthenticodeTrust(installerPath, out var trustError);
+        if (!isSigned)
         {
-            errorMessage = trustError;
-            return false;
+            // A signature that is present but BAD is never excused by a matching digest — a tampered or
+            // revoked signature is evidence of a problem, not an absent control.
+            if (!IsMissingSignature(trustError))
+            {
+                errorMessage = trustError;
+                return false;
+            }
+
+            if (!hasDigest)
+            {
+                errorMessage = MissingBothControlsMessage;
+                return false;
+            }
         }
 
-        // Optional publisher pinning — defends against a validly-signed but unexpected publisher.
-        if (!string.IsNullOrEmpty(ExpectedPublisherSubstring) &&
+        // Optional publisher pinning — defends against a validly-signed but unexpected publisher. Only
+        // meaningful when there IS a signature; pinning an unsigned file would just re-impose the
+        // requirement this method deliberately relaxes.
+        if (isSigned &&
+            !string.IsNullOrEmpty(ExpectedPublisherSubstring) &&
             !TryVerifyPublisher(installerPath, ExpectedPublisherSubstring, out var publisherError))
         {
             errorMessage = publisherError;
@@ -61,6 +102,22 @@ internal static class InstallerIntegrityVerifier
 
         return true;
     }
+
+    /// <summary>
+    /// Shown when an installer arrives with no signature and no digest. Deliberately does not name
+    /// Authenticode: the reader is a business owner, and the only action available is to retry.
+    /// </summary>
+    internal const string MissingBothControlsMessage =
+        "The downloaded update could not be verified. Try again when your connection is stable.";
+
+    /// <summary>
+    /// True when the trust failure is "there is no signature" rather than "the signature is wrong". Only
+    /// the former may be covered by a digest; a bad, expired or revoked signature is a positive signal
+    /// that something is wrong with the file and is never excused.
+    /// </summary>
+    private static bool IsMissingSignature(string? trustError) =>
+        trustError is not null &&
+        trustError.Contains("not Authenticode-signed", StringComparison.OrdinalIgnoreCase);
 
     internal static string ComputeSha256Hex(string filePath)
     {

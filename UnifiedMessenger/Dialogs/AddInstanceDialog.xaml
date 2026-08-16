@@ -24,11 +24,24 @@
             Header="Display name"
             PlaceholderText="e.g. WhatsApp Work" />
 
-        <ComboBox
-            x:Name="PlatformBox"
-            Header="Platform"
-            HorizontalAlignment="Stretch"
-            SelectionChanged="PlatformBox_SelectionChanged" />
+        <StackPanel Spacing="4">
+            <ComboBox
+                x:Name="PlatformBox"
+                Header="Platform"
+                HorizontalAlignment="Stretch"
+                SelectionChanged="PlatformBox_SelectionChanged" />
+
+            <!--
+                What the selected channel actually gives you. Without this, the picker showed six channels
+                as if they were equivalent when only three produce oversight data, so adding Messenger or
+                Discord looked broken rather than out of scope.
+            -->
+            <TextBlock
+                x:Name="PlatformCapabilityText"
+                FontSize="12"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                TextWrapping="WrapWholeWords" />
+        </StackPanel>
 
         <ComboBox
             x:Name="CategoryBox"

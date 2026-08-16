@@ -163,13 +163,14 @@ public sealed class ResponseTimeTracker
         IEnumerable<MessengerInstance> instances,
         DateTimeOffset? fromUtc,
         DateTimeOffset? toUtc,
-        int slaThresholdMinutes)
+        int slaThresholdMinutes,
+        TimeZoneInfo? zone = null)
     {
         var ids = ResolveInstanceIds(instances);
         var values = new List<double>();
         var withinSla = 0;
         var answeredToday = 0;
-        var todayLocal = DateTime.Today;
+        var todayLocal = LocalDayBoundary.Today(zone);
 
         foreach (var id in ids)
         {
@@ -198,7 +199,7 @@ public sealed class ResponseTimeTracker
                         withinSla++;
                     }
 
-                    if (sample.AnsweredAtUtc.ToLocalTime().Date == todayLocal)
+                    if (LocalDayBoundary.LocalDate(sample.AnsweredAtUtc, zone) == todayLocal)
                     {
                         answeredToday++;
                     }
@@ -215,7 +216,10 @@ public sealed class ResponseTimeTracker
         var median = Percentile(values, 0.50);
         var p90 = Percentile(values, 0.90);
         var average = values.Average();
-        var slaPercent = (int)Math.Round(withinSla * 100.0 / values.Count);
+        // Shared with the caught-up percentage: 100 is reserved for "no breaches", 0 for "no successes".
+        // Plain rounding reported "SLA met 100%" for 499 of 500 replies inside the target — with the
+        // breach still visible in the sample count beside it.
+        var slaPercent = MetricMath.HonestPercent(withinSla, values.Count);
 
         return new ResponseStats(true, values.Count, median, average, p90, slaPercent, answeredToday);
     }
@@ -223,7 +227,10 @@ public sealed class ResponseTimeTracker
     /// <summary>One point per local day (last <paramref name="days"/> days): the median FRT and reply count
     /// for replies answered that day, oldest→newest. Days with no replies are included with count 0 so the
     /// trend chart has a continuous x-axis.</summary>
-    public IReadOnlyList<DailyResponsePoint> GetDailyMedians(IEnumerable<MessengerInstance> instances, int days = 7)
+    public IReadOnlyList<DailyResponsePoint> GetDailyMedians(
+        IEnumerable<MessengerInstance> instances,
+        int days = 7,
+        TimeZoneInfo? zone = null)
     {
         var ids = ResolveInstanceIds(instances);
         var byDay = new Dictionary<DateTime, List<double>>();
@@ -238,7 +245,7 @@ public sealed class ResponseTimeTracker
             {
                 foreach (var sample in list)
                 {
-                    var day = sample.AnsweredAtUtc.ToLocalTime().Date;
+                    var day = LocalDayBoundary.LocalDate(sample.AnsweredAtUtc, zone);
                     if (!byDay.TryGetValue(day, out var bucket))
                     {
                         bucket = [];
@@ -250,7 +257,9 @@ public sealed class ResponseTimeTracker
             }
         }
 
-        var today = DateTime.Today;
+        // AddDays on a calendar date walks the calendar, not 24-hour blocks, so the seven labelled days
+        // stay seven distinct dates even when one of them is 23 or 25 hours long.
+        var today = LocalDayBoundary.Today(zone);
         var points = new List<DailyResponsePoint>(days);
         for (var i = days - 1; i >= 0; i--)
         {
@@ -279,7 +288,8 @@ public sealed class ResponseTimeTracker
     public IReadOnlyList<DailyPercentPoint> GetDailyWithinThreshold(
         IEnumerable<MessengerInstance> instances,
         int thresholdMinutes,
-        int days = 7)
+        int days = 7,
+        TimeZoneInfo? zone = null)
     {
         var ids = ResolveInstanceIds(instances);
         var byDay = new Dictionary<DateTime, (int Total, int Within)>();
@@ -294,7 +304,7 @@ public sealed class ResponseTimeTracker
             {
                 foreach (var sample in list)
                 {
-                    var day = sample.AnsweredAtUtc.ToLocalTime().Date;
+                    var day = LocalDayBoundary.LocalDate(sample.AnsweredAtUtc, zone);
                     byDay.TryGetValue(day, out var acc);
                     var within = thresholdMinutes <= 0 || sample.FrtMinutes <= thresholdMinutes;
                     byDay[day] = (acc.Total + 1, acc.Within + (within ? 1 : 0));
@@ -302,14 +312,14 @@ public sealed class ResponseTimeTracker
             }
         }
 
-        var today = DateTime.Today;
+        var today = LocalDayBoundary.Today(zone);
         var points = new List<DailyPercentPoint>(days);
         for (var i = days - 1; i >= 0; i--)
         {
             var day = today.AddDays(-i);
             if (byDay.TryGetValue(day, out var acc) && acc.Total > 0)
             {
-                var pct = (int)Math.Round(acc.Within * 100.0 / acc.Total);
+                var pct = MetricMath.HonestPercent(acc.Within, acc.Total);
                 points.Add(new DailyPercentPoint(day.ToString("ddd"), pct, acc.Total));
             }
             else

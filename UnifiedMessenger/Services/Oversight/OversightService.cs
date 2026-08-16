@@ -28,11 +28,14 @@ public sealed class OversightService
 
         // Date window in the operator's local day. Caught-up % is measured over conversations active in
         // the window (today by default — including messages that arrived before connecting today).
+        // Boundaries come from LocalDayBoundary, not from `nowLocal.Offset`: on a DST transition day the
+        // offset in force now is not the offset that was in force at midnight, and pairing the two moved
+        // this window an hour in either direction. See LocalDayBoundaryTests.
         var nowLocal = DateTimeOffset.Now;
         DateTimeOffset? windowStart = window switch
         {
-            OversightWindow.Today => new DateTimeOffset(nowLocal.Date, nowLocal.Offset),
-            OversightWindow.Week => new DateTimeOffset(nowLocal.Date.AddDays(-6), nowLocal.Offset),
+            OversightWindow.Today => LocalDayBoundary.StartOfDay(nowLocal.Date),
+            OversightWindow.Week => LocalDayBoundary.StartOfDaysAgo(nowLocal.Date, 6),
             OversightWindow.Custom => customStartUtc,
             _ => null
         };
@@ -73,6 +76,9 @@ public sealed class OversightService
             OperationalThresholds.GetSlaThresholdMinutes,
             instanceId => InstanceConnectionStatusService.Instance.GetStatus(instanceId)
                 != InstanceConnectionStatus.Connected,
+            // Recorded read outcomes only. An account never read yet reports false, so the warning cannot
+            // fire on every launch before the first scan lands.
+            readFailed: AccountReadHealth.LastReadFailed,
             nowUtc: null,
             locationForInstance: instanceId =>
                 locationByInstance.TryGetValue(instanceId, out var location) ? location : string.Empty,

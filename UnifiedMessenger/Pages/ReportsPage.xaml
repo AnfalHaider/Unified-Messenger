@@ -25,7 +25,7 @@
                     FontSize="12"
                     Opacity="0.7"
                     VerticalAlignment="Center" />
-                <ComboBox x:Name="RangeBox" MinWidth="180" SelectionChanged="RangeBox_SelectionChanged" />
+                <ComboBox x:Name="RangeBox" AutomationProperties.Name="Reporting period" MinWidth="180" SelectionChanged="RangeBox_SelectionChanged" />
                 <Button x:Name="SaveMarkdownButton" Click="SaveMarkdownButton_Click" Content="Save report (.md)" />
                 <Button x:Name="ExportCsvButton" Click="ExportCsvButton_Click" Content="Export data (.csv)" />
             </StackPanel>

@@ -156,7 +156,12 @@ public static class WorkspaceSidebarHelper
         return connectionStatus switch
         {
             InstanceConnectionStatus.LoggedOut => "Signed out",
-            InstanceConnectionStatus.Error => "Connection error",
+            // `connectionDetail` was accepted and then never read, so every failure — no internet, a bad
+            // certificate, a proxy — collapsed to the same three words with no way to tell them apart.
+            // The describer returns null for details that are not error codes, and those stay behind the
+            // generic label rather than putting raw text in the rail.
+            InstanceConnectionStatus.Error =>
+                NetworkFailureDescriber.DescribeWebViewStatus(connectionDetail) ?? "Connection error",
             InstanceConnectionStatus.Initializing => "Connecting…",
             _ => "Connecting…"
         };
@@ -171,7 +176,8 @@ public static class WorkspaceSidebarHelper
     public static string ComposeRowSubtitle(
         string? platformId,
         InstanceConnectionStatus connectionStatus,
-        bool notificationsMuted)
+        bool notificationsMuted,
+        string? connectionDetail = null)
     {
         if (notificationsMuted)
         {
@@ -185,7 +191,17 @@ public static class WorkspaceSidebarHelper
 
         if (connectionStatus == InstanceConnectionStatus.Error)
         {
-            return "Connection error";
+            // "Connection error" is what a UI Automation capture of the live app read back for both
+            // WhatsApp accounts while their web clients could not reach the network — accurate, and
+            // useless. It does not say the machine is offline, and unlike the signed-out case beside it
+            // ("tap to reconnect") it offers nothing to do. The offline wording says which of the two it
+            // is, and that the app is retrying on its own so there is nothing to click.
+            return NetworkFailureDescriber.DescribeWebViewStatus(connectionDetail) switch
+            {
+                NetworkFailureDescriber.AccountOffline => "No internet — reconnecting…",
+                { } described => described,
+                _ => "Connection error"
+            };
         }
 
         return PlatformDefinition.FindById(platformId)?.DisplayName ?? "Account";

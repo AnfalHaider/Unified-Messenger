@@ -30,12 +30,14 @@
                 </StackPanel>
                 <ComboBox
                     x:Name="RangeBox"
+                    AutomationProperties.Name="Date range for analytics"
                     Grid.Column="1"
                     MinWidth="170"
                     VerticalAlignment="Center"
                     SelectionChanged="RangeBox_SelectionChanged" />
                 <Button
                     x:Name="ExportButton"
+                    AutomationProperties.Name="Export analytics data"
                     Grid.Column="2"
                     VerticalAlignment="Center"
                     Click="ExportButton_Click">

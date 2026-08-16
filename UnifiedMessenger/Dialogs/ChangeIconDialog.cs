@@ -32,7 +32,7 @@ public sealed class ChangeIconDialog : ContentDialog
 
     // Social-media brand logos: Font Awesome 6 Brands glyph (PUA codepoint) + the platform's brand color
     // (dark enough that a white glyph reads clearly). Escapes used so glyphs never depend on invisible chars.
-    private static readonly (string Glyph, string Color)[] BrandIcons =
+    internal static readonly (string Glyph, string Color)[] BrandIcons =
     [
         ("", "#25D366"), // whatsapp
         ("", "#229ED9"), // telegram
@@ -51,7 +51,7 @@ public sealed class ChangeIconDialog : ContentDialog
     ];
 
     // General-purpose icons (Segoe Fluent), each on its own flat color.
-    private static readonly (string Glyph, string Color)[] GeneralIcons =
+    internal static readonly (string Glyph, string Color)[] GeneralIcons =
     [
         ("", "#1D9E75"), // message
         ("", "#378ADD"), // contact
@@ -109,10 +109,10 @@ public sealed class ChangeIconDialog : ContentDialog
         root.Children.Add(previewRow);
 
         root.Children.Add(SectionLabel("Social media"));
-        root.Children.Add(BuildIconWrap(BrandIcons, BrandFontFamily));
+        root.Children.Add(BuildIconWrap(BrandIcons, BrandFontFamily, BrandIconNames));
 
         root.Children.Add(SectionLabel("General"));
-        root.Children.Add(BuildIconWrap(GeneralIcons, fontFamily: null));
+        root.Children.Add(BuildIconWrap(GeneralIcons, fontFamily: null, GeneralIconNames));
 
         root.Children.Add(SectionLabel("From the account"));
         var importButton = new Button
@@ -124,6 +124,9 @@ public sealed class ChangeIconDialog : ContentDialog
         importContent.Children.Add(new FontIcon { Glyph = "", FontSize = 14 }); // Download
         importContent.Children.Add(new TextBlock { Text = "Import this account's profile photo" });
         importButton.Content = importContent;
+        // Panel content again — the visible label is a TextBlock inside a StackPanel, which yields no
+        // automation name. Screen readers heard "button" for both of these too.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(importButton, "Import this account's profile photo");
         ToolTipService.SetToolTip(importButton, "Pulls the profile photo from the signed-in session. The account must be loaded.");
         importButton.Click += (_, _) =>
         {
@@ -141,6 +144,7 @@ public sealed class ChangeIconDialog : ContentDialog
         uploadContent.Children.Add(new FontIcon { Glyph = "", FontSize = 14 }); // Upload
         uploadContent.Children.Add(new TextBlock { Text = "Upload an image from this PC" });
         uploadButton.Content = uploadContent;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(uploadButton, "Upload an image from this PC");
         uploadButton.Click += (_, _) =>
         {
             Result = AvatarChoiceKind.UploadImage;
@@ -179,18 +183,52 @@ public sealed class ChangeIconDialog : ContentDialog
         Opacity = 0.7
     };
 
-    private VariableSizedWrapGrid BuildIconWrap((string Glyph, string Color)[] icons, string? fontFamily)
+    /// <summary>
+    /// Accessible names for the icon grids, positionally parallel to <see cref="BrandIcons"/> and
+    /// <see cref="GeneralIcons"/>.
+    ///
+    /// <para>
+    /// Kept as separate arrays rather than a third tuple field on purpose: those arrays hold Private Use
+    /// Area glyph codepoints, and the fewer edits that go near them the better.
+    /// </para>
+    /// <para>
+    /// Live UI Automation capture of this dialog read back <b>25 buttons with no name at all</b> — every
+    /// icon choice announced as "button". The dialog was operable only by sight; a screen-reader user
+    /// could tab through two dozen identical controls and never learn which was WhatsApp and which was
+    /// a shopping cart. The names were only ever in trailing `//` comments beside each glyph.
+    /// </para>
+    /// </summary>
+    internal static readonly string[] BrandIconNames =
+    [
+        "WhatsApp", "Telegram", "Instagram", "Facebook", "Messenger", "X", "TikTok",
+        "YouTube", "LinkedIn", "Discord", "Pinterest", "Reddit", "WeChat", "Google"
+    ];
+
+    internal static readonly string[] GeneralIconNames =
+    [
+        "Message", "Contact", "People", "Home", "Mail", "Star", "Shopping cart", "Map pin", "Settings"
+    ];
+
+    private VariableSizedWrapGrid BuildIconWrap(
+        (string Glyph, string Color)[] icons,
+        string? fontFamily,
+        IReadOnlyList<string> names)
     {
         var wrap = new VariableSizedWrapGrid { Orientation = Orientation.Horizontal, MaximumRowsOrColumns = 7 };
-        foreach (var (glyph, color) in icons)
+        for (var i = 0; i < icons.Length; i++)
         {
-            wrap.Children.Add(BuildIconButton(glyph, color, fontFamily));
+            var (glyph, color) = icons[i];
+            // Fall back to a position rather than to nothing: an unlabelled icon is the defect being
+            // fixed, and a names array that drifts out of step with the glyphs must not silently
+            // reintroduce it.
+            var name = i < names.Count ? names[i] : $"Icon {i + 1}";
+            wrap.Children.Add(BuildIconButton(glyph, color, fontFamily, name));
         }
 
         return wrap;
     }
 
-    private Button BuildIconButton(string glyph, string color, string? fontFamily)
+    private Button BuildIconButton(string glyph, string color, string? fontFamily, string accessibleName)
     {
         var host = new Grid { Width = 36, Height = 36 };
         host.Children.Add(new Ellipse { Width = 36, Height = 36, Fill = Brush(color) });
@@ -217,6 +255,10 @@ public sealed class ChangeIconDialog : ContentDialog
             BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(8)
         };
+        // The content is an Ellipse + FontIcon, so WinUI derives no name from it — a Button only takes
+        // its name from string content. Without this the control announces as a bare "button".
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"{accessibleName} icon");
+        ToolTipService.SetToolTip(button, accessibleName);
         button.Click += (_, _) =>
         {
             _selectedGlyph = glyph;

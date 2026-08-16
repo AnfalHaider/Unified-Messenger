@@ -49,6 +49,27 @@ public static class DashboardPageHelper
         };
     }
 
+    /// <summary>The id of the placeholder account the registry seeds on first run.</summary>
+    public const string SeededDefaultInstanceId = "whatsapp-default";
+
+    /// <summary>
+    /// True when the only account present is the one the app seeded itself — i.e. the owner has connected
+    /// nothing yet.
+    /// </summary>
+    /// <remarks>
+    /// On a clean install the dashboard header read "1 personal account connected." directly above an
+    /// empty state reading "No accounts connected yet." Both came from the seeded <c>whatsapp-default</c>
+    /// placeholder: it is a real registry entry, so it counted, but the owner had not connected anything
+    /// and had not signed into it. Two figures on one screen contradicting, on the very first screen a
+    /// stranger sees.
+    /// </remarks>
+    public static bool HasOnlySeededDefaultAccount(IReadOnlyCollection<MessengerInstance>? instances) =>
+        instances is { Count: 1 }
+        && string.Equals(
+            instances.First().Id,
+            SeededDefaultInstanceId,
+            StringComparison.OrdinalIgnoreCase);
+
     public static string BuildWelcomeSubtitle(int professionalCount, int personalCount) =>
         (professionalCount, personalCount) switch
         {
@@ -175,7 +196,11 @@ public static class DashboardPageHelper
                 or InstanceConnectionStatus.LoggedOut
                 or InstanceConnectionStatus.Error)
         {
-            parts.Add(connectionDetail.Trim());
+            // The detail is whatever WebView2 last reported, and for a network failure that is a raw enum
+            // name — an owner whose wifi dropped read "HostNameNotResolved" beside their WhatsApp
+            // account. Translate the ones that are error codes; pass through the ones that were already
+            // written for a human (the describer returns null for those).
+            parts.Add(NetworkFailureDescriber.DescribeWebViewStatus(connectionDetail) ?? connectionDetail.Trim());
         }
 
         return string.Join(" · ", parts);

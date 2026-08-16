@@ -30,12 +30,17 @@ internal static class PlatformNavigationHooks
         {
             if (!args.IsSuccess)
             {
-                InstanceConnectionStatusService.Instance.SetError(
-                    instance.Id,
-                    args.WebErrorStatus.ToString());
+                var webErrorStatus = args.WebErrorStatus.ToString();
+                InstanceConnectionStatusService.Instance.SetError(instance.Id, webErrorStatus);
+
+                // Nothing else retries this. The stale-adapter monitor only watches accounts that reached
+                // Ready, and an account whose page never loaded has no adapter to go stale — so without
+                // this a transient drop left the account dead until the owner refreshed it by hand.
+                NavigationRetryScheduler.Instance.OnNavigationFailed(instance.Id, webErrorStatus);
                 return;
             }
 
+            NavigationRetryScheduler.Instance.OnNavigationSucceeded(instance.Id);
             _ = UiThreadRunner.RunAsync(onNavigationCompletedAsync);
         };
 

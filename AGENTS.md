@@ -161,7 +161,21 @@ docs/
 ## Key services
 
 ### Platform model
-- **`PlatformDefinition.All`** — registry of selectable platforms: `whatsapp`, `whatsappbusiness`, `googlebusiness`, `telegram`, `messenger`, `generic`. Add new platforms here.
+- **`PlatformDefinition.All`** — registry of **nine** registered platforms: `whatsapp`, `whatsappbusiness`,
+  `googlebusiness`, `telegram`, `messenger`, `discord`, `metabusinesssuite`, `instagram`, `generic`.
+  Add new platforms here.
+- **Registered ≠ offered.** `PlatformModuleSettingsHelper.HiddenFromPicker` hides `telegram`,
+  `metabusinesssuite`, and `instagram` from "Add account"; they stay in `All` so existing accounts still
+  resolve and the nav-guard allowlist keeps their hosts. The picker therefore offers six:
+  whatsapp, whatsappbusiness, googlebusiness, messenger, discord, generic. Check `HiddenFromPicker`
+  before concluding a channel is user-reachable.
+- **Only whatsapp/whatsappbusiness produce conversation metrics.** `googlebusiness` contributes *review*
+  metrics on a separate surface (`GoogleReviewSnapshotService`). `messenger`, `discord`, and `generic` are
+  embed-only and produce nothing — that is intended, not a bug.
+- **`PlatformDefinition.Description` is rendered in the Add-account picker** (since v4.99.2) and is
+  covered by `PlatformDescriptionTests`. It must state what the channel does **today** — the tests fail
+  on roadmap words ("planned", "coming soon", …) and require unmeasured channels to say
+  "No oversight metrics". Do not write aspirational copy here; it is shown to a paying customer.
 - **`PlatformDefinition.NormalizePlatformId(id)`** — returns the registered `Id` or falls back to `"whatsapp"` for truly unknown ids.
 - **`PlatformAdapterInternals.ResolveEnabledAdapter(platformId)`** — switch on normalized ID; unknown/new platforms fall through to `NullPlatformAdapter` (`PlatformId = "generic"`). Add a case here when building a real scraping adapter.
 - **`AddInstanceDialogHelper`** — drives the "Add account" dialog; reads `PlatformDefinition.All`.
@@ -172,7 +186,13 @@ docs/
 - **`OversightEntityHealth`** — per-account/location health: `OnTimePercent`, `AwaitingCount`, `MeasuredCount`, `HasChatData`, `IsStale`, `TrendCounts`, `DisplayName`, `Key`, `MemberInstanceIds`.
 - **`OversightRollupBuilder`** — pure rollup logic; produces worst-first sorted health entries.
 - **`OversightAlertMonitor`** — edge-triggered threshold toasts when awaiting > X.
-- **`OversightInsightService`** — per-account AI insight cache: keyed by `(entityKey, signature)`, background Ollama generation, heuristic fallback. Prompts send **only aggregate counts** — never customer names or message text.
+- **`OversightInsightService`** — per-account AI insight cache: keyed by `(entityKey, signature)`, background Ollama generation, heuristic fallback. Its prompts send **only aggregate counts** — never customer names or message text.
+- ⚠️ **That aggregate-only rule is specific to `OversightInsightService`. It is NOT true of the AI layer as a whole.**
+  There is a second path: `AiInferenceQueue` → **`TranscriptBuilder.Build`**, which puts the **customer name**
+  and up to **800 characters of the message body** into the prompt. This is on-box and permitted (Ollama is
+  localhost, and the Settings copy correctly says "Message text is sent to your local Ollama instance only"),
+  but any privacy analysis that assumes "aggregates only" is wrong. This sentence previously said the
+  opposite and misled an audit — do not simplify it back.
 
 ### Unsaved-contact phone + message preview (P2-A, shipped v4.39.10) — VERIFIED FACTS
 
@@ -291,7 +311,14 @@ Do **not** add `Co-Authored-By` / tool-attribution trailers to commits in this r
 
 ---
 
-## Phase roadmap (current as of v4.53.0)
+## Phase roadmap (current as of v4.99.27)
+
+> ⚠️ The per-phase table and the "Shipped" paragraph below were last revised at **v4.53.0** and were not
+> maintained through v4.99.x. Treat them as a historical snapshot, not as current status — several items
+> they list as pending have shipped (business-hours-aware FRT is the clearest example: it is listed below
+> as an unshipped "optional follow-up", but `Services/Oversight/BusinessHoursCalculator.cs` ships and the
+> README advertises it). **Verify against the code before relying on any line in this section.**
+> `CHANGELOG.md` is the accurate record of what shipped.
 
 See `docs/remaining-work.md` for the detailed backlog. Summary:
 

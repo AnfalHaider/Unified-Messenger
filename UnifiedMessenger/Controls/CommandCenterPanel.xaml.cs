@@ -65,19 +65,23 @@ public sealed partial class CommandCenterPanel : UserControl
     /// (To is inclusive through end-of-day).</summary>
     private (DateTimeOffset? Start, DateTimeOffset? End) WindowRange()
     {
+        // Must agree instant-for-instant with OversightService.BuildSnapshot, which computes the same
+        // window for the same selection — the two are compared against each other in the rendered card.
+        // LocalDayBoundary rather than `nowLocal.Offset` / `picker.Offset`: those are the offset of a
+        // different instant and are an hour wrong on both DST transition days.
         var nowLocal = DateTimeOffset.Now;
         switch (SelectedWindow())
         {
             case OversightWindow.Today:
-                return (new DateTimeOffset(nowLocal.Date, nowLocal.Offset), null);
+                return (LocalDayBoundary.StartOfDay(nowLocal.Date), null);
             case OversightWindow.Week:
-                return (new DateTimeOffset(nowLocal.Date.AddDays(-6), nowLocal.Offset), null);
+                return (LocalDayBoundary.StartOfDaysAgo(nowLocal.Date, 6), null);
             case OversightWindow.Custom:
                 DateTimeOffset? start = FromDatePicker?.Date is { } f
-                    ? new DateTimeOffset(f.Date, f.Offset)
+                    ? LocalDayBoundary.StartOfDay(f.LocalDateTime.Date)
                     : null;
                 DateTimeOffset? end = ToDatePicker?.Date is { } t
-                    ? new DateTimeOffset(t.Date, t.Offset).AddDays(1).AddTicks(-1)
+                    ? LocalDayBoundary.EndOfDay(t.LocalDateTime.Date)
                     : null;
                 return (start, end);
             default:
@@ -256,7 +260,11 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             sb.Append(e.Key).Append(',').Append(e.OnTimePercent).Append(',').Append(e.AwaitingCount)
                 .Append(',').Append(e.MeasuredCount).Append(',').Append(e.HasChatData ? 1 : 0)
-                .Append(',').Append(e.HistoricalOpenCount).Append(',').Append(e.IsStale ? 1 : 0).Append(';');
+                .Append(',').Append(e.HistoricalOpenCount).Append(',').Append(e.IsStale ? 1 : 0)
+                // ReadFailed changes the card's text and colour without changing any count, so it must be
+                // in the signature or the transition into (and out of) "can't read this account" would be
+                // suppressed as a no-op redraw.
+                .Append(',').Append(e.ReadFailed ? 1 : 0).Append(';');
         }
 
         return sb.ToString();
@@ -580,6 +588,18 @@ public sealed partial class CommandCenterPanel : UserControl
             IsExpanded = _expandedKeys.Contains(entity.Key)
         };
 
+        // The Expander's header renders as a Button, and with no name on the Expander that button
+        // announces only "button" — for the whole account card, on every card. Its children are all named
+        // individually, so a screen reader could read the contents, but the control the user actually
+        // focuses and activates said nothing about which account it was or what activating it does.
+        var awaitingSummary = entity.AwaitingCount == 1
+            ? "1 customer waiting"
+            : $"{entity.AwaitingCount} customers waiting";
+
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            expander,
+            $"{entity.DisplayName}: {awaitingSummary}. Expand to see who is waiting.");
+
         // Preserve open/closed state across the 20s auto-refresh re-render.
         expander.Expanding += (_, _) => _expandedKeys.Add(entity.Key);
         expander.Collapsed += (_, _) => _expandedKeys.Remove(entity.Key);
@@ -723,6 +743,15 @@ public sealed partial class CommandCenterPanel : UserControl
                 Padding = new Thickness(8, 6, 8, 6),
                 CornerRadius = new CornerRadius(6)
             };
+
+            // Each needs-reply row is a Button whose Content is a panel, so it carries no accessible name
+            // of its own: a screen-reader user heard "button" for every waiting customer, with no way to
+            // tell one row from the next. This is the product's core workflow, so name it with the
+            // customer and what activating it does.
+            var rowName = string.IsNullOrWhiteSpace(chat.CustomerName)
+                ? "Open conversation"
+                : $"{chat.CustomerName}, open conversation";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(item, rowName);
 
             var capturedInstanceId = instanceId;
             var capturedChat = chat;
@@ -907,6 +936,10 @@ public sealed partial class CommandCenterPanel : UserControl
             Content = content
         };
         ToolTipService.SetToolTip(chip, "Show every account's waiting customers");
+        // Panel content again — a tooltip is not an accessible name, and screen readers do not announce it
+        // in place of one.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            chip, $"Showing {label}. Activate to show every account's waiting customers.");
         chip.Click += (_, _) =>
         {
             _needsReplyFilterIds = null;
@@ -1257,7 +1290,14 @@ public sealed partial class CommandCenterPanel : UserControl
         int? overallPct = null;
         if (measured > 0)
         {
-            overallPct = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
+            var weighted = (int)Math.Round(live.Sum(e => (long)e.OnTimePercent * e.MeasuredCount) / (double)measured);
+
+            // Same honesty rule the per-entity percentage uses, applied again here because a weighted
+            // average re-introduces the problem: a large fully-caught-up account beside a small one at 90%
+            // averages to 99.9, which rounds back up to 100 — so the headline tile would read "100% caught
+            // up" while the hero beside it reads "1 customer is waiting". The whole business is only 100%
+            // caught up when every measured account is.
+            overallPct = weighted >= 100 && live.Any(e => e.OnTimePercent < 100) ? 99 : weighted;
         }
 
         var totalAwaiting = entities.Sum(e => e.AwaitingCount);
@@ -1400,9 +1440,21 @@ public sealed partial class CommandCenterPanel : UserControl
             return;
         }
 
-        var caughtUp = totalAwaiting == 0;
+        // `totalAwaiting == 0` alone was not enough to claim caught-up. An account whose read failed
+        // contributes zero awaiting because there is nothing to count, so a branch dropping out of the
+        // rollup pushed this number DOWN — and the hero showed a green tick while the card underneath
+        // said "couldn't read". See CaughtUpClaim / F-STATE-01.
+        var claim = CaughtUpClaim.Resolve(entities, totalAwaiting);
+        var caughtUp = claim.CanClaim;
+
         // Semantic red/green pops the same in both themes, so the app-level Brush() lookup is fine here.
-        var accent = caughtUp ? Brush("SystemFillColorSuccessBrush") : Brush("SystemFillColorCriticalBrush");
+        // "Nothing waiting but incomplete" gets caution rather than success or danger: there is no known
+        // backlog, but the tick would be a lie.
+        var accent = caughtUp
+            ? Brush("SystemFillColorSuccessBrush")
+            : claim.NothingWaitingButIncomplete
+                ? Brush("SystemFillColorCautionBrush")
+                : Brush("SystemFillColorCriticalBrush");
         // NOTE: neutral text (primary/secondary) must NOT be fetched via Brush() — that resolves the app's
         // default (dark) theme, so it renders near-white and vanishes on the light hero. Let the primary text
         // INHERIT the element-themed default foreground, and dim the secondary line with Opacity instead.
@@ -1443,9 +1495,30 @@ public sealed partial class CommandCenterPanel : UserControl
             });
             headline.Children.Add(new TextBlock
             {
-                Text = "You're all caught up",
+                Text = CaughtUpClaim.Headline(claim),
                 FontSize = 24,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+        else if (claim.NothingWaitingButIncomplete)
+        {
+            // Nothing is waiting in what could be read, but something could not be. Rendering the big "0"
+            // here would be the same overclaim in a different font — it states a count the app does not
+            // actually have. A warning glyph and an explicit headline instead.
+            headline.Children.Add(new FontIcon
+            {
+                Glyph = "", // warning
+                FontSize = 26,
+                Foreground = accent,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            headline.Children.Add(new TextBlock
+            {
+                Text = CaughtUpClaim.Headline(claim),
+                FontSize = 20,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextWrapping = TextWrapping.WrapWholeWords,
                 VerticalAlignment = VerticalAlignment.Center
             });
         }
@@ -1474,7 +1547,7 @@ public sealed partial class CommandCenterPanel : UserControl
 
         text.Children.Add(new TextBlock
         {
-            Text = BuildHeroSubtext(caughtUp, overallPct.Value, accountsBehind, entities, instances),
+            Text = BuildHeroSubtext(claim, overallPct.Value, accountsBehind, entities, instances),
             FontSize = 12.5,
             Opacity = 0.75, // dims the inherited (theme-correct) foreground instead of forcing a brush
             TextWrapping = TextWrapping.WrapWholeWords
@@ -1504,27 +1577,55 @@ public sealed partial class CommandCenterPanel : UserControl
 
     /// <summary>The hero's supporting line — oldest wait + the account furthest behind + overall caught-up %.</summary>
     private string BuildHeroSubtext(
-        bool caughtUp,
+        CaughtUpClaim.Verdict claim,
         int overallPct,
         int accountsBehind,
         IReadOnlyList<OversightEntityHealth> entities,
         IReadOnlyList<MessengerInstance> instances)
     {
-        if (caughtUp)
+        if (claim.CanClaim)
         {
-            return $"No customers are waiting on a reply · {overallPct}% caught up overall.";
+            // "No customers are waiting" is only true when nothing predates the window either. With
+            // "Today" selected and a week-old thread still unanswered, the unqualified line was false in
+            // exactly the way that costs a customer.
+            return claim.CaughtUpButCarryingBacklog
+                ? $"{CaughtUpClaim.CarriedBacklogClause(claim)} · {overallPct}% caught up overall."
+                : $"No customers are waiting on a reply · {overallPct}% caught up overall.";
+        }
+
+        if (claim.NothingWaitingButIncomplete)
+        {
+            // Say which accounts are missing rather than a bare reassurance. Without this the line read
+            // "No customers are waiting on a reply", which is only true of the accounts that answered.
+            return $"Nothing waiting in what could be read, but {CaughtUpClaim.IncompleteClause(claim)} " +
+                   $"· {overallPct}% caught up across the rest.";
         }
 
         var parts = new List<string>(3);
 
-        var ids = instances.Where(i => !string.IsNullOrWhiteSpace(i.Id)).Select(i => i.Id).ToList();
-        var digest = OversightChatSnapshotService.Instance.BuildDigest(ids, null);
-        if (digest.OldestActivityUtc is { } oldest)
+        // The oldest wait must be attributed to the account it actually belongs to, and must be measured
+        // over the SAME window-bounded awaiting snapshot the per-account cards use.
+        //
+        // This line previously read "oldest 75d · <name of the account with the most awaiting>", which the
+        // " · " join renders as one sentence — so it claimed the 75-day-old customer was at that account.
+        // It usually was not. Observed live: the hero read "oldest 75d · Depilex DHA-2 WhatsApp" while that
+        // account's own card read "Longest wait: 50d"; the 75d belonged to a different account entirely.
+        // The two figures also came from different windows (an unbounded digest here vs. the card's
+        // WindowRange()), so they could disagree even for the same account.
+        var (windowStart, windowEnd) = WindowRange();
+        var nowUtc = DateTimeOffset.UtcNow;
+
+        (string Name, double Minutes)? oldestWait = null;
+        foreach (var entity in entities)
         {
-            var mins = (DateTimeOffset.UtcNow - oldest).TotalMinutes;
-            if (mins >= 1)
+            foreach (var chat in entity.MemberInstanceIds.SelectMany(id =>
+                         OversightChatSnapshotService.Instance.GetAwaiting(id, windowStart, windowEnd)))
             {
-                parts.Add($"oldest {FormatMinutes(mins)}");
+                var minutes = (nowUtc - chat.LastActivityUtc).TotalMinutes;
+                if (oldestWait is null || minutes > oldestWait.Value.Minutes)
+                {
+                    oldestWait = (entity.DisplayName, minutes);
+                }
             }
         }
 
@@ -1532,9 +1633,52 @@ public sealed partial class CommandCenterPanel : UserControl
             .OrderByDescending(e => e.AwaitingCount)
             .ThenBy(e => e.OnTimePercent)
             .FirstOrDefault();
-        if (worst is not null && !string.IsNullOrWhiteSpace(worst.DisplayName))
+
+        var worstName = worst is not null && !string.IsNullOrWhiteSpace(worst.DisplayName)
+            ? worst.DisplayName
+            : null;
+
+        return ComposeHeroSubtext(
+            oldestWait?.Name,
+            oldestWait?.Minutes,
+            worstName,
+            overallPct);
+    }
+
+    /// <summary>
+    /// Formats the hero's supporting line from already-resolved facts.
+    /// </summary>
+    /// <remarks>
+    /// Split out from <see cref="BuildHeroSubtext"/> so the attribution contract is testable without a
+    /// live snapshot service. The contract that matters: whatever name appears beside "oldest" must be the
+    /// account that oldest wait actually belongs to. Joining the parts with " · " makes them read as one
+    /// sentence, so an unlabelled name next to a duration is read as owning that duration — which is how
+    /// this line came to claim a 75-day-old customer was at an account whose own longest wait was 50 days.
+    /// </remarks>
+    internal static string ComposeHeroSubtext(
+        string? oldestAccountName,
+        double? oldestMinutes,
+        string? worstAccountName,
+        int overallPct)
+    {
+        var parts = new List<string>(3);
+
+        if (oldestMinutes is { } minutes && minutes >= 1)
         {
-            parts.Add(worst.DisplayName);
+            // Name the owning account only when it is not the one already named as furthest behind,
+            // so the line does not repeat itself in the common case.
+            var attributed = !string.IsNullOrWhiteSpace(oldestAccountName)
+                             && !string.Equals(oldestAccountName, worstAccountName, StringComparison.Ordinal);
+
+            parts.Add(attributed
+                ? $"oldest {FormatMinutes(minutes)} ({oldestAccountName})"
+                : $"oldest {FormatMinutes(minutes)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(worstAccountName))
+        {
+            // Labelled, so it reads as its own fact rather than as a qualifier on the oldest wait.
+            parts.Add($"furthest behind: {worstAccountName}");
         }
 
         parts.Add($"{overallPct}% caught up overall");
@@ -1631,10 +1775,22 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var busy = busyHour is "—" or "" ? string.Empty : $" Busiest around {busyHour}.";
 
+        // Same honesty gate as the hero — the briefing sits directly beneath it and must not contradict
+        // it, and it had the identical `totalAwaiting == 0` blind spot.
+        var claim = CaughtUpClaim.Resolve(entities, totalAwaiting);
+
         string heuristic;
-        if (totalAwaiting == 0)
+        if (claim.CanClaim)
         {
-            heuristic = $"All caught up — nothing waiting on a reply.{projectionNote}{busy}";
+            heuristic = claim.CaughtUpButCarryingBacklog
+                ? $"Caught up on this range — but {CaughtUpClaim.CarriedBacklogClause(claim)}.{projectionNote}{busy}"
+                : $"All caught up — nothing waiting on a reply.{projectionNote}{busy}";
+        }
+        else if (claim.NothingWaitingButIncomplete)
+        {
+            heuristic =
+                $"Nothing waiting in what could be read, but {CaughtUpClaim.IncompleteClause(claim)} — " +
+                $"check those before calling it a day.{projectionNote}{busy}";
         }
         else
         {
@@ -1650,7 +1806,13 @@ public sealed partial class CommandCenterPanel : UserControl
         var isAi = false;
         if (AppSettingsService.Instance.Settings.EnableLocalAi)
         {
-            var signature = $"{overallPct}|{totalAwaiting}|{accountsBehind}|{worst?.Key}|{worst?.AwaitingCount}|{busyHour}|{eod.Projected}|{busierThanUsual}";
+            // The unmeasured counts belong in the cache key. An account going from readable to unreadable
+            // changes none of the other terms — awaiting stays 0, the percentage stays the same — so
+            // without them the cached briefing, written before anything broke, would be served unchanged
+            // and the new warning would never reach the owner.
+            var signature =
+                $"{overallPct}|{totalAwaiting}|{accountsBehind}|{worst?.Key}|{worst?.AwaitingCount}|" +
+                $"{busyHour}|{eod.Projected}|{busierThanUsual}|{claim.UnreadableCount}|{claim.NotLoadedCount}";
             var cached = OversightInsightService.Instance.TryGet(BriefingCacheKey, signature);
             if (cached is not null)
             {
@@ -1659,9 +1821,16 @@ public sealed partial class CommandCenterPanel : UserControl
             }
             else
             {
+                // The model is told about the unmeasured accounts too. Feeding it only the counts would
+                // have it write the same falsely-reassuring briefing the heuristic used to, in better
+                // prose — and the AI line replaces the heuristic rather than sitting beside it.
+                var incomplete = CaughtUpClaim.IncompleteClause(claim);
                 var prompt =
                     $"Across {entities.Count} accounts: {totalAwaiting} customer(s) waiting, {accountsBehind} account(s) " +
                     $"behind, {overallPct}% caught up overall." +
+                    (string.IsNullOrEmpty(incomplete)
+                        ? string.Empty
+                        : $" Important: {incomplete}, so these figures do not cover the whole business.") +
                     (worst is not null ? $" Furthest behind: {worst.DisplayName} ({worst.AwaitingCount} waiting, {worst.OnTimePercent}% caught up)." : string.Empty) +
                     (eod.HasData ? $" {eod.SoFar} messages so far today, projected ~{eod.Projected} by end of day." : string.Empty) +
                     (busierThanUsual ? " That is busier than the usual daily average." : string.Empty) +
@@ -1871,8 +2040,12 @@ public sealed partial class CommandCenterPanel : UserControl
                 .Where(t => t is not null)
                 .DefaultIfEmpty(null)
                 .Min();
+            // Keep this line SHORT. It is character-ellipsis trimmed inside a card, so a long string gets
+            // cut mid-sentence — which is how the stale state came to read "stale — right-click the accou…".
+            // The recovery steps belong in the tooltip, in the owner's vocabulary: "WebView" is an
+            // implementation detail and means nothing to the person paying for this.
             var freshness = entity.IsStale
-                ? "stale — right-click the account → Refresh WebView, then Re-sync"
+                ? "out of date — click Re-sync"
                 : capturedAt is { } cap
                     ? $"updated {RelativeAge(cap)}{(entity.HistoricalOpenCount > 0 ? $" · {entity.HistoricalOpenCount} chats tracked" : string.Empty)}"
                     : "waiting for first sync…";
@@ -1883,8 +2056,15 @@ public sealed partial class CommandCenterPanel : UserControl
                 Foreground = entity.IsStale ? danger : Brush("TextFillColorTertiaryBrush"),
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
-            ToolTipService.SetToolTip(freshnessBlock,
-                "When this account's chat data was last read. Numbers on this card are only as fresh as this stamp — click Re-sync to update.");
+            ToolTipService.SetToolTip(freshnessBlock, entity.IsStale
+                ? "This account has stopped reporting, so the numbers on this card are out of date. "
+                  + "Click Re-sync at the top of the command centre. If that doesn't help, right-click the "
+                  + "account in the sidebar and choose Refresh, then Re-sync again."
+                : "When this account's chat data was last read. Numbers on this card are only as fresh as "
+                  + "this stamp — click Re-sync to update.");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(freshnessBlock, entity.IsStale
+                ? $"{entity.DisplayName}: data out of date, click Re-sync"
+                : $"{entity.DisplayName}: {freshness}");
             nameColumn.Children.Add(freshnessBlock);
         }
 
@@ -1915,6 +2095,14 @@ public sealed partial class CommandCenterPanel : UserControl
                     FontSize = 12
                 }
             };
+            // "3 awaiting" alone does not say WHICH account, and every card renders one of these — so a
+            // screen-reader user heard the same phrase repeatedly with no way to tell them apart.
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+                pill,
+                $"{entity.DisplayName}: {entity.AwaitingCount} " +
+                (entity.AwaitingCount == 1 ? "customer waiting" : "customers waiting") +
+                ". Activate to work through this account's replies.");
+
             var filterIds = entity.MemberInstanceIds.ToList();
             var filterLabel = entity.DisplayName;
             pill.Click += (_, _) => ShowNeedsReplyFor(filterIds, filterLabel);
@@ -1999,13 +2187,35 @@ public sealed partial class CommandCenterPanel : UserControl
 
         if (!entity.HasChatData || !hasLiveData)
         {
+            // Three distinct states, not two. "Can't read" used to render as "no activity", which reads as
+            // reassuring — the owner concludes the branch is quiet when in fact oversight of it has stopped
+            // and customers may be waiting unseen. It is shown in the danger colour because it is the only
+            // one of the three that needs action.
+            var couldNotRead = entity.ReadFailed;
             var stateBlock = new TextBlock
             {
-                Text = !entity.HasChatData ? "syncing…" : $"no activity {_emptyStateWindowLabel}",
-                Foreground = secondary,
+                Text = couldNotRead
+                    ? "can't read this account — click Re-sync"
+                    : !entity.HasChatData
+                        ? "syncing…"
+                        : $"no activity {_emptyStateWindowLabel}",
+                Foreground = couldNotRead ? danger : secondary,
                 FontSize = 13,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.WrapWholeWords
             };
+
+            ToolTipService.SetToolTip(stateBlock, couldNotRead
+                ? "The last attempt to read this account returned no usable data, so its numbers are "
+                  + "missing rather than zero. This account is left out of your caught-up percentage "
+                  + "instead of counting as perfect. Click Re-sync; if it persists, right-click the "
+                  + "account in the sidebar and choose Refresh."
+                : "No customer activity was recorded for this account in the selected period.");
+
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(stateBlock, couldNotRead
+                ? $"{entity.DisplayName}: cannot read this account, click Re-sync"
+                : $"{entity.DisplayName}: no activity {_emptyStateWindowLabel}");
+
             Grid.SetColumn(stateBlock, 0);
             metricRow.Children.Add(stateBlock);
         }
@@ -2719,6 +2929,14 @@ public sealed partial class CommandCenterPanel : UserControl
 
     private static async Task<string> ProbeInstanceDbAsync(MessengerInstance instance)
     {
+        // Channels with no conversation scraper are not "still loading" — they will never be scanned.
+        // Re-sync used to report all three Google Business accounts as "still loading — open this account
+        // once to finish loading", which sends the owner off to open a tab that cannot change the outcome.
+        if (!PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
+        {
+            return "no conversation metrics for this channel";
+        }
+
         // Retry a couple of rounds: a still-loading account settles with a non-'done' diag (the reader
         // returns null), and succeeds once its WhatsApp Web is ready.
         for (var round = 0; round < 3; round++)

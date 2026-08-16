@@ -137,9 +137,13 @@ public sealed class AwaitingOverrideStore
                 await using var stream = File.OpenRead(_storePath);
                 store = await JsonSerializer.DeserializeAsync<OverrideStore>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
             }
-            catch (JsonException ex)
+            // Losing this store is the most damaging of all the durable stores: every chat the owner
+            // marked handled or snoozed comes back as "awaiting", re-surfacing work they already dealt
+            // with. The file must be preserved — previously it was left in place and then overwritten
+            // with empty state by the next flush, which destroyed it permanently and silently.
+            catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
             {
-                Debug.WriteLine($"Awaiting-overrides store is corrupt; resetting: {ex.Message}");
+                CorruptFileRecovery.Preserve(_storePath, "AwaitingOverrides", ex);
                 return;
             }
 

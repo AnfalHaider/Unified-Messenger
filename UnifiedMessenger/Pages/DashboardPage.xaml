@@ -23,11 +23,15 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Spacing="4" VerticalAlignment="Center">
+                    <!--
+                        No literal greeting here. This markup is what shows until RefreshAll() runs, and on
+                        a clean install that meant a brand-new user was greeted with "Welcome back" before
+                        they had ever opened the app. RefreshAll sets the real time-of-day greeting.
+                    -->
                     <TextBlock
                         x:Name="WelcomeTitle"
-                        AutomationProperties.Name="Welcome back"
                         Style="{StaticResource TitleTextBlockStyle}"
-                        Text="Welcome back" />
+                        Text="" />
                     <TextBlock
                         x:Name="WelcomeSubtitle"
                         Opacity="0.7"

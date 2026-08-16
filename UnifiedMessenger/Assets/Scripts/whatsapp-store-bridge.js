@@ -616,12 +616,20 @@
         var jidLower = jid.toLowerCase();
 
         // Groups, broadcasts, status updates and newsletters are not customer conversations.
+        // Keep this list in step with whatsapp-adapter.js — they diverged once, and because the store
+        // bridge is the PREFERRED path the divergence was what users actually saw.
         if (jidLower.indexOf('@g.us') >= 0 ||
-          jidLower.indexOf('@broadcast') >= 0 ||
+          jidLower.indexOf('@broadcast') >= 0 ||   // also covers status@broadcast
           jidLower.indexOf('@newsletter') >= 0 ||
-          chat.isGroup === true) {
+          // WhatsApp's own official account: one-way notices you cannot reply to, so once unanswered it
+          // sat in the awaiting count forever. '0@' only ever prefixes this account — real E.164 numbers
+          // never have a leading-zero local part. This line was missing here but present in the adapter.
+          jidLower.indexOf('0@') === 0) {
           continue;
         }
+        // NOTE: do not add `chat.isGroup === true` here. That property does not exist on the model (see
+        // AGENTS.md); the check was always undefined === true, i.e. dead, and implied a safety net that
+        // was not there. JID suffix is the authoritative signal.
 
         var seconds = typeof chat.t === 'number' ? chat.t : 0;
         var last = lastMessageOf(chat);

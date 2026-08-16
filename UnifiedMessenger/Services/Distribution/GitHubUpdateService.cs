@@ -63,12 +63,25 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
             }
         }
 
-        await ApplyUpdateAsync(
-                result.DownloadUrl,
-                result.LatestVersion,
-                result.ExpectedSha256,
-                cancellationToken)
-            .ConfigureAwait(false);
+        try
+        {
+            await ApplyUpdateAsync(
+                    result.DownloadUrl,
+                    result.LatestVersion,
+                    result.ExpectedSha256,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // The automatic path is started as `_ = CheckForUpdatesAsync()`, so anything thrown here used
+            // to become an unobserved task exception — nothing logged, nothing shown, and the user never
+            // learned their app was not updating. Silent is the right behaviour for the *check* (they did
+            // not ask); silent is the wrong behaviour for a download that ran and then failed.
+            AppLogger.LogWarning(
+                "Update",
+                $"Automatic update to {result.LatestVersion} did not apply: {ex.Message}");
+        }
     }
 
     public async Task<UpdateCheckResult> CheckForUpdatesManualAsync(CancellationToken cancellationToken = default)
@@ -160,13 +173,26 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
                 DownloadUrl: release.DownloadUrl,
                 ExpectedSha256: expectedSha256);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or IOException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
-            Debug.WriteLine($"Update check failed: {ex.Message}");
+            // Classified here rather than in the presenter because the exception TYPE is the reliable
+            // signal — these three are exactly "we could not talk to GitHub". Surfacing ex.Message put
+            // Winsock diagnostics in front of a business owner.
+            AppLogger.LogInfo("Update", $"Check could not reach GitHub: {ex.Message}");
             return new UpdateCheckResult(
                 UpdateCheckStatus.Failed,
                 currentVersion,
-                ErrorMessage: ex.Message);
+                ErrorMessage: NetworkFailureDescriber.UpdateCheckOffline);
+        }
+        catch (JsonException ex)
+        {
+            // A reachable server that returned something unparseable is a real fault, not a connectivity
+            // problem, and must not be reported as "check your internet connection".
+            AppLogger.LogWarning("Update", $"Release feed could not be parsed: {ex.Message}");
+            return new UpdateCheckResult(
+                UpdateCheckStatus.Failed,
+                currentVersion,
+                ErrorMessage: "The update information could not be read. Try again later.");
         }
         catch (Exception ex)
         {
@@ -361,21 +387,20 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
         string repo,
         bool? tokenConfiguredOverride = null)
     {
-        var repoUrl = $"https://github.com/{owner}/{repo}";
+        // This text is rendered in a dialog to whoever bought the product. It used to read "Publish a
+        // GitHub release with asset 'UnifiedMessengerSetup.exe', or verify the token in
+        // UNIFIED_MESSENGER_GITHUB_TOKEN" — the developer's to-do list, shown to the customer, naming an
+        // environment variable they have never heard of and cannot set. The diagnostic detail belongs in
+        // the log, so that is where it now goes.
         var tokenConfigured = tokenConfiguredOverride
             ?? !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(GitHubTokenEnvironmentVariable));
-        var assetName = SelectSetupAssetName();
 
-        if (tokenConfigured)
-        {
-            return
-                $"No accessible release was found for {owner}/{repo}. " +
-                $"Publish a GitHub release with asset '{assetName}', or verify the token in {GitHubTokenEnvironmentVariable}.";
-        }
+        AppLogger.LogWarning(
+            "Update",
+            $"No accessible release for {owner}/{repo} " +
+            $"(asset '{SelectSetupAssetName()}', token configured: {tokenConfigured}).");
 
-        return
-            $"Updates are unavailable because {repoUrl} is not public, does not exist yet, or has no published releases. " +
-            $"Create a release on GitHub and attach '{assetName}' to enable update checks.";
+        return "No updates are published yet. You are running the newest version available.";
     }
 
     internal static bool IsNewerVersion(Version currentVersion, Version latestVersion) =>
@@ -460,11 +485,23 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
         }
     }
 
+    /// <summary>
+    /// Ceiling on a single installer download. <see cref="HttpClient.Timeout"/> does not cover the body
+    /// when the response is read with <see cref="HttpCompletionOption.ResponseHeadersRead"/>, so without
+    /// this a connection that dies mid-transfer leaves the copy waiting on a socket that will never
+    /// deliver — in a task nobody awaits. Generous enough for a slow link, bounded enough to end.
+    /// </summary>
+    private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(10);
+
     private static async Task DownloadFileAsync(
         string downloadUrl,
         string destinationPath,
         CancellationToken cancellationToken)
     {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(DownloadTimeout);
+        cancellationToken = timeoutCts.Token;
+
         using var response = await HttpClient
             .GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
@@ -481,13 +518,39 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
             Directory.CreateDirectory(directory);
         }
 
-        await using var fileStream = new FileStream(
-            destinationPath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None);
+        try
+        {
+            await using var fileStream = new FileStream(
+                destinationPath,
+                FileMode.Create,
+                FileAccess.Write,
+                FileShare.None);
 
-        await responseStream.CopyToAsync(fileStream, cancellationToken).ConfigureAwait(false);
+            await responseStream.CopyToAsync(fileStream, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A connection that drops mid-transfer leaves a truncated installer in %TEMP%. The digest
+            // check would reject it, but only after the next attempt re-downloads over the top of it —
+            // and a stale partial file in the temp directory is litter either way.
+            TryDeletePartialDownload(destinationPath);
+            throw;
+        }
+    }
+
+    private static void TryDeletePartialDownload(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLogger.LogWarning("Update", $"Could not remove a partial download: {ex.Message}");
+        }
     }
 
     private static Version GetCurrentVersion()

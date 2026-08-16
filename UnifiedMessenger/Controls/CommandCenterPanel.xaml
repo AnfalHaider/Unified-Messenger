@@ -57,8 +57,15 @@
                     DateChanged="OnCustomDateChanged"
                     PlaceholderText="To"
                     Visibility="Collapsed" />
+                <!--
+                    These toolbar controls put a StackPanel (icon + label) or a bare FontIcon in Content,
+                    so WinUI derives no accessible name from them and a screen reader announced only
+                    "button". Every one needs an explicit AutomationProperties.Name. Re-sync matters most:
+                    it is the recovery action the product's own copy tells people to click.
+                -->
                 <ComboBox
                     x:Name="WindowSelector"
+                    AutomationProperties.Name="Date range for caught-up percentage"
                     MinWidth="120"
                     SelectionChanged="OnWindowChanged"
                     ToolTipService.ToolTip="Caught-up % is measured over conversations active in this date range">
@@ -69,6 +76,7 @@
                 </ComboBox>
                 <Button
                     x:Name="ReportButton"
+                    AutomationProperties.Name="Open weekly business report"
                     Click="OnReportClick"
                     ToolTipService.ToolTip="A plain-language weekly report — trends, what to focus on, and per-account breakdown you can save or export">
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -78,6 +86,7 @@
                 </Button>
                 <Button
                     x:Name="ResyncButton"
+                    AutomationProperties.Name="Re-sync now"
                     Click="OnResyncClick"
                     Style="{StaticResource AccentButtonStyle}"
                     ToolTipService.ToolTip="Re-read history, refresh the numbers, the activity graph, and Google reviews">
@@ -197,8 +206,10 @@
                         ToolTipService.ToolTip="Every customer awaiting a reply across all accounts, most urgent first" />
                 </StackPanel>
             </Border>
+            <!-- PlaceholderText is not an accessible name; screen readers do not substitute it. -->
             <AutoSuggestBox
                 x:Name="SearchBox"
+                AutomationProperties.Name="Filter accounts or locations"
                 Grid.Column="1"
                 MaxWidth="280"
                 HorizontalAlignment="Left"
@@ -208,6 +219,7 @@
                 TextChanged="OnSearchChanged" />
             <ToggleButton
                 x:Name="DensityToggle"
+                AutomationProperties.Name="Compact view"
                 Grid.Column="2"
                 Click="OnDensityToggled"
                 VerticalAlignment="Center"
@@ -281,6 +293,7 @@
                     TextWrapping="WrapWholeWords" />
                 <Button
                     x:Name="DigestDismiss"
+                    AutomationProperties.Name="Dismiss this summary"
                     Grid.Column="2"
                     Click="OnDismissDigest"
                     Background="Transparent"
@@ -379,6 +392,7 @@
                     VerticalAlignment="Center" />
                 <Button
                     Grid.Column="3"
+                    AutomationProperties.Name="Dismiss report reminder until next week"
                     Click="OnDismissReportReminder"
                     Background="Transparent"
                     BorderThickness="0"

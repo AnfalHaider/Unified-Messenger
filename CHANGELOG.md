@@ -5,6 +5,429 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.27
+
+**Accounts in the sidebar now tell screen-reader users they can be opened.** Pressing Enter or Space on
+an account has always worked, but the row announced only its name and status — nothing to suggest it did
+anything at all. The location headings directly above them already said "press to collapse or expand";
+the accounts underneath said nothing. They now end with "press to open", after the name, status and
+unread count so the useful part is heard first.
+
+Found by walking the keyboard focus order through the whole dashboard, which otherwise came back clean:
+51 stops, every one of them named, no dead ends, and an order that follows the screen.
+
+## v4.99.26
+
+**The green, amber and red used for status are now readable in both themes.** They were one set of
+colours shared between the light and dark themes, and each of them failed in one of them. In light mode
+the green "on time" figure measured 2.28:1 against the card behind it and the amber 2.15:1 — well under
+the 4.5:1 minimum for readable text, and worse than the brand-colour problem fixed earlier. In dark mode
+it was the red that failed, at 2.84:1.
+
+Each theme now has its own set, measured against the surface it is actually drawn on: 5.02, 5.02 and 4.83
+in light; 6.03, 6.39 and 4.96 in dark. One shared set could never have worked — the contrast a colour
+needs to be readable on white and the contrast it needs on near-black are mutually exclusive.
+
+**Status is never signalled by colour alone.** Green and red are almost identical in brightness, so in
+greyscale — or to the many people with red/green colour blindness — they are the same colour. Every place
+the app uses status colour also says it in words or shows a symbol: the account rows spell out "Signed
+out", "No internet — reconnecting…" or "Connection error", the trend badges carry an up or down arrow,
+and the waiting pill reads "N awaiting" or "caught up". That was already true throughout; it is now
+checked automatically so it stays true.
+
+## v4.99.25
+
+**"You're all caught up" now means it.** The dashboard decided you were caught up purely from the number
+of customers waiting being zero — and an account the app cannot read reports zero, because there is
+nothing to count. So if one branch's WhatsApp failed to load while the others happened to be quiet, you
+got a green tick and "You're all caught up" while that branch was not being watched at all. The card just
+below it said "couldn't read"; the headline above it never looked.
+
+It now says what it actually knows: "Nothing waiting — but not everything was counted", naming how many
+accounts could not be read, and distinguishing those from accounts that simply have not loaded yet. An
+account that is merely out of date does not block the message, because that happens routinely and would
+make the reassurance useless.
+
+**Caught up on a date range no longer sounds like caught up on everything.** With "Today" selected, a
+customer who wrote last week and is still unanswered is deliberately left out of today's count — that part
+is intended. But the summary line said "No customers are waiting on a reply", which was not true of them.
+It now reads "Caught up on this range" and tells you how many older conversations are still open.
+
+The start-of-shift briefing was making the same claim, so it got the same fix — including what the
+on-device AI is told, since it would otherwise write the same false reassurance more fluently.
+
+## v4.99.24
+
+**If your settings ever get reset, the app now tells you.** When Unified Messenger cannot read your saved
+settings at startup — a file damaged by a crash, a backup tool, or antivirus holding it open — it falls
+back to defaults and carries on. That much already worked, and your old file was already being kept
+rather than deleted. What was missing is that nobody told you: your reply-time targets, business hours,
+notification choices and AI setting would quietly revert, and the only record was in a log file you have
+no reason to read.
+
+You now get a notice at startup explaining what happened, confirming that your accounts and message
+history are untouched, pointing out that automatic updates are worth re-checking, and giving you the
+exact location of the copy of your previous file — with a button to open the folder it is in.
+
+It does not claim to list which settings changed, because the file could not be read and there is
+genuinely no way to know. It does not offer to restore automatically, for the same reason.
+
+**Startup prompts no longer collide.** The setup wizard and the "pin to taskbar" prompt were both started
+at the same moment, and Windows allows only one dialog at a time — so on a first run where both were due,
+one of them silently never appeared, and the setup wizard was marked as completed anyway. They now run one
+after another.
+
+## v4.99.23
+
+**The icon picker can now be used without looking at it.** Choosing an account's icon offered twenty-five
+buttons — every social logo, every general icon, and the two import options — that a screen reader
+announced simply as "button". There was no way to tell WhatsApp from a shopping cart except by sight.
+Each one now says what it is.
+
+**Waiting customers in the account drill-down are named too.** Opening an account's details lists who is
+waiting; the button that opens each conversation announced as "button" while the "Mark as done" control
+right next to it read out properly. It now reads "Open chat with <customer> in <account>", matching what
+the main dashboard already said.
+
+Both were found by opening the dialogs and reading them the way a screen reader does.
+
+## v4.99.22
+
+**Automatic updates now actually work.** They never have. The app checked GitHub at every launch,
+downloaded the whole installer when a newer version existed, then refused to install it — and told
+nobody. The check it ran required the installer to carry a code signature that nothing in the build
+process has ever added, so it rejected every update it was ever offered, deleted the download, and threw
+the failure away where no log or message could show it. If you have been wondering why the app never
+updated itself, that is why. It now verifies the download against the published checksum instead, which
+is a real integrity check on the file you receive.
+
+**Accounts recover on their own after the internet drops.** If a page failed to load — a router
+rebooting, a wifi handover, a hotel network — the account simply stayed broken until you noticed and
+refreshed it by hand. There was a self-healing mechanism, but it only watched accounts that had already
+loaded successfully once, so it could never reach this case. The app now retries a failed account by
+itself, five times over about eight minutes, backing off as it goes, and stops trying for problems that
+retrying cannot fix.
+
+**Plainer language when the network is the problem.** A dropped connection used to surface as
+`HostNameNotResolved` beside an account, and clicking "Check for updates" with no internet produced
+`No such host is known. (api.github.com:443)`. Those now say what actually happened. The "no releases
+found" message also stopped handing you the developer's to-do list — it previously asked you to publish a
+GitHub release and check an environment variable.
+
+**A stalled update download can no longer hang.** If the connection died partway through, the download
+would wait on it indefinitely and leave a half-written file behind. It is now bounded, and the partial
+file is cleaned up.
+
+Nothing about this release changes what leaves your machine, which remains nothing.
+
+## v4.99.21
+
+**Your daily numbers are now correct on the two days a year the clocks change.** Every date filter in the
+app — Today, Last 7 days, the custom date pickers, "this year" — worked out when a day starts by taking
+midnight and attaching the time-zone offset that applied *at the moment you happened to be looking*. On an
+ordinary day those are the same thing. On the day the clocks go forward, "Today" secretly began an hour
+before midnight and swept in the last hour of the previous evening; on the day they go back, the first
+hour of the day was left out of today's figures entirely. Since those windows decide the caught-up
+percentage, the awaiting counts, SLA met % and everything on the account cards, the numbers were being
+measured over a set that quietly disagreed with the day they were labelled with — for one day, before
+correcting itself.
+
+Days are now worked out from the time zone properly, including the places where the clocks change at
+midnight itself and local midnight either never happens or happens twice.
+
+Nothing changes if you are somewhere that does not observe daylight saving.
+
+Also in this release: the 7-day activity sparkline, the response-time day charts and the analytics
+day/hour buckets were all checked across 23- and 25-hour days and found correct — that is now covered by
+tests so it stays that way. The end-of-day projection reads up to 2% off on a transition day, which is
+recorded and deliberately left alone; it is a forecast, and correcting it would cost more than it is
+worth.
+
+## v4.99.20
+
+**Screen readers now announce the account cards themselves.** Each account on the command centre is a
+card you can expand to see who is waiting — and that card, the main thing you move to and activate on the
+product's busiest screen, announced only "button". It now reads, for example, "Depilex F-11 WhatsApp: 140
+customers waiting. Expand to see who is waiting."
+
+The review shortcuts got the same treatment: the "N to reply" button on each Google account now names the
+location it belongs to, and each pending review names its reviewer.
+
+## v4.99.19
+
+**An account that simply hasn't opened yet is no longer reported as broken.** To save memory, accounts you
+haven't looked at are not loaded in the background. Reading such an account can't work — there is no loaded
+page to read — and after v4.99.15 that was being shown as "can't read this account — click Re-sync". Two
+things wrong with that: nothing is broken, and Re-sync can't load a page that was deliberately left
+unloaded. Those accounts now stay marked as syncing until you open them once, which is what actually
+resolves it.
+
+Genuine read failures — where the page *was* available and the read still failed — are unchanged and still
+reported.
+
+**Internal:** the fix in v4.99.17 for tests writing fake errors into your log file was incomplete; it
+covered one code path and missed several others. It is now handled centrally, and verified: running the
+affected test suites adds nothing to the log.
+
+## v4.99.18
+
+**Google Business accounts are no longer treated as if they were broken.** Google is a reviews and Q&A
+channel — it has no customer conversations to read, and never will. The app was nonetheless trying to read
+conversations from every Google account on every cycle, failing (correctly), and filling the log with
+warnings about it. Following v4.99.15, it had also started marking those accounts "can't read this
+account — click Re-sync" on the dashboard: three healthy accounts flagged as faulty.
+
+Channels that have no conversation data are now skipped for that read entirely, rather than attempted and
+reported as failures. Re-sync also stops telling you a Google account is "still loading", which sent you
+to open a tab that could not have changed anything; it now says plainly that the channel has no
+conversation metrics.
+
+The practical benefit beyond the false alarm: your log stops filling with routine warnings, so a real one
+is visible when it appears.
+
+## v4.99.17
+
+**Internal:** running the test suite no longer writes fake error entries into your log file. Tests that
+deliberately simulate a failed save were recording those simulated failures in the same `app.log` the app
+uses for real problems, so the log could contain errors that never actually happened.
+
+No change to how the app behaves.
+
+## v4.99.16
+
+**The rest of the app now names its controls for screen readers.** Following v4.99.15, the remaining
+pages were checked: the Analytics export button and its date range, the activity-pattern filters, the
+reporting-period selector, the command-centre search box, and the dismiss buttons on the weekly-report
+reminder and on every notification all announced only "button". They now say what they do.
+
+Two of these were easy to miss: a search box's placeholder text is not read out as its name, and the
+notification dismiss button is defined once but appears on every notification — so a single omission was
+silent on every row in the list.
+
+## v4.99.15
+
+**Screen readers now name the buttons.** Nine controls on the command centre announced only "button" —
+including **Re-sync**, which is the action the app itself tells you to take when something looks wrong.
+Each account's "N awaiting" pill also announced the same phrase with no way to tell which branch it
+belonged to; it now reads, for example, "Depilex F-11 WhatsApp: 137 customers waiting."
+
+**The chart and icons are readable in dark mode.** The brand blue was the same shade in both themes and,
+against a dark card, sat below the minimum contrast for something you are meant to be able to see — which
+included the message-volume chart line. It is now lighter in dark mode. The same change improves the
+Re-sync button, whose text was also marginally under the threshold on dark.
+
+Light mode is unchanged.
+
+## v4.99.14
+
+**Updating no longer deletes your log file or your settings-recovery file.** Every update was clearing
+`app.log` — the only record of anything going wrong — and any `settings.json.corrupt-….bak` left behind
+when a data file could not be read. Since updates install themselves by default, that happened without you
+choosing it, and it meant updating to fix a problem destroyed the evidence of the problem. The v4.99.4
+notes tell you to look for that `.bak` file to get your settings back; it will now still be there.
+
+**Uninstalling can now erase your data if you want it to.** Uninstalling removed the program but left
+everything else — on the machine this was tested on, 7.2 GB, including your message history and signed-in
+accounts. That remains the default, because it means reinstalling picks up exactly where you left off. But
+it is now an explicit choice on the uninstall screen rather than something that just happens quietly.
+
+**A first launch no longer says "Welcome back".** On a fresh install the dashboard greeted you as a
+returning user and reported "1 personal account connected" — while telling you, further down the same
+screen, that no accounts were connected. It now welcomes you properly and invites you to add your first
+account.
+
+## v4.99.13
+
+**The review reply rate no longer reads "100% replied" above reviews that still need a reply.** With 996
+of 1000 reviews answered, the panel rounded to 100% while listing the four outstanding ones directly
+beneath. It also reported 0% when a small number had been answered. As everywhere else in the app, 100%
+now means none outstanding and 0% means none answered.
+
+A business with no reviews at all still reads 0%, not 100% — there is nothing to have replied to.
+
+## v4.99.12
+
+**The weekly report no longer contradicts itself.** Two percentages in the report were rounded in a way
+that could produce nonsense in a single sentence — "996 messages this week — 100% of all customer volume"
+while naming that account the busiest of several, and "100% of the 1000 customers who messaged this week
+had contacted you before; 3 reached out for the first time." Both now follow the same rule as the rest of
+the app: 100% means all, 0% means none.
+
+The week-on-week volume change is untouched and can still exceed 100% — if your messages tripled, "up
+200%" is the right answer.
+
+**Your branch names keep their capitalisation.** The report's opening line lower-cased everything it
+quoted, so an account called "Depilex DHA-2 WhatsApp" appeared as "depilex dha-2 whatsapp" in the one
+sentence most likely to be forwarded to a manager.
+
+## v4.99.11
+
+**WhatsApp's own account no longer sits in your list of waiting customers.** WhatsApp sends occasional
+one-way notices from an official account you cannot reply to. That account was being counted as a customer
+waiting for an answer — and since replying is impossible, it never went away. On the machine this was found
+on it had been "waiting" for 26 days. On a busy branch that is one extra; on a branch that is otherwise
+caught up, it is the entire number, and you would go looking for a customer who does not exist.
+
+**Photo messages show as "Photo" instead of a wall of characters.** When a customer's last message was an
+image, the preview in your needs-reply list showed the image's raw encoded data —
+`/9j/4AAQSkZJRgABAQAAAQABAAD…` — rather than anything readable. Around 3% of previews were affected. They
+now read "Photo". Ordinary text is untouched, including messages that happen to start with a slash or the
+word "data".
+
+Both corrections also apply to data already saved on your machine, so they take effect as soon as you
+update rather than waiting for the next sync.
+
+## v4.99.10
+
+**"SLA met" no longer reads 100% when replies missed the target.** The same rounding problem fixed for the
+caught-up percentage in v4.99.9 was also present in your SLA figure — 499 replies inside your target and
+one outside is 99.8%, which displayed as **100%**, with the breach still counted in the reply total right
+beside it. It also reported 0% when a small number of replies had met the target.
+
+As with caught-up, 100% now means no breaches and 0% means none met, with everything else shown as 1–99%.
+The daily SLA trend follows the same rule. All four places in the app that turn a count into a percentage
+now share one piece of code, so this cannot drift apart again.
+
+Nothing else in the response-time figures changed: the median, the 90th-percentile, "answered today" and
+the week-on-week arrows were all checked and were already correct.
+
+## v4.99.9
+
+**"100% caught up" now means nobody is waiting.** The caught-up percentage was rounded, so an account with
+996 of 1000 chats handled — 99.6% — displayed as **100%**, complete with a green tick, directly beside
+"4 awaiting" on the same card. Two numbers on one card disagreed, and the reassuring one was the wrong
+one. The same rounding also reported 0% for an account that had handled a small number of chats.
+
+100% is now reserved for genuinely nothing outstanding, and 0% for genuinely nothing handled; everything
+in between shows 1–99%. The figure can now be up to a point pessimistic, but it will never tell you that
+you are finished when you are not. The whole-business percentage follows the same rule: it only reaches
+100% when every account has.
+
+**The trend sparkline no longer disagrees with the Analytics chart.** The small 7-day chart on each
+account card grouped messages by UTC date, while every other daily figure in the app groups by your local
+date. If you are five hours ahead of UTC, everything that arrived between midnight and 5am was counted
+against the previous day — so today's bar read low every morning, and the card and the Analytics page
+showed different histories for the same account.
+
+## v4.99.8
+
+**An account the app can't read now says so, instead of looking quiet.** Until now, a branch with nothing
+to report and a branch the app had stopped being able to read looked exactly the same on the command
+centre — both showed "no activity". Those need opposite responses from you: one is good news, the other
+means you have lost sight of that branch and customers may be waiting without you knowing.
+
+Cards for an unreadable account now say "can't read this account — click Re-sync", in the same colour used
+for anything else needing attention, with the recovery steps in the tooltip. Screen readers announce which
+account it refers to. A location made up of several accounts flags if *any* one of them can't be read,
+because its totals are then incomplete.
+
+The warning only ever appears after a read has genuinely been attempted and failed — it is never guessed
+at from an account simply having no messages, and it clears itself as soon as a read succeeds. An account
+that hasn't been read yet, such as just after launch, is not flagged.
+
+## v4.99.7
+
+**One odd conversation can no longer wipe out an account's whole reading.** When the app read your chat
+list, a single conversation coming back in an unexpected shape — a date arriving as a number instead of
+text, say — threw away *every* conversation in that read, not just the odd one. The account then showed as
+having no activity, which for a branch with customers waiting is the worst possible thing to get wrong
+quietly. The scraper side already skipped bad conversations one at a time; the app side now does the same,
+and notes in the log how many were skipped.
+
+**A change in WhatsApp's data no longer quietly changes what "waiting for a reply" means.** If the
+information the app relies on to tell whether you have replied goes missing, it falls back to using unread
+badges instead. That fallback is deliberate — it keeps a number on screen rather than showing nothing —
+but unread is a weaker signal, because opening a chat on your phone clears it even though nobody replied.
+That substitution used to happen invisibly; it is now recorded in the log so it can be spotted and fixed.
+
+## v4.99.6
+
+**When an account can't be read, that now leaves a trace.** Reading an account has two routes: a fast one,
+and a fallback used when the fast one fails. The fallback recorded nothing at all — no log entry, no
+status — so an account that had stopped reporting entirely produced no evidence anywhere. The fast route
+had always recorded its failures; the fallback now does too, including the case where a scan finishes but
+finds no conversations, which is what a change on WhatsApp's side looks like.
+
+**Known limitation, worth being clear about:** on screen, an account the app cannot read still looks the
+same as an account that is simply quiet — both show "no activity". The numbers themselves are not
+affected: an unreadable account is left out of your caught-up percentage rather than counted as perfect,
+so it cannot flatter your figures. But if a branch shows "no activity" and you expected traffic, check the
+log or click Re-sync. Telling these apart on screen is still to come.
+
+## v4.99.5
+
+**A damaged data file no longer disappears without trace.** The same weakness fixed for the settings file
+in v4.99.4 also affected the file holding your marked-handled and snoozed chats, and the one holding your
+KPI trend history. If either became unreadable, the app quietly started over with an empty one — nothing
+in the log, and the damaged file was not kept, so there was nothing left to recover from. For the
+marked-handled file that means every chat you had closed out reappears as waiting for a reply.
+
+Both files are now kept aside as `.corrupt-….bak` next to your data, and the problem is written to the
+log. All three data files now behave the same way, through shared code, so they cannot drift apart again.
+
+## v4.99.4
+
+**If your settings file can't be read, that now gets recorded.** When the settings file is damaged — a
+half-finished write, a backup tool holding it open — the app falls back to factory defaults and carries
+on. That part was working, and the unreadable file was already kept aside as a `.corrupt-….bak` so
+nothing was destroyed. What was missing is that the message saying so was written in a way that gets
+stripped out of the released build, so it appeared nowhere at all. Testing this on a real settings file
+showed local AI switching itself off, "ask before updating" turning itself off, the account memory limit
+reverting to unlimited, and one location losing its response-time target and opening hours — all
+silently. The reset is now written to the log file, and a file that is locked rather than damaged no
+longer stops the app from starting.
+
+**Known limitation:** the app still does not *tell you on screen* when this has happened. If your
+settings ever look like they have reset themselves, check the log and look for a
+`settings.json.corrupt-….bak` file next to your settings — your previous values are in it. An on-screen
+notice is still to come.
+
+## v4.99.3
+
+**An account that has stopped reporting now says so in plain English.** The warning on an out-of-date
+account card read "stale — right-click the account → Refresh WebView, then Re-sync". "WebView" is an
+internal term, and the line was long enough to be cut off mid-instruction inside the card. It now reads
+"out of date — click Re-sync", with the full recovery steps in the tooltip. Screen readers now announce
+which account the warning belongs to, which they previously did not.
+
+Third-party notices now list every dependency the app ships, and the developer documentation was
+corrected where it disagreed with the code.
+
+## v4.99.2
+
+**The command centre no longer blames the wrong branch for the oldest waiting customer.** The summary
+line under the headline showed the longest wait next to an account name — but the name it showed was
+whichever account had the *most* customers waiting, not the account the longest wait actually belonged
+to. Because the two sit side by side, it read as one statement. On real data it claimed a 75-day-old
+customer was at a branch whose own card said its longest wait was 50 days.
+
+The longest wait is now labelled with the account it belongs to, the busiest account is labelled
+separately as "furthest behind", and both are measured over the same time window the account cards use —
+previously the headline and the cards measured over different windows and could disagree even about the
+same account.
+
+**Adding an account now tells you what that channel actually does.** The platform list showed six
+channels as if they were equivalent, when only WhatsApp and WhatsApp Business produce oversight metrics
+and Google Business produces review metrics. Picking Messenger or Discord created an account that worked
+as a browsing tab but never appeared on the dashboard, with nothing explaining why. Each channel now
+describes what it delivers before you add it, and channels that are not measured say so plainly. The
+Google entry also stopped describing its review scraping as "planned" — that shipped some time ago.
+
+## v4.99.1
+
+**Closing the app no longer loses your work when one file can't be saved.** On shutdown the app saves
+seven things: analytics, triage, chat snapshots, response times, contact history, your marked-handled and
+snoozed chats, and KPI trends. They were saved as a single all-or-nothing step, so if the very first one
+failed — a file locked by a backup tool, a full disk, a permissions problem — every remaining one was
+skipped and the app still closed as if nothing had happened.
+
+The visible effect was chats you had already marked handled coming back the next morning, snoozes
+expiring early, and gaps in response-time history and trend charts. Because which items survived depended
+on which file failed first, it looked like the app was just being flaky rather than a specific bug.
+
+Each item is now saved independently, so one failure can no longer discard the others, and the names of
+anything that failed are recorded so the app can tell you your data may be out of date.
+
 ## v4.99.0
 
 **Custom URL accounts now load.** A Custom URL account opened to a blank page and stayed there. The

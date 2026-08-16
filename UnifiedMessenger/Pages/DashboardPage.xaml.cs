@@ -150,13 +150,20 @@ public sealed partial class DashboardPage : Page
     public void RefreshAll()
     {
         var hour = DateTime.Now.Hour;
-        WelcomeTitle.Text = hour switch
+        var greeting = hour switch
         {
             < 12 => "Good morning",
             < 17 => "Good afternoon",
             < 21 => "Good evening",
-            _ => "Welcome back"
+            _ => "Good evening"
         };
+
+        // A first-time user has nothing to be welcomed BACK to. The seeded default account does not count
+        // as having been here before — it is created by the app, not by the owner.
+        WelcomeTitle.Text = DashboardPageHelper.HasOnlySeededDefaultAccount(_registry?.Instances)
+            ? "Welcome to Unified Messenger"
+            : greeting;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(WelcomeTitle, WelcomeTitle.Text);
 
         if (_registry is null)
         {
@@ -167,7 +174,9 @@ public sealed partial class DashboardPage : Page
         var professionalCount = _registry.Instances.Count(i => i.IsProfessional);
         var personalCount = _registry.Instances.Count - professionalCount;
 
-        WelcomeSubtitle.Text = DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
+        WelcomeSubtitle.Text = DashboardPageHelper.HasOnlySeededDefaultAccount(_registry.Instances)
+            ? "Add an account to start receiving unified notifications."
+            : DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
 
         // The "Personal" top button shows the personal-account count and hides when there are none.
         PersonalButtonLabel.Text = personalCount > 0 ? $"Personal · {personalCount}" : "Personal";

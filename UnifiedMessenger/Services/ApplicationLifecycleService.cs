@@ -94,25 +94,84 @@ public static class ApplicationLifecycleService
         }
     }
 
+    /// <summary>
+    /// Names of the stores that failed to persist during the most recent flush, or an empty list when the
+    /// last flush wrote everything. Read this on the next launch to tell the user their state may be stale.
+    /// </summary>
+    public static IReadOnlyList<string> LastFlushFailures { get; private set; } = [];
+
+    /// <summary>
+    /// Persists every durable store, isolating each one so a single failure cannot discard the rest.
+    /// </summary>
+    /// <remarks>
+    /// Each store gets its own try/catch on purpose. These previously shared one try block, so the first
+    /// throw unwound past every remaining flush and the app still exited reporting success — silently
+    /// losing awaiting-overrides, response-time history and KPI trends. Persistence is the canonical place
+    /// where best-effort-per-item beats fail-fast: a store that cannot be written is not a reason to
+    /// abandon the six that can. Add new stores to the array below and they inherit the isolation.
+    /// </remarks>
     public static async Task FlushPersistentStateAsync(CancellationToken cancellationToken = default)
     {
         var services = TryGetServices();
 
-        try
+        (string Name, Func<CancellationToken, Task> Flush)[] stores =
+        [
+            ("MessageAnalytics", services.MessageAnalytics.FlushAsync),
+            ("TriagePersistence", services.TriagePersistence.FlushAsync),
+            ("OversightChatSnapshot", OversightChatSnapshotService.Instance.FlushAsync),
+            ("ResponseTimeTracker", ResponseTimeTracker.Instance.FlushAsync),
+            ("ContactHistory", ContactHistoryStore.Instance.FlushAsync),
+            ("AwaitingOverrides", AwaitingOverrideStore.Instance.FlushAsync),
+            ("KpiTrends", KpiTrendStore.Instance.FlushAsync)
+        ];
+
+        LastFlushFailures = await FlushStoresAsync(stores, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Runs every flush delegate, isolating failures. Returns the names that failed, in order.
+    /// </summary>
+    /// <remarks>
+    /// Split out from <see cref="FlushPersistentStateAsync"/> purely so the isolation guarantee is
+    /// testable without standing up the seven real singleton stores and their file IO.
+    /// </remarks>
+    /// <param name="logFailure">
+    /// Where a per-store failure is recorded. Defaults to <see cref="AppLogger"/>. Tests pass a no-op:
+    /// <see cref="AppLogger"/> writes to a fixed path under the real user-data root, so exercising this
+    /// method with deliberately-throwing fake stores was appending genuine-looking <c>[ERR]</c> lines —
+    /// "Lifecycle.Flush.third", "Lifecycle.Flush.a" — to the user's own app.log. That is the one file
+    /// support and the owner are told to consult, so filling it with failures that never happened to them
+    /// undermines the diagnostics the rest of this audit added.
+    /// </param>
+    internal static async Task<IReadOnlyList<string>> FlushStoresAsync(
+        IReadOnlyList<(string Name, Func<CancellationToken, Task> Flush)> stores,
+        CancellationToken cancellationToken = default,
+        Action<string, Exception>? logFailure = null)
+    {
+        ArgumentNullException.ThrowIfNull(stores);
+
+        logFailure ??= static (scope, ex) => AppLogger.LogError(scope, ex);
+
+        List<string>? failed = null;
+
+        foreach (var (name, flush) in stores)
         {
-            await services.MessageAnalytics.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await services.TriagePersistence.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await OversightChatSnapshotService.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await ResponseTimeTracker.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await ContactHistoryStore.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await AwaitingOverrideStore.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
-            await KpiTrendStore.Instance.FlushAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await flush(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // Deliberately swallowed per store: shutdown must continue so the remaining stores still
+                // get their chance to persist. Cancellation is recorded too — a cancelled flush is data
+                // that did not reach disk, which is exactly what the user needs warning about.
+                Debug.WriteLine($"Lifecycle flush failed for {name}: {ex.Message}");
+                logFailure($"Lifecycle.Flush.{name}", ex);
+                (failed ??= []).Add(name);
+            }
         }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Lifecycle flush failed: {ex.Message}");
-            AppLogger.LogError("Lifecycle.Flush", ex);
-        }
+
+        return failed is null ? [] : failed;
     }
 
     private static LifecycleServices TryGetServices()

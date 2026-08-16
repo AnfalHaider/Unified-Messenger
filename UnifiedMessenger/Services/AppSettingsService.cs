@@ -66,10 +66,14 @@ public sealed class AppSettingsService : IAppSettingsService
                     .DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken)
                     .ConfigureAwait(false) ?? new AppSettings();
             }
-            catch (JsonException ex)
+            // JsonException alone was too narrow: a settings file locked by a backup tool or antivirus, or
+            // sitting on an unavailable network profile, throws IOException/UnauthorizedAccessException and
+            // used to escape LoadAsync entirely — failing startup rather than degrading to defaults.
+            // Recording and preserving are shared with the other durable stores so all three behave alike.
+            catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
             {
-                Debug.WriteLine($"Settings file is corrupt; resetting to defaults: {ex.Message}");
-                BackupCorruptFile();
+                RecoveredFromCorruptFile = true;
+                CorruptFileBackupPath = CorruptFileRecovery.Preserve(_storePath, "Settings", ex);
                 loaded = new AppSettings();
             }
 
@@ -155,21 +159,12 @@ public sealed class AppSettingsService : IAppSettingsService
             StartupWarmMode = StartupWarmMode.VisibleOnly
         };
 
-    private void BackupCorruptFile()
-    {
-        try
-        {
-            if (!File.Exists(_storePath))
-            {
-                return;
-            }
+    /// <summary>
+    /// True when the last <see cref="LoadAsync"/> could not read the settings file and fell back to
+    /// defaults. The user's saved preferences are gone from the live session; tell them.
+    /// </summary>
+    public bool RecoveredFromCorruptFile { get; private set; }
 
-            var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
-            File.Move(_storePath, backupPath, overwrite: true);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"Could not back up corrupt settings file: {ex.Message}");
-        }
-    }
+    /// <summary>Where the unreadable settings file was preserved, when it could be preserved.</summary>
+    public string? CorruptFileBackupPath { get; private set; }
 }

@@ -165,7 +165,10 @@ public static class BusinessReport
         if (input.HasCustomerHistory && (input.NewCustomersThisWeek + input.ReturningCustomersThisWeek) > 0)
         {
             var activeCustomers = input.NewCustomersThisWeek + input.ReturningCustomersThisWeek;
-            var returnRate = (int)Math.Round(input.ReturningCustomersThisWeek * 100.0 / activeCustomers);
+            // Shares are bounded 0-100, so they use the honest rule: rounding 997/1000 up to 100 here would
+            // produce a sentence that contradicts itself — "100% ... had contacted you before; 3 reached
+            // out for the first time."
+            var returnRate = MetricMath.HonestPercent(input.ReturningCustomersThisWeek, activeCustomers);
             insights.Add(new BusinessInsight(InsightSeverity.Info,
                 $"{input.NewCustomersThisWeek} new · {input.ReturningCustomersThisWeek} returning customers {thisPeriod}",
                 $"{returnRate}% of the {activeCustomers} customers who messaged {thisPeriod} had contacted you before"
@@ -179,7 +182,9 @@ public static class BusinessReport
         if (active.Count > 1)
         {
             var top = active.OrderByDescending(a => a.Messages).First();
-            var share = (int)Math.Round(top.Messages * 100.0 / Math.Max(1, active.Sum(a => a.Messages)));
+            // This call-out only fires when 2+ accounts are active, so a rounded-up 100% would claim one
+            // account is all of the volume in the same breath as naming it "busiest" among several.
+            var share = MetricMath.HonestPercent(top.Messages, Math.Max(1, active.Sum(a => a.Messages)));
             insights.Add(new BusinessInsight(InsightSeverity.Info,
                 $"{top.DisplayName} is your busiest account",
                 $"{top.Messages} messages this week — {share}% of all customer volume."));
@@ -215,7 +220,10 @@ public static class BusinessReport
         var warns = insights.Where(i => i.Severity == InsightSeverity.Warn).Take(2).ToList();
         if (warns.Count > 0)
         {
-            return $"Focus this {noun}: " + string.Join("; ", warns.Select(w => w.Title.ToLowerInvariant())) + ".";
+            // Titles are kept verbatim. Lower-casing them read tidily until an insight title carried an
+            // account name — "Focus this week: depilex dha-2 whatsapp may be neglected" mangles the
+            // owner's own branch naming in the single most prominent sentence of the report.
+            return $"Focus this {noun}: " + string.Join("; ", warns.Select(w => w.Title)) + ".";
         }
 
         if (input.MessagesThisWeek == 0)

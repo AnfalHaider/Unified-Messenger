@@ -30,12 +30,14 @@ public static class OversightRollupBuilder
         OversightGrouping grouping,
         Func<string?, double> slaThresholdMinutes,
         Func<string, bool>? isStale = null,
+        Func<string, bool>? readFailed = null,
         DateTimeOffset? nowUtc = null,
         Func<string, string>? locationForInstance = null,
         DateTimeOffset? windowStartUtc = null,
         DateTimeOffset? windowEndUtc = null,
         Func<string, (int Active, int CaughtUp)?>? chatSnapshot = null,
-        Func<string, PlatformCapabilities>? capabilitiesForInstance = null)
+        Func<string, PlatformCapabilities>? capabilitiesForInstance = null,
+        TimeZoneInfo? zone = null)
     {
         ArgumentNullException.ThrowIfNull(threads);
         ArgumentNullException.ThrowIfNull(instances);
@@ -46,7 +48,16 @@ public static class OversightRollupBuilder
         // timing is dropped from the on-time DENOMINATOR rather than scored as a miss.
         var capabilities = capabilitiesForInstance ?? (_ => FullyMeasurable);
 
-        var today = (nowUtc ?? DateTimeOffset.UtcNow).UtcDateTime.Date;
+        // LOCAL day, not UTC. Every other daily figure in the product keys locally — MessageAnalyticsService
+        // buckets on receivedAtUtc.LocalDateTime and prunes with DateTime.Now.Date, and KpiTrendStore keys
+        // with LocalDateTime. Keying this one in UTC put every message between local midnight and the UTC
+        // offset into the previous day's bucket, so at UTC+5 the card's sparkline disagreed with the
+        // Analytics chart for the same account until 05:00 every morning.
+        //
+        // `zone` defaults to the machine's and exists only so this can be tested against a zone that
+        // observes DST — this machine is UTC+5, which never transitions, so a local-only test would pass
+        // vacuously on both correct and broken code.
+        var today = LocalDayBoundary.LocalDate(nowUtc ?? DateTimeOffset.UtcNow, zone);
 
         var nameByInstance = instances
             .GroupBy(i => i.Id, StringComparer.OrdinalIgnoreCase)
@@ -115,7 +126,7 @@ public static class OversightRollupBuilder
             var onTimeCount = timingReplied.Count(t => t.ReplyLatencyMinutes <= threshold)
                 + timingOpen.Count(t => !t.IsSlaBreached);
             var onTimePercent = measuredCount > 0
-                ? (int)Math.Round((double)onTimeCount / measuredCount * 100)
+                ? MetricMath.HonestPercent(onTimeCount, measuredCount)
                 : 100;
             var historicalOpenCount = windowStartUtc is null
                 ? 0
@@ -146,7 +157,7 @@ public static class OversightRollupBuilder
                 if (hasSnapshot)
                 {
                     measuredCount = snapActive;
-                    onTimePercent = snapActive > 0 ? (int)Math.Round((double)snapCaught / snapActive * 100) : 100;
+                    onTimePercent = snapActive > 0 ? MetricMath.HonestPercent(snapCaught, snapActive) : 100;
                     historicalOpenCount = 0;
                     awaitingCount = Math.Max(0, snapActive - snapCaught);
                 }
@@ -163,6 +174,14 @@ public static class OversightRollupBuilder
             var stale = isStale is not null
                 && instanceIds.Count > 0
                 && instanceIds.All(id => isStale(id));
+
+            // ANY failed member, not ALL — unlike `stale` above. A location whose three branch accounts
+            // include one the app cannot read is reporting incomplete numbers, and the owner needs to know
+            // that before acting on them. Requiring all three to fail would hide exactly the case that
+            // matters: one branch quietly dropping out of the rollup.
+            var couldNotRead = readFailed is not null
+                && instanceIds.Count > 0
+                && instanceIds.Any(id => readFailed(id));
 
             var displayName = grouping == OversightGrouping.ByLocation
                 ? group.Key
@@ -187,9 +206,10 @@ public static class OversightRollupBuilder
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
                 SlaBreachedCount = slaBreachedCount,
                 IsStale = stale,
+                ReadFailed = couldNotRead,
                 LastActivityUtc = list.Count > 0 ? list.Max(t => t.LastMessageTime) : null,
                 MemberInstanceIds = instanceIds,
-                TrendCounts = BuildTrend(list, today)
+                TrendCounts = BuildTrend(list, today, zone)
             });
         }
 
@@ -225,12 +245,19 @@ public static class OversightRollupBuilder
     /// Bucket actionable threads into the last <see cref="TrendDays"/> days by their last-activity day
     /// (oldest → newest). Threads outside the window are ignored; the result is always 7 values.
     /// </summary>
-    private static IReadOnlyList<int> BuildTrend(IReadOnlyList<ThreadData> list, DateTime today)
+    private static IReadOnlyList<int> BuildTrend(IReadOnlyList<ThreadData> list, DateTime today, TimeZoneInfo? zone)
     {
         var buckets = new int[TrendDays];
         foreach (var thread in list)
         {
-            var daysAgo = (today - thread.LastMessageTime.UtcDateTime.Date).Days;
+            // Both sides of this subtraction must use the same clock as `today` above, or the fix is
+            // only half applied and the boundary moves rather than closing.
+            //
+            // Both are calendar dates at midnight, so the subtraction counts *days on the calendar*, not
+            // elapsed hours. That is what keeps the buckets right across a DST transition: a 23-hour day
+            // is still one day ago. Deriving `daysAgo` from a duration instead would round 23 hours to
+            // zero days and double-count a bar. Covered by DstMetricBucketingTests.
+            var daysAgo = (today - LocalDayBoundary.LocalDate(thread.LastMessageTime, zone)).Days;
             if (daysAgo is >= 0 and < TrendDays)
             {
                 buckets[TrendDays - 1 - daysAgo]++;
@@ -266,4 +293,5 @@ public static class OversightRollupBuilder
 
     private static string? FirstBranch(IReadOnlyList<ThreadData> list) =>
         list.Select(t => t.BranchName).FirstOrDefault(b => !string.IsNullOrWhiteSpace(b));
+
 }

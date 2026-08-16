@@ -9,7 +9,12 @@ other service it embeds. All product names and logos are the property of their r
 |---|---|
 | [Windows App SDK / WinUI 3](https://github.com/microsoft/WindowsAppSDK) | MIT |
 | [Microsoft.Web.WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) | Microsoft Software License Terms |
+| [Microsoft.Windows.SDK.BuildTools](https://github.com/microsoft/Windows-SDK-BuildTools) (build only) | MIT |
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MIT |
+| [Microsoft.Extensions.DependencyInjection](https://github.com/dotnet/runtime) | MIT |
+| [Microsoft.Extensions.AI.Abstractions](https://github.com/dotnet/extensions) | MIT |
+| [System.Text.Json](https://github.com/dotnet/runtime) | MIT |
+| [System.Drawing.Common](https://github.com/dotnet/runtime) | MIT |
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [H.NotifyIcon.WinUI](https://github.com/HavenDV/H.NotifyIcon) | MIT |
 | [xUnit](https://github.com/xunit/xunit) (tests only) | Apache-2.0 |

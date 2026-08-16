@@ -125,9 +125,9 @@ public sealed class KpiTrendStore
                 await using var stream = File.OpenRead(_storePath);
                 store = await JsonSerializer.DeserializeAsync<TrendStore>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
             }
-            catch (JsonException ex)
+            catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
             {
-                Debug.WriteLine($"KPI-trend store is corrupt; resetting: {ex.Message}");
+                CorruptFileRecovery.Preserve(_storePath, "KpiTrends", ex);
                 return;
             }
 

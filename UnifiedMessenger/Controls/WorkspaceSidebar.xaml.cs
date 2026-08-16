@@ -502,7 +502,7 @@ public sealed partial class WorkspaceSidebar : Grid
             instance.NotificationsMuted,
             detail);
         var displaySubtitle = WorkspaceSidebarHelper.ComposeRowSubtitle(
-            instance.Platform, connectionStatus, instance.NotificationsMuted);
+            instance.Platform, connectionStatus, instance.NotificationsMuted, detail);
 
         if (_instanceStatusLabels.TryGetValue(normalizedId, out var statusLabel))
         {
@@ -754,7 +754,7 @@ public sealed partial class WorkspaceSidebar : Grid
         // Subtitle = channel name when healthy (e.g. "WhatsApp", "Meta Business Suite"), surfacing only real
         // problems (signed out / error). statusSubtitle is kept for the tooltip.
         var subtitle = WorkspaceSidebarHelper.ComposeRowSubtitle(
-            instance.Platform, connectionStatus, instance.NotificationsMuted);
+            instance.Platform, connectionStatus, instance.NotificationsMuted, connectionDetail);
         var row = CreateSelectableRow(
             instanceId,
             instance,

@@ -173,6 +173,16 @@ public sealed partial class ReviewHealthPanel : UserControl
                 }
             };
             ToolTipService.SetToolTip(chip, "Open this account's Google reviews to reply");
+
+            // Panel content, so no name is derived — and one of these renders per Google account, so a
+            // screen reader heard "button" repeated with no way to tell which location it belonged to.
+            // Same shape as the command centre's awaiting pills, so it carries the account the same way.
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+                chip,
+                $"{instance.DisplayName}: {health.Unanswered} " +
+                (health.Unanswered == 1 ? "review needs a reply" : "reviews need a reply") +
+                ". Activate to open Google reviews.");
+
             chip.Click += OnOpenReviewsClick;
             trailing = chip;
         }
@@ -256,6 +266,14 @@ public sealed partial class ReviewHealthPanel : UserControl
                             : review.Text + "\n\nClick to open this review in Google",
                         MaxWidth = 460
                     });
+                // One per pending review, panel content again — every row announced only "button". Name it
+                // with the reviewer so the rows are distinguishable, which is the whole point of the list.
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+                    rowButton,
+                    string.IsNullOrWhiteSpace(review.Reviewer)
+                        ? "Review awaiting a reply. Activate to open it in Google."
+                        : $"Review from {review.Reviewer}, awaiting a reply. Activate to open it in Google.");
+
                 rowButton.Click += OnOpenReviewClick;
                 list.Children.Add(rowButton);
             }

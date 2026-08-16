@@ -109,11 +109,12 @@ public sealed class OccDateRangeFilterState
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    // `v.Offset` is the offset carried by whatever instant the picker handed us, which is not the offset
+    // in force at that date's local midnight on a DST transition day. LocalDayBoundary resolves the real
+    // boundary — including the days where local midnight is skipped or happens twice.
     public static DateTimeOffset? NormalizeStartOfDay(DateTimeOffset? value) =>
-        value is { } v ? new DateTimeOffset(v.LocalDateTime.Date, v.Offset) : null;
+        value is { } v ? LocalDayBoundary.StartOfDay(v.LocalDateTime.Date) : null;
 
     public static DateTimeOffset? NormalizeEndOfDay(DateTimeOffset? value) =>
-        value is { } v
-            ? new DateTimeOffset(v.LocalDateTime.Date.AddDays(1).AddTicks(-1), v.Offset)
-            : null;
+        value is { } v ? LocalDayBoundary.EndOfDay(v.LocalDateTime.Date) : null;
 }

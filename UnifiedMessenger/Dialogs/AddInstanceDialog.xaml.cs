@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
@@ -53,6 +54,7 @@ public sealed partial class AddInstanceDialog : ContentDialog
         }
 
         UpdateCustomUrlVisibility();
+        UpdatePlatformCapabilityText();
         UpdateFormMode();
         _focusTrap?.Dispose();
         _focusTrap = FocusTrapHelper.Activate(this);
@@ -76,6 +78,27 @@ public sealed partial class AddInstanceDialog : ContentDialog
     private void PlatformBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         UpdateCustomUrlVisibility();
+        UpdatePlatformCapabilityText();
+    }
+
+    /// <summary>
+    /// Shows what the selected channel actually delivers, so a channel that produces no oversight data
+    /// says so before the account is created rather than after the user waits for a dashboard card that
+    /// never arrives.
+    /// </summary>
+    private void UpdatePlatformCapabilityText()
+    {
+        var description = (PlatformBox.SelectedItem as PlatformDefinition)?.Description;
+
+        PlatformCapabilityText.Text = description ?? string.Empty;
+        PlatformCapabilityText.Visibility = string.IsNullOrWhiteSpace(description)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        // The description qualifies the platform choice, so bind it to the ComboBox for assistive tech —
+        // a screen-reader user must not have to hunt for a separate sibling label to learn that the
+        // channel they just picked is not measured.
+        AutomationProperties.SetFullDescription(PlatformBox, description ?? string.Empty);
     }
 
     private void CategoryBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
