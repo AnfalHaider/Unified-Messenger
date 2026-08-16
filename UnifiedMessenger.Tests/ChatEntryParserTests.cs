@@ -82,4 +82,32 @@ public class ChatEntryParserTests
     {
         Assert.Empty(ChatEntryParser.ParseConversations(JsonDocument.Parse("{}").RootElement));
     }
+
+    // ---- Previews that are payloads rather than messages -----------------------------------------------
+
+    [Theory]
+    [InlineData("102074813546715@lid")]
+    [InlineData("7619322347741@lid")]
+    [InlineData("923105325598@c.us")]
+    [InlineData("923105325598@s.whatsapp.net")]
+    public void ASharedContactCardDoesNotRenderItsRawJid(string preview)
+    {
+        // 22 of the owner's 466 waiting chats displayed an internal identifier where the dashboard
+        // promises "the actual text of their last message" — the same class of defect as the base64
+        // image payloads, found the same way.
+        Assert.Equal("Shared a contact", ChatEntryParser.SanitizePreview(preview));
+    }
+
+    [Theory]
+    [InlineData("meet me at cafe@dha")]
+    [InlineData("email me at info@depilex.com")]
+    [InlineData("@lid")]
+    [InlineData("abc123@lid")]
+    [InlineData("Ok")]
+    public void OrdinaryTextThatContainsAnAtSignIsLeftAlone(string preview)
+    {
+        // The detection is deliberately narrow — all digits, then '@', then a known JID suffix — so a
+        // message that merely mentions an address keeps its own words.
+        Assert.Equal(preview, ChatEntryParser.SanitizePreview(preview));
+    }
 }

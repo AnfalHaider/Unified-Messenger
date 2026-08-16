@@ -57,6 +57,17 @@ public sealed class AppSettings
     /// </remarks>
     public int AwaitingBacklogAfterDays { get; set; } = 7;
 
+    /// <summary>
+    /// Let the local model judge the conversations the word rules cannot — messages like "Mel to mel" or
+    /// "Both signature and senior artist" that are neither plainly a question nor plainly a sign-off.
+    /// </summary>
+    /// <remarks>
+    /// Requires <see cref="EnableLocalAi"/>. When Ollama is off, slow, or answers something unexpected,
+    /// the conversation simply stays in the count — the model can only ever remove chats it is sure
+    /// about, never add uncertainty to the queue.
+    /// </remarks>
+    public bool UseAiForReplyNeed { get; set; } = true;
+
     public bool IncludeMutedChatBadges { get; set; }
 
     /// <summary>

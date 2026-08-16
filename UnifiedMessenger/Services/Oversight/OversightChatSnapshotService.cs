@@ -287,10 +287,30 @@ public sealed class OversightChatSnapshotService
     /// </summary>
     public static bool IsAutomaticallyClosed(ChatEntry chat) =>
         AppSettingsService.Instance.Settings.FilterClosedConversations &&
-        !ReplyNeed.Classify(chat.Preview).NeedsReply;
+        !ClassifyReplyNeed(chat).NeedsReply;
 
-    /// <summary>Why this chat is not being counted, for the "closed automatically" list.</summary>
-    public static ReplyNeedVerdict ClassifyReplyNeed(ChatEntry chat) => ReplyNeed.Classify(chat.Preview);
+    /// <summary>
+    /// Why this chat is or is not being counted: the word rules first, then the local model's cached
+    /// answer for the cases the rules called <see cref="ReplyNeedReason.Substantive"/> — which is the
+    /// honest name for "unrecognised", not for "definitely needs a reply".
+    /// </summary>
+    /// <remarks>
+    /// The model can only ever move a chat from counted to closed, never the other way. It is read from
+    /// cache and never awaited, so a slow or absent Ollama costs nothing and simply leaves the chat
+    /// counted — see <see cref="ReplyNeedAdjudicator"/>.
+    /// </remarks>
+    public static ReplyNeedVerdict ClassifyReplyNeed(ChatEntry chat)
+    {
+        var verdict = ReplyNeed.Classify(chat.Preview);
+        if (verdict.Reason != ReplyNeedReason.Substantive)
+        {
+            return verdict;
+        }
+
+        return ReplyNeedAdjudicator.Instance.TryGetNeedsReply(chat.Preview) == false
+            ? new ReplyNeedVerdict(false, ReplyNeedReason.AiJudgedClosed)
+            : verdict;
+    }
 
     /// <summary>
     /// The awaiting population split into the parts the owner needs separately: what is worth acting on
@@ -364,7 +384,7 @@ public sealed class OversightChatSnapshotService
                 // Counted only against the LIVE queue. "We cannot read 1 of the chats you need to deal
                 // with today" is actionable; folding a month-old unreadable chat into the same number
                 // makes it alarming and tells the owner nothing they can do anything about.
-                if (ReplyNeed.Classify(chat.Preview).Reason == ReplyNeedReason.NoPreviewAvailable)
+                if (ClassifyReplyNeed(chat).Reason == ReplyNeedReason.NoPreviewAvailable)
                 {
                     unreadable++;
                 }
@@ -403,7 +423,7 @@ public sealed class OversightChatSnapshotService
                     continue;
                 }
 
-                var verdict = ReplyNeed.Classify(chat.Preview);
+                var verdict = ClassifyReplyNeed(chat);
                 if (!verdict.NeedsReply)
                 {
                     results.Add((chat, verdict));

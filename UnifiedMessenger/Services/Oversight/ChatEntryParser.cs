@@ -194,7 +194,48 @@ public static class ChatEntryParser
             || trimmed.StartsWith("R0lGOD", StringComparison.Ordinal)     // GIF
             || trimmed.StartsWith("data:image", StringComparison.OrdinalIgnoreCase);
 
-        return looksLikeEncodedMedia ? "Photo" : preview;
+        if (looksLikeEncodedMedia)
+        {
+            return "Photo";
+        }
+
+        return IsBareJid(trimmed) ? "Shared a contact" : preview;
+    }
+
+    /// <summary>
+    /// True when the whole preview is a WhatsApp JID and nothing else — the payload of a shared contact
+    /// card leaking into the place the message text belongs.
+    /// </summary>
+    /// <remarks>
+    /// Same class of defect as the base64 previews above, found the same way: 22 of the owner's 466
+    /// waiting chats displayed <c>102074813546715@lid</c> where the dashboard promises the customer's
+    /// last message. It is only a display fix — a shared contact still counts as needing a reply, because
+    /// "book my friend in too" is a real request and the app has no way to tell it from an idle forward.
+    /// Deliberately narrow: the entire trimmed preview must be digits, then <c>@</c>, then a known JID
+    /// suffix, so a message that merely mentions an address is never relabelled.
+    /// </remarks>
+    internal static bool IsBareJid(string trimmed)
+    {
+        var value = trimmed.TrimEnd();
+        var at = value.IndexOf('@');
+        if (at <= 0 || at == value.Length - 1)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < at; i++)
+        {
+            if (!char.IsAsciiDigit(value[i]))
+            {
+                return false;
+            }
+        }
+
+        var suffix = value[(at + 1)..];
+        return suffix.Equals("lid", StringComparison.OrdinalIgnoreCase)
+            || suffix.Equals("c.us", StringComparison.OrdinalIgnoreCase)
+            || suffix.Equals("s.whatsapp.net", StringComparison.OrdinalIgnoreCase)
+            || suffix.Equals("g.us", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>True when the row carries a usable boolean <c>awaiting</c> rather than relying on inference.</summary>

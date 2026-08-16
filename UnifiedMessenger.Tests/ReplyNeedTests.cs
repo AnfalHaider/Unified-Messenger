@@ -249,4 +249,16 @@ public class ReplyNeedTests
             Assert.DoesNotContain("_", text, StringComparison.Ordinal);
         }
     }
+
+    [Fact]
+    public void ASharedContactCardIsCountedAndNotMistakenForAQuestion()
+    {
+        // 22 of the owner's waiting chats showed a raw "102074813546715@lid" where the message text
+        // belongs. ChatEntryParser now labels it; this pins that the label does not then get read as the
+        // customer asking to be contacted, which the word "contact" would otherwise have done.
+        var verdict = ReplyNeed.Classify("Shared a contact");
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MediaWithoutCaption, verdict.Reason);
+    }
 }

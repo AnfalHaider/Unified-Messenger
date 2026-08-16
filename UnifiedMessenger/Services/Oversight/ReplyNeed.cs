@@ -65,7 +65,7 @@ public readonly record struct ReplyNeedVerdict(bool NeedsReply, ReplyNeedReason 
         ReplyNeedReason.EmojiOnly => "Last message was only an emoji",
         ReplyNeedReason.AiJudgedClosed => "Conversation looks finished",
         ReplyNeedReason.AsksSomething => "Customer asked something",
-        ReplyNeedReason.MediaWithoutCaption => "Customer sent a photo or voice note",
+        ReplyNeedReason.MediaWithoutCaption => "Customer sent a photo, voice note or contact",
         ReplyNeedReason.NoPreviewAvailable => "Message could not be read",
         _ => "Customer sent a message"
     };
@@ -128,7 +128,10 @@ public static class ReplyNeed
         "can", "could", "would", "should", "shall", "may", "will",
         "do", "does", "did", "is", "are", "was", "were", "have", "has",
         "please", "plz", "pls", "kindly", "want", "need", "needed", "looking", "interested",
-        "send", "share", "tell", "let", "confirm", "check", "help", "reply", "call", "contact",
+        "send", "share", "tell", "let", "confirm", "check", "help", "reply", "call",
+        // "contact" is deliberately absent: the label for a shared contact card is literally "Shared a
+        // contact", and matching it here would report a forwarded vCard as a customer asking something.
+        // "please contact me" still fires on "please".
         "available", "availability", "book", "booking", "bookings", "appointment", "appointments",
         "price", "prices", "pricing", "rate", "rates", "charge", "charges", "cost", "fee", "fees",
         "discount", "offer", "package", "deal", "timing", "timings", "time", "open", "close", "closed",
@@ -161,7 +164,11 @@ public static class ReplyNeed
     private static readonly HashSet<string> MediaPlaceholders = new(StringComparer.OrdinalIgnoreCase)
     {
         "photo", "photos", "image", "video", "videos", "voice", "audio", "voice message", "sticker",
-        "gif", "document", "file", "contact", "location", "poll", "message"
+        "gif", "document", "file", "contact", "location", "poll", "message",
+        // The label ChatEntryParser substitutes for a contact card whose payload would otherwise render
+        // as a raw JID. Counted like any other wordless message: "book my friend in too" is a real
+        // request, and nothing here can tell it from an idle forward.
+        "shared a contact"
     };
 
     /// <summary>The longest a message can be and still be dismissed as a closer.</summary>
