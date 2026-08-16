@@ -314,8 +314,10 @@ public static class OversightSnapshotReader
                 // fallback. Say so — this used to return null in silence.
                 AppLogger.LogWarning(
                     $"IndexedDbScan.{instance.Id}",
-                    "Conversation scan function is not injected on this page — the account's page has "
-                    + "probably not loaded yet. Open the account once to finish loading.");
+                    ScanBlockedMessage.DescribeNotInjected(
+                        InstanceConnectionStatusService.Instance.GetStatus(instance.Id),
+                        InstanceConnectionStatusService.Instance.GetDetail(instance.Id),
+                        NavigationRetryScheduler.Instance.StateFor(instance.Id)));
 
                 // Not injected means the adapter script never ran, which on a lazily-loaded account means
                 // the page was never navigated. That is "not loaded", not "broken".
@@ -343,14 +345,21 @@ public static class OversightSnapshotReader
                     //
                     // This is the same false-positive class as the Google Business one fixed in v4.99.18,
                     // reached by a different route.
+                    // ...and a THIRD case the stage alone cannot see: no internet. A dropped connection
+                    // produces exactly these stages, because the page cannot load, so indexedDB.open never
+                    // returns and the watchdog fires. Telling the owner to "open the account once" then
+                    // sends them to do something that cannot work and implies the fault is theirs.
+                    // The connection status is what tells the two apart — see ScanBlockedMessage.
                     var pageNotReady = IsPageNotReadyStage(stage);
 
                     AppLogger.LogWarning(
                         $"IndexedDbScan.{instance.Id}",
-                        pageNotReady
-                            ? $"Conversation scan could not run yet (stage '{stage}') — this account's page is "
-                              + "not loaded. Open the account once to finish loading."
-                            : $"Conversation scan settled at stage '{stage ?? "unknown"}' instead of 'done'; no oversight data was read.");
+                        ScanBlockedMessage.DescribeUnfinished(
+                            stage,
+                            pageNotReady,
+                            InstanceConnectionStatusService.Instance.GetStatus(instance.Id),
+                            InstanceConnectionStatusService.Instance.GetDetail(instance.Id),
+                            NavigationRetryScheduler.Instance.StateFor(instance.Id)));
 
                     return (null, pageNotReady);
                 }

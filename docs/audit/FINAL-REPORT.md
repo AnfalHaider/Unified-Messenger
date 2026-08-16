@@ -60,7 +60,7 @@ The five most serious:
 4. **Updating deleted the log and the settings-recovery file** — and auto-update is on by default.
 5. **WhatsApp's own notice account counted as a waiting customer**, 26 days old and impossible to clear.
 
-### Session 2 (`v4.99.21` → `v4.99.27`, increments 23–29)
+### Session 2 (`v4.99.21` → `v4.99.28`, increments 23–33)
 
 Seven passes, each taken from the handoff's own priority list. **Every one produced a finding.**
 
@@ -73,8 +73,11 @@ Seven passes, each taken from the handoff's own priority list. **Every one produ
 | 27 | State matrix | **F-STATE-01 (S2)** "all caught up" while a branch was unmeasured · **F-STATE-02** caught-up-on-a-range read as caught-up-on-everything |
 | 28 | Semantic colours | **F-A11Y-04 (S2)** every status colour failed contrast in one theme |
 | 29 | Tab order | **F-A11Y-05 (S3)** account rows never announced that they could be opened |
+| 30–32 | Release, install, corrections | **F-OFFLINE-01 corrected** — the fix cannot deliver itself · **F-OFFLINE-05 withdrawn**, the finding was wrong, not the code |
+| 33 | Offline wording, re-tested live | **F-OFFLINE-06 closed** · and its own failed verification found **two more**: the retry chain died after one attempt of five, and the sidebar lost its wording the instant a retry fired · **F-OFFLINE-07/-08 (S3)** recorded, not fixed |
 
-**Session 2 severity: 1 × S1, 6 × S2, 5 × S3, 1 × S4 (accepted).**
+**Session 2 severity: 1 × S1, 6 × S2, 7 × S3, 1 × S4 (accepted).** One finding (F-OFFLINE-05) was
+withdrawn as mistaken; that correction is in §7.
 
 ---
 
@@ -160,7 +163,8 @@ that claim.
 |---|---|---|
 | **F-SNAP-02** | S2 | A *degraded* read (store bridge failed, IndexedDB succeeded) is still visible only in the log |
 | ~~**F-OFFLINE-05**~~ | ~~S3~~ | **WITHDRAWN — the finding was wrong, not the code.** The capture was taken on `4.99.21.0`; the fix shipped in `v4.99.22`. Re-verified live on `v4.99.27` |
-| **F-OFFLINE-06** | S3 | "Open the account once to finish loading" is shown when the real cause is no network |
+| **F-OFFLINE-07** | S3 | An **aborted** navigation puts an account into `Error` and schedules no retry, so it sits on a connection error for something that never errored |
+| **F-OFFLINE-08** | S3 | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection is back — F-OFFLINE-06 on the surface they actually look at |
 | **F-ORCH-06** | S3 | Settings and the account context menu speak "instance" as their **accessible names** |
 | **F-METRICS-11** | S4 | End-of-day projection skew — deliberate WONTFIX, bound measured at under 2% |
 
@@ -275,10 +279,15 @@ Worth carrying forward, because the difference in yield between these and ordina
 2. **A soak under account churn.** The idle 3.6-hour run is clean; cycling, re-syncing and navigating
    accounts is the case still untested. Worth pairing with an attempt to reduce the ~3.1 GB WebView2
    footprint, which is stable but eight times the app's own.
-3. **Tell existing users that `v4.99.27` needs a manual install.** Anyone below `v4.99.22` is stuck behind
+3. **Tell existing users that `v4.99.27` and later need a manual install.** Anyone below `v4.99.22` is stuck behind
    the bug the release fixes, and no future release can reach them. The `v4.99.27` release notes are the
    only place this can be said, because it is a property of the build they are *already* running.
 4. **Code-sign the installer.** It closes F-OFFLINE-01 properly and restores the stronger control.
-5. **F-SNAP-02 and F-ORCH-06**, the two remaining recorded findings with user-visible consequences.
-6. **Repository housekeeping** — `main` carries a commit titled "Audit Files" (`954145e`) with ~1,400
-   graphify cache files, probably worth dropping. This branch has not been merged, pushed, or PR'd.
+5. **F-OFFLINE-07** — an aborted navigation should not put an account into `Error`. It is the root cause
+   behind the one sidebar row that still reads a bare "Connection error", and behind that account getting
+   no retry at all. Deliberately left alone because it changes *when* accounts enter the error state.
+6. **F-OFFLINE-08** — the dashboard's "click Re-sync" needs the same connection-status join
+   `ScanBlockedMessage` just got. Small, and it is on the screen the owner actually looks at.
+7. **F-SNAP-02 and F-ORCH-06**, the two remaining recorded findings with user-visible consequences.
+8. **Repository housekeeping** — `main` carries a commit titled "Audit Files" (`954145e`) with ~1,400
+   graphify cache files, probably worth dropping.

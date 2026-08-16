@@ -3,6 +3,22 @@ using System.Collections.Concurrent;
 namespace UnifiedMessenger.Services;
 
 /// <summary>
+/// What the retry scheduler believes about an account's network, for surfaces that have to word it.
+/// Three states, not two, because "we are retrying" and "we stopped retrying" are different promises.
+/// </summary>
+public enum ReconnectState
+{
+    /// <summary>No connectivity failure recorded — say nothing about the network.</summary>
+    None,
+
+    /// <summary>Offline, with another reconnect attempt still scheduled.</summary>
+    Retrying,
+
+    /// <summary>Offline, backoff exhausted — it will only retry when the account is reopened.</summary>
+    GaveUp
+}
+
+/// <summary>
 /// Retries a page load that failed because the machine had no network, so an account does not stay dead
 /// after a wifi blip.
 ///
@@ -50,6 +66,12 @@ public sealed class NavigationRetryScheduler
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _pending =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Accounts whose backoff schedule ran out. Kept separate from _attempts because the two answer
+    // different questions: _attempts says "we know this account's problem is the network", _exhausted says
+    // "and we have stopped trying". Collapsing them would make the rail promise a reconnect that will
+    // never come — the same class of false statement this pass exists to remove.
+    private readonly ConcurrentDictionary<string, byte> _exhausted = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Reload hook. Overridable so the scheduling contract is testable without a WebView2.</summary>
     internal Func<string, CancellationToken, Task> ReloadAsync { get; set; } =
         (instanceId, token) => InstanceSessionManager.Instance.ReloadSessionAsync(instanceId, token);
@@ -71,15 +93,35 @@ public sealed class NavigationRetryScheduler
     /// <summary>Called when a navigation fails. Schedules a reload when the failure looks transient.</summary>
     public void OnNavigationFailed(string instanceId, string? webErrorStatus)
     {
-        if (string.IsNullOrWhiteSpace(instanceId) || !ShouldRetry(webErrorStatus))
+        if (string.IsNullOrWhiteSpace(instanceId))
         {
             return;
         }
 
         var id = instanceId.Trim();
+
+        // The status alone is not enough to keep a retry chain alive. Reloading an account cancels its
+        // in-flight navigation, and the cancellation surfaces as `Unknown` — which is not a connectivity
+        // status, so the chain stopped dead after the first attempt. Observed live behind a dead proxy:
+        //
+        //   19:03:07  'b87bf7cd…' could not load (ConnectionAborted); retrying in 10s (attempt 1 of 5).
+        //   19:03:17  Reconnect attempt firing for 'b87bf7cd…'.
+        //   19:03:19  'b87bf7cd…' navigation failed (Unknown).
+        //   (nothing further — attempts 2 to 5 never happened)
+        //
+        // Five attempts over eight minutes was the whole point; what shipped was one attempt over ten
+        // seconds. So once this account is already known to be offline, an unrecognised failure is treated
+        // as a continuation of the same outage rather than a new, unrelated fault. The attempt cap still
+        // bounds it, and a success still clears it — the cost is that a genuinely different failure
+        // arriving mid-outage gets folded into the outage until the chain ends.
+        if (!ShouldRetry(webErrorStatus) && !BelievesOffline(id))
+        {
+            return;
+        }
         var attemptsSoFar = _attempts.GetOrAdd(id, 0);
         if (NextDelay(attemptsSoFar) is not { } delay)
         {
+            _exhausted[id] = 1;
             AppLogger.LogWarning(
                 "WebView.Nav",
                 $"Giving up on reconnecting '{id}' after {MaxAttempts} attempts; it will retry when reopened.");
@@ -110,6 +152,7 @@ public sealed class NavigationRetryScheduler
 
         var id = instanceId.Trim();
         _attempts.TryRemove(id, out _);
+        _exhausted.TryRemove(id, out _);
         CancelPending(id);
     }
 
@@ -123,11 +166,52 @@ public sealed class NavigationRetryScheduler
 
         var id = instanceId.Trim();
         _attempts.TryRemove(id, out _);
+        _exhausted.TryRemove(id, out _);
         CancelPending(id);
     }
 
     internal int AttemptsFor(string instanceId) =>
         _attempts.TryGetValue(instanceId.Trim(), out var count) ? count : 0;
+
+    /// <summary>
+    /// True while this account is being reconnected after a connectivity failure.
+    ///
+    /// <para>
+    /// This is the <b>authoritative</b> "we believe the network is down for this account" signal, and it
+    /// exists because the raw WebView2 error status is not stable enough to carry that meaning. Reloading
+    /// an account cancels its in-flight navigation, and the cancellation reports a <i>different</i> status
+    /// than the original failure — so an account that correctly read "No internet — reconnecting…" reverted
+    /// to a generic "Connection error" the moment the first retry fired, and the scan went back to telling
+    /// the owner to open a page that could not load. The retry was masking its own signal.
+    /// </para>
+    /// <para>
+    /// A retry is only ever scheduled for a connectivity-class failure (see <see cref="ShouldRetry"/>), so
+    /// a pending one is a precise statement of cause, not a guess — and it is cleared the moment a
+    /// navigation succeeds.
+    /// </para>
+    /// </summary>
+    public bool BelievesOffline(string? instanceId) =>
+        !string.IsNullOrWhiteSpace(instanceId) &&
+        (_attempts.ContainsKey(instanceId.Trim()) || _exhausted.ContainsKey(instanceId.Trim()));
+
+    /// <summary>
+    /// True while this account is offline <i>and</i> a further reconnect is still coming. Once the backoff
+    /// schedule runs out this goes false while <see cref="BelievesOffline"/> stays true — the cause is
+    /// still known, but the app must stop saying "reconnecting…" for something it has stopped doing.
+    /// </summary>
+    public bool IsReconnecting(string? instanceId) =>
+        BelievesOffline(instanceId) && !_exhausted.ContainsKey(instanceId!.Trim());
+
+    /// <summary>The single call a UI surface should make: what to say about this account's network.</summary>
+    public ReconnectState StateFor(string? instanceId)
+    {
+        if (!BelievesOffline(instanceId))
+        {
+            return ReconnectState.None;
+        }
+
+        return _exhausted.ContainsKey(instanceId!.Trim()) ? ReconnectState.GaveUp : ReconnectState.Retrying;
+    }
 
     private void CancelPending(string id)
     {

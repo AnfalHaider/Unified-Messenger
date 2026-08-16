@@ -260,4 +260,133 @@ public class NavigationRetryTests
             Assert.Empty(reloads);
         }
     }
+
+    // ---- The state the rest of the app words its messages from ---------------------------------------
+
+    [Fact]
+    public void AnAccountWithNoRecordedFailureSaysNothingAboutTheNetwork()
+    {
+        var scheduler = new NavigationRetryScheduler { ReloadAsync = (_, _) => Task.CompletedTask };
+
+        Assert.Equal(ReconnectState.None, scheduler.StateFor("acct-quiet"));
+        Assert.Equal(ReconnectState.None, scheduler.StateFor(null));
+        Assert.Equal(ReconnectState.None, scheduler.StateFor("   "));
+        Assert.False(scheduler.BelievesOffline("acct-quiet"));
+    }
+
+    [Fact]
+    public void AConnectivityFailureIsRememberedAsTheCauseImmediately()
+    {
+        var scheduler = new NavigationRetryScheduler { ReloadAsync = (_, _) => Task.CompletedTask };
+
+        scheduler.OnNavigationFailed("acct-1", "HostNameNotResolved");
+
+        // This is the whole point of the flag: the raw status will stop being recognisable once the retry
+        // reloads the page, so the scheduler's memory is what carries the cause forward.
+        Assert.Equal(ReconnectState.Retrying, scheduler.StateFor("acct-1"));
+        Assert.True(scheduler.IsReconnecting("acct-1"));
+    }
+
+    [Fact]
+    public void ANonConnectivityFailureIsNotClaimedAsAnOutage()
+    {
+        var scheduler = new NavigationRetryScheduler { ReloadAsync = (_, _) => Task.CompletedTask };
+
+        // A certificate error is a real, different problem. Reporting "no internet" for it would send the
+        // owner to check a router that is working fine.
+        scheduler.OnNavigationFailed("acct-1", "CertificateCommonNameIsIncorrect");
+
+        Assert.Equal(ReconnectState.None, scheduler.StateFor("acct-1"));
+    }
+
+    [Fact]
+    public void OnceTheBackoffRunsOutTheAppStopsClaimingItIsStillTrying()
+    {
+        var scheduler = new NavigationRetryScheduler { ReloadAsync = (_, _) => Task.CompletedTask };
+
+        // Drive it past the cap without waiting out the real delays: each call consumes one slot.
+        for (var i = 0; i <= NavigationRetryScheduler.MaxAttempts; i++)
+        {
+            scheduler.OnNavigationFailed("acct-1", "HostNameNotResolved");
+        }
+
+        // The cause is still known — it is still an outage, and the rail should still say so...
+        Assert.True(scheduler.BelievesOffline("acct-1"));
+
+        // ...but nothing further is scheduled, so it must not promise a reconnect that will never come.
+        Assert.Equal(ReconnectState.GaveUp, scheduler.StateFor("acct-1"));
+        Assert.False(scheduler.IsReconnecting("acct-1"));
+    }
+
+    [Fact]
+    public void ASuccessfulLoadClearsBothTheAttemptsAndTheGaveUpState()
+    {
+        var scheduler = new NavigationRetryScheduler { ReloadAsync = (_, _) => Task.CompletedTask };
+
+        for (var i = 0; i <= NavigationRetryScheduler.MaxAttempts; i++)
+        {
+            scheduler.OnNavigationFailed("acct-1", "HostNameNotResolved");
+        }
+
+        Assert.Equal(ReconnectState.GaveUp, scheduler.StateFor("acct-1"));
+
+        scheduler.OnNavigationSucceeded("acct-1");
+
+        // A sticky GaveUp would leave a working account permanently labelled offline — worse than the bug
+        // this whole path was added to fix.
+        Assert.Equal(ReconnectState.None, scheduler.StateFor("acct-1"));
+
+        // And the next outage must get a full schedule again, not zero attempts.
+        scheduler.OnNavigationFailed("acct-1", "HostNameNotResolved");
+        Assert.Equal(ReconnectState.Retrying, scheduler.StateFor("acct-1"));
+    }
+
+    [Fact]
+    public void ForgettingAnAccountAlsoForgetsThatItWasOffline()
+    {
+        var scheduler = new NavigationRetryScheduler { ReloadAsync = (_, _) => Task.CompletedTask };
+
+        for (var i = 0; i <= NavigationRetryScheduler.MaxAttempts; i++)
+        {
+            scheduler.OnNavigationFailed("acct-1", "HostNameNotResolved");
+        }
+
+        scheduler.Forget("acct-1");
+
+        Assert.Equal(ReconnectState.None, scheduler.StateFor("acct-1"));
+    }
+
+    [Fact]
+    public void TheRetryChainSurvivesTheUnrecognisedStatusItsOwnReloadProduces()
+    {
+        var scheduler = new NavigationRetryScheduler { ReloadAsync = (_, _) => Task.CompletedTask };
+
+        scheduler.OnNavigationFailed("acct-1", "ConnectionAborted");
+        Assert.Equal(1, scheduler.AttemptsFor("acct-1"));
+
+        // This is what the reload actually reports live — cancelling the in-flight navigation surfaces as
+        // `Unknown`, which is not a connectivity status. Requiring one here capped the feature at a single
+        // attempt over ten seconds instead of five over eight minutes.
+        Assert.False(NavigationRetryScheduler.ShouldRetry("Unknown"));
+
+        scheduler.OnNavigationFailed("acct-1", "Unknown");
+        Assert.Equal(2, scheduler.AttemptsFor("acct-1"));
+
+        scheduler.OnNavigationFailed("acct-1", "Unknown");
+        Assert.Equal(3, scheduler.AttemptsFor("acct-1"));
+    }
+
+    [Fact]
+    public void AnUnrecognisedFailureOnAnAccountThatWasNeverOfflineStillStartsNothing()
+    {
+        var scheduler = new NavigationRetryScheduler { ReloadAsync = (_, _) => Task.CompletedTask };
+
+        // The continuation rule must not become a blanket "retry everything" — a first failure still has
+        // to look like connectivity, or a certificate error would be reloaded five times for nothing.
+        scheduler.OnNavigationFailed("acct-1", "Unknown");
+        scheduler.OnNavigationFailed("acct-1", "CertificateExpired");
+
+        Assert.Equal(0, scheduler.AttemptsFor("acct-1"));
+        Assert.Equal(ReconnectState.None, scheduler.StateFor("acct-1"));
+    }
 }

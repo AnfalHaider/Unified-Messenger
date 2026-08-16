@@ -489,6 +489,7 @@ public sealed partial class WorkspaceSidebar : Grid
         var connectionStatus = _services.ConnectionStatus.GetStatus(normalizedId);
         var adapterStatus = _services.AdapterHealth.GetStatus(normalizedId);
         var detail = _services.ConnectionStatus.GetDetail(normalizedId);
+        var reconnecting = NavigationRetryScheduler.Instance.StateFor(normalizedId);
 
         if (_instanceStatusDots.TryGetValue(normalizedId, out var dot))
         {
@@ -500,9 +501,10 @@ public sealed partial class WorkspaceSidebar : Grid
             connectionStatus,
             adapterStatus.State,
             instance.NotificationsMuted,
-            detail);
+            detail,
+            reconnecting);
         var displaySubtitle = WorkspaceSidebarHelper.ComposeRowSubtitle(
-            instance.Platform, connectionStatus, instance.NotificationsMuted, detail);
+            instance.Platform, connectionStatus, instance.NotificationsMuted, detail, reconnecting);
 
         if (_instanceStatusLabels.TryGetValue(normalizedId, out var statusLabel))
         {
@@ -746,15 +748,17 @@ public sealed partial class WorkspaceSidebar : Grid
         var connectionStatus = _services.ConnectionStatus.GetStatus(instanceId);
         var adapterState = _services.AdapterHealth.GetStatus(instanceId).State;
         var connectionDetail = _services.ConnectionStatus.GetDetail(instanceId);
+        var rowReconnecting = NavigationRetryScheduler.Instance.StateFor(instanceId);
         var statusSubtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
             connectionStatus,
             adapterState,
             instance.NotificationsMuted,
-            connectionDetail);
+            connectionDetail,
+            rowReconnecting);
         // Subtitle = channel name when healthy (e.g. "WhatsApp", "Meta Business Suite"), surfacing only real
         // problems (signed out / error). statusSubtitle is kept for the tooltip.
         var subtitle = WorkspaceSidebarHelper.ComposeRowSubtitle(
-            instance.Platform, connectionStatus, instance.NotificationsMuted, connectionDetail);
+            instance.Platform, connectionStatus, instance.NotificationsMuted, connectionDetail, rowReconnecting);
         var row = CreateSelectableRow(
             instanceId,
             instance,

@@ -137,7 +137,8 @@ public static class WorkspaceSidebarHelper
         InstanceConnectionStatus connectionStatus,
         AdapterHealthState adapterState,
         bool notificationsMuted,
-        string? connectionDetail = null)
+        string? connectionDetail = null,
+        ReconnectState reconnect = ReconnectState.None)
     {
         if (notificationsMuted)
         {
@@ -160,6 +161,13 @@ public static class WorkspaceSidebarHelper
             // certificate, a proxy — collapsed to the same three words with no way to tell them apart.
             // The describer returns null for details that are not error codes, and those stay behind the
             // generic label rather than putting raw text in the rail.
+            //
+            // `reconnect` overrides it because the raw status is not stable across a retry: reloading
+            // cancels the in-flight navigation and reports a status the describer does not recognise, so
+            // an account that correctly read "No internet" reverted to the generic label the instant the
+            // first retry fired.
+            InstanceConnectionStatus.Error when reconnect != ReconnectState.None =>
+                NetworkFailureDescriber.AccountOffline,
             InstanceConnectionStatus.Error =>
                 NetworkFailureDescriber.DescribeWebViewStatus(connectionDetail) ?? "Connection error",
             InstanceConnectionStatus.Initializing => "Connecting…",
@@ -177,7 +185,8 @@ public static class WorkspaceSidebarHelper
         string? platformId,
         InstanceConnectionStatus connectionStatus,
         bool notificationsMuted,
-        string? connectionDetail = null)
+        string? connectionDetail = null,
+        ReconnectState reconnect = ReconnectState.None)
     {
         if (notificationsMuted)
         {
@@ -196,6 +205,19 @@ public static class WorkspaceSidebarHelper
             // useless. It does not say the machine is offline, and unlike the signed-out case beside it
             // ("tap to reconnect") it offers nothing to do. The offline wording says which of the two it
             // is, and that the app is retrying on its own so there is nothing to click.
+            // A pending reconnect is authoritative — see ResolveStatusSubtitle for why the raw status
+            // cannot be trusted once a retry has fired. Once the backoff is exhausted the app has stopped
+            // retrying, and must stop saying it is.
+            if (reconnect == ReconnectState.Retrying)
+            {
+                return "No internet — reconnecting…";
+            }
+
+            if (reconnect == ReconnectState.GaveUp)
+            {
+                return "No internet — tap to retry";
+            }
+
             return NetworkFailureDescriber.DescribeWebViewStatus(connectionDetail) switch
             {
                 NetworkFailureDescriber.AccountOffline => "No internet — reconnecting…",

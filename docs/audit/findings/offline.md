@@ -238,11 +238,11 @@ list and a next step — that survived into a merged report and a public release
 correctly at every step; nobody compared it to the version the fix shipped in. **Check the build number
 against the change you are testing, not just against "the latest publish".**
 
-## F-OFFLINE-06 — OPEN: the "not loaded" message is wrong when the cause is no network
+## F-OFFLINE-06 — FIXED in v4.99.28: the "not loaded" message was wrong when the cause was no network
 
-- **Severity:** S3 · **Confidence:** confirmed (observed live) · **Status:** **NOT FIXED**
+- **Severity:** S3 · **Confidence:** confirmed (observed live, both before and after) · **Status:** **FIXED**
 
-Captured during the offline test:
+Captured during the first offline test:
 
 ```
 [WRN] [IndexedDbScan.b87bf7cd…] Conversation scan could not run yet (stage 'databases-rejected')
@@ -250,10 +250,150 @@ Captured during the offline test:
 ```
 
 The wording is from `v4.99.19`, which correctly stopped reporting a sleeping account as broken. But it
-now covers a second, different cause: the page is not unloaded, it *failed to load because there is no
-network*. Telling the owner to "open the account once to finish loading" sends them to do something that
-cannot work until the connection is back. The scan knows the stage; it does not know the connection
-status, and the two need joining.
+also covered a second, different cause: the page is not *unloaded*, it *failed to load because there is
+no network*. Telling the owner to "open the account once to finish loading" sent them to do something
+that cannot work until the connection is back. The stage cannot tell the two apart; the connection status
+can, and it simply was not consulted.
+
+`ScanBlockedMessage` now joins them, and the same stage produces different sentences depending on what
+the app actually knows about that account:
+
+| What is known | What it says |
+|---|---|
+| Offline, reconnect pending | "…there is no internet connection, so this account's page never loaded. It will pick up on its own once the connection is back." |
+| Offline, backoff exhausted | "…Reopen the account once you are back online." |
+| Failed, cause unknown | "…this account's page failed to load. Open the account to see what it reports." |
+| Never opened (lazy loading) | unchanged — "Open the account once to finish loading." |
+
+A stage *outside* the page-not-ready set is still reported as the anomaly it is, whatever the network is
+doing, so an outage never becomes a blanket excuse that hides a real scraper break
+(`ARealScraperFailureIsStillReportedWhileOffline`).
+
+### Two further defects the live re-test found
+
+The first attempt at this fix **failed its own live verification**, and the failure was worth more than
+the fix. Consulting the connection status was correct but not sufficient, because the status is not
+stable across a retry:
+
+```
+19:03:07  'b87bf7cd…' navigation failed (ConnectionAborted).
+19:03:07  'b87bf7cd…' could not load (ConnectionAborted); retrying in 10s (attempt 1 of 5).
+19:03:17  Reconnect attempt firing for 'b87bf7cd…'.
+19:03:19  'b87bf7cd…' navigation failed (Unknown).
+          ← nothing further. Attempts 2 to 5 never happened.
+```
+
+Reloading cancels the in-flight navigation, and the cancellation reports `Unknown`, which is not a
+connectivity status. Two consequences, both invisible until the app was watched running:
+
+1. **The retry chain died after one attempt.** `OnNavigationFailed` required a connectivity status to
+   schedule the next retry, and the reload's own cancellation never is one. What shipped as "five
+   attempts over about eight minutes" was in practice **one attempt over ten seconds**. The scheduler now
+   treats an unrecognised failure on an account it already believes is offline as a continuation of the
+   same outage. A *first* failure still has to look like connectivity, so a certificate error is not
+   reloaded five times for nothing.
+2. **The sidebar lost the wording it had just earned.** An account correctly reading "No internet —
+   reconnecting…" reverted to a bare "Connection error" the instant the first retry fired. The
+   scheduler's own belief (`ReconnectState`) is now the authoritative signal, because a retry is only ever
+   scheduled for a connectivity failure in the first place.
+
+`ReconnectState` has three values, not two, because "we are retrying" and "we stopped retrying" are
+different promises. Once the backoff runs out the row reads **"No internet — tap to retry"** instead of
+continuing to claim a reconnect that will never come.
+
+### Live verification (`v4.99.28`, dead proxy)
+
+The retry chain, previously capped at one attempt, ran to completion:
+
+```
+19:12:55  '6c604e13…' could not load (ConnectionAborted); retrying in 10s  (attempt 1 of 5).
+19:13:07  '6c604e13…' could not load (Unknown);           retrying in 30s  (attempt 2 of 5).
+19:13:39  '6c604e13…' could not load (Unknown);           retrying in 60s  (attempt 3 of 5).
+19:14:42  '6c604e13…' could not load (Unknown);           retrying in 120s (attempt 4 of 5).
+19:16:44  '6c604e13…' could not load (Unknown);           retrying in 300s (attempt 5 of 5).
+19:21:43  Giving up on reconnecting '6c604e13…' after 5 attempts; it will retry when reopened.
+```
+
+That last line also closes the "not observed live" gap left open under F-OFFLINE-04 — the give-up path
+has now been watched firing.
+
+UI Automation read back all three sidebar states in the same capture, each matching that account's actual
+scheduler state:
+
+```
+[Group] Depilex DHA-2 WhatsApp,     No internet — tap to retry,    selected      ← backoff exhausted
+[Group] Depilex Men DHA-2 WhatsApp, No internet — reconnecting…,   press to open ← retry pending
+[Group] Depilex F-11 WhatsApp,      Connection error,              press to open ← see F-OFFLINE-07
+```
+
+And the scan message itself, which is the finding:
+
+```
+19:35:48 [WRN] [IndexedDbScan.b87bf7cd…] Conversation scan could not run (stage 'databases-rejected')
+         — there is no internet connection, so this account's page never loaded.
+           Reopen the account once you are back online.
+```
+
+A second run, with the retry still pending rather than exhausted, produced the other outlook — so both
+halves of the offline wording have now been read off a live app rather than only asserted by a test:
+
+```
+20:14:00 [WRN] [IndexedDbScan.6c604e13…] Conversation scan could not run (stage 'databases-rejected')
+         — there is no internet connection, so this account's page never loaded.
+           It will pick up on its own once the connection is back.
+```
+
+**One branch was not reproduced live: "this account's page failed to load."** It needs an account whose
+only navigation failure is an aborted one, which is a startup race — it happened in the first run and did
+not recur in the second, and forcing it would have meant faking a status the app never produced. It is
+covered by `APageThatFailedForAnUnknownReasonIsNotDescribedAsOneThatWasNeverOpened` and by the three-way
+distinctness assertion in `TheNotInjectedPathHasTheSameThreeAnswers`, and it is the branch F-OFFLINE-07
+is about, so the state that reaches it is still open regardless.
+
+## F-OFFLINE-07 — OPEN: an aborted navigation is reported as a connection error
+
+- **Severity:** S3 · **Confidence:** confirmed (observed live) · **Status:** **NOT FIXED**
+
+In the capture above, one of the three accounts read "Connection error" while the other two named the
+cause. That was not a regression in the wording — it is that this account never had a diagnosable failure
+at all:
+
+```
+19:13:01  Navigation guard attached: allowAllHosts=False hosts=19     (×4 within five seconds)
+19:13:08  'de1b5592…' navigation failed (Unknown).
+          ← and nothing else, ever.
+```
+
+Its only navigation was **aborted**, almost certainly superseded by the session manager's own re-attach
+during startup, and an aborted navigation is not a failure. But it still put the account into `Error`
+with an undiagnosable detail, so it is stuck reporting a connection error for something that never
+actually errored — and, unlike its two neighbours, no retry was ever scheduled for it, so it will sit
+there until the owner opens it by hand.
+
+The wording half is now handled honestly (`FailedForAnUnknownReason` says "this account's page failed to
+load" rather than borrowing the never-opened sentence), but the underlying state is still wrong. The real
+fix is to stop marking an account `Error` when its navigation was superseded rather than failed, which
+means distinguishing the two in `PlatformNavigationHooks` — a change to when accounts enter the error
+state, with consequences well beyond this message. Deliberately not attempted inside a wording fix.
+
+## F-OFFLINE-08 — OPEN: the dashboard tells an offline owner to click Re-sync
+
+- **Severity:** S3 · **Confidence:** confirmed (observed live) · **Status:** **NOT FIXED**
+
+Read off the dashboard by UI Automation with every web client offline:
+
+```
+[Text] Depilex F-11 WhatsApp: data out of date, click Re-sync
+[Text] Depilex Men DHA-2 WhatsApp: data out of date, click Re-sync
+[Text] Depilex DHA-2 WhatsApp: data out of date, click Re-sync
+```
+
+This is F-OFFLINE-06 on the surface the owner actually looks at, rather than in a log they never open.
+Re-sync cannot work while the machine is offline — it was clicked, and every account came back with the
+offline scan message. The data really is out of date, so the first half is true; the advice is the dead
+end. `AccountReadHealth` needs the same connection-status join `ScanBlockedMessage` just got. Left open
+deliberately: it is a different surface with its own copy, and folding it in would have shipped with no
+separate verification.
 
 ## Verified CLEAN
 

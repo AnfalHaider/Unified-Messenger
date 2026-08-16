@@ -226,7 +226,9 @@ work.
 | ~~**F-DURA-01**~~ | ~~S2~~ | **CLOSED** in `v4.99.24`. The plumbing did exist — and **nothing read it**, which is why the user was still never told. A modal notice now appears at startup in the session the recovery happened, verified live against the real corruption path. | `durability.md` |
 | **F-SNAP-02** (partial) | S2 | An unreadable account now says so, but the log is still the only place a *degraded* read (store bridge failed, IndexedDB succeeded) is visible. | `snapshot-reader.md` |
 | ~~**F-OFFLINE-05**~~ | ~~S3~~ | **WITHDRAWN — the finding was wrong, not the code.** The capture that "proved" the fix had not taken effect was taken on **`4.99.21.0`**, and `ComposeRowSubtitle` did not gain its detail parameter until `v4.99.22`. Re-verified live on `v4.99.27`: rows read "No internet — reconnecting…" offline and "WhatsApp, 3 unread" online. **Check the build number against the change you are testing.** | `offline.md` |
-| **F-OFFLINE-06** | S3 | "this account's page is not loaded. Open the account once to finish loading" is shown when the real cause is **no network**, sending the owner to do something that cannot work. The scan knows its stage but not the connection status. | `offline.md` |
+| ~~**F-OFFLINE-06**~~ | ~~S3~~ | **CLOSED** in `v4.99.28`, verified live twice. The scan now joins its stage to the connection status, so "no internet" and "never opened" get different sentences. Its **first** fix failed live verification, and the failure found two more defects — see below. | `offline.md` |
+| **F-OFFLINE-07** | S3 | An **aborted** navigation (superseded during startup, not a real failure) still puts an account into `Error` with an undiagnosable detail, and schedules no retry — so it sits on "Connection error" for something that never errored, until opened by hand. The wording is now honest; the state is not. | `offline.md` |
+| **F-OFFLINE-08** | S3 | The dashboard tells an offline owner "data out of date, click Re-sync". Re-sync cannot work until the connection is back — F-OFFLINE-06 on the surface the owner actually looks at. `AccountReadHealth` needs the same join `ScanBlockedMessage` got. | `offline.md` |
 | **F-METRICS-11** | S4 | End-of-day projection skews on a 23/25-hour day. **Deliberate WONTFIX** — measured under 2%, on a figure that is explicitly a forecast. Reasoning and the bound are recorded; do not "fix" it without reading why. | `metrics.md` |
 | **F-ORCH-06** | S3 | Settings speaks developer vocabulary — "instances", "Refresh all WebViews", "Export instances.json", "Enable per-instance sleep unload". These are also the **accessible names**, so screen-reader users get only the jargon. **Do not blanket-rename**: "your local Ollama **instance**" is correct English and must stay. | `orchestrator.md`, `accessibility.md` |
 
@@ -248,7 +250,27 @@ auto-update has *never* been able to succeed — the installer is unsigned and t
 Authenticode, so with the shipped defaults it re-downloaded the whole installer at every launch, rejected
 it, and threw the failure away silently. Also **F-OFFLINE-04 (S2)**: an account whose page failed to load
 was never retried, because the stale-adapter net only watches accounts that reached `Ready`. Both fixed.
-**One finding left open — F-OFFLINE-06 — see §5.1.** (F-OFFLINE-05 was withdrawn: the finding was wrong, not the code.) Full write-up in `offline.md`.
+**F-OFFLINE-06 closed in `v4.99.28` (Increment 33)** — and it is the most instructive item in this file,
+because its first fix **passed every unit test and failed its own live verification**. Consulting the
+connection status was right but not durable: reloading cancels the in-flight navigation, and the
+cancellation reports `Unknown`, which is not a connectivity status. Two consequences, neither visible
+from the code:
+
+- **The retry chain died after one attempt of five.** `OnNavigationFailed` needed a connectivity status to
+  schedule the next retry, and the reload's own cancellation never is one. F-OFFLINE-04 was fixed as
+  "five attempts over about eight minutes"; what actually shipped was one attempt over ten seconds. Now
+  observed live running 1→5 and then giving up.
+- **The sidebar lost the wording it had just earned**, reverting to "Connection error" the instant a retry
+  fired. `ReconnectState` (None / Retrying / GaveUp) is now the authoritative signal, and an account the
+  app has stopped retrying reads "No internet — tap to retry" rather than claiming a reconnect that is
+  not coming.
+
+**The lesson, and it is the same one as F-OFFLINE-05 in the other direction: a fix is not verified until
+you have watched the running app do the thing.** Two of the three defects here existed only in the
+interaction between the fix and the retry it triggered.
+
+**Two new findings left open — F-OFFLINE-07 and F-OFFLINE-08 — see §5.1.** (F-OFFLINE-05 was withdrawn:
+the finding was wrong, not the code.) Full write-up in `offline.md`.
 
 > **Reuse this technique.** No elevation is needed and the machine never goes offline: launch with
 > `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--proxy-server=127.0.0.1:9"` to cut off only this app's

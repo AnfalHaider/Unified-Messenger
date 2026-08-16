@@ -131,4 +131,79 @@ public class StatusCueTests
             OnTimePercent = 100,
             MemberInstanceIds = [key]
         };
+
+    // ---- The rail's wording survives its own retry ----------------------------------------------------
+
+    [Fact]
+    public void ARetryingAccountKeepsSayingWhyItIsDownEvenWhenTheStatusStopsMakingSense()
+    {
+        // The live re-test caught this. Reloading cancels the in-flight navigation, and the cancellation
+        // reports a status the describer does not recognise — so the row reverted from "No internet —
+        // reconnecting…" to a bare "Connection error" the instant the first retry fired, exactly when the
+        // owner most needed to know the app was handling it.
+        const string unrecognised = "";
+
+        var withoutState = WorkspaceSidebarHelper.ComposeRowSubtitle(
+            "whatsapp", InstanceConnectionStatus.Error, notificationsMuted: false, connectionDetail: unrecognised);
+        Assert.Equal("Connection error", withoutState);
+
+        var withState = WorkspaceSidebarHelper.ComposeRowSubtitle(
+            "whatsapp",
+            InstanceConnectionStatus.Error,
+            notificationsMuted: false,
+            connectionDetail: unrecognised,
+            reconnect: ReconnectState.Retrying);
+
+        Assert.Contains("internet", withState, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reconnecting", withState, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnAccountTheAppHasGivenUpOnDoesNotClaimToBeReconnecting()
+    {
+        var gaveUp = WorkspaceSidebarHelper.ComposeRowSubtitle(
+            "whatsapp",
+            InstanceConnectionStatus.Error,
+            notificationsMuted: false,
+            connectionDetail: "HostNameNotResolved",
+            reconnect: ReconnectState.GaveUp);
+
+        // Still names the cause — that part was never in doubt...
+        Assert.Contains("internet", gaveUp, StringComparison.OrdinalIgnoreCase);
+
+        // ...but a spinner-word for something that stopped over five minutes ago is a false promise, and
+        // the row is the only place the owner would learn there is now something for them to do.
+        Assert.DoesNotContain("reconnecting", gaveUp, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("retry", gaveUp, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TheTooltipAndAccessibleNameFollowTheSameRule()
+    {
+        // ResolveStatusSubtitle feeds the tooltip and the accessible name; leaving it on the raw status
+        // would make the row and the screen reader disagree about the same account.
+        var subtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(
+            InstanceConnectionStatus.Error,
+            AdapterHealthState.Unknown,
+            notificationsMuted: false,
+            connectionDetail: "",
+            reconnect: ReconnectState.Retrying);
+
+        Assert.Equal(NetworkFailureDescriber.AccountOffline, subtitle);
+    }
+
+    [Fact]
+    public void MutedStillWinsOverTheNetworkWording()
+    {
+        // Mute is the owner's own explicit choice about this row; an outage must not silently overwrite
+        // what they set.
+        var subtitle = WorkspaceSidebarHelper.ComposeRowSubtitle(
+            "whatsapp",
+            InstanceConnectionStatus.Error,
+            notificationsMuted: true,
+            connectionDetail: "HostNameNotResolved",
+            reconnect: ReconnectState.Retrying);
+
+        Assert.Contains("muted", subtitle, StringComparison.OrdinalIgnoreCase);
+    }
 }

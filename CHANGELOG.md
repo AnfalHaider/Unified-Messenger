@@ -5,6 +5,29 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.28
+
+**When the internet is down, the app now says so instead of telling you to open an account.** A
+conversation scan that could not run reported *"this account's page is not loaded — open the account
+once to finish loading."* That advice is right for an account that simply has not been opened yet, and
+it is what the message was written for. But a dropped connection produces exactly the same symptom: the
+page cannot load, so the scan's watchdog fires and the app fell back to the same sentence. Opening the
+account cannot possibly help while the network is down, so the app was sending its owner to do something
+futile and implying they had forgotten something.
+
+It now names the real cause — *"there is no internet connection, so this account's page never loaded"* —
+and says what happens next. A genuine scraper failure is still reported as one, so an offline machine
+never becomes a blanket excuse that hides a real break.
+
+**The sidebar keeps saying why an account is down, and stops promising a reconnect it has given up on.**
+Two related mistakes, both found by running the app behind a dead network rather than by reading the
+code. First, an account correctly reading "No internet — reconnecting…" reverted to a bare "Connection
+error" the moment the first automatic retry fired — reloading cancels the in-flight page load, and the
+cancellation reports a different, unrecognised error, so the app lost track of what it already knew.
+Second, once the retry schedule ran out after about eight minutes, the row went on saying "reconnecting…"
+for something it had stopped doing. Those accounts now read "No internet — tap to retry", which is both
+true and something you can act on.
+
 ## v4.99.27
 
 **Accounts in the sidebar now tell screen-reader users they can be opened.** Pressing Enter or Space on

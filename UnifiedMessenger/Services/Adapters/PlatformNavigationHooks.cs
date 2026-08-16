@@ -31,6 +31,13 @@ internal static class PlatformNavigationHooks
             if (!args.IsSuccess)
             {
                 var webErrorStatus = args.WebErrorStatus.ToString();
+
+                // Every failure is logged, not only the retryable ones. The scheduler stays quiet for
+                // statuses it will not retry, which meant a reload that cancelled an in-flight navigation
+                // recorded a different status and left no trace of having done so — the one thing that
+                // made the "Connection error" regression below hard to see.
+                AppLogger.LogInfo("WebView.Nav", $"'{instance.Id}' navigation failed ({webErrorStatus}).");
+
                 InstanceConnectionStatusService.Instance.SetError(instance.Id, webErrorStatus);
 
                 // Nothing else retries this. The stale-adapter monitor only watches accounts that reached
