@@ -30,6 +30,33 @@ public sealed class AppSettings
 
     public int SlaThresholdMinutes { get; set; } = 15;
 
+    /// <summary>
+    /// Stop counting a conversation as awaiting a reply when the customer's last message was plainly a
+    /// closing one — "ok", "thanks", "ji", "jazakallah", a thumbs-up.
+    ///
+    /// <para>
+    /// On by default because the raw direction flag is not a usable number: measured on a real salon's
+    /// data it reported <b>466 customers waiting, oldest 82 days</b>, when only 41 had actually asked
+    /// anything and 454 had already been read. The cost was not the size of the number — it was that a
+    /// customer reporting bruising and another saying they would go elsewhere were invisible inside it.
+    /// </para>
+    /// <para>
+    /// Turn it off to see the raw direction-based count. Nothing is deleted either way: excluded chats
+    /// stay listed with the reason they were excluded.
+    /// </para>
+    /// </summary>
+    public bool FilterClosedConversations { get; set; } = true;
+
+    /// <summary>
+    /// How old a waiting conversation has to be before it counts as backlog rather than today's queue.
+    /// </summary>
+    /// <remarks>
+    /// Seven days. On the measured data 341 of 466 were older than that, and 176 were older than a month
+    /// — mixing them with the last 24 hours is what made the live queue unreadable. The backlog is still
+    /// shown as its own number, so an 82-day-old complaint is separated out, never hidden.
+    /// </remarks>
+    public int AwaitingBacklogAfterDays { get; set; } = 7;
+
     public bool IncludeMutedChatBadges { get; set; }
 
     /// <summary>

@@ -269,10 +269,150 @@ public sealed class OversightChatSnapshotService
     }
 
     // A chat awaiting a reply unless the owner manually marked it handled-elsewhere or snoozed it (an
-    // override that self-expires when a newer message arrives or the snooze lapses).
+    // override that self-expires when a newer message arrives or the snooze lapses) — or unless the
+    // customer's last message plainly ended the conversation.
+    //
+    // This one predicate is where every awaiting number in the product comes from: the rollup, the
+    // digest, the per-account cards and the alert monitor all reach it through TryGetWindowed or
+    // BuildDigest. Classifying here rather than at each call site is what stops the headline count and
+    // the list underneath it disagreeing.
     private static bool IsEffectivelyAwaiting(string instanceId, ChatEntry chat, DateTimeOffset nowUtc) =>
         chat.IsAwaiting &&
+        !IsAutomaticallyClosed(chat) &&
         !AwaitingOverrideStore.Instance.IsSuppressed(instanceId, chat.ConversationKey, chat.LastActivityUtc, nowUtc);
+
+    /// <summary>
+    /// Whether the reply-need classifier says this conversation is finished. Always false when the owner
+    /// has switched the filter off, so the setting genuinely restores the old raw number.
+    /// </summary>
+    public static bool IsAutomaticallyClosed(ChatEntry chat) =>
+        AppSettingsService.Instance.Settings.FilterClosedConversations &&
+        !ReplyNeed.Classify(chat.Preview).NeedsReply;
+
+    /// <summary>Why this chat is not being counted, for the "closed automatically" list.</summary>
+    public static ReplyNeedVerdict ClassifyReplyNeed(ChatEntry chat) => ReplyNeed.Classify(chat.Preview);
+
+    /// <summary>
+    /// The awaiting population split into the parts the owner needs separately: what is worth acting on
+    /// today, what has aged into backlog, and what the app decided on its own not to count.
+    /// </summary>
+    /// <remarks>
+    /// One number could not carry this. "466 waiting" was true and useless; "58 waiting" alone would hide
+    /// a three-month backlog. Reporting all four keeps the headline actionable without quietly dropping
+    /// anything — <see cref="Unreadable"/> in particular exists so a scrape that failed to read message
+    /// bodies cannot masquerade as an empty queue.
+    /// </remarks>
+    public readonly record struct AwaitingSplit(int NeedsReply, int Backlog, int ClosedAutomatically, int Unreadable)
+    {
+        /// <summary>Everything still open, however old — the number the raw direction flag used to give.</summary>
+        public int TotalOpen => NeedsReply + Backlog;
+    }
+
+    /// <summary>Builds the split across a set of instances.</summary>
+    public AwaitingSplit BuildAwaitingSplit(
+        IEnumerable<string> instanceIds,
+        DateTimeOffset? nowUtc = null,
+        int? backlogAfterDays = null)
+    {
+        ArgumentNullException.ThrowIfNull(instanceIds);
+
+        var now = nowUtc ?? DateTimeOffset.UtcNow;
+        var days = Math.Max(1, backlogAfterDays ?? AppSettingsService.Instance.Settings.AwaitingBacklogAfterDays);
+        var cutoff = now.AddDays(-days);
+
+        var needsReply = 0;
+        var backlog = 0;
+        var closed = 0;
+        var unreadable = 0;
+
+        foreach (var rawId in instanceIds)
+        {
+            if (string.IsNullOrWhiteSpace(rawId) || !_byInstance.TryGetValue(rawId.Trim(), out var snap))
+            {
+                continue;
+            }
+
+            var id = rawId.Trim();
+            foreach (var chat in snap.Chats)
+            {
+                if (!chat.IsAwaiting)
+                {
+                    continue;
+                }
+
+                // A manual mark-handled is the owner's own decision and is not the classifier's business
+                // to report on, so it drops out entirely rather than landing in the auto-closed list.
+                if (AwaitingOverrideStore.Instance.IsSuppressed(id, chat.ConversationKey, chat.LastActivityUtc, now))
+                {
+                    continue;
+                }
+
+                if (IsAutomaticallyClosed(chat))
+                {
+                    closed++;
+                    continue;
+                }
+
+                if (chat.LastActivityUtc < cutoff)
+                {
+                    backlog++;
+                    continue;
+                }
+
+                needsReply++;
+
+                // Counted only against the LIVE queue. "We cannot read 1 of the chats you need to deal
+                // with today" is actionable; folding a month-old unreadable chat into the same number
+                // makes it alarming and tells the owner nothing they can do anything about.
+                if (ReplyNeed.Classify(chat.Preview).Reason == ReplyNeedReason.NoPreviewAvailable)
+                {
+                    unreadable++;
+                }
+            }
+        }
+
+        return new AwaitingSplit(needsReply, backlog, closed, unreadable);
+    }
+
+    /// <summary>
+    /// The chats the classifier excluded, with the reason, so the owner can check its work rather than
+    /// having to trust it. Ordered newest first.
+    /// </summary>
+    public IReadOnlyList<(ChatEntry Chat, ReplyNeedVerdict Verdict)> GetAutomaticallyClosed(
+        IEnumerable<string> instanceIds,
+        DateTimeOffset? nowUtc = null)
+    {
+        ArgumentNullException.ThrowIfNull(instanceIds);
+
+        var now = nowUtc ?? DateTimeOffset.UtcNow;
+        var results = new List<(ChatEntry, ReplyNeedVerdict)>();
+
+        foreach (var rawId in instanceIds)
+        {
+            if (string.IsNullOrWhiteSpace(rawId) || !_byInstance.TryGetValue(rawId.Trim(), out var snap))
+            {
+                continue;
+            }
+
+            var id = rawId.Trim();
+            foreach (var chat in snap.Chats)
+            {
+                if (!chat.IsAwaiting ||
+                    AwaitingOverrideStore.Instance.IsSuppressed(id, chat.ConversationKey, chat.LastActivityUtc, now))
+                {
+                    continue;
+                }
+
+                var verdict = ReplyNeed.Classify(chat.Preview);
+                if (!verdict.NeedsReply)
+                {
+                    results.Add((chat, verdict));
+                }
+            }
+        }
+
+        return results.OrderByDescending(r => r.Item1.LastActivityUtc).ToList();
+    }
 
     /// <summary>
     /// Summarize awaiting state across instances for the "since you were last here" digest: how many are
