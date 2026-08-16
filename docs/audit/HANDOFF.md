@@ -1,8 +1,8 @@
 # Product-hardening audit — handoff
 
-**Branch:** `audit/product-hardening` (39 commits ahead of `main`) · **Head version:** `v4.99.26`
-**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline, dialog, durability, state-matrix and contrast passes
-(§5.2 items 1, 2, 4, 5 and 6 done, 3 half done; §2's tallies still describe session 1 only).
+**Branch:** `audit/product-hardening` (41 commits ahead of `main`) · **Head version:** `v4.99.27`
+**Written:** end of session 1, for a cold start in a new chat. **Updated:** session 2, after the DST, offline, dialog, durability, state-matrix, contrast, tab-order and soak passes
+(§5.2 items 1, 2, 4, 5, 6, 7 and 8 done, 3 partial; §2's tallies still describe session 1 only).
 
 Read this file first. It contains facts established the hard way; re-deriving them costs hours and
 several of them contradict `AGENTS.md`.
@@ -315,12 +315,26 @@ surface carries words or a glyph, and `StatusCueTests` pins the rule. Write-up i
 inference. High-contrast mode is still brand-token-only, and no colour was verified on screen (UIA exposes
 no fill colours).
 
-**7. A real multi-hour soak.** The leak check was an 11-minute accelerated proxy (160 navigations) and
-found no leak, but it cannot see a slow leak. **WebView2 held 1.7–2.0 GB across 17 processes** — several
-times the app's own footprint — and is where the memory actually is. Watch that specifically.
+**7. ~~A real multi-hour soak.~~ DONE — 3 h 39 m, 439 samples, NO LEAK.** Data in `docs/audit/soak.csv`.
+It captured the load transition session 1 could not explain: idle at 6 WebView2 processes / 455 MB for
+~22 minutes, then **21 processes** and the 1.7–2.0 GB footprint. Both curves are **asymptotic, not
+linear** — the app climbs 335→377 MB over 90 minutes then holds 373–380 for two hours; WebView2 climbs
+~1 GB over two hours then plateaus (last three 30-min buckets: 3126.7, 3114.7, 3086.7 — level, then
+slightly down). **Handles are flat across the whole run** (1652–1682, no trend), which is the signal that
+matters most.
 
-**8. Tab order and a real screen reader.** Order was never walked; no screen reader was actually run (I
-read the UIA tree they consume, not the audio).
+> **Still untested: a soak under account CHURN.** This one was idle — no cycling, re-syncing or
+> navigating. Separately, **~3.1 GB of WebView2 against ~380 MB of app** is stable but roughly eight times
+> the app's own footprint, and nothing in this audit has tried to reduce it.
+
+**8. ~~Tab order~~ DONE in session 2 (`v4.99.27`) — and a real screen reader is STILL NOT RUN.** The focus
+walk came back clean: **51 stops, 0 unnamed, cycle closes, order follows the screen.** Found
+**F-A11Y-05 (S3)** — account rows never announced they could be opened, while the location headers above
+them did. Untested: Shift+Tab, modal focus containment, and every focus order outside the dashboard shell.
+
+> **If you drive a focus walk with injected input, guard it by `ProcessId`.** The first attempt lost
+> foreground after eight stops and reported *another application's* controls as the app's tab order —
+> confidently, and entirely fictionally.
 
 ### 5.3 Known unknowns worth settling before selling
 
@@ -349,8 +363,9 @@ read the UIA tree they consume, not the audio).
 - **`main` carries a commit titled "Audit Files" (`954145e`) containing ~1,400 graphify cache files.** Not
   mine; `graphify-out/` is gitignored on this branch. Probably worth dropping.
 - The branch has **not** been merged or pushed. No PR opened.
-- `docs/audit/FINAL-REPORT.md` (required by §10 of the brief) has **not** been written yet. All the
-  material for it is in `docs/audit/findings/`.
+- ~~`docs/audit/FINAL-REPORT.md` has **not** been written yet.~~ **Written in session 2.** It synthesises
+  both sessions: the verdict, the severity tally, the three worst findings, what was verified clean, what
+  is still unknown, and a recommended order for whoever picks this up.
 
 ---
 
@@ -377,10 +392,10 @@ FullyQualifiedName~NotLoadedIsNotUnreadableTests|FullyQualifiedName~ScanAppliesO
 Append the offline suites too:
 
 ```
-|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests|FullyQualifiedName~SettingsRecoveryNoticeTests|FullyQualifiedName~CaughtUpClaimTests|FullyQualifiedName~QuietHoursInteractionTests|FullyQualifiedName~StatusContrastTests|FullyQualifiedName~StatusCueTests
+|FullyQualifiedName~OfflineBehaviourTests|FullyQualifiedName~NavigationRetryTests|FullyQualifiedName~DialogAccessibilityTests|FullyQualifiedName~SettingsRecoveryNoticeTests|FullyQualifiedName~CaughtUpClaimTests|FullyQualifiedName~QuietHoursInteractionTests|FullyQualifiedName~StatusContrastTests|FullyQualifiedName~StatusCueTests|FullyQualifiedName~WorkspaceSidebarAccessibilityTests
 ```
 
-That is **331 tests** as of `v4.99.26` (164 from session 1 + 50 DST + 52 offline + 5 dialog + 11 durability + 22 state-matrix + 27 contrast). Two of the retry tests
+That is **337 tests** as of `v4.99.27` (164 from session 1 + 173 added in session 2). Two of the retry tests
 wait on real timers, so the run takes ~23s rather than under a second. When a change touches day
 bucketing, also run the suites that cover the modified classes — the sweep used for Increment 23 was:
 
