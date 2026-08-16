@@ -1,8 +1,12 @@
 # Product-hardening audit — final report
 
-**Branch:** `audit/product-hardening`, 40 commits ahead of `main` · **`v4.99.1` → `v4.99.27`**
-**Two sessions, 29 numbered increments.** Build clean at 0 warnings throughout.
+**Merged to `main` and released as `v4.99.27`** (41 commits from `audit/product-hardening`).
+**Two sessions, 30 numbered increments,** `v4.99.1` → `v4.99.27`. Build clean at 0 warnings throughout.
 **337 tests in the audit regression suite, all green** (164 from session 1, 173 added in session 2).
+
+> **If you are upgrading an existing install, `v4.99.27` must be installed manually once.** The
+> auto-update fix cannot deliver itself — see §3. This is the single most important operational fact in
+> this report.
 
 The brief asked for a product that could be put on sale tomorrow: no crashes, no dead ends, **no wrong
 numbers**, no half-built promises — judged against *"a stranger paid for this and is using it
@@ -91,6 +95,18 @@ while consuming bandwidth on every start.
 Now admitted on **either** a verified digest **or** a trusted signature, never neither. *The tradeoff is
 recorded rather than buried:* the digest proves the file arrived intact, not who built it. Authenticode
 remains the stronger control and should be restored to mandatory once a certificate exists.
+
+> **Correction, added after shipping `v4.99.27`.** The fix **cannot deliver itself.** The broken verifier
+> lives in the *client*, so every installation older than `v4.99.22` still rejects the release that fixes
+> it. Confirmed on the owner's own machine, still on `v4.99.13`: publishing `v4.99.27` changed nothing,
+> and *Check for updates* produced "Downloaded installer is not Authenticode-signed" — a string that no
+> longer exists on any code path in the fixed build, which is what proves the dialog came from the old
+> client and not from a regression.
+>
+> **`v4.99.27` therefore has to be installed manually, once, on every existing install.** After that,
+> updates work. The fixed verifier was then checked against the real published artifact — accepted with
+> its `.sha256`, rejected without one — and a full manual install was performed with all user data intact
+> byte-for-byte. Detail in `findings/offline.md`.
 
 ### "You're all caught up" while a branch was not being measured — F-STATE-01 (S2)
 
@@ -254,7 +270,10 @@ Worth carrying forward, because the difference in yield between these and ordina
 3. **A soak under account churn.** The idle 3.6-hour run is clean; cycling, re-syncing and navigating
    accounts is the case still untested. Worth pairing with an attempt to reduce the ~3.1 GB WebView2
    footprint, which is stable but eight times the app's own.
-4. **Code-sign the installer.** It closes F-OFFLINE-01 properly and restores the stronger control.
-5. **F-SNAP-02 and F-ORCH-06**, the two remaining recorded findings with user-visible consequences.
-6. **Repository housekeeping** — `main` carries a commit titled "Audit Files" (`954145e`) with ~1,400
+4. **Tell existing users that `v4.99.27` needs a manual install.** Anyone below `v4.99.22` is stuck behind
+   the bug the release fixes, and no future release can reach them. The `v4.99.27` release notes are the
+   only place this can be said, because it is a property of the build they are *already* running.
+5. **Code-sign the installer.** It closes F-OFFLINE-01 properly and restores the stronger control.
+6. **F-SNAP-02 and F-ORCH-06**, the two remaining recorded findings with user-visible consequences.
+7. **Repository housekeeping** — `main` carries a commit titled "Audit Files" (`954145e`) with ~1,400
    graphify cache files, probably worth dropping. This branch has not been merged, pushed, or PR'd.

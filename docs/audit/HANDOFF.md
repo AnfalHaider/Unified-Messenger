@@ -343,10 +343,14 @@ them did. Untested: Shift+Tab, modal focus containment, and every focus order ou
   failure could now hide. Measure a ~850-chat scan on a loaded page.
 - **The 20-account sidebar test passed; 50+ was not tested.**
 - **Migrations from schema versions older than `instances.json` v5 / `settings.json` v19** are unexercised.
-- ~~**The auto-updater itself** is untested~~ — **verification is now tested and was badly broken**
-  (F-OFFLINE-01). Still untested: an actual GitHub download against a real outage. The dead-proxy trick
-  only affects WebView2; `HttpClient` ignores it, so the offline update messages are unit-tested against
-  the real .NET exception strings but no failed GitHub call was ever observed.
+- ~~**The auto-updater itself** is untested~~ — **verification is now tested, was badly broken, and is
+  fixed** (F-OFFLINE-01). Since proven end-to-end against the real published `v4.99.27` artifact:
+  accepted with its `.sha256`, rejected without one.
+  **But the fix cannot deliver itself.** The broken verifier lives in the *client*, so every install below
+  `v4.99.22` rejects the release that fixes it — observed live on the owner's `v4.99.13`, which produced
+  "Downloaded installer is not Authenticode-signed", a string that no longer exists in the fixed build.
+  **`v4.99.27` must be installed manually, once, per machine.** Still untested: an actual GitHub download
+  against a real outage — the dead-proxy trick only affects WebView2, so `HttpClient` ignores it.
 - **A network that drops while the app is running and pages are already loaded** — the commoner real-world
   case, where WhatsApp Web handles its own reconnection and no `NavigationCompleted` fires at all. The app
   may keep reporting "Connected" while the web client itself is offline. Untested, and the retry added in

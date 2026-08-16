@@ -101,6 +101,10 @@ the failure away where no log or message could show it. If you have been wonderi
 updated itself, that is why. It now verifies the download against the published checksum instead, which
 is a real integrity check on the file you receive.
 
+> **One-time manual install required.** The faulty check lives in the copy of the app you are already
+> running, so it will reject this release too — it cannot fix itself remotely. Install this version once
+> by hand from the Releases page. After that, updates work on their own.
+
 **Accounts recover on their own after the internet drops.** If a page failed to load — a router
 rebooting, a wifi handover, a hotel network — the account simply stayed broken until you noticed and
 refreshed it by hand. There was a self-healing mechanism, but it only watched accounts that had already

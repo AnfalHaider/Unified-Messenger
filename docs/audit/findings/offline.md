@@ -72,6 +72,43 @@ the requirement should be made mandatory again once a signing certificate exists
 present but *bad* (tampered, expired, revoked) is still rejected outright and is never excused by a
 matching digest — only a wholly absent signature is.
 
+### The fix cannot deliver itself — added after shipping v4.99.27
+
+**This is the part the original write-up got wrong, and it matters more than anything else here.**
+
+The section above reads as though publishing a fixed release repairs auto-update for everyone. It does
+not. The broken verifier lives in **the client**, so every installation older than `v4.99.22` still
+contains it — and rejects the very release that fixes it.
+
+Observed on the owner's own machine, which was on `v4.99.13`. Publishing `v4.99.27` changed nothing for
+it; clicking *Check for updates* produced:
+
+> **Update failed** — Could not install the update: Downloaded installer is not Authenticode-signed.
+
+That string no longer exists on any code path in `v4.99.22+` (it was replaced by "The downloaded update
+could not be verified…"), which is what identifies the dialog as coming from the old client rather than
+from a regression in the fix.
+
+**So: `v4.99.27` must be installed manually, once, on every existing installation.** After that, updates
+work normally. There is no way to fix this remotely — the code that has to change is the code doing the
+rejecting.
+
+**Verified against the real published artifact**, not reasoned about. The released
+`UnifiedMessengerSetup.exe` reports `NotSigned`, and `v4.99.27`'s verifier:
+
+| Input | Result |
+|---|---|
+| Real installer + its published `.sha256` | **accepted** |
+| Real installer, no digest | rejected, and the message contains no "Authenticode" jargon |
+
+A manual install of `v4.99.27` was then performed end to end — download, checksum-match against the
+published sidecar, silent install, relaunch — and all user data survived byte-for-byte (3,375 chats, 454
+awaiting, 11 accounts, 15 WebView2 profiles, `settings.json` hash unchanged).
+
+**Consequence for the release notes.** Anyone reading the `v4.99.27` release who is on an older build
+needs telling that their app will not update itself. That is a property of the *previous* release, so no
+future change can communicate it — it has to be said on the release page.
+
 ## F-OFFLINE-02 — Raw error codes and developer instructions shown to the customer
 
 - **Severity:** S3 · **Confidence:** confirmed · **Status:** **FIXED**, `NetworkFailureDescriber`
