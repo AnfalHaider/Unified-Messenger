@@ -1,0 +1,18 @@
+Product-hardening audit — two sessions, 30 increments, v4.99.1 -> v4.99.27.
+
+27 S1/S2 findings closed. 337 tests in the audit regression suite. Build clean at 0 warnings.
+
+Report:   docs/audit/FINAL-REPORT.md
+Detail:   docs/audit/findings/ (12 domain documents)
+Handoff:  docs/audit/HANDOFF.md
+Soak:     docs/audit/soak.csv (3h39m, 439 samples, no leak)
+
+OPEN ON MERGE — not silently shipped:
+  F-SNAP-02    S2  a degraded read is visible only in the log
+  F-OFFLINE-05 S3  a fix that is known NOT to take effect in the live app
+  F-OFFLINE-06 S3  'not loaded' shown when the real cause is no network
+  F-ORCH-06    S3  developer vocabulary used as accessible names
+  F-METRICS-11 S4  deliberate WONTFIX, bound measured under 2%
+
+NOT VERIFIED: no screen reader was run; five of twelve dialogs never opened; ARM64 never
+published or installed; the uninstall data-erasure option is unproven at runtime.
