@@ -196,4 +196,58 @@ public class AwaitingSplitTests
         Assert.Equal(active - caughtUp, listed.Count);
         Assert.Equal(2, listed.Count); // the question and the unreadable one
     }
+
+    // ---- What the tile actually says -------------------------------------------------------------------
+
+    [Fact]
+    public void TheHintLeadsWithWhatTheAppCouldNotRead()
+    {
+        // An unreadable chat is the one case where the number itself is uncertain, so it is said first.
+        // Without it, a scrape that failed to read message bodies looks exactly like a quiet morning.
+        var split = new OversightChatSnapshotService.AwaitingSplit(
+            NeedsReply: 79, Backlog: 283, ClosedAutomatically: 104, Unreadable: 35);
+
+        var hint = UnifiedMessenger.Controls.CommandCenterPanel.BuildAwaitingHint(split, accountsBehind: 3);
+
+        Assert.StartsWith("35 unreadable", hint, StringComparison.Ordinal);
+        Assert.Contains("283 older", hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AClearQueueFallsBackToTheAccountSummary()
+    {
+        var split = new OversightChatSnapshotService.AwaitingSplit(0, 0, 0, 0);
+
+        Assert.Equal(
+            "all accounts clear",
+            UnifiedMessenger.Controls.CommandCenterPanel.BuildAwaitingHint(split, accountsBehind: 0));
+    }
+
+    [Fact]
+    public void TheTooltipAccountsForEveryConversationTheHeadlineLeftOut()
+    {
+        // The headline is now a subset of what it used to be. An owner who remembers a bigger number is
+        // owed an explanation of where the rest went, and a route to check it.
+        var split = new OversightChatSnapshotService.AwaitingSplit(79, 283, 104, 35);
+
+        var tooltip = UnifiedMessenger.Controls.CommandCenterPanel.BuildAwaitingTooltip(split);
+
+        Assert.Contains("283", tooltip, StringComparison.Ordinal);
+        Assert.Contains("104", tooltip, StringComparison.Ordinal);
+        Assert.Contains("35", tooltip, StringComparison.Ordinal);
+        Assert.Contains("Settings", tooltip, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NothingIsMentionedThatIsNotThere()
+    {
+        // A tooltip that always recites every category would tell a brand-new user about a backlog and an
+        // exclusion list they do not have.
+        var tooltip = UnifiedMessenger.Controls.CommandCenterPanel.BuildAwaitingTooltip(
+            new OversightChatSnapshotService.AwaitingSplit(4, 0, 0, 0));
+
+        Assert.DoesNotContain("more have been waiting", tooltip, StringComparison.Ordinal);
+        Assert.DoesNotContain("were not counted", tooltip, StringComparison.Ordinal);
+        Assert.DoesNotContain("could not be read", tooltip, StringComparison.Ordinal);
+    }
 }

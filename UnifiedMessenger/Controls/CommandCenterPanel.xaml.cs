@@ -1272,6 +1272,71 @@ public sealed partial class CommandCenterPanel : UserControl
         return ($"{arrow} {delta.Percent}%", brush);
     }
 
+    /// <summary>
+    /// The line under the "Needs a reply" figure. Ordered by what the owner can do something about:
+    /// chats the app could not read first (those are the ones where the number itself is uncertain),
+    /// then the backlog, then how many accounts are behind.
+    /// </summary>
+    internal static string BuildAwaitingHint(
+        OversightChatSnapshotService.AwaitingSplit split,
+        int accountsBehind)
+    {
+        var parts = new List<string>(3);
+
+        // Said first and said plainly. A scrape that failed to read message bodies otherwise looks
+        // exactly like a quiet morning, and the owner would have no way to tell the difference.
+        if (split.Unreadable > 0)
+        {
+            parts.Add($"{split.Unreadable} unreadable");
+        }
+
+        if (split.Backlog > 0)
+        {
+            parts.Add($"{split.Backlog} older");
+        }
+
+        if (parts.Count == 0)
+        {
+            return accountsBehind switch
+            {
+                0 => "all accounts clear",
+                1 => "1 account behind",
+                _ => $"{accountsBehind} accounts behind"
+            };
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    /// <summary>
+    /// The tooltip has to account for the whole population, because the headline is now a subset of it.
+    /// An owner who remembers a bigger number is owed an explanation of where the rest went.
+    /// </summary>
+    internal static string BuildAwaitingTooltip(OversightChatSnapshotService.AwaitingSplit split)
+    {
+        var text = "Customers waiting on a reply, active in the last "
+            + $"{Math.Max(1, AppSettingsService.Instance.Settings.AwaitingBacklogAfterDays)} days. "
+            + "Click to see them, most urgent first.";
+
+        if (split.Backlog > 0)
+        {
+            text += $"\n{split.Backlog} more have been waiting longer than that.";
+        }
+
+        if (split.ClosedAutomatically > 0)
+        {
+            text += $"\n{split.ClosedAutomatically} were not counted because the customer's last message "
+                + "only said something like \"ok\" or \"thanks\". Settings → Data lists them.";
+        }
+
+        if (split.Unreadable > 0)
+        {
+            text += $"\n{split.Unreadable} are counted but their message could not be read.";
+        }
+
+        return text;
+    }
+
     private void RenderKpiBand(
         IReadOnlyList<OversightEntityHealth> entities,
         IReadOnlyList<MessengerInstance> instances,
@@ -1303,10 +1368,19 @@ public sealed partial class CommandCenterPanel : UserControl
         var totalAwaiting = entities.Sum(e => e.AwaitingCount);
         var behind = entities.Count(e => e.AwaitingCount > 0);
 
-        // Record today's whole-business KPIs so the two tiles can show a daily micro-trend.
+        // Split the waiting customers into today's work and the backlog behind it. One number could not
+        // carry both: measured on real data the tile read 466 with the oldest at 82 days, which is true,
+        // unreadable, and hid a complaint and a customer threatening to leave. 341 of those were over a
+        // week old — a backlog, not a queue, and mixing the two is what made the number unusable.
+        var awaitingSplit = OversightChatSnapshotService.Instance.BuildAwaitingSplit(
+            instances.Select(i => i.Id));
+
+        // Record the number the tile SHOWS, so the sparkline underneath it cannot tell a different story
+        // than the figure above it. This does step down on the release that introduces the split — the
+        // definition changed, and drawing the trend against the old definition would be the fiction.
         if (overallPct is { } recPct)
         {
-            KpiTrendStore.Instance.Record(recPct, totalAwaiting);
+            KpiTrendStore.Instance.Record(recPct, awaitingSplit.NeedsReply);
         }
 
         tiles.Add(new KpiTileViewModel
@@ -1322,13 +1396,16 @@ public sealed partial class CommandCenterPanel : UserControl
 
         tiles.Add(new KpiTileViewModel
         {
-            Label = "Awaiting reply",
-            Value = totalAwaiting.ToString(),
-            ValueBrush = totalAwaiting > 0 ? primary : success,
-            Hint = behind switch { 0 => "all accounts clear", 1 => "1 account behind", _ => $"{behind} accounts behind" },
-            ActionKey = totalAwaiting > 0 ? "awaiting" : string.Empty,
+            Label = "Needs a reply",
+            Value = awaitingSplit.NeedsReply.ToString(),
+            ValueBrush = awaitingSplit.NeedsReply > 0 ? primary : success,
+            // The hint carries the backlog rather than a second tile. It is the number the owner most
+            // needs kept in view — an 82-day-old complaint must never become invisible just because the
+            // headline got smaller — but it is not what they can act on this morning.
+            Hint = BuildAwaitingHint(awaitingSplit, behind),
+            ActionKey = awaitingSplit.TotalOpen > 0 ? "awaiting" : string.Empty,
             Trend = KpiTrendStore.Instance.GetAwaitingTrend(),
-            Tooltip = "Customers still waiting on a first reply. Click to see them, most urgent first."
+            Tooltip = BuildAwaitingTooltip(awaitingSplit)
         });
 
         // Response time (FRT) + SLA compliance — forward-tracked from real message timestamps.
@@ -1417,8 +1494,12 @@ public sealed partial class CommandCenterPanel : UserControl
         KpiBand.ItemsSource = tiles;
         KpiBand.Visibility = Visibility.Visible;
 
-        RenderHero(overallPct, totalAwaiting, behind, entities, instances);
-        RenderBriefing(entities, instances, overallPct, totalAwaiting, behind, busyHour);
+        // The hero shows the live queue but judges "all caught up" on the WHOLE open population. Those
+        // have to be different numbers or the split reintroduces the exact defect F-STATE-01 closed: an
+        // owner told they are caught up while a three-month backlog sits behind the claim.
+        RenderHero(overallPct, awaitingSplit.TotalOpen, behind, entities, instances, awaitingSplit.NeedsReply);
+        RenderBriefing(
+            entities, instances, overallPct, awaitingSplit.TotalOpen, behind, busyHour, awaitingSplit.NeedsReply);
     }
 
     /// <summary>
@@ -1431,7 +1512,8 @@ public sealed partial class CommandCenterPanel : UserControl
         int totalAwaiting,
         int accountsBehind,
         IReadOnlyList<OversightEntityHealth> entities,
-        IReadOnlyList<MessengerInstance> instances)
+        IReadOnlyList<MessengerInstance> instances,
+        int? liveAwaiting = null)
     {
         if (overallPct is null)
         {
@@ -1524,9 +1606,11 @@ public sealed partial class CommandCenterPanel : UserControl
         }
         else
         {
+            // The figure is the live queue; the caught-up claim above still needed the full open count.
+            var shown = liveAwaiting ?? totalAwaiting;
             headline.Children.Add(new TextBlock
             {
-                Text = totalAwaiting.ToString(),
+                Text = shown.ToString(),
                 FontSize = 42,
                 FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 Foreground = accent,
@@ -1535,7 +1619,7 @@ public sealed partial class CommandCenterPanel : UserControl
             });
             headline.Children.Add(new TextBlock
             {
-                Text = totalAwaiting == 1 ? "customer is waiting\nfor a reply" : "customers are waiting\nfor a reply",
+                Text = shown == 1 ? "customer is waiting\nfor a reply" : "customers are waiting\nfor a reply",
                 FontSize = 16,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 LineHeight = 19,
@@ -1750,7 +1834,8 @@ public sealed partial class CommandCenterPanel : UserControl
         int? overallPct,
         int totalAwaiting,
         int accountsBehind,
-        string busyHour)
+        string busyHour,
+        int? liveAwaiting = null)
     {
         if (overallPct is null)
         {
@@ -1794,12 +1879,23 @@ public sealed partial class CommandCenterPanel : UserControl
         }
         else
         {
-            var customers = totalAwaiting == 1 ? "1 customer is" : $"{totalAwaiting} customers are";
+            // Quote the same figure the tile above shows. Two different totals on one screen is how the
+            // old number lost the owner's trust — and the backlog is named rather than dropped, so the
+            // smaller headline never reads as the whole story.
+            var shown = liveAwaiting ?? totalAwaiting;
+            var customers = shown == 1 ? "1 customer is" : $"{shown} customers are";
             var accountWord = accountsBehind == 1 ? "account" : "accounts";
-            var start = worst is not null
-                ? $" Start with {worst.DisplayName} ({worst.AwaitingCount} waiting, {worst.OnTimePercent}% caught up)."
+            var older = totalAwaiting > shown
+                ? $" {totalAwaiting - shown} more have been waiting over a week."
                 : string.Empty;
-            heuristic = $"{customers} waiting across {accountsBehind} {accountWord}.{start}{projectionNote}";
+            // "open", not "waiting". The sentence already opened with the live figure, and the per-account
+            // number is that account's whole open population — saying "76 customers are waiting … start
+            // with the one that has 145 waiting" puts two different scales in one breath and reads as a
+            // contradiction.
+            var start = worst is not null
+                ? $" Start with {worst.DisplayName} ({worst.AwaitingCount} open, {worst.OnTimePercent}% caught up)."
+                : string.Empty;
+            heuristic = $"{customers} waiting across {accountsBehind} {accountWord}.{older}{start}{projectionNote}";
         }
 
         var displayText = heuristic;

@@ -5,6 +5,43 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.29
+
+**"460 customers waiting" is gone, and what replaced it is a number you can act on.** The count was a
+pure direction flag: the customer sent the last message and nobody typed since. Measured on real salon
+data that read **466 waiting, oldest 82 days** — but only 41 of them had actually asked anything, 82 were
+the word "ok" or a relative of it, and 454 had already been read. It was measuring "nobody typed back",
+not "somebody is waiting".
+
+The real cost was not the size of the number, it was what it hid. Sitting unanswered in that list: a
+customer reporting bruising after a waxing appointment, and another saying *"warna main kahin aur chali
+jawon"* — otherwise I'll go elsewhere.
+
+The same data now reads **76 needing a reply**, with 280 older conversations shown separately as backlog
+and 104 not counted because the customer's last message only closed the conversation.
+
+- **Conversation closers stop being counted.** "ok", "thanks", "ji", "g", "oky", "ok jazakallah",
+  "walaikum us salam", a thumbs-up. English, Roman Urdu and Urdu script in one list, because customers
+  mix all three in a single message.
+- **Anything that asks something is always kept**, and that check overrides every closing rule — "ok but
+  what time" is a question, not an "ok". Anything the app does not recognise, cannot read, or that is
+  merely short stays in the count. It only ever removes a conversation on positive evidence that it is
+  finished.
+- **A greeting nobody answered now counts.** A bare "Hi" or "Salam" is a customer trying to start a
+  conversation, not one ending it.
+- **The backlog is separated, not hidden.** Conversations older than a week get their own number, so an
+  82-day-old complaint stays visible instead of being buried among a week's worth of new messages.
+- **Nothing is deleted.** Everything excluded is listed with the reason it was excluded, and the whole
+  filter can be switched off in Settings to see the raw count again.
+- **When the app cannot read a message, it says so** rather than quietly assuming the conversation is
+  finished — a scrape that failed to load message text can no longer look like a quiet morning.
+- **Local AI decides only the genuinely ambiguous ones**, on your own machine. With it off, those
+  conversations simply stay in the count.
+
+**Shared contacts no longer show as a string of digits.** 22 conversations displayed an internal
+identifier like `102074813546715@lid` where the message should be. They now read "Shared a contact", and
+still count as needing a reply.
+
 ## v4.99.28
 
 **When the internet is down, the app now says so instead of telling you to open an account.** A
