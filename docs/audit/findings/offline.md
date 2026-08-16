@@ -192,35 +192,51 @@ A diagnostic line was added because of this test: the first run produced "retryi
 `OperationCanceledException` was being swallowed silently. Both the firing and the cancellation are now
 logged — a retry you cannot observe is a retry you cannot claim works.
 
-## F-OFFLINE-05 — OPEN: the sidebar still reads "Connection error" offline
+## F-OFFLINE-05 — WITHDRAWN: the finding was wrong, not the code
 
-- **Severity:** S3 · **Confidence:** confirmed · **Status:** **NOT FIXED — the fix did not take effect**
+- **Severity:** ~~S3~~ · **Status:** **NOT A DEFECT.** Verified working live on `v4.99.27`.
 
 `ComposeRowSubtitle` (the visible row text) took no detail parameter at all, and `ResolveStatusSubtitle`
-(the tooltip) accepted one and never read it — so every failure collapsed to the same three words, with
-no action, right beside a signed-out row that reads "Signed out — tap to reconnect".
+(the tooltip) accepted one and never read it — so every failure collapsed to "Connection error", with no
+action, right beside a signed-out row reading "Signed out — tap to reconnect". Both were changed to use
+`NetworkFailureDescriber`.
 
-Both were changed to use `NetworkFailureDescriber`, and the unit tests pass. **But a UI Automation
-capture of the running app, on the freshly published binary (`4.99.21.0`, built 18:47, launched 20:11),
-still read:**
+This was then recorded as **"the fix did not take effect"** on the strength of a UI Automation capture
+that still read `Connection error`. That conclusion was wrong, and the evidence that disproves it was
+written into the finding itself:
+
+> a UI Automation capture of the running app, on the freshly published binary (**`4.99.21.0`**, built
+> 18:47, launched 20:11)
+
+**`4.99.21.0` predates the fix.** `ComposeRowSubtitle` did not gain its `connectionDetail` parameter until
+`v4.99.22`. The capture was taken against a binary compiled before the change existed, and the version
+number was sitting in my own transcript of it. No amount of staring at `MainWindow.OnSessionFailed` or
+`PlatformAdapters` — the two suspects listed — was ever going to explain it.
+
+**Re-verified on `v4.99.27`** with the same dead-proxy technique, opening an account to force a real
+navigation failure:
 
 ```
-group name:  Depilex DHA-2 WhatsApp, Connection error
-visible text: 'Depilex DHA-2 WhatsApp'
-              'Connection error'
+Depilex DHA-2 WhatsApp,      No internet — reconnecting…, press to open
+Depilex Men DHA-2 WhatsApp,  No internet — reconnecting…, selected
+Google Depilex DHA-2,        Google Business, press to open
 ```
 
-So the stored `Detail` at render time is not the `ConnectionAborted` string the navigation hook writes.
-**This is reported as unfixed, because it was not observed working.** Suspects, neither yet eliminated:
+and, with networking restored, the same rows read:
 
-- `MainWindow.OnSessionFailed` writes `e.Error.Message` (would not match the describer) — but it also
-  calls `AppLogger.LogError`, and no `[ERR]` line appeared, which argues against it.
-- `PlatformAdapters` line 268 writes `ex.Message` — but it sits in the `OnNavigationCompletedAsync` catch,
-  which only runs on a *successful* navigation, so it should be unreachable here.
-- A row rebuild racing the detail write, or the label refresh path not being reached at all.
+```
+Depilex DHA-2 WhatsApp, WhatsApp, 3 unread, press to open
+```
 
-**Next step:** log the stored detail at the point the sidebar reads it, then re-run the dead-proxy test.
-One publish-and-launch cycle should settle it.
+So the wording appears only when offline, the stored `Detail` **is** the `ConnectionAborted` string the
+navigation hook writes, and F-A11Y-05's "press to open" affordance is confirmed live at the same time.
+
+**The lesson, which is the reason this section is kept rather than deleted.** "Verify against the running
+app" is only worth anything if you verify against the *right build*. A stale capture is more dangerous
+than no capture: it produced a confident, specific, entirely fictional finding — complete with a suspect
+list and a next step — that survived into a merged report and a public release. The version was recorded
+correctly at every step; nobody compared it to the version the fix shipped in. **Check the build number
+against the change you are testing, not just against "the latest publish".**
 
 ## F-OFFLINE-06 — OPEN: the "not loaded" message is wrong when the cause is no network
 

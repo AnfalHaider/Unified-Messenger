@@ -159,7 +159,7 @@ that claim.
 | ID | Sev | What |
 |---|---|---|
 | **F-SNAP-02** | S2 | A *degraded* read (store bridge failed, IndexedDB succeeded) is still visible only in the log |
-| **F-OFFLINE-05** | S3 | The sidebar wording fix **did not take effect** — unit-tested green, but the live app still read "Connection error". Reported unfixed because it was not observed working |
+| ~~**F-OFFLINE-05**~~ | ~~S3~~ | **WITHDRAWN — the finding was wrong, not the code.** The capture was taken on `4.99.21.0`; the fix shipped in `v4.99.22`. Re-verified live on `v4.99.27` |
 | **F-OFFLINE-06** | S3 | "Open the account once to finish loading" is shown when the real cause is no network |
 | **F-ORCH-06** | S3 | Settings and the account context menu speak "instance" as their **accessible names** |
 | **F-METRICS-11** | S4 | End-of-day projection skew — deliberate WONTFIX, bound measured at under 2% |
@@ -245,11 +245,12 @@ Worth carrying forward, because the difference in yield between these and ordina
 - **Prove the guard catches the regression.** Reverting each fix and confirming the tests fail caught a
   hole in *my own* coverage: the injected sparkline regression passed everything, because every test had
   placed the short day at *today*, where the gap to the previous day is still 24 hours.
-- **Verify against the running app, not the build.** Several fixes looked right and were confirmed — or, in
-  one case, *not* confirmed — only by driving the live app.
+- **Verify against the running app, not the build** — *and against the right build.* Several fixes looked
+  right and were confirmed only by driving the live app. One was "disconfirmed" by driving the **wrong**
+  build; see below.
 - **Record clean results.** Roughly half this audit's value is "checked, and here is why it is fine".
 - **Say what was not done.** Every increment's commit message and findings section ends with what was
-  skipped and why. F-OFFLINE-05 is reported as unfixed precisely because it was never seen working.
+  skipped and why.
 
 ### What did not work
 
@@ -258,22 +259,26 @@ Worth carrying forward, because the difference in yield between these and ordina
   authority.
 - **A focus walk driven by injected input** silently wandered into another application and reported its
   controls as the app's tab order. Guard by `ProcessId`.
+- **A stale UI capture manufactured an entirely fictional finding.** F-OFFLINE-05 claimed a fix "did not
+  take effect", on the strength of a capture taken against `4.99.21.0` — a build compiled before the fix
+  existed, which shipped in `v4.99.22`. The version was recorded correctly in the evidence and nobody
+  compared it to the version the change landed in. It came complete with a suspect list and a next step,
+  and it survived into a merged report and a public release before being withdrawn.
+  **A stale capture is more dangerous than no capture: it looks like evidence.**
 
 ---
 
 ## 8. Recommended order for whoever picks this up
 
-1. **F-OFFLINE-05** — one publish-and-launch cycle with the stored detail logged should settle it. It is
-   the only fix in the branch that is known not to work.
-2. **A real screen reader**, and the focus orders outside the dashboard. The tree is clean; the experience
-   is unverified.
-3. **A soak under account churn.** The idle 3.6-hour run is clean; cycling, re-syncing and navigating
+1. **A real screen reader**, and the focus orders outside the dashboard. The tree is clean; the experience
+   is unverified. This is now the largest genuinely-unknown area.
+2. **A soak under account churn.** The idle 3.6-hour run is clean; cycling, re-syncing and navigating
    accounts is the case still untested. Worth pairing with an attempt to reduce the ~3.1 GB WebView2
    footprint, which is stable but eight times the app's own.
-4. **Tell existing users that `v4.99.27` needs a manual install.** Anyone below `v4.99.22` is stuck behind
+3. **Tell existing users that `v4.99.27` needs a manual install.** Anyone below `v4.99.22` is stuck behind
    the bug the release fixes, and no future release can reach them. The `v4.99.27` release notes are the
    only place this can be said, because it is a property of the build they are *already* running.
-5. **Code-sign the installer.** It closes F-OFFLINE-01 properly and restores the stronger control.
-6. **F-SNAP-02 and F-ORCH-06**, the two remaining recorded findings with user-visible consequences.
-7. **Repository housekeeping** — `main` carries a commit titled "Audit Files" (`954145e`) with ~1,400
+4. **Code-sign the installer.** It closes F-OFFLINE-01 properly and restores the stronger control.
+5. **F-SNAP-02 and F-ORCH-06**, the two remaining recorded findings with user-visible consequences.
+6. **Repository housekeeping** — `main` carries a commit titled "Audit Files" (`954145e`) with ~1,400
    graphify cache files, probably worth dropping. This branch has not been merged, pushed, or PR'd.

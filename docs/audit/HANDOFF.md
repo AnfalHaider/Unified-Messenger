@@ -101,6 +101,11 @@ Also: `docs/audit/ASSUMPTIONS.md` (decisions made autonomously, with the cost of
 
 - **Publish before you conclude anything from the live app.** I twice tested a stale binary after building
   but not publishing. Always check `(Get-Item …\publish\UnifiedMessenger.exe).VersionInfo.FileVersion`.
+- **And check that version against the change you are testing, not just against "the latest publish".**
+  This produced the audit's only entirely fictional finding (F-OFFLINE-05): a capture taken on `4.99.21.0`
+  "proved" a fix had not taken effect, when the fix did not ship until `v4.99.22`. It came with a suspect
+  list and a next step, and survived into a merged report and a public release before being withdrawn.
+  **A stale capture is more dangerous than no capture** — it looks like evidence.
 - **Kill the app before publishing** — it locks `UnifiedMessenger.dll` and publish fails after 10 retries.
 - `dotnet-counters` is **not installed**; no GC-heap instrumentation available.
 - **`python` is not available**; `perl` and `sed` are.
@@ -220,7 +225,7 @@ work.
 |---|---|---|---|
 | ~~**F-DURA-01**~~ | ~~S2~~ | **CLOSED** in `v4.99.24`. The plumbing did exist — and **nothing read it**, which is why the user was still never told. A modal notice now appears at startup in the session the recovery happened, verified live against the real corruption path. | `durability.md` |
 | **F-SNAP-02** (partial) | S2 | An unreadable account now says so, but the log is still the only place a *degraded* read (store bridge failed, IndexedDB succeeded) is visible. | `snapshot-reader.md` |
-| **F-OFFLINE-05** | S3 | **The sidebar wording fix did not take effect.** `ComposeRowSubtitle`/`ResolveStatusSubtitle` now use `NetworkFailureDescriber` and unit-test green, but a UIA capture of the running binary still read "Connection error" — the stored `Detail` at render time is not the `ConnectionAborted` the nav hook writes. Suspects listed; none eliminated. One publish-and-launch cycle with the detail logged should settle it. | `offline.md` |
+| ~~**F-OFFLINE-05**~~ | ~~S3~~ | **WITHDRAWN — the finding was wrong, not the code.** The capture that "proved" the fix had not taken effect was taken on **`4.99.21.0`**, and `ComposeRowSubtitle` did not gain its detail parameter until `v4.99.22`. Re-verified live on `v4.99.27`: rows read "No internet — reconnecting…" offline and "WhatsApp, 3 unread" online. **Check the build number against the change you are testing.** | `offline.md` |
 | **F-OFFLINE-06** | S3 | "this account's page is not loaded. Open the account once to finish loading" is shown when the real cause is **no network**, sending the owner to do something that cannot work. The scan knows its stage but not the connection status. | `offline.md` |
 | **F-METRICS-11** | S4 | End-of-day projection skews on a 23/25-hour day. **Deliberate WONTFIX** — measured under 2%, on a figure that is explicitly a forecast. Reasoning and the bound are recorded; do not "fix" it without reading why. | `metrics.md` |
 | **F-ORCH-06** | S3 | Settings speaks developer vocabulary — "instances", "Refresh all WebViews", "Export instances.json", "Enable per-instance sleep unload". These are also the **accessible names**, so screen-reader users get only the jargon. **Do not blanket-rename**: "your local Ollama **instance**" is correct English and must stay. | `orchestrator.md`, `accessibility.md` |
@@ -243,7 +248,7 @@ auto-update has *never* been able to succeed — the installer is unsigned and t
 Authenticode, so with the shipped defaults it re-downloaded the whole installer at every launch, rejected
 it, and threw the failure away silently. Also **F-OFFLINE-04 (S2)**: an account whose page failed to load
 was never retried, because the stale-adapter net only watches accounts that reached `Ready`. Both fixed.
-**Two findings left open — F-OFFLINE-05 and F-OFFLINE-06 — see §5.1.** Full write-up in `offline.md`.
+**One finding left open — F-OFFLINE-06 — see §5.1.** (F-OFFLINE-05 was withdrawn: the finding was wrong, not the code.) Full write-up in `offline.md`.
 
 > **Reuse this technique.** No elevation is needed and the machine never goes offline: launch with
 > `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--proxy-server=127.0.0.1:9"` to cut off only this app's
