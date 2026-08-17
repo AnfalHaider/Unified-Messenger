@@ -198,6 +198,10 @@ public sealed class ShellController
         await ContactHistoryStore.Instance.LoadAsync().ConfigureAwait(true);
         // Manual "handled elsewhere" / snooze overrides for the awaiting lists.
         await AwaitingOverrideStore.Instance.LoadAsync().ConfigureAwait(true);
+
+        // Seeded on first run, so the reply library does something the day it is installed rather than
+        // being an empty feature the owner has to build before it helps.
+        await SavedReplyStore.Instance.LoadAsync().ConfigureAwait(true);
         // Daily caught-up% / awaiting history for the KPI micro-trend sparklines.
         await KpiTrendStore.Instance.LoadAsync().ConfigureAwait(true);
 

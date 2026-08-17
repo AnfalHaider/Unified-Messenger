@@ -3,6 +3,7 @@ using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using UnifiedMessenger.Controls.Shared;
@@ -11,6 +12,7 @@ using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Ai;
 using UnifiedMessenger.Services.Backfill;
 using UnifiedMessenger.ViewModels;
+using Windows.System;
 
 namespace UnifiedMessenger.Controls;
 
@@ -148,7 +150,11 @@ public sealed partial class CommandCenterPanel : UserControl
     // number above it start out describing the same population — the mismatch between them was the single
     // most confusing thing on this screen.
     private AwaitingAgeFilter _ageFilter = AwaitingAgeFilter.ThisWeek;
-    private ConversationTopic? _topicFilter;
+    private QueueFacet? _facetFilter;
+
+    // Which row the keyboard is on. -1 = nothing selected. Survives a re-render by index, because the
+    // list rebuilds every 20 seconds and holding a reference to a disposed Border would leak it.
+    private int _triageIndex = -1;
     private string? _locationFilter;
 
     /// <summary>Which slice of the waiting queue the Needs-reply list is showing.</summary>
@@ -459,6 +465,9 @@ public sealed partial class CommandCenterPanel : UserControl
         // accounts below the fold; any suppressed ones are counted onto the surviving banner.
         ConsolidateBanners();
 
+        // Rebuilt every render. Holding element references across a render would leak the old tree, and the
+        // keyboard tracks position by index precisely so it survives the 20-second refresh.
+        _triageRows.Clear();
         CardsHost.Children.Clear();
         CardsHost.Spacing = _compact ? 4 : 8;
         if (snapshot.Entities.Count == 0)
@@ -845,8 +854,7 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var rows = everything
             .Where(r => MatchesAgeFilter(r.Chat.LastActivityUtc))
-            .Where(r => _topicFilter is null ||
-                        ConversationTopics.Classify(r.Chat.Preview) == _topicFilter)
+            .Where(r => _facetFilter is null || QueueFacets.Resolve(r.Chat) == _facetFilter)
             .Take(400)
             .ToList();
 
@@ -975,41 +983,68 @@ public sealed partial class CommandCenterPanel : UserControl
             host.Children.Add(locationRow);
         }
 
-        // ---- Topic -------------------------------------------------------------------------------------
-        var topicCounts = new Dictionary<ConversationTopic, int>();
+        // ---- Kind of row -------------------------------------------------------------------------------
+        // Facets, not topics. A missed call and an uncaptioned photo are not topics — they have no text to
+        // classify — but they ARE different kinds of row with different actions, and the owner filters by
+        // exactly that: do I type, do I call, or is this not even a customer?
+        var facetCounts = new Dictionary<QueueFacet, int>();
         foreach (var row in all)
         {
-            var topic = ConversationTopics.Classify(row.Chat.Preview);
-            topicCounts[topic] = topicCounts.GetValueOrDefault(topic) + 1;
+            var facet = QueueFacets.Resolve(row.Chat);
+            facetCounts[facet] = facetCounts.GetValueOrDefault(facet) + 1;
         }
 
-        var topicRow = NewChipRow("About");
-        topicRow.Children.Add(BuildFilterChip("Anything", _topicFilter is null,
-            "No topic filter.", () => { _topicFilter = null; ForceRerender(); }));
+        var facetRow = NewChipRow("Kind");
+        facetRow.Children.Add(BuildFilterChip("Anything", _facetFilter is null,
+            "No filter on the kind of row.", () => { _facetFilter = null; ForceRerender(); }));
 
-        // At risk first, then the money, then the two groups worth setting aside. Uncategorised is
-        // deliberately offered last and not hidden — 432 of 468 land there on real data, and pretending
-        // otherwise would misrepresent how much the app actually knows.
-        foreach (var topic in new[]
-                 {
-                     ConversationTopic.AtRisk, ConversationTopic.Enquiry, ConversationTopic.Booking,
-                     ConversationTopic.JobApplicant, ConversationTopic.BusinessOutreach,
-                     ConversationTopic.Unknown
-                 })
+        // Uncategorised is offered last and never hidden — most of the queue lands there until a model
+        // replaces the lexicon, and pretending otherwise would misrepresent how much the app knows.
+        foreach (var facet in QueueFacets.DisplayOrder)
         {
-            if (!topicCounts.TryGetValue(topic, out var count) || count == 0)
+            if (!facetCounts.TryGetValue(facet, out var count) || count == 0)
             {
                 continue;
             }
 
-            topicRow.Children.Add(BuildFilterChip(
-                $"{ConversationTopics.Label(topic)} · {count}",
-                _topicFilter == topic,
-                ConversationTopics.Describe(topic),
-                () => { _topicFilter = topic; ForceRerender(); }));
+            facetRow.Children.Add(BuildFilterChip(
+                $"{QueueFacets.Label(facet)} · {count}",
+                _facetFilter == facet,
+                QueueFacets.Describe(facet),
+                () => { _facetFilter = facet; ForceRerender(); }));
         }
 
-        host.Children.Add(topicRow);
+        host.Children.Add(facetRow);
+
+        // A shortcut nobody knows about is worth nothing. One quiet line, and the "?" is a button so the
+        // full list is reachable by mouse and by keyboard rather than only by knowing the key.
+        var hint = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Margin = new Thickness(56, 2, 0, 0)
+        };
+        hint.Children.Add(new TextBlock
+        {
+            Text = "J / K to move · Enter to open · D done · S snooze · R copy a reply",
+            FontSize = 11,
+            Foreground = Brush("TextFillColorTertiaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var helpButton = new Button
+        {
+            Content = new TextBlock { Text = "?", FontSize = 11 },
+            Padding = new Thickness(6, 0, 6, 0),
+            MinWidth = 0,
+            MinHeight = 0,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(helpButton, "Show keyboard shortcuts");
+        helpButton.Click += (_, _) => ShowTriageHelp();
+        hint.Children.Add(helpButton);
+        host.Children.Add(hint);
+
         return host;
     }
 
@@ -1330,12 +1365,372 @@ public sealed partial class CommandCenterPanel : UserControl
         Grid.SetColumn(button, 0);
         rowGrid.Children.Add(button);
 
-        var overflow = BuildAwaitingActionButton(inst.Id, chat, displayName);
-        Grid.SetColumn(overflow, 1);
-        overflow.VerticalAlignment = VerticalAlignment.Center;
-        overflow.Margin = new Thickness(4, 0, 0, 0);
-        rowGrid.Children.Add(overflow);
+        // Actions sit beside the row in the order the owner decides between them: the one this KIND of row
+        // calls for first, then the reply library, then done/snooze.
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(4, 0, 0, 0)
+        };
+
+        var facet = QueueFacets.Resolve(chat);
+
+        if (QueueFacets.IsCallBack(facet) && BuildCallBackButton(chat, displayName) is { } callButton)
+        {
+            // A missed call cannot be answered by typing. 81 of these sat in the queue with no action that
+            // made any sense for them.
+            actions.Children.Add(callButton);
+        }
+
+        actions.Children.Add(BuildSavedReplyButton(inst, chat, displayName, facet));
+        actions.Children.Add(BuildAwaitingActionButton(inst.Id, chat, displayName));
+
+        Grid.SetColumn(actions, 1);
+        rowGrid.Children.Add(actions);
+
+        // Registered so a keypress can act on this row without holding a reference across a re-render.
+        _triageRows.Add(new TriageRow(inst, chat, displayName, facet, rowGrid, button));
         return rowGrid;
+    }
+
+    /// <summary>One rendered queue row, so the keyboard can act on it. Rebuilt on every render.</summary>
+    private sealed record TriageRow(
+        MessengerInstance Instance,
+        OversightChatSnapshotService.ChatEntry Chat,
+        string DisplayName,
+        QueueFacet Facet,
+        FrameworkElement Container,
+        Control Focusable);
+
+    private readonly List<TriageRow> _triageRows = [];
+
+    /// <summary>
+    /// Dials a missed call through the system handler. Returns null when no number is known — a button that
+    /// looks available but cannot work is worse than no button.
+    /// </summary>
+    private FrameworkElement? BuildCallBackButton(
+        OversightChatSnapshotService.ChatEntry chat,
+        string displayName)
+    {
+        var number = TelUriFor(chat);
+        if (number is null)
+        {
+            return null;
+        }
+
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+        content.Children.Add(new FontIcon { Glyph = "", FontSize = 12 }); // Phone
+        content.Children.Add(new TextBlock { Text = "Call back", FontSize = 12 });
+
+        var button = new Button
+        {
+            Content = content,
+            Padding = _compact ? new Thickness(8, 4, 8, 4) : new Thickness(10, 6, 10, 6),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, $"Call {displayName} back");
+        ToolTipService.SetToolTip(button, $"Dial {number[4..]} with your phone app.");
+        button.Click += (_, _) => CallBack(chat, displayName);
+        return button;
+    }
+
+    /// <summary>The dialable <c>tel:</c> URI for a chat, or null when no usable number is known.</summary>
+    internal static string? TelUriFor(OversightChatSnapshotService.ChatEntry chat)
+    {
+        var digits = DigitsOf(chat.ContactPhone);
+        if (digits.Length < 7)
+        {
+            // Fall back to the conversation key, which is a phone-number JID for a saved contact. An @lid
+            // privacy JID is not a phone number, so its digits must not be dialled.
+            var key = chat.ConversationKey ?? string.Empty;
+            if (!key.Contains("@lid", StringComparison.OrdinalIgnoreCase))
+            {
+                digits = DigitsOf(key.Split('@')[0]);
+            }
+        }
+
+        return digits.Length >= 7 ? $"tel:+{digits}" : null;
+    }
+
+    private static string DigitsOf(string? value) =>
+        new((value ?? string.Empty).Where(char.IsDigit).ToArray());
+
+    private void CallBack(OversightChatSnapshotService.ChatEntry chat, string displayName)
+    {
+        if (TelUriFor(chat) is not { } uri)
+        {
+            ShowTriageToast($"No phone number stored for {displayName}.");
+            return;
+        }
+
+        // Goes through the same guarded launcher as a customer link, so the scheme allow-list applies here
+        // too rather than this becoming a second, looser way to shell out.
+        ShowTriageToast(WebViewNavigationGuard.TryOpenExternally(uri, userInitiated: true)
+            ? $"Dialling {displayName}…"
+            : "Windows has no app registered for placing calls.");
+    }
+
+    /// <summary>
+    /// The saved-reply menu for a row: the library narrowed to this kind of conversation, most-used first.
+    /// It copies and never sends, which is the app's standing rule and not a limitation to work around.
+    /// </summary>
+    private FrameworkElement BuildSavedReplyButton(
+        MessengerInstance inst,
+        OversightChatSnapshotService.ChatEntry chat,
+        string displayName,
+        QueueFacet facet)
+    {
+        var flyout = new MenuFlyout();
+        var replies = SavedReplyStore.Instance.ForFacet(facet);
+
+        if (replies.Count == 0)
+        {
+            flyout.Items.Add(new MenuFlyoutItem { Text = "No saved replies yet", IsEnabled = false });
+        }
+
+        foreach (var reply in replies.Take(8))
+        {
+            var item = new MenuFlyoutItem { Text = reply.Title };
+            var captured = reply;
+            item.Click += (_, _) => CopySavedReply(captured, inst, chat, displayName);
+            flyout.Items.Add(item);
+        }
+
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
+        content.Children.Add(new FontIcon { Glyph = "", FontSize = 12 }); // Copy
+        content.Children.Add(new TextBlock { Text = "Reply", FontSize = 12 });
+
+        var button = new Button
+        {
+            Content = content,
+            Padding = _compact ? new Thickness(8, 4, 8, 4) : new Thickness(10, 6, 10, 6),
+            VerticalAlignment = VerticalAlignment.Center,
+            Flyout = flyout
+        };
+
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            button, $"Copy a saved reply for {displayName}");
+        ToolTipService.SetToolTip(button,
+            "Copies a ready-made answer with this customer's details filled in. You paste and send it "
+            + "yourself — the app never sends anything.");
+        return button;
+    }
+
+    private void CopySavedReply(
+        SavedReply reply,
+        MessengerInstance inst,
+        OversightChatSnapshotService.ChatEntry chat,
+        string displayName)
+    {
+        var text = SavedReplyText.Fill(
+            reply.Body, displayName, BranchWorkspaceHelper.ResolveBranchKey(inst), inst.DisplayName);
+
+        var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(text);
+        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+
+        SavedReplyStore.Instance.RecordUse(reply.Id);
+        ShowTriageToast($"“{reply.Title}” copied — paste it into the chat.");
+    }
+
+    /// <summary>
+    /// A short confirmation for an action that has no other visible result. Copying to the clipboard and
+    /// handing a number to the dialler both succeed silently otherwise, and an action with no feedback is
+    /// one the owner repeats because they cannot tell whether it worked.
+    /// </summary>
+    private void ShowTriageToast(string message)
+    {
+        TriageToastText.Text = message;
+        TriageToast.Visibility = Visibility.Visible;
+
+        // Announced as well as shown: the owner may be driving the queue from the keyboard with their eyes
+        // on the chat window rather than on this strip.
+        var peer = Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.FromElement(TriageToast)
+            ?? Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(TriageToast);
+        peer?.RaiseNotificationEvent(
+            Microsoft.UI.Xaml.Automation.Peers.AutomationNotificationKind.ActionCompleted,
+            Microsoft.UI.Xaml.Automation.Peers.AutomationNotificationProcessing.MostRecent,
+            message,
+            "triage-toast");
+
+        _toastCts?.Cancel();
+        _toastCts = new CancellationTokenSource();
+        var token = _toastCts.Token;
+        _ = HideToastAfterDelayAsync(token);
+    }
+
+    private CancellationTokenSource? _toastCts;
+
+    private async Task HideToastAfterDelayAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(4), token).ConfigureAwait(true);
+            TriageToast.Visibility = Visibility.Collapsed;
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer message, which is already on screen.
+        }
+    }
+
+    // ---- Keyboard triage --------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Drives the reply queue from the keyboard.
+    /// </summary>
+    /// <remarks>
+    /// Attached at the panel level rather than per row, because a row that has just been marked done is gone
+    /// from the tree — a per-row handler would lose the keyboard the moment it was used, which is precisely
+    /// when the owner is about to press the same key again.
+    /// </remarks>
+    private void OnTriageKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (!IsNeedsReplyMode || _triageRows.Count == 0)
+        {
+            return;
+        }
+
+        var modifiers = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Control);
+        var ctrl = modifiers.HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+        var alt = Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(VirtualKey.Menu)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
+        var typing = FocusManager.GetFocusedElement(XamlRoot) is TextBox or AutoSuggestBox or PasswordBox
+                     or RichEditBox;
+
+        var command = TriageKeyboard.Resolve(e.Key, ctrl || alt, typing);
+        if (command == TriageCommand.None)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        switch (command)
+        {
+            case TriageCommand.Next:
+            case TriageCommand.Previous:
+            case TriageCommand.First:
+            case TriageCommand.Last:
+                _triageIndex = TriageKeyboard.Move(command, _triageIndex, _triageRows.Count);
+                FocusTriageRow();
+                return;
+        }
+
+        // Every remaining command acts on a row, so make sure one is selected first.
+        if (_triageIndex < 0 || _triageIndex >= _triageRows.Count)
+        {
+            _triageIndex = 0;
+            FocusTriageRow();
+            if (command != TriageCommand.ShowHelp)
+            {
+                return; // the first press selects; the second acts
+            }
+        }
+
+        var row = _triageRows[Math.Clamp(_triageIndex, 0, _triageRows.Count - 1)];
+
+        switch (command)
+        {
+            case TriageCommand.Open:
+                _services?.Navigation.OpenInstance(
+                    row.Instance.Id, row.Chat.ConversationKey, row.Chat.CustomerName, row.Chat.ContactPhone);
+                break;
+
+            case TriageCommand.MarkDone:
+                AwaitingOverrideStore.Instance.MarkHandled(
+                    row.Instance.Id, row.Chat.ConversationKey, row.Chat.LastActivityUtc);
+                ShowTriageToast($"{row.DisplayName} marked done.");
+                AdvanceAfterRemoval();
+                break;
+
+            case TriageCommand.Snooze:
+                AwaitingOverrideStore.Instance.Snooze(
+                    row.Instance.Id, row.Chat.ConversationKey, DateTimeOffset.UtcNow.AddDays(1));
+                ShowTriageToast($"{row.DisplayName} snoozed until tomorrow.");
+                AdvanceAfterRemoval();
+                break;
+
+            case TriageCommand.CallBack:
+                CallBack(row.Chat, row.DisplayName);
+                break;
+
+            case TriageCommand.CopyReply:
+                var replies = SavedReplyStore.Instance.ForFacet(row.Facet);
+                if (replies.Count > 0)
+                {
+                    CopySavedReply(replies[0], row.Instance, row.Chat, row.DisplayName);
+                }
+                else
+                {
+                    ShowTriageToast("No saved replies yet — add some in Settings.");
+                }
+
+                break;
+
+            case TriageCommand.ShowHelp:
+                ShowTriageHelp();
+                break;
+        }
+    }
+
+    /// <summary>True while the flat cross-account queue is the visible view.</summary>
+    private bool IsNeedsReplyMode => NeedsReplyButton.IsChecked == true;
+
+    /// <summary>
+    /// Re-renders after a row leaves the queue, keeping the selection where the owner was rather than
+    /// sending them back to the top of a list they were working down.
+    /// </summary>
+    private void AdvanceAfterRemoval()
+    {
+        var removed = _triageIndex;
+        _lastRenderSignature = string.Empty;
+        Render();
+        _triageIndex = TriageKeyboard.IndexAfterRemoval(removed, _triageRows.Count);
+        FocusTriageRow();
+    }
+
+    private void FocusTriageRow()
+    {
+        if (_triageIndex < 0 || _triageIndex >= _triageRows.Count)
+        {
+            return;
+        }
+
+        var row = _triageRows[_triageIndex];
+        row.Focusable.Focus(FocusState.Keyboard);
+        row.Container.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false });
+    }
+
+    private void ShowTriageHelp()
+    {
+        var body = new StackPanel { Spacing = 6 };
+        foreach (var (keys, does) in TriageKeyboard.Shortcuts)
+        {
+            var line = new Grid();
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var k = new TextBlock { Text = keys, FontFamily = new FontFamily("Consolas"), FontSize = 13 };
+            var d = new TextBlock { Text = does, FontSize = 13, TextWrapping = TextWrapping.WrapWholeWords };
+            Grid.SetColumn(d, 1);
+            line.Children.Add(k);
+            line.Children.Add(d);
+            body.Children.Add(line);
+        }
+
+        _ = new ContentDialog
+        {
+            Title = "Keyboard shortcuts",
+            Content = body,
+            CloseButtonText = "Close",
+            XamlRoot = XamlRoot
+        }.ShowManagedAsync();
     }
 
     /// <summary>
