@@ -5,6 +5,30 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.33
+
+**You choose where downloads go.** Saving a file now opens Windows' own save dialog, with the filename
+already filled in and the file type named in words — "Image", "Voice note", "PDF document" — rather than
+as an extension. It remembers the folder you picked, so the next save starts there. Cancelling the dialog
+cancels the download rather than saving somewhere you just declined.
+
+Files used to land wherever the built-in browser engine decided, which is a folder you never chose and
+cannot easily find.
+
+**Analytics and Reports now say how old their numbers are.** They showed message counts, charts, response
+times and a whole written report with no indication of when the data was captured — so figures from a scrape
+that failed three hours ago looked exactly like figures from thirty seconds ago. Both pages now carry an
+"Updated …" line, and once the data is more than half an hour old it turns amber and tells you to re-sync.
+
+**The account status dot now works in dark mode.** The little coloured dot beside each account in the
+sidebar was still using fixed colours chosen for the light theme, so it was the one status signal that
+never got the readability fix the rest of the app received. It now uses the proper colour for whichever
+theme you are in, and both have been measured against the accessibility standard for non-text indicators.
+
+**Cards, chips and panels now share one set of corner shapes.** Six slightly different roundings had
+accumulated — cards at four different radii — which reads as untidy without being obviously wrong. There
+are now three: small controls, panels, and cards.
+
 ## v4.99.32
 
 Three additions aimed at the actual daily job rather than the numbers describing it.
