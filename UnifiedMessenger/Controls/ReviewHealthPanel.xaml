@@ -11,7 +11,7 @@
         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
         BorderThickness="1"
-        CornerRadius="10"
+        CornerRadius="8"
         Padding="18,16">
         <Grid RowSpacing="14">
             <Grid.RowDefinitions>

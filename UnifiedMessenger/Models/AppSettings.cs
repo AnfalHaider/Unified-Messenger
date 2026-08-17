@@ -68,6 +68,22 @@ public sealed class AppSettings
     /// </remarks>
     public bool UseAiForReplyNeed { get; set; } = true;
 
+    /// <summary>
+    /// Ask where to put each received file, using Windows' own save dialog.
+    /// </summary>
+    /// <remarks>
+    /// On by default. WebView2's own flow drops files into a folder the owner never chose and cannot easily
+    /// find — for an unpackaged host that is not the browser's visible Downloads folder. Someone saving a
+    /// customer's reference photo wants it somewhere they picked, under a name they will recognise.
+    /// </remarks>
+    public bool AskWhereToSaveDownloads { get; set; } = true;
+
+    /// <summary>
+    /// Where files go when <see cref="AskWhereToSaveDownloads"/> is off, and where the save dialog opens
+    /// when it is on. Updated to the last folder used, which is what every browser does.
+    /// </summary>
+    public string DownloadFolder { get; set; } = string.Empty;
+
     public bool IncludeMutedChatBadges { get; set; }
 
     /// <summary>

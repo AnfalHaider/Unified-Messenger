@@ -27,6 +27,13 @@ public sealed partial class ReportsPage : Page
     {
         base.OnNavigatedTo(e);
 
+        // A report built from a stale scrape has to say so — the numbers in it look identical either way.
+        var freshness = DataFreshness.Current();
+        FreshnessText.Text = freshness.Text;
+        FreshnessText.Foreground = freshness.IsStale
+            ? UmSemanticBrushes.Get(UmSemanticBrushes.StatusWarningBrushKey, this)
+            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
+
         if (e.Parameter is RegistryNavigationArgs { Services: { } services })
         {
             _services = services;

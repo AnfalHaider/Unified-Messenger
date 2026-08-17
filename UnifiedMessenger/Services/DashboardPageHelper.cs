@@ -159,7 +159,11 @@ public static class DashboardPageHelper
         InstanceConnectionStatus connectionStatus,
         AdapterHealthState adapterState)
     {
-        var color = WorkspaceSidebarHelper.ResolveConnectionIndicatorColor(connectionStatus, adapterState);
+        // Goes through the same token as the sidebar dot, so the two can never disagree about what
+        // "connected" looks like. Themed, so this follows light/dark rather than baking one in.
+        var color = WorkspaceSidebarHelper
+            .ResolveConnectionIndicatorBrush(connectionStatus, adapterState)
+            .Color;
         return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
     }
 

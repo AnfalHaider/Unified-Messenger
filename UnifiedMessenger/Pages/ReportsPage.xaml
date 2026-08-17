@@ -17,6 +17,12 @@
                     Opacity="0.7"
                     Text="A plain-language business report with anomaly detection, for any recent period."
                     TextWrapping="WrapWholeWords" />
+                <!-- Same stamp as Analytics: a report built from a stale scrape must say so. -->
+                <TextBlock
+                    x:Name="FreshnessText"
+                    FontSize="11"
+                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                    TextWrapping="WrapWholeWords" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">

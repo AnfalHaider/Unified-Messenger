@@ -1,3 +1,5 @@
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
@@ -242,23 +244,45 @@ public static class WorkspaceSidebarHelper
             : $"Status: Connected · {detail}";
     }
 
-    public static Windows.UI.Color ResolveConnectionIndicatorColor(
+    /// <summary>
+    /// The theme token for an account's status dot.
+    /// </summary>
+    /// <remarks>
+    /// This returned nine hardcoded <c>Color.FromArgb</c> literals until now — <c>#107C10</c> green,
+    /// <c>#C42B1C</c> red, <c>#0063B1</c> blue, <c>#808080</c> grey — which is exactly the defect the
+    /// contrast pass fixed everywhere else in v4.99.26 and then missed here. One shared value cannot serve
+    /// both themes: a colour readable on white is not readable on near-black, and the dot is the primary
+    /// signal for "is this account working".
+    ///
+    /// <para>
+    /// A token key rather than a <c>Color</c>, because resolving a themed brush needs the element it will be
+    /// drawn on — see <see cref="UmSemanticBrushes.Get(string, FrameworkElement?)"/>.
+    /// </para>
+    /// </remarks>
+    public static string ResolveConnectionIndicatorBrushKey(
         InstanceConnectionStatus connectionStatus,
         AdapterHealthState adapterState) =>
         connectionStatus switch
         {
-            InstanceConnectionStatus.Connected => Windows.UI.Color.FromArgb(255, 16, 124, 16),
-            InstanceConnectionStatus.LoggedOut => Windows.UI.Color.FromArgb(255, 196, 89, 17),
-            InstanceConnectionStatus.Error => Windows.UI.Color.FromArgb(255, 196, 43, 28),
-            InstanceConnectionStatus.Initializing => Windows.UI.Color.FromArgb(255, 0, 99, 177),
+            InstanceConnectionStatus.Connected => UmSemanticBrushes.StatusSuccessBrushKey,
+            InstanceConnectionStatus.LoggedOut => UmSemanticBrushes.StatusWarningBrushKey,
+            InstanceConnectionStatus.Error => UmSemanticBrushes.StatusDangerBrushKey,
+            InstanceConnectionStatus.Initializing => UmSemanticBrushes.StatusInfoBrushKey,
             _ => adapterState switch
             {
-                AdapterHealthState.Healthy => Windows.UI.Color.FromArgb(255, 16, 124, 16),
-                AdapterHealthState.Ready => Windows.UI.Color.FromArgb(255, 0, 99, 177),
-                AdapterHealthState.Stale => Windows.UI.Color.FromArgb(255, 196, 89, 17),
-                AdapterHealthState.NoAdapter => Windows.UI.Color.FromArgb(255, 128, 128, 128),
-                _ => Windows.UI.Color.FromArgb(255, 160, 160, 160)
+                AdapterHealthState.Healthy => UmSemanticBrushes.StatusSuccessBrushKey,
+                AdapterHealthState.Ready => UmSemanticBrushes.StatusInfoBrushKey,
+                AdapterHealthState.Stale => UmSemanticBrushes.StatusWarningBrushKey,
+                AdapterHealthState.NoAdapter => UmSemanticBrushes.StatusNeutralBrushKey,
+                _ => UmSemanticBrushes.StatusMutedBrushKey
             }
         };
 
+    /// <summary>The status-dot brush, resolved for the theme the element is actually drawn in.</summary>
+    public static SolidColorBrush ResolveConnectionIndicatorBrush(
+        InstanceConnectionStatus connectionStatus,
+        AdapterHealthState adapterState,
+        FrameworkElement? element = null) =>
+        UmSemanticBrushes.Get(
+            ResolveConnectionIndicatorBrushKey(connectionStatus, adapterState), element);
 }

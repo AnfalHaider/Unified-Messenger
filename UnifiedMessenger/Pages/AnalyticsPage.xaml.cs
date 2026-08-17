@@ -63,6 +63,14 @@ public sealed partial class AnalyticsPage : Page
             .Where(i => i.IsProfessional)
             .ToList();
 
+        // Stamped on every refresh, and flagged once it is old enough that the poll has been failing
+        // rather than merely lagging.
+        var freshness = DataFreshness.Current();
+        FreshnessText.Text = freshness.Text;
+        FreshnessText.Foreground = freshness.IsStale
+            ? UmSemanticBrushes.Get(UmSemanticBrushes.StatusWarningBrushKey, this)
+            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
+
         var view = AnalyticsPagePresenter.Build(instances, SelectedDays());
 
         BindKpi(MessagesKpi, view.Messages);

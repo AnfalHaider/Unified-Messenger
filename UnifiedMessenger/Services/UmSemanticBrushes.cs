@@ -28,6 +28,7 @@ public static class UmSemanticBrushes
     public const string StatusSuccessBrushKey = "UmStatusSuccessBrush";
     public const string StatusWarningBrushKey = "UmStatusWarningBrush";
     public const string StatusDangerBrushKey = "UmStatusDangerBrush";
+    public const string StatusInfoBrushKey = "UmStatusInfoBrush";
     public const string StatusNeutralBrushKey = "UmStatusNeutralBrush";
     public const string StatusMutedBrushKey = "UmStatusMutedBrush";
     public const string TransparentBrushKey = "UmTransparentBrush";
@@ -42,7 +43,13 @@ public static class UmSemanticBrushes
         {
             [StatusSuccessBrushKey] = ("#15803D", "#22C55E"),
             [StatusWarningBrushKey] = ("#B45309", "#F59E0B"),
-            [StatusDangerBrushKey] = ("#DC2626", "#F87171")
+            [StatusDangerBrushKey] = ("#DC2626", "#F87171"),
+            // The three the sidebar's connection dot needs. They must be in this table as well as in the
+            // theme dictionary: a key missing here falls through to grey, which is how a status signal
+            // silently stops signalling.
+            [StatusInfoBrushKey] = ("#1D4ED8", "#60A5FA"),
+            [StatusNeutralBrushKey] = ("#5B6773", "#94A3B8"),
+            [StatusMutedBrushKey] = ("#6B7684", "#8A97A6")
         };
 
     public static SolidColorBrush StatusSuccess => Get(StatusSuccessBrushKey);
@@ -50,6 +57,8 @@ public static class UmSemanticBrushes
     public static SolidColorBrush StatusWarning => Get(StatusWarningBrushKey);
 
     public static SolidColorBrush StatusDanger => Get(StatusDangerBrushKey);
+
+    public static SolidColorBrush StatusInfo => Get(StatusInfoBrushKey);
 
     public static SolidColorBrush StatusNeutral => Get(StatusNeutralBrushKey);
 

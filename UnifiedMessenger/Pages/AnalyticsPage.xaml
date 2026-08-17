@@ -27,6 +27,16 @@
                         Opacity="0.7"
                         Text="Your communication performance and key metrics."
                         TextWrapping="WrapWholeWords" />
+                    <!--
+                        Every figure on this page comes from the oversight snapshot, and until now the page
+                        never said when that was captured. A scrape that failed three hours ago looked
+                        exactly like one that succeeded thirty seconds ago.
+                    -->
+                    <TextBlock
+                        x:Name="FreshnessText"
+                        FontSize="11"
+                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                        TextWrapping="WrapWholeWords" />
                 </StackPanel>
                 <ComboBox
                     x:Name="RangeBox"

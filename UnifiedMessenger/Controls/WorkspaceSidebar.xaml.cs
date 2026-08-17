@@ -493,8 +493,9 @@ public sealed partial class WorkspaceSidebar : Grid
 
         if (_instanceStatusDots.TryGetValue(normalizedId, out var dot))
         {
-            dot.Fill = new SolidColorBrush(
-                WorkspaceSidebarHelper.ResolveConnectionIndicatorColor(connectionStatus, adapterStatus.State));
+            // Resolved against THIS element, so the dot picks up the theme it is actually drawn in.
+            dot.Fill = WorkspaceSidebarHelper.ResolveConnectionIndicatorBrush(
+                connectionStatus, adapterStatus.State, this);
         }
 
         var statusSubtitle = WorkspaceSidebarHelper.ResolveStatusSubtitle(

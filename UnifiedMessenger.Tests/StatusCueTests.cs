@@ -44,8 +44,11 @@ public class StatusCueTests
                     continue;
                 }
 
-                var colourA = WorkspaceSidebarHelper.ResolveConnectionIndicatorColor(a, AdapterHealthState.Healthy);
-                var colourB = WorkspaceSidebarHelper.ResolveConnectionIndicatorColor(b, AdapterHealthState.Healthy);
+                // Compared by TOKEN now, not by literal colour. The dot used to be painted from hardcoded
+                // ARGB values; it resolves a themed brush key, so "are these two drawn differently" is a
+                // question about the keys.
+                var colourA = WorkspaceSidebarHelper.ResolveConnectionIndicatorBrushKey(a, AdapterHealthState.Healthy);
+                var colourB = WorkspaceSidebarHelper.ResolveConnectionIndicatorBrushKey(b, AdapterHealthState.Healthy);
                 if (colourA == colourB)
                 {
                     continue; // same colour, so colour is not carrying a distinction here

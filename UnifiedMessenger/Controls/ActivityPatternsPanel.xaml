@@ -11,7 +11,7 @@
         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
         BorderThickness="1"
-        CornerRadius="10"
+        CornerRadius="8"
         Padding="18,16">
         <Grid RowSpacing="14">
             <Grid.RowDefinitions>
@@ -51,10 +51,10 @@
                 BorderThickness="1"
                 Padding="2">
                 <StackPanel Orientation="Horizontal" Spacing="2">
-                    <ToggleButton x:Name="HourButton" Content="Hour of day" IsChecked="True" Click="OnHourClick" Padding="12,4" CornerRadius="4" />
-                    <ToggleButton x:Name="DayButton" Content="Day of week" Click="OnDayClick" Padding="12,4" CornerRadius="4" />
-                    <ToggleButton x:Name="MonthButton" Content="Month" Click="OnMonthClick" Padding="12,4" CornerRadius="4" />
-                    <ToggleButton x:Name="HeatmapButton" Content="Heat map" Click="OnHeatmapClick" Padding="12,4" CornerRadius="4"
+                    <ToggleButton x:Name="HourButton" Content="Hour of day" IsChecked="True" Click="OnHourClick" Padding="12,4" CornerRadius="6" />
+                    <ToggleButton x:Name="DayButton" Content="Day of week" Click="OnDayClick" Padding="12,4" CornerRadius="6" />
+                    <ToggleButton x:Name="MonthButton" Content="Month" Click="OnMonthClick" Padding="12,4" CornerRadius="6" />
+                    <ToggleButton x:Name="HeatmapButton" Content="Heat map" Click="OnHeatmapClick" Padding="12,4" CornerRadius="6"
                         ToolTipService.ToolTip="When are you busiest, by weekday and hour — for planning coverage" />
                 </StackPanel>
             </Border>

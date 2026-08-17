@@ -159,4 +159,35 @@ public class StatusContrastTests
             Assert.Contains(brush, xaml, StringComparison.Ordinal);
         }
     }
+
+    // ---- The sidebar's connection dot -----------------------------------------------------------------
+
+    [Theory]
+    [InlineData("UmStatusInfoColor")]
+    [InlineData("UmStatusNeutralColor")]
+    [InlineData("UmStatusMutedColor")]
+    public void TheConnectionDotColoursAreThemedLikeEveryOtherStatusColour(string key)
+    {
+        // The dot was painted from hardcoded ARGB literals — #0063B1 blue, #808080 grey — months after the
+        // other status colours were moved into theme dictionaries. One shared value cannot serve both
+        // themes, and the dot is the primary "is this account working" signal.
+        Assert.True(WcagContrast.IsThemed(key), $"{key} must be declared per theme, not shared.");
+    }
+
+    [Theory]
+    [InlineData("UmStatusInfoColor")]
+    [InlineData("UmStatusNeutralColor")]
+    [InlineData("UmStatusMutedColor")]
+    public void TheConnectionDotMeetsTheNonTextContrastBar(string key)
+    {
+        // A dot conveys state without text, so WCAG 1.4.11 applies: 3:1 against the surface behind it,
+        // measured in both themes against that theme's own sidebar ground.
+        var light = WcagContrast.Ratio(
+            WcagContrast.ThemeColor("Light", key), WcagContrast.LightCard);
+        var dark = WcagContrast.Ratio(
+            WcagContrast.ThemeColor("Default", key), WcagContrast.DarkCard);
+
+        Assert.True(light >= 3.0, $"{key} measures {light:0.00}:1 on the light surface (needs 3:1).");
+        Assert.True(dark >= 3.0, $"{key} measures {dark:0.00}:1 on the dark surface (needs 3:1).");
+    }
 }

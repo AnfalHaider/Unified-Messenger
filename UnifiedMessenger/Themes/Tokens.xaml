@@ -31,6 +31,18 @@
             <SolidColorBrush x:Key="UmStatusSuccessBrush" Color="#15803D" />
             <SolidColorBrush x:Key="UmStatusWarningBrush" Color="#B45309" />
             <SolidColorBrush x:Key="UmStatusDangerBrush" Color="#DC2626" />
+            <!--
+                Info, neutral and muted joined the themed set when the sidebar's connection dot was found
+                still painting itself from hardcoded ARGB literals (#0063B1 blue, #808080 grey) months after
+                the other status colours moved here. A dot is a non-text UI component, so its bar is the
+                3:1 of WCAG 1.4.11 rather than 4.5:1 — see StatusContrastTests.
+            -->
+            <Color x:Key="UmStatusInfoColor">#1D4ED8</Color>
+            <Color x:Key="UmStatusNeutralColor">#5B6773</Color>
+            <Color x:Key="UmStatusMutedColor">#6B7684</Color>
+            <SolidColorBrush x:Key="UmStatusInfoBrush" Color="#1D4ED8" />
+            <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="#5B6773" />
+            <SolidColorBrush x:Key="UmStatusMutedBrush" Color="#6B7684" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Default">
             <Color x:Key="UmBrandSlateColor">#DCE3EC</Color>
@@ -61,6 +73,13 @@
             <SolidColorBrush x:Key="UmStatusSuccessBrush" Color="#22C55E" />
             <SolidColorBrush x:Key="UmStatusWarningBrush" Color="#F59E0B" />
             <SolidColorBrush x:Key="UmStatusDangerBrush" Color="#F87171" />
+            <!-- Same three, lifted for a dark ground. #1D4ED8 measures under 3:1 on near-black. -->
+            <Color x:Key="UmStatusInfoColor">#60A5FA</Color>
+            <Color x:Key="UmStatusNeutralColor">#94A3B8</Color>
+            <Color x:Key="UmStatusMutedColor">#8A97A6</Color>
+            <SolidColorBrush x:Key="UmStatusInfoBrush" Color="#60A5FA" />
+            <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="#94A3B8" />
+            <SolidColorBrush x:Key="UmStatusMutedBrush" Color="#8A97A6" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
@@ -137,8 +156,6 @@
     <!-- Semantic status (light theme defaults) -->
     <!-- UmStatusSuccess/Warning/DangerColor are defined per-theme above; do not redeclare them here or
          the theme switch is lost (the same trap the UmBrandTealBrush comment below records). -->
-    <Color x:Key="UmStatusNeutralColor">#64748B</Color>
-    <Color x:Key="UmStatusMutedColor">#94A3B8</Color>
     <Color x:Key="UmStatusReadColor">#2563EB</Color>
     <Color x:Key="UmStatusDeliveredColor">#64748B</Color>
     <Color x:Key="UmStatusSentColor">#94A3B8</Color>
@@ -148,8 +165,6 @@
          StaticResource lookup out here cannot see inside a theme dictionary, so leaving them at the top
          level would either fail to resolve or pin one theme's palette for both. -->
 
-    <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="{StaticResource UmStatusNeutralColor}" />
-    <SolidColorBrush x:Key="UmStatusMutedBrush" Color="{StaticResource UmStatusMutedColor}" />
     <SolidColorBrush x:Key="UmStatusReadBrush" Color="{StaticResource UmStatusReadColor}" />
     <SolidColorBrush x:Key="UmStatusDeliveredBrush" Color="{StaticResource UmStatusDeliveredColor}" />
     <SolidColorBrush x:Key="UmStatusSentBrush" Color="{StaticResource UmStatusSentColor}" />

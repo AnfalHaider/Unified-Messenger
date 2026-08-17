@@ -31,11 +31,12 @@ public static class WebViewPlatformConfigurator
         settings.IsStatusBarEnabled = false;
         settings.AreBrowserAcceleratorKeysEnabled = true;
 
-        // Let received files (WhatsApp media/documents, exports) download with WebView2's built-in,
-        // browser-style experience (progress flyout + Save-As + Downloads folder). Without this the
-        // nav guard's blanket blocking leaves downloads dead. Idempotent — Apply can run more than once.
-        coreWebView.DownloadStarting -= OnDownloadStarting;
-        coreWebView.DownloadStarting += OnDownloadStarting;
+        // Received files (WhatsApp media and documents, exports) are saved where the OWNER chooses. The
+        // previous handler left Handled = false, which gave WebView2's built-in flyout and dropped every
+        // file into a folder the owner never picked and — for an unpackaged host — cannot easily find.
+        // DownloadLocationPrompt shows the system save dialog instead and owns the deferral that the
+        // asynchronous picker requires. Idempotent: Apply can run more than once.
+        DownloadLocationPrompt.Attach(coreWebView);
 
         var normalized = PlatformDefinition.NormalizePlatformId(platformId);
 
@@ -91,12 +92,6 @@ public static class WebViewPlatformConfigurator
         return IsDiscordNavigationHost(uri.Host);
     }
 
-    private static void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs args)
-    {
-        // Keep WebView2's default download UI — that IS the browser behaviour. We only need to not cancel;
-        // leaving Handled = false shows the built-in progress flyout and lets the user pick the location.
-        args.Handled = false;
-    }
 
     private static void OnDiscordNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs args)
     {

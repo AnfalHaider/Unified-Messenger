@@ -20,7 +20,7 @@
             Grid.Column="1"
             Padding="6,2"
             Background="{StaticResource UmBrandVioletBrush}"
-            CornerRadius="10"
+            CornerRadius="8"
             Visibility="{x:Bind BadgeVisibility, Mode=OneWay}">
             <TextBlock
                 FontSize="10"
