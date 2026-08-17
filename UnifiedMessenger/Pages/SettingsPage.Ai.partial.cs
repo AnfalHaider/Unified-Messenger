@@ -102,7 +102,7 @@ public sealed partial class SettingsPage
                 XamlRoot = XamlRoot
             };
 
-            if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+            if (await confirm.ShowManagedAsync() != ContentDialogResult.Primary)
             {
                 _suppressToggleEvents = true;
                 EnableLocalAiToggle.IsOn = false;

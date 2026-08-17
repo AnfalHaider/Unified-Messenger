@@ -30,7 +30,7 @@ public static class AccountIconChangeFlow
         beforeShow?.Invoke();
         try
         {
-            await dialog.ShowAsync();
+            await dialog.ShowManagedAsync();
         }
         finally
         {

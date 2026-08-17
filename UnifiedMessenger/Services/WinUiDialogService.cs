@@ -24,7 +24,7 @@ public sealed class WinUiDialogService : IDialogService
             XamlRoot = RequireXamlRoot()
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowManagedAsync();
     }
 
     public async Task<bool> ConfirmAsync(
@@ -45,7 +45,7 @@ public sealed class WinUiDialogService : IDialogService
             XamlRoot = RequireXamlRoot()
         };
 
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await dialog.ShowManagedAsync() == ContentDialogResult.Primary;
     }
 
     private XamlRoot RequireXamlRoot()

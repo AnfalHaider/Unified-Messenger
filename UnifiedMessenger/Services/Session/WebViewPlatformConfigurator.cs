@@ -105,11 +105,22 @@ public static class WebViewPlatformConfigurator
             return;
         }
 
+        // Carried the same two defects as the general handler and had to be fixed alongside it, or Discord
+        // would keep swallowing downloads and links while every other channel worked.
+        if (WebViewNavigationGuard.IsDownloadLikeUri(args.Uri))
+        {
+            args.Handled = false; // hand it back to WebView2's download pipeline
+            return;
+        }
+
         args.Handled = true;
 
         if (WebViewNavigationGuard.IsAllowedNavigationUri(args.Uri))
         {
             coreWebView.Navigate(args.Uri);
+            return;
         }
+
+        WebViewNavigationGuard.TryOpenExternally(args.Uri, args.IsUserInitiated);
     }
 }

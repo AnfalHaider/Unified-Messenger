@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Presenters;
@@ -105,7 +105,7 @@ public sealed partial class NotificationFeedPanel : UserControl
             XamlRoot = XamlRoot
         };
 
-        if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+        if (await confirm.ShowManagedAsync() != ContentDialogResult.Primary)
         {
             return;
         }

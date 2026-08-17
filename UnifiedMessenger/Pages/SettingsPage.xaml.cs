@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -263,7 +263,7 @@ public sealed partial class SettingsPage : Page
         {
             XamlRoot = XamlRoot
         };
-        await dialog.ShowAsync();
+        await dialog.ShowManagedAsync();
         RefreshWorkspaceManagementSummary();
     }
 
@@ -323,7 +323,7 @@ public sealed partial class SettingsPage : Page
             XamlRoot = XamlRoot
         };
 
-        await dialog.ShowAsync();
+        await dialog.ShowManagedAsync();
     }
 }
 

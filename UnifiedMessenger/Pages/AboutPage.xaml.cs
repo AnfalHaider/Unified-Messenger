@@ -63,7 +63,7 @@ public sealed partial class AboutPage : Page
                 XamlRoot = XamlRoot
             };
 
-            if (await prompt.ShowAsync() != ContentDialogResult.Primary)
+            if (await prompt.ShowManagedAsync() != ContentDialogResult.Primary)
             {
                 return;
             }
@@ -85,7 +85,7 @@ public sealed partial class AboutPage : Page
                         Text = $"Could not install the update: {ex.Message}",
                         TextWrapping = TextWrapping.WrapWholeWords
                     }
-                }.ShowAsync();
+                }.ShowManagedAsync();
             }
 
             return;
@@ -101,7 +101,7 @@ public sealed partial class AboutPage : Page
                 Text = SettingsPageHelper.BuildUpdateCheckMessage(result),
                 TextWrapping = TextWrapping.WrapWholeWords
             }
-        }.ShowAsync();
+        }.ShowManagedAsync();
     }
 
     private void SettingsBreadcrumb_Click(object sender, RoutedEventArgs e)

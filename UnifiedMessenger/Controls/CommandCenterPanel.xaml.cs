@@ -2984,7 +2984,7 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         var dialog = new UnifiedMessenger.Dialogs.AccountDetailDialog(_services, instance) { XamlRoot = XamlRoot };
-        await dialog.ShowAsync();
+        await dialog.ShowManagedAsync();
     }
 
     /// <summary>Switches to the Needs-reply list scoped to one account/location (from a card's awaiting pill).</summary>
@@ -3103,7 +3103,7 @@ public sealed partial class CommandCenterPanel : UserControl
         _lastRenderSignature = string.Empty;
         Render();
 
-        await dialog.ShowAsync();
+        await dialog.ShowManagedAsync();
     }
 
     /// <summary>

@@ -53,7 +53,7 @@ internal static class SettingsRecoveryDialog
             dialog.DefaultButton = ContentDialogButton.Close;
         }
 
-        var result = await dialog.ShowAsync();
+        var result = await dialog.ShowManagedAsync();
 
         // Logged after the await, not before, so the record distinguishes "the notice was shown and the
         // owner dismissed it" from "the call returned without ever displaying". During the live test the

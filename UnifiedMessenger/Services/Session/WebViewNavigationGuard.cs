@@ -260,6 +260,13 @@ public static class WebViewNavigationGuard
     private static bool IsBlankPage(string? uri) =>
         string.IsNullOrWhiteSpace(uri) || uri.Equals("about:blank", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// True for the in-page schemes a download resolves to. Public so the per-platform configurators apply
+    /// the same rule — the Discord handler had its own copy of this logic without the exemption, so
+    /// downloads worked on every channel except that one.
+    /// </summary>
+    public static bool IsDownloadLikeUri(string? uri) => IsDownloadLikeScheme(uri);
+
     private static bool IsDownloadLikeScheme(string? uri) =>
         !string.IsNullOrWhiteSpace(uri) &&
         (uri.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) ||
@@ -276,7 +283,18 @@ public static class WebViewNavigationGuard
 
         if (!IsAllowedNavigationUri(args.Uri, allowlist))
         {
+            // Cancelling is still right — the monitored account must not be navigated away from, or the
+            // owner loses their WhatsApp session to a link. But cancelling and stopping there was a dead
+            // end: a link without target="_blank" simply did nothing on click.
+            //
+            // The cancel keeps the session; the launch honours the click. Both, not one.
             args.Cancel = true;
+
+            if (TryOpenExternally(args.Uri, args.IsUserInitiated))
+            {
+                return;
+            }
+
             AppLogger.LogWarning("WebView.Nav", $"Blocked navigation to disallowed URI: {args.Uri}");
         }
     }
@@ -286,8 +304,21 @@ public static class WebViewNavigationGuard
         CoreWebView2NewWindowRequestedEventArgs args,
         IReadOnlySet<string> allowlist)
     {
-        // Always suppress popup windows. If the target URL is in the allow-list, navigate the
-        // current WebView frame instead; otherwise discard silently.
+        // A DOWNLOAD, not a popup. WhatsApp decrypts a received file to a blob and opens it — which arrives
+        // here as a new-window request for a `blob:` URI. This handler used to set Handled = true and then
+        // discard anything that was not an allow-listed http(s) host, so every single download the owner
+        // tried silently did nothing: no file, no error, no log line they would ever see.
+        //
+        // HandleNavigationStarting already had this exemption. This path never got it.
+        //
+        // Leaving Handled = false hands the request back to WebView2, which runs its own download pipeline
+        // and shows the built-in save UI — the browser behaviour the owner expects.
+        if (IsDownloadLikeScheme(args.Uri))
+        {
+            args.Handled = false;
+            return;
+        }
+
         args.Handled = true;
 
         if (sender is not CoreWebView2 coreWebView)
@@ -295,13 +326,97 @@ public static class WebViewNavigationGuard
             return;
         }
 
+        // An allow-listed host is part of the monitored site — hop the current frame, as before.
         if (IsAllowedNavigationUri(args.Uri, allowlist))
         {
             coreWebView.Navigate(args.Uri);
+            return;
         }
-        else
+
+        // Anything else the owner deliberately clicked is THEIR link, and belongs in their own browser.
+        // Customers send links constantly; every one of them used to vanish on click.
+        if (TryOpenExternally(args.Uri, args.IsUserInitiated))
         {
-            AppLogger.LogWarning("WebView.Nav", $"Blocked new-window request to disallowed URI: {args.Uri}");
+            return;
+        }
+
+        AppLogger.LogWarning("WebView.Nav", $"Blocked new-window request to disallowed URI: {args.Uri}");
+    }
+
+    /// <summary>
+    /// Schemes that may be handed to the operating system's default handler.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a short allow-list rather than "anything not http". Shelling out an arbitrary scheme is
+    /// how a malicious page gets local code run: <c>file:</c> opens Explorer at a path of its choosing,
+    /// <c>javascript:</c> and <c>vbscript:</c> are script, and registered custom protocols (<c>ms-*</c>,
+    /// installer handlers, remote-desktop) invoke other applications with attacker-controlled arguments.
+    /// A page in a WebView2 is untrusted input, so only the four schemes a customer message legitimately
+    /// contains are forwarded.
+    /// </remarks>
+    /// <summary>
+    /// Whether this URI would be forwarded to the default browser. Exposed so the scheme boundary can be
+    /// asserted without actually launching anything — the first version of those tests called the launcher
+    /// and opened four windows on the machine running them.
+    /// </summary>
+    public static bool IsExternallyOpenableUri(string? uri) =>
+        !string.IsNullOrWhiteSpace(uri) &&
+        Uri.TryCreate(uri.Trim(), UriKind.Absolute, out var parsed) &&
+        IsExternallyOpenableScheme(parsed);
+
+    private static bool IsExternallyOpenableScheme(Uri uri) =>
+        uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+        uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+        uri.Scheme.Equals(Uri.UriSchemeMailto, StringComparison.OrdinalIgnoreCase) ||
+        uri.Scheme.Equals("tel", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Opens a link the owner clicked in the system's default browser. Returns false when the link is not
+    /// something that should be forwarded, so the caller can fall through to blocking it.
+    /// </summary>
+    /// <param name="userInitiated">
+    /// Only ever true for a real click. Automatic navigations, redirects and tracking hops must not be able
+    /// to launch a browser window — that would turn any page in a monitored account into a pop-up cannon.
+    /// </param>
+    /// <remarks>
+    /// This does not weaken the project's "zero oversight data leaves the machine" rule. That rule governs
+    /// data the app <i>derives</i> — metrics, message text, customer identities. A link the owner clicked is
+    /// the owner's own request, and handing it to their browser sends nothing the app produced.
+    /// </remarks>
+    internal static bool TryOpenExternally(string? uri, bool userInitiated)
+    {
+        if (!userInitiated || string.IsNullOrWhiteSpace(uri))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(uri.Trim(), UriKind.Absolute, out var parsed) ||
+            !IsExternallyOpenableScheme(parsed))
+        {
+            return false;
+        }
+
+        try
+        {
+            // UseShellExecute is what routes to the user's default handler rather than trying to execute
+            // the URL as a program.
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = parsed.AbsoluteUri,
+                UseShellExecute = true
+            });
+
+            AppLogger.LogInfo("WebView.Nav", $"Opened externally in the default browser: {parsed.Host}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // A missing or misconfigured default browser must not take down the session. Log and let the
+            // caller block, so the outcome is the old behaviour rather than a crash.
+            AppLogger.LogWarning(
+                "WebView.Nav",
+                $"Could not open '{parsed.Host}' in the default browser: {ex.GetType().Name}: {ex.Message}");
+            return false;
         }
     }
 }

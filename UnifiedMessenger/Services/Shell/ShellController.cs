@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Windowing;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -338,14 +338,14 @@ public sealed class ShellController
         {
             XamlRoot = _ui.XamlRoot
         };
-        await dialog.ShowAsync();
+        await dialog.ShowManagedAsync();
     }
 
     public async Task ShowAddInstanceDialogAsync()
     {
         var previousFocus = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(_ui.XamlRoot) as Control;
         var dialog = new AddInstanceDialog(_services.Registry.ArchivedInstances) { XamlRoot = _ui.XamlRoot };
-        var result = await dialog.ShowAsync();
+        var result = await dialog.ShowManagedAsync();
 
         if (previousFocus is { IsEnabled: true, Visibility: Visibility.Visible })
         {
@@ -613,7 +613,7 @@ public sealed class ShellController
             XamlRoot = _ui.XamlRoot
         };
 
-        var result = await dialog.ShowAsync();
+        var result = await dialog.ShowManagedAsync();
         if (result == ContentDialogResult.None)
         {
             return;
@@ -665,7 +665,7 @@ public sealed class ShellController
         }
 
         var dialog = new RenameInstanceDialog(instance.DisplayName) { XamlRoot = _ui.XamlRoot };
-        var result = await dialog.ShowAsync();
+        var result = await dialog.ShowManagedAsync();
         if (result != ContentDialogResult.Primary || dialog.ResultDisplayName is null)
         {
             return;
@@ -724,7 +724,7 @@ public sealed class ShellController
         }
 
         var dialog = new EditInstanceMetadataDialog(instance) { XamlRoot = _ui.XamlRoot };
-        var result = await dialog.ShowAsync();
+        var result = await dialog.ShowManagedAsync();
         if (result != ContentDialogResult.Primary ||
             dialog.ResultDisplayName is null ||
             dialog.ResultPlatformId is null ||
@@ -748,7 +748,7 @@ public sealed class ShellController
                 XamlRoot = _ui.XamlRoot
             };
 
-            if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+            if (await confirm.ShowManagedAsync() != ContentDialogResult.Primary)
             {
                 return;
             }
@@ -810,7 +810,7 @@ public sealed class ShellController
         }
 
         var dialog = new DeleteInstanceDialog(instance.DisplayName) { XamlRoot = _ui.XamlRoot };
-        await dialog.ShowAsync();
+        await dialog.ShowManagedAsync();
         if (dialog.Choice == DeleteInstanceChoice.Cancelled)
         {
             return;
@@ -848,7 +848,7 @@ public sealed class ShellController
     private async Task<bool> ConfirmPermanentDeleteAsync(string? displayName)
     {
         var dialog = new ConfirmPermanentDeleteDialog(displayName) { XamlRoot = _ui.XamlRoot };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await dialog.ShowManagedAsync() == ContentDialogResult.Primary;
     }
 
     private async Task<bool> PromptForAutoUpdateAsync(UpdateCheckResult result, CancellationToken cancellationToken)
@@ -857,7 +857,7 @@ public sealed class ShellController
         var current = result.CurrentVersion?.ToString() ?? "unknown";
         var latest = result.LatestVersion?.ToString() ?? "unknown";
         var dialog = new AutoUpdateDialog(current, latest) { XamlRoot = _ui.XamlRoot };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await dialog.ShowManagedAsync() == ContentDialogResult.Primary;
     }
 
     /// <summary>
@@ -979,7 +979,7 @@ public sealed class ShellController
         }
 
         var dialog = new PinToTaskbarDialog { XamlRoot = _ui.XamlRoot };
-        var result = await dialog.ShowAsync();
+        var result = await dialog.ShowManagedAsync();
         await _services.AppSettings.UpdateAsync(s => s.HasPromptedPinToTaskbar = true);
         if (result != ContentDialogResult.Primary)
         {

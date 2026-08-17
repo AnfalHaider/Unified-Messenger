@@ -199,6 +199,32 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
     public Task EnsureSessionAsync(MessengerInstance instance, CancellationToken cancellationToken = default) =>
         UiThreadRunner.RunAsync(() => EnsureSessionCoreAsync(instance, cancellationToken));
 
+    /// <summary>
+    /// Session creations currently in flight, keyed by instance id.
+    /// </summary>
+    /// <remarks>
+    /// <b>The race this closes.</b> <see cref="EnsureSessionCoreAsync"/> checked <c>_sessions</c> for the
+    /// instance and then went through three <c>await</c>s — the session cap, the WebView2 construction
+    /// (slow: it waits for <c>CoreWebView2</c> to initialise), and the attach — before finally writing to
+    /// <c>_sessions</c>. Everything runs on the UI thread, but <c>await</c> releases it, so a second caller
+    /// arriving in that window saw an empty <c>_sessions</c>, passed the same guard, and built a second
+    /// WebView2 for the same account. The first one registered; the second threw:
+    /// <c>Instance "…" already has a registered WebView. Unregister it before replacing.</c>
+    ///
+    /// <para>
+    /// Observed on the owner's machine at every launch, twice per startup. It also wasted a whole WebView2
+    /// instance (~1&#160;GB of profile-backed process) before failing, and the failure surfaced as
+    /// <c>SessionFailed</c> — which is what left an account in <c>Error</c> from an aborted navigation
+    /// rather than a real one (F-OFFLINE-07).
+    /// </para>
+    /// <para>
+    /// A check-then-act guard cannot be made safe by moving it later; the second caller has to <i>join</i>
+    /// the first operation instead of starting its own. That also makes the common case cheaper: a startup
+    /// warm-up and a user click for the same account now share one initialisation.
+    /// </para>
+    /// </remarks>
+    private readonly Dictionary<string, Task> _pendingSessions = new(StringComparer.OrdinalIgnoreCase);
+
     private async Task EnsureSessionCoreAsync(MessengerInstance instance, CancellationToken cancellationToken)
     {
         await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
@@ -211,6 +237,31 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             return;
         }
 
+        // Join an initialisation already under way rather than starting a competing one. Awaiting the same
+        // task also means the second caller observes the same outcome, exception included.
+        if (_pendingSessions.TryGetValue(instance.Id, out var inFlight))
+        {
+            AppLogger.LogInfo(
+                $"Session.{instance.Id}",
+                "Session initialisation already in flight; joining it instead of starting a second.");
+            await inFlight.ConfigureAwait(true);
+            return;
+        }
+
+        var creation = CreateAndAttachSessionAsync(instance, cancellationToken);
+        _pendingSessions[instance.Id] = creation;
+        try
+        {
+            await creation.ConfigureAwait(true);
+        }
+        finally
+        {
+            _pendingSessions.Remove(instance.Id);
+        }
+    }
+
+    private async Task CreateAndAttachSessionAsync(MessengerInstance instance, CancellationToken cancellationToken)
+    {
         await EnforceSessionCapAsync(instance.Id, cancellationToken).ConfigureAwait(true);
 
         SessionInitializing?.Invoke(this, new InstanceSessionEventArgs(instance));

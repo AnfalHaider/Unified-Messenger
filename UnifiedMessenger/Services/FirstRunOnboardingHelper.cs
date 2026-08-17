@@ -29,7 +29,7 @@ public static class FirstRunOnboardingHelper
         var state = new WizardState();
         var dialog = BuildDialog(xamlRoot, state);
 
-        await dialog.ShowAsync();
+        await dialog.ShowManagedAsync();
         return state.BuildResult();
     }
 
