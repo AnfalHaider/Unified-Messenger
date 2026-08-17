@@ -136,8 +136,18 @@ public static class ChatEntryParser
         var fromMe = conversation.TryGetProperty("lastMessageFromMe", out var fm) && fm.ValueKind == JsonValueKind.True;
         var contactPhone = ReadString(conversation, "contactPhone");
 
+        // Absent on a snapshot written by an older build, and absent is NOT the same as false: defaulting
+        // a missing field to "there is no message" would mass-close an upgrading install's whole queue on
+        // first load. Missing therefore means "unknown", which is what null carries.
+        var hasLastMessage = conversation.TryGetProperty("hasLastMessage", out var h) &&
+                             (h.ValueKind == JsonValueKind.True || h.ValueKind == JsonValueKind.False)
+            ? h.ValueKind == JsonValueKind.True
+            : (bool?)null;
+        var lastMessageType = ReadString(conversation, "lastMessageType");
+
         entry = new OversightChatSnapshotService.ChatEntry(
-            key, name, unread, when.ToUniversalTime(), preview, awaiting, fromMe, contactPhone);
+            key, name, unread, when.ToUniversalTime(), preview, awaiting, fromMe, contactPhone,
+            hasLastMessage, lastMessageType);
         return true;
     }
 

@@ -21,7 +21,15 @@ public sealed class OversightChatSnapshotService
         string Preview = "",
         bool IsAwaiting = false,
         bool LastMessageFromMe = false,
-        string ContactPhone = "");
+        string ContactPhone = "",
+        // Null means "this build/snapshot did not record it", which is NOT the same as false. False is a
+        // positive statement that the chat has no last message at all — the signal that a message was
+        // deleted for everyone or expired under disappearing messages.
+        bool? HasLastMessage = null,
+        // WhatsApp's message type: 'chat' for text, 'image'/'video'/'ptt'/'audio'/'document'/'sticker' for
+        // media. Needed because an uncaptioned photo and a missing message both produce an empty preview,
+        // and they need opposite treatment.
+        string LastMessageType = "");
 
     /// <summary>"Since you were last here" summary across a set of instances.</summary>
     public readonly record struct OversightDigest(
@@ -164,7 +172,9 @@ public sealed class OversightChatSnapshotService
                             ChatEntryParser.SanitizePreview(c.Preview ?? string.Empty),
                             c.IsAwaiting,
                             c.LastMessageFromMe,
-                            c.ContactPhone ?? string.Empty)).ToList();
+                            c.ContactPhone ?? string.Empty,
+                            c.HasLastMessage,
+                            c.LastMessageType ?? string.Empty)).ToList();
                     _byInstance[instanceId] = new InstanceChats(chats, dto.CapturedAtUtc);
                 }
             }
@@ -299,9 +309,16 @@ public sealed class OversightChatSnapshotService
     /// cache and never awaited, so a slow or absent Ollama costs nothing and simply leaves the chat
     /// counted — see <see cref="ReplyNeedAdjudicator"/>.
     /// </remarks>
-    public static ReplyNeedVerdict ClassifyReplyNeed(ChatEntry chat)
+    public static ReplyNeedVerdict ClassifyReplyNeed(ChatEntry chat) =>
+        ClassifyReplyNeed(chat, DateTimeOffset.UtcNow);
+
+    internal static ReplyNeedVerdict ClassifyReplyNeed(ChatEntry chat, DateTimeOffset nowUtc)
     {
-        var verdict = ReplyNeed.Classify(chat.Preview);
+        var verdict = ReplyNeed.Classify(
+            chat.Preview,
+            chat.HasLastMessage,
+            chat.LastMessageType,
+            nowUtc - chat.LastActivityUtc);
         if (verdict.Reason != ReplyNeedReason.Substantive)
         {
             return verdict;
@@ -589,7 +606,9 @@ public sealed class OversightChatSnapshotService
                             Preview = c.Preview,
                             IsAwaiting = c.IsAwaiting,
                             LastMessageFromMe = c.LastMessageFromMe,
-                            ContactPhone = c.ContactPhone
+                            ContactPhone = c.ContactPhone,
+                            HasLastMessage = c.HasLastMessage,
+                            LastMessageType = c.LastMessageType
                         }).ToList()
                     },
                     StringComparer.OrdinalIgnoreCase)
@@ -662,5 +681,11 @@ public sealed class OversightChatSnapshotService
         public bool LastMessageFromMe { get; set; }
 
         public string? ContactPhone { get; set; }
+
+        // Nullable on purpose: a snapshot written before these existed must round-trip as "unknown", not
+        // as "this chat has no message" — which would mass-close an upgrading install's whole queue.
+        public bool? HasLastMessage { get; set; }
+
+        public string? LastMessageType { get; set; }
     }
 }

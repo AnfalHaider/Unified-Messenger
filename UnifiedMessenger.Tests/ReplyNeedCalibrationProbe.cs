@@ -154,6 +154,44 @@ public class ReplyNeedCalibrationProbe
             report.AppendLine("  " + line);
         }
 
+        // Topic breakdown, so the filter chips can be judged against real traffic rather than guesses.
+        var byTopic = new Dictionary<ConversationTopic, List<string>>();
+        foreach (var preview in previews)
+        {
+            var topic = ConversationTopics.Classify(preview);
+            if (!byTopic.TryGetValue(topic, out var list))
+            {
+                byTopic[topic] = list = [];
+            }
+
+            list.Add(Flatten(preview));
+        }
+
+        report.AppendLine().AppendLine("=== TOPIC BREAKDOWN ===");
+        foreach (var pair in byTopic.OrderByDescending(p => p.Value.Count))
+        {
+            report.AppendLine($"  {pair.Value.Count,5}  {pair.Key}");
+        }
+
+        foreach (var topic in new[]
+                 {
+                     ConversationTopic.AtRisk, ConversationTopic.JobApplicant,
+                     ConversationTopic.BusinessOutreach, ConversationTopic.Booking,
+                     ConversationTopic.Enquiry
+                 })
+        {
+            if (!byTopic.TryGetValue(topic, out var list))
+            {
+                continue;
+            }
+
+            report.AppendLine().AppendLine($"--- {topic} ({list.Count}) ---");
+            foreach (var line in list.Where(l => l.Length > 0).Take(40))
+            {
+                report.AppendLine("    " + line);
+            }
+        }
+
         var outPath = Path.Combine(Path.GetTempPath(), "um-replyneed-report.txt");
         File.WriteAllText(outPath, report.ToString(), Encoding.UTF8);
 

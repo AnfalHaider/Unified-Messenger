@@ -74,16 +74,12 @@
                     <ComboBoxItem Content="All time" Tag="All" />
                     <ComboBoxItem Content="Custom range" Tag="Custom" />
                 </ComboBox>
-                <Button
-                    x:Name="ReportButton"
-                    AutomationProperties.Name="Open weekly business report"
-                    Click="OnReportClick"
-                    ToolTipService.ToolTip="A plain-language weekly report — trends, what to focus on, and per-account breakdown you can save or export">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon FontSize="14" Glyph="&#xE9F9;" />
-                        <TextBlock Text="Report" />
-                    </StackPanel>
-                </Button>
+                <!--
+                    The Report button used to live here, beside Re-sync. Removed: the sidebar already has a
+                    Reports destination, and ReportReminderBanner below offers the report at the moment it
+                    is actually worth opening. A toolbar should hold the actions unique to THIS view —
+                    Re-sync is one, duplicate navigation is not.
+                -->
                 <Button
                     x:Name="ResyncButton"
                     AutomationProperties.Name="Re-sync now"

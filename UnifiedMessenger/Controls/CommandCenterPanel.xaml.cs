@@ -301,7 +301,13 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var since = lastSeen is { } s ? $"Since {s.ToLocalTime():MMM d, h:mm tt}: " : "Waiting now: ";
         var accountWord = digest.AccountsWithAwaiting == 1 ? "account" : "accounts";
-        text = $"{since}{digest.NewAwaiting} new awaiting reply · {digest.TotalAwaiting} total across {digest.AccountsWithAwaiting} {accountWord}";
+
+        // "365 total" sat about four hundred pixels below a hero reading 78, with nothing saying they
+        // measure different things. Both are true — one is the whole open population, the other is what is
+        // active this week — but an unlabelled pair of totals on one screen is how a number stops being
+        // believed. The word "open" is doing real work here.
+        text = $"{since}{digest.NewAwaiting} new since you were last here · " +
+               $"{digest.TotalAwaiting} open in total across {digest.AccountsWithAwaiting} {accountWord}";
         if (digest.OldestActivityUtc is { } oldest)
         {
             text += $" · oldest since {oldest.ToLocalTime():MMM d, h:mm tt}";
@@ -864,14 +870,28 @@ public sealed partial class CommandCenterPanel : UserControl
     private FrameworkElement BuildAgingBands(IEnumerable<DateTimeOffset> waitingSinceUtc)
     {
         var now = DateTimeOffset.UtcNow;
-        int fresh = 0, quarter = 0, hour = 0, old = 0;
-        foreach (var since in waitingSinceUtc)
+        var ages = waitingSinceUtc.Select(since => now - since).ToList();
+
+        // The bands used to be fixed at 15m / 1h / 4h / >4h, which is right for a live inbox and useless
+        // for a backlog: on real data that read "355 waiting >4h · 5 · 5" — 97% of the list in one bucket,
+        // occupying prime space above the queue and telling the owner nothing they did not already know.
+        //
+        // So the scale follows the data. If most of the list has been waiting more than a day, hours stop
+        // being the useful unit and the bands switch to days and weeks.
+        var mostlyOld = ages.Count > 0 && ages.Count(a => a.TotalHours >= 24) * 2 > ages.Count;
+        var bands = mostlyOld ? DayScaleBands : HourScaleBands;
+
+        var counts = new int[bands.Length];
+        foreach (var age in ages)
         {
-            var mins = (now - since).TotalMinutes;
-            if (mins < 15) fresh++;
-            else if (mins < 60) quarter++;
-            else if (mins < 240) hour++;
-            else old++;
+            for (var i = 0; i < bands.Length; i++)
+            {
+                if (bands[i].UpperBound is null || age < bands[i].UpperBound)
+                {
+                    counts[i]++;
+                    break;
+                }
+            }
         }
 
         var strip = new StackPanel
@@ -903,12 +923,37 @@ public sealed partial class CommandCenterPanel : UserControl
             strip.Children.Add(chip);
         }
 
-        AddBand(old, "waiting >4h", "SystemFillColorCriticalBrush", "Waiting more than 4 hours — reply to these first.");
-        AddBand(hour, "1–4h", "SystemFillColorCautionBrush", "Waiting 1 to 4 hours.");
-        AddBand(quarter, "15m–1h", "SystemFillColorAttentionBrush", "Waiting 15 minutes to 1 hour.");
-        AddBand(fresh, "<15m", "SystemFillColorSuccessBrush", "Just arrived — under 15 minutes.");
+        // Most-urgent first, so the eye lands on the worst band.
+        for (var i = bands.Length - 1; i >= 0; i--)
+        {
+            AddBand(counts[i], bands[i].Label, bands[i].BrushKey, bands[i].Tooltip);
+        }
+
         return strip;
     }
+
+    private readonly record struct AgingBand(TimeSpan? UpperBound, string Label, string BrushKey, string Tooltip);
+
+    /// <summary>Bands for a live queue, where minutes matter.</summary>
+    private static readonly AgingBand[] HourScaleBands =
+    [
+        new(TimeSpan.FromMinutes(15), "<15m", "SystemFillColorSuccessBrush", "Just arrived — under 15 minutes."),
+        new(TimeSpan.FromHours(1), "15m–1h", "SystemFillColorAttentionBrush", "Waiting 15 minutes to 1 hour."),
+        new(TimeSpan.FromHours(4), "1–4h", "SystemFillColorCautionBrush", "Waiting 1 to 4 hours."),
+        new(null, ">4h", "SystemFillColorCriticalBrush", "Waiting more than 4 hours — reply to these first.")
+    ];
+
+    /// <summary>
+    /// Bands for a backlog, where hours are noise. Used once more than half the list has been waiting over
+    /// a day — at which point ">4h" describes almost everything and distinguishes nothing.
+    /// </summary>
+    private static readonly AgingBand[] DayScaleBands =
+    [
+        new(TimeSpan.FromHours(24), "today", "SystemFillColorSuccessBrush", "Arrived in the last 24 hours."),
+        new(TimeSpan.FromDays(7), "1–7d", "SystemFillColorAttentionBrush", "Waiting between a day and a week."),
+        new(TimeSpan.FromDays(30), "1–4w", "SystemFillColorCautionBrush", "Waiting between a week and a month."),
+        new(null, ">1 month", "SystemFillColorCriticalBrush", "Waiting more than a month — these are the ones costing you customers.")
+    ];
 
     /// <summary>A "Showing: &lt;account&gt; ✕" chip above the scoped Needs-reply list; click clears the scope.</summary>
     private FrameworkElement BuildScopeChip(string label)

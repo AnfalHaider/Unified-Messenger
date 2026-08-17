@@ -489,6 +489,22 @@
     }
   }
 
+  // WhatsApp's message `type` — 'chat' for text, 'image'/'video'/'ptt'/'audio'/'document'/'sticker' for
+  // media, 'revoked' for deleted-for-everyone. This matters because bodyOf() returns '' for BOTH an
+  // uncaptioned photo and a message that does not exist, and those two need opposite treatment: the photo
+  // is very often "can you do this?" and needs a reply, while a vanished message has nothing to answer.
+  // Without the type the app could only guess, and guessing wrong drops a real customer.
+  function typeOf(message) {
+    if (!message) {
+      return '';
+    }
+    try {
+      return String(message.type || message.mediaType || '');
+    } catch (error) {
+      return '';
+    }
+  }
+
   function fromMeOf(message) {
     if (!message) {
       return null;
@@ -693,7 +709,14 @@
           awaiting: awaiting,
           lastMessagePreview: preview,
           unreadCount: unread,
-          inboundCount: unread
+          inboundCount: unread,
+          // Whether a last message exists AT ALL, and what kind it is. `hasLastMessage: false` on a chat
+          // whose last activity was weeks ago is the signal that the message is gone — deleted for
+          // everyone, or expired under disappearing messages. Those chats were being counted as customers
+          // waiting when there is nothing left to reply to (observed live: a chat 57 days old, no body,
+          // nothing in the thread when opened).
+          hasLastMessage: !!last,
+          lastMessageType: typeOf(last)
         });
       } catch (perChat) {
         // Skip a malformed chat rather than failing the whole scan.

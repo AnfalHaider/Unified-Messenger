@@ -261,4 +261,82 @@ public class ReplyNeedTests
         Assert.True(verdict.NeedsReply);
         Assert.Equal(ReplyNeedReason.MediaWithoutCaption, verdict.Reason);
     }
+
+    // ---- Telling "the message is gone" from "we have not read it yet" --------------------------------
+
+    [Fact]
+    public void AConversationWhoseMessageNoLongerExistsIsNotAWaitingCustomer()
+    {
+        // Observed live by the owner: a chat 57 days old, no preview, and nothing at all in the thread when
+        // opened — the message had been deleted or had expired under disappearing messages. There is
+        // nothing to reply to, so counting it as a customer waiting is simply wrong.
+        var verdict = ReplyNeed.Classify(
+            "", hasLastMessage: false, lastMessageType: "", waitingFor: TimeSpan.FromDays(57));
+
+        Assert.False(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MessageNoLongerAvailable, verdict.Reason);
+    }
+
+    [Fact]
+    public void AnUncaptionedPhotoIsNeverMistakenForAMissingMessage()
+    {
+        // This is the trap the first version of the fix walked into. The scraper's bodyOf() returns an
+        // empty string for an uncaptioned photo AND for a message that does not exist, so closing on a
+        // blank preview plus age would have silently dropped every customer who sent a picture — and a
+        // picture is very often "can you do this?".
+        var verdict = ReplyNeed.Classify(
+            "", hasLastMessage: true, lastMessageType: "image", waitingFor: TimeSpan.FromDays(57));
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MediaWithoutCaption, verdict.Reason);
+    }
+
+    [Theory]
+    [InlineData("image")]
+    [InlineData("video")]
+    [InlineData("ptt")]
+    [InlineData("audio")]
+    [InlineData("document")]
+    [InlineData("sticker")]
+    public void EveryWordlessMessageKindStillCounts(string type)
+    {
+        Assert.True(ReplyNeed.Classify("", true, type, TimeSpan.FromDays(30)).NeedsReply);
+    }
+
+    [Fact]
+    public void ARecentBlankConversationKeepsItsPlace()
+    {
+        // A chat from an hour ago with no body may genuinely still be syncing — the store fills message
+        // bodies in lazily. Only age makes "no message" credible, so recent ones are never closed.
+        var verdict = ReplyNeed.Classify(
+            "", hasLastMessage: false, lastMessageType: "", waitingFor: TimeSpan.FromHours(1));
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.NoPreviewAvailable, verdict.Reason);
+    }
+
+    [Fact]
+    public void AnOlderBuildsSnapshotIsNeverMassClosed()
+    {
+        // hasLastMessage is null on a snapshot written before the field existed. Treating unknown as
+        // "no message" would clear an upgrading install's entire queue on first load, which is the worst
+        // possible first impression of an accuracy fix.
+        var verdict = ReplyNeed.Classify(
+            "", hasLastMessage: null, lastMessageType: "", waitingFor: TimeSpan.FromDays(90));
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.NoPreviewAvailable, verdict.Reason);
+    }
+
+    [Fact]
+    public void RealTextAlwaysWinsOverTheMessageExistenceSignals()
+    {
+        // If there IS text, none of this applies — a scraper that reports hasLastMessage inconsistently
+        // must not be able to discard a message the app can plainly read.
+        var verdict = ReplyNeed.Classify(
+            "kitna charge hoga", hasLastMessage: false, lastMessageType: "", waitingFor: TimeSpan.FromDays(90));
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.AsksSomething, verdict.Reason);
+    }
 }

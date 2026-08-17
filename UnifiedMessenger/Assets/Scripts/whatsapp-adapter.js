@@ -1365,7 +1365,14 @@
                   awaiting: awaiting,
                   lastMessagePreview: preview,
                   unreadCount: unread,
-                  inboundCount: unread
+                  inboundCount: unread,
+                  // Kept in step with whatsapp-store-bridge.js — both producers must emit this or the
+                  // parser sees it on one path only. On THIS path `last` is the persisted lastMessage,
+                  // which is genuinely absent in a throttled background webview, so a false here is much
+                  // weaker evidence than on the bridge. The C# side is what weighs it against age; see
+                  // ReplyNeed.
+                  hasLastMessage: !!last,
+                  lastMessageType: String((last && (last.type || last.mediaType)) || '')
                 });
               } catch (rowError) {
                 // Skip a malformed chat record rather than failing the whole read.

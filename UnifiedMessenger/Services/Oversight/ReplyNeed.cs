@@ -25,7 +25,13 @@ public enum ReplyNeedReason
     EmojiOnly,
 
     /// <summary>Local AI judged the thread closed. Only ever reached for text the rules could not settle.</summary>
-    AiJudgedClosed
+    AiJudgedClosed,
+
+    /// <summary>
+    /// The conversation has no last message at all — deleted for everyone, or expired under disappearing
+    /// messages. There is nothing left to reply to.
+    /// </summary>
+    MessageNoLongerAvailable
 }
 
 /// <summary>
@@ -66,6 +72,7 @@ public readonly record struct ReplyNeedVerdict(bool NeedsReply, ReplyNeedReason 
         ReplyNeedReason.AiJudgedClosed => "Conversation looks finished",
         ReplyNeedReason.AsksSomething => "Customer asked something",
         ReplyNeedReason.MediaWithoutCaption => "Customer sent a photo, voice note or contact",
+        ReplyNeedReason.MessageNoLongerAvailable => "The message no longer exists — deleted or expired",
         ReplyNeedReason.NoPreviewAvailable => "Message could not be read",
         _ => "Customer sent a message"
     };
@@ -181,18 +188,84 @@ public static class ReplyNeed
     internal const int MaxClosingWords = 5;
 
     /// <summary>
+    /// How long a conversation with no last message must have been idle before the app concludes the
+    /// message is gone rather than merely not loaded yet.
+    /// </summary>
+    /// <remarks>
+    /// Two days, against a real load latency measured in seconds — deliberately three orders of magnitude
+    /// of headroom, because the cost of being wrong is a dropped customer. On the owner's data 163 of 204
+    /// blank-preview conversations are older than a week, so a generous threshold still catches nearly all
+    /// of them.
+    /// </remarks>
+    internal static readonly TimeSpan MissingMessageIsGoneAfter = TimeSpan.FromDays(2);
+
+    /// <summary>Message types that carry no text of their own but are still a customer reaching out.</summary>
+    internal static bool IsMediaType(string? type)
+    {
+        var value = (type ?? string.Empty).Trim();
+        return value.Equals("image", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("video", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("ptt", StringComparison.OrdinalIgnoreCase)      // push-to-talk voice note
+            || value.Equals("audio", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("document", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("sticker", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("vcard", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("location", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Decides whether a customer's last message leaves anything to answer.
     /// </summary>
     /// <param name="preview">The last message text, as scraped. Empty when it could not be read.</param>
-    public static ReplyNeedVerdict Classify(string? preview)
+    public static ReplyNeedVerdict Classify(string? preview) => Classify(preview, null, null, null);
+
+    /// <summary>
+    /// As <see cref="Classify(string?)"/>, but able to tell an empty preview's three very different causes
+    /// apart using what the scraper reported about the message itself.
+    /// </summary>
+    /// <param name="hasLastMessage">
+    /// Whether a last message exists at all. <see langword="null"/> when unknown (an older snapshot, or a
+    /// throttled background webview whose persisted <c>lastMessage</c> is simply absent).
+    /// </param>
+    /// <param name="lastMessageType">WhatsApp's message type, e.g. <c>chat</c>, <c>image</c>, <c>ptt</c>.</param>
+    /// <param name="waitingFor">How long the customer has been waiting, used only to weigh a missing message.</param>
+    /// <remarks>
+    /// This exists because a blank preview is <b>ambiguous</b>, and the first version of this fix nearly
+    /// got it badly wrong. <c>bodyOf()</c> in the scraper returns an empty string for an uncaptioned photo
+    /// just as it does for a message that is gone — and those need opposite treatment. An uncaptioned photo
+    /// is very often "can you do this?" and must be answered; a vanished message has nothing to answer.
+    /// Closing on age alone would have dropped real customers sending pictures.
+    /// </remarks>
+    public static ReplyNeedVerdict Classify(
+        string? preview,
+        bool? hasLastMessage,
+        string? lastMessageType,
+        TimeSpan? waitingFor)
     {
         var text = (preview ?? string.Empty).Trim();
 
-        // Nothing was read. The app has no basis to close this, and saying otherwise would be inventing
-        // a judgement — 42% of the owner's awaiting chats land here, so getting this wrong would silently
-        // erase most of the queue.
         if (text.Length == 0)
         {
+            // Positively reported as having no message, and old enough that a still-syncing store is not a
+            // credible explanation — WhatsApp fills message bodies in seconds, not days. Observed live: a
+            // chat 57 days old with no body, and nothing in the thread when the owner opened it.
+            //
+            // The age gate is what makes this safe on the IndexedDB path, where a throttled background
+            // webview legitimately has no persisted lastMessage yet. Recent chats keep their place.
+            if (hasLastMessage == false && waitingFor is { } waited && waited > MissingMessageIsGoneAfter)
+            {
+                return new ReplyNeedVerdict(false, ReplyNeedReason.MessageNoLongerAvailable);
+            }
+
+            // A message exists but carries no text — an uncaptioned photo or voice note. Say what it is
+            // instead of leaving the row blank, and keep it counted.
+            if (IsMediaType(lastMessageType))
+            {
+                return new ReplyNeedVerdict(true, ReplyNeedReason.MediaWithoutCaption);
+            }
+
+            // Nothing was read and nothing explains why. The app has no basis to close this, and saying
+            // otherwise would be inventing a judgement.
             return new ReplyNeedVerdict(true, ReplyNeedReason.NoPreviewAvailable);
         }
 
