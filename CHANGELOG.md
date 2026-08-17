@@ -5,6 +5,31 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.31
+
+**Downloads work.** Receiving a file and choosing to save it did nothing at all — no file, no error, nothing
+you would ever see. WhatsApp decrypts a received file in the page and then opens it, and the app's own
+navigation guard was discarding that as if it were an unwanted pop-up. Downloads now go through the
+browser's normal save flow.
+
+**Links open in your default browser.** A link a customer sent you did nothing when clicked. Links that
+belong to the site you are monitoring still open in place; anything else — an article, a map pin, an
+Instagram post — now opens in your own browser, where it belongs. Email addresses and phone numbers work
+the same way.
+
+Only links you actually click are opened. Nothing a page does on its own can open a browser window, and
+the app only ever hands over ordinary web links, mail addresses and phone numbers — never anything that
+could run a program on your PC.
+
+**The startup error is gone.** Opening the same account twice in quick succession could make the app build
+two copies of it, and the second one failed. Beyond the logged error it wasted around a gigabyte of memory
+before failing, and it left the account showing "Connection error" for something that had never actually
+failed to connect. Opening an account that is already opening now simply waits for it.
+
+**Two windows can no longer collide.** If a second prompt appeared while one was already on screen, the app
+threw an error, and in some cases one of the two messages was lost entirely. Prompts now wait their turn
+rather than competing, so a notice you need to see is delayed at worst, never dropped.
+
 ## v4.99.30
 
 **A quarter of the "customers waiting" were never messages.** Reading WhatsApp's own message type showed
