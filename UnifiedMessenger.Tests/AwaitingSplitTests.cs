@@ -1,4 +1,5 @@
 using UnifiedMessenger.Services;
+using Kpi = UnifiedMessenger.ViewModels.KpiTileViewModel;
 
 namespace UnifiedMessenger.Tests;
 
@@ -343,5 +344,82 @@ public class AwaitingSplitTests
         {
             if (File.Exists(path)) File.Delete(path);
         }
+    }
+
+    // ---- KPI tile semantics ---------------------------------------------------------------------------
+    //
+    // These assert the STATIC composition helpers rather than the view model itself. Constructing
+    // KpiTileViewModel requires a Brush, and Brush needs the XAML runtime, which a headless test host does
+    // not have — the first version of these tests failed with a bare COMException for exactly that reason.
+
+    [Fact]
+    public void EveryKpiTileTellsAScreenReaderWhatItMeasuresAndWhetherItDoesAnything()
+    {
+        // The tiles were a Border with a Tapped handler: not focusable, no Invoke pattern, no name. A UI
+        // Automation capture of the running app showed them as unrelated Text nodes, so the drill-down into
+        // the reply queue was mouse-only and invisible to assistive tech.
+        var name = Kpi.ComposeAccessibleName(
+            "Backlog", "184", string.Empty, "61 need a reply now", hasAction: true);
+
+        Assert.Contains("Backlog: 184", name, StringComparison.Ordinal);
+        Assert.Contains("61 need a reply now", name, StringComparison.Ordinal);
+        Assert.Contains("Press to see details", name, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ATileWithNoDrillDownDoesNotInviteAPress()
+    {
+        // Rendering all tiles as Buttons keeps one visual treatment, but a tile that does nothing must not
+        // claim to be pressable, and IsTabStop is bound off so it collects no dead tab stop either.
+        var name = Kpi.ComposeAccessibleName(
+            "Busiest window", "7PM", string.Empty, "peak hour", hasAction: false);
+
+        Assert.DoesNotContain("Press to", name, StringComparison.Ordinal);
+        Assert.Contains("Busiest window: 7PM", name, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("▼ 59%", "down 59%")]
+    [InlineData("▲ 12", "up 12")]
+    public void ADeltaGlyphIsReadAsWordsNotAsAnArrowCharacter(string delta, string expected)
+    {
+        var name = Kpi.ComposeAccessibleName("Response time", "8.6h", delta, string.Empty, false);
+
+        Assert.Contains(expected, name, StringComparison.Ordinal);
+        Assert.DoesNotContain("▼", name, StringComparison.Ordinal);
+        Assert.DoesNotContain("▲", name, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExactlyOneTileIsAllowedToBeLoud()
+    {
+        // Six tiles at one size is the same as no hierarchy. The primary tile is a full type step above the
+        // rest; if that gap ever closes the band stops guiding the eye.
+        Assert.True(Kpi.ValueFontSizeFor(true) >= Kpi.ValueFontSizeFor(false) + 4);
+    }
+
+    [Fact]
+    public void TheBacklogTileDoesNotRepeatTheHerosNumber()
+    {
+        // The hero renders "needs a reply" at 42px. The tile below it used to render the same figure at
+        // 32px, which read as two facts. It now carries what the hero cannot: the backlog.
+        var split = new OversightChatSnapshotService.AwaitingSplit(
+            NeedsReply: 61, Backlog: 184, ClosedAutomatically: 117, Unreadable: 1);
+
+        var hint = UnifiedMessenger.Controls.CommandCenterPanel.BuildBacklogHint(split, accountsBehind: 3);
+
+        Assert.Contains("61 need a reply now", hint, StringComparison.Ordinal);
+        Assert.Contains("1 unreadable", hint, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WithNoBacklogTheTileFallsBackToTheLiveQueue()
+    {
+        // A business with nothing older than a week should not see an empty "Backlog: 0" tile.
+        var split = new OversightChatSnapshotService.AwaitingSplit(4, 0, 0, 0);
+
+        Assert.Equal(
+            "all accounts clear",
+            UnifiedMessenger.Controls.CommandCenterPanel.BuildBacklogHint(split, accountsBehind: 0));
     }
 }

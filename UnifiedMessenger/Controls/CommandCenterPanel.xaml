@@ -63,12 +63,24 @@
                     "button". Every one needs an explicit AutomationProperties.Name. Re-sync matters most:
                     it is the recovery action the product's own copy tells people to click.
                 -->
+                <!--
+                    Visibly labelled "Metrics". Unlabelled and sitting at the top right next to Re-sync, a
+                    combo reading "Today" looks like a filter over the whole page — and now that the
+                    Needs-reply list has its own age chips there are two time controls on screen with
+                    different scopes. The accessible name always said which was which; sighted users had
+                    nothing to go on.
+                -->
+                <TextBlock
+                    Text="Metrics"
+                    FontSize="12"
+                    VerticalAlignment="Center"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <ComboBox
                     x:Name="WindowSelector"
-                    AutomationProperties.Name="Date range for caught-up percentage"
+                    AutomationProperties.Name="Date range for the metric tiles"
                     MinWidth="120"
                     SelectionChanged="OnWindowChanged"
-                    ToolTipService.ToolTip="Caught-up % is measured over conversations active in this date range">
+                    ToolTipService.ToolTip="Scopes the metric tiles only — the Needs-reply list has its own age filter">
                     <ComboBoxItem Content="Today" IsSelected="True" Tag="Today" />
                     <ComboBoxItem Content="Last 7 days" Tag="Week" />
                     <ComboBoxItem Content="All time" Tag="All" />
@@ -115,19 +127,37 @@
             </ItemsRepeater.Layout>
             <ItemsRepeater.ItemTemplate>
                 <DataTemplate x:DataType="vm:KpiTileViewModel">
-                    <Border
+                    <!--
+                        A Button, not a Border. This was a Border with a Tapped handler, which meant the
+                        tiles were MOUSE-ONLY: a Border is not focusable and exposes no Invoke pattern, so a
+                        UI Automation capture of the running app showed each tile as bare Text with no
+                        accessible name and no way to activate it. Since the tiles are the click-through
+                        into the needs-reply list, an entire navigation path was unreachable by keyboard and
+                        invisible to a screen reader.
+
+                        The chrome is neutralised to keep the card look, but the semantics are now a real
+                        button: tab stop, Enter/Space, Invoke pattern, and an accessible name composed from
+                        the tile's own text (see BuildKpiTileName).
+                    -->
+                    <Button
+                        AutomationProperties.Name="{x:Bind AccessibleName}"
                         Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
                         CornerRadius="10"
                         Padding="14,10"
-                        Tapped="OnKpiTileTapped"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalAlignment="Stretch"
+                        VerticalContentAlignment="Top"
+                        IsTabStop="{x:Bind IsActionable}"
+                        Click="OnKpiTileTapped"
                         Tag="{x:Bind ActionKey}"
                         ToolTipService.ToolTip="{x:Bind Tooltip}">
                         <StackPanel Spacing="1">
                             <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Label}" />
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock FontSize="24" FontWeight="SemiBold" Text="{x:Bind Value}" Foreground="{x:Bind ValueBrush}" />
+                                <TextBlock FontSize="{x:Bind ValueFontSize}" FontWeight="SemiBold" Text="{x:Bind Value}" Foreground="{x:Bind ValueBrush}" />
                                 <TextBlock
                                     FontSize="11"
                                     VerticalAlignment="Bottom"
@@ -139,7 +169,7 @@
                             <TextBlock FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{x:Bind Hint}" TextWrapping="WrapWholeWords" />
                             <shared:MiniSparkline Margin="0,3,0,0" Values="{x:Bind Trend}" />
                         </StackPanel>
-                    </Border>
+                    </Button>
                 </DataTemplate>
             </ItemsRepeater.ItemTemplate>
         </ItemsRepeater>
@@ -171,37 +201,77 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Border
-                CornerRadius="6"
-                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                Padding="2"
-                VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal" Spacing="2">
-                    <ToggleButton
-                        x:Name="GroupByAccountButton"
-                        Content="By account"
-                        IsChecked="True"
-                        Click="OnGroupByAccountClick"
-                        Padding="10,4"
-                        CornerRadius="4" />
-                    <ToggleButton
-                        x:Name="GroupByLocationButton"
-                        Content="By location"
-                        IsChecked="False"
-                        Click="OnGroupByLocationClick"
-                        Padding="10,4"
-                        CornerRadius="4" />
-                    <ToggleButton
-                        x:Name="NeedsReplyButton"
-                        Content="Needs reply"
-                        IsChecked="False"
-                        Click="OnNeedsReplyClick"
-                        Padding="10,4"
-                        CornerRadius="4"
-                        ToolTipService.ToolTip="Every customer awaiting a reply across all accounts, most urgent first" />
+            <!--
+                Two axes, two controls. These were three toggles inside one bordered group, which read as a
+                single three-way choice — but "By account" and "By location" change how the SAME view is
+                grouped, while "Needs reply" replaces the view entirely. Presenting the third as a peer of
+                the first two made it look like a grouping option.
+
+                The grouping control is hidden while Needs reply is active, because grouping does not apply
+                to a flat cross-account queue: offering a control that does nothing is worse than not
+                offering it.
+            -->
+            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <Border
+                    CornerRadius="6"
+                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    Padding="2"
+                    VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                        <ToggleButton
+                            x:Name="OverviewViewButton"
+                            Content="Overview"
+                            IsChecked="True"
+                            Click="OnOverviewViewClick"
+                            Padding="10,4"
+                            CornerRadius="4"
+                            ToolTipService.ToolTip="Per-account health cards" />
+                        <ToggleButton
+                            x:Name="NeedsReplyButton"
+                            Content="Needs reply"
+                            IsChecked="False"
+                            Click="OnNeedsReplyClick"
+                            Padding="10,4"
+                            CornerRadius="4"
+                            ToolTipService.ToolTip="Every customer awaiting a reply across all accounts, most urgent first" />
+                    </StackPanel>
+                </Border>
+                <StackPanel
+                    x:Name="GroupingControl"
+                    Orientation="Horizontal"
+                    Spacing="6"
+                    VerticalAlignment="Center">
+                    <TextBlock
+                        Text="Group"
+                        FontSize="12"
+                        VerticalAlignment="Center"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <Border
+                        CornerRadius="6"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        Padding="2"
+                        VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="2">
+                            <ToggleButton
+                                x:Name="GroupByAccountButton"
+                                Content="By account"
+                                IsChecked="True"
+                                Click="OnGroupByAccountClick"
+                                Padding="10,4"
+                                CornerRadius="4" />
+                            <ToggleButton
+                                x:Name="GroupByLocationButton"
+                                Content="By location"
+                                IsChecked="False"
+                                Click="OnGroupByLocationClick"
+                                Padding="10,4"
+                                CornerRadius="4" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
+            </StackPanel>
             <!-- PlaceholderText is not an accessible name; screen readers do not substitute it. -->
             <AutoSuggestBox
                 x:Name="SearchBox"

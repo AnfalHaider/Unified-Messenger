@@ -631,9 +631,12 @@ public sealed partial class CommandCenterPanel : UserControl
         // announces only "button" — for the whole account card, on every card. Its children are all named
         // individually, so a screen reader could read the contents, but the control the user actually
         // focuses and activates said nothing about which account it was or what activating it does.
+        // "open", not "waiting". The hero says "60 customers are waiting" (this week); a card saying
+        // "130 customers waiting" uses identical words for that account's WHOLE open population. Two scopes
+        // sharing one phrase in one viewport is how a number stops being believed.
         var awaitingSummary = entity.AwaitingCount == 1
-            ? "1 customer waiting"
-            : $"{entity.AwaitingCount} customers waiting";
+            ? "1 open conversation"
+            : $"{entity.AwaitingCount} open conversations";
 
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
             expander,
@@ -1537,6 +1540,28 @@ public sealed partial class CommandCenterPanel : UserControl
     /// chats the app could not read first (those are the ones where the number itself is uncertain),
     /// then the backlog, then how many accounts are behind.
     /// </summary>
+    /// <summary>
+    /// The line under the Backlog figure. Says what the hero cannot: how far behind the older queue is,
+    /// and whether any of today's queue could not be read.
+    /// </summary>
+    internal static string BuildBacklogHint(
+        OversightChatSnapshotService.AwaitingSplit split,
+        int accountsBehind)
+    {
+        if (split.Backlog <= 0)
+        {
+            return BuildAwaitingHint(split, accountsBehind);
+        }
+
+        var parts = new List<string>(2) { $"{split.NeedsReply} need a reply now" };
+        if (split.Unreadable > 0)
+        {
+            parts.Add($"{split.Unreadable} unreadable");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
     internal static string BuildAwaitingHint(
         OversightChatSnapshotService.AwaitingSplit split,
         int accountsBehind)
@@ -1645,6 +1670,10 @@ public sealed partial class CommandCenterPanel : UserControl
 
         tiles.Add(new KpiTileViewModel
         {
+            // The one tile allowed to be loud. The hero states the queue; this states the health, and it
+            // is the figure the owner is judged on. Everything else in the band is context and is drawn a
+            // step quieter so the eye has somewhere to land.
+            IsPrimary = true,
             Label = "Caught up",
             Value = overallPct is { } p ? $"{p}%" : "—",
             ValueBrush = overallPct is { } pp ? StatusBrushForPercent(pp) : secondary,
@@ -1654,15 +1683,19 @@ public sealed partial class CommandCenterPanel : UserControl
             Tooltip = "Share of active chats with no unread messages. This measures unread cleared — not reply speed (see Response time)."
         });
 
+        // The hero already renders this figure at 56px. Repeating it at 32px a hundred pixels below read as
+        // two facts rather than one emphasised fact, so this tile now carries the half the hero CANNOT
+        // show: the backlog, its trend, and how much of today's queue is unreadable. Nothing is lost and
+        // the duplication is gone.
         tiles.Add(new KpiTileViewModel
         {
-            Label = "Needs a reply",
-            Value = awaitingSplit.NeedsReply.ToString(),
-            ValueBrush = awaitingSplit.NeedsReply > 0 ? primary : success,
-            // The hint carries the backlog rather than a second tile. It is the number the owner most
-            // needs kept in view — an 82-day-old complaint must never become invisible just because the
-            // headline got smaller — but it is not what they can act on this morning.
-            Hint = BuildAwaitingHint(awaitingSplit, behind),
+            Label = awaitingSplit.Backlog > 0 ? "Backlog" : "Needs a reply",
+            Value = awaitingSplit.Backlog > 0
+                ? awaitingSplit.Backlog.ToString()
+                : awaitingSplit.NeedsReply.ToString(),
+            ValueBrush = awaitingSplit.Backlog > 0 ? caution
+                : awaitingSplit.NeedsReply > 0 ? primary : success,
+            Hint = BuildBacklogHint(awaitingSplit, behind),
             ActionKey = awaitingSplit.TotalOpen > 0 ? "awaiting" : string.Empty,
             Trend = KpiTrendStore.Instance.GetAwaitingTrend(),
             Tooltip = BuildAwaitingTooltip(awaitingSplit)
@@ -2025,7 +2058,10 @@ public sealed partial class CommandCenterPanel : UserControl
             parts.Add($"furthest behind: {worstAccountName}");
         }
 
-        parts.Add($"{overallPct}% caught up overall");
+        // "N% caught up overall" used to be appended here as well. It is the Caught up tile's entire job,
+        // rendered 55px below in larger type — saying it twice made the subtext longer without making it
+        // more informative. The subtext keeps only what no tile carries: which account is oldest and which
+        // is furthest behind.
         return string.Join(" · ", parts);
     }
 
@@ -2051,7 +2087,9 @@ public sealed partial class CommandCenterPanel : UserControl
         : Brush("SystemFillColorCriticalBrush");
 
     /// <summary>Routes a KPI tile tap to the matching drill-down (mode switch, account jump, or activity graph).</summary>
-    private void OnKpiTileTapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
+    // Click, not Tapped: the tiles are Buttons now so keyboard activation reaches the same handler. Tapped
+    // is a pointer-only event, which is why these drill-downs were unreachable without a mouse.
+    private void OnKpiTileTapped(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not string action || string.IsNullOrEmpty(action))
         {
@@ -2445,7 +2483,7 @@ public sealed partial class CommandCenterPanel : UserControl
                 VerticalAlignment = VerticalAlignment.Center,
                 Content = new TextBlock
                 {
-                    Text = entity.AwaitingCount == 1 ? "1 awaiting" : $"{entity.AwaitingCount} awaiting",
+                    Text = entity.AwaitingCount == 1 ? "1 open" : $"{entity.AwaitingCount} open",
                     Foreground = danger,
                     FontWeight = FontWeights.SemiBold,
                     FontSize = 12
@@ -2456,7 +2494,7 @@ public sealed partial class CommandCenterPanel : UserControl
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
                 pill,
                 $"{entity.DisplayName}: {entity.AwaitingCount} " +
-                (entity.AwaitingCount == 1 ? "customer waiting" : "customers waiting") +
+                (entity.AwaitingCount == 1 ? "open conversation" : "open conversations") +
                 ". Activate to work through this account's replies.");
 
             var filterIds = entity.MemberInstanceIds.ToList();
@@ -2956,13 +2994,37 @@ public sealed partial class CommandCenterPanel : UserControl
     }
 
     // Segmented control: exactly one of {By account, By location, Needs reply} is active.
+    /// <summary>
+    /// The view axis: per-account overview, or the flat cross-account reply queue. Grouping is a separate
+    /// axis and keeps its own state, so switching to the queue and back does not silently reset it.
+    /// </summary>
+    private void OnOverviewViewClick(object sender, RoutedEventArgs e) =>
+        SelectMode(_groupByLocation ? GroupByLocationButton : GroupByAccountButton);
+
+    private bool _groupByLocation;
+
     private void SelectMode(ToggleButton active)
     {
-        GroupByAccountButton.IsChecked = ReferenceEquals(active, GroupByAccountButton);
-        GroupByLocationButton.IsChecked = ReferenceEquals(active, GroupByLocationButton);
-        NeedsReplyButton.IsChecked = ReferenceEquals(active, NeedsReplyButton);
+        var needsReply = ReferenceEquals(active, NeedsReplyButton);
+
+        // Remember the grouping choice across a trip through the queue. Previously, entering Needs reply
+        // unchecked both grouping toggles and coming back left neither selected until something re-rendered.
+        if (!needsReply)
+        {
+            _groupByLocation = ReferenceEquals(active, GroupByLocationButton);
+        }
+
+        GroupByAccountButton.IsChecked = !needsReply && !_groupByLocation;
+        GroupByLocationButton.IsChecked = !needsReply && _groupByLocation;
+        NeedsReplyButton.IsChecked = needsReply;
+        OverviewViewButton.IsChecked = !needsReply;
+
+        // Grouping does not apply to a flat cross-account queue. Hiding the control is honest; leaving it
+        // visible but inert invites a click that does nothing.
+        GroupingControl.Visibility = needsReply ? Visibility.Collapsed : Visibility.Visible;
+
         // Leaving Needs-reply mode clears any per-account scope.
-        if (!ReferenceEquals(active, NeedsReplyButton))
+        if (!needsReply)
         {
             _needsReplyFilterIds = null;
         }
