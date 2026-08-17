@@ -13,6 +13,31 @@ internal static class UiThreadRunner
     public static void Register(DispatcherQueue dispatcher) =>
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
 
+    /// <summary>
+    /// Whether the calling thread may touch UI objects. Never throws.
+    /// </summary>
+    /// <remarks>
+    /// Exists because getting this wrong is not a catchable mistake: reading a UI-thread-only WinRT
+    /// property such as <c>Application.Current.RequestedTheme</c> from a thread-pool thread terminates the
+    /// process with an <c>AccessViolationException</c> inside CoreCLR rather than raising something a
+    /// <c>try</c> could contain. Any shared helper that a background task might reach has to be able to ask.
+    /// </remarks>
+    public static bool HasUiAccess
+    {
+        get
+        {
+            try
+            {
+                var dispatcher = _dispatcher ?? App.CurrentWindow?.DispatcherQueue;
+                return dispatcher?.HasThreadAccess == true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
     public static DispatcherQueue GetDispatcher() =>
         _dispatcher
         ?? App.CurrentWindow?.DispatcherQueue

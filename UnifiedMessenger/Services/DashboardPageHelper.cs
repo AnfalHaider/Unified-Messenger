@@ -159,12 +159,11 @@ public static class DashboardPageHelper
         InstanceConnectionStatus connectionStatus,
         AdapterHealthState adapterState)
     {
-        // Goes through the same token as the sidebar dot, so the two can never disagree about what
-        // "connected" looks like. Themed, so this follows light/dark rather than baking one in.
-        var color = WorkspaceSidebarHelper
-            .ResolveConnectionIndicatorBrush(connectionStatus, adapterState)
-            .Color;
-        return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        // The HEX overload, not the brush one. This runs on a thread-pool thread via
+        // PersonalDashboardService.BuildSnapshot, and the brush overload reads
+        // Application.Current.RequestedTheme — a UI-thread-only WinRT call that terminates the process
+        // rather than throwing when made from anywhere else.
+        return WorkspaceSidebarHelper.ResolveConnectionIndicatorHex(connectionStatus, adapterState);
     }
 
     public static string BuildPersonalTileDetailLine(

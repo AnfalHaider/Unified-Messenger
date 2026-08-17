@@ -278,11 +278,33 @@ public static class WorkspaceSidebarHelper
             }
         };
 
-    /// <summary>The status-dot brush, resolved for the theme the element is actually drawn in.</summary>
+    /// <summary>
+    /// The status-dot brush, resolved for the theme the element is actually drawn in.
+    /// </summary>
+    /// <remarks>
+    /// UI thread only — it creates a <see cref="SolidColorBrush"/>. Background callers that just need the
+    /// colour must use <see cref="ResolveConnectionIndicatorHex"/>.
+    /// </remarks>
     public static SolidColorBrush ResolveConnectionIndicatorBrush(
         InstanceConnectionStatus connectionStatus,
         AdapterHealthState adapterState,
         FrameworkElement? element = null) =>
         UmSemanticBrushes.Get(
             ResolveConnectionIndicatorBrushKey(connectionStatus, adapterState), element);
+
+    /// <summary>
+    /// The status-dot colour as a hex string, safe to call from any thread.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the brush overload because the two have different threading rules and the difference
+    /// is invisible at the call site. <c>PersonalDashboardService.BuildSnapshot</c> builds tile data on a
+    /// thread-pool thread; routing it through the brush overload read
+    /// <c>Application.Current.RequestedTheme</c> off the UI thread and took the whole process down with an
+    /// AccessViolationException on launch. This path never touches a WinRT UI object.
+    /// </remarks>
+    public static string ResolveConnectionIndicatorHex(
+        InstanceConnectionStatus connectionStatus,
+        AdapterHealthState adapterState) =>
+        UmSemanticBrushes.ResolvePaletteHex(
+            ResolveConnectionIndicatorBrushKey(connectionStatus, adapterState));
 }

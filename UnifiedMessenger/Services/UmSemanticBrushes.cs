@@ -75,11 +75,7 @@ public static class UmSemanticBrushes
     {
         if (StatusPalette.TryGetValue(resourceKey, out var palette))
         {
-            var dark = element is not null
-                ? ThemeBrushResolver.IsDark(element)
-                : Application.Current?.RequestedTheme == ApplicationTheme.Dark;
-
-            return new SolidColorBrush(ParseHex(dark ? palette.Dark : palette.Light));
+            return new SolidColorBrush(ParseHex(ResolvePaletteHex(resourceKey, element)));
         }
 
         if (Application.Current?.Resources.TryGetValue(resourceKey, out var resource) == true &&
@@ -92,6 +88,66 @@ public static class UmSemanticBrushes
         // invisible failure this audit keeps turning up, so it now leaves a trace.
         AppLogger.LogWarning("Theme", $"Semantic brush '{resourceKey}' did not resolve; falling back to grey.");
         return new SolidColorBrush(Colors.Gray);
+    }
+
+    /// <summary>
+    /// The last theme observed on the UI thread. Read by callers that are NOT on the UI thread.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why this exists.</b> <c>Application.Current.RequestedTheme</c> is a UI-thread-only WinRT call.
+    /// Reading it from a thread-pool thread does not throw a managed exception — it takes the process down
+    /// with an <c>AccessViolationException</c> inside CoreCLR. That is exactly what happened when the
+    /// sidebar's status dot was made theme-aware: <c>DashboardPageHelper.FormatConnectionColorHex</c> had
+    /// always been a pure function returning literal colours, safe on any thread, and
+    /// <c>PersonalDashboardService.BuildSnapshot</c> calls it from a background task. Making it
+    /// theme-aware gave a background code path a UI-thread dependency, and the app crashed on launch.
+    /// </remarks>
+    private static volatile bool s_lastKnownDark;
+
+    /// <summary>Records the current theme. Must be called from the UI thread.</summary>
+    public static void CaptureTheme(FrameworkElement? element = null)
+    {
+        try
+        {
+            s_lastKnownDark = element is not null
+                ? ThemeBrushResolver.IsDark(element)
+                : Application.Current?.RequestedTheme == ApplicationTheme.Dark;
+        }
+        catch
+        {
+            // Called before the app is far enough along to have a theme. The previous value stands.
+        }
+    }
+
+    /// <summary>
+    /// The hex for a palette key, safe to call from any thread.
+    /// </summary>
+    /// <remarks>
+    /// Off the UI thread it uses the theme last seen by <see cref="CaptureTheme"/> rather than asking
+    /// WinRT, because asking is fatal. A one-render lag on a colour immediately after the user flips theme
+    /// is an acceptable price for not terminating the process.
+    /// </remarks>
+    public static string ResolvePaletteHex(string resourceKey, FrameworkElement? element = null)
+    {
+        if (!StatusPalette.TryGetValue(resourceKey, out var palette))
+        {
+            return "#808080";
+        }
+
+        bool dark;
+        if (UiThreadRunner.HasUiAccess)
+        {
+            dark = element is not null
+                ? ThemeBrushResolver.IsDark(element)
+                : Application.Current?.RequestedTheme == ApplicationTheme.Dark;
+            s_lastKnownDark = dark;
+        }
+        else
+        {
+            dark = s_lastKnownDark;
+        }
+
+        return dark ? palette.Dark : palette.Light;
     }
 
     internal static Windows.UI.Color ParseHex(string hex)

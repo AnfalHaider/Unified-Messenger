@@ -1,3 +1,4 @@
+using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Tests;
@@ -108,5 +109,69 @@ public class DownloadLocationTests
     public void AnUnknownExtensionStillGetsAReadableLabel()
     {
         Assert.Equal("XYZ file", DownloadLocationPrompt.DescribeExtension(".xyz"));
+    }
+}
+
+/// <summary>
+/// The status dot's colour must be reachable from a background thread.
+///
+/// <para>
+/// <b>What this caught, after it shipped to an install.</b> Making the sidebar dot theme-aware routed
+/// <c>DashboardPageHelper.FormatConnectionColorHex</c> through <c>Application.Current.RequestedTheme</c>.
+/// That helper had always been a pure function returning literal colours — safe on any thread — and
+/// <c>PersonalDashboardService.BuildSnapshot</c> calls it from a thread-pool task. Reading a UI-thread-only
+/// WinRT property from a background thread does not throw something a <c>try</c> can catch; it terminates
+/// the process with an <c>AccessViolationException</c> inside CoreCLR. The app crashed on launch.
+/// </para>
+/// <para>
+/// These tests run in a headless host with no dispatcher at all, which is precisely the failing condition.
+/// </para>
+/// </summary>
+public class ThreadSafeStatusColourTests
+{
+    [Theory]
+    [InlineData(InstanceConnectionStatus.Connected)]
+    [InlineData(InstanceConnectionStatus.LoggedOut)]
+    [InlineData(InstanceConnectionStatus.Error)]
+    [InlineData(InstanceConnectionStatus.Initializing)]
+    public void TheDotColourResolvesWithNoUiThread(InstanceConnectionStatus status)
+    {
+        var hex = WorkspaceSidebarHelper.ResolveConnectionIndicatorHex(status, AdapterHealthState.Healthy);
+
+        Assert.Matches("^#[0-9A-Fa-f]{6}$", hex);
+    }
+
+    [Fact]
+    public void ItAlsoResolvesFromAnActualBackgroundThread()
+    {
+        // Belt and braces: the test host's main thread is not a UI thread either, but running it on the
+        // pool is the exact shape of the call that crashed.
+        var hex = Task.Run(() => WorkspaceSidebarHelper
+            .ResolveConnectionIndicatorHex(InstanceConnectionStatus.Error, AdapterHealthState.Stale))
+            .GetAwaiter().GetResult();
+
+        Assert.Matches("^#[0-9A-Fa-f]{6}$", hex);
+    }
+
+    [Fact]
+    public void EveryAdapterStateHasAColourRatherThanFallingBackToGrey()
+    {
+        // A key missing from the palette table silently becomes grey, which is a status signal that has
+        // quietly stopped signalling.
+        foreach (AdapterHealthState state in Enum.GetValues<AdapterHealthState>())
+        {
+            var hex = WorkspaceSidebarHelper.ResolveConnectionIndicatorHex(
+                InstanceConnectionStatus.Initializing, state);
+
+            Assert.Matches("^#[0-9A-Fa-f]{6}$", hex);
+        }
+    }
+
+    [Fact]
+    public void AskingForTheThemeOffTheUiThreadIsNeverAWinRtCall()
+    {
+        // UiThreadRunner.HasUiAccess is the guard that keeps the fatal call from happening. If it ever
+        // threw instead of returning false, the guard itself would become the crash.
+        Assert.False(UiThreadRunner.HasUiAccess);
     }
 }

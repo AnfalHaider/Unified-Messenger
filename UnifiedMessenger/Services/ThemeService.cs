@@ -46,6 +46,10 @@ public static class ThemeService
 
         // Apply HC resource overrides only; event subscription requires a live window (HRESULT 0x80070490).
         ApplyInitialHighContrastOverrides();
+
+        // Record the theme for code that runs off the UI thread. Asking WinRT from a background thread is
+        // fatal rather than throwable, so anything not on the UI thread reads this instead.
+        UmSemanticBrushes.CaptureTheme();
     }
 
     /// <summary>
@@ -59,6 +63,7 @@ public static class ThemeService
         }
 
         root.RequestedTheme = ResolveElementTheme(preference);
+        UmSemanticBrushes.CaptureTheme(root);
         SyncTitleBarTheme(App.CurrentWindow, ResolveEffectiveElementTheme(preference));
         EnsureSystemThemeWatcher(preference);
         EnsureHighContrastWatcher();
