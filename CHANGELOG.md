@@ -5,6 +5,64 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.30
+
+**A quarter of the "customers waiting" were never messages.** Reading WhatsApp's own message type showed
+what the queue was really made of. Of 471 conversations the app was reporting as customers waiting:
+
+- **117 were system notices** — "your security code changed", protocol and template notices. Nobody wrote
+  them and nobody is waiting on an answer. They are no longer counted.
+- **81 were missed calls** appearing as messages with no readable text, so the row told you nothing. A
+  customer who called and did not get through is still worth returning, so these are still counted — they
+  now say they are calls.
+
+Between them, that took the "message could not be read" count from 33 down to 1. Most of it was never
+unreadable; it was mislabelled.
+
+**Conversations whose message no longer exists are no longer counted.** If a customer deleted their
+message, or it expired under disappearing messages, there is nothing left to reply to. The app now tells
+that apart from a message it simply has not loaded yet — and it never guesses: an uncaptioned photo still
+counts, because a photo is very often "can you do this?".
+
+**Filter the reply queue.** Three new filter rows above the Needs-reply list:
+
+- **How long they have waited** — Today, the last 7 days, backlog, or everything. It starts on the same
+  window the headline figure uses, so the list and the number above it agree.
+- **Which branch** — you could group by branch before, but not filter to one without typing its name.
+- **What the customer wants** — At risk, Enquiries, Bookings, Job & training, Business outreach. Every
+  chip shows how many conversations it holds before you click it, and chips with nothing in them are not
+  shown at all.
+
+"At risk" is the one to watch: complaints, price objections, and customers saying they will go elsewhere.
+On real data it finds exactly those and nothing else.
+
+**The metric tiles work from the keyboard now.** They were clickable but not focusable, so the whole
+drill-down into the reply queue was mouse-only and invisible to screen readers. They are proper buttons
+with full spoken labels ("Backlog: 184. 61 need a reply now. Press to see details."), and tiles with no
+drill-down no longer collect a pointless tab stop.
+
+**The dashboard stops saying the same number twice.** The headline figure was repeated in a tile
+immediately below it at a smaller size, which read as two different facts. That tile now shows the
+backlog instead — the half the headline cannot show. Same for "% caught up", which appeared in both the
+hero line and its own tile.
+
+**One tile is allowed to be louder than the others.** All six were drawn at identical size and weight, so
+"Busiest window · 7PM" looked exactly as important as the number of customers waiting.
+
+**"By account / By location / Needs reply" was really two different controls.** The first two change how
+the view is grouped; the third replaces the view. They are now separate, and the grouping control hides
+itself when it does not apply instead of sitting there doing nothing.
+
+**The date box at the top now says "Metrics".** It only ever scoped the metric tiles, but unlabelled next
+to Re-sync it looked like it filtered the whole page.
+
+**Per-account cards say "open" rather than "waiting".** The headline counts this week; a card counts that
+account's whole history. Two different scopes should not share the same word.
+
+**Shared contacts, and the Report button.** A shared contact card no longer displays a string of internal
+digits. The Report button has left the toolbar — the sidebar already has a Reports section, and the
+reminder banner offers the report when it is actually worth opening.
+
 ## v4.99.29
 
 **"460 customers waiting" is gone, and what replaced it is a number you can act on.** The count was a
