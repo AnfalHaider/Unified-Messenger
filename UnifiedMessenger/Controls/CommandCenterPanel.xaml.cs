@@ -2264,10 +2264,12 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var oldestText = oldest is { } o ? RelativeAge(o) : "unknown";
 
-        var customerWord = entity.AwaitingCount == 1 ? "customer is" : "customers are";
+        // "open", matching the card and the digest. This was the third site of the same scope mismatch and
+        // it survived the first fix: the hero counts this week, an account counts its whole history, and
+        // both were saying "customers are waiting on a reply". Caught by reading the installed build.
+        var conversationWord = entity.AwaitingCount == 1 ? "open conversation" : "open conversations";
         var sb = new StringBuilder();
-        sb.Append("Needs attention — ").Append(entity.AwaitingCount).Append(' ').Append(customerWord)
-            .Append(" waiting on a reply");
+        sb.Append("Needs attention — ").Append(entity.AwaitingCount).Append(' ').Append(conversationWord);
         if (unreadCount > 0)
         {
             sb.Append(" · ").Append(unreadCount).Append(" unread");
