@@ -175,6 +175,17 @@ public sealed class OversightChatSnapshotService
                             c.ContactPhone ?? string.Empty,
                             c.HasLastMessage,
                             c.LastMessageType ?? string.Empty)).ToList();
+
+                    // The same coverage retraction the scrapers apply, repeated on LOAD. A snapshot
+                    // written by a cold scan carries `hasLastMessage: false` on nearly every row, and
+                    // honouring that would close the whole queue on launch and keep closing it until a
+                    // warm re-scan happened to replace the file. This actually happened on the owner's
+                    // machine: 354 real conversations rendered as 5.
+                    var withMessage = chats.Count(c => c.HasLastMessage == true);
+                    if (chats.Count > 0 && withMessage * 2 <= chats.Count)
+                    {
+                        chats = chats.Select(c => c with { HasLastMessage = null }).ToList();
+                    }
                     _byInstance[instanceId] = new InstanceChats(chats, dto.CapturedAtUtc);
                 }
             }

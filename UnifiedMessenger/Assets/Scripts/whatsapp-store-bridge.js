@@ -723,6 +723,30 @@
       }
     }
 
+    // `hasLastMessage: false` is only meaningful if THIS scan was warm. chat.msgs fills in lazily —
+    // measured 2% coverage at load and 82% a minute later — so a scan taken seconds after a reload finds
+    // no last message for almost every chat. Reporting that as fact told the host that nearly every
+    // conversation's message had been deleted, and the host duly closed the entire queue: 354 real
+    // messages collapsed to 5 on screen.
+    //
+    // So the claim is retracted wholesale unless most chats produced a message. Coverage is a property of
+    // the scan, not of any one chat, which is why it cannot be decided in the loop above.
+    var withMessage = 0;
+    for (var m = 0; m < conversations.length; m++) {
+      if (conversations[m].hasLastMessage) {
+        withMessage++;
+      }
+    }
+    scanDiag.withLastMessage = withMessage;
+    var warm = conversations.length > 0 && withMessage * 2 > conversations.length;
+    scanDiag.storeWarm = warm;
+    if (!warm) {
+      for (var n = 0; n < conversations.length; n++) {
+        // null, not false: "we do not know" rather than "there is no message".
+        conversations[n].hasLastMessage = null;
+      }
+    }
+
     conversations.sort(function (a, b) {
       return new Date(b.lastActivityTimestampUtc) - new Date(a.lastActivityTimestampUtc);
     });

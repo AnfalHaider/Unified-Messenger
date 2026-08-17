@@ -1379,6 +1379,21 @@
               }
             }
 
+            // Same retraction as whatsapp-store-bridge.js, and needed more here: this path reads the
+            // PERSISTED lastMessage, which is routinely absent in a throttled background webview. An
+            // unqualified "no message" from a cold read closed 354 real conversations down to 5.
+            var umWithMessage = 0;
+            for (var wm = 0; wm < conversations.length; wm++) {
+              if (conversations[wm].hasLastMessage) { umWithMessage++; }
+            }
+            diag.withLastMessage = umWithMessage;
+            diag.storeWarm = conversations.length > 0 && umWithMessage * 2 > conversations.length;
+            if (!diag.storeWarm) {
+              for (var wn = 0; wn < conversations.length; wn++) {
+                conversations[wn].hasLastMessage = null; // unknown, not "gone"
+              }
+            }
+
             conversations.sort(function (a, b) {
               return new Date(b.lastActivityTimestampUtc) - new Date(a.lastActivityTimestampUtc);
             });

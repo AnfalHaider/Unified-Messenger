@@ -339,4 +339,61 @@ public class ReplyNeedTests
         Assert.True(verdict.NeedsReply);
         Assert.Equal(ReplyNeedReason.AsksSomething, verdict.Reason);
     }
+
+    // ---- Entries that are not messages ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("e2e_notification")]
+    [InlineData("protocol")]
+    [InlineData("notification_template")]
+    [InlineData("gp2")]
+    [InlineData("ciphertext")]
+    [InlineData("keychange")]
+    public void WhatsAppsOwnBookkeepingIsNotACustomerWaiting(string type)
+    {
+        // 39 of 212 conversations the app reported as customers waiting were security-code changes and
+        // protocol notices. Nobody wrote them, so nobody is waiting on an answer — and because they carry
+        // no body they were also inflating the "could not read this message" count.
+        var verdict = ReplyNeed.Classify("", true, type, TimeSpan.FromDays(3));
+
+        Assert.False(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.SystemNotice, verdict.Reason);
+    }
+
+    [Fact]
+    public void ASystemNoticeIsNotCountedEvenIfItCarriesText()
+    {
+        // WhatsApp puts its own wording in some of these ("Your security code changed"), which would
+        // otherwise be read as a substantive customer message.
+        var verdict = ReplyNeed.Classify(
+            "Your security code with this contact changed", true, "e2e_notification", TimeSpan.FromDays(1));
+
+        Assert.False(verdict.NeedsReply);
+    }
+
+    [Theory]
+    [InlineData("call_log")]
+    [InlineData("call")]
+    public void AMissedCallIsStillWorthReturningButIsNamedAsACall(string type)
+    {
+        // 36 of the 212 were calls appearing as messages with no readable text, so the row told the owner
+        // nothing about what had actually happened. A missed customer call is worth returning, so it stays
+        // counted — it just stops pretending to be a message nobody could read.
+        var verdict = ReplyNeed.Classify("", true, type, TimeSpan.FromDays(3));
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MissedCall, verdict.Reason);
+        Assert.Contains("called", verdict.Explain(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnOrdinaryTextMessageIsUnaffectedByTheTypeChecks()
+    {
+        Assert.Equal(
+            ReplyNeedReason.AsksSomething,
+            ReplyNeed.Classify("kitna charge hoga", true, "chat", TimeSpan.FromHours(2)).Reason);
+        Assert.Equal(
+            ReplyNeedReason.Acknowledgement,
+            ReplyNeed.Classify("ok thanks", true, "chat", TimeSpan.FromHours(2)).Reason);
+    }
 }

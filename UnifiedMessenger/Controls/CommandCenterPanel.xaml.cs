@@ -143,6 +143,29 @@ public sealed partial class CommandCenterPanel : UserControl
     // When set, the Needs-reply list is scoped to just these accounts (a card's awaiting pill was clicked).
     private List<string>? _needsReplyFilterIds;
     private string _needsReplyFilterLabel = string.Empty;
+
+    // Needs-reply filters. Age defaults to the same window the hero headline uses, so the list and the
+    // number above it start out describing the same population — the mismatch between them was the single
+    // most confusing thing on this screen.
+    private AwaitingAgeFilter _ageFilter = AwaitingAgeFilter.ThisWeek;
+    private ConversationTopic? _topicFilter;
+    private string? _locationFilter;
+
+    /// <summary>Which slice of the waiting queue the Needs-reply list is showing.</summary>
+    internal enum AwaitingAgeFilter
+    {
+        /// <summary>Active within the backlog threshold — matches the hero's "needs a reply" figure.</summary>
+        ThisWeek,
+
+        /// <summary>Arrived today.</summary>
+        Today,
+
+        /// <summary>Older than the backlog threshold — the accumulated backlog on its own.</summary>
+        Backlog,
+
+        /// <summary>Everything still open, any age.</summary>
+        All
+    }
     private string? _worstEntityFirstInstanceId;
 
     private void OnSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
@@ -155,6 +178,16 @@ public sealed partial class CommandCenterPanel : UserControl
     private void OnDensityToggled(object sender, RoutedEventArgs e)
     {
         _compact = DensityToggle.IsChecked == true;
+        _lastRenderSignature = string.Empty;
+        Render();
+    }
+
+    /// <summary>
+    /// Re-render after a change the data signature cannot see. The signature is built from the numbers, so
+    /// a filter change looks identical to it and the redraw would be skipped.
+    /// </summary>
+    private void ForceRerender()
+    {
         _lastRenderSignature = string.Empty;
         Render();
     }
@@ -787,10 +820,30 @@ public sealed partial class CommandCenterPanel : UserControl
             CardsHost.Children.Add(BuildScopeChip(_needsReplyFilterLabel));
         }
 
-        var rows = scoped
+        if (_locationFilter is { Length: > 0 } location)
+        {
+            scoped = scoped
+                .Where(i => string.Equals(
+                    BranchWorkspaceHelper.ResolveBranchKey(i),
+                    location,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        var everything = scoped
             .SelectMany(inst => OversightChatSnapshotService.Instance
                 .GetAwaiting(inst.Id)
                 .Select(chat => (Instance: inst, Chat: chat)))
+            .ToList();
+
+        // The chip row is built from the UNFILTERED set so each chip can show its own count. A filter whose
+        // label does not say how much it will show is a guess the owner has to make by clicking.
+        CardsHost.Children.Add(BuildQueueFilters(everything, instances));
+
+        var rows = everything
+            .Where(r => MatchesAgeFilter(r.Chat.LastActivityUtc))
+            .Where(r => _topicFilter is null ||
+                        ConversationTopics.Classify(r.Chat.Preview) == _topicFilter)
             .Take(400)
             .ToList();
 
@@ -830,6 +883,168 @@ public sealed partial class CommandCenterPanel : UserControl
                 CardsHost.Children.Add(BuildNeedsReplyRow(rowInst, chat, secondary, danger));
             }
         }
+    }
+
+    private bool MatchesAgeFilter(DateTimeOffset lastActivityUtc)
+    {
+        var days = Math.Max(1, AppSettingsService.Instance.Settings.AwaitingBacklogAfterDays);
+        var age = DateTimeOffset.UtcNow - lastActivityUtc;
+
+        return _ageFilter switch
+        {
+            AwaitingAgeFilter.Today => age < TimeSpan.FromDays(1),
+            AwaitingAgeFilter.ThisWeek => age < TimeSpan.FromDays(days),
+            AwaitingAgeFilter.Backlog => age >= TimeSpan.FromDays(days),
+            _ => true
+        };
+    }
+
+    /// <summary>
+    /// The filter row above the Needs-reply queue: how old, which branch, and what the customer wants.
+    ///
+    /// <para>
+    /// Every chip carries its own count, taken from the unfiltered set. That is the difference between a
+    /// filter and a guess — an owner should be able to see that "At risk" holds three conversations before
+    /// deciding whether to click it, and see that "Job &amp; training" holds nine before deciding to hide
+    /// them. Chips with nothing in them are not rendered at all rather than offered as dead ends.
+    /// </para>
+    /// </summary>
+    private FrameworkElement BuildQueueFilters(
+        IReadOnlyList<(MessengerInstance Instance, OversightChatSnapshotService.ChatEntry Chat)> all,
+        IReadOnlyList<MessengerInstance> allInstances)
+    {
+        var days = Math.Max(1, AppSettingsService.Instance.Settings.AwaitingBacklogAfterDays);
+        var now = DateTimeOffset.UtcNow;
+        var host = new StackPanel { Spacing = 6, Margin = new Thickness(2, 2, 2, 10) };
+
+        // ---- Age ---------------------------------------------------------------------------------------
+        var ageRow = NewChipRow("Waiting");
+        void AddAge(AwaitingAgeFilter value, string label, Func<TimeSpan, bool> predicate, string tip)
+        {
+            var count = all.Count(r => predicate(now - r.Chat.LastActivityUtc));
+            ageRow.Children.Add(BuildFilterChip(
+                $"{label} · {count}",
+                _ageFilter == value,
+                tip,
+                () =>
+                {
+                    _ageFilter = value;
+                    ForceRerender();
+                }));
+        }
+
+        AddAge(AwaitingAgeFilter.Today, "Today", a => a < TimeSpan.FromDays(1),
+            "Arrived in the last 24 hours.");
+        AddAge(AwaitingAgeFilter.ThisWeek, $"Last {days} days", a => a < TimeSpan.FromDays(days),
+            $"Active in the last {days} days — this is the figure the headline above shows.");
+        AddAge(AwaitingAgeFilter.Backlog, "Backlog", a => a >= TimeSpan.FromDays(days),
+            $"Waiting longer than {days} days. Work through these separately from today's queue.");
+        AddAge(AwaitingAgeFilter.All, "All", _ => true,
+            "Every open conversation, whatever its age.");
+        host.Children.Add(ageRow);
+
+        // ---- Branch ------------------------------------------------------------------------------------
+        // Grouping BY location already existed; filtering TO one did not, so an owner who wanted a single
+        // branch had to type its name into a free-text box and hope they matched it.
+        var byLocation = allInstances
+            .Select(BranchWorkspaceHelper.ResolveBranchKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (byLocation.Count > 1)
+        {
+            var locationRow = NewChipRow("Branch");
+            locationRow.Children.Add(BuildFilterChip("All branches", _locationFilter is null,
+                "Every branch.", () => { _locationFilter = null; ForceRerender(); }));
+
+            foreach (var key in byLocation)
+            {
+                var label = key;
+                locationRow.Children.Add(BuildFilterChip(
+                    label,
+                    string.Equals(_locationFilter, key, StringComparison.OrdinalIgnoreCase),
+                    $"Only accounts at {label}.",
+                    () => { _locationFilter = key; ForceRerender(); }));
+            }
+
+            host.Children.Add(locationRow);
+        }
+
+        // ---- Topic -------------------------------------------------------------------------------------
+        var topicCounts = new Dictionary<ConversationTopic, int>();
+        foreach (var row in all)
+        {
+            var topic = ConversationTopics.Classify(row.Chat.Preview);
+            topicCounts[topic] = topicCounts.GetValueOrDefault(topic) + 1;
+        }
+
+        var topicRow = NewChipRow("About");
+        topicRow.Children.Add(BuildFilterChip("Anything", _topicFilter is null,
+            "No topic filter.", () => { _topicFilter = null; ForceRerender(); }));
+
+        // At risk first, then the money, then the two groups worth setting aside. Uncategorised is
+        // deliberately offered last and not hidden — 432 of 468 land there on real data, and pretending
+        // otherwise would misrepresent how much the app actually knows.
+        foreach (var topic in new[]
+                 {
+                     ConversationTopic.AtRisk, ConversationTopic.Enquiry, ConversationTopic.Booking,
+                     ConversationTopic.JobApplicant, ConversationTopic.BusinessOutreach,
+                     ConversationTopic.Unknown
+                 })
+        {
+            if (!topicCounts.TryGetValue(topic, out var count) || count == 0)
+            {
+                continue;
+            }
+
+            topicRow.Children.Add(BuildFilterChip(
+                $"{ConversationTopics.Label(topic)} · {count}",
+                _topicFilter == topic,
+                ConversationTopics.Describe(topic),
+                () => { _topicFilter = topic; ForceRerender(); }));
+        }
+
+        host.Children.Add(topicRow);
+        return host;
+    }
+
+    private StackPanel NewChipRow(string caption)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        row.Children.Add(new TextBlock
+        {
+            Text = caption,
+            FontSize = 12,
+            Width = 56,
+            Foreground = Brush("TextFillColorSecondaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        return row;
+    }
+
+    private FrameworkElement BuildFilterChip(string label, bool selected, string tooltip, Action onClick)
+    {
+        var button = new ToggleButton
+        {
+            Content = new TextBlock { Text = label, FontSize = 12 },
+            IsChecked = selected,
+            Padding = new Thickness(10, 3, 10, 3),
+            CornerRadius = new CornerRadius(14),
+            MinWidth = 0,
+            MinHeight = 0
+        };
+
+        // Selection is carried by the toggle's own checked visual, which is a colour change. The accessible
+        // name repeats it in words so the state is not conveyed by colour alone (WCAG 1.4.1) and a screen
+        // reader does not have to infer it from styling.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            button, selected ? $"{label}, selected" : label);
+
+        ToolTipService.SetToolTip(button, tooltip);
+        button.Click += (_, _) => onClick();
+        return button;
     }
 
     /// <summary>A branch/account section header above that account's waiting customers in the Needs-reply list.</summary>

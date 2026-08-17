@@ -250,4 +250,98 @@ public class AwaitingSplitTests
         Assert.DoesNotContain("were not counted", tooltip, StringComparison.Ordinal);
         Assert.DoesNotContain("could not be read", tooltip, StringComparison.Ordinal);
     }
+
+    // ---- The cold-scan trap ---------------------------------------------------------------------------
+
+    [Fact]
+    public void AColdScanCannotCloseTheWholeQueue()
+    {
+        // This shipped and was caught on the live app: chat.msgs fills in lazily, so a scan taken seconds
+        // after a reload reports "no last message" for almost every chat. Read literally, that says every
+        // customer's message was deleted — and 354 real conversations rendered as 5.
+        //
+        // The scrapers now retract the claim when coverage is low, and the snapshot loader repeats the
+        // retraction so a file written by a cold scan cannot keep closing the queue on every launch. This
+        // test pins the loader half, because that is the half that survives a restart.
+        var path = Path.Combine(Path.GetTempPath(), $"um-cold-{Guid.NewGuid():N}.json");
+        try
+        {
+            // Ten conversations, nine of them reporting no message, all old enough to be "gone".
+            var chats = Enumerable.Range(0, 10).Select(i => new
+            {
+                conversationKey = $"9200000000{i}@c.us",
+                customerName = $"Customer {i}",
+                unread = 0,
+                lastActivityUtc = DateTimeOffset.UtcNow.AddDays(-30),
+                preview = "",
+                isAwaiting = true,
+                lastMessageFromMe = false,
+                contactPhone = "",
+                hasLastMessage = i == 0,
+                lastMessageType = "chat"
+            }).ToArray();
+
+            var payload = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                version = 1,
+                instances = new Dictionary<string, object>
+                {
+                    ["acct"] = new { capturedAtUtc = DateTimeOffset.UtcNow, chats }
+                }
+            });
+            File.WriteAllText(path, payload);
+
+            var svc = new OversightChatSnapshotService(path);
+            svc.LoadAsync().GetAwaiter().GetResult();
+
+            // Every one must survive: coverage was 1 in 10, so "no message" is not credible for any of them.
+            Assert.Equal(10, svc.GetAwaiting("acct", null).Count);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void AWarmScanIsStillTrustedToCloseTheOnesThatAreGone()
+    {
+        // The retraction must not make the signal useless. With coverage high, a single conversation
+        // reporting no message is believable and does get closed.
+        var path = Path.Combine(Path.GetTempPath(), $"um-warm-{Guid.NewGuid():N}.json");
+        try
+        {
+            var chats = Enumerable.Range(0, 10).Select(i => new
+            {
+                conversationKey = $"9230000000{i}@c.us",
+                customerName = $"Customer {i}",
+                unread = 0,
+                lastActivityUtc = DateTimeOffset.UtcNow.AddDays(-30),
+                preview = i == 0 ? "" : "kitna charge hoga",
+                isAwaiting = true,
+                lastMessageFromMe = false,
+                contactPhone = "",
+                hasLastMessage = i != 0,
+                lastMessageType = "chat"
+            }).ToArray();
+
+            File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(new
+            {
+                version = 1,
+                instances = new Dictionary<string, object>
+                {
+                    ["acct2"] = new { capturedAtUtc = DateTimeOffset.UtcNow, chats }
+                }
+            }));
+
+            var svc = new OversightChatSnapshotService(path);
+            svc.LoadAsync().GetAwaiter().GetResult();
+
+            Assert.Equal(9, svc.GetAwaiting("acct2", null).Count);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }
