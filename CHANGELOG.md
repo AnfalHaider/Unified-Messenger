@@ -5,6 +5,39 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.32
+
+Three additions aimed at the actual daily job rather than the numbers describing it.
+
+**Work the queue from the keyboard.** `J` and `K` move (the arrow keys work too), `Enter` opens, `D` marks
+done, `S` snoozes, `C` calls back, `R` copies a reply, and `?` shows the list. Sixty conversations at four
+clicks each is a morning; the same queue with one hand on the keyboard is minutes.
+
+Nothing fires while you are typing in the search box, and nothing fires when you are holding Ctrl or Alt,
+so the shortcuts never eat a Windows or browser command. The selection stops at the ends of the list
+rather than looping around, and after you clear a conversation it stays where you were instead of jumping
+back to the top.
+
+**Saved replies.** A library of ready answers, filled in with the customer's name and branch and copied to
+the clipboard for you to paste and send. Nine are there from the moment you install — price list, opening
+times, address, booking confirmation, an apology, a missed-call note, a reply for photos, a jobs answer,
+and a holding reply — and every one is yours to edit.
+
+If a customer is not in your contacts, WhatsApp gives their phone number instead of a name; a reply then
+opens with "Hi there" rather than "Hi +923105325598".
+
+**The app still never sends anything.** A saved reply goes to your clipboard. You paste it, read it, and
+press send yourself.
+
+**Missed calls have their own list.** 81 customers had rung and got nothing back, and until now they sat
+in the queue as messages nobody could read, because a call has no text. They are now a filter of their
+own, with a **Call back** button on each row that dials through your phone app. Only rows where a real
+number is known get the button.
+
+**The reply queue filters by what a row actually is.** At risk · Missed calls · Enquiries · Bookings ·
+Photos & voice notes · Job & training · Business outreach. Each chip shows how many it holds before you
+click it, and it combines with the branch and waiting-time filters.
+
 ## v4.99.31
 
 **Downloads work.** Receiving a file and choosing to save it did nothing at all — no file, no error, nothing
