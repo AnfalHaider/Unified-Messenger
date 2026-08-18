@@ -657,15 +657,20 @@ public sealed partial class CommandCenterPanel : UserControl
 
         // Full-height status rail to the left of the card — status by position+colour (the % hero glyph
         // carries the non-colour cue for WCAG). Stale accounts read critical.
+        // The rail is a severity stripe, not an alarm. It used to be painted in full-saturation status
+        // colour, so on a workspace where every account is behind — three of three here — the page showed
+        // three tall red bars before the owner had read a single word. It now uses the status WASH, which
+        // keeps the positional scan (colour down the left edge, same as before) while letting the verdict
+        // chip inside the card carry the emphasis.
         var hasLiveData = entity.MeasuredCount > 0;
         var railBrush = entity.IsStale
-            ? Brush("SystemFillColorCriticalBrush")
+            ? Brush("UmStatusDangerWashBrush")
             : !hasLiveData
-                ? Brush("TextFillColorDisabledBrush")
-                : StatusBrushForPercent(entity.OnTimePercent);
+                ? Brush("UmHairlineBrush")
+                : StatusWashBrush(entity.OnTimePercent);
         var rail = new Border
         {
-            Width = 3,
+            Width = 4,
             CornerRadius = new CornerRadius(2),
             Background = railBrush,
             Margin = new Thickness(0, 2, 8, 2),
@@ -3078,52 +3083,52 @@ public sealed partial class CommandCenterPanel : UserControl
                 .ToList() ?? [];
             var resp = ResponseTimeTracker.Instance.GetStats(memberInstances, cardWindowStart, cardWindowEnd, slaMinutes);
 
-            var chips = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            var chips = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 22 };
 
             // Show reply speed only once there's live data; a perpetual "measuring…" on every card just
             // reads as stuck (the KPI band's "Response time — · builds as you reply" sets that once).
             if (resp.HasData)
             {
                 var replies = resp.SampleCount == 1 ? "1 reply measured" : $"{resp.SampleCount} replies measured";
-                chips.Children.Add(BuildMetricChip(
-                    "",
-                    $"reply ~{FormatMinutes(resp.MedianMinutes)}",
+                chips.Children.Add(BuildStat(
+                    "Reply time",
+                    FormatMinutes(resp.MedianMinutes),
                     ResponseBrush(resp.MedianMinutes, slaMinutes),
                     $"Median time from a customer's message to this account's first reply ({replies}). Target: under {slaMinutes} min."));
             }
 
             if (resp.AnsweredToday > 0)
             {
-                chips.Children.Add(BuildMetricChip(
-                    "",
-                    resp.AnsweredToday == 1 ? "1 answered today" : $"{resp.AnsweredToday} answered today",
+                chips.Children.Add(BuildStat(
+                    "Answered today",
+                    resp.AnsweredToday.ToString(),
                     success,
                     "Waiting customers this account replied to today — work done, not just work pending."));
             }
 
             if (pastSlaCount > 0)
             {
-                chips.Children.Add(BuildMetricChip(
-                    "",
-                    $"{pastSlaCount} past {slaMinutes}m",
+                chips.Children.Add(BuildStat(
+                    $"Past {slaMinutes}m target",
+                    pastSlaCount.ToString(),
                     caution,
                     $"Of the {entity.AwaitingCount} awaiting, {pastSlaCount} have already waited longer than your {slaMinutes}-minute reply target — reply to these first."));
             }
 
             if (entity.UrgentCount > 0)
             {
-                chips.Children.Add(BuildMetricChip(
-                    "",
-                    $"{entity.UrgentCount} urgent",
+                chips.Children.Add(BuildStat(
+                    "Urgent",
+                    entity.UrgentCount.ToString(),
                     danger,
                     "Messages whose wording looks urgent (triage keywords / local AI)."));
             }
 
             if (entity.DroppedCount > 0)
             {
-                chips.Children.Add(BuildMetricChip(
-                    "",
-                    $"{entity.DroppedCount} dropped",
+                chips.Children.Add(BuildStat(
+                    "Dropped",
+                    entity.DroppedCount.ToString(),
                     danger,
                     "Conversations that look abandoned — the customer never got a reply and the chat went quiet."));
             }
@@ -3146,35 +3151,41 @@ public sealed partial class CommandCenterPanel : UserControl
         return card;
     }
 
-    /// <summary>A small icon+text pill for the card's detail row; the tooltip carries the plain-language explanation.</summary>
-    private FrameworkElement BuildMetricChip(string glyph, string text, Brush foreground, string tooltip)
+    /// <summary>
+    /// One cell of the card's stat strip: a quiet uppercase key over the figure.
+    /// </summary>
+    /// <remarks>
+    /// This was a row of icon+text pills, each in its own semantic colour — a red "reply ~15.7h", a green
+    /// "4 answered today", an amber "134 past 15m", all outlined, all shouting at once. Three colours and
+    /// three glyphs to carry three numbers meant the row had no reading order and no relative importance.
+    ///
+    /// Now the key names the measure and the value carries it, which is how an instrument panel reads.
+    /// Semantic ink is kept only where the figure is genuinely a problem (past target, urgent, dropped);
+    /// the rest sit in primary ink. The glyphs are gone: they were decoration, and the tooltip already
+    /// carried the plain-language explanation.
+    /// </remarks>
+    private FrameworkElement BuildStat(string label, string value, Brush valueBrush, string tooltip)
     {
-        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
-        content.Children.Add(new FontIcon
+        var cell = new StackPanel { Spacing = 1 };
+        cell.Children.Add(new TextBlock
         {
-            Glyph = glyph,
-            FontSize = UmScale.Icon.Sm,
-            Foreground = foreground,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        content.Children.Add(new TextBlock
-        {
-            Text = text,
+            Text = label.ToUpperInvariant(),
             FontSize = UmScale.Text.Caption,
             FontWeight = FontWeights.SemiBold,
-            Foreground = foreground,
-            VerticalAlignment = VerticalAlignment.Center
+            CharacterSpacing = 60,
+            Foreground = Brush("TextFillColorTertiaryBrush")
+        });
+        cell.Children.Add(new TextBlock
+        {
+            Text = value,
+            FontSize = UmScale.Text.BodyStrong,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = valueBrush
         });
 
-        var chip = new Border
-        {
-            Background = Brush("CardBackgroundFillColorSecondaryBrush"),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(8, 3, 8, 3),
-            Child = content
-        };
-        ToolTipService.SetToolTip(chip, tooltip);
-        return chip;
+        ToolTipService.SetToolTip(cell, tooltip);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(cell, $"{label}: {value}");
+        return cell;
     }
 
     /// <summary>

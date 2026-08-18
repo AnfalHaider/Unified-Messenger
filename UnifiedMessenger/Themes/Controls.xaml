@@ -130,6 +130,90 @@
         </Setter>
     </Style>
 
+    <!--
+        A chrome toggle (the title bar's AI switch). Same reasoning as the segmented control: its "on"
+        state was a solid fill in the Windows accent, which on this machine is a dark red — so the app's
+        title bar carried a permanent red badge that looked like a warning about the AI feature rather than
+        an indication it was enabled. On reads as a tinted, accented state instead.
+    -->
+    <Style x:Key="UmChromeToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Padding" Value="10,5" />
+        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusSmValue}" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeBody}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border
+                        x:Name="Root"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmSurfaceSunkenBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmHairlineBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="Label.Opacity" Value="0.4" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Checked">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmAccentWashBrush}" />
+                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource UmBrandTealBrush}" />
+                                        <Setter Target="Label.Foreground" Value="{ThemeResource UmBrandTealBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="CheckedPointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmAccentWashBrush}" />
+                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource UmBrandTealBrush}" />
+                                        <Setter Target="Label.Foreground" Value="{ThemeResource UmBrandTealBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="CheckedPressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmHairlineBrush}" />
+                                        <Setter Target="Label.Foreground" Value="{ThemeResource UmBrandTealBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="CheckedDisabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="Label.Opacity" Value="0.4" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter
+                            x:Name="Label"
+                            Content="{TemplateBinding Content}"
+                            Foreground="{TemplateBinding Foreground}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- The track the segments sit in: sunken, so the selected segment reads as raised out of it. -->
     <Style x:Key="UmSegmentedTrackStyle" TargetType="Border">
         <Setter Property="Background" Value="{ThemeResource UmSurfaceSunkenBrush}" />

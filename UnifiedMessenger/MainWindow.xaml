@@ -43,6 +43,7 @@
                     </ComboBox>
                     <ToggleButton
                         x:Name="AiToggleButton"
+                        Style="{StaticResource UmChromeToggleStyle}"
                         AutomationProperties.Name="Toggle on-device AI insights"
                         Click="AiToggleButton_Click"
                         ToolTipService.ToolTip="On-device AI insights (Ollama). Falls back to heuristics when off or unavailable.">
