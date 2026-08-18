@@ -10,7 +10,20 @@ public interface IInstanceRegistryService
 
     string StorePath { get; }
 
+    /// <summary>
+    /// Whether <see cref="Instances"/> is a faithful picture of the owner's accounts, or a fallback. Callers
+    /// that draw an empty-state must check this: "you have no accounts yet" and "I could not read your
+    /// accounts" look identical on screen and mean opposite things.
+    /// </summary>
+    RegistryLoadOutcome LoadOutcome { get; }
+
+    /// <summary>Why the read failed, for the log and the notice. Null unless <see cref="LoadOutcome"/> is Failed.</summary>
+    string? LoadFailureDetail { get; }
+
     Task LoadAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Re-attempts a failed read. True when the accounts are readable afterwards.</summary>
+    Task<bool> RetryLoadAsync(CancellationToken cancellationToken = default);
 
     Task SaveAsync(CancellationToken cancellationToken = default);
 

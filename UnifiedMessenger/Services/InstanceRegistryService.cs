@@ -8,6 +8,31 @@ namespace UnifiedMessenger.Services;
 
 public sealed record ImportInstancesResult(int ActiveCount, int ArchivedCount);
 
+/// <summary>
+/// How the account list came to be what it is. Only <see cref="Loaded"/> and <see cref="FirstRun"/> mean the
+/// in-memory list is a faithful picture of the owner's accounts.
+/// </summary>
+public enum RegistryLoadOutcome
+{
+    /// <summary><see cref="InstanceRegistryService.LoadAsync"/> has not run yet.</summary>
+    NotLoaded,
+
+    /// <summary>The file was read and parsed.</summary>
+    Loaded,
+
+    /// <summary>The file genuinely does not exist. A seeded starter account is correct here.</summary>
+    FirstRun,
+
+    /// <summary>The file existed but could not be parsed; the bytes were preserved alongside it.</summary>
+    RecoveredFromCorruptFile,
+
+    /// <summary>
+    /// The file could not be read at all — locked, denied, or on a folder that was not reachable.
+    /// The owner's accounts still exist on disk; this session simply cannot see them.
+    /// </summary>
+    Failed
+}
+
 public sealed partial class InstanceRegistryService : IInstanceRegistryService
 {
     private const string FileName = "instances.json";
@@ -40,6 +65,43 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
 
     public IReadOnlyList<MessengerInstance> ArchivedInstances => _store.ArchivedInstances;
 
+    /// <summary>How the current in-memory list came to be. See <see cref="RegistryLoadOutcome"/>.</summary>
+    public RegistryLoadOutcome LoadOutcome { get; private set; } = RegistryLoadOutcome.NotLoaded;
+
+    /// <summary>Why the load failed, for the log and the on-screen notice. Null unless <see cref="LoadOutcome"/> is Failed.</summary>
+    public string? LoadFailureDetail { get; private set; }
+
+    /// <summary>Where the unparseable file was preserved, when <see cref="LoadOutcome"/> is RecoveredFromCorruptFile.</summary>
+    public string? CorruptFileBackupPath { get; private set; }
+
+    /// <summary>
+    /// Attempts before giving up on a locked or denied file. A real-time virus scanner opening a
+    /// just-written file, or the tail of a previous instance's shutdown, both clear in well under a second;
+    /// what must not happen is one unlucky millisecond deciding what the owner sees.
+    /// </summary>
+    private const int ReadAttempts = 5;
+
+    private static readonly TimeSpan ReadRetryDelay = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>
+    /// Reads the account list.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>What this used to do, and why it was dangerous.</b> The first line was
+    /// <c>if (!File.Exists(_storePath))</c> → seed a starter account and save. But
+    /// <see cref="File.Exists(string)"/> returns <c>false</c> for <i>any</i> failure, not only absence: a
+    /// denied folder, a locked file, an unreadable path all look identical to a brand-new install. So a
+    /// transient access problem made an owner with nine connected accounts open the app to a first-run
+    /// welcome screen and a single demo account — and if the block had cleared a moment later, the next
+    /// thing that saved would have written that one account over their nine.
+    /// </para>
+    /// <para>
+    /// It now distinguishes the three cases by <i>opening</i> the file and reading the exception:
+    /// not-found means first run, a parse error means corruption, and anything else means "cannot see the
+    /// data right now" — which seeds nothing, saves nothing, and is reported to the owner.
+    /// </para>
+    /// </remarks>
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -50,33 +112,26 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
                 return;
             }
 
-            if (!File.Exists(_storePath))
+            var (outcome, loaded, failure) = await ReadStoreAsync(cancellationToken).ConfigureAwait(false);
+
+            if (outcome == RegistryLoadOutcome.Failed)
             {
-                _store = CreateDefaultStore();
-                NormalizeStore(ensureUniqueIdentifiers: true);
-                await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
-                _isLoaded = true;
+                // Deliberately no seeding and no save. The owner's accounts are on disk and intact; this
+                // session simply could not reach them, and inventing a replacement list is how a display
+                // problem turns into data loss.
+                _store = new InstanceStore();
+                LoadOutcome = RegistryLoadOutcome.Failed;
+                LoadFailureDetail = failure;
+                AppLogger.LogWarning(
+                    "Registry",
+                    $"Could not read the account list at '{_storePath}': {failure}. " +
+                    "Running with no accounts for this session; nothing was written.");
                 return;
             }
 
-            InstanceStore loaded;
-            try
-            {
-                await using var stream = File.OpenRead(_storePath);
-                loaded = await JsonSerializer
-                    .DeserializeAsync<InstanceStore>(stream, JsonOptions, cancellationToken)
-                    .ConfigureAwait(false) ?? CreateDefaultStore();
-            }
-            catch (JsonException ex)
-            {
-                Debug.WriteLine($"Instances file is corrupt; resetting to defaults: {ex.Message}");
-                BackupCorruptFile();
-                loaded = CreateDefaultStore();
-            }
-
-            _store = loaded;
+            _store = loaded!;
             var migrated = MigrateStoreIfNeeded();
-            NormalizeStore(ensureUniqueIdentifiers: migrated);
+            NormalizeStore(ensureUniqueIdentifiers: migrated || outcome != RegistryLoadOutcome.Loaded);
 
             if (migrated || _store.Instances.Count == 0)
             {
@@ -89,12 +144,123 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
                 await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
             }
 
+            LoadOutcome = outcome;
             _isLoaded = true;
+
+            // The one line that makes the next "where did my accounts go?" answerable in seconds: which
+            // file this session actually read, and how many accounts came out of it.
+            AppLogger.LogInfo(
+                "Registry",
+                $"Loaded {_store.Instances.Count} account(s) ({_store.ArchivedInstances.Count} archived) " +
+                $"from '{_storePath}' — outcome {outcome}.");
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// Tries the read again after a failure — what the "Try again" button on the notice calls. Returns true
+    /// when the accounts are now readable.
+    /// </summary>
+    /// <remarks>
+    /// Worth offering rather than insisting on a restart: the causes of a failed read (a scanner holding
+    /// the file, a folder that was briefly unreachable, a drive still coming up) are usually over within
+    /// seconds, and a second attempt costs the owner nothing.
+    /// </remarks>
+    public async Task<bool> RetryLoadAsync(CancellationToken cancellationToken = default)
+    {
+        if (LoadOutcome != RegistryLoadOutcome.Failed)
+        {
+            return LoadOutcome != RegistryLoadOutcome.NotLoaded;
+        }
+
+        LoadOutcome = RegistryLoadOutcome.NotLoaded;
+        LoadFailureDetail = null;
+        await LoadAsync(cancellationToken).ConfigureAwait(false);
+
+        return LoadOutcome != RegistryLoadOutcome.Failed;
+    }
+
+    /// <summary>
+    /// One read attempt per retry, returning the outcome rather than throwing, so the caller can tell
+    /// "there is nothing here yet" apart from "I could not look".
+    /// </summary>
+    private async Task<(RegistryLoadOutcome Outcome, InstanceStore? Store, string? Failure)> ReadStoreAsync(
+        CancellationToken cancellationToken)
+    {
+        string? lastFailure = null;
+
+        for (var attempt = 1; attempt <= ReadAttempts; attempt++)
+        {
+            try
+            {
+                InstanceStore? loaded;
+
+                // Scoped tightly on purpose: the corrupt-file recovery below moves this very file, which
+                // cannot succeed while this handle is open. The parse-error path gets that for free (the
+                // throw unwinds the using first); the `null` path did not, and silently downgraded a
+                // recoverable file to an unreadable one.
+                await using (var stream = new FileStream(
+                    _storePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    loaded = await JsonSerializer
+                        .DeserializeAsync<InstanceStore>(stream, JsonOptions, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                // A file containing the literal `null` parses to null. Treat it as corrupt rather than as
+                // an empty account list, so the bytes are preserved before anything replaces them.
+                return loaded is null
+                    ? RecoverFromCorruptFile("the file contained no account list")
+                    : (RegistryLoadOutcome.Loaded, loaded, null);
+            }
+            catch (FileNotFoundException)
+            {
+                return (RegistryLoadOutcome.FirstRun, CreateDefaultStore(), null);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return (RegistryLoadOutcome.FirstRun, CreateDefaultStore(), null);
+            }
+            catch (JsonException ex)
+            {
+                return RecoverFromCorruptFile(ex.Message);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Locked, denied, or a folder that momentarily was not there. Worth another look.
+                lastFailure = $"{ex.GetType().Name}: {ex.Message}";
+                if (attempt < ReadAttempts)
+                {
+                    await Task.Delay(ReadRetryDelay, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        return (RegistryLoadOutcome.Failed, null, lastFailure);
+    }
+
+    private (RegistryLoadOutcome Outcome, InstanceStore? Store, string? Failure) RecoverFromCorruptFile(string reason)
+    {
+        Debug.WriteLine($"Instances file is corrupt; resetting to defaults: {reason}");
+
+        var backupPath = BackupCorruptFile();
+        if (backupPath is null)
+        {
+            // The bytes could not be set aside, so replacing them would destroy the only copy of a file
+            // that a person could still repair by hand. Refuse rather than overwrite.
+            return (RegistryLoadOutcome.Failed, null,
+                $"the file could not be parsed ({reason}) and could not be preserved either");
+        }
+
+        CorruptFileBackupPath = backupPath;
+        AppLogger.LogWarning(
+            "Registry",
+            $"The account list could not be parsed ({reason}). The file was preserved as '{backupPath}'.");
+
+        return (RegistryLoadOutcome.RecoveredFromCorruptFile, CreateDefaultStore(), null);
     }
 
     public async Task<MessengerInstance> AddInstanceAsync(
@@ -541,8 +707,27 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         }
     }
 
+    /// <summary>
+    /// The message shown if anything tries to save while the account list is unreadable.
+    /// </summary>
+    internal const string RefusedSaveMessage =
+        "Your accounts could not be read when the app started, so they cannot be changed right now. " +
+        "Nothing has been lost — close Unified Messenger and open it again.";
+
     private async Task SaveCoreAsync(CancellationToken cancellationToken)
     {
+        // The single most important line in this file. After a failed load the in-memory list is empty or
+        // a starter account; writing it out would replace the owner's real accounts with that. Every
+        // mutator funnels through here, so one guard covers add, remove, rename, reorder, recategorise and
+        // the rest — there is no path that can quietly overwrite a file this session never managed to read.
+        if (LoadOutcome == RegistryLoadOutcome.Failed)
+        {
+            AppLogger.LogWarning(
+                "Registry",
+                $"Refused to write '{_storePath}': the account list was never successfully read this session.");
+            throw new InvalidOperationException(RefusedSaveMessage);
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
 
         var tempPath = _storePath + ".tmp";
@@ -564,21 +749,31 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         File.Move(tempPath, _storePath, overwrite: true);
     }
 
-    private void BackupCorruptFile()
+    /// <summary>
+    /// Sets the unparseable file aside and returns where it went, or null if it could not be preserved.
+    /// </summary>
+    /// <remarks>
+    /// The return value is the caller's permission to overwrite. Previously this was void and failure was
+    /// swallowed, so a file that could not be backed up was replaced anyway — destroying the only copy of
+    /// something a person could still have repaired in a text editor.
+    /// </remarks>
+    private string? BackupCorruptFile()
     {
         try
         {
             if (!File.Exists(_storePath))
             {
-                return;
+                return null;
             }
 
             var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
             File.Move(_storePath, backupPath, overwrite: true);
+            return backupPath;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Could not back up corrupt instances file: {ex.Message}");
+            return null;
         }
     }
 

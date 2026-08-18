@@ -885,9 +885,65 @@ public sealed class ShellController
     /// </summary>
     private async Task RunStartupPromptsAsync()
     {
+        // First of all of them. If the account list could not be read, the owner is looking at a first-run
+        // welcome screen that appears to say their business's message history is gone; nothing else the
+        // app has to say this session comes close to that in importance. It also gates onboarding, which
+        // would otherwise invite them to set the app up from scratch on top of accounts that already exist.
+        var accountsUnavailable = await MaybeShowAccountsUnavailableNoticeAsync().ConfigureAwait(true);
+        if (accountsUnavailable)
+        {
+            return;
+        }
+
         await MaybeShowSettingsRecoveryNoticeAsync().ConfigureAwait(true);
         await MaybeShowWorkspaceOnboardingAsync().ConfigureAwait(true);
         await MaybePromptPinToTaskbarAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Shows the accounts-unavailable notice when the registry could not be read. Returns true when the
+    /// session is still in that state afterwards (so the remaining startup prompts should stay quiet).
+    /// </summary>
+    private async Task<bool> MaybeShowAccountsUnavailableNoticeAsync()
+    {
+        if (!AccountsUnavailableNotice.ShouldShow(_services.Registry.LoadOutcome))
+        {
+            return false;
+        }
+
+        try
+        {
+            AppLogger.LogWarning(
+                "Registry.Recovery",
+                $"Telling the owner their accounts could not be read ({_services.Registry.LoadFailureDetail}).");
+
+            var recovered = await AccountsUnavailableDialog
+                .ShowAsync(_ui.XamlRoot, _services.Registry)
+                .ConfigureAwait(true);
+
+            if (!recovered)
+            {
+                return true;
+            }
+
+            // The retry worked, so the shell is now showing an account list that is a session out of date.
+            _chrome.RebuildInstanceNavigation();
+            var instances = _services.Registry.Instances.ToList();
+            if (instances.Count > 0)
+            {
+                await _services.SessionManager
+                    .WarmAllSessionsAsync(instances, visibleInstanceId: null)
+                    .ConfigureAwait(true);
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            // Never let the notice about a failure become a failure of its own.
+            AppLogger.LogWarning("Registry.Recovery", ex.Message);
+            return true;
+        }
     }
 
     private async Task MaybeShowSettingsRecoveryNoticeAsync()

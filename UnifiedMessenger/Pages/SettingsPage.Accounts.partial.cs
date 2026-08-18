@@ -29,6 +29,12 @@ public sealed partial class SettingsPage
         AccountsList.ItemsSource = _viewModel.Accounts;
         _viewModel.ShowNoAccounts = rows.Count == 0;
         NoAccountsText.Visibility = _viewModel.ShowNoAccounts ? Visibility.Visible : Visibility.Collapsed;
+
+        // Third surface that renders an empty account list, and it must not tell the owner to "add one"
+        // when the list could not be read — the same wrong instruction the dashboard used to give.
+        NoAccountsText.Text = AccountsUnavailableNotice.ShouldShow(_registry.LoadOutcome)
+            ? AccountsUnavailableNotice.DashboardSubtitle
+            : "No accounts yet. Add one from the sidebar.";
     }
 
     private async void ChangeAccountIconButton_Click(object sender, RoutedEventArgs e)

@@ -5,6 +5,35 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.34
+
+**The app can no longer mistake a reading problem for a fresh install.** If Unified Messenger could not
+open the file that lists your accounts — because security software was scanning it, or the folder was
+briefly unavailable — it treated that as "this person has never used the app". It showed the first-run
+welcome screen with a single demo account. Nothing had been lost, but nothing on screen said so, and the
+natural reading of that screen is that a business's entire message history is gone. This is the bug behind
+"why does my install version not have my data?".
+
+The cause was one line: the check for "is this a first run" could not tell an absent file from an
+unreadable one. It now opens the file and reads the actual error, so a missing file, an unparseable file,
+and a file it simply could not reach are three different outcomes with three different responses.
+
+**It also cannot lose your accounts that way.** The seeded starter account was one save away from being
+written over the real list — renaming an account, adding one, or dragging one to reorder would have
+replaced nine accounts with one, permanently and without a prompt. Saving is now refused outright for any
+session that never managed to read the list.
+
+**When it does happen, the app says so plainly.** A notice explains that nothing has been lost, names the
+exact file so you can see for yourself that it is still there, quotes the underlying error, and offers
+"Try again" — which usually works, since these blocks clear within seconds. The sidebar, the dashboard and
+the Settings account list all stop claiming you have no accounts.
+
+**Every launch now records which file it read and how many accounts came out of it,** so the next question
+like this one is answerable from `app.log` in a single line instead of an evening of guesswork.
+
+Also: an unparseable account file is no longer replaced unless the original bytes were successfully
+preserved first, and a file containing a literal `null` is treated as damaged rather than as "no accounts".
+
 ## v4.99.33
 
 **You choose where downloads go.** Saving a file now opens Windows' own save dialog, with the filename

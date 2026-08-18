@@ -171,6 +171,20 @@ public sealed partial class DashboardPage : Page
             return;
         }
 
+        // "Add an account to start receiving unified notifications" is the single worst thing this page can
+        // say to an owner whose accounts simply could not be read — it asserts the opposite of the truth,
+        // in a friendly voice. The greeting is suppressed too: there is nothing welcoming about this state.
+        if (AccountsUnavailableNotice.ShouldShow(_registry.LoadOutcome))
+        {
+            WelcomeTitle.Text = AccountsUnavailableNotice.Title;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(WelcomeTitle, WelcomeTitle.Text);
+            WelcomeSubtitle.Text = AccountsUnavailableNotice.DashboardSubtitle;
+            PersonalButton.Visibility = Visibility.Collapsed;
+            CommandCenterPanel.Render();
+            SectionLinks.Render();
+            return;
+        }
+
         var professionalCount = _registry.Instances.Count(i => i.IsProfessional);
         var personalCount = _registry.Instances.Count - professionalCount;
 

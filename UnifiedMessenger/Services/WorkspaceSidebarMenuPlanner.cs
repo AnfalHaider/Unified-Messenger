@@ -51,14 +51,24 @@ public static class WorkspaceSidebarMenuPlanner
 
     public const string ActiveAccountsEmptyKey = "empty:active-accounts";
 
+    /// <summary>
+    /// The empty-hint row's key when the list was unreadable. Distinct from
+    /// <see cref="ActiveAccountsEmptyKey"/> so <see cref="HasSameStructure"/> sees a real change.
+    /// </summary>
+    public const string ActiveAccountsUnreadableKey = "empty:active-accounts-unreadable";
+
+    /// <summary>The rail's empty hint when the account list could not be read, rather than is empty.</summary>
+    public const string UnreadableHintText = "Accounts couldn't be read.";
+
     public static SidebarMenuPlan BuildPlan(
         IEnumerable<MessengerInstance> instances,
-        SidebarScope scope = SidebarScope.All)
+        SidebarScope scope = SidebarScope.All,
+        RegistryLoadOutcome loadOutcome = RegistryLoadOutcome.Loaded)
     {
         ArgumentNullException.ThrowIfNull(instances);
 
         var enabledInstances = FilterScope(PlatformModuleSettingsHelper.FilterSidebarVisibleInstances(instances), scope).ToList();
-        return BuildWhatsAppFocusPlan(enabledInstances);
+        return BuildWhatsAppFocusPlan(enabledInstances, loadOutcome);
     }
 
     /// <summary>Filter accounts to the chosen scope. Pure; used by the sidebar scope switch.</summary>
@@ -77,7 +87,9 @@ public static class WorkspaceSidebarMenuPlanner
         return enabled.Any(i => i.IsProfessional) && enabled.Any(i => !i.IsProfessional);
     }
 
-    private static SidebarMenuPlan BuildWhatsAppFocusPlan(IReadOnlyList<MessengerInstance> enabledInstances)
+    private static SidebarMenuPlan BuildWhatsAppFocusPlan(
+        IReadOnlyList<MessengerInstance> enabledInstances,
+        RegistryLoadOutcome loadOutcome = RegistryLoadOutcome.Loaded)
     {
         var entries = new List<SidebarMenuEntry>
         {
@@ -89,10 +101,19 @@ public static class WorkspaceSidebarMenuPlanner
 
         if (enabledInstances.Count == 0)
         {
+            // "No accounts yet." is a statement of fact the app is not entitled to make when it could not
+            // read the list. The rail sits beside a dashboard notice saying the opposite, and the owner
+            // reads whichever they see first.
+            //
+            // The two states need DIFFERENT KEYS, not just different text: HasSameStructure compares keys
+            // only, so a hint that changed wording while keeping its key would be computed correctly and
+            // then never drawn. That is exactly what happened on the first live run of this fix — the rail
+            // still read "No accounts yet." beside a dialog saying the opposite.
+            var unreadable = loadOutcome == RegistryLoadOutcome.Failed;
             entries.Add(new SidebarMenuEntry(
-                ActiveAccountsEmptyKey,
+                unreadable ? ActiveAccountsUnreadableKey : ActiveAccountsEmptyKey,
                 SidebarMenuEntryKind.EmptyHint,
-                HintText: "No accounts yet."));
+                HintText: unreadable ? UnreadableHintText : "No accounts yet."));
             return new SidebarMenuPlan { Entries = entries };
         }
 

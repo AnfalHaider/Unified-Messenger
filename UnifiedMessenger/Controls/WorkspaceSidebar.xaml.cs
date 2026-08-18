@@ -112,7 +112,13 @@ public sealed partial class WorkspaceSidebar : Grid
         ScopeSelectorStateChanged?.Invoke(this, EventArgs.Empty);
         var effectiveScope = hasMixed ? _scope : SidebarScope.All;
 
-        var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instanceList, effectiveScope);
+        // IsInitialized rather than a null-conditional: Current throws by design when services are not up
+        // yet, and the sidebar is built during startup — including in the XAML designer, where they never are.
+        var loadOutcome = ApplicationServiceProvider.IsInitialized
+            ? ApplicationServiceProvider.Current.Registry.LoadOutcome
+            : RegistryLoadOutcome.Loaded;
+
+        var plan = WorkspaceSidebarMenuPlanner.BuildPlan(instanceList, effectiveScope, loadOutcome);
 
         if (_currentPlan is not null && WorkspaceSidebarMenuPlanner.HasSameStructure(_currentPlan, plan))
         {
