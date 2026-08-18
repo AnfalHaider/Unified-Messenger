@@ -5,6 +5,40 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.36
+
+**The app now owns how it looks.** Two of the things that made it feel dated turned out not to be design
+choices at all — they were your Windows settings leaking through.
+
+The background tint was your **desktop wallpaper**. The window used a translucent material and the content
+area sat directly on it, so whatever colour your wallpaper happened to be washed behind every number on the
+dashboard. It looked different on every machine, and it made text contrast unpredictable.
+
+The red on the toggles and the AI button was your **Windows accent colour**. That is why the app felt
+permanently agitated: the chrome was painted in the same red the app uses for genuine problems, so real
+alerts had nothing left to say. It also meant "selected" and "broken" looked identical.
+
+Both now come from the app: a neutral ground in three levels, and one accent — the app's own blue — for
+anything you can click or that is currently chosen. The translucent material stays on the title bar, where
+Windows apps actually use it.
+
+**Colour means status again.** Red, amber and green are now reserved for how an account is doing, and
+nothing else. Six KPI numbers no longer each pick their own colour; only "Caught up" is coloured, because
+it is the one figure that is a verdict.
+
+**Account cards say what they mean.** Instead of an error icon, a large red percentage, and three
+differently-coloured pills, each card now shows one plain-language verdict — *"Behind · 13% caught up"* —
+and a labelled strip of the numbers underneath:
+
+    REPLY TIME    ANSWERED TODAY    PAST 15M TARGET
+    15.7h         4                 112
+
+Nothing was removed; the same figures are there, in a reading order. This is also better for screen
+readers than before — the status is now spelled out rather than encoded in an icon shape.
+
+The status stripe down the edge of each card is now a tint rather than a solid bar, so a workspace where
+every account is behind no longer opens as a wall of red.
+
 ## v4.99.35
 
 **One type scale, one icon scale, one spacing grid — everywhere.** Text across the app was drawn at twelve
