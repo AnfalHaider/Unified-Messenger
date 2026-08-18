@@ -12,6 +12,39 @@
                 <ResourceDictionary Source="ms-appx:///Themes/Typography.xaml" />
                 <ResourceDictionary Source="ms-appx:///Themes/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                THE APP OWNS ITS ACCENT — it does not inherit the Windows personalization accent.
+
+                WinUI's accent brushes default to whatever colour the owner chose in Windows Settings, and
+                every accented surface follows. On the machine this was designed against that colour is a
+                brick red, which is why the app read as permanently agitated; on the next machine it could
+                be lime green. Fine for a text editor, wrong here, because this app assigns MEANING to
+                colour — red is critical, amber is behind, green is on track — and an accent that can land
+                on any of those makes "selected" indistinguishable from "broken".
+
+                These must sit HERE, in the application dictionary's own theme dictionaries. Declared inside
+                a merged dictionary they are shadowed by XamlControlsResources and silently ignored (tried;
+                the toggles stayed red). Values are the contrast-verified brand blue per theme.
+            -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#1B75BB" />
+                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#19699F" />
+                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#175E90" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#1B75BB" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#19699F" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#175E90" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#58A6FF" />
+                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#4A93E6" />
+                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#3E80CC" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#58A6FF" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#4A93E6" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#3E80CC" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

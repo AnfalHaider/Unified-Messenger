@@ -2088,8 +2088,11 @@ public sealed partial class CommandCenterPanel : UserControl
             Value = awaitingSplit.Backlog > 0
                 ? awaitingSplit.Backlog.ToString()
                 : awaitingSplit.NeedsReply.ToString(),
-            ValueBrush = awaitingSplit.Backlog > 0 ? caution
-                : awaitingSplit.NeedsReply > 0 ? primary : success,
+            // Neutral ink, like every tile except the health figure. A band where six numbers each pick
+            // their own semantic colour has no hierarchy — the eye has nowhere to land, and a genuinely
+            // critical figure looks exactly like a routine one. The status lives in the hint and in the
+            // account rows' verdict chips, which state it in words rather than in hue alone.
+            ValueBrush = primary,
             Hint = BuildBacklogHint(awaitingSplit, behind),
             ActionKey = awaitingSplit.TotalOpen > 0 ? "awaiting" : string.Empty,
             Trend = KpiTrendStore.Instance.GetAwaitingTrend(),
@@ -2126,7 +2129,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Label = "Response time",
             Value = response.HasData ? FormatMinutes(response.MedianMinutes) : "—",
-            ValueBrush = response.HasData ? ResponseBrush(response.MedianMinutes, slaThreshold) : secondary,
+            ValueBrush = response.HasData ? primary : secondary,
             Delta = responseDeltaText,
             DeltaBrush = responseDeltaBrush,
             Hint = response.HasData ? $"median · {response.SampleCount} replies" : "builds as you reply",
@@ -2137,7 +2140,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Label = "SLA met",
             Value = response.HasData ? $"{response.SlaCompliancePercent}%" : "—",
-            ValueBrush = response.HasData ? StatusBrushForPercent(response.SlaCompliancePercent) : secondary,
+            ValueBrush = response.HasData ? primary : secondary,
             Delta = slaDeltaText,
             DeltaBrush = slaDeltaBrush,
             Hint = response.HasData ? $"replied within {slaThreshold} min" : $"target {slaThreshold} min",
@@ -2173,7 +2176,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Label = "Busiest window",
             Value = busyHour,
-            ValueBrush = busyHour == "—" ? secondary : caution,
+            ValueBrush = busyHour == "—" ? secondary : primary,
             Hint = busyDay == "—" ? "peak hour" : $"peak hour · {busyDay}",
             ActionKey = busyHour == "—" ? string.Empty : "busiest",
             Tooltip = "Your peak inbound hour and weekday — plan coverage around it. Click to open the activity graph."
@@ -3012,37 +3015,34 @@ public sealed partial class CommandCenterPanel : UserControl
         }
         else
         {
-            var pctCell = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+            var pctCell = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
 
-            // WCAG 1.4.1: status must not be conveyed by colour alone. A shape-distinct glyph
-            // (check / warning / error) encodes health independently of the % colour.
-            var (statusGlyph, statusLabel) = StatusGlyph(entity.OnTimePercent);
-            var glyphIcon = new FontIcon
+            // One verdict chip, in words, instead of a glyph + a 24px coloured percentage + the word
+            // "caught up". The old arrangement put an error badge and a big red number on every account
+            // that was behind — three of three, here — so the card shouted before it informed, and the
+            // percentage competed with the hero figure a few pixels above it.
+            //
+            // WCAG 1.4.1 is satisfied more strongly than before, not less: the status is now literally
+            // spelled ("Behind", "Needs attention", "On track") rather than encoded in a glyph shape.
+            var (_, statusLabel) = StatusGlyph(entity.OnTimePercent);
+            var verdictChip = new Border
             {
-                Glyph = statusGlyph,
-                FontSize = UmScale.Icon.Md,
-                Foreground = statusBrush,
-                VerticalAlignment = VerticalAlignment.Center
+                Background = StatusWashBrush(entity.OnTimePercent),
+                CornerRadius = new CornerRadius(999),
+                Padding = new Thickness(10, 3, 10, 3),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = $"{statusLabel} · {entity.OnTimePercent}% caught up",
+                    FontSize = UmScale.Text.Body,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = statusBrush
+                }
             };
-            ToolTipService.SetToolTip(glyphIcon, statusLabel);
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(glyphIcon, statusLabel);
-            pctCell.Children.Add(glyphIcon);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+                verdictChip, $"{entity.DisplayName}: {statusLabel}, {entity.OnTimePercent}% caught up.");
+            pctCell.Children.Add(verdictChip);
 
-            pctCell.Children.Add(new TextBlock
-            {
-                Text = $"{entity.OnTimePercent}%",
-                FontSize = UmScale.Text.Metric,
-                FontWeight = FontWeights.Bold,
-                Foreground = statusBrush
-            });
-            pctCell.Children.Add(new TextBlock
-            {
-                Text = "caught up",
-                FontSize = UmScale.Text.Body,
-                Foreground = secondary,
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(0, 0, 0, 4)
-            });
             ToolTipService.SetToolTip(pctCell,
                 $"{entity.OnTimePercent}% of this account's {entity.MeasuredCount} active chats have no customer message waiting. " +
                 "This measures unread cleared — reply speed is the \"reply ~\" chip below.");
@@ -3299,6 +3299,17 @@ public sealed partial class CommandCenterPanel : UserControl
     /// A shape-distinct status glyph (Segoe Fluent Icons) + accessible label for an on-time %, so health
     /// is communicated by shape, not colour alone (WCAG 1.4.1). Thresholds mirror the status-colour bands.
     /// </summary>
+    /// <summary>
+    /// The pale fill behind a status chip. Pairs with the semantic ink of the same band, which already
+    /// clears 4.5:1 on these washes (they sit within a few percent of the card surface).
+    /// </summary>
+    private Brush StatusWashBrush(int onTimePercent) => onTimePercent switch
+    {
+        >= 90 => Brush("UmStatusSuccessWashBrush"),
+        >= 70 => Brush("UmStatusWarningWashBrush"),
+        _ => Brush("UmStatusDangerWashBrush"),
+    };
+
     private static (string Glyph, string Label) StatusGlyph(int onTimePercent) => onTimePercent switch
     {
         >= 90 => ("", "On track"),        // CheckMark

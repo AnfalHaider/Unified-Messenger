@@ -89,8 +89,8 @@
                 Grid.Column="0"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
-                Background="{ThemeResource LayerFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                Background="{ThemeResource UmSurfaceBrush}"
+                BorderBrush="{ThemeResource UmHairlineBrush}"
                 BorderThickness="0,0,1,0"
                 PointerEntered="SidebarHost_PointerEntered"
                 PointerExited="SidebarHost_PointerExited">
@@ -214,8 +214,14 @@
                         Text="Loading instance..." />
                 </StackPanel>
 
+                <!-- Opaque, on purpose. This Frame used to have no Background at all, so MicaBackdrop
+                     showed through it and every dashboard number sat on a tint sampled from whatever the
+                     owner's desktop wallpaper happens to be. Mica belongs on chrome, not under data:
+                     it made contrast unpredictable per machine and put a saturated colour behind the
+                     whole command center. -->
                 <Frame
                     x:Name="ContentFrame"
+                    Background="{ThemeResource UmCanvasBrush}"
                     Visibility="Collapsed" />
                 </Grid>
             </Grid>

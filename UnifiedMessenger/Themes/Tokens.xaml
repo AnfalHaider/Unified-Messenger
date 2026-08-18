@@ -43,6 +43,44 @@
             <SolidColorBrush x:Key="UmStatusInfoBrush" Color="#1D4ED8" />
             <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="#5B6773" />
             <SolidColorBrush x:Key="UmStatusMutedBrush" Color="#6B7684" />
+
+            <!--
+                SURFACE SYSTEM, light theme.
+
+                Why these exist: the window uses MicaBackdrop, and the content area was fully transparent
+                over it. Mica samples the DESKTOP WALLPAPER, so the "warm pink canvas" the redesign set out
+                to fix was never a colour anyone chose — it was this machine's wallpaper showing through,
+                and it is a different colour on every machine. That is fine for chrome and wrong for a data
+                surface: it makes contrast unpredictable and puts a saturated tint behind every number.
+
+                Mica stays behind the title bar, where it belongs and where Windows apps use it. The content
+                area and the rail now sit on explicit, opaque surfaces. Three levels, so cards read as cards:
+                canvas (the ground) -> surface (cards) -> sunken (recessed tracks, insets).
+
+                Neutrals carry a faint cool bias toward the brand blue rather than being pure grey.
+            -->
+            <Color x:Key="UmCanvasColor">#F6F7F9</Color>
+            <Color x:Key="UmSurfaceColor">#FFFFFF</Color>
+            <Color x:Key="UmSurfaceSunkenColor">#F1F3F6</Color>
+            <Color x:Key="UmHairlineColor">#E4E7EC</Color>
+            <Color x:Key="UmHairlineStrongColor">#D3D8E0</Color>
+            <!-- Tint of the brand blue, for selected rows and the AI strip. -->
+            <Color x:Key="UmAccentWashColor">#EAF2FA</Color>
+            <SolidColorBrush x:Key="UmCanvasBrush" Color="#F6F7F9" />
+            <SolidColorBrush x:Key="UmSurfaceBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="UmSurfaceSunkenBrush" Color="#F1F3F6" />
+            <SolidColorBrush x:Key="UmHairlineBrush" Color="#E4E7EC" />
+            <SolidColorBrush x:Key="UmHairlineStrongBrush" Color="#D3D8E0" />
+            <SolidColorBrush x:Key="UmAccentWashBrush" Color="#EAF2FA" />
+
+            <!-- Status washes: chip and pill fills. Deliberately pale so the chip's TEXT carries the
+                 contrast (the semantic colours above already clear 4.5:1 on white, and these washes are
+                 lighter than white-adjacent, so text on them stays above the bar). -->
+            <SolidColorBrush x:Key="UmStatusSuccessWashBrush" Color="#E9F6ED" />
+            <SolidColorBrush x:Key="UmStatusWarningWashBrush" Color="#FDF3E7" />
+            <SolidColorBrush x:Key="UmStatusDangerWashBrush" Color="#FBEBEB" />
+
+            <!-- The accent pinning lives in App.xaml's own theme dictionaries; see the note there. -->
         </ResourceDictionary>
         <ResourceDictionary x:Key="Default">
             <Color x:Key="UmBrandSlateColor">#DCE3EC</Color>
@@ -80,6 +118,27 @@
             <SolidColorBrush x:Key="UmStatusInfoBrush" Color="#60A5FA" />
             <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="#94A3B8" />
             <SolidColorBrush x:Key="UmStatusMutedBrush" Color="#8A97A6" />
+
+            <!-- SURFACE SYSTEM, dark theme. Same three levels; see the light block for why they exist.
+                 Not a naive inversion — the steps are closer together than on light, because on a dark
+                 ground a large luminance jump between canvas and card reads as a glow rather than depth. -->
+            <Color x:Key="UmCanvasColor">#0E0F12</Color>
+            <Color x:Key="UmSurfaceColor">#17191D</Color>
+            <Color x:Key="UmSurfaceSunkenColor">#121418</Color>
+            <Color x:Key="UmHairlineColor">#262A31</Color>
+            <Color x:Key="UmHairlineStrongColor">#343943</Color>
+            <Color x:Key="UmAccentWashColor">#132434</Color>
+            <SolidColorBrush x:Key="UmCanvasBrush" Color="#0E0F12" />
+            <SolidColorBrush x:Key="UmSurfaceBrush" Color="#17191D" />
+            <SolidColorBrush x:Key="UmSurfaceSunkenBrush" Color="#121418" />
+            <SolidColorBrush x:Key="UmHairlineBrush" Color="#262A31" />
+            <SolidColorBrush x:Key="UmHairlineStrongBrush" Color="#343943" />
+            <SolidColorBrush x:Key="UmAccentWashBrush" Color="#132434" />
+
+            <!-- Status washes, dark. Dim rather than pale, so the bright semantic text still clears AA. -->
+            <SolidColorBrush x:Key="UmStatusSuccessWashBrush" Color="#12231A" />
+            <SolidColorBrush x:Key="UmStatusWarningWashBrush" Color="#251C0E" />
+            <SolidColorBrush x:Key="UmStatusDangerWashBrush" Color="#2A1516" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

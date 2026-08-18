@@ -37,6 +37,109 @@
         <Setter Property="UseSystemFocusVisuals" Value="True" />
     </Style>
 
+    <!--
+        Segmented control: a recessed track with a RAISED selected segment.
+
+        It previously used a stock ToggleButton, whose checked state fills with the Windows accent colour.
+        On this owner's machine that is a brick red, so "Overview" and "By account" rendered as filled red
+        badges — indistinguishable from a warning, and the loudest thing on a dashboard whose actual alerts
+        are also red. Overriding the accent brushes did not reach it: WinUI resolves the control's own
+        `ToggleButtonBackgroundChecked` from inside XamlControlsResources, and app-level redeclarations are
+        shadowed (tried twice — the toggles stayed red both times).
+
+        So the state is drawn here instead, from the surface tokens. Selection now reads as elevation —
+        the selected segment sits on the card surface while the track behind it is sunken — which is what
+        a segmented control is supposed to look like, and it cannot be repainted by a system setting.
+    -->
+    <Style x:Key="UmSegmentedToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="12,4" />
+        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusSmValue}" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeBody}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border
+                        x:Name="Root"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="Transparent"
+                        BorderThickness="1"
+                        CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}">
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmHairlineBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmHairlineStrongBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="Label.Opacity" Value="0.4" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="Checked">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmSurfaceBrush}" />
+                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource UmHairlineBrush}" />
+                                        <Setter Target="Label.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="CheckedPointerOver">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmSurfaceBrush}" />
+                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource UmHairlineStrongBrush}" />
+                                        <Setter Target="Label.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="CheckedPressed">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmSurfaceSunkenBrush}" />
+                                        <Setter Target="Root.BorderBrush" Value="{ThemeResource UmHairlineStrongBrush}" />
+                                        <Setter Target="Label.Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                                <VisualState x:Name="CheckedDisabled">
+                                    <VisualState.Setters>
+                                        <Setter Target="Root.Background" Value="{ThemeResource UmSurfaceBrush}" />
+                                        <Setter Target="Label.Opacity" Value="0.4" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                        <ContentPresenter
+                            x:Name="Label"
+                            Content="{TemplateBinding Content}"
+                            Foreground="{TemplateBinding Foreground}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The track the segments sit in: sunken, so the selected segment reads as raised out of it. -->
+    <Style x:Key="UmSegmentedTrackStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource UmSurfaceSunkenBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource UmHairlineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
+        <Setter Property="Padding" Value="2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
     <Style x:Key="AccentButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{ThemeResource UmBrandTealBrush}" />
         <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />

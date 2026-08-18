@@ -215,28 +215,21 @@
                 offering it.
             -->
             <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <Border
-                    CornerRadius="6"
-                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    Padding="{StaticResource UmPaddingXs}"
-                    VerticalAlignment="Center">
+                <Border Style="{StaticResource UmSegmentedTrackStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="2">
                         <ToggleButton
                             x:Name="OverviewViewButton"
+                            Style="{StaticResource UmSegmentedToggleStyle}"
                             Content="Overview"
                             IsChecked="True"
                             Click="OnOverviewViewClick"
-                            Padding="12,4"
-                            CornerRadius="6"
                             ToolTipService.ToolTip="Per-account health cards" />
                         <ToggleButton
                             x:Name="NeedsReplyButton"
+                            Style="{StaticResource UmSegmentedToggleStyle}"
                             Content="Needs reply"
                             IsChecked="False"
                             Click="OnNeedsReplyClick"
-                            Padding="12,4"
-                            CornerRadius="6"
                             ToolTipService.ToolTip="Every customer awaiting a reply across all accounts, most urgent first" />
                     </StackPanel>
                 </Border>
@@ -250,27 +243,20 @@
                         FontSize="{StaticResource UmFontSizeBody}"
                         VerticalAlignment="Center"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                    <Border
-                        CornerRadius="6"
-                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1"
-                        Padding="{StaticResource UmPaddingXs}"
-                        VerticalAlignment="Center">
+                    <Border Style="{StaticResource UmSegmentedTrackStyle}">
                         <StackPanel Orientation="Horizontal" Spacing="2">
                             <ToggleButton
                                 x:Name="GroupByAccountButton"
+                                Style="{StaticResource UmSegmentedToggleStyle}"
                                 Content="By account"
                                 IsChecked="True"
-                                Click="OnGroupByAccountClick"
-                                Padding="12,4"
-                                CornerRadius="6" />
+                                Click="OnGroupByAccountClick" />
                             <ToggleButton
                                 x:Name="GroupByLocationButton"
+                                Style="{StaticResource UmSegmentedToggleStyle}"
                                 Content="By location"
                                 IsChecked="False"
-                                Click="OnGroupByLocationClick"
-                                Padding="12,4"
-                                CornerRadius="6" />
+                                Click="OnGroupByLocationClick" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
