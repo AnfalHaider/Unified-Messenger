@@ -1,6 +1,107 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-07-07 · **Baseline:** v4.56.0 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-18 · **Baseline:** v4.99.34 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+
+> **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
+> completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
+> since shipped. §0 is the current backlog; `CHANGELOG.md` is the accurate record of what shipped.
+
+---
+
+# §0 · Current backlog (v4.99.34)
+
+Grouped by what actually gates each item. Nothing here is speculative — every measurement below was taken
+from the tree at this baseline, and every finding ID is traceable to `docs/audit/`.
+
+## 0.1 · UI/UX consistency — the design system exists but is not adopted
+
+This is the largest single body of remaining work, and it is **not blocked on anything**. The v4.99.26–.33
+passes fixed what was *wrong* (contrast, colour-only status, dead-end empty states, mouse-only KPI tiles).
+What remains is what is *inconsistent* — measured, recorded, and deliberately not changed mid-audit because
+a global restyle is not a bug fix and needs its own verification pass.
+
+| # | Item | Measured at this baseline | Status |
+|---|---|---|---|
+| **U1** | **Spacing scale is defined and ignored** | `Themes/` defines **18** spacing tokens (`UmSpacingXs…Xl`, `UmPaddingSm/Md/Lg`, + 10 purpose-named). XAML uses **33 distinct `Padding` values**, of which only **4** are tokens — **29 are literals**. `Margin` adds **19** more distinct literals. | ☐ open |
+| **U2** | **Type scale has 16 sizes** | XAML: `10 11 12 13 14 15 16 20 24 28 40`. The imperative C# card builders add `9 18 26 30 42`. A scale a person can hold in their head is 6–7 steps; this is 16, and the C# builders are the drift source because they bypass `Typography.xaml` entirely. | ☐ open |
+| **U3** | **Corner radius** | **Fixed and guarded.** Down from 6 ad-hoc values to the 6/8/12 scale, pinned by `DesignScaleTests.EveryCornerRadiusComesFromTheScale`. | ✅ done |
+| **U4** | **No hardcoded colours in XAML** | Pinned by `DesignScaleTests.NoColourIsHardcodedInXaml`. | ✅ done |
+| **U5** | **Icon-only controls are named** | Pinned by `DesignScaleTests.EveryIconOnlyControlIsNamedForAScreenReader`. | ✅ done |
+| **U6** | **`SystemFillColor*` brushes were never contrast-measured** | They are used **more** than the app's own tokens (36/33/29 references vs 12/12/11), so the majority of status colour on screen is unaudited. | ☐ open |
+| **U7** | **Imperative card builders have no style contract** | `CommandCenterPanel`, `WorkspaceSidebar` and the dialogs build `Border`/`StackPanel` trees in C# with literal sizes and padding. This is *why* U1 and U2 keep re-drifting: the XAML tests cannot see these files. | ☐ open |
+| **U8** | **Dedicated empty-state sweep** | Partly done — every empty state *touched* during the audit was fixed, and v4.99.34 corrected the three account-list surfaces. The remaining surfaces (Analytics, Reviews, Reports, Notification Hub) have never been reviewed as a set. | ◑ partial |
+| **U9** | **Focus order outside the dashboard shell** | Settings, Analytics, Reviews, Reports and every dialog are untested. Shift+Tab and modal focus containment specifically. | ☐ open |
+| **U10** | **"Instance" leaks into accessible names** (F-ORCH-06) | Settings and the account context menu speak *"instance"* to a screen reader where the visible label says *"account"*. | ☐ open |
+
+**Suggested sequencing for U1/U2/U7** — they are one job, not three. Adopt the existing tokens in XAML first
+(mechanical, test-guardable), then give the C# builders a small shared style helper so they draw from the
+same scale, then tighten the type scale to ~7 steps and add a `DesignScaleTests` guard that reads **both**
+`.xaml` and `.cs`. Doing the type scale before the builder helper would just re-drift.
+
+## 0.2 · Open audit findings
+
+| ID | Sev | What | Why still open |
+|---|---|---|---|
+| **F-SNAP-02** | S2 | A *degraded* read (store bridge failed, IndexedDB succeeded) is visible only in `app.log` | Needs a surfaced health state, not just a log line |
+| **F-OFFLINE-07** | S3 | An **aborted** navigation puts an account into `Error` with no retry scheduled | Deliberately left: it changes *when* accounts enter the error state |
+| **F-OFFLINE-08** | S3 | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection returns | Small — needs the same connection-status join `ScanBlockedMessage` already got |
+| **F-ORCH-06** | S3 | "Instance" as an accessible name (see U10) | — |
+| **F-METRICS-11** | S4 | End-of-day projection skew | **WONTFIX by decision** — bound measured at under 2% |
+
+## 0.3 · Untested and material
+
+Not defects — gaps in what has actually been *proven*. Listed because the brief is "sellable tomorrow",
+and these are the distance between that claim and evidence.
+
+- **A real screen reader has never been run.** Both audit sessions read the UIA tree those tools consume,
+  in focus order — much closer than a static dump, but nobody has listened to it.
+- **Soak under account churn.** The 3.6-hour soak found no leak, but it was **idle**. A leak that only
+  appears when accounts cycle, re-sync or navigate would not have shown.
+- **The ~3.1 GB WebView2 footprint** — stable, but eight times the app's own, and unaddressed.
+- **A network drop while pages are already loaded** — the commoner real case. No `NavigationCompleted`
+  fires, so the retry does not cover it, and the app may keep reporting "Connected" while the web client
+  is offline.
+- **The updater's own network path** against a real outage (the dead-proxy technique reaches only WebView2).
+- **Five of twelve dialogs have never been opened** — SetLocation, EditInstanceMetadata, PinToTaskbar,
+  AutoUpdate, ConfirmPermanentDelete (the last deliberately, being step two of permanent deletion on a
+  machine holding real accounts).
+- **The all-caught-up hero has never been rendered**, only reasoned about. It needs zero awaiting across
+  every account, which cannot be staged without overwriting live data.
+- **ARM64 is published but never installed.** Every release since v4.99.28 ships an ARM64 installer with a
+  verified checksum; no one has run it on ARM hardware.
+- **The uninstall data-erasure option** (v4.99.14) is unverified at runtime — confirming it would have
+  destroyed the owner's data.
+
+## 0.4 · Gated on an external dependency
+
+Unchanged in substance; still the only items that cannot be built on this machine today.
+
+1. **#24 Telegram / Messenger / Instagram DOM scrapers** — needs a live logged-in account per channel.
+   Highest user-facing value once unblocked. Meta is read-only and fights automation.
+2. **P3-D multi-channel L1 view** — the WhatsApp per-account drill-down ships (`AccountDetailDialog`,
+   v4.53.0); the channel-tabbed version depends on #24.
+3. **P3-B Tier-1 ONNX** — needs a chosen, downloaded model plus runtime packaging. Cannot be validated blind.
+4. **Icon import-from-account robustness · brand-logo import for other channels** — live per-platform DOM tuning.
+5. **Code-signing the installer** — needs a certificate. Closes F-OFFLINE-01 properly.
+
+## 0.5 · Decisions only the owner can make
+
+Recorded rather than guessed, because each changes what the numbers *mean*.
+
+- **The SLA threshold is 15 minutes; the measured median reply time is ~9.3 hours.** Every account therefore
+  reads as failing SLA, which makes the metric decorative. Either the target reflects the business (and the
+  dashboard should say how far off it is), or it should move. This is a business decision, not a bug.
+- **Whether the backlog cutoff stays at 7 days.** The live/backlog split at 7 days is what turned 466
+  "waiting" into a workable 58-item queue; the boundary itself was chosen, not derived.
+- **Whether `main`'s "Audit Files" commit (`954145e`, ~1,400 graphify cache files) should be dropped.**
+  Repository housekeeping with a rewrite cost.
+
+---
+
+# Historical record (written at v4.56.0)
+
+Everything below this line predates the v4.99.x work-stream. Verify against `CHANGELOG.md` before relying
+on any status marker in it.
 
 Everything in the v4.22–v4.24 UI/UX modernization plan and the reported bugs (delete crash, reorder
 hang, opened≠replied, Google-Business sidebar, embed channels, Work-Queue→Needs-reply merge, new

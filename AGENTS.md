@@ -316,12 +316,22 @@ Do **not** add `Co-Authored-By` / tool-attribution trailers to commits in this r
 
 ## Phase roadmap (current as of v4.99.28)
 
+> **The current backlog is [`docs/remaining-work.md` §0](docs/remaining-work.md)** — rewritten at v4.99.34,
+> grouped by what gates each item (UI/UX consistency · open findings · untested-and-material · gated on an
+> external dependency · owner decisions). Start there.
+>
 > ⚠️ The per-phase table and the "Shipped" paragraph below were last revised at **v4.53.0** and were not
 > maintained through v4.99.x. Treat them as a historical snapshot, not as current status — several items
 > they list as pending have shipped (business-hours-aware FRT is the clearest example: it is listed below
 > as an unshipped "optional follow-up", but `Services/Oversight/BusinessHoursCalculator.cs` ships and the
 > README advertises it). **Verify against the code before relying on any line in this section.**
 > `CHANGELOG.md` is the accurate record of what shipped.
+>
+> **The largest open item is UI/UX consistency, and it is not blocked on anything.** `Themes/` defines 18
+> spacing tokens; XAML uses 33 distinct `Padding` values of which only 4 are tokens. The type scale has 16
+> sizes across XAML and the imperative C# card builders. Corner radius, hardcoded colours, and icon-only
+> control names are already fixed and guarded by `DesignScaleTests` — which reads **`.xaml` only**, and is
+> why the C# builders keep drifting. See §0.1.
 
 See `docs/remaining-work.md` for the detailed backlog. Summary:
 
