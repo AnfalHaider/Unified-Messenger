@@ -13,7 +13,7 @@
         Spacing="12">
         <FontIcon
             HorizontalAlignment="Center"
-            FontSize="40"
+            FontSize="{StaticResource UmIconSizeXl}"
             Foreground="{ThemeResource UmBrandTealBrush}"
             Glyph="{x:Bind IconGlyph, Mode=OneWay}"
             Opacity="0.85" />

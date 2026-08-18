@@ -24,7 +24,7 @@
 
             <!-- Hero: app logo, name + version, value badges, and the update action. -->
             <Border
-                Padding="28,32,28,28"
+                Padding="{StaticResource UmPaddingXxl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
@@ -41,34 +41,34 @@
                     <TextBlock
                         x:Name="VersionText"
                         HorizontalAlignment="Center"
-                        FontSize="20"
+                        FontSize="{StaticResource UmFontSizeTitle}"
                         FontWeight="SemiBold" />
 
                     <TextBlock
                         HorizontalAlignment="Center"
                         MaxWidth="440"
-                        FontSize="15"
+                        FontSize="{StaticResource UmFontSizeBodyStrong}"
                         Opacity="0.8"
                         Text="WhatsApp operations in one native workspace."
                         TextAlignment="Center"
                         TextWrapping="WrapWholeWords" />
 
                     <StackPanel
-                        Margin="0,2,0,0"
+                        Margin="0,4,0,0"
                         HorizontalAlignment="Center"
                         Orientation="Horizontal"
                         Spacing="8">
-                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="11,4">
-                            <TextBlock FontSize="12" Opacity="0.9" Text="100% local" />
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="12,4">
+                            <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.9" Text="100% local" />
                         </Border>
-                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="11,4">
-                            <TextBlock FontSize="12" Opacity="0.9" Text="No cloud" />
+                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="12,4">
+                            <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.9" Text="No cloud" />
                         </Border>
                     </StackPanel>
 
                     <Button
                         x:Name="CheckForUpdatesButton"
-                        Margin="0,6,0,0"
+                        Margin="0,8,0,0"
                         HorizontalAlignment="Center"
                         Click="CheckForUpdatesButton_Click"
                         Content="Check for updates"
@@ -78,13 +78,13 @@
 
             <!-- What it does -->
             <Border
-                Padding="22"
+                Padding="{StaticResource UmPaddingXl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel Spacing="10">
-                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="What it does" />
+                    <TextBlock FontSize="{StaticResource UmFontSizeSubtitle}" FontWeight="SemiBold" Text="What it does" />
                     <TextBlock
                         Opacity="0.85"
                         Text="Unified Messenger runs multiple isolated WhatsApp and WhatsApp Business Web sessions in a single WinUI desktop shell, with a unified notification hub and an operations dashboard. The command center tracks response metrics, branch workload, and message volume over selectable date ranges — all on this machine, with no cloud dependency."
@@ -94,18 +94,18 @@
 
             <!-- Key features -->
             <Border
-                Padding="22"
+                Padding="{StaticResource UmPaddingXl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel Spacing="14">
-                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Key features" />
+                    <TextBlock FontSize="{StaticResource UmFontSizeSubtitle}" FontWeight="SemiBold" Text="Key features" />
 
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <FontIcon
                             Glyph="&#xE73E;"
-                            FontSize="16"
+                            FontSize="{StaticResource UmIconSizeMd}"
                             Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock
@@ -117,7 +117,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <FontIcon
                             Glyph="&#xE73E;"
-                            FontSize="16"
+                            FontSize="{StaticResource UmIconSizeMd}"
                             Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock
@@ -129,7 +129,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <FontIcon
                             Glyph="&#xE73E;"
-                            FontSize="16"
+                            FontSize="{StaticResource UmIconSizeMd}"
                             Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock

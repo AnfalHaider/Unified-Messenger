@@ -27,7 +27,7 @@
             ItemClick="SectionNavList_ItemClick">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="vm:SettingsSectionNavItemViewModel">
-                    <TextBlock Padding="8,6" Text="{x:Bind Label}" />
+                    <TextBlock Padding="{StaticResource UmPaddingSm}" Text="{x:Bind Label}" />
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
@@ -40,7 +40,7 @@
             <StackPanel Spacing="20" MaxWidth="720">
             <TextBlock Style="{StaticResource TitleTextBlockStyle}" AutomationProperties.Name="Settings" Text="Settings" />
             <TextBlock
-                FontSize="12"
+                FontSize="{StaticResource UmFontSizeBody}"
                 Opacity="0.65"
                 Text="Notifications, appearance, accounts, AI, and data — pick a section on the left."
                 TextWrapping="WrapWholeWords" />
@@ -59,7 +59,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Background toast notifications" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Show Windows toasts when the app is minimized or in the background."
                                         TextWrapping="WrapWholeWords" />
@@ -76,7 +76,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Taskbar badge" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Show unread count on the taskbar icon."
                                         TextWrapping="WrapWholeWords" />
@@ -103,7 +103,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Include muted chats in badge counts" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="When off, muted WhatsApp chats are excluded from sidebar badges."
                                         TextWrapping="WrapWholeWords" />
@@ -120,7 +120,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Group toasts by instance" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Stack Windows toasts per account instead of per message."
                                         TextWrapping="WrapWholeWords" />
@@ -137,7 +137,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Platform branding in toasts" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Use instance display name as the toast header line."
                                         TextWrapping="WrapWholeWords" />
@@ -154,7 +154,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Quiet hours" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Mute awaiting-reply alerts overnight. They resume when quiet hours end."
                                         TextWrapping="WrapWholeWords" />
@@ -187,7 +187,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Weekly report reminder" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Show a once-a-week nudge in the command center to review your business report. Fully local — no scheduled task."
                                         TextWrapping="WrapWholeWords" />
@@ -256,7 +256,7 @@
                             SpinButtonPlacementMode="Inline"
                             ValueChanged="SlaThresholdBox_ValueChanged" />
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="Replies slower than this count as SLA breaches on the Operations Command Center."
                             TextWrapping="WrapWholeWords" />
@@ -284,7 +284,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Compact Operations card density" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Use tighter thread cards in the Operations Command Center work queue."
                                         TextWrapping="WrapWholeWords" />
@@ -301,7 +301,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Enable startup backfill" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="After connect, reconcile unread WhatsApp threads into triage and analytics."
                                         TextWrapping="WrapWholeWords" />
@@ -339,7 +339,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Deep backfill (experimental)" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Opt-in bounded sidebar walk (max 3 chats). Full automation deferred."
                                         TextWrapping="WrapWholeWords" />
@@ -353,7 +353,7 @@
                             IsExpanded="True">
                             <StackPanel Spacing="12">
                                 <TextBlock
-                                    FontSize="12"
+                                    FontSize="{StaticResource UmFontSizeBody}"
                                     Opacity="0.65"
                                     Text="Opt-in features and memory management options. Changes take effect immediately."
                                     TextWrapping="WrapWholeWords" />
@@ -367,7 +367,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Lazy WebView loading" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Load non-visible instances in the background after startup instead of all at once."
                                         TextWrapping="WrapWholeWords" />
@@ -384,7 +384,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Sleep unload inactive instances" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Unload the WebView of instances not used for a while to reduce memory usage."
                                         TextWrapping="WrapWholeWords" />
@@ -401,7 +401,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Edit instance metadata" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Adds an 'Edit instance metadata' option to the instance context menu for changing display name, URL, platform, notes, and branch tag."
                                         TextWrapping="WrapWholeWords" />
@@ -418,7 +418,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Import and export instance registry" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Shows import and export controls in Data &amp; Privacy to back up or migrate your instance list between devices."
                                         TextWrapping="WrapWholeWords" />
@@ -435,7 +435,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Instance notes and branch tags" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Allows attaching free-text notes and a branch tag to each instance for team or multi-workspace setups."
                                         TextWrapping="WrapWholeWords" />
@@ -463,7 +463,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Enable local AI" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Message text is sent to your local Ollama instance only. Nothing leaves your PC."
                                         TextWrapping="WrapWholeWords" />
@@ -492,7 +492,7 @@
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Auto-bootstrap Ollama runtime" />
                                         <TextBlock
-                                            FontSize="12"
+                                            FontSize="{StaticResource UmFontSizeBody}"
                                             Opacity="0.65"
                                             Text="Start embedded Ollama or download the official CLI when the engine is missing."
                                             TextWrapping="WrapWholeWords" />
@@ -523,14 +523,14 @@
 
                             <TextBlock
                                 x:Name="AiRuntimeDownloadStatusText"
-                                FontSize="12"
+                                FontSize="{StaticResource UmFontSizeBody}"
                                 Opacity="0.75"
                                 TextWrapping="WrapWholeWords"
                                 Visibility="Collapsed" />
 
                             <TextBlock
                                 x:Name="AiConnectionStatusText"
-                                FontSize="12"
+                                FontSize="{StaticResource UmFontSizeBody}"
                                 Opacity="0.75"
                                 TextWrapping="WrapWholeWords" />
 
@@ -541,7 +541,7 @@
 
                             <TextBlock
                                 x:Name="AiModelPullStatusText"
-                                FontSize="12"
+                                FontSize="{StaticResource UmFontSizeBody}"
                                 Opacity="0.75"
                                 TextWrapping="WrapWholeWords"
                                 Visibility="Collapsed" />
@@ -557,13 +557,13 @@
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="Configure locations, SLA thresholds, and operating hours for professional inboxes."
                             TextWrapping="WrapWholeWords" />
                         <TextBlock
                             x:Name="WorkspaceProfilesSummaryText"
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.8"
                             TextWrapping="WrapWholeWords" />
                         <Button
@@ -594,7 +594,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Fast WhatsApp reader" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Reads WhatsApp's live in-memory copy of your chats instead of its saved copy. Gives every waiting customer a message preview and notices replies you sent from your phone much sooner. Leave this on unless you're diagnosing a problem — it falls back on its own if WhatsApp changes."
                                         TextWrapping="WrapWholeWords" />
@@ -603,7 +603,7 @@
                         </ToggleSwitch>
                         <TextBlock
                             x:Name="StoreBridgeHealthText"
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.8"
                             TextWrapping="WrapWholeWords" />
                     </StackPanel>
@@ -614,7 +614,7 @@
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="Destructive actions clear local operational telemetry stored on this device."
                             TextWrapping="WrapWholeWords" />
@@ -625,7 +625,7 @@
                             Content="Clear operational data" />
 
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Margin="0,4,0,0"
                             Text="Back up your settings, accounts, analytics and custom icons to a single .zip on this device (sign-in sessions and AI models are not included). Restore replaces the current data — restart required."
@@ -667,18 +667,18 @@
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="8">
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="Shortcuts work when the main window is focused and no modal overlay is open."
                             TextWrapping="WrapWholeWords" />
                         <TextBlock FontWeight="SemiBold" Text="Shell navigation" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+K — Open command palette" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+D — Go to dashboard" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+, — Open settings" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+Shift+N — Toggle notification panel" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Ctrl+1–9 — Switch to instance by sidebar order" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Alt+Up / Alt+Down — Reorder cards in a kanban column" />
-                        <TextBlock FontSize="12" Opacity="0.75" Text="Escape — Cancel keyboard panel move" />
+                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+K — Open command palette" />
+                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+D — Go to dashboard" />
+                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+, — Open settings" />
+                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+Shift+N — Toggle notification panel" />
+                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+1–9 — Switch to instance by sidebar order" />
+                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Alt+Up / Alt+Down — Reorder cards in a kanban column" />
+                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Escape — Cancel keyboard panel move" />
                     </StackPanel>
                     </shared:SurfaceCard.CardBody>
                 </shared:SurfaceCard>
@@ -698,7 +698,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Run in background when closing" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Hide to the system tray instead of quitting. Use tray Quit to exit fully."
                                         TextWrapping="WrapWholeWords" />
@@ -715,7 +715,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Launch at startup" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Start Unified Messenger when you sign in to Windows."
                                         TextWrapping="WrapWholeWords" />
@@ -732,7 +732,7 @@
                                 <StackPanel Spacing="2">
                                     <TextBlock Text="Suggest pin to taskbar" />
                                     <TextBlock
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
                                         Text="Show a one-time prompt to pin Unified Messenger to the taskbar."
                                         TextWrapping="WrapWholeWords" />
@@ -772,7 +772,7 @@
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="Change the icon shown in the sidebar and dashboard for each account — pick a brand logo or general icon, import the account's profile photo, or upload an image."
                             TextWrapping="WrapWholeWords" />
@@ -789,7 +789,7 @@
                                         </Grid.ColumnDefinitions>
                                         <FontIcon
                                             VerticalAlignment="Center"
-                                            FontSize="16"
+                                            FontSize="{StaticResource UmIconSizeMd}"
                                             Glyph="{x:Bind IconGlyph}" />
                                         <StackPanel
                                             Grid.Column="1"
@@ -797,7 +797,7 @@
                                             VerticalAlignment="Center">
                                             <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" />
                                             <TextBlock
-                                                FontSize="12"
+                                                FontSize="{StaticResource UmFontSizeBody}"
                                                 Opacity="0.65"
                                                 Text="{x:Bind PlatformLabel}" />
                                         </StackPanel>
@@ -827,7 +827,7 @@
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="12">
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="Accounts removed from the sidebar keep their login session on disk and can be restored here."
                             TextWrapping="WrapWholeWords" />
@@ -844,7 +844,7 @@
                                         </Grid.ColumnDefinitions>
                                         <FontIcon
                                             VerticalAlignment="Center"
-                                            FontSize="16"
+                                            FontSize="{StaticResource UmIconSizeMd}"
                                             Glyph="{x:Bind IconGlyph}" />
                                         <StackPanel
                                             Grid.Column="1"
@@ -852,11 +852,11 @@
                                             VerticalAlignment="Center">
                                             <TextBlock FontWeight="SemiBold" Text="{x:Bind DisplayName}" />
                                             <TextBlock
-                                                FontSize="12"
+                                                FontSize="{StaticResource UmFontSizeBody}"
                                                 Opacity="0.65"
                                                 Text="{x:Bind PlatformLabel}" />
                                             <TextBlock
-                                                FontSize="11"
+                                                FontSize="{StaticResource UmFontSizeCaption}"
                                                 Opacity="0.55"
                                                 Text="{x:Bind ProfileLine}" />
                                         </StackPanel>
@@ -894,7 +894,7 @@
                     <shared:SurfaceCard.CardBody>
                     <StackPanel Spacing="8">
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="Instance registry" />
                         <TextBlock
@@ -903,7 +903,7 @@
                             TextWrapping="WrapWholeWords" />
                         <TextBlock
                             Margin="0,8,0,0"
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="WebView profiles" />
                         <TextBlock
@@ -924,7 +924,7 @@
                             x:Name="VersionText"
                             Opacity="0.8" />
                         <TextBlock
-                            FontSize="12"
+                            FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
                             Text="Select About in the settings navigation list to view version details and credits."
                             TextWrapping="WrapWholeWords" />

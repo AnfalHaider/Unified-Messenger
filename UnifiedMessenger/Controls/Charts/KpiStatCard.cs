@@ -31,9 +31,9 @@ public sealed class KpiStatCard : ContentControl
     public static readonly DependencyProperty TrendProperty = DependencyProperty.Register(
         nameof(Trend), typeof(IReadOnlyList<int>), typeof(KpiStatCard), new PropertyMetadata(null, OnChanged));
 
-    private readonly FontIcon _icon = new() { FontSize = 14 };
+    private readonly FontIcon _icon = new() { FontSize = UmScale.Icon.Md };
     private readonly Border _iconChip;
-    private readonly TextBlock _label = new() { Style = null, FontSize = 12, Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _label = new() { Style = null, FontSize = UmScale.Icon.Sm, Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _value = new();
     private readonly DeltaBadge _delta = new();
     private readonly MiniSparkline _spark = new();

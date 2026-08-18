@@ -22,9 +22,9 @@ public sealed class DeltaBadge : ContentControl
         nameof(ComparisonLabel), typeof(string), typeof(DeltaBadge),
         new PropertyMetadata("vs last week", (d, _) => ((DeltaBadge)d).Rebuild()));
 
-    private readonly FontIcon _arrow = new() { FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _percent = new() { FontSize = 12, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _comparison = new() { FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 };
+    private readonly FontIcon _arrow = new() { FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _percent = new() { FontSize = UmScale.Icon.Sm, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _comparison = new() { FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 };
 
     public DeltaBadge()
     {

@@ -47,7 +47,7 @@
                     SelectionMode="None">
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <Grid Padding="12,10" ColumnSpacing="12">
+                            <Grid Padding="{StaticResource UmPaddingMd}" ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />

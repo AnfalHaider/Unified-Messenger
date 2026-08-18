@@ -141,7 +141,7 @@ public sealed partial class AnalyticsPage : Page
             Child = new TextBlock
             {
                 Text = rank.ToString(CultureInfo.InvariantCulture),
-                FontSize = 12,
+                FontSize = UmScale.Text.Body,
                 FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
@@ -157,14 +157,14 @@ public sealed partial class AnalyticsPage : Page
         text.Children.Add(new TextBlock
         {
             Text = performer.DisplayName,
-            FontSize = 13,
+            FontSize = UmScale.Text.BodyStrong,
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
         text.Children.Add(new TextBlock
         {
             Text = detail,
-            FontSize = 11,
+            FontSize = UmScale.Text.Caption,
             Opacity = 0.7,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
@@ -173,7 +173,7 @@ public sealed partial class AnalyticsPage : Page
         var percent = new TextBlock
         {
             Text = $"{performer.OnTimePercent}%",
-            FontSize = 16,
+            FontSize = UmScale.Text.Subtitle,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = UmSemanticBrushes.Get(performer.OnTimePercent switch

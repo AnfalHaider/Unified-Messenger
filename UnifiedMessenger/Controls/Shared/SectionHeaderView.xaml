@@ -18,12 +18,12 @@
             Text="{x:Bind Title, Mode=OneWay}" />
         <Border
             Grid.Column="1"
-            Padding="6,2"
+            Padding="8,4"
             Background="{StaticResource UmBrandVioletBrush}"
             CornerRadius="8"
             Visibility="{x:Bind BadgeVisibility, Mode=OneWay}">
             <TextBlock
-                FontSize="10"
+                FontSize="{StaticResource UmFontSizeCaption}"
                 Foreground="White"
                 Text="{x:Bind BadgeText, Mode=OneWay}" />
         </Border>

@@ -110,7 +110,7 @@ public sealed class BarChartView : ContentControl
                 column.Children.Add(new TextBlock
                 {
                     Text = ChartSeriesBuilder.FormatAxisCount(value),
-                    FontSize = 10,
+                    FontSize = UmScale.Text.Caption,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = caution,
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -139,7 +139,7 @@ public sealed class BarChartView : ContentControl
                 var axisLabel = new TextBlock
                 {
                     Text = label,
-                    FontSize = 10,
+                    FontSize = UmScale.Text.Caption,
                     Foreground = isPeak ? caution : UmSemanticBrushes.Get("UmStatusNeutralBrush"),
                     FontWeight = isPeak ? FontWeights.SemiBold : FontWeights.Normal,
                     HorizontalAlignment = HorizontalAlignment.Center,

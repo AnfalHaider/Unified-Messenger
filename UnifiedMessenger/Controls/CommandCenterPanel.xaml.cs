@@ -583,7 +583,7 @@ public sealed partial class CommandCenterPanel : UserControl
             content.Children.Add(new TextBlock
             {
                 Text = "No accounts in this location.",
-                FontSize = 12,
+                FontSize = UmScale.Text.Body,
                 Foreground = Brush("TextFillColorSecondaryBrush")
             });
         }
@@ -765,7 +765,7 @@ public sealed partial class CommandCenterPanel : UserControl
                 // Read-but-not-replied chats are awaiting with 0 unread — label them clearly.
                 Text = chat.Unread > 0 ? (chat.Unread == 1 ? "1 unread" : $"{chat.Unread} unread") : "needs reply",
                 Foreground = danger,
-                FontSize = 12,
+                FontSize = UmScale.Text.Body,
                 VerticalAlignment = VerticalAlignment.Center
             });
 
@@ -778,7 +778,7 @@ public sealed partial class CommandCenterPanel : UserControl
                 {
                     Text = enrichedPreview,
                     Foreground = secondary,
-                    FontSize = 12,
+                    FontSize = UmScale.Text.Body,
                     MaxWidth = 360,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 });
@@ -1027,14 +1027,14 @@ public sealed partial class CommandCenterPanel : UserControl
         hint.Children.Add(new TextBlock
         {
             Text = "J / K to move · Enter to open · D done · S snooze · R copy a reply",
-            FontSize = 11,
+            FontSize = UmScale.Text.Caption,
             Foreground = Brush("TextFillColorTertiaryBrush"),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         var helpButton = new Button
         {
-            Content = new TextBlock { Text = "?", FontSize = 11 },
+            Content = new TextBlock { Text = "?", FontSize = UmScale.Text.Caption },
             Padding = new Thickness(6, 0, 6, 0),
             MinWidth = 0,
             MinHeight = 0,
@@ -1054,7 +1054,7 @@ public sealed partial class CommandCenterPanel : UserControl
         row.Children.Add(new TextBlock
         {
             Text = caption,
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             Width = 56,
             Foreground = Brush("TextFillColorSecondaryBrush"),
             VerticalAlignment = VerticalAlignment.Center
@@ -1066,7 +1066,7 @@ public sealed partial class CommandCenterPanel : UserControl
     {
         var button = new ToggleButton
         {
-            Content = new TextBlock { Text = label, FontSize = 12 },
+            Content = new TextBlock { Text = label, FontSize = UmScale.Text.Body },
             IsChecked = selected,
             Padding = new Thickness(10, 3, 10, 3),
             CornerRadius = new CornerRadius(14),
@@ -1103,13 +1103,13 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Text = instance.DisplayName,
             FontWeight = FontWeights.SemiBold,
-            FontSize = 13,
+            FontSize = UmScale.Text.BodyStrong,
             VerticalAlignment = VerticalAlignment.Center
         });
         header.Children.Add(new TextBlock
         {
             Text = count == 1 ? "· 1 waiting" : $"· {count} waiting",
-            FontSize = 11,
+            FontSize = UmScale.Text.Caption,
             Opacity = 0.7,
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -1163,8 +1163,8 @@ public sealed partial class CommandCenterPanel : UserControl
 
             var fg = Brush(brushKey);
             var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
-            content.Children.Add(new TextBlock { Text = count.ToString(), FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = fg, VerticalAlignment = VerticalAlignment.Center });
-            content.Children.Add(new TextBlock { Text = label, FontSize = 12, Foreground = fg, VerticalAlignment = VerticalAlignment.Center });
+            content.Children.Add(new TextBlock { Text = count.ToString(), FontSize = UmScale.Text.BodyStrong, FontWeight = FontWeights.SemiBold, Foreground = fg, VerticalAlignment = VerticalAlignment.Center });
+            content.Children.Add(new TextBlock { Text = label, FontSize = UmScale.Text.Body, Foreground = fg, VerticalAlignment = VerticalAlignment.Center });
             var chip = new Border
             {
                 Background = Brush("CardBackgroundFillColorSecondaryBrush"),
@@ -1215,11 +1215,11 @@ public sealed partial class CommandCenterPanel : UserControl
         content.Children.Add(new TextBlock
         {
             Text = $"Showing: {label}",
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
-        content.Children.Add(new FontIcon { Glyph = "", FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
+        content.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center });
 
         var chip = new Button
         {
@@ -1279,7 +1279,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Text = displayName,
             FontWeight = FontWeights.SemiBold,
-            FontSize = 13,
+            FontSize = UmScale.Text.BodyStrong,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
         if (!string.IsNullOrWhiteSpace(enrichedPreview))
@@ -1288,7 +1288,7 @@ public sealed partial class CommandCenterPanel : UserControl
             {
                 Text = enrichedPreview,
                 Foreground = secondary,
-                FontSize = 12,
+                FontSize = UmScale.Text.Body,
                 MaxWidth = 460,
                 TextTrimming = TextTrimming.CharacterEllipsis
             });
@@ -1315,7 +1315,7 @@ public sealed partial class CommandCenterPanel : UserControl
         unreadLine.Children.Add(new FontIcon
         {
             Glyph = "", // Warning (ErrorBadge family) — Segoe Fluent
-            FontSize = 11,
+            FontSize = UmScale.Icon.Sm,
             Foreground = danger,
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -1323,7 +1323,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Text = chat.Unread > 0 ? (chat.Unread == 1 ? "1 unread" : $"{chat.Unread} unread") : "needs reply",
             Foreground = danger,
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -1332,7 +1332,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Text = $"{inst.DisplayName} · {RelativeAge(chat.LastActivityUtc)}",
             Foreground = secondary,
-            FontSize = 11,
+            FontSize = UmScale.Text.Caption,
             HorizontalAlignment = HorizontalAlignment.Right
         });
         grid.Children.Add(right);
@@ -1421,8 +1421,8 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
-        content.Children.Add(new FontIcon { Glyph = "", FontSize = 12 }); // Phone
-        content.Children.Add(new TextBlock { Text = "Call back", FontSize = 12 });
+        content.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Sm }); // Phone
+        content.Children.Add(new TextBlock { Text = "Call back", FontSize = UmScale.Icon.Sm });
 
         var button = new Button
         {
@@ -1500,8 +1500,8 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5 };
-        content.Children.Add(new FontIcon { Glyph = "", FontSize = 12 }); // Copy
-        content.Children.Add(new TextBlock { Text = "Reply", FontSize = 12 });
+        content.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Sm }); // Copy
+        content.Children.Add(new TextBlock { Text = "Reply", FontSize = UmScale.Icon.Sm });
 
         var button = new Button
         {
@@ -1716,8 +1716,8 @@ public sealed partial class CommandCenterPanel : UserControl
             line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
             line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            var k = new TextBlock { Text = keys, FontFamily = new FontFamily("Consolas"), FontSize = 13 };
-            var d = new TextBlock { Text = does, FontSize = 13, TextWrapping = TextWrapping.WrapWholeWords };
+            var k = new TextBlock { Text = keys, FontFamily = new FontFamily("Consolas"), FontSize = UmScale.Text.BodyStrong };
+            var d = new TextBlock { Text = does, FontSize = UmScale.Text.BodyStrong, TextWrapping = TextWrapping.WrapWholeWords };
             Grid.SetColumn(d, 1);
             line.Children.Add(k);
             line.Children.Add(d);
@@ -1799,7 +1799,7 @@ public sealed partial class CommandCenterPanel : UserControl
             Child = new TextBlock
             {
                 Text = label,
-                FontSize = 10,
+                FontSize = UmScale.Text.Caption,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Brush(foreground)
             }
@@ -2259,14 +2259,14 @@ public sealed partial class CommandCenterPanel : UserControl
             headline.Children.Add(new FontIcon
             {
                 Glyph = "", // checkmark
-                FontSize = 30,
+                FontSize = UmScale.Icon.Lg,
                 Foreground = accent,
                 VerticalAlignment = VerticalAlignment.Center
             });
             headline.Children.Add(new TextBlock
             {
                 Text = CaughtUpClaim.Headline(claim),
-                FontSize = 24,
+                FontSize = UmScale.Text.Metric,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -2279,14 +2279,14 @@ public sealed partial class CommandCenterPanel : UserControl
             headline.Children.Add(new FontIcon
             {
                 Glyph = "", // warning
-                FontSize = 26,
+                FontSize = UmScale.Icon.Lg,
                 Foreground = accent,
                 VerticalAlignment = VerticalAlignment.Center
             });
             headline.Children.Add(new TextBlock
             {
                 Text = CaughtUpClaim.Headline(claim),
-                FontSize = 20,
+                FontSize = UmScale.Text.Title,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 TextWrapping = TextWrapping.WrapWholeWords,
                 VerticalAlignment = VerticalAlignment.Center
@@ -2299,7 +2299,7 @@ public sealed partial class CommandCenterPanel : UserControl
             headline.Children.Add(new TextBlock
             {
                 Text = shown.ToString(),
-                FontSize = 42,
+                FontSize = UmScale.Text.Hero,
                 FontWeight = Microsoft.UI.Text.FontWeights.Bold,
                 Foreground = accent,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -2308,7 +2308,7 @@ public sealed partial class CommandCenterPanel : UserControl
             headline.Children.Add(new TextBlock
             {
                 Text = shown == 1 ? "customer is waiting\nfor a reply" : "customers are waiting\nfor a reply",
-                FontSize = 16,
+                FontSize = UmScale.Text.Subtitle,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 LineHeight = 19,
                 VerticalAlignment = VerticalAlignment.Center
@@ -2320,7 +2320,7 @@ public sealed partial class CommandCenterPanel : UserControl
         text.Children.Add(new TextBlock
         {
             Text = BuildHeroSubtext(claim, overallPct.Value, accountsBehind, entities, instances),
-            FontSize = 12.5,
+            FontSize = UmScale.Text.Body,
             Opacity = 0.75, // dims the inherited (theme-correct) foreground instead of forcing a brush
             TextWrapping = TextWrapping.WrapWholeWords
         });
@@ -2713,7 +2713,7 @@ public sealed partial class CommandCenterPanel : UserControl
         content.Children.Add(new TextBlock
         {
             Text = isAi ? "✦ AI" : "✦",
-            FontSize = 10,
+            FontSize = UmScale.Text.Caption,
             FontWeight = FontWeights.SemiBold,
             Foreground = badge,
             Opacity = 0.9,
@@ -2724,7 +2724,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Text = displayText,
             Foreground = fg,
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             TextWrapping = TextWrapping.WrapWholeWords
         });
 
@@ -2811,7 +2811,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Text = nameText,
             FontWeight = FontWeights.SemiBold,
-            FontSize = 14,
+            FontSize = UmScale.Text.BodyStrong,
             VerticalAlignment = VerticalAlignment.Center,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
@@ -2843,7 +2843,7 @@ public sealed partial class CommandCenterPanel : UserControl
             var freshnessBlock = new TextBlock
             {
                 Text = freshness,
-                FontSize = 11,
+                FontSize = UmScale.Text.Caption,
                 Foreground = entity.IsStale ? danger : Brush("TextFillColorTertiaryBrush"),
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
@@ -2865,7 +2865,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             awaitingVisual = new TextBlock
             {
-                Text = "—", Foreground = secondary, FontSize = 12, VerticalAlignment = VerticalAlignment.Center
+                Text = "—", Foreground = secondary, FontSize = UmScale.Text.Body, VerticalAlignment = VerticalAlignment.Center
             };
         }
         else if (entity.AwaitingCount > 0)
@@ -2883,7 +2883,7 @@ public sealed partial class CommandCenterPanel : UserControl
                     Text = entity.AwaitingCount == 1 ? "1 open" : $"{entity.AwaitingCount} open",
                     Foreground = danger,
                     FontWeight = FontWeights.SemiBold,
-                    FontSize = 12
+                    FontSize = UmScale.Text.Body
                 }
             };
             // "3 awaiting" alone does not say WHICH account, and every card renders one of these — so a
@@ -2906,7 +2906,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             awaitingVisual = new TextBlock
             {
-                Text = "caught up", Foreground = secondary, FontSize = 12, VerticalAlignment = VerticalAlignment.Center
+                Text = "caught up", Foreground = secondary, FontSize = UmScale.Text.Body, VerticalAlignment = VerticalAlignment.Center
             };
             ToolTipService.SetToolTip(awaitingVisual, "No customers are waiting on a reply in this date range.");
         }
@@ -2920,7 +2920,7 @@ public sealed partial class CommandCenterPanel : UserControl
             var glyphIcon = new FontIcon
             {
                 Glyph = compactGlyph,
-                FontSize = 14,
+                FontSize = UmScale.Icon.Md,
                 Foreground = statusBrush,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -2947,7 +2947,7 @@ public sealed partial class CommandCenterPanel : UserControl
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(6),
                 VerticalAlignment = VerticalAlignment.Center,
-                Content = new FontIcon { Glyph = "", FontSize = 14 } // BarChart
+                Content = new FontIcon { Glyph = "", FontSize = UmScale.Icon.Md } // BarChart
             };
             ToolTipService.SetToolTip(detailsButton, "Account details — reply speed, backlog, and who's waiting");
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(detailsButton, $"{entity.DisplayName} details");
@@ -2991,7 +2991,7 @@ public sealed partial class CommandCenterPanel : UserControl
                         ? "syncing…"
                         : $"no activity {_emptyStateWindowLabel}",
                 Foreground = couldNotRead ? danger : secondary,
-                FontSize = 13,
+                FontSize = UmScale.Text.BodyStrong,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextWrapping = TextWrapping.WrapWholeWords
             };
@@ -3020,7 +3020,7 @@ public sealed partial class CommandCenterPanel : UserControl
             var glyphIcon = new FontIcon
             {
                 Glyph = statusGlyph,
-                FontSize = 16,
+                FontSize = UmScale.Icon.Md,
                 Foreground = statusBrush,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -3031,14 +3031,14 @@ public sealed partial class CommandCenterPanel : UserControl
             pctCell.Children.Add(new TextBlock
             {
                 Text = $"{entity.OnTimePercent}%",
-                FontSize = 28,
+                FontSize = UmScale.Text.Metric,
                 FontWeight = FontWeights.Bold,
                 Foreground = statusBrush
             });
             pctCell.Children.Add(new TextBlock
             {
                 Text = "caught up",
-                FontSize = 12,
+                FontSize = UmScale.Text.Body,
                 Foreground = secondary,
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(0, 0, 0, 4)
@@ -3057,7 +3057,7 @@ public sealed partial class CommandCenterPanel : UserControl
         sparklineHost.Children.Add(new TextBlock
         {
             Text = "last 7 days",
-            FontSize = 9,
+            FontSize = UmScale.Text.Caption,
             Foreground = Brush("TextFillColorTertiaryBrush"),
             HorizontalAlignment = HorizontalAlignment.Right
         });
@@ -3136,7 +3136,7 @@ public sealed partial class CommandCenterPanel : UserControl
                 card.Children.Add(new TextBlock
                 {
                     Text = $"Longest wait: {FormatMinutes(worst.TotalMinutes)} — expand to see who's waiting.",
-                    FontSize = 11,
+                    FontSize = UmScale.Text.Caption,
                     Foreground = Brush("TextFillColorTertiaryBrush"),
                     TextWrapping = TextWrapping.WrapWholeWords
                 });
@@ -3153,14 +3153,14 @@ public sealed partial class CommandCenterPanel : UserControl
         content.Children.Add(new FontIcon
         {
             Glyph = glyph,
-            FontSize = 11,
+            FontSize = UmScale.Icon.Sm,
             Foreground = foreground,
             VerticalAlignment = VerticalAlignment.Center
         });
         content.Children.Add(new TextBlock
         {
             Text = text,
-            FontSize = 11,
+            FontSize = UmScale.Text.Caption,
             FontWeight = FontWeights.SemiBold,
             Foreground = foreground,
             VerticalAlignment = VerticalAlignment.Center

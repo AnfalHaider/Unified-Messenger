@@ -103,7 +103,7 @@ public sealed class ChangeIconDialog : ContentDialog
             TextWrapping = TextWrapping.WrapWholeWords,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = Brush("TextFillColorSecondaryBrush"),
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             MaxWidth = 280
         });
         root.Children.Add(previewRow);
@@ -121,7 +121,7 @@ public sealed class ChangeIconDialog : ContentDialog
             HorizontalContentAlignment = HorizontalAlignment.Left
         };
         var importContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        importContent.Children.Add(new FontIcon { Glyph = "", FontSize = 14 }); // Download
+        importContent.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Md }); // Download
         importContent.Children.Add(new TextBlock { Text = "Import this account's profile photo" });
         importButton.Content = importContent;
         // Panel content again — the visible label is a TextBlock inside a StackPanel, which yields no
@@ -141,7 +141,7 @@ public sealed class ChangeIconDialog : ContentDialog
             HorizontalContentAlignment = HorizontalAlignment.Left
         };
         var uploadContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        uploadContent.Children.Add(new FontIcon { Glyph = "", FontSize = 14 }); // Upload
+        uploadContent.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Md }); // Upload
         uploadContent.Children.Add(new TextBlock { Text = "Upload an image from this PC" });
         uploadButton.Content = uploadContent;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(uploadButton, "Upload an image from this PC");
@@ -178,7 +178,7 @@ public sealed class ChangeIconDialog : ContentDialog
     private static TextBlock SectionLabel(string text) => new()
     {
         Text = text,
-        FontSize = 12,
+        FontSize = UmScale.Text.Body,
         FontWeight = FontWeights.SemiBold,
         Opacity = 0.7
     };
@@ -235,7 +235,7 @@ public sealed class ChangeIconDialog : ContentDialog
         var icon = new FontIcon
         {
             Glyph = glyph,
-            FontSize = 18,
+            FontSize = UmScale.Icon.Md,
             Foreground = new SolidColorBrush(Colors.White),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
@@ -278,7 +278,7 @@ public sealed class ChangeIconDialog : ContentDialog
             var icon = new FontIcon
             {
                 Glyph = _selectedGlyph,
-                FontSize = 28,
+                FontSize = UmScale.Icon.Lg,
                 Foreground = new SolidColorBrush(Colors.White),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
@@ -300,7 +300,7 @@ public sealed class ChangeIconDialog : ContentDialog
             _preview.Children.Add(new TextBlock
             {
                 Text = PlatformBrandingHelper.GetInitials(_displayName),
-                FontSize = 20,
+                FontSize = UmScale.Text.Title,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(Colors.White),
                 HorizontalAlignment = HorizontalAlignment.Center,

@@ -5,6 +5,25 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.35
+
+**One type scale, one icon scale, one spacing grid — everywhere.** Text across the app was drawn at twelve
+different sizes, icons at twelve more, and padding at twenty-nine distinct values that appeared in only
+sixty-two places. Nothing looked broken; it looked *slightly* different everywhere, which is the kind of
+thing you feel rather than notice.
+
+Text now uses seven steps (11 · 12 · 14 · 16 · 20 · 24 · 32), icons four (12 · 16 · 24 · 40), and every
+padding and margin sits on a 4px grid. Nothing below 11px survives — the app previously shipped 9px and
+10px text, which is smaller than comfortable on a dashboard read at arm's length.
+
+**The real fix is that it can't drift back.** Roughly half the app draws itself in code rather than markup,
+and the design-system tests only ever read the markup. That is how the code-built surfaces came to carry
+*more* distinct text sizes than every XAML file combined, in fewer places, with nobody able to see it. They
+now draw from the same scale as the markup, the two definitions are checked against each other, and the
+tests read both — so a new off-scale number fails the build instead of quietly accumulating.
+
+No feature or number changed. This is purely how things are drawn.
+
 ## v4.99.34
 
 **The app can no longer mistake a reading problem for a fresh install.** If Unified Messenger could not

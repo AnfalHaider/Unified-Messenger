@@ -257,7 +257,7 @@
                                         <Ellipse
                                             Width="8"
                                             Height="8"
-                                            Margin="0,6,0,0"
+                                            Margin="0,8,0,0"
                                             VerticalAlignment="Top"
                                             Fill="{Binding AccentBrush}"
                                             Visibility="{Binding UnreadIndicatorVisibility}" />
@@ -308,7 +308,7 @@
                             <FontIcon
                                 x:Name="RecentActivityEmptyIcon"
                                 HorizontalAlignment="Center"
-                                FontSize="28"
+                                FontSize="{StaticResource UmIconSizeLg}"
                                 Glyph="&#xE7F3;"
                                 Opacity="0.45" />
                             <TextBlock
@@ -392,7 +392,7 @@
                                                     x:Name="MutedIndicatorIcon"
                                                     Grid.Column="1"
                                                     AutomationProperties.Name="Notifications muted"
-                                                    FontSize="11"
+                                                    FontSize="{StaticResource UmIconSizeSm}"
                                                     Glyph="&#xE74F;"
                                                     Opacity="0.55"
                                                     ToolTipService.ToolTip="Notifications muted"
@@ -405,7 +405,7 @@
                                                 Text="{Binding PlatformLabel}" />
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Border
-                                                    Padding="6,2"
+                                                    Padding="8,4"
                                                     Background="{Binding ConnectionBrush}"
                                                     CornerRadius="{StaticResource UmCornerRadiusSmValue}">
                                                     <TextBlock
@@ -414,7 +414,7 @@
                                                         Text="{Binding ConnectionStatusLabel}" />
                                                 </Border>
                                                 <Border
-                                                    Padding="6,2"
+                                                    Padding="8,4"
                                                     Background="{ThemeResource AccentFillColorDefaultBrush}"
                                                     CornerRadius="{StaticResource UmCornerRadiusSmValue}"
                                                     Visibility="{Binding UnreadBadgeVisibility}">
@@ -441,7 +441,7 @@
                             Visibility="Collapsed">
                             <FontIcon
                                 HorizontalAlignment="Center"
-                                FontSize="24"
+                                FontSize="{StaticResource UmIconSizeLg}"
                                 Glyph="&#xE8FA;"
                                 Opacity="0.45" />
                             <TextBlock

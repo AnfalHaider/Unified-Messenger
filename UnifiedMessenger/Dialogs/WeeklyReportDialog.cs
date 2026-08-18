@@ -39,7 +39,7 @@ public sealed class WeeklyReportDialog : ContentDialog
         // Period selector — rebuilds the report for the chosen range. Outside the capture surface so it
         // isn't baked into the PNG export.
         var rangeRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        rangeRow.Children.Add(new TextBlock { Text = "Period", VerticalAlignment = VerticalAlignment.Center, FontSize = 12, Foreground = Res("TextFillColorSecondaryBrush") });
+        rangeRow.Children.Add(new TextBlock { Text = "Period", VerticalAlignment = VerticalAlignment.Center, FontSize = UmScale.Text.Body, Foreground = Res("TextFillColorSecondaryBrush") });
         var rangeBox = new ComboBox { MinWidth = 180 };
         foreach (var r in DashboardReportHelper.Ranges)
         {
@@ -116,7 +116,7 @@ public sealed class WeeklyReportDialog : ContentDialog
         _contentStack.Children.Add(new TextBlock
         {
             Text = inputs.PeriodLabel,
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             Foreground = Res("TextFillColorTertiaryBrush")
         });
 
@@ -128,7 +128,7 @@ public sealed class WeeklyReportDialog : ContentDialog
 
         if (!string.IsNullOrWhiteSpace(aiSummary))
         {
-            var badge = new TextBlock { Text = "✦ AI", FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Res("SystemFillColorAttentionBrush"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0) };
+            var badge = new TextBlock { Text = "✦ AI", FontSize = UmScale.Text.Caption, FontWeight = FontWeights.SemiBold, Foreground = Res("SystemFillColorAttentionBrush"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0) };
             Grid.SetColumn(badge, 0);
             headlineRow.Children.Add(badge);
         }
@@ -136,7 +136,7 @@ public sealed class WeeklyReportDialog : ContentDialog
         var headline = new TextBlock
         {
             Text = string.IsNullOrWhiteSpace(aiSummary) ? report.Summary : aiSummary,
-            FontSize = 14,
+            FontSize = UmScale.Text.BodyStrong,
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.WrapWholeWords
         };
@@ -182,7 +182,7 @@ public sealed class WeeklyReportDialog : ContentDialog
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var icon = new FontIcon { Glyph = glyph, FontSize = 15, Foreground = Res(brushKey), VerticalAlignment = VerticalAlignment.Top };
+        var icon = new FontIcon { Glyph = glyph, FontSize = UmScale.Icon.Md, Foreground = Res(brushKey), VerticalAlignment = VerticalAlignment.Top };
         icon.Margin = new Thickness(0, 2, 0, 0);
         Grid.SetColumn(icon, 0);
         grid.Children.Add(icon);
@@ -192,7 +192,7 @@ public sealed class WeeklyReportDialog : ContentDialog
         text.Children.Add(new TextBlock
         {
             Text = insight.Detail,
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             Foreground = Res("TextFillColorSecondaryBrush"),
             TextWrapping = TextWrapping.WrapWholeWords
         });
@@ -231,7 +231,7 @@ public sealed class WeeklyReportDialog : ContentDialog
                 col.Children.Add(new TextBlock
                 {
                     Text = BusinessReport.FormatMinutes(p.MedianMinutes),
-                    FontSize = 9,
+                    FontSize = UmScale.Text.Caption,
                     Foreground = Res("TextFillColorTertiaryBrush"),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     Margin = new Thickness(0, 0, 0, 2)
@@ -248,13 +248,13 @@ public sealed class WeeklyReportDialog : ContentDialog
             Grid.SetColumn(col, i);
             chart.Children.Add(col);
 
-            var lbl = new TextBlock { Text = p.Label, FontSize = 10, Foreground = Res("TextFillColorTertiaryBrush"), HorizontalAlignment = HorizontalAlignment.Center };
+            var lbl = new TextBlock { Text = p.Label, FontSize = UmScale.Text.Caption, Foreground = Res("TextFillColorTertiaryBrush"), HorizontalAlignment = HorizontalAlignment.Center };
             Grid.SetColumn(lbl, i);
             axis.Children.Add(lbl);
         }
 
         var wrap = new StackPanel { Spacing = 2 };
-        wrap.Children.Add(new TextBlock { Text = "Median first reply, last 7 days", FontSize = 12, FontWeight = FontWeights.SemiBold });
+        wrap.Children.Add(new TextBlock { Text = "Median first reply, last 7 days", FontSize = UmScale.Text.Body, FontWeight = FontWeights.SemiBold });
         wrap.Children.Add(chart);
         wrap.Children.Add(axis);
 

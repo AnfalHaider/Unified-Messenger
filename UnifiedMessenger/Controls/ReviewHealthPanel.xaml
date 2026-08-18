@@ -12,7 +12,7 @@
         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
         BorderThickness="1"
         CornerRadius="8"
-        Padding="18,16">
+        Padding="{StaticResource UmPaddingLg}">
         <Grid RowSpacing="14">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -25,16 +25,16 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Spacing="2" VerticalAlignment="Center">
-                    <TextBlock FontSize="15" FontWeight="SemiBold" Text="Reviews" />
+                    <TextBlock FontSize="{StaticResource UmFontSizeBodyStrong}" FontWeight="SemiBold" Text="Reviews" />
                     <TextBlock
-                        FontSize="12"
+                        FontSize="{StaticResource UmFontSizeBody}"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Text="Google Business — reviews awaiting a reply" />
                 </StackPanel>
                 <TextBlock
                     x:Name="UpdatedText"
                     Grid.Column="1"
-                    FontSize="11"
+                    FontSize="{StaticResource UmFontSizeCaption}"
                     VerticalAlignment="Center"
                     Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                     Visibility="Collapsed" />

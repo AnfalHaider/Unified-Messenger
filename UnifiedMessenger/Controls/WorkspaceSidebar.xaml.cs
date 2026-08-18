@@ -567,7 +567,7 @@ public sealed partial class WorkspaceSidebar : Grid
         }
         else
         {
-            header.FontSize = ResolveDouble("UmFontSizeSectionLabel", 11);
+            header.FontSize = ResolveDouble("UmFontSizeCaption", 11);
             header.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
             header.Opacity = ResolveDouble("UmOpacityHint", 0.75);
             header.CharacterSpacing = 40;
@@ -591,7 +591,7 @@ public sealed partial class WorkspaceSidebar : Grid
         var chevron = new FontIcon
         {
             Glyph = _collapsedGroups.Contains(key) ? "" : "",
-            FontSize = 12,
+            FontSize = UmScale.Icon.Sm,
             Foreground = secondary,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -610,7 +610,7 @@ public sealed partial class WorkspaceSidebar : Grid
         }
         else
         {
-            titleBlock.FontSize = ResolveDouble("UmFontSizeSectionLabel", 11);
+            titleBlock.FontSize = ResolveDouble("UmFontSizeCaption", 11);
             titleBlock.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
             titleBlock.Opacity = ResolveDouble("UmOpacityHint", 0.75);
             titleBlock.CharacterSpacing = 40;
@@ -619,7 +619,7 @@ public sealed partial class WorkspaceSidebar : Grid
         var countBlock = new TextBlock
         {
             Text = count.ToString(),
-            FontSize = 11,
+            FontSize = UmScale.Text.Caption,
             Foreground = secondary,
             Opacity = 0.7,
             VerticalAlignment = VerticalAlignment.Center

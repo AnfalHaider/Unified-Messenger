@@ -203,7 +203,7 @@ public sealed partial class ActivityPatternsPanel : UserControl
                 column.Children.Add(new TextBlock
                 {
                     Text = total.ToString(),
-                    FontSize = 10,
+                    FontSize = UmScale.Text.Caption,
                     FontWeight = FontWeights.SemiBold,
                     Foreground = peakLabelBrush,
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -264,7 +264,7 @@ public sealed partial class ActivityPatternsPanel : UserControl
             var axisLabel = new TextBlock
             {
                 Text = showLabel ? breakdown.Labels[i] : string.Empty,
-                FontSize = 10,
+                FontSize = UmScale.Text.Caption,
                 Foreground = isPeak ? peakLabelBrush : labelBrush,
                 FontWeight = isPeak ? FontWeights.SemiBold : FontWeights.Normal,
                 HorizontalAlignment = HorizontalAlignment.Center
@@ -314,7 +314,7 @@ public sealed partial class ActivityPatternsPanel : UserControl
             row.Children.Add(new TextBlock
             {
                 Text = $"{s.DisplayName} ({s.Total})",
-                FontSize = 11,
+                FontSize = UmScale.Text.Caption,
                 Foreground = Brush("TextFillColorSecondaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -376,7 +376,7 @@ public sealed partial class ActivityPatternsPanel : UserControl
             var lbl = new TextBlock
             {
                 Text = h == 0 ? "12a" : h < 12 ? $"{h}a" : h == 12 ? "12p" : $"{h - 12}p",
-                FontSize = 9,
+                FontSize = UmScale.Text.Caption,
                 Foreground = labelBrush,
                 HorizontalAlignment = HorizontalAlignment.Left
             };
@@ -390,7 +390,7 @@ public sealed partial class ActivityPatternsPanel : UserControl
             var dayLabel = new TextBlock
             {
                 Text = HeatmapDayLabels[d],
-                FontSize = 10,
+                FontSize = UmScale.Text.Caption,
                 Foreground = labelBrush,
                 VerticalAlignment = VerticalAlignment.Center
             };

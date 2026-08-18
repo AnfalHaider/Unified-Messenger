@@ -38,7 +38,7 @@
             -->
             <TextBlock
                 x:Name="PlatformCapabilityText"
-                FontSize="12"
+                FontSize="{StaticResource UmFontSizeBody}"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                 TextWrapping="WrapWholeWords" />
         </StackPanel>

@@ -9,12 +9,12 @@
     mc:Ignorable="d"
     xmlns:local="using:UnifiedMessenger.Pages">
 
-    <ScrollViewer Padding="24,20" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+    <ScrollViewer Padding="{StaticResource UmPaddingXl}" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
         <StackPanel Spacing="16" HorizontalAlignment="Stretch">
             <StackPanel Spacing="2">
                 <TextBlock Text="Reviews" Style="{StaticResource TitleTextBlockStyle}" />
                 <TextBlock
-                    FontSize="13"
+                    FontSize="{StaticResource UmFontSizeBodyStrong}"
                     Opacity="0.7"
                     Text="Google Business review health — which reviews are still waiting for a reply."
                     TextWrapping="WrapWholeWords" />
@@ -27,10 +27,10 @@
             <StackPanel
                 x:Name="NoAccountsState"
                 Spacing="8"
-                Padding="24"
+                Padding="{StaticResource UmPaddingXl}"
                 HorizontalAlignment="Center"
                 Visibility="Collapsed">
-                <FontIcon FontSize="28" Glyph="&#xE734;" HorizontalAlignment="Center" Opacity="0.55" />
+                <FontIcon FontSize="{StaticResource UmIconSizeLg}" Glyph="&#xE734;" HorizontalAlignment="Center" Opacity="0.55" />
                 <TextBlock
                     HorizontalAlignment="Center"
                     Style="{StaticResource SubtitleTextBlockStyle}"

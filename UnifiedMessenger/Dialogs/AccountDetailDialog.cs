@@ -79,7 +79,7 @@ public sealed class AccountDetailDialog : ContentDialog
         // Waiting customers (top few), click-through.
         if (awaiting.Count > 0)
         {
-            body.Children.Add(new TextBlock { Text = "Waiting on a reply", FontWeight = FontWeights.SemiBold, FontSize = 13 });
+            body.Children.Add(new TextBlock { Text = "Waiting on a reply", FontWeight = FontWeights.SemiBold, FontSize = UmScale.Text.BodyStrong });
             var list = new StackPanel { Spacing = 4 };
             foreach (var chat in awaiting.Take(8))
             {
@@ -91,7 +91,7 @@ public sealed class AccountDetailDialog : ContentDialog
                 list.Children.Add(new TextBlock
                 {
                     Text = $"+ {awaiting.Count - 8} more",
-                    FontSize = 11,
+                    FontSize = UmScale.Text.Caption,
                     Foreground = Res("TextFillColorTertiaryBrush"),
                     Margin = new Thickness(2, 2, 0, 0)
                 });
@@ -115,10 +115,10 @@ public sealed class AccountDetailDialog : ContentDialog
         var display = string.IsNullOrWhiteSpace(name) ? "Customer" : name;
 
         var text = new StackPanel { Spacing = 0, VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = display, FontSize = 13, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+        text.Children.Add(new TextBlock { Text = display, FontSize = UmScale.Text.BodyStrong, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
         if (!string.IsNullOrWhiteSpace(preview))
         {
-            text.Children.Add(new TextBlock { Text = preview, FontSize = 11, Foreground = Res("TextFillColorSecondaryBrush"), TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(new TextBlock { Text = preview, FontSize = UmScale.Text.Caption, Foreground = Res("TextFillColorSecondaryBrush"), TextTrimming = TextTrimming.CharacterEllipsis });
         }
 
         var button = new Button
@@ -164,8 +164,8 @@ public sealed class AccountDetailDialog : ContentDialog
     private FrameworkElement Tile(string label, string value, string valueBrushKey)
     {
         var stack = new StackPanel { Spacing = 1 };
-        stack.Children.Add(new TextBlock { Text = label, FontSize = 11, Foreground = Res("TextFillColorSecondaryBrush") });
-        stack.Children.Add(new TextBlock { Text = value, FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = Res(valueBrushKey) });
+        stack.Children.Add(new TextBlock { Text = label, FontSize = UmScale.Text.Caption, Foreground = Res("TextFillColorSecondaryBrush") });
+        stack.Children.Add(new TextBlock { Text = value, FontSize = UmScale.Text.Title, FontWeight = FontWeights.SemiBold, Foreground = Res(valueBrushKey) });
         return new Border
         {
             Background = Res2("CardBackgroundFillColorSecondaryBrush"),

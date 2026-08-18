@@ -12,7 +12,7 @@
         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
         BorderThickness="1"
         CornerRadius="8"
-        Padding="18,16">
+        Padding="{StaticResource UmPaddingLg}">
         <Grid RowSpacing="14">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -25,9 +25,9 @@
                  by the dropdowns in the narrow bento column. -->
             <StackPanel Grid.Row="0" Spacing="10">
                 <StackPanel Spacing="2">
-                    <TextBlock FontSize="15" FontWeight="SemiBold" Text="Activity patterns" />
+                    <TextBlock FontSize="{StaticResource UmFontSizeBodyStrong}" FontWeight="SemiBold" Text="Activity patterns" />
                     <TextBlock
-                        FontSize="12"
+                        FontSize="{StaticResource UmFontSizeBody}"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                         Text="When your customers message most" />
                 </StackPanel>
@@ -49,7 +49,7 @@
                 CornerRadius="6"
                 BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
                 BorderThickness="1"
-                Padding="2">
+                Padding="{StaticResource UmPaddingXs}">
                 <StackPanel Orientation="Horizontal" Spacing="2">
                     <ToggleButton x:Name="HourButton" Content="Hour of day" IsChecked="True" Click="OnHourClick" Padding="12,4" CornerRadius="6" />
                     <ToggleButton x:Name="DayButton" Content="Day of week" Click="OnDayClick" Padding="12,4" CornerRadius="6" />
@@ -78,15 +78,15 @@
                 <Border
                     Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                     CornerRadius="6"
-                    Padding="11,8">
+                    Padding="12,8">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontSize="15" Foreground="{ThemeResource SystemFillColorCautionBrush}" Glyph="&#xEA80;" VerticalAlignment="Center" />
-                        <TextBlock x:Name="InsightText" FontSize="13" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+                        <FontIcon FontSize="{StaticResource UmIconSizeMd}" Foreground="{ThemeResource SystemFillColorCautionBrush}" Glyph="&#xEA80;" VerticalAlignment="Center" />
+                        <TextBlock x:Name="InsightText" FontSize="{StaticResource UmFontSizeBodyStrong}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
                 <StackPanel x:Name="WeekRow" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
-                    <FontIcon FontSize="14" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE9D2;" VerticalAlignment="Center" />
-                    <TextBlock x:Name="WeekText" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+                    <FontIcon FontSize="{StaticResource UmIconSizeMd}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE9D2;" VerticalAlignment="Center" />
+                    <TextBlock x:Name="WeekText" FontSize="{StaticResource UmFontSizeBody}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
                 </StackPanel>
             </StackPanel>
         </Grid>

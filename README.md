@@ -7,7 +7,7 @@ glance, **who is still waiting for a reply**.
 Everything runs on your own PC. No cloud service, no API keys, no subscription, and no oversight data
 ever leaves the machine.
 
-**Current release:** v4.99.34 — see the [changelog](CHANGELOG.md) or the
+**Current release:** v4.99.35 — see the [changelog](CHANGELOG.md) or the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
 ---

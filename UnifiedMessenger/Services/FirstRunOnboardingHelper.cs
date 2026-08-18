@@ -195,7 +195,7 @@ public static class FirstRunOnboardingHelper
         panel.Children.Add(new TextBlock
         {
             Text = "Choose Personal for everyday accounts or Professional for business inboxes — you can change this later from the sidebar context menu.",
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             Opacity = 0.65,
             TextWrapping = TextWrapping.WrapWholeWords
         });
@@ -223,7 +223,7 @@ public static class FirstRunOnboardingHelper
         panel.Children.Add(new TextBlock
         {
             Text = "Click Next to open the Workspace Manager where you can assign locations and configure per-location SLA thresholds.",
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             Opacity = 0.65,
             TextWrapping = TextWrapping.WrapWholeWords
         });
@@ -251,7 +251,7 @@ public static class FirstRunOnboardingHelper
         panel.Children.Add(new TextBlock
         {
             Text = "Operating hours control when the breach timer runs — messages received outside your defined hours won't count against your SLA.",
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             Opacity = 0.65,
             TextWrapping = TextWrapping.WrapWholeWords
         });
@@ -259,7 +259,7 @@ public static class FirstRunOnboardingHelper
         panel.Children.Add(new TextBlock
         {
             Text = "Click Finish to open the Workspace Manager and configure these settings now.",
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             Opacity = 0.65,
             TextWrapping = TextWrapping.WrapWholeWords
         });

@@ -36,7 +36,7 @@ public sealed class DonutChartView : ContentControl
     private readonly Canvas _ring = new() { Width = Diameter, Height = Diameter };
     private readonly TextBlock _centre = new()
     {
-        FontSize = 12,
+        FontSize = UmScale.Text.Body,
         Opacity = 0.7,
         TextAlignment = TextAlignment.Center,
         TextWrapping = TextWrapping.WrapWholeWords,
@@ -157,8 +157,8 @@ public sealed class DonutChartView : ContentControl
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         row.Children.Add(new Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(ParseColor(slice.ColorHex)), VerticalAlignment = VerticalAlignment.Center });
-        row.Children.Add(new TextBlock { Text = slice.Label, FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
-        row.Children.Add(new TextBlock { Text = $"{slice.Percent}%", FontSize = 12, FontWeight = FontWeights.SemiBold, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) });
+        row.Children.Add(new TextBlock { Text = slice.Label, FontSize = UmScale.Text.Body, VerticalAlignment = VerticalAlignment.Center });
+        row.Children.Add(new TextBlock { Text = $"{slice.Percent}%", FontSize = UmScale.Text.Body, FontWeight = FontWeights.SemiBold, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) });
         return row;
     }
 

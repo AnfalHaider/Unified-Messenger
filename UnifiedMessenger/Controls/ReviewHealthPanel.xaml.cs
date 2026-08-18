@@ -125,13 +125,13 @@ public sealed partial class ReviewHealthPanel : UserControl
         {
             Text = instance.DisplayName,
             FontWeight = FontWeights.SemiBold,
-            FontSize = 14,
+            FontSize = UmScale.Text.BodyStrong,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
         nameCol.Children.Add(new TextBlock
         {
             Text = BuildSubtitle(instance.Id, health),
-            FontSize = 11,
+            FontSize = UmScale.Text.Caption,
             Foreground = Brush("TextFillColorTertiaryBrush"),
             TextTrimming = TextTrimming.CharacterEllipsis
         });
@@ -142,7 +142,7 @@ public sealed partial class ReviewHealthPanel : UserControl
         FrameworkElement trailing;
         if (!health.HasData)
         {
-            trailing = new TextBlock { Text = "—", Foreground = secondary, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+            trailing = new TextBlock { Text = "—", Foreground = secondary, FontSize = UmScale.Text.Body, VerticalAlignment = VerticalAlignment.Center };
         }
         else if (health.Unanswered > 0)
         {
@@ -166,9 +166,9 @@ public sealed partial class ReviewHealthPanel : UserControl
                             Text = health.Unanswered == 1 ? "1 to reply" : $"{health.Unanswered} to reply",
                             Foreground = danger,
                             FontWeight = FontWeights.SemiBold,
-                            FontSize = 12
+                            FontSize = UmScale.Text.Body
                         },
-                        new FontIcon { Glyph = "", FontSize = 11, Foreground = danger, VerticalAlignment = VerticalAlignment.Center }
+                        new FontIcon { Glyph = "", FontSize = UmScale.Icon.Sm, Foreground = danger, VerticalAlignment = VerticalAlignment.Center }
                     }
                 }
             };
@@ -192,7 +192,7 @@ public sealed partial class ReviewHealthPanel : UserControl
             {
                 Text = "all replied",
                 Foreground = success,
-                FontSize = 12,
+                FontSize = UmScale.Text.Body,
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -215,7 +215,7 @@ public sealed partial class ReviewHealthPanel : UserControl
                 head.Children.Add(new TextBlock
                 {
                     Text = review.Reviewer,
-                    FontSize = 12,
+                    FontSize = UmScale.Text.Body,
                     FontWeight = FontWeights.SemiBold,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 });
@@ -225,7 +225,7 @@ public sealed partial class ReviewHealthPanel : UserControl
                     head.Children.Add(new TextBlock
                     {
                         Text = meta,
-                        FontSize = 11,
+                        FontSize = UmScale.Text.Caption,
                         Foreground = secondary,
                         VerticalAlignment = VerticalAlignment.Center
                     });
@@ -239,7 +239,7 @@ public sealed partial class ReviewHealthPanel : UserControl
                     row.Children.Add(new TextBlock
                     {
                         Text = review.Text,
-                        FontSize = 11,
+                        FontSize = UmScale.Text.Caption,
                         Foreground = secondary,
                         TextWrapping = TextWrapping.Wrap,
                         MaxLines = 3,
@@ -283,7 +283,7 @@ public sealed partial class ReviewHealthPanel : UserControl
                 list.Children.Add(new TextBlock
                 {
                     Text = $"+ {health.Unanswered - pending.Count} more awaiting a reply",
-                    FontSize = 11,
+                    FontSize = UmScale.Text.Caption,
                     Foreground = Brush("TextFillColorTertiaryBrush"),
                     Margin = new Thickness(8, 2, 0, 0)
                 });
@@ -296,7 +296,7 @@ public sealed partial class ReviewHealthPanel : UserControl
             body.Children.Add(new TextBlock
             {
                 Text = "Couldn't read the individual reviews from the page — click “to reply” to open them in Google.",
-                FontSize = 11,
+                FontSize = UmScale.Text.Caption,
                 Foreground = Brush("TextFillColorTertiaryBrush"),
                 Margin = new Thickness(40, 0, 0, 0),
                 TextWrapping = TextWrapping.WrapWholeWords

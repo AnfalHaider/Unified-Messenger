@@ -47,7 +47,7 @@
                         Click="AiToggleButton_Click"
                         ToolTipService.ToolTip="On-device AI insights (Ollama). Falls back to heuristics when off or unavailable.">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon FontSize="14" Glyph="&#xE945;" />
+                            <FontIcon FontSize="{StaticResource UmIconSizeMd}" Glyph="&#xE945;" />
                             <TextBlock Text="AI" />
                         </StackPanel>
                     </ToggleButton>
@@ -109,7 +109,7 @@
                 <Border
                     x:Name="WebNavBar"
                     Grid.Row="0"
-                    Padding="8,6"
+                    Padding="{StaticResource UmPaddingSm}"
                     Background="{ThemeResource LayerFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
                     BorderThickness="0,0,0,1"
@@ -121,31 +121,31 @@
                             AutomationProperties.Name="Back to dashboard"
                             ToolTipService.ToolTip="Back to dashboard">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon FontSize="12" Glyph="&#xE72B;" />
+                                <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE72B;" />
                                 <TextBlock Text="Dashboard" />
                             </StackPanel>
                         </HyperlinkButton>
 
                         <StackPanel x:Name="NavControlsPanel" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                            <Border Width="1" Height="22" Margin="2,0,4,0" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                            <Button x:Name="NavBackButton" Click="NavBackButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="8" AutomationProperties.Name="Back" ToolTipService.ToolTip="Back">
-                                <FontIcon FontSize="14" Glyph="&#xE72B;" />
+                            <Border Width="1" Height="22" Margin="4,0,4,0" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                            <Button x:Name="NavBackButton" Click="NavBackButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="{StaticResource UmPaddingSm}" AutomationProperties.Name="Back" ToolTipService.ToolTip="Back">
+                                <FontIcon FontSize="{StaticResource UmIconSizeMd}" Glyph="&#xE72B;" />
                             </Button>
-                            <Button x:Name="NavForwardButton" Click="NavForwardButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="8" AutomationProperties.Name="Forward" ToolTipService.ToolTip="Forward">
-                                <FontIcon FontSize="14" Glyph="&#xE72A;" />
+                            <Button x:Name="NavForwardButton" Click="NavForwardButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="{StaticResource UmPaddingSm}" AutomationProperties.Name="Forward" ToolTipService.ToolTip="Forward">
+                                <FontIcon FontSize="{StaticResource UmIconSizeMd}" Glyph="&#xE72A;" />
                             </Button>
-                            <Button x:Name="NavReloadButton" Click="NavReloadButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="8" AutomationProperties.Name="Reload" ToolTipService.ToolTip="Reload">
-                                <FontIcon FontSize="14" Glyph="&#xE72C;" />
+                            <Button x:Name="NavReloadButton" Click="NavReloadButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="{StaticResource UmPaddingSm}" AutomationProperties.Name="Reload" ToolTipService.ToolTip="Reload">
+                                <FontIcon FontSize="{StaticResource UmIconSizeMd}" Glyph="&#xE72C;" />
                             </Button>
-                            <Button x:Name="NavHomeButton" Click="NavHomeButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="8" AutomationProperties.Name="Home" ToolTipService.ToolTip="Home — back to this account's start page">
-                                <FontIcon FontSize="14" Glyph="&#xE80F;" />
+                            <Button x:Name="NavHomeButton" Click="NavHomeButton_Click" Style="{StaticResource SubtleButtonStyle}" Padding="{StaticResource UmPaddingSm}" AutomationProperties.Name="Home" ToolTipService.ToolTip="Home — back to this account's start page">
+                                <FontIcon FontSize="{StaticResource UmIconSizeMd}" Glyph="&#xE80F;" />
                             </Button>
                             <!-- Address: read-only for platform tabs (their session is pinned to that
                                  service by the nav guard), editable for Custom URL tabs so the owner can
                                  actually browse and then save where they landed. -->
                             <Border
                                 Margin="4,0,0,0"
-                                Padding="10,0"
+                                Padding="12,0"
                                 Height="32"
                                 MinWidth="220"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -153,13 +153,13 @@
                                 BorderThickness="1"
                                 CornerRadius="8">
                                 <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                                    <FontIcon FontSize="12" Glyph="&#xE72E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
-                                    <TextBlock x:Name="NavAddressText" VerticalAlignment="Center" FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE72E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                                    <TextBlock x:Name="NavAddressText" VerticalAlignment="Center" FontSize="{StaticResource UmFontSizeBody}" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBox
                                         x:Name="NavAddressBox"
                                         MinWidth="220"
                                         VerticalAlignment="Center"
-                                        FontSize="12"
+                                        FontSize="{StaticResource UmFontSizeBody}"
                                         BorderThickness="0"
                                         Background="Transparent"
                                         Padding="0"
@@ -174,13 +174,13 @@
                                 x:Name="NavSaveSiteButton"
                                 Click="NavSaveSiteButton_Click"
                                 Style="{StaticResource SubtleButtonStyle}"
-                                Padding="8"
+                                Padding="{StaticResource UmPaddingSm}"
                                 Visibility="Collapsed"
                                 AutomationProperties.Name="Save this site as an account"
                                 ToolTipService.ToolTip="Save this site — adds the page you're on as its own account in the sidebar">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontSize="14" Glyph="&#xE74E;" />
-                                    <TextBlock FontSize="12" Text="Save site" />
+                                    <FontIcon FontSize="{StaticResource UmIconSizeMd}" Glyph="&#xE74E;" />
+                                    <TextBlock FontSize="{StaticResource UmFontSizeBody}" Text="Save site" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>

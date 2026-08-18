@@ -104,13 +104,13 @@ public sealed partial class DashboardSectionLinks : UserControl
         text.Children.Add(new TextBlock
         {
             Text = title,
-            FontSize = 14,
+            FontSize = UmScale.Text.BodyStrong,
             FontWeight = FontWeights.SemiBold
         });
         text.Children.Add(new TextBlock
         {
             Text = summary,
-            FontSize = 12,
+            FontSize = UmScale.Text.Body,
             Opacity = 0.7,
             TextTrimming = TextTrimming.CharacterEllipsis
         });
@@ -120,14 +120,14 @@ public sealed partial class DashboardSectionLinks : UserControl
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var icon = new FontIcon { Glyph = glyph, FontSize = 18, VerticalAlignment = VerticalAlignment.Center };
+        var icon = new FontIcon { Glyph = glyph, FontSize = UmScale.Icon.Md, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(icon, 0);
         Grid.SetColumn(text, 1);
 
         var chevron = new FontIcon
         {
             Glyph = "",
-            FontSize = 12,
+            FontSize = UmScale.Icon.Sm,
             Opacity = 0.5,
             VerticalAlignment = VerticalAlignment.Center
         };

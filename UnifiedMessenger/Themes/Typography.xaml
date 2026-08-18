@@ -19,12 +19,12 @@
     </Style>
 
     <Style x:Key="UmScopeTextStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
-        <Setter Property="FontSize" Value="{StaticResource UmFontSizeScope}" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeBodyStrong}" />
         <Setter Property="Opacity" Value="0.9" />
     </Style>
 
     <Style x:Key="UmSectionLabelTextStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
-        <Setter Property="FontSize" Value="{StaticResource UmFontSizeSectionLabel}" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeCaption}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Opacity" Value="0.75" />
         <Setter Property="CharacterSpacing" Value="40" />
@@ -32,18 +32,18 @@
 
     <Style x:Key="DashboardSectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeBodyStrong}" />
         <Setter Property="Foreground" Value="{ThemeResource UmBrandSlateBrush}" />
     </Style>
 
     <Style x:Key="DashboardMetricLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
-        <Setter Property="FontSize" Value="{StaticResource UmFontSizeSectionLabel}" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeCaption}" />
         <Setter Property="Opacity" Value="0.65" />
     </Style>
 
     <Style x:Key="DashboardMetricValueStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeMetric}" />
         <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
     </Style>
 
@@ -54,7 +54,7 @@
     </Style>
 
     <Style x:Key="UmBadgeLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
-        <Setter Property="FontSize" Value="{StaticResource UmBadgeFontSize}" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeCaption}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
@@ -68,7 +68,7 @@
     </Style>
 
     <Style x:Key="UmKanbanColumnHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource UmEllipsisTextStyle}">
-        <Setter Property="FontSize" Value="{StaticResource UmFontSizeSectionLabel}" />
+        <Setter Property="FontSize" Value="{StaticResource UmFontSizeCaption}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 

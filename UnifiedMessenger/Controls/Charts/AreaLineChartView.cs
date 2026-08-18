@@ -19,9 +19,9 @@ namespace UnifiedMessenger.Controls.Charts;
 public sealed class AreaLineChartView : ContentControl
 {
     private readonly Canvas _canvas = new();
-    private readonly TextBlock _yMax = new() { FontSize = 10, Opacity = 0.6 };
-    private readonly TextBlock _xFirst = new() { FontSize = 10, Opacity = 0.6 };
-    private readonly TextBlock _xLast = new() { FontSize = 10, Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly TextBlock _yMax = new() { FontSize = UmScale.Text.Caption, Opacity = 0.6 };
+    private readonly TextBlock _xFirst = new() { FontSize = UmScale.Text.Caption, Opacity = 0.6 };
+    private readonly TextBlock _xLast = new() { FontSize = UmScale.Text.Caption, Opacity = 0.6, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly Grid _root;
 
     private IReadOnlyList<double> _values = [];

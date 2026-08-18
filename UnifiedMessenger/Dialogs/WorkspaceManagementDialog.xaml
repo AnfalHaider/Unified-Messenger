@@ -25,7 +25,7 @@
             SmallChange="1"
             SpinButtonPlacementMode="Inline" />
         <TextBlock
-            FontSize="12"
+            FontSize="{StaticResource UmFontSizeBody}"
             Foreground="{ThemeResource TextFillColorTertiaryBrush}"
             Text="A desktop toast appears when an account crosses this many customers awaiting a reply (checked every few minutes)."
             TextWrapping="WrapWholeWords" />
@@ -69,7 +69,7 @@
             </Grid>
 
             <TextBlock
-                FontSize="12"
+                FontSize="{StaticResource UmFontSizeBody}"
                 Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                 Text="Working days: Monday to Saturday."
                 TextWrapping="WrapWholeWords" />

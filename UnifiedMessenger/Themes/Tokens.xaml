@@ -96,36 +96,60 @@
     <SolidColorBrush x:Key="UmBrandBlueBrush" Color="{StaticResource UmBrandBlueColor}" />
     <SolidColorBrush x:Key="UmBrandVioletBrush" Color="{StaticResource UmBrandVioletColor}" />
 
+    <!-- ============================================================================================
+         SPACING — a 4px grid. Every Padding, Margin and Spacing in the app resolves to one of these.
+         See docs/design-system/scales.md for the mapping and the reasoning.
+         ============================================================================================ -->
     <x:Double x:Key="UmSpacingXs">4</x:Double>
     <x:Double x:Key="UmSpacingSm">8</x:Double>
     <x:Double x:Key="UmSpacingMd">12</x:Double>
     <x:Double x:Key="UmSpacingLg">16</x:Double>
     <x:Double x:Key="UmSpacingXl">24</x:Double>
+    <x:Double x:Key="UmSpacingXxl">32</x:Double>
     <x:Double x:Key="UmCornerRadiusMd">8</x:Double>
     <x:Double x:Key="UmCornerRadiusSm">6</x:Double>
 
-    <x:Double x:Key="UmFontSizeCaption">10</x:Double>
-    <x:Double x:Key="UmFontSizeSectionLabel">11</x:Double>
+    <!-- ============================================================================================
+         TYPE RAMP — seven steps, named for purpose rather than size.
+
+         Was twelve distinct text sizes (9,10,11,12,13,14,15,16,20,24,28,42) spread across XAML and the
+         imperative C# card builders, with the builders carrying MORE distinct sizes than the whole XAML
+         surface. 9 and 10 round UP into Caption: both are below comfortable reading size on a dashboard
+         scanned at arm's length, and rounding up is the accessible direction.
+         ============================================================================================ -->
+    <x:Double x:Key="UmFontSizeCaption">11</x:Double>
     <x:Double x:Key="UmFontSizeBody">12</x:Double>
-    <x:Double x:Key="UmFontSizeScope">14</x:Double>
-    <x:Double x:Key="UmFontSizeMetricValue">20</x:Double>
-    <!-- Redesign type ramp: fills the gap between body (12) and the old lone 20/22 metric size, so a card
-         reads label → value → hero instead of "small dense text then one big jump". -->
-    <x:Double x:Key="UmFontSizeSubtitle">15</x:Double>
-    <x:Double x:Key="UmFontSizeMetricSm">18</x:Double>
+    <x:Double x:Key="UmFontSizeBodyStrong">14</x:Double>
+    <x:Double x:Key="UmFontSizeSubtitle">16</x:Double>
+    <x:Double x:Key="UmFontSizeTitle">20</x:Double>
     <x:Double x:Key="UmFontSizeMetric">24</x:Double>
-    <x:Double x:Key="UmFontSizeHero">34</x:Double>
+    <x:Double x:Key="UmFontSizeHero">32</x:Double>
+
+    <!-- ============================================================================================
+         ICON GLYPH SIZES — deliberately SEPARATE from the type ramp.
+
+         `FontSize` on a FontIcon sets a glyph size, not a type size. They share an attribute name and
+         nothing else; forcing icons onto the text steps would trade one inconsistency for another.
+         ============================================================================================ -->
+    <x:Double x:Key="UmIconSizeSm">12</x:Double>
+    <x:Double x:Key="UmIconSizeMd">16</x:Double>
+    <x:Double x:Key="UmIconSizeLg">24</x:Double>
+    <x:Double x:Key="UmIconSizeXl">40</x:Double>
+
     <x:Double x:Key="UmChartHeight">110</x:Double>
     <x:Double x:Key="UmChartPlotHeight">96</x:Double>
     <x:Double x:Key="UmChartStrokeThickness">2.5</x:Double>
-    <x:Double x:Key="UmBadgeFontSize">10</x:Double>
-    <x:Double x:Key="UmIconSizeSm">14</x:Double>
     <x:Double x:Key="UmKanbanColumnMinHeight">120</x:Double>
     <x:Double x:Key="UmOpacityMuted">0.65</x:Double>
     <x:Double x:Key="UmOpacityHint">0.75</x:Double>
     <x:Double x:Key="UmOpacitySubtle">0.55</x:Double>
 
+    <!-- Uniform paddings on the 4px grid. Asymmetric ones below survive only where the asymmetry is
+         load-bearing (a badge is wider than tall; a card's bottom edge carries a footer). -->
+    <Thickness x:Key="UmPaddingXs">4</Thickness>
     <Thickness x:Key="UmPaddingMd">12</Thickness>
+    <Thickness x:Key="UmPaddingXl">24</Thickness>
+    <Thickness x:Key="UmPaddingXxl">32</Thickness>
     <Thickness x:Key="UmMetricCardPadding">16</Thickness>
     <Thickness x:Key="UmMarginSectionHeader">4,14,4,6</Thickness>
     <Thickness x:Key="UmMarginSectionHeaderFirst">4,0,4,6</Thickness>

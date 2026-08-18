@@ -77,10 +77,10 @@ public static class AwaitingChatActions
         // the snooze options. The old design put both behind an unlabelled "…", which is why the capability
         // read as missing.
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        content.Children.Add(new FontIcon { Glyph = "", FontSize = 13 });
+        content.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Sm });
         if (!compact)
         {
-            content.Children.Add(new TextBlock { Text = "Done", FontSize = 12 });
+            content.Children.Add(new TextBlock { Text = "Done", FontSize = UmScale.Icon.Sm });
         }
 
         var button = new SplitButton
