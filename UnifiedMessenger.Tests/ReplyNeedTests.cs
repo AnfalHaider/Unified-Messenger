@@ -397,3 +397,61 @@ public class ReplyNeedTests
             ReplyNeed.Classify("ok thanks", true, "chat", TimeSpan.FromHours(2)).Reason);
     }
 }
+
+/// <summary>
+/// Call-log entries, and the direction bug found by reading the owner's real WhatsApp store over CDP.
+/// </summary>
+/// <remarks>
+/// The branch matched any <c>call_log</c> and returned "missed call · needs reply · Call back" — including
+/// calls the salon itself placed. Measured live on the owner's accounts: one session had 3 of 19 call-log
+/// entries outbound, another had 7 of 7. Those were all being queued as customers to ring back.
+///
+/// Verified at the same time, and worth recording because it saved shipping a wrong fix: WhatsApp's message
+/// model does <b>not</b> carry the call outcome in <c>subtype</c> — it reads <c>undefined</c> on every real
+/// call entry. The outcome lives behind <c>WAWebCallLogUtils.getIsMissedCallOrNotConnected</c>, against a
+/// call-log record the message does not directly expose. So "accepted on another device" is still counted;
+/// direction is what could be fixed honestly today.
+/// </remarks>
+public class CallLogDirectionTests
+{
+    [Theory]
+    [InlineData("call_log")]
+    [InlineData("call")]
+    public void AnIncomingCallStillNeedsCallingBack(string type)
+    {
+        var verdict = ReplyNeed.Classify("Voice call", true, type, TimeSpan.FromHours(2), lastMessageFromMe: false);
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MissedCall, verdict.Reason);
+    }
+
+    [Theory]
+    [InlineData("call_log")]
+    [InlineData("call")]
+    public void ACallWePlacedIsNotSomeoneToRingBack(string type)
+    {
+        var verdict = ReplyNeed.Classify("Voice call", true, type, TimeSpan.FromHours(2), lastMessageFromMe: true);
+
+        Assert.False(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.OutgoingCall, verdict.Reason);
+    }
+
+    [Fact]
+    public void UnknownDirectionStaysCounted()
+    {
+        // The bias of this whole classifier is one-directional: close only on positive evidence. An older
+        // snapshot with no direction recorded must not silently drop a real missed call.
+        var verdict = ReplyNeed.Classify("Voice call", true, "call_log", TimeSpan.FromHours(2), lastMessageFromMe: null);
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MissedCall, verdict.Reason);
+    }
+
+    [Fact]
+    public void TheOutgoingExplanationSaysWhyNothingIsWaiting()
+    {
+        var verdict = new ReplyNeedVerdict(false, ReplyNeedReason.OutgoingCall);
+
+        Assert.Contains("You called them", verdict.Explain(), StringComparison.Ordinal);
+    }
+}

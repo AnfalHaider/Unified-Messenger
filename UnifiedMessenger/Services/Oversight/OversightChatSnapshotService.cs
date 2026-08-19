@@ -329,7 +329,8 @@ public sealed class OversightChatSnapshotService
             chat.Preview,
             chat.HasLastMessage,
             chat.LastMessageType,
-            nowUtc - chat.LastActivityUtc);
+            nowUtc - chat.LastActivityUtc,
+            chat.LastMessageFromMe);
         if (verdict.Reason != ReplyNeedReason.Substantive)
         {
             return verdict;

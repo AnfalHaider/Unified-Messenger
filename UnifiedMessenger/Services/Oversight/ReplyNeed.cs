@@ -43,7 +43,14 @@ public enum ReplyNeedReason
     /// The last entry is a call, not a message. Counted, because a missed call from a customer is worth
     /// returning — but named honestly instead of appearing as an unreadable message.
     /// </summary>
-    MissedCall
+    MissedCall,
+
+    /// <summary>
+    /// The last entry is a call the OWNER placed, not one the customer made. Nothing is waiting: you do
+    /// not call yourself back. Split out of <see cref="MissedCall"/> after reading real call-log entries
+    /// live — the branch had ignored direction entirely.
+    /// </summary>
+    OutgoingCall
 }
 
 /// <summary>
@@ -87,6 +94,7 @@ public readonly record struct ReplyNeedVerdict(bool NeedsReply, ReplyNeedReason 
         ReplyNeedReason.MessageNoLongerAvailable => "The message no longer exists — deleted or expired",
         ReplyNeedReason.SystemNotice => "Not a message — a WhatsApp system notice",
         ReplyNeedReason.MissedCall => "Customer called and did not get through",
+        ReplyNeedReason.OutgoingCall => "You called them — nothing is waiting on a reply",
         ReplyNeedReason.NoPreviewAvailable => "Message could not be read",
         _ => "Customer sent a message"
     };
@@ -280,7 +288,18 @@ public static class ReplyNeed
         string? preview,
         bool? hasLastMessage,
         string? lastMessageType,
-        TimeSpan? waitingFor)
+        TimeSpan? waitingFor) => Classify(preview, hasLastMessage, lastMessageType, waitingFor, null);
+
+    /// <param name="lastMessageFromMe">
+    /// Whether the last entry was sent by the owner. Only consulted for call logs today, where it is the
+    /// difference between "a customer rang and got no answer" and "we rang them".
+    /// </param>
+    public static ReplyNeedVerdict Classify(
+        string? preview,
+        bool? hasLastMessage,
+        string? lastMessageType,
+        TimeSpan? waitingFor,
+        bool? lastMessageFromMe)
     {
         var text = (preview ?? string.Empty).Trim();
 
@@ -295,9 +314,17 @@ public static class ReplyNeed
 
         // A missed call IS worth returning, so it stays counted — but 36 of those 212 were calls showing up
         // as messages with no readable text, which told the owner nothing about what to do.
+        //
+        // DIRECTION MATTERS, and this branch used to ignore it: every call-log entry became "missed call ·
+        // needs reply · Call back", including calls the SALON PLACED. Read live over CDP against the
+        // owner's own accounts: of the call-log entries sitting at the end of a chat, one WhatsApp session
+        // had 3 of 19 outbound and another had 7 of 7 outbound. Prompting someone to "call back" a number
+        // they themselves rang is not a small cosmetic error — it is work invented out of nothing.
         if (IsCallType(lastMessageType))
         {
-            return new ReplyNeedVerdict(true, ReplyNeedReason.MissedCall);
+            return lastMessageFromMe == true
+                ? new ReplyNeedVerdict(false, ReplyNeedReason.OutgoingCall)
+                : new ReplyNeedVerdict(true, ReplyNeedReason.MissedCall);
         }
 
         if (text.Length == 0)
