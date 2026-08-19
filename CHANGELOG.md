@@ -5,6 +5,29 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.37
+
+**A call you answered is no longer a customer to ring back.** Every entry in a WhatsApp chat that was a
+call — not a message — was being counted as a missed call, given a **Call back** button, and added to the
+queue. It did not matter how the call actually ended, or even who placed it.
+
+On this workspace that made "Missed calls" the second-largest bucket in the queue, at 86. It is now **36**,
+and the total waiting fell from 258 to 206.
+
+Three kinds of entry were wrong:
+
+- **Calls you answered on your phone.** WhatsApp logs these as *"Accepted on another device"*. You had
+  already spoken to the customer; the app still asked you to call them back. 24 of these.
+- **Calls that connected normally.** 34 of them.
+- **Calls you placed.** Ringing a customer back because you rang them is work invented out of nothing.
+
+Genuinely missed calls, and calls that were declined or failed to connect, are still counted — in those
+cases the customer did not get what they rang for.
+
+**Where the numbers come from.** WhatsApp records its own verdict on every call, and the app now reads it
+rather than assuming. When the verdict cannot be read the call stays counted, because this queue's rule is
+that a finished conversation costing you a glance is far better than a live one being dropped.
+
 ## v4.99.36
 
 **The app now owns how it looks.** Two of the things that made it feel dated turned out not to be design
