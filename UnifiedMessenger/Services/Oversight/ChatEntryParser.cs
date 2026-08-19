@@ -144,10 +144,13 @@ public static class ChatEntryParser
             ? h.ValueKind == JsonValueKind.True
             : (bool?)null;
         var lastMessageType = ReadString(conversation, "lastMessageType");
+        // Empty from the IndexedDB fallback, which has no decrypted message model to read it from. Empty
+        // means "unknown", and unknown stays counted — see ReplyNeed.
+        var lastCallOutcome = ReadString(conversation, "lastCallOutcome");
 
         entry = new OversightChatSnapshotService.ChatEntry(
             key, name, unread, when.ToUniversalTime(), preview, awaiting, fromMe, contactPhone,
-            hasLastMessage, lastMessageType);
+            hasLastMessage, lastMessageType, lastCallOutcome);
         return true;
     }
 

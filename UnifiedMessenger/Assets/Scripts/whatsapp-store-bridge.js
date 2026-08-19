@@ -505,6 +505,27 @@
     }
   }
 
+  // The call outcome, read straight off the decrypted in-memory message.
+  //
+  // Verified live over CDP against 378 real call entries on the owner's own accounts. WhatsApp exposes it
+  // as a prototype getter `callOutcome` with values: Missed, Completed, AcceptedElsewhere, Rejected,
+  // Ongoing, Failed. It is NOT in `subtype` — that reads undefined on every call entry, and reaching for
+  // it would have shipped a confidently wrong number.
+  //
+  // Of the 317 INBOUND calls in that sample only 166 were actually Missed; 102 were Completed, 33 were
+  // AcceptedElsewhere (answered on the owner's phone), 14 Rejected. The app was calling all of them
+  // missed calls and asking the owner to ring every one back.
+  function callOutcomeOf(message) {
+    if (!message) {
+      return '';
+    }
+    try {
+      return String(message.callOutcome || '');
+    } catch (error) {
+      return '';
+    }
+  }
+
   function fromMeOf(message) {
     if (!message) {
       return null;
@@ -716,7 +737,8 @@
           // waiting when there is nothing left to reply to (observed live: a chat 57 days old, no body,
           // nothing in the thread when opened).
           hasLastMessage: !!last,
-          lastMessageType: typeOf(last)
+          lastMessageType: typeOf(last),
+          lastCallOutcome: callOutcomeOf(last)
         });
       } catch (perChat) {
         // Skip a malformed chat rather than failing the whole scan.

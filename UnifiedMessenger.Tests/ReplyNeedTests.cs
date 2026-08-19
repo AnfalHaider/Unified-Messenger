@@ -455,3 +455,97 @@ public class CallLogDirectionTests
         Assert.Contains("You called them", verdict.Explain(), StringComparison.Ordinal);
     }
 }
+
+/// <summary>
+/// The call OUTCOME — the half that could not be fixed without reading WhatsApp's live model.
+/// </summary>
+/// <remarks>
+/// Owner-reported: "Voice call — Accepted on another device" appeared under Missed calls with a Call back
+/// button, for a customer they had already spoken to on their phone.
+///
+/// The vocabulary here was read over CDP from 378 real call entries on the owner's own accounts, never
+/// guessed — and the guess would have been wrong: WhatsApp does not put this in <c>subtype</c>, which is
+/// <c>undefined</c> on every call entry. It is <c>message.callOutcome</c>.
+///
+/// The measured distribution of the 317 INBOUND calls in that sample:
+/// <code>
+///   Missed             166
+///   Completed          102
+///   AcceptedElsewhere   33
+///   Rejected            14
+///   Ongoing / Failed     2
+/// </code>
+/// Only 52% were actually missed. The app was asking the owner to ring back all of them.
+/// </remarks>
+public class CallOutcomeTests
+{
+    private static ReplyNeedVerdict Call(string outcome, bool fromMe = false) =>
+        ReplyNeed.Classify("Voice call", true, "call_log", TimeSpan.FromHours(3), fromMe, outcome);
+
+    [Theory]
+    [InlineData("Completed")]
+    [InlineData("AcceptedElsewhere")]
+    [InlineData("acceptedelsewhere")]
+    [InlineData("Ongoing")]
+    public void AnAnsweredCallIsNotSomeoneToRingBack(string outcome)
+    {
+        var verdict = Call(outcome);
+
+        Assert.False(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.CallAnswered, verdict.Reason);
+    }
+
+    [Theory]
+    [InlineData("Missed")]
+    [InlineData("Failed")]
+    public void ACallThatNeverConnectedStillNeedsReturning(string outcome)
+    {
+        var verdict = Call(outcome);
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MissedCall, verdict.Reason);
+    }
+
+    [Fact]
+    public void ADeclinedCallStaysCounted()
+    {
+        // Rejected means someone actively declined it. The customer still did not get what they rang for,
+        // so this is NOT treated as answered — closing it would be the one mistake this classifier is
+        // built to avoid.
+        var verdict = Call("Rejected");
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MissedCall, verdict.Reason);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    [InlineData("SomethingWhatsAppAddedLater")]
+    public void AnUnknownOutcomeStaysCounted(string? outcome)
+    {
+        // The IndexedDB fallback cannot read the outcome at all, and WhatsApp may add values. Unknown must
+        // never silently close a real missed call.
+        var verdict = Call(outcome!);
+
+        Assert.True(verdict.NeedsReply);
+        Assert.Equal(ReplyNeedReason.MissedCall, verdict.Reason);
+    }
+
+    [Fact]
+    public void DirectionStillWinsOverOutcome()
+    {
+        // A call we placed is ours regardless of how it ended.
+        Assert.Equal(ReplyNeedReason.OutgoingCall, Call("Missed", fromMe: true).Reason);
+        Assert.Equal(ReplyNeedReason.OutgoingCall, Call("Completed", fromMe: true).Reason);
+    }
+
+    [Fact]
+    public void TheAnsweredExplanationSaysSomeonePickedUp()
+    {
+        Assert.Contains(
+            "was answered",
+            new ReplyNeedVerdict(false, ReplyNeedReason.CallAnswered).Explain(),
+            StringComparison.Ordinal);
+    }
+}

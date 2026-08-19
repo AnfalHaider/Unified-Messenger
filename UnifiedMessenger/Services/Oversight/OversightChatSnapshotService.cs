@@ -29,7 +29,11 @@ public sealed class OversightChatSnapshotService
         // WhatsApp's message type: 'chat' for text, 'image'/'video'/'ptt'/'audio'/'document'/'sticker' for
         // media. Needed because an uncaptioned photo and a missing message both produce an empty preview,
         // and they need opposite treatment.
-        string LastMessageType = "");
+        string LastMessageType = "",
+        // WhatsApp's own verdict on a call: Missed, Completed, AcceptedElsewhere, Rejected, Ongoing,
+        // Failed. Empty means unknown — the IndexedDB fallback cannot read it, and unknown stays counted.
+        // Read live rather than guessed: it is NOT in `subtype`, which is undefined on every call entry.
+        string LastCallOutcome = "");
 
     /// <summary>"Since you were last here" summary across a set of instances.</summary>
     public readonly record struct OversightDigest(
@@ -174,7 +178,8 @@ public sealed class OversightChatSnapshotService
                             c.LastMessageFromMe,
                             c.ContactPhone ?? string.Empty,
                             c.HasLastMessage,
-                            c.LastMessageType ?? string.Empty)).ToList();
+                            c.LastMessageType ?? string.Empty,
+                            c.LastCallOutcome ?? string.Empty)).ToList();
 
                     // The same coverage retraction the scrapers apply, repeated on LOAD. A snapshot
                     // written by a cold scan carries `hasLastMessage: false` on nearly every row, and
@@ -330,7 +335,8 @@ public sealed class OversightChatSnapshotService
             chat.HasLastMessage,
             chat.LastMessageType,
             nowUtc - chat.LastActivityUtc,
-            chat.LastMessageFromMe);
+            chat.LastMessageFromMe,
+            chat.LastCallOutcome);
         if (verdict.Reason != ReplyNeedReason.Substantive)
         {
             return verdict;
@@ -620,7 +626,8 @@ public sealed class OversightChatSnapshotService
                             LastMessageFromMe = c.LastMessageFromMe,
                             ContactPhone = c.ContactPhone,
                             HasLastMessage = c.HasLastMessage,
-                            LastMessageType = c.LastMessageType
+                            LastMessageType = c.LastMessageType,
+                            LastCallOutcome = c.LastCallOutcome
                         }).ToList()
                     },
                     StringComparer.OrdinalIgnoreCase)
@@ -699,5 +706,7 @@ public sealed class OversightChatSnapshotService
         public bool? HasLastMessage { get; set; }
 
         public string? LastMessageType { get; set; }
+
+        public string? LastCallOutcome { get; set; }
     }
 }

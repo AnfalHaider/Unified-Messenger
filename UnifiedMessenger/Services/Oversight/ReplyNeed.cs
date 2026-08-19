@@ -50,7 +50,13 @@ public enum ReplyNeedReason
     /// not call yourself back. Split out of <see cref="MissedCall"/> after reading real call-log entries
     /// live — the branch had ignored direction entirely.
     /// </summary>
-    OutgoingCall
+    OutgoingCall,
+
+    /// <summary>
+    /// The customer called and the call was ANSWERED — picked up here, or on the owner's phone
+    /// ("Accepted on another device"). Nothing is waiting: they got through and spoke to someone.
+    /// </summary>
+    CallAnswered
 }
 
 /// <summary>
@@ -95,6 +101,7 @@ public readonly record struct ReplyNeedVerdict(bool NeedsReply, ReplyNeedReason 
         ReplyNeedReason.SystemNotice => "Not a message — a WhatsApp system notice",
         ReplyNeedReason.MissedCall => "Customer called and did not get through",
         ReplyNeedReason.OutgoingCall => "You called them — nothing is waiting on a reply",
+        ReplyNeedReason.CallAnswered => "Customer called and the call was answered",
         ReplyNeedReason.NoPreviewAvailable => "Message could not be read",
         _ => "Customer sent a message"
     };
@@ -239,6 +246,31 @@ public static class ReplyNeed
             || value.Equals("payment_notification", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Whether WhatsApp's own verdict on a call says the customer got through.
+    /// </summary>
+    /// <remarks>
+    /// The vocabulary was read live over CDP from 378 real call entries on the owner's accounts, not
+    /// guessed: <c>Missed</c>, <c>Completed</c>, <c>AcceptedElsewhere</c>, <c>Rejected</c>, <c>Ongoing</c>,
+    /// <c>Failed</c>. Of the 317 INBOUND calls in that sample, only 166 were <c>Missed</c> — 102 were
+    /// <c>Completed</c> and 33 <c>AcceptedElsewhere</c>, meaning someone picked up, very often on the
+    /// owner's own phone. Every one of them was being presented as a customer to ring back.
+    ///
+    /// <para>
+    /// <c>Rejected</c> deliberately does NOT count as answered: the call was actively declined and the
+    /// customer still did not get what they rang for. <c>Failed</c> likewise. Anything unrecognised —
+    /// including the empty string the IndexedDB fallback produces — stays counted, keeping this
+    /// classifier's one-directional bias: close only on positive evidence.
+    /// </para>
+    /// </remarks>
+    internal static bool IsAnsweredCallOutcome(string? outcome)
+    {
+        var value = (outcome ?? string.Empty).Trim();
+        return value.Equals("Completed", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("AcceptedElsewhere", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("Ongoing", StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>A voice or video call entry rather than a message.</summary>
     internal static bool IsCallType(string? type)
     {
@@ -288,7 +320,7 @@ public static class ReplyNeed
         string? preview,
         bool? hasLastMessage,
         string? lastMessageType,
-        TimeSpan? waitingFor) => Classify(preview, hasLastMessage, lastMessageType, waitingFor, null);
+        TimeSpan? waitingFor) => Classify(preview, hasLastMessage, lastMessageType, waitingFor, null, null);
 
     /// <param name="lastMessageFromMe">
     /// Whether the last entry was sent by the owner. Only consulted for call logs today, where it is the
@@ -299,7 +331,19 @@ public static class ReplyNeed
         bool? hasLastMessage,
         string? lastMessageType,
         TimeSpan? waitingFor,
-        bool? lastMessageFromMe)
+        bool? lastMessageFromMe) =>
+        Classify(preview, hasLastMessage, lastMessageType, waitingFor, lastMessageFromMe, null);
+
+    /// <param name="lastCallOutcome">
+    /// WhatsApp's verdict on a call entry. Empty when unknown, which keeps the call counted.
+    /// </param>
+    public static ReplyNeedVerdict Classify(
+        string? preview,
+        bool? hasLastMessage,
+        string? lastMessageType,
+        TimeSpan? waitingFor,
+        bool? lastMessageFromMe,
+        string? lastCallOutcome)
     {
         var text = (preview ?? string.Empty).Trim();
 
@@ -322,8 +366,16 @@ public static class ReplyNeed
         // they themselves rang is not a small cosmetic error — it is work invented out of nothing.
         if (IsCallType(lastMessageType))
         {
-            return lastMessageFromMe == true
-                ? new ReplyNeedVerdict(false, ReplyNeedReason.OutgoingCall)
+            if (lastMessageFromMe == true)
+            {
+                return new ReplyNeedVerdict(false, ReplyNeedReason.OutgoingCall);
+            }
+
+            // An inbound call that WhatsApp says was answered is not a missed call. This is the owner's
+            // reported case: "Voice call — Accepted on another device", queued with a Call back button
+            // for someone they had already spoken to on their phone.
+            return IsAnsweredCallOutcome(lastCallOutcome)
+                ? new ReplyNeedVerdict(false, ReplyNeedReason.CallAnswered)
                 : new ReplyNeedVerdict(true, ReplyNeedReason.MissedCall);
         }
 
