@@ -5,6 +5,36 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.38
+
+**The biggest pile in your queue was misfiled work, not junk.** "Uncategorised" was the largest group of
+waiting conversations — messages the app could see but could not say anything about. Reading through them,
+they were not unclassifiable. They were customers asking ordinary questions in Roman Urdu, people sending
+their name to book, attachments, and sign-offs with a typo in them.
+
+**Customers chasing an unanswered message are now flagged as at risk.** This was the costly one. *"Apny koi
+reply nhi kiya dubara"* — you didn't reply again — sat under "no topic identified", while the At risk chip
+read 1. Somebody who has to chase you is one message from going elsewhere, and that list exists precisely so
+they are not the ones who stay buried.
+
+**A name on its own is treated as a booking.** When you ask "what name shall I put it under?" and they reply
+"Hira Sabir", that is an appointment being made. About a quarter of the uncategorised pile was exactly this,
+while the Bookings count read 3.
+
+**Questions in Roman Urdu are now recognised.** *"AP srves dety ho"*, *"Bramch kb close hgi"*, *"Aap please
+mujha actual amount mention kr dain"* — asking what you do, when you close, and what it costs. These are the
+messages with money attached, and they were invisible.
+
+**Sign-offs with a typo no longer count as work.** "Ohky", "Okhy", "Ok thankd", "Appreciated" were all
+sitting in the queue waiting for a reply that nobody owes.
+
+**Attachments are filed with the photos.** A document arrives showing only its filename, which meant
+"Islamabad.pdf" was treated as an unidentifiable message rather than a file somebody sent you.
+
+Uncategorised fell from roughly two in five waiting conversations to about one in five. What is left genuinely
+is ambiguous — short replies like "On 7" or "Please" that could mean several things — and the app says so
+rather than guessing.
+
 ## v4.99.37
 
 **A call you answered is no longer a customer to ring back.** Every entry in a WhatsApp chat that was a
