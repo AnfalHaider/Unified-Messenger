@@ -2421,8 +2421,7 @@ public sealed partial class CommandCenterPanel : UserControl
         return ComposeHeroSubtext(
             oldestWait?.Name,
             oldestWait?.Minutes,
-            worstName,
-            overallPct);
+            worstName);
     }
 
     /// <summary>
@@ -2438,8 +2437,7 @@ public sealed partial class CommandCenterPanel : UserControl
     internal static string ComposeHeroSubtext(
         string? oldestAccountName,
         double? oldestMinutes,
-        string? worstAccountName,
-        int overallPct)
+        string? worstAccountName)
     {
         var parts = new List<string>(3);
 
@@ -2465,6 +2463,11 @@ public sealed partial class CommandCenterPanel : UserControl
         // rendered 55px below in larger type — saying it twice made the subtext longer without making it
         // more informative. The subtext keeps only what no tile carries: which account is oldest and which
         // is furthest behind.
+        //
+        // The percentage PARAMETER went with it. Leaving an unused argument in place is what let this drift
+        // go unnoticed: two tests kept asserting the old sentence, kept failing in CI, and read as though
+        // they were still exercising something real. A signature that no longer takes the number cannot be
+        // mistaken for one that still uses it.
         return string.Join(" · ", parts);
     }
 

@@ -27,8 +27,7 @@ public class HeroSubtextAttributionTests
         var text = CommandCenterPanel.ComposeHeroSubtext(
             oldestAccountName: "Depilex Men DHA-2 WhatsApp",
             oldestMinutes: SeventyFiveDays,
-            worstAccountName: "Depilex DHA-2 WhatsApp",
-            overallPct: 12);
+            worstAccountName: "Depilex DHA-2 WhatsApp");
 
         // The oldest wait must name the account it belongs to...
         Assert.Contains("oldest 75d (Depilex Men DHA-2 WhatsApp)", text, StringComparison.Ordinal);
@@ -46,8 +45,7 @@ public class HeroSubtextAttributionTests
         var text = CommandCenterPanel.ComposeHeroSubtext(
             oldestAccountName: "Depilex F-11 WhatsApp",
             oldestMinutes: FiftyDays,
-            worstAccountName: "Depilex F-11 WhatsApp",
-            overallPct: 40);
+            worstAccountName: "Depilex F-11 WhatsApp");
 
         // No parenthetical when it would just repeat the name on the same line.
         Assert.Contains("oldest 50d · furthest behind: Depilex F-11 WhatsApp", text, StringComparison.Ordinal);
@@ -60,11 +58,10 @@ public class HeroSubtextAttributionTests
         var text = CommandCenterPanel.ComposeHeroSubtext(
             oldestAccountName: null,
             oldestMinutes: null,
-            worstAccountName: "Some Account",
-            overallPct: 88);
+            worstAccountName: "Some Account");
 
         Assert.DoesNotContain("oldest", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("furthest behind: Some Account · 88% caught up overall", text);
+        Assert.Equal("furthest behind: Some Account", text);
     }
 
     [Fact]
@@ -74,18 +71,21 @@ public class HeroSubtextAttributionTests
         var text = CommandCenterPanel.ComposeHeroSubtext(
             oldestAccountName: "Fresh Account",
             oldestMinutes: 0.4,
-            worstAccountName: "Fresh Account",
-            overallPct: 99);
+            worstAccountName: "Fresh Account");
 
         Assert.DoesNotContain("oldest", text, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void CaughtUpPercentIsAlwaysPresent()
+    public void WithNothingToReportTheLineIsEmptyRatherThanPadded()
     {
-        var text = CommandCenterPanel.ComposeHeroSubtext(null, null, null, 100);
+        // This test used to assert "100% caught up overall" and had been failing in CI ever since the
+        // percentage was deliberately removed from the subtext — it is the Caught up tile's job, shown
+        // directly below in larger type. Nobody noticed, because the method still ACCEPTED a percentage
+        // argument, so the test read as though it was exercising live behaviour.
+        var text = CommandCenterPanel.ComposeHeroSubtext(null, null, null);
 
-        Assert.Equal("100% caught up overall", text);
+        Assert.Equal(string.Empty, text);
     }
 
     [Fact]
@@ -96,8 +96,7 @@ public class HeroSubtextAttributionTests
         var text = CommandCenterPanel.ComposeHeroSubtext(
             oldestAccountName: null,
             oldestMinutes: SeventyFiveDays,
-            worstAccountName: "Busy Account",
-            overallPct: 12);
+            worstAccountName: "Busy Account");
 
         Assert.Contains("oldest 75d · furthest behind: Busy Account", text, StringComparison.Ordinal);
         Assert.DoesNotContain("oldest 75d (", text, StringComparison.Ordinal);

@@ -94,15 +94,30 @@ Also update `docs/phase-status.md` header date + baseline version.
 
 ## Running tests
 
-**Always use targeted class-name filters** — many tests spin up WebView2, registry fixtures, or real async pipelines that hang in headless CI. Never run the full suite unfiltered.
+**Run the FULL suite before pushing.** It completes in ~25 seconds and CI runs it on every push, so a
+targeted filter only postpones the failure to a place with a slower feedback loop.
 
 ```powershell
-# Targeted (safe, fast):
+# Before every push. 1536 tests, ~25s.
+dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet
+```
+
+> ⚠️ **Kill the app first — `Stop-Process -Name UnifiedMessenger -Force`.** `SecondInstanceActivatorTests`
+> connects to the single-instance named pipe, so with the real app running the "no server listening" test
+> sees the live server and fails, and its partner times out. Two failures that look like code breakage and
+> are only the app being open. CI never hits this because no app is running there.
+
+> ⚠️ **This section previously said "never run the full suite unfiltered", claiming tests hang headless.**
+> That is not true and it cost real time: targeted filters hid two `HeroSubtextAttributionTests` failures
+> that had been red in CI across several pushes, including a docs-only commit. If a specific test does hang
+> for you, name it here rather than reinstating a blanket ban.
+
+When you genuinely need one class while iterating, use an exact class name — filters like
+`~PlatformAdapter` grab extra classes and are how the old advice went wrong:
+
+```powershell
 dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet `
   --filter "FullyQualifiedName~PlatformDefinitionTests|FullyQualifiedName~PlatformAdapterFactoryTests"
-
-# Avoid filters like "~PlatformAdapter" — grabs extra classes that hang headless.
-# Use exact class names, not substrings of substrings.
 ```
 
 **Always test the Release (live/shipping) build — never Debug.** `Directory.Build.props` defaults the repo

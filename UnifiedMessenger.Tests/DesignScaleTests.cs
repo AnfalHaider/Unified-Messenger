@@ -190,6 +190,10 @@ public class DesignScaleTests
         // UmScale duplicates Tokens.xaml so that code-built controls never make a UI-thread WinRT call to
         // read a resource (the mistake that terminated the process once already — see UmSemanticBrushes).
         // Duplication is only safe while something proves the copies agree.
+        //
+        // Constant first, XAML second: xUnit's analyser treats the constant as the expected value, and the
+        // other order raised twelve xUnit2000 warnings that showed up as annotations on every CI run —
+        // noise that makes a genuinely failing build harder to read.
         var tokensPath = Path.Combine(WcagContrast.RepoRoot(), "UnifiedMessenger", "Themes", "Tokens.xaml");
         var tokens = File.ReadAllText(tokensPath);
 
@@ -200,25 +204,25 @@ public class DesignScaleTests
             return double.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        Assert.Equal(FromXaml("UmFontSizeCaption"), UmScale.Text.Caption);
-        Assert.Equal(FromXaml("UmFontSizeBody"), UmScale.Text.Body);
-        Assert.Equal(FromXaml("UmFontSizeBodyStrong"), UmScale.Text.BodyStrong);
-        Assert.Equal(FromXaml("UmFontSizeSubtitle"), UmScale.Text.Subtitle);
-        Assert.Equal(FromXaml("UmFontSizeTitle"), UmScale.Text.Title);
-        Assert.Equal(FromXaml("UmFontSizeMetric"), UmScale.Text.Metric);
-        Assert.Equal(FromXaml("UmFontSizeHero"), UmScale.Text.Hero);
+        Assert.Equal(UmScale.Text.Caption, FromXaml("UmFontSizeCaption"));
+        Assert.Equal(UmScale.Text.Body, FromXaml("UmFontSizeBody"));
+        Assert.Equal(UmScale.Text.BodyStrong, FromXaml("UmFontSizeBodyStrong"));
+        Assert.Equal(UmScale.Text.Subtitle, FromXaml("UmFontSizeSubtitle"));
+        Assert.Equal(UmScale.Text.Title, FromXaml("UmFontSizeTitle"));
+        Assert.Equal(UmScale.Text.Metric, FromXaml("UmFontSizeMetric"));
+        Assert.Equal(UmScale.Text.Hero, FromXaml("UmFontSizeHero"));
 
-        Assert.Equal(FromXaml("UmIconSizeSm"), UmScale.Icon.Sm);
-        Assert.Equal(FromXaml("UmIconSizeMd"), UmScale.Icon.Md);
-        Assert.Equal(FromXaml("UmIconSizeLg"), UmScale.Icon.Lg);
-        Assert.Equal(FromXaml("UmIconSizeXl"), UmScale.Icon.Xl);
+        Assert.Equal(UmScale.Icon.Sm, FromXaml("UmIconSizeSm"));
+        Assert.Equal(UmScale.Icon.Md, FromXaml("UmIconSizeMd"));
+        Assert.Equal(UmScale.Icon.Lg, FromXaml("UmIconSizeLg"));
+        Assert.Equal(UmScale.Icon.Xl, FromXaml("UmIconSizeXl"));
 
-        Assert.Equal(FromXaml("UmSpacingXs"), UmScale.Space.Xs);
-        Assert.Equal(FromXaml("UmSpacingSm"), UmScale.Space.Sm);
-        Assert.Equal(FromXaml("UmSpacingMd"), UmScale.Space.Md);
-        Assert.Equal(FromXaml("UmSpacingLg"), UmScale.Space.Lg);
-        Assert.Equal(FromXaml("UmSpacingXl"), UmScale.Space.Xl);
-        Assert.Equal(FromXaml("UmSpacingXxl"), UmScale.Space.Xxl);
+        Assert.Equal(UmScale.Space.Xs, FromXaml("UmSpacingXs"));
+        Assert.Equal(UmScale.Space.Sm, FromXaml("UmSpacingSm"));
+        Assert.Equal(UmScale.Space.Md, FromXaml("UmSpacingMd"));
+        Assert.Equal(UmScale.Space.Lg, FromXaml("UmSpacingLg"));
+        Assert.Equal(UmScale.Space.Xl, FromXaml("UmSpacingXl"));
+        Assert.Equal(UmScale.Space.Xxl, FromXaml("UmSpacingXxl"));
     }
 
     [Fact]
