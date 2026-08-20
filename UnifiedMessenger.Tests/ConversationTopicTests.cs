@@ -169,3 +169,123 @@ public class ConversationTopicTests
         }
     }
 }
+
+/// <summary>
+/// The five rules built after reading what was actually inside the "Uncategorised" bucket — 79 of the 205
+/// waiting conversations on the owner's real queue, run through the production classifiers.
+/// </summary>
+/// <remarks>
+/// It was not junk. It was misfiled work: about a quarter were a bare customer name (the booking flow),
+/// roughly ten were Roman Urdu enquiries the lexicon did not cover, several were business outreach, a
+/// handful were acknowledgements with typos that should never have been queued, and a few were attachment
+/// filenames. Worst of all, "At risk" showed <b>1</b> while three customers chasing an unanswered message
+/// sat unclassified.
+/// </remarks>
+public class UncategorisedRecoveryTests
+{
+    // ---- 1 · being ignored is a churn signal -------------------------------------------------------
+
+    [Theory]
+    [InlineData("Apny koi reply nhi kiya dubara")]   // you didn't reply again
+    [InlineData("Reply me please")]
+    [InlineData("Or else share your pr team number")]
+    [InlineData("still waiting for your response")]
+    [InlineData("no reply from your side")]
+    [InlineData("Koi jawab nahi mila")]
+    public void ChasingAnUnansweredMessageIsAtRisk(string preview) =>
+        Assert.Equal(ConversationTopic.AtRisk, ConversationTopics.Classify(preview));
+
+    // ---- 2 · a bare name is the booking flow -------------------------------------------------------
+
+    [Theory]
+    [InlineData("Aiza Anwar")]
+    [InlineData("Hira Sabir")]
+    [InlineData("Palwasha zaib")]
+    [InlineData("Talha Uzair")]
+    [InlineData("Saima Rustum Ali")]
+    [InlineData("Madiha rashid")]
+    public void ABareNameIsTreatedAsABooking(string preview) =>
+        Assert.Equal(ConversationTopic.Booking, ConversationTopics.Classify(preview));
+
+    [Theory]
+    [InlineData("For mens")]
+    [InlineData("See you")]
+    [InlineData("No need")]
+    [InlineData("Send me here")]
+    [InlineData("What is this")]
+    [InlineData("Yes mam")]
+    [InlineData("On 7")]                 // has a digit
+    [InlineData("Possible hai ?")]       // has a question mark
+    [InlineData("Madiha")]               // single word — too ambiguous to guess
+    public void OrdinaryShortPhrasesAreNotMistakenForNames(string preview) =>
+        Assert.NotEqual(ConversationTopic.Booking, ConversationTopics.Classify(preview));
+
+    [Fact]
+    public void ARealTopicAlwaysOutranksTheNameRule()
+    {
+        // The name rule runs last precisely so it cannot outrank anything that actually says something.
+        Assert.Equal(ConversationTopic.AtRisk, ConversationTopics.Classify("Sadia Naeem complaint"));
+        Assert.Equal(ConversationTopic.Enquiry, ConversationTopics.Classify("Hira Sabir price"));
+        Assert.Equal(ConversationTopic.JobApplicant, ConversationTopics.Classify("Talha Uzair cv"));
+    }
+
+    [Fact]
+    public void TheNameRuleOnlyMovesARowItNeverClosesOne()
+    {
+        // Booking still needs a reply. Nothing in this rule can drop a customer.
+        Assert.True(ReplyNeed.Classify("Aiza Anwar").NeedsReply);
+    }
+
+    // ---- 3 · Roman Urdu enquiries ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("AP srves dety ho")]          // do you provide services
+    [InlineData("Bramch kb close hgi")]       // when does the branch close
+    [InlineData("Aap please mujha actual amount mention kr dain")]
+    [InlineData("Is it applicable to scheme 3 branch")]
+    [InlineData("Both signature and senior artist")]
+    [InlineData("Could you tell me the name of the stylist that did my hair just now?")]
+    [InlineData("Loyalty card")]
+    public void RomanUrduAndSalonVocabularyReadAsEnquiries(string preview) =>
+        Assert.Equal(ConversationTopic.Enquiry, ConversationTopics.Classify(preview));
+
+    // ---- 4 · acknowledgement typos should never have been queued -----------------------------------
+
+    [Theory]
+    [InlineData("Ohky")]
+    [InlineData("Okhy")]
+    [InlineData("Ok thankd")]
+    [InlineData("Appreciated")]
+    [InlineData("Yuppp. Acknowledged")]
+    public void MisspelledSignOffsCloseTheConversation(string preview)
+    {
+        var verdict = ReplyNeed.Classify(preview);
+
+        Assert.False(verdict.NeedsReply);
+    }
+
+    [Fact]
+    public void AQuestionAttachedToAnAcknowledgementStillCounts()
+    {
+        // The rule that must not regress: AsksSomething overrides every closer.
+        Assert.True(ReplyNeed.Classify("Ohky but what time?").NeedsReply);
+    }
+
+    // ---- 5 · attachment filenames ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("Islamabad.pdf")]
+    [InlineData("PERIO IMP STATIONS .pdf")]
+    [InlineData("VID_20260816_145608.mp4")]
+    [InlineData("8.jfif")]
+    public void AnAttachmentNameIsFiledAsMedia(string preview) =>
+        Assert.Equal(QueueFacet.Media, QueueFacets.Resolve(ReplyNeedReason.Substantive, preview));
+
+    [Fact]
+    public void ASentenceThatMerelyMentionsAFileIsStillClassifiedByWhatItSays()
+    {
+        Assert.Equal(
+            QueueFacet.Enquiry,
+            QueueFacets.Resolve(ReplyNeedReason.Substantive, "can you send me the price list please invoice.pdf"));
+    }
+}

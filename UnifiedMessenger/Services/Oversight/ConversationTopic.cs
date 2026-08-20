@@ -58,7 +58,23 @@ public static class ConversationTopics
         "expensive", "costly", "too much", "mehnga", "mehngi", "zyada",
         "kahin aur", "kisi aur", "chali jawon", "chala jaunga", "nahi aaungi", "nahi aaunga",
         "shikayat", "kharab", "ganda", "bura", "galat", "wapas", "paise wapas", "bakwas",
-        "شکایت", "خراب", "غلط", "برا", "مہنگا"
+        "شکایت", "خراب", "غلط", "برا", "مہنگا",
+
+        // BEING IGNORED IS A CHURN SIGNAL, and it was the largest miss in this list. Measured against the
+        // owner's real queue: "At risk" showed 1, while sitting unclassified in "Uncategorised" were
+        // "Apny koi reply nhi kiya dubara" (you didn't reply again), "Reply me please" and "Or else share
+        // your pr team number". A customer chasing a reply is one message from leaving, and this list
+        // exists precisely so those are not the ones that stay buried.
+        "no reply", "not replying", "didn't reply", "didnt reply", "did not reply", "no response",
+        "not responding", "no answer", "still waiting", "waiting since", "waiting for your",
+        // NOT a bare "respond": it matched "…we will respond shortly" in another business's out-of-hours
+        // auto-reply and filed that as a customer about to leave. The chasing phrasings are specific.
+        "any update", "any response", "reply me", "answer me", "please respond", "kindly respond",
+        "ignoring", "ignored",
+        "or else", "second time", "again and again",
+        "reply nahi", "reply nhi", "jawab nahi", "jawab nhi", "koi reply", "koi jawab",
+        "dubara", "dobara", "phir se", "response nahi", "response nhi",
+        "جواب نہیں", "دوبارہ"
     ];
 
     private static readonly string[] JobTerms =
@@ -87,7 +103,19 @@ public static class ConversationTopics
         "fees", "package", "packages", "deal", "discount", "offer", "how much", "kitna", "kitni", "kitne",
         "kitnay", "kimat", "qeemat", "services", "service", "menu", "list", "available", "availability",
         "open", "timing", "timings", "address", "location", "where are you", "do you do", "do you have",
-        "قیمت", "ریٹ", "سروس", "پتہ"
+        "قیمت", "ریٹ", "سروس", "پتہ",
+
+        // ROMAN URDU, WHICH THE ORIGINAL LIST BARELY COVERED. Every term below is from a real message that
+        // was landing in "Uncategorised" — "AP srves dety ho", "Bramch kb close hgi", "Possible hai ?",
+        // "Aap please mujha actual amount mention kr dain". These are customers asking what things cost and
+        // when the branch is open, which is the single most valuable thing in the queue to answer.
+        "srves", "srvices", "servs", "dety ho", "dety hain", "deti ho", "krty ho", "karty ho", "krte ho",
+        "kb", "kab", "kis din", "kon si", "konsi", "which date", "what date",
+        "branch", "bramch", "close hgi", "close hogi", "khulta", "khulti", "band hoti", "band hota",
+        "possible hai", "possible h", "ho sakta", "ho sakti", "hosakta",
+        "amount", "total bill", "actual amount", "mention kr", "batao", "bata dain", "bta dn", "bta den",
+        "scheme", "stylist", "artist", "loyalty", "makeup look", "look of", "signature",
+        "kya rate", "rate kya", "kitna time", "time kya"
     ];
 
     private static readonly string[] OutreachTerms =
@@ -146,7 +174,95 @@ public static class ConversationTopics
             return ConversationTopic.Enquiry;
         }
 
+        // LAST, and last on purpose. A bare personal name is the answer to "what name should I put the
+        // appointment under?" — it was about a quarter of everything sitting in "Uncategorised" on the
+        // owner's real queue ("Aiza Anwar", "Hira Sabir", "Palwasha zaib", "Talha Uzair", …) while the
+        // Bookings chip read 3. Running it after every keyword rule means a message that merely happens to
+        // start with a capitalised word cannot outrank a real complaint, enquiry or job application.
+        if (LooksLikeBareName(text))
+        {
+            return ConversationTopic.Booking;
+        }
+
         return ConversationTopic.Unknown;
+    }
+
+    /// <summary>
+    /// Words that disqualify a short capitalised phrase from being read as somebody's name.
+    /// </summary>
+    /// <remarks>
+    /// Without this the rule filed "For mens", "See you", "No need", "Send me here" and "What is this" as
+    /// bookings. They are two or three capitalised-looking words and nothing else, so only a vocabulary
+    /// check separates them from "Hira Sabir".
+    /// </remarks>
+    private static readonly HashSet<string> NotNameWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "for", "and", "the", "on", "in", "at", "to", "of", "is", "are", "am", "be", "was", "were",
+        "my", "me", "you", "your", "we", "us", "our", "it", "this", "that", "these", "those",
+        "no", "not", "yes", "ok", "okay", "see", "how", "what", "when", "where", "why", "which", "who",
+        "can", "could", "do", "does", "did", "will", "would", "should", "shall", "may", "might",
+        "send", "need", "want", "give", "tell", "call", "come", "go", "get", "make", "take", "let",
+        "please", "thanks", "thank", "hi", "hello", "hey", "salam", "sir", "madam", "mam", "miss",
+        "here", "there", "now", "then", "today", "tomorrow", "yesterday", "time", "date", "day",
+        "kya", "kia", "hai", "hain", "ho", "hy", "ap", "aap", "mujhe", "mujha", "kar", "kr", "ki", "ka",
+        "se", "me", "mein", "nahi", "nhi", "koi", "sab", "bhi", "abhi",
+        // Locatives and fillers. "Near chandni chok" is a direction, not a person, and without these the
+        // rule reads any capitalised two- or three-word fragment as somebody's name.
+        "near", "next", "opposite", "behind", "front", "side", "road", "street", "chok", "chowk",
+        "branch", "shop", "plaza", "market", "block", "phase", "sector", "town", "city",
+        "islamabad", "lahore", "karachi", "pindi", "rawalpindi",
+        "both", "all", "some", "any", "only", "just", "well"
+    };
+
+    /// <summary>
+    /// True when the message is nothing but a person's name — two or three alphabetic words, the first
+    /// capitalised, no digits, no question mark, and no word that belongs to ordinary conversation.
+    /// </summary>
+    /// <remarks>
+    /// <b>Two words minimum, deliberately.</b> A single word is far too ambiguous: "Please", "well" and
+    /// "Appreciated" are all single capitalised words that are not names, and mis-filing those would put
+    /// real requests under Bookings. Requiring at least two words gives up a handful of single-name replies
+    /// in exchange for a rule that does not guess.
+    ///
+    /// <para>
+    /// Note this only ever moves a row between buckets — a name still counts as needing a reply. Nothing
+    /// here can close a conversation, which is why a wrong guess costs a filter position and not a customer.
+    /// </para>
+    /// </remarks>
+    internal static bool LooksLikeBareName(string text)
+    {
+        if (text.Length is 0 or > 32 || text.Contains('?') || text.Any(char.IsDigit))
+        {
+            return false;
+        }
+
+        // Whitespace only, then trim trailing punctuation. Splitting on '.' as well would turn
+        // "Islamabad.pdf" into two clean alphabetic words and file an attachment as somebody's name.
+        var words = text
+            .Split([' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => w.TrimEnd('.', ',', '!'))
+            .Where(w => w.Length > 0)
+            .ToArray();
+
+        if (words.Length is < 2 or > 3)
+        {
+            return false;
+        }
+
+        if (!char.IsUpper(words[0][0]))
+        {
+            return false;
+        }
+
+        foreach (var word in words)
+        {
+            if (!word.All(char.IsLetter) || NotNameWords.Contains(word))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>The chip label for a topic.</summary>

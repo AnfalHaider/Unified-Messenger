@@ -64,8 +64,60 @@ public static class QueueFacets
         ReplyNeedReason.MissedCall => QueueFacet.MissedCall,
         ReplyNeedReason.MediaWithoutCaption => QueueFacet.Media,
         ReplyNeedReason.NoPreviewAvailable => QueueFacet.Unreadable,
-        _ => FromTopic(ConversationTopics.Classify(preview))
+        _ => ResolveFromText(preview)
     };
+
+    /// <summary>
+    /// Topic first, then the one thing topic cannot see: a preview that is just an attachment's filename.
+    /// </summary>
+    /// <remarks>
+    /// <c>MediaWithoutCaption</c> only fires when a photo or voice note has no text at all. A document
+    /// arrives with its filename as the preview — "Islamabad.pdf", "PERIO IMP STATIONS .pdf",
+    /// "VID_20260816_145608.mp4" — so it has text, no topic words, and was landing in "Uncategorised".
+    /// Filed as Media because that is what the owner is looking at when they open it.
+    ///
+    /// <para>
+    /// Checked <i>after</i> topic so a real sentence that happens to end in an attachment name — "here is
+    /// the quote you asked for, invoice.pdf" — is still classified by what it says.
+    /// </para>
+    /// </remarks>
+    private static QueueFacet ResolveFromText(string? preview)
+    {
+        var topic = FromTopic(ConversationTopics.Classify(preview));
+        return topic == QueueFacet.Unknown && LooksLikeFileName(preview)
+            ? QueueFacet.Media
+            : topic;
+    }
+
+    private static readonly string[] AttachmentExtensions =
+    [
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".csv", ".txt", ".zip", ".rar",
+        ".jpg", ".jpeg", ".png", ".jfif", ".webp", ".heic", ".gif",
+        ".mp4", ".mov", ".3gp", ".webm", ".avi", ".mp3", ".ogg", ".opus", ".m4a", ".wav", ".vcf"
+    ];
+
+    /// <summary>
+    /// True when the preview is a bare attachment name rather than a message.
+    /// </summary>
+    /// <remarks>
+    /// The word limit is what keeps this from swallowing sentences: a filename is a handful of tokens, and
+    /// anything longer that merely mentions a file is a message about a file.
+    /// </remarks>
+    internal static bool LooksLikeFileName(string? preview)
+    {
+        var text = (preview ?? string.Empty).Trim();
+        if (text.Length is 0 or > 60)
+        {
+            return false;
+        }
+
+        if (!AttachmentExtensions.Any(e => text.EndsWith(e, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        return text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 5;
+    }
 
     private static QueueFacet FromTopic(ConversationTopic topic) => topic switch
     {

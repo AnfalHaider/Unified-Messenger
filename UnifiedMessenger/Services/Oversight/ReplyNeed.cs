@@ -125,6 +125,13 @@ public static class ReplyNeed
 
         // Thanks
         "thanks", "thank", "thankyou", "thanku", "thankz", "thnx", "thnks", "thx", "tks", "tysm", "ty",
+        // Typos and elongations found sitting in the live queue as "needs reply". Every one of these is a
+        // customer signing off, and each was costing the owner a row: "Ohky", "Okhy", "Ok thankd",
+        // "Appreciated", "Yuppp. Acknowledged". A lexicon that only knows correctly-spelled English closers
+        // does not close a real inbox.
+        "ohky", "okhy", "okhay", "okey", "okies", "okii", "okiii", "thankd", "thnkx", "thanx",
+        "appreciated", "appreciate", "acknowledged", "acknowledge", "ackn",
+        "yupp", "yuppp", "yess", "yesss", "yeah", "yaa", "haanji", "hanji",
         "shukriya", "shukria", "shukrya", "jazakallah", "jazakhallah", "jzk", "jazak",
 
         // Praise / warmth that closes rather than asks
