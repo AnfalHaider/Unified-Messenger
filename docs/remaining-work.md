@@ -1,6 +1,6 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-08-18 · **Baseline:** v4.99.34 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-19 · **Baseline:** v4.99.37 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
 > completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
@@ -8,17 +8,23 @@
 
 ---
 
-# §0 · Current backlog (v4.99.34)
+# §0 · Current backlog (v4.99.37)
 
 Grouped by what actually gates each item. Nothing here is speculative — every measurement below was taken
 from the tree at this baseline, and every finding ID is traceable to `docs/audit/`.
 
-## 0.1 · UI/UX consistency — the design system exists but is not adopted
+## 0.1 · UI/UX — mostly landed; four items left
 
-This is the largest single body of remaining work, and it is **not blocked on anything**. The v4.99.26–.33
-passes fixed what was *wrong* (contrast, colour-only status, dead-end empty states, mouse-only KPI tiles).
-What remains is what is *inconsistent* — measured, recorded, and deliberately not changed mid-audit because
-a global restyle is not a bug fix and needs its own verification pass.
+**No longer the largest open body of work.** v4.99.35 unified the type, icon and spacing scales, and
+v4.99.36 gave the app its own ground and accent — see [scales.md](../design-system/scales.md) and the
+CHANGELOG. What is left below is accessibility and audit coverage, not visual consistency.
+
+> **The two headline "dated" problems were not design choices at all.** The warm background tint was the
+> owner's **desktop wallpaper** showing through MicaBackdrop into a content area with no background of its
+> own, and the brick red on every toggle was the **Windows personalization accent**. Both varied per
+> machine and both collided with the meanings this app assigns to colour. The fix was to make the app own
+> its surfaces and its accent, not to pick nicer colours. Worth remembering before diagnosing the next
+> "the app looks wrong" report: check what is inherited from Windows first.
 
 | # | Item | Measured at this baseline | Status |
 |---|---|---|---|
@@ -27,18 +33,28 @@ a global restyle is not a bug fix and needs its own verification pass.
 | **U3** | **Corner radius** | **Fixed and guarded.** Down from 6 ad-hoc values to the 6/8/12 scale, pinned by `DesignScaleTests.EveryCornerRadiusComesFromTheScale`. | ✅ done |
 | **U4** | **No hardcoded colours in XAML** | Pinned by `DesignScaleTests.NoColourIsHardcodedInXaml`. | ✅ done |
 | **U5** | **Icon-only controls are named** | Pinned by `DesignScaleTests.EveryIconOnlyControlIsNamedForAScreenReader`. | ✅ done |
-| **U6** | **`SystemFillColor*` brushes were never contrast-measured** | They are used **more** than the app's own tokens (36/33/29 references vs 12/12/11), so the majority of status colour on screen is unaudited. | ☐ open |
+| **U6** | **`SystemFillColor*` brushes were never contrast-measured** | They are used **more** than the app's own tokens (36/33/29 references vs 12/12/11), so the majority of status colour on screen is unaudited. Sharper since v4.99.36: the app now pins its own accent, so these are the last surfaces still taking their colour from Windows. | ☐ open |
 | **U7** | **Imperative card builders draw from the shared scale** | **Done (v4.99.35).** `Services/UmScale.cs` holds the ramp as constants (not a resource lookup — that would be a UI-thread WinRT call, the mistake that already cost one process-terminating crash). 116 literals across 16 files converted. `TheCodeScaleMatchesTheXamlTokens` pins the C# copy against `Tokens.xaml`, and `NoLiteralFontSizeInCode` is the guard that never existed. | ✅ done |
 | **U8** | **Dedicated empty-state sweep** | Partly done — every empty state *touched* during the audit was fixed, and v4.99.34 corrected the three account-list surfaces. The remaining surfaces (Analytics, Reviews, Reports, Notification Hub) have never been reviewed as a set. | ◑ partial |
 | **U9** | **Focus order outside the dashboard shell** | Settings, Analytics, Reviews, Reports and every dialog are untested. Shift+Tab and modal focus containment specifically. | ☐ open |
 | **U10** | **"Instance" leaks into accessible names** (F-ORCH-06) | Settings and the account context menu speak *"instance"* to a screen reader where the visible label says *"account"*. | ☐ open |
 
-**Suggested sequencing for U1/U2/U7** — they are one job, not three. Adopt the existing tokens in XAML first
-(mechanical, test-guardable), then give the C# builders a small shared style helper so they draw from the
-same scale, then tighten the type scale to ~7 steps and add a `DesignScaleTests` guard that reads **both**
-`.xaml` and `.cs`. Doing the type scale before the builder helper would just re-drift.
+**What guards this now.** `DesignScaleTests` reads **both `.xaml` and `.cs`** — a new off-scale font size,
+icon size or padding fails the build. That is what stops U1/U2/U7 re-drifting, and it is the reason those
+three had to ship together rather than in sequence.
 
-## 0.2 · Open audit findings
+## 0.2 · Data accuracy — what the numbers still get wrong
+
+The brief's hardest line is **no wrong numbers**, and this is where the remaining ones are.
+
+| # | Item | Detail | Status |
+|---|---|---|---|
+| **D1** | **Call outcomes** | **Done (v4.99.37).** Every call-log entry was counted as a missed call needing a call back, regardless of outcome or direction. Reading WhatsApp's own `callOutcome` live: of 317 inbound calls only 166 were actually missed. Missed calls 86 → 36, total waiting 258 → 206. | ✅ done |
+| **D2** | **The IndexedDB fallback cannot read `callOutcome`** | It has no decrypted message model, so it emits an empty outcome and every call stays counted. Correct by design — unknown never closes a chat — but it means an account running on the fallback still over-counts missed calls. Surfacing *which* path an account is on is F-SNAP-02. | ☐ open |
+| **D3** | **"Uncategorised" is now the largest queue bucket** | 84 of 206 waiting. It was hidden behind the inflated missed-call count; now it is the biggest single unknown in the queue, and nobody has looked at what is in it. | ☐ open |
+| **D4** | **`instances.json.bak` (489 bytes, dated 2026-08-12)** | A stale seeded-default store sitting beside the real one. Harmless, but it is exactly the kind of file that misleads the next person diagnosing "my accounts are gone". | ☐ open |
+
+## 0.3 · Open audit findings
 
 | ID | Sev | What | Why still open |
 |---|---|---|---|
@@ -48,7 +64,7 @@ same scale, then tighten the type scale to ~7 steps and add a `DesignScaleTests`
 | **F-ORCH-06** | S3 | "Instance" as an accessible name (see U10) | — |
 | **F-METRICS-11** | S4 | End-of-day projection skew | **WONTFIX by decision** — bound measured at under 2% |
 
-## 0.3 · Untested and material
+## 0.4 · Untested and material
 
 Not defects — gaps in what has actually been *proven*. Listed because the brief is "sellable tomorrow",
 and these are the distance between that claim and evidence.
@@ -71,8 +87,14 @@ and these are the distance between that claim and evidence.
   verified checksum; no one has run it on ARM hardware.
 - **The uninstall data-erasure option** (v4.99.14) is unverified at runtime — confirming it would have
   destroyed the owner's data.
+- **Nothing has been tested against the real store from a normal launch, historically.** Almost every
+  session drove the app from inside an MSIX container, which silently redirected its `%LOCALAPPDATA%`
+  writes. Resolved on 2026-08-19 by migrating 9.5 GB back to the real store, but it means older
+  measurements in this document were taken against the container copy, not the store an owner's install
+  actually reads. See the two AGENTS.md gotchas — the second one (identical bytes AND identical hashes from
+  both paths) is what made it invisible for so long.
 
-## 0.4 · Gated on an external dependency
+## 0.5 · Gated on an external dependency
 
 Unchanged in substance; still the only items that cannot be built on this machine today.
 
@@ -84,13 +106,15 @@ Unchanged in substance; still the only items that cannot be built on this machin
 4. **Icon import-from-account robustness · brand-logo import for other channels** — live per-platform DOM tuning.
 5. **Code-signing the installer** — needs a certificate. Closes F-OFFLINE-01 properly.
 
-## 0.5 · Decisions only the owner can make
+## 0.6 · Decisions only the owner can make
 
 Recorded rather than guessed, because each changes what the numbers *mean*.
 
-- **The SLA threshold is 15 minutes; the measured median reply time is ~9.3 hours.** Every account therefore
-  reads as failing SLA, which makes the metric decorative. Either the target reflects the business (and the
-  dashboard should say how far off it is), or it should move. This is a business decision, not a bug.
+- **The SLA threshold is 15 minutes; the measured median reply time is hours, not minutes.** Every account
+  therefore reads as failing, and the dashboard currently shows **SLA met 0%** — now the most alarming
+  figure on the screen and the one least connected to reality. Either the target reflects the business (and
+  the dashboard should say how far off it is), or it should move. A business decision, not a bug, and the
+  single highest-value thing on this list that costs no engineering time.
 - **Whether the backlog cutoff stays at 7 days.** The live/backlog split at 7 days is what turned 466
   "waiting" into a workable 58-item queue; the boundary itself was chosen, not derived.
 - **Whether `main`'s "Audit Files" commit (`954145e`, ~1,400 graphify cache files) should be dropped.**

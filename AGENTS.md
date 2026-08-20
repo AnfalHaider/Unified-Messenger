@@ -328,11 +328,17 @@ Do **not** add `Co-Authored-By` / tool-attribution trailers to commits in this r
 > README advertises it). **Verify against the code before relying on any line in this section.**
 > `CHANGELOG.md` is the accurate record of what shipped.
 >
-> **The largest open item is UI/UX consistency, and it is not blocked on anything.** `Themes/` defines 18
-> spacing tokens; XAML uses 33 distinct `Padding` values of which only 4 are tokens. The type scale has 16
-> sizes across XAML and the imperative C# card builders. Corner radius, hardcoded colours, and icon-only
-> control names are already fixed and guarded by `DesignScaleTests` — which reads **`.xaml` only**, and is
-> why the C# builders keep drifting. See §0.1.
+> **UI/UX consistency is largely done** (v4.99.35 scales, v4.99.36 surfaces + accent) and is no longer the
+> largest open item. `DesignScaleTests` now reads **both `.xaml` and `.cs`**, so off-scale font sizes, icon
+> sizes and paddings fail the build. What remains under §0.1 is accessibility and audit coverage: the
+> `SystemFillColor*` brushes are still unmeasured for contrast and are now the last surfaces taking their
+> colour from Windows, focus order outside the dashboard shell is untested, and "instance" still leaks into
+> accessible names.
+>
+> **The current sharp edge is §0.2 · data accuracy** — the brief's "no wrong numbers" line. Call outcomes
+> were fixed in v4.99.37 (missed calls 86 → 36); what is left is that the IndexedDB fallback cannot read
+> `callOutcome` at all, and that "Uncategorised" is now the largest queue bucket at 84 of 206 and nobody has
+> looked inside it.
 
 See `docs/remaining-work.md` for the detailed backlog. Summary:
 
