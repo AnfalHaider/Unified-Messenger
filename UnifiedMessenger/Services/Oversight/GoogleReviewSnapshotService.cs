@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Microsoft.UI.Dispatching;
+using UnifiedMessenger.Models;
 
 namespace UnifiedMessenger.Services;
 
@@ -28,7 +30,13 @@ public sealed class GoogleReviewSnapshotService
         int Answered,
         DateTimeOffset CapturedAtUtc,
         bool HasData,
-        IReadOnlyList<PendingReview> Pending)
+        IReadOnlyList<PendingReview> Pending,
+        int PagesRead = 1,
+        // True when the traversal clicked through to a page whose Next button was disabled — i.e. we
+        // reached the end and these totals are the WHOLE profile, not a window onto it. This is a stronger
+        // statement than comparing against the separately-scraped lifetime total, because it is a fact
+        // about what this scrape actually did rather than an inference from two numbers of different ages.
+        bool ReachedLastPage = false)
     {
         public int Total => Unanswered + Answered;
 
@@ -51,8 +59,14 @@ public sealed class GoogleReviewSnapshotService
         // ponytail: synthetic .click() drives Google's jsaction listbox (opener jsname=LgbsSe, options carry
         // data-value); if a Google build ignores it this simply no-ops and we count the default page — no
         // regression. Upgrade path if it stops working: dispatch a real MouseEvent instead of .click().
-        "window.__umGRBumpRows=function(){if(window.__umGRrowsDone)return false;window.__umGRrowsDone=1;try{" +
+        // The done-flag is set only AFTER the control is found. It used to be set on entry, which meant a
+        // scrape that ran before Google had rendered the rows-per-page control burned the flag on a failed
+        // attempt and never retried for the life of that page — leaving the account pinned to Google's
+        // default of 10 rows. Observed live: Google Men DHA-2 reported 10 reviews pass after pass while its
+        // siblings reported 50, which looked like a smaller profile and was actually this.
+        "window.__umGRBumpRows=function(){if(window.__umGRrowsDone)return false;try{" +
         "var rb=document.querySelector('[aria-label=\"Number of rows per page\"]');if(!rb)return false;" +
+        "window.__umGRrowsDone=1;" +
         "var op=rb.querySelector('[jsname=\"LgbsSe\"]');if(op)op.click();" +
         "setTimeout(function(){try{var o=[].slice.call(rb.querySelectorAll('[data-value]'));" +
         "var m=o.reduce(function(a,c){return (+(c.getAttribute('data-value')||0))>(+(a.getAttribute('data-value')||0))?c:a;},o[0]);" +
@@ -102,6 +116,35 @@ public sealed class GoogleReviewSnapshotService
         "catch(x){}return n>0;};" +
         // Reads one pending review out of its card. Best-effort by nature (Google exposes no stable per-review
         // hooks) — each field degrades on its own, and the Reply/Edit counts stay the reliable signal.
+        // ---- PAGINATION ----------------------------------------------------------------------------
+        // Google caps rows-per-page at 50 (the control offers 10/25/50), so any profile with more than 50
+        // reviews was being counted from its first page only. The Next button is found by its Material icon
+        // ligature "navigate_next" FIRST and its English aria-label second: the ligature is the same in
+        // every locale, so this keeps working on a Google rendered in Urdu.
+        "window.__umGRNextBtn=function(){var all=[].slice.call(document.querySelectorAll('button,[role=\"button\"]'));" +
+        "var byIcon=all.filter(function(e){return /(^|\b)navigate_next(\b|$)/.test((e.innerText||'').trim());});" +
+        "if(byIcon.length)return byIcon[0];" +
+        "var byAria=all.filter(function(e){return /^next$/i.test(e.getAttribute('aria-label')||'');});" +
+        "return byAria.length?byAria[0]:null;};" +
+        "window.__umGRHasNext=function(){var n=window.__umGRNextBtn();" +
+        "return !!(n&&!n.disabled&&n.getAttribute('aria-disabled')!=='true');};" +
+        // A page fingerprint, so the reader can tell "the next page has rendered" from "I am looking at the
+        // same page again". Without it a fast poll counts the outgoing page twice and inflates every total.
+        "window.__umGRFp=function(){var b=window.__umGRButtons(/(^|\b)(reply|edit)\b/i);" +
+        "if(!b.length)return '';var c=window.__umGRCard(b[0]);" +
+        "return c?((c.innerText||'').trim().slice(0,120)):'';};" +
+        "window.__umGRNext=function(){var n=window.__umGRNextBtn();" +
+        "if(!n||n.disabled||n.getAttribute('aria-disabled')==='true')return false;" +
+        "window.__umGRprevFp=window.__umGRFp();" +
+        // DO NOT reset __umGRexpDone here. It used to be reset so later pages could expand their truncated
+        // reviews, and that silently broke the page-change guard: the fingerprint is the first card's text,
+        // the expander REWRITES that text, so a page that had not actually advanced still produced a
+        // different fingerprint. Every page counted itself again until the 40-page ceiling — 2,000 reviews
+        // for a salon with roughly 239. Previews are capped at 24 and come from the early pages anyway, so
+        // leaving later pages unexpanded costs nothing that matters.
+
+        "try{n.click();}catch(e){return false;}" +
+        "window.__umGR={state:'loading'};return true;};" +
         "window.__umGRRead=function(btn,idx){var card=window.__umGRCard(btn);" +
         "var raw=(((card&&card.innerText)||'').split('\\n')).map(function(s){return s.trim();})" +
         ".filter(function(s){return s.length>0;});" +
@@ -125,7 +168,12 @@ public sealed class GoogleReviewSnapshotService
         // Only navigate to /reviews when explicitly allowed (a user-driven Re-sync). A background refresh
         // passes allowNavigate:false so it can never yank the owner off whatever Google page they're reading.
         "if(!/\\/reviews(\\/|$)/.test(location.pathname)){" +
-        "if(window.__umGRAllowNav&&/business\\.google\\.com/.test(location.host)){if(!window.__umGRnav){window.__umGRnav=1;location.href='https://business.google.com/reviews';}window.__umGR={state:'navigating'};return;}" +
+        // Any google.com host, not just business.google.com. The rating scrape parks this very WebView on the
+        // Search merchant view (www.google.com/search?…), which is the ONLY place the rating and lifetime
+        // total exist — and a business.google.com-only test cannot navigate back from there, so the reviews
+        // scrape that runs straight afterwards returned 'notreviews' and gave up. That made the manual
+        // Re-sync path, the one the owner explicitly asked for, the one that failed to refresh review counts.
+        "if(window.__umGRAllowNav&&/(^|\\.)google\\.com$/i.test(location.host)){if(!window.__umGRnav){window.__umGRnav=1;location.href='https://business.google.com/reviews';}window.__umGR={state:'navigating'};return;}" +
         "window.__umGR={state:'notreviews'};return;}" +
         "if(window.__umGRBumpRows()){window.__umGR={state:'loading'};return;}" +
         "var replyBtns=window.__umGRButtons(/(^|\\b)reply\\b/i);" +
@@ -133,36 +181,72 @@ public sealed class GoogleReviewSnapshotService
         "var edit=window.__umGRButtons(/\\bedit\\b/i).length;" +
         "if(reply+edit===0){window.__umGR={state:'loading'};return;}" +
         "if(window.__umGRExpand(replyBtns)){window.__umGR={state:'loading'};return;}" +
+        // Still showing the page we just navigated away from — keep waiting rather than counting it twice.
+        "if(window.__umGRprevFp&&window.__umGRFp()===window.__umGRprevFp){window.__umGR={state:'loading'};return;}" +
         "var pending=replyBtns.slice(0,8).map(function(btn,i){return window.__umGRRead(btn,i);});" +
-        "window.__umGR={state:'done',unanswered:reply,answered:edit,pending:pending};" +
+        "window.__umGR={state:'done',unanswered:reply,answered:edit,pending:pending,hasNext:window.__umGRHasNext()};" +
         "}catch(e){window.__umGR={state:'error'};}})()";
+
+    /// <summary>
+    /// Clears the injected per-page state and reloads, so a pass always begins at page one.
+    /// </summary>
+    private const string ResetScript =
+        "(function(){try{window.__umGRprevFp=null;window.__umGR=null;window.__umGRrowsDone=0;" +
+        "window.__umGRexpDone=0;if(/\\/reviews(\\/|$)/.test(location.pathname)){location.reload();}" +
+        "return true;}catch(e){return false;}})()";
 
     private const string ReadScript = "(window.__umGR?JSON.stringify(window.__umGR):'{\"state\":\"none\"}')";
 
     // Scrapes the profile's official rating + lifetime review count. These live ONLY on the Google Search
     // merchant view — business.google.com/reviews has neither. Verified live on that page:
     //   • rating  → an aria-label reading exactly "Rated 4.6 out of 5,"  (cleanest, locale-stable-ish source)
-    //   • total   → body text "239 Google reviews"
+    //   • total   → body text "435 Google reviews", OR a bracketed "4.6 ★ (991)" with no label at all
     // NOTE: innerText renders them CONCATENATED ("4.6239 Google reviews"), which is why a \b-anchored number
-    // regex finds nothing — hence the aria-label for the rating rather than parsing the run-together text.
+    // regex finds nothing — both numbers have to be pulled out of one match. The rating captured beside the
+    // count is the one we keep; the aria-label is only a fallback (see the PRECEDENCE note below).
     // business.google.com/ (root) redirects a single-location profile to that view, so we use Google's own
     // redirect instead of guessing a search URL. Navigation is allowed on the first attempt only.
     private const string RatingKickoff =
         "(function(){try{" +
-        "var a=[].slice.call(document.querySelectorAll('[aria-label]'));var r=null;" +
+        // The aria-label rating is a FALLBACK, not the primary source — see the precedence note below.
+        "var a=[].slice.call(document.querySelectorAll('[aria-label]'));var ar=null;" +
         "for(var i=0;i<a.length;i++){var m=/Rated\\s+([0-5][.,]\\d)\\s+out\\s+of\\s+5/i.exec(a[i].getAttribute('aria-label')||'');" +
-        "if(m){r=m[1].replace(',','.');break;}}" +
+        "if(m){ar=m[1].replace(',','.');break;}}" +
         "var t=(document.body&&document.body.innerText)||'';" +
+        "var paired=null;" +
         // innerText renders the rating and count RUN TOGETHER ("4.6239 Google reviews"), so a bare ([\d,]+)
         // before "Google reviews" swallows the rating's decimal digit -> 6239 instead of 239 (and "4.81,234"
-        // -> 81234). Anchor on the rating so the two split correctly; the [^\d]{0,6} also tolerates a layout
+        // -> 81234). Anchor on the rating so the two split correctly; the [^\d] run also tolerates a layout
         // that separates them ("4.6 ★ 239 Google reviews").
-        "var c=/([0-5][.,]\\d)[^\\d]{0,6}([\\d,]+)\\s+Google\\s+reviews/i.exec(t);" +
-        "var tot=c?c[2].replace(/,/g,''):null;" +
+        // The run is 12 rather than 6 because Google renders FIVE star glyphs on some profiles
+        // ("4.7 ★★★★☆ 435 Google reviews" — seven characters between the numbers). At 6 this failed to match,
+        // which cost the paired rating and fell back to the aria-label; live, that reported 3.0 for a 4.7
+        // profile. Widening is safe: the run is [^\d], so it can never step over another number to pair up
+        // two figures that don't belong together.
+        "var c=/([0-5][.,]\\d)[^\\d]{0,12}([\\d,]+)\\s+Google\\s+reviews/i.exec(t);" +
+        "var tot=null;if(c){tot=c[2].replace(/,/g,'');paired=c[1].replace(',','.');}" +
+        // PARENTHESISED LAYOUT — "4.6 ★ (991) · Beauty salon". Google renders some profiles this way, with the
+        // count in brackets and the words "Google reviews" appearing NOWHERE on the page, so every pattern
+        // above misses it and the profile reports no lifetime total at all. Found from the owner's own
+        // screenshots of their three locations: two render this way and only the third was parsing, which is
+        // why the coverage line could never say "of 991" for them. Anchored on the rating for the same reason
+        // as above — a bare \((\d+)\) would match any other bracketed number on the page.
+        "if(!tot){var c3=/([0-5][.,]\\d)[^\\d(]{0,12}\\((\\d[\\d,]*)\\)/.exec(t);" +
+        "if(c3){tot=c3[2].replace(/,/g,'');paired=c3[1].replace(',','.');}}" +
         // Fallback for a layout with no rating next to the count: require a non-digit/dot before it so we
         // still can't slice a number out of the middle of another one.
         "if(!tot){var c2=/(?:^|[^\\d.,])([\\d,]{1,7})\\s+Google\\s+reviews/i.exec(t);tot=c2?c2[1].replace(/,/g,''):null;}" +
-        "if(!r&&c){r=c[1].replace(',','.');}" +
+        // PRECEDENCE: the rating that sits NEXT TO the review count wins over the aria-label.
+        // The aria-label search takes the first "Rated X out of 5" anywhere in the document, and the merchant
+        // view carries several — individual reviews have their own star labels, and a related-businesses
+        // panel lists other branches with theirs. Measured live against the owner's three profiles, the
+        // aria-label was wrong on two of three: the DHA-2 profile (truly 4.6) reported 4.7, which is the
+        // rating of a DIFFERENT Depilex branch on the same page, and the Men profile (truly 4.7) reported
+        // 3.0 from a single review. Both totals were right, because a total is only ever accepted with its
+        // own rating beside it in the same run of text — which is exactly the property that makes the paired
+        // rating trustworthy and the free-floating one not. A wrong star rating on a salon's own dashboard is
+        // the kind of number an owner would check against Google and then stop believing the whole app.
+        "var r=paired||ar;" +
         "if(r||tot){window.__umGRate={state:'done',rating:r,total:tot};return;}" +
         "if(window.__umGRateAllowNav){location.href='https://business.google.com/';window.__umGRate={state:'navigating'};return;}" +
         "window.__umGRate={state:'loading'};" +
@@ -240,6 +324,25 @@ public sealed class GoogleReviewSnapshotService
 
     public static GoogleReviewSnapshotService Instance => LazyInstance.Value;
 
+    /// <summary>
+    /// One scrape per account at a time.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why this is not optional.</b> A traversal CLICKS THROUGH the account's live WebView, so two of
+    /// them on one account do not merely duplicate work — they corrupt each other, each counting whatever
+    /// page the other just advanced to. Two callers exist by design (this service's background pass and
+    /// ReviewHealthPanel's own refresh) and they collided the moment paging was introduced: the log showed
+    /// the same account finishing twice in the same second with different answers — "Read 250 across 5
+    /// pages" beside "Read 600 across 12 pages", and 197 unanswered beside 167.
+    ///
+    /// <para>
+    /// A caller that arrives while a scrape is running gets the cached value rather than queueing. Waiting
+    /// would just mean two full traversals back to back for a number that changes a few times a week.
+    /// </para>
+    /// </remarks>
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _scrapeLocks =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly ConcurrentDictionary<string, ReviewHealth> _byInstance =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -266,7 +369,7 @@ public sealed class GoogleReviewSnapshotService
     /// business.google.com/'s own redirect). Throttled by <see cref="RatingRefreshInterval"/>. The caller must
     /// run the reviews scrape afterwards, which navigates back to /reviews.
     /// </summary>
-    public async Task<ProfileRating?> ScrapeRatingAsync(string instanceId, bool force = false)
+    public async Task<ProfileRating?> ScrapeRatingAsync(string instanceId, bool force = false, bool allowNavigate = true)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
@@ -274,24 +377,51 @@ public sealed class GoogleReviewSnapshotService
         }
 
         var id = instanceId.Trim();
-        if (!force && _ratingByInstance.TryGetValue(id, out var cached) &&
+        _ratingByInstance.TryGetValue(id, out var cached);
+        var haveCached = _ratingByInstance.ContainsKey(id);
+        if (!force && haveCached &&
             DateTimeOffset.UtcNow - cached.CapturedAtUtc < RatingRefreshInterval)
         {
             return cached;
         }
 
+        // This scrape has to navigate — the rating and lifetime total exist ONLY on the Search merchant view,
+        // never on the reviews manager. So on the account the owner is currently looking at, a background pass
+        // would visibly yank their page away. Skip it instead and take the reading on a later pass, or when
+        // they switch away; a rating that refreshes an hour late is not worth hijacking the screen for.
+        var isOnScreen = string.Equals(
+            InstanceSessionManager.Instance.VisibleInstanceId,
+            id,
+            StringComparison.OrdinalIgnoreCase);
+        if (!allowNavigate && isOnScreen)
+        {
+            return haveCached ? cached : null;
+        }
+
         var connection = InstanceConnection.Current;
-        for (var attempt = 0; attempt < 24; attempt++)
+
+        // A wall-clock budget, not an attempt count. The old `attempt < 24` at 400ms gave this scrape ~9.6s
+        // to navigate to business.google.com, follow Google's redirect to the Search merchant view, and let
+        // that page render — measured live, it does not finish in that time from cold, so the loop ran out
+        // and returned null. Silently: there was no log on the give-up path, so the symptom was simply that
+        // no profile ever had a lifetime total and nothing anywhere said why. Same budget the reviews scrape
+        // already uses, for the same reason.
+        var deadline = DateTimeOffset.UtcNow + PollBudget;
+        var lastState = "none";
+        var first = true;
+        while (DateTimeOffset.UtcNow < deadline)
         {
             // Only the first attempt may navigate; later ones just poll the redirected page.
-            var kickoff = $"window.__umGRateAllowNav={(attempt == 0 ? "true" : "false")};" + RatingKickoff;
+            var kickoff = $"window.__umGRateAllowNav={(first ? "true" : "false")};" + RatingKickoff;
+            first = false;
             try
             {
                 await connection.ExecuteScriptAsync(id, kickoff).ConfigureAwait(true);
             }
             catch
             {
-                return null;
+                AppLogger.LogInfo($"GoogleRating.{id}", "The account's webview could not run the rating script.");
+                return haveCached ? cached : null;
             }
 
             await Task.Delay(400).ConfigureAwait(true);
@@ -325,7 +455,13 @@ public sealed class GoogleReviewSnapshotService
             {
                 using var doc = JsonDocument.Parse(inner);
                 var root = doc.RootElement;
-                if ((root.TryGetProperty("state", out var s) ? s.GetString() : null) != "done")
+                var state = root.TryGetProperty("state", out var s) ? s.GetString() : null;
+                if (state is not null)
+                {
+                    lastState = state; // remembered so a give-up can name where it got stuck.
+                }
+
+                if (state != "done")
                 {
                     continue; // navigating / loading — keep polling.
                 }
@@ -341,11 +477,20 @@ public sealed class GoogleReviewSnapshotService
 
                 if (string.IsNullOrWhiteSpace(rating) && total is null)
                 {
+                    AppLogger.LogInfo($"GoogleRating.{id}", "Merchant view read, but neither rating nor review total was found on it.");
                     return null;
                 }
 
                 var result = new ProfileRating(rating ?? string.Empty, total, DateTimeOffset.UtcNow);
                 _ratingByInstance[id] = result;
+
+                // Logged because the lifetime total is what the coverage line leans on, and a null total is
+                // invisible in the UI — it just quietly degrades "covers the first 50 of 991" to "covers 50
+                // loaded reviews". Two of the owner's three profiles were silently in that state.
+                AppLogger.LogInfo(
+                    $"GoogleRating.{id}",
+                    $"Profile rating {(string.IsNullOrWhiteSpace(rating) ? "unknown" : rating)} — " +
+                    $"lifetime total {(total is { } tv ? tv.ToString("N0") : "NOT FOUND")}.");
                 return result;
             }
             catch
@@ -354,7 +499,16 @@ public sealed class GoogleReviewSnapshotService
             }
         }
 
-        return null;
+        // Never fall out of this loop silently again. A missing lifetime total has no visible symptom — the
+        // coverage line just stops naming a denominator — so without this line the only evidence is a number
+        // that isn't there.
+        AppLogger.LogWarning(
+            $"GoogleRating.{id}",
+            $"Gave up after {PollBudget.TotalSeconds:0}s still in state '{lastState}' — " +
+            (lastState == "navigating"
+                ? "the merchant view never finished loading."
+                : "the page never showed a rating or review count (is this account signed in?)."));
+        return haveCached ? cached : null;
     }
 
     /// <summary>The most recent capture time across all accounts — the "as of" stamp for the Reviews section.</summary>
@@ -362,9 +516,184 @@ public sealed class GoogleReviewSnapshotService
         _byInstance.IsEmpty ? null : _byInstance.Values.Where(v => v.HasData).Select(v => (DateTimeOffset?)v.CapturedAtUtc).Max();
 
     /// <summary>
+    /// How often the background pass re-reads each Google account's reviews.
+    /// </summary>
+    /// <remarks>
+    /// Slow on purpose. Every scrape navigates a real WebView to business.google.com/reviews and waits for
+    /// it to render, which is far more expensive than the WhatsApp poll's in-memory read — that one runs
+    /// every 25–90 seconds and would be abusive here. Reviews arrive a few times a week, so half an hour is
+    /// already far finer-grained than the data changes.
+    /// </remarks>
+    internal static readonly TimeSpan BackgroundInterval = TimeSpan.FromMinutes(30);
+
+    /// <summary>
+    /// How long one account's reviews scrape may spend waiting for Google to render.
+    /// </summary>
+    /// <remarks>
+    /// Sized for a COLD page: navigate to business.google.com/reviews, let the app authenticate the view,
+    /// and wait for a review list to exist. The previous budget worked out at about nine seconds, which was
+    /// enough only for an account already sitting on the right page — the slowest of the owner's three
+    /// timed out every pass. Nothing is blocked while this runs; it is a background WebView.
+    /// </remarks>
+    internal static readonly TimeSpan PollBudget = TimeSpan.FromSeconds(60);
+
+    private static readonly TimeSpan InitialPollInterval = TimeSpan.FromMilliseconds(350);
+
+    private const double MaxPollIntervalMs = 2000;
+
+    private static readonly TimeSpan FirstPassDelay = TimeSpan.FromMinutes(2);
+
+    private DispatcherQueueTimer? _backgroundTimer;
+    private IInstanceRegistryService? _registry;
+    private bool _backgroundStarted;
+    private bool _passRunning;
+
+    /// <summary>
+    /// Starts the periodic review refresh.
+    /// </summary>
+    /// <remarks>
+    /// <b>Why this exists at all.</b> <c>ReviewHealthPanel</c> was the ONLY caller of
+    /// <see cref="ScrapeAsync"/>, so reviews were read exclusively while the owner had the Reviews page
+    /// open — and its two triggers both forbade navigation, so even then it usually read nothing. The
+    /// dashboard's Reviews card reads this service's cache, which therefore stayed empty forever and
+    /// rendered "Not scanned yet" indefinitely. Observed live across an entire evening with three healthy,
+    /// signed-in Google accounts.
+    ///
+    /// <para>
+    /// The first pass is delayed so it never competes with startup, when every account is still warming its
+    /// WebView and the owner is waiting to see their dashboard.
+    /// </para>
+    /// </remarks>
+    public void StartBackgroundRefresh(IInstanceRegistryService registry, DispatcherQueue ui)
+    {
+        if (_backgroundStarted || registry is null || ui is null)
+        {
+            return;
+        }
+
+        _backgroundStarted = true;
+        _registry = registry;
+
+        _backgroundTimer = ui.CreateTimer();
+        _backgroundTimer.Interval = FirstPassDelay;
+        _backgroundTimer.Tick += async (timer, _) =>
+        {
+            // After the deliberately short first delay, settle into the real cadence.
+            timer.Interval = BackgroundInterval;
+            await RefreshAllAsync().ConfigureAwait(true);
+        };
+        _backgroundTimer.Start();
+
+        AppLogger.LogInfo(
+            "GoogleReviews",
+            $"Background review refresh started — first pass in {FirstPassDelay.TotalMinutes:0} min, " +
+            $"then every {BackgroundInterval.TotalMinutes:0} min.");
+    }
+
+    /// <summary>
+    /// Reads every Google account's reviews once. Safe to call at any time; overlapping calls are dropped.
+    /// </summary>
+    public async Task RefreshAllAsync()
+    {
+        if (_passRunning || _registry is null)
+        {
+            return;
+        }
+
+        _passRunning = true;
+        try
+        {
+            // Deliberately the same predicate ReviewHealthPanel.GoogleInstances uses, including the
+            // sidebar-visibility check. If the background pass and the panel disagreed about which accounts
+            // count, the dashboard card and the Reviews page would quietly report different totals.
+            var accounts = _registry.Instances
+                .Where(i => i.IsProfessional
+                            && PlatformModuleSettingsHelper.IsSidebarVisible(i.Platform)
+                            && string.Equals(
+                                PlatformDefinition.NormalizePlatformId(i.Platform),
+                                "googlebusiness",
+                                StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (accounts.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var account in accounts)
+            {
+                // allowNavigate:false — ScrapeAsync grants navigation itself for any account that is not the
+                // one on screen, which is every account during a background pass in all but one case.
+                await ScrapeAsync(account.Id, allowNavigate: false).ConfigureAwait(true);
+
+                // The lifetime total belongs in the background pass for the same reason the review scrape
+                // does: until this call was added, ReviewHealthPanel was its ONLY caller, so an owner who
+                // never opened the Reviews page had no rating and no lifetime total — which silently
+                // downgrades the coverage line from "covers the first 50 of 991" to "covers 50 loaded
+                // reviews", the honest wording for a number we never read. Own throttle
+                // (RatingRefreshInterval, 6h) so a 30-minute pass does not scrape it twelve times a day;
+                // this call is a no-op whenever the cached value is still fresh.
+                await ScrapeRatingAsync(account.Id, force: false, allowNavigate: false).ConfigureAwait(true);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A background refresh must never be able to take the app down.
+            AppLogger.LogWarning("GoogleReviews", $"Background refresh failed: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            _passRunning = false;
+        }
+    }
+
+    /// <summary>
     /// Scrapes the account's reviews page (navigating to it if needed) and stores the result. Returns null
     /// when the webview isn't loaded, isn't a Google Business page, or the reviews list never renders.
     /// </summary>
+    /// <summary>
+    /// How many pages one scrape may walk. <b>Currently 1 — the traversal is disabled.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why it is off.</b> Paging produced totals that were both impossible and unstable: 700 reviews for
+    /// a profile with roughly 239, climbing by one page on every pass, and the largest account pinned at
+    /// the 2,000-review ceiling. Three separate defects were found and fixed along the way — a rows-per-page
+    /// flag that burned on failure, a page-change fingerprint invalidated by the very expander it was
+    /// supposed to survive, and two traversals racing on one WebView — and the numbers were still wrong
+    /// afterwards. Something in the reset-to-page-one path is still not doing what it claims.
+    /// </para>
+    /// <para>
+    /// A single page is <i>partial</i> but <i>correct</i>, and <see cref="ReviewCoverage"/> now states that
+    /// plainly ("covers the first 50 of 239") instead of implying otherwise. Partial and honest beats
+    /// complete and wrong, which is the only reason this is a revert rather than a fourth attempt.
+    /// </para>
+    /// <para>
+    /// <b>To re-enable</b>, raise this and first prove, against a live account: that the reset genuinely
+    /// returns the list to page one, and that two consecutive passes produce identical totals. The pagination
+    /// machinery below (Next detection, fingerprinting, partial-result handling) is kept precisely so that
+    /// work starts from here rather than from nothing.
+    /// </para>
+    /// </remarks>
+    internal const int MaxPages = 1;
+
+    /// <summary>
+    /// Reads the account's reviews, walking every page Google offers, and stores the totals.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why it pages.</b> Google's rows-per-page control caps at 50, so a profile with more reviews than
+    /// that was being counted from its first page alone — and the result was presented as though it were
+    /// the whole profile. This now clicks through to the end, and records in
+    /// <see cref="ReviewHealth.ReachedLastPage"/> whether it actually got there.
+    /// </para>
+    /// <para>
+    /// <b>A partial read is kept, not discarded.</b> If page four of six times out, the three pages already
+    /// counted are still returned, with <c>ReachedLastPage=false</c> so nothing downstream can claim they
+    /// are complete. Throwing away good pages because a later one was slow would be worse for the owner
+    /// than an honestly-labelled partial count.
+    /// </para>
+    /// </remarks>
     public async Task<ReviewHealth?> ScrapeAsync(string instanceId, bool allowNavigate = true)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
@@ -372,11 +701,163 @@ public sealed class GoogleReviewSnapshotService
             return null;
         }
 
-        // The kickoff only navigates to /reviews when this is set — background refreshes pass false.
-        var kickoff = $"window.__umGRAllowNav={(allowNavigate ? "true" : "false")};" + KickoffScript;
+        // WHY THIS IS NOT SIMPLY `allowNavigate`.
+        //
+        // The reviews scrape can only read business.google.com/reviews, and the guard below refused to
+        // navigate there on any background refresh. Both entry points in ReviewHealthPanel — the initial
+        // load and the auto-refresh timer — pass allowNavigate:false. So unless the owner happened to be
+        // sitting on the reviews page themselves, the kickoff returned 'notreviews' and the panel showed
+        // "Not scanned yet" indefinitely.
+        //
+        // The guard's reason was sound — never yank the owner off a page they are reading — but that risk
+        // only exists when they are actually LOOKING at that account.
+        var isOnScreen = string.Equals(
+            InstanceSessionManager.Instance.VisibleInstanceId,
+            instanceId,
+            StringComparison.OrdinalIgnoreCase);
+        var mayNavigate = allowNavigate || !isOnScreen;
+
+        var key = instanceId.Trim();
+        var gate = _scrapeLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+        if (!await gate.WaitAsync(0).ConfigureAwait(true))
+        {
+            // Another traversal is already walking this account's pages. Hand back what we have rather
+            // than driving a second set of Next clicks through the same WebView.
+            return _byInstance.TryGetValue(key, out var inFlight) ? inFlight : null;
+        }
+
+        try
+        {
+        var kickoff = $"window.__umGRAllowNav={(mayNavigate ? "true" : "false")};" + KickoffScript;
+        var connection = InstanceConnection.Current;
+
+        // Start every pass from page one. The traversal leaves the WebView on whatever page it stopped at,
+        // and the injected flags live on `window`, so without this the next pass resumed from there and
+        // counted a different slice each time — the totals climbed by exactly one page per pass, which is
+        // what gave the game away. A reload also re-arms the rows-per-page bump.
+        if (mayNavigate)
+        {
+            try
+            {
+                await connection.ExecuteScriptAsync(instanceId, ResetScript).ConfigureAwait(true);
+                await Task.Delay(1200).ConfigureAwait(true);
+            }
+            catch
+            {
+                // A failed reset just means this pass reads from wherever the page already was.
+            }
+        }
+
+        var unanswered = 0;
+        var answered = 0;
+        var pending = new List<PendingReview>();
+        var pagesRead = 0;
+        var reachedLastPage = false;
+
+        while (pagesRead < MaxPages)
+        {
+            var page = await ReadCurrentPageAsync(instanceId, kickoff).ConfigureAwait(true);
+            if (page is not { } read)
+            {
+                break;
+            }
+
+            unanswered += read.Unanswered;
+            answered += read.Answered;
+
+            // Previews are for the reply queue, and it only ever shows the most urgent handful. Collecting
+            // every page's worth would grow without bound on a profile with hundreds of reviews.
+            foreach (var item in read.Pending)
+            {
+                if (pending.Count >= 24)
+                {
+                    break;
+                }
+
+                pending.Add(item);
+            }
+
+            pagesRead++;
+
+            if (!read.HasNext)
+            {
+                reachedLastPage = true;
+                break;
+            }
+
+            string? advanced;
+            try
+            {
+                advanced = await connection
+                    .ExecuteScriptAsync(instanceId, "(window.__umGRNext?window.__umGRNext():false)")
+                    .ConfigureAwait(true);
+            }
+            catch
+            {
+                break;
+            }
+
+            if (advanced is null || !advanced.Contains("true", StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+        }
+
+        if (pagesRead == 0)
+        {
+            return null;
+        }
+
+        var health = new ReviewHealth(
+            unanswered, answered, DateTimeOffset.UtcNow, true, pending, pagesRead, reachedLastPage);
+        _byInstance[instanceId.Trim()] = health;
+
+        AppLogger.LogInfo(
+            $"GoogleReviews.{instanceId}",
+            $"Read {unanswered + answered} review(s) across {pagesRead} page(s) — " +
+            $"{unanswered} unanswered, {answered} answered, {pending.Count} preview(s). " +
+            (reachedLastPage ? "Reached the last page." : "Stopped before the last page."));
+
+        return health;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    /// <summary>One page's worth of counts, plus whether Google offers another page after it.</summary>
+    private readonly record struct PageRead(
+        int Unanswered, int Answered, IReadOnlyList<PendingReview> Pending, bool HasNext);
+
+    /// <summary>
+    /// Polls the current reviews page until it renders something countable, then reads it once.
+    /// </summary>
+    private async Task<PageRead?> ReadCurrentPageAsync(string instanceId, string kickoff)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return null;
+        }
 
         var connection = InstanceConnection.Current;
-        for (var attempt = 0; attempt < 24; attempt++)
+
+        // TIME-BOUNDED, NOT ATTEMPT-BOUNDED.
+        //
+        // This was `attempt < 24` with a flat 350ms wait — a budget of roughly nine seconds, which is what
+        // it actually spent before giving up on Google Depilex DHA-2 (16:48:02 → 16:48:11 in the log). Nine
+        // seconds is generous for a page already sitting on /reviews and nowhere near enough for a COLD
+        // one, which has to navigate to business.google.com/reviews, authenticate the view, and let
+        // Google's app render a review list before anything is countable. The two accounts that succeeded
+        // were simply the two that were quick.
+        //
+        // Counting attempts also hid the problem: 24 attempts sounds like plenty until you notice each is
+        // a third of a second. A deadline says what is actually being promised.
+        var deadline = DateTimeOffset.UtcNow + PollBudget;
+        var pollInterval = InitialPollInterval;
+        var lastState = "none";
+
+        while (DateTimeOffset.UtcNow < deadline)
         {
             try
             {
@@ -387,7 +868,10 @@ public sealed class GoogleReviewSnapshotService
                 return null;
             }
 
-            await Task.Delay(350).ConfigureAwait(true);
+            await Task.Delay(pollInterval).ConfigureAwait(true);
+
+            // Back off gently. Early polls catch a fast page quickly; later ones stop hammering a slow one.
+            pollInterval = TimeSpan.FromMilliseconds(Math.Min(pollInterval.TotalMilliseconds * 1.35, MaxPollIntervalMs));
 
             string? raw;
             try
@@ -418,6 +902,7 @@ public sealed class GoogleReviewSnapshotService
             {
                 using var doc = JsonDocument.Parse(inner);
                 var state = doc.RootElement.TryGetProperty("state", out var s) ? s.GetString() : null;
+                lastState = state ?? lastState;
                 if (state == "done")
                 {
                     var unanswered = doc.RootElement.GetProperty("unanswered").GetInt32();
@@ -449,12 +934,21 @@ public sealed class GoogleReviewSnapshotService
                         }
                     }
 
-                    var health = new ReviewHealth(unanswered, answered, DateTimeOffset.UtcNow, true, pending);
-                    _byInstance[instanceId.Trim()] = health;
-                    return health;
+                    var hasNext = doc.RootElement.TryGetProperty("hasNext", out var hn) &&
+                                  hn.ValueKind == JsonValueKind.True;
+                    return new PageRead(unanswered, answered, pending, hasNext);
                 }
                 if (state is "notreviews" or "error")
                 {
+                    // Previously a bare `return null`, which is precisely why "Not scanned yet" was
+                    // impossible to diagnose: the panel showed an empty state and nothing anywhere said
+                    // that the scrape had run, reached a page it could not read, and given up.
+                    AppLogger.LogWarning(
+                        $"GoogleReviews.{instanceId}",
+                        state == "notreviews"
+                            ? "The account is not on business.google.com/reviews and this pass was not " +
+                              "allowed to navigate there, so no review counts could be read."
+                            : "The reviews page threw while being read; no counts were taken.");
                     return null;
                 }
                 // navigating / loading / none → keep polling.
@@ -465,6 +959,19 @@ public sealed class GoogleReviewSnapshotService
             }
         }
 
+        // Ran out of budget. Naming the state it was stuck in is the difference between a shrug and a
+        // diagnosis: 'navigating' means the page never arrived, 'loading' means it arrived but never
+        // rendered a countable list, and 'none' means the kickoff script never took hold at all.
+        AppLogger.LogWarning(
+            $"GoogleReviews.{instanceId}",
+            $"Gave up after {PollBudget.TotalSeconds:0}s still in state '{lastState}' — " +
+            lastState switch
+            {
+                "navigating" => "the reviews page never finished loading.",
+                "loading" => "the page loaded but never rendered a countable review list.",
+                "none" => "the page never ran the reader script (is this account signed in?).",
+                _ => "no review counts could be read."
+            });
         return null;
     }
 }

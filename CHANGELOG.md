@@ -5,6 +5,41 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.39
+
+**Your star rating was wrong for two of your three salons.** DHA-2 showed 4.7 when Google says 4.6 — that
+4.7 is the Men branch's rating, picked up off the same page. Men showed 3.0 when Google says 4.7; that one
+came from a single customer's review. The app was reading the first star rating it found anywhere on the
+page rather than the one belonging to the business it was looking at. All three now read exactly what
+Google shows: F-11 4.6, Men 4.7, DHA-2 4.6.
+
+**Two of your three salons had no review count at all.** Google writes the number two different ways —
+"435 Google reviews" for Men, but a bare "(991)" and "(244)" for DHA-2 and F-11, where the words "Google
+reviews" appear nowhere. Only the first form was ever recognised, so the other two profiles reported no
+lifetime total. Nothing on screen said so; the figure was simply absent.
+
+**The reply rate now says what it is a rate of.** Google shows 50 reviews per page, so "88% replied" was
+88% of the most recent 50 — but on a profile with 991 reviews it read as though it covered all of them.
+It now reads "88% replied of the 50 most recent", and says "of all reviews" only when every review was
+actually counted. A number that covers a twentieth of your history should not look like a verdict on all
+of it.
+
+**Reviews are read in the background, and now really are.** The background pass — and the awaiting-reply
+alerts — only started if the app happened to open on the Dashboard. Open it on a WhatsApp account instead,
+which is what it does when that was the last thing you had open, and neither ran for the whole session.
+The Reviews card just kept saying it had not read anything yet, which looks identical to a slow first pass.
+
+**Re-sync no longer breaks itself.** Reading your rating sends the browser to Google's search page for your
+business, and the review scrape that ran straight afterwards could not find its way back — so the pass you
+asked for was the one that failed to refresh anything. The rating check also no longer takes over whichever
+account you happen to be looking at.
+
+**Deliberately still partial: one page of 50.** Walking every page produced counts of 2,000 for a salon
+with 991 reviews and 1,200 for one with 435 — pages being counted more than once. That is off by a
+factor of two to three, so it is switched off until it can be shown to produce the same total twice in a
+row. The app now tells you plainly that it read the 50 most recent rather than quietly implying it read
+everything.
+
 ## v4.99.38
 
 **The biggest pile in your queue was misfiled work, not junk.** "Uncategorised" was the largest group of

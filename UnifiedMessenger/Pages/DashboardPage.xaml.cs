@@ -42,10 +42,10 @@ public sealed partial class DashboardPage : Page
             SectionLinks.ConfigureServices(_services);
         }
 
-        if (_registry is not null)
-        {
-            OversightAlertMonitor.Instance.Start(_registry, DispatcherQueue);
-        }
+        // The alert monitor and the review refresh are started by the shell (MainWindow.StartBackgroundOversight),
+        // not here. Starting them from this page tied two always-on background services to whether the owner
+        // opened one particular page — open the app on an account view and neither ever ran. Both starts are
+        // idempotent, so this is a move rather than a second call site.
 
         RefreshAll();
     }

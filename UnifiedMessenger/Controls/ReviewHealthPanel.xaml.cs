@@ -381,10 +381,12 @@ public sealed partial class ReviewHealthPanel : UserControl
         {
             foreach (var instance in accounts)
             {
-                // Manual Re-sync only: the official rating + lifetime total live on the Google Search merchant
-                // view, not the reviews manager, so grab them first (this navigates there via
-                // business.google.com's redirect). Throttled to 6h internally. The reviews scrape below then
-                // navigates back to /reviews. The passive background refresh skips this entirely.
+                // The official rating + lifetime total live on the Google Search merchant view, not the
+                // reviews manager, so grab them first (this navigates there via business.google.com's
+                // redirect). Throttled to 6h internally. The reviews scrape below navigates back — which
+                // works only because its host test accepts any google.com host, the merchant view being on
+                // www.google.com. The background pass also scrapes the rating now, but skips whichever
+                // account is on screen; here the owner asked, so navigating is what they expect.
                 if (allowNavigate)
                 {
                     await GoogleReviewSnapshotService.Instance.ScrapeRatingAsync(instance.Id);
@@ -409,7 +411,10 @@ public sealed partial class ReviewHealthPanel : UserControl
     {
         if (!health.HasData)
         {
-            return "Open this account, then Re-sync to load.";
+            // No longer "open this account and Re-sync": a background pass reads every Google account on
+            // its own now, so the honest state is "not read yet", not an instruction the owner does not
+            // need to follow.
+            return "Not read yet — checking in the background.";
         }
 
         var parts = new List<string>();
@@ -422,11 +427,22 @@ public sealed partial class ReviewHealthPanel : UserControl
 
             if (r.Total is { } total)
             {
-                parts.Add($"{total} reviews");
+                // Grouped to match ReviewCoverage's own formatting — otherwise one line of the same subtitle
+                // reads "1234 reviews" and the next "of 1,234".
+                parts.Add($"{total:N0} reviews");
             }
         }
 
-        parts.Add($"{health.ReplyRatePercent}% replied ({health.Total} on this page)");
+        // "(N on this page)" was the quiet lie. Google paginates at 50, so a profile with hundreds of
+        // reviews showed a reply rate over its most recent handful while reading as though it covered
+        // everything. The basis phrase says what the percentage is a percentage OF — "of all reviews" only
+        // when the scrape actually walked to the final page, and otherwise the window it really saw.
+        var basis = ReviewCoverage.DescribeReplyRateBasis(
+            health.Total,
+            GoogleReviewSnapshotService.Instance.GetRating(instanceId)?.Total,
+            health.ReachedLastPage);
+
+        parts.Add($"{health.ReplyRatePercent}% replied {basis}");
         return string.Join(" · ", parts);
     }
 

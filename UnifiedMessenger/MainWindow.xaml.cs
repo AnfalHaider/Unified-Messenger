@@ -263,7 +263,31 @@ public sealed partial class MainWindow : Window, IShellUiHost
         {
             await _shell.InitializeAsync().ConfigureAwait(true);
             _shell.ApplyPanePinUi(PanePinButton, PanePinIcon);
+            StartBackgroundOversight();
         }).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Starts the passive background services that must run whether or not the owner opens any given page.
+    /// </summary>
+    /// <remarks>
+    /// Both of these used to be started from <c>DashboardPage</c>'s constructor, which meant they only ran if
+    /// the app happened to land on the dashboard. Restore the app onto an account view instead — a normal
+    /// thing to do, and what it does when that was the last page open — and neither the awaiting-threshold
+    /// alerts nor the Google review refresh ever armed for the whole session. Nothing surfaced that: the
+    /// Reviews card simply kept saying it had not read anything yet, which is indistinguishable from a slow
+    /// first pass. Both calls are idempotent, so the shell is the right place to own them.
+    /// </remarks>
+    private void StartBackgroundOversight()
+    {
+        var registry = _services.Registry;
+        if (registry is null)
+        {
+            return;
+        }
+
+        OversightAlertMonitor.Instance.Start(registry, DispatcherQueue);
+        GoogleReviewSnapshotService.Instance.StartBackgroundRefresh(registry, DispatcherQueue);
     }
 
     public void ShowFromTray()

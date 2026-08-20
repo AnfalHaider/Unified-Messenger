@@ -235,6 +235,22 @@ These were confirmed by reading the live WhatsApp Web IndexedDB via F12 DevTools
   an `aria-label` reading `"Rated 4.6 out of 5,"`; the total is anchored off the rating because
   `innerText` renders them run together (`"4.6239 Google reviews"` → a naive `([\d,]+)` yields 6239).
   Throttled by `RatingRefreshInterval` (6h) because each scrape costs a visible round-trip.
+- **Google renders the review count in TWO layouts, and only one says "Google reviews".** Verified against
+  the owner's three live profiles: Depilex Men shows `4.7 ★★★★☆ 435 Google reviews`, but DHA-2 and F-11
+  show `4.6 ★ (991) · Beauty salon` — bracketed, with the words "Google reviews" appearing nowhere on the
+  page. For months only the labelled layout parsed, so two of three profiles reported **no lifetime total
+  at all**, which is invisible in the UI: it silently degrades the coverage line from "covers the first 50
+  of 991" to "covers 50 loaded reviews". Both layouts are pinned by `GoogleProfileTotalParsingTests`, which
+  extracts the regexes from the shipped const rather than restating them. The bracketed pattern is anchored
+  on the rating so it can't match `(closes 9 PM)` in the opening hours above it.
+- **The rating scrape parks the WebView on `www.google.com/search…`, not `business.google.com`.** Anything
+  that runs afterwards and needs the reviews manager must be able to navigate back from *any* google.com
+  host — a `business.google.com`-only test strands it, and the reviews scrape then reports `notreviews`
+  and gives up. That made **manual Re-sync** (the path that scrapes the rating) the one that failed to
+  refresh review counts, while the background pass looked fine because it skipped the rating entirely.
+- **`ScrapeRatingAsync` must not run on the account currently on screen** unless the user asked for it —
+  it navigates, so a background pass would visibly yank the owner's page away. It takes `allowNavigate`
+  and returns the cached value instead; the reading is picked up on a later pass.
 - The **Business Profile API** would give both cleanly and is free, but it is excluded by the no-cloud/
   no-API rule *and* gated behind a manual Google approval (new GCP projects start at zero quota).
 
