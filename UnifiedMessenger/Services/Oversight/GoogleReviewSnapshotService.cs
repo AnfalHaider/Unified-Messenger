@@ -341,6 +341,29 @@ public sealed class GoogleReviewSnapshotService
     /// </para>
     /// </remarks>
     /// <summary>
+    /// Whether the account's session can execute JavaScript at all right now.
+    /// </summary>
+    /// <remarks>
+    /// A suspended WebView, or one that has not been created yet, runs nothing — every script comes back
+    /// null. That state cannot resolve itself while we poll, so the scrape should leave immediately instead
+    /// of spending its whole budget on it. Anything other than a clean, expected answer counts as "not
+    /// running": this only decides whether to skip a background read, and guessing optimistically just
+    /// restores the 60-second wait it exists to avoid.
+    /// </remarks>
+    private static async Task<bool> CanRunScriptsAsync(IInstanceConnection connection, string instanceId)
+    {
+        try
+        {
+            var probe = await connection.ExecuteScriptAsync(instanceId, "1").ConfigureAwait(true);
+            return probe is not null && probe.Trim('"', ' ') == "1";
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// When each account was last scraped and whether that attempt read anything — see the freshness floor.
     /// </summary>
     private readonly ConcurrentDictionary<string, (DateTimeOffset At, bool ReadData)> _lastScrapeAttempt =
@@ -459,6 +482,18 @@ public sealed class GoogleReviewSnapshotService
         }
 
         var connection = InstanceConnection.Current;
+
+        // Same fast fail as the review scrape, and it matters twice over here: the rating runs straight
+        // after the review read on the same account, so a sleeping session used to cost 60s and then 60s
+        // again. See CanRunScriptsAsync.
+        if (!await CanRunScriptsAsync(connection, id).ConfigureAwait(true))
+        {
+            AppLogger.LogWarning(
+                $"GoogleRating.{id}",
+                "The account's session is not running scripts (asleep or not yet open), so the rating could not be read. " +
+                "Skipped rather than polling it for 60s.");
+            return haveCached ? cached : null;
+        }
 
         // A wall-clock budget, not an attempt count. The old `attempt < 24` at 400ms gave this scrape ~9.6s
         // to navigate to business.google.com, follow Google's redirect to the Search merchant view, and let
@@ -682,6 +717,31 @@ public sealed class GoogleReviewSnapshotService
 
             foreach (var account in accounts)
             {
+                // WAKE THE SESSION FIRST — without this the whole pass was theatre.
+                //
+                // Measured live: for over an hour every scrape in every pass returned state 'none', meaning
+                // the injected reader never ran at all. A WebView that has been suspended does not execute
+                // scripts, and with nine accounts against an LRU cap of six a session may simply not exist
+                // yet after a restart. Either way the page cannot be read, and the scrape has no way out of
+                // it on its own: it can only navigate to /reviews from a page already on a google.com host,
+                // and a session that isn't running isn't on any host. It recovered only when something
+                // unrelated happened to warm the view.
+                //
+                // Both calls are cheap no-ops when the session is already up and running, and neither makes
+                // the account visible — creating a session is separate from showing one.
+                try
+                {
+                    await InstanceSessionManager.Instance.EnsureSessionAsync(account).ConfigureAwait(true);
+                    await InstanceSessionManager.Instance.TryResumeSessionAsync(account.Id).ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    // A session that refuses to come up is this account's problem, not the whole pass's.
+                    AppLogger.LogWarning(
+                        $"GoogleReviews.{account.Id}",
+                        $"Could not bring the account's session up before scraping: {ex.GetType().Name}: {ex.Message}");
+                }
+
                 // allowNavigate:false — ScrapeAsync grants navigation itself for any account that is not the
                 // one on screen, which is every account during a background pass in all but one case.
                 await ScrapeAsync(account.Id, allowNavigate: false).ConfigureAwait(true);
@@ -824,6 +884,24 @@ public sealed class GoogleReviewSnapshotService
         {
         var kickoff = $"window.__umGRAllowNav={(mayNavigate ? "true" : "false")};" + KickoffScript;
         var connection = InstanceConnection.Current;
+
+        // FAST FAIL ON A SESSION THAT ISN'T RUNNING SCRIPTS.
+        //
+        // A suspended or not-yet-created WebView executes nothing, so `window.__umGR` is never set and the
+        // reader reports state 'none' — for the entire 60-second budget, on every account, on every pass.
+        // Measured live: six minutes of polling dead views, three times an hour, producing nothing.
+        //
+        // This asks the page one trivial question first. It deliberately does NOT test the URL: a page
+        // mid-navigation is legitimately not on /reviews yet and must still be waited for. It tests only
+        // whether script runs at all, which is the one thing no amount of waiting will change.
+        if (!await CanRunScriptsAsync(connection, instanceId).ConfigureAwait(true))
+        {
+            AppLogger.LogWarning(
+                $"GoogleReviews.{instanceId}",
+                "The account's session is not running scripts (asleep or not yet open), so there is nothing to read. " +
+                "Skipped rather than polling it for 60s.");
+            return _byInstance.TryGetValue(key, out var stale) ? stale : null;
+        }
 
         // Start every pass from page one. The traversal leaves the WebView on whatever page it stopped at,
         // and the injected flags live on `window`, so without this the next pass resumed from there and

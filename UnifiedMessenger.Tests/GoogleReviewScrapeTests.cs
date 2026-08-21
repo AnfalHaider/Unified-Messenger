@@ -19,8 +19,20 @@ public class GoogleReviewScrapeTests
         public FakeConnection(string? innerJson) =>
             _readResult = innerJson is null ? null : JsonSerializer.Serialize(innerJson);
 
-        public Task<string?> ExecuteScriptAsync(string instanceId, string script) =>
-            Task.FromResult(script.TrimStart().StartsWith("(window.__umGR", StringComparison.Ordinal) ? _readResult : null);
+        public Task<string?> ExecuteScriptAsync(string instanceId, string script)
+        {
+            // The service asks "1" first to find out whether the page can run scripts at all, so it can skip
+            // a sleeping WebView instead of polling it for 60 seconds. This fake stands in for a live page,
+            // so it answers — a fake that returned null here would be modelling a suspended session, and
+            // every scrape test would be asserting against a code path that never reaches the parser.
+            if (script.Trim() == "1")
+            {
+                return Task.FromResult<string?>("1");
+            }
+
+            return Task.FromResult(
+                script.TrimStart().StartsWith("(window.__umGR", StringComparison.Ordinal) ? _readResult : null);
+        }
 
         public Task ReloadAsync(string instanceId) => Task.CompletedTask;
     }
@@ -90,6 +102,53 @@ public class GoogleReviewScrapeTests
         {
             var health = await GoogleReviewSnapshotService.Instance.ScrapeAsync("g-review-2");
             Assert.Null(health);
+        }
+        finally
+        {
+            InstanceConnection.Current = original;
+        }
+    }
+
+    /// <summary>A session that cannot run scripts is abandoned immediately, not polled for a minute.</summary>
+    private sealed class SleepingConnection : IInstanceConnection
+    {
+        public int Calls { get; private set; }
+
+        // A suspended WebView executes nothing, so every script comes back null.
+        public Task<string?> ExecuteScriptAsync(string instanceId, string script)
+        {
+            Calls++;
+            return Task.FromResult<string?>(null);
+        }
+
+        public Task ReloadAsync(string instanceId) => Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task ScrapeAsync_LeavesImmediatelyWhenTheSessionIsNotRunningScripts()
+    {
+        // Measured live before this: every account, every 30-minute pass, sat in state 'none' for the full
+        // 60-second budget because the WebView was suspended — six minutes of polling dead views per hour,
+        // producing nothing. Waiting cannot fix a session that is asleep; only waking it can.
+        var original = InstanceConnection.Current;
+        var sleeping = new SleepingConnection();
+        InstanceConnection.Current = sleeping;
+        try
+        {
+            var started = DateTimeOffset.UtcNow;
+            var health = await GoogleReviewSnapshotService.Instance.ScrapeAsync("g-review-asleep");
+            var elapsed = DateTimeOffset.UtcNow - started;
+
+            Assert.Null(health);
+
+            // The point is the speed. A generous ceiling still fails loudly if the poll loop is re-entered,
+            // since that path cannot finish in under a minute.
+            Assert.True(
+                elapsed < TimeSpan.FromSeconds(10),
+                $"A sleeping session should be abandoned at once; this took {elapsed.TotalSeconds:0.0}s.");
+
+            // One probe, then out — no kickoff, no reset, no read loop.
+            Assert.Equal(1, sleeping.Calls);
         }
         finally
         {
