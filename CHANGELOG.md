@@ -5,6 +5,30 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.40
+
+**Your review figures were going stale in the background without saying so.** The app is supposed to
+re-read your Google reviews every half hour on its own. It was doing the rounds on schedule and coming
+back with nothing every time — for over an hour straight in testing — because an account's browser
+session goes to sleep when you are not looking at it, and a sleeping session cannot be read. The card
+kept showing whatever it last managed to read, with no indication that the number had stopped moving.
+It now wakes the account first. A full round of all three salons finished in **23 seconds** with every
+figure read, where before it spent six minutes and read nothing.
+
+**And it no longer waits a minute to discover there is nothing there.** A sleeping account was polled for
+a full sixty seconds before being given up on — twice per account, once for reviews and once for the
+rating. Six minutes of waiting, three times an hour, for nothing. It now asks the page one question and
+moves on immediately if there is no answer.
+
+**Reviews are no longer re-read six times over on startup.** Opening the app scraped every Google account
+roughly six times in the first two minutes, because the reviews card is rebuilt whenever the dashboard
+redraws and each rebuild started a fresh read. That is now once. A read you ask for with **Re-sync** is
+never held back — the limit applies only to the automatic ones — and an account that failed is retried in
+under a minute rather than waiting the full interval.
+
+This is your own Google account being loaded repeatedly by software; keeping it to what is actually
+needed matters beyond tidiness.
+
 ## v4.99.39
 
 **Your star rating was wrong for two of your three salons.** DHA-2 showed 4.7 when Google says 4.6 — that
