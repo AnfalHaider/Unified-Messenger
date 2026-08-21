@@ -392,7 +392,12 @@ public sealed partial class ReviewHealthPanel : UserControl
                     await GoogleReviewSnapshotService.Instance.ScrapeRatingAsync(instance.Id);
                 }
 
-                await GoogleReviewSnapshotService.Instance.ScrapeAsync(instance.Id, allowNavigate);
+                // force: allowNavigate — allowNavigate is true only on the owner-driven Re-sync; the initial
+                // load and the 5-minute timer both pass false. So a Re-sync always re-reads, while the
+                // automatic paths honour the service's freshness floor instead of rescraping every time this
+                // panel is reloaded. Before that floor existed, startup produced six passes per account in
+                // two minutes, because the dashboard reloads this panel on every alert tick.
+                await GoogleReviewSnapshotService.Instance.ScrapeAsync(instance.Id, allowNavigate, force: allowNavigate);
                 Render();
             }
         }

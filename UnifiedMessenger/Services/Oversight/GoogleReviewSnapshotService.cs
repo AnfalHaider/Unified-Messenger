@@ -340,6 +340,12 @@ public sealed class GoogleReviewSnapshotService
     /// would just mean two full traversals back to back for a number that changes a few times a week.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// When each account was last scraped and whether that attempt read anything — see the freshness floor.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, (DateTimeOffset At, bool ReadData)> _lastScrapeAttempt =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _scrapeLocks =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -352,6 +358,60 @@ public sealed class GoogleReviewSnapshotService
     /// <summary>A profile rating barely moves, and each scrape costs a visible round-trip to the Search view
     /// and back — so re-scrape at most this often.</summary>
     public static readonly TimeSpan RatingRefreshInterval = TimeSpan.FromHours(6);
+
+    /// <summary>
+    /// The shortest gap between two automatic scrapes of the same account.
+    /// </summary>
+    /// <remarks>
+    /// Set just under the panel's own 5-minute auto-refresh so that timer still lands every time, while the
+    /// incidental re-entries around it — panel reloads, dashboard redraws — collapse into the cached result.
+    /// A user-driven Re-sync passes <c>force</c> and ignores this.
+    /// </remarks>
+    internal static readonly TimeSpan MinimumRescrapeInterval = TimeSpan.FromMinutes(4);
+
+    /// <summary>
+    /// The shorter floor applied after an attempt that read nothing.
+    /// </summary>
+    /// <remarks>
+    /// A cold WebView often fails its first scrape — the page has not run the injected reader yet, or the
+    /// account is the one on screen and this pass was not allowed to navigate. Holding those off for the
+    /// full four minutes would leave the Reviews card empty for four minutes after every launch, which is a
+    /// visible regression traded for traffic nobody asked to save. This still cuts a failing account from
+    /// roughly one attempt every three seconds to one every forty-five.
+    /// </remarks>
+    internal static readonly TimeSpan FailedRetryInterval = TimeSpan.FromSeconds(45);
+
+    /// <summary>
+    /// Whether an automatic scrape should be skipped because this account was scraped too recently.
+    /// </summary>
+    /// <param name="lastAttemptUtc">When this account was last scraped, successfully or not; null if never.</param>
+    /// <param name="lastAttemptReadData">Whether that attempt actually came back with review counts.</param>
+    /// <param name="force">True for owner-driven Re-sync, which is never throttled.</param>
+    /// <remarks>
+    /// Pulled out as a plain function so the rule can be tested without a WebView. See
+    /// <see cref="MinimumRescrapeInterval"/> for why the floor exists at all.
+    /// </remarks>
+    internal static bool ShouldSkipAsTooRecent(
+        DateTimeOffset? lastAttemptUtc,
+        bool lastAttemptReadData,
+        DateTimeOffset nowUtc,
+        bool force)
+    {
+        if (force || lastAttemptUtc is not { } last)
+        {
+            return false;
+        }
+
+        // A clock that has gone backwards (NTP correction, DST edge, a VM resuming) must not be able to
+        // silence the scrape until real time catches up. Treat it as "not recent" and read again.
+        if (nowUtc < last)
+        {
+            return false;
+        }
+
+        var floor = lastAttemptReadData ? MinimumRescrapeInterval : FailedRetryInterval;
+        return nowUtc - last < floor;
+    }
 
     public ReviewHealth Get(string instanceId) =>
         !string.IsNullOrWhiteSpace(instanceId) && _byInstance.TryGetValue(instanceId.Trim(), out var health)
@@ -694,11 +754,38 @@ public sealed class GoogleReviewSnapshotService
     /// than an honestly-labelled partial count.
     /// </para>
     /// </remarks>
-    public async Task<ReviewHealth?> ScrapeAsync(string instanceId, bool allowNavigate = true)
+    public async Task<ReviewHealth?> ScrapeAsync(string instanceId, bool allowNavigate = true, bool force = false)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
         {
             return null;
+        }
+
+        // FRESHNESS FLOOR — measured, not theoretical. On startup this scraped every Google account roughly
+        // six times in two minutes. ReviewHealthPanel kicks off a scrape from its Loaded handler, and the
+        // dashboard reloads that panel on every alert-monitor tick and adapter-health change, so each reload
+        // fired a fresh pass over all three accounts. The existing SemaphoreSlim only blocks CONCURRENT
+        // passes; a pass that finishes in three seconds is not concurrent with the one that follows it.
+        //
+        // Enforced here rather than in the panel because the panel is not the only caller and the next one
+        // added would reintroduce this. Every automatic path — first load, the 5-minute timer, the 30-minute
+        // background pass — is subject to it. `force` is for the paths the owner explicitly triggers, where
+        // being told "no, that is recent enough" would be wrong.
+        //
+        // This is real traffic to a real Google account that can be rate-limited, not just wasted work.
+        // Keyed on the last ATTEMPT, not the last successful result. Throttling on cached data would leave
+        // an account that is failing — signed out, slow to render, timing out — as the one account still
+        // scraped on every single panel reload, which is both the worst case for traffic and the least
+        // likely to start working because of it.
+        var cacheKey = instanceId.Trim();
+        var hadAttempt = _lastScrapeAttempt.TryGetValue(cacheKey, out var previous);
+        if (ShouldSkipAsTooRecent(
+                hadAttempt ? previous.At : null,
+                hadAttempt && previous.ReadData,
+                DateTimeOffset.UtcNow,
+                force))
+        {
+            return _byInstance.TryGetValue(cacheKey, out var recent) ? recent : null;
         }
 
         // WHY THIS IS NOT SIMPLY `allowNavigate`.
@@ -725,6 +812,13 @@ public sealed class GoogleReviewSnapshotService
             // than driving a second set of Next clicks through the same WebView.
             return _byInstance.TryGetValue(key, out var inFlight) ? inFlight : null;
         }
+
+        // Stamped here — gate held, about to do real work — so the floor measures actual scrapes. Stamping
+        // before the gate would let a call that turned out to be a duplicate reset the clock for the one
+        // genuinely running. Recorded pessimistically as "read nothing" and upgraded only once counts come
+        // back, so a scrape that throws, times out, or never returns still gets the short retry floor rather
+        // than the long one.
+        _lastScrapeAttempt[key] = (DateTimeOffset.UtcNow, false);
 
         try
         {
@@ -811,6 +905,10 @@ public sealed class GoogleReviewSnapshotService
         var health = new ReviewHealth(
             unanswered, answered, DateTimeOffset.UtcNow, true, pending, pagesRead, reachedLastPage);
         _byInstance[instanceId.Trim()] = health;
+
+        // Counts came back, so this attempt earns the long freshness floor. Everything that reaches here
+        // without setting this — a timeout, an exception, a page that never rendered — keeps the short one.
+        _lastScrapeAttempt[instanceId.Trim()] = (DateTimeOffset.UtcNow, true);
 
         AppLogger.LogInfo(
             $"GoogleReviews.{instanceId}",
