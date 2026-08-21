@@ -20,6 +20,11 @@
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
 
+            <!-- The desk goes above the per-account panel deliberately. The panel answers "how is each
+                 location doing"; the desk answers "what do I reply to first", which is what someone opens
+                 this page to do. -->
+            <controls:ReviewDesk x:Name="ReviewDesk" />
+
             <controls:ReviewHealthPanel x:Name="ReviewHealthPanel" />
 
             <!-- The panel collapses itself when no Google Business account is connected, which would leave

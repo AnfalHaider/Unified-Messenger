@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="UnifiedMessenger.Controls.ReviewDesk"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!-- The desk is built imperatively in code-behind, the same pattern as CommandCenterPanel and
+         ReviewHealthPanel: the rows are data-shaped rather than template-shaped, and the ordering work
+         lives in ReviewQueue. This host supplies the frame, the header, and the keyboard surface. -->
+    <Border
+        Background="{ThemeResource UmSurfaceBrush}"
+        BorderBrush="{ThemeResource UmHairlineBrush}"
+        BorderThickness="1"
+        CornerRadius="8"
+        Padding="{StaticResource UmPaddingLg}">
+        <StackPanel Spacing="12">
+            <StackPanel Spacing="2">
+                <TextBlock
+                    x:Name="DeskTitle"
+                    FontSize="{StaticResource UmFontSizeSubtitle}"
+                    FontWeight="SemiBold"
+                    Text="Review desk" />
+                <TextBlock
+                    x:Name="DeskSummary"
+                    FontSize="{StaticResource UmFontSizeBody}"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <!-- IsTabStop so the queue itself takes focus and the arrow keys work without the owner having
+                 to tab onto an individual row first. Named because a focusable element that announces
+                 nothing is a dead end for anyone not using a mouse. -->
+            <StackPanel
+                x:Name="QueueHost"
+                AutomationProperties.Name="Review queue. Use the up and down arrow keys to move through it, Enter to open a review in Google."
+                IsTabStop="True"
+                UseSystemFocusVisuals="True"
+                Spacing="6" />
+        </StackPanel>
+    </Border>
+</UserControl>

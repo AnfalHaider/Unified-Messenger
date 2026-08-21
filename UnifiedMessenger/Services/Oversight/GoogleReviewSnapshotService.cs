@@ -341,25 +341,63 @@ public sealed class GoogleReviewSnapshotService
     /// </para>
     /// </remarks>
     /// <summary>
-    /// Whether the account's session can execute JavaScript at all right now.
+    /// How long to let a session prove it can run scripts before treating it as asleep.
+    /// </summary>
+    /// <remarks>
+    /// Waking a WebView is asynchronous: <c>EnsureSessionAsync</c> and <c>TryResumeSessionAsync</c> both
+    /// return before the page can actually execute anything. Measured live — all three accounts failed a
+    /// single immediate probe at 14:00:23, and all three were running scripts by 14:00:36. A one-shot check
+    /// therefore reported a session that was waking up perfectly normally as asleep, and skipped it.
+    ///
+    /// <para>
+    /// 15 seconds because that measured gap was 13, and a budget under the number it was chosen from would
+    /// fail the exact case it exists for. Still a quarter of the 60-second poll it replaced, so the waste
+    /// this was added to remove stays removed.
+    /// </para>
+    /// <para>
+    /// Settable so tests can shorten it — a suite that really waited this out would add 15 seconds per case
+    /// to a run that currently takes 23 for everything.
+    /// </para>
+    /// </remarks>
+    internal static TimeSpan ScriptReadyBudget { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Whether the account's session can execute JavaScript, waiting briefly for one that is still waking.
     /// </summary>
     /// <remarks>
     /// A suspended WebView, or one that has not been created yet, runs nothing — every script comes back
-    /// null. That state cannot resolve itself while we poll, so the scrape should leave immediately instead
-    /// of spending its whole budget on it. Anything other than a clean, expected answer counts as "not
-    /// running": this only decides whether to skip a background read, and guessing optimistically just
-    /// restores the 60-second wait it exists to avoid.
+    /// null. Left alone that never resolves, so the scrape must not spend its whole budget on it; but a
+    /// session the pass has just asked to wake needs a moment before it can answer, and failing it instantly
+    /// skips exactly the accounts the wake was added to rescue. Anything other than a clean, expected answer
+    /// within the budget counts as "not running".
     /// </remarks>
     private static async Task<bool> CanRunScriptsAsync(IInstanceConnection connection, string instanceId)
     {
-        try
+        // A session that is already up answers the first probe, so the common path costs one call as before;
+        // only a session that failed it pays the wait.
+        var deadline = DateTimeOffset.UtcNow + ScriptReadyBudget;
+
+        while (true)
         {
-            var probe = await connection.ExecuteScriptAsync(instanceId, "1").ConfigureAwait(true);
-            return probe is not null && probe.Trim('"', ' ') == "1";
-        }
-        catch
-        {
-            return false;
+            try
+            {
+                var probe = await connection.ExecuteScriptAsync(instanceId, "1").ConfigureAwait(true);
+                if (probe is not null && probe.Trim('"', ' ') == "1")
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // A session mid-creation can throw rather than return null. Same meaning: not ready yet.
+            }
+
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                return false;
+            }
+
+            await Task.Delay(500).ConfigureAwait(true);
         }
     }
 

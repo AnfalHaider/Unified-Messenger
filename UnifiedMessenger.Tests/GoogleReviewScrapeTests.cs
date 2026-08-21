@@ -125,14 +125,21 @@ public class GoogleReviewScrapeTests
     }
 
     [Fact]
-    public async Task ScrapeAsync_LeavesImmediatelyWhenTheSessionIsNotRunningScripts()
+    public async Task ScrapeAsync_GivesUpOnASleepingSessionWithinItsReadyBudget()
     {
         // Measured live before this: every account, every 30-minute pass, sat in state 'none' for the full
         // 60-second budget because the WebView was suspended — six minutes of polling dead views per hour,
-        // producing nothing. Waiting cannot fix a session that is asleep; only waking it can.
+        // producing nothing.
+        //
+        // It does NOT give up instantly. Waking a WebView is asynchronous, and an immediate one-shot probe
+        // failed all three accounts at 14:00:23 while all three were running scripts by 14:00:36 — skipping
+        // precisely the accounts the wake exists to rescue. So the contract is "bounded", not "instant":
+        // wait briefly for a session that is coming up, then leave.
         var original = InstanceConnection.Current;
+        var originalBudget = GoogleReviewSnapshotService.ScriptReadyBudget;
         var sleeping = new SleepingConnection();
         InstanceConnection.Current = sleeping;
+        GoogleReviewSnapshotService.ScriptReadyBudget = TimeSpan.FromSeconds(1);
         try
         {
             var started = DateTimeOffset.UtcNow;
@@ -141,18 +148,20 @@ public class GoogleReviewScrapeTests
 
             Assert.Null(health);
 
-            // The point is the speed. A generous ceiling still fails loudly if the poll loop is re-entered,
-            // since that path cannot finish in under a minute.
+            // Bounded by the budget, and nowhere near the 60-second poll loop this replaced — that path
+            // cannot finish this quickly, so re-entering it would fail here loudly.
             Assert.True(
                 elapsed < TimeSpan.FromSeconds(10),
-                $"A sleeping session should be abandoned at once; this took {elapsed.TotalSeconds:0.0}s.");
+                $"A sleeping session should be abandoned within its budget; this took {elapsed.TotalSeconds:0.0}s.");
 
-            // One probe, then out — no kickoff, no reset, no read loop.
-            Assert.Equal(1, sleeping.Calls);
+            // It probed, retried while waiting, and never reached the kickoff/reset/read loop — which would
+            // run far more calls than a 1-second budget at 500ms between tries can produce.
+            Assert.InRange(sleeping.Calls, 1, 6);
         }
         finally
         {
             InstanceConnection.Current = original;
+            GoogleReviewSnapshotService.ScriptReadyBudget = originalBudget;
         }
     }
 }

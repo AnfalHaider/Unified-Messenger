@@ -55,6 +55,16 @@ public sealed partial class ReviewHealthPanel : UserControl
 
     public void ConfigureServices(ApplicationServices services) => _services = services;
 
+    /// <summary>
+    /// Raised after a refresh pass has updated the review cache.
+    /// </summary>
+    /// <remarks>
+    /// The Review Desk reads the same cache this panel does. Without this, a refresh that dropped a review
+    /// from the pending list would update this panel's counts while the desk went on listing the review as
+    /// waiting — which is the one thing a queue must never do.
+    /// </remarks>
+    public event EventHandler? Refreshed;
+
     private IEnumerable<MessengerInstance> GoogleInstances() =>
         // NOTE: do NOT gate on IsPlatformModuleEnabled — that is WhatsApp-family-only, so it would exclude
         // Google Business (an embed channel). Google accounts are sidebar-visible embed channels.
@@ -399,6 +409,7 @@ public sealed partial class ReviewHealthPanel : UserControl
                 // two minutes, because the dashboard reloads this panel on every alert tick.
                 await GoogleReviewSnapshotService.Instance.ScrapeAsync(instance.Id, allowNavigate, force: allowNavigate);
                 Render();
+                Refreshed?.Invoke(this, EventArgs.Empty);
             }
         }
         finally

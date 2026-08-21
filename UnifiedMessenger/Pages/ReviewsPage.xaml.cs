@@ -29,6 +29,15 @@ public sealed partial class ReviewsPage : Page
         ReviewHealthPanel.ConfigureServices(_services);
         ReviewHealthPanel.Render();
 
+        ReviewDesk.ConfigureServices(_services);
+        ReviewDesk.Render();
+
+        // The desk reads the same cache the panel does, so when the panel's refresh brings back new counts
+        // the queue must be rebuilt too — otherwise the owner replies to a review, the panel's number drops,
+        // and the desk still lists it.
+        ReviewHealthPanel.Refreshed -= OnReviewDataRefreshed;
+        ReviewHealthPanel.Refreshed += OnReviewDataRefreshed;
+
         var hasGoogleAccount = _services.Registry.Instances.Any(instance =>
             string.Equals(
                 PlatformDefinition.NormalizePlatformId(instance.Platform),
@@ -37,4 +46,6 @@ public sealed partial class ReviewsPage : Page
 
         NoAccountsState.Visibility = hasGoogleAccount ? Visibility.Collapsed : Visibility.Visible;
     }
+
+    private void OnReviewDataRefreshed(object? sender, EventArgs e) => ReviewDesk.Render();
 }
