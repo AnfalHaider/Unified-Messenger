@@ -47,7 +47,11 @@ internal static class Program
             return InstalledAppExploration.Run(exePath, exploreMinutes);
         }
 
-        Console.WriteLine("=== Unified Messenger 3.7.1 — Release Validation ===");
+        // Read the version off the binary under test. This banner used to be the hard-coded string "3.7.1",
+        // which was six major versions stale — a validation report is the last place that should state a
+        // version it did not check.
+        var underTest = System.Diagnostics.FileVersionInfo.GetVersionInfo(exePath).FileVersion ?? "unknown";
+        Console.WriteLine($"=== Unified Messenger {underTest} — Release Validation ===");
         Console.WriteLine($"Executable: {exePath}");
         Console.WriteLine();
 
@@ -63,23 +67,38 @@ internal static class Program
         StopExistingInstances();
 
         FlaUI.Core.Application? app = null;
+        var uiStepFailed = false;
         try
         {
             app = FlaUI.Core.Application.Launch(exePath);
+
+            // Probe for a real top-level window through Win32 BEFORE asking UI Automation for one. The two
+            // failures look identical from GetMainWindow — it just times out — but they mean opposite things:
+            // no window handle at all is the app failing to start, which is exactly what this test exists to
+            // catch; a window handle that UI Automation cannot attach to is the harness's own environment
+            // being unable to drive a desktop. Reporting the second as an app failure is how this workflow
+            // came to be permanently red while the app was fine.
+            var hwnd = WaitForMainWindowHandle(app, TimeSpan.FromSeconds(45));
+            Console.WriteLine(hwnd == IntPtr.Zero
+                ? "  Win32 probe: the process created NO top-level window."
+                : $"  Win32 probe: top-level window present (hwnd 0x{hwnd.ToInt64():X}).");
+
             using var automation = new UIA3Automation();
             var window = app.GetMainWindow(automation, TimeSpan.FromSeconds(45));
             if (window is null)
             {
                 Console.Error.WriteLine("FAIL: main window not found");
-                return 2;
+                uiStepFailed = true;
             }
-
-            allResults.AddRange(ModuleValidationHarness.RunUiModules(window));
+            else
+            {
+                allResults.AddRange(ModuleValidationHarness.RunUiModules(window));
+            }
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"FAIL: UI harness exception: {ex}");
-            return 4;
+            uiStepFailed = true;
         }
         finally
         {
@@ -95,7 +114,17 @@ internal static class Program
             StopExistingInstances();
         }
 
+        // Print the report even when the UI step blew up. Returning early threw away the structural audit and
+        // the entire Release unit suite that had already passed, so a UI-automation environment problem
+        // erased every other signal the run had produced — the whole job read as "the app is broken".
         PrintReport(allResults);
+
+        if (uiStepFailed)
+        {
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("Steps 1-2 above still ran; step 3-4 did not. See the Win32 probe line for which failure this is.");
+            return 4;
+        }
 
         var hardFailures = allResults.Count(result => result.Severity == ModuleValidationSeverity.Fail);
         return hardFailures == 0 ? 0 : 3;
@@ -233,6 +262,47 @@ internal static class Program
         }
 
         return Directory.GetCurrentDirectory();
+    }
+
+    /// <summary>
+    /// Waits for the launched process to own a top-level window, using Win32 only — no UI Automation.
+    /// </summary>
+    /// <remarks>
+    /// This exists to tell two very different failures apart when the UIA call times out. If the process
+    /// never gets a window handle, the app genuinely failed to start and the test should stay red. If it has
+    /// one and UIA still cannot attach, the problem is the harness's environment — a CI runner with no
+    /// interactive desktop cannot be automated, and calling that an app defect makes the workflow lie.
+    /// </remarks>
+    private static IntPtr WaitForMainWindowHandle(FlaUI.Core.Application app, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                using var process = System.Diagnostics.Process.GetProcessById(app.ProcessId);
+                process.Refresh();
+                if (process.HasExited)
+                {
+                    Console.WriteLine($"  Win32 probe: the process exited early with code {process.ExitCode}.");
+                    return IntPtr.Zero;
+                }
+
+                if (process.MainWindowHandle != IntPtr.Zero)
+                {
+                    return process.MainWindowHandle;
+                }
+            }
+            catch (ArgumentException)
+            {
+                // Process is gone entirely — no window, and nothing left to wait for.
+                return IntPtr.Zero;
+            }
+
+            Thread.Sleep(500);
+        }
+
+        return IntPtr.Zero;
     }
 
     private static void StopExistingInstances()
