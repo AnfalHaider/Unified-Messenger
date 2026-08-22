@@ -13,7 +13,7 @@
 Grouped by what actually gates each item. Nothing here is speculative — every measurement below was taken
 from the tree at this baseline, and every finding ID is traceable to `docs/audit/`.
 
-## 0.1 · UI/UX — mostly landed; four items left
+## 0.1 · UI/UX — mostly landed; three items left
 
 **No longer the largest open body of work.** v4.99.35 unified the type, icon and spacing scales, and
 v4.99.36 gave the app its own ground and accent — see [scales.md](../design-system/scales.md) and the
@@ -38,6 +38,7 @@ CHANGELOG. What is left below is accessibility and audit coverage, not visual co
 | **U8** | **Dedicated empty-state sweep** | Partly done — every empty state *touched* during the audit was fixed, and v4.99.34 corrected the three account-list surfaces. The remaining surfaces (Analytics, Reviews, Reports, Notification Hub) have never been reviewed as a set. | ◑ partial |
 | **U9** | **Focus order outside the dashboard shell** | Settings, Analytics, Reviews, Reports and every dialog are untested. Shift+Tab and modal focus containment specifically. | ☐ open |
 | **U10** | **"Instance" leaks into accessible names** (F-ORCH-06) | Settings and the account context menu speak *"instance"* to a screen reader where the visible label says *"account"*. | ☐ open |
+| **U11** | **Sidebar rows could not be activated by assistive tech** | **Done (v4.99.44).** Every navigable row — Dashboard, Analytics, Reviews, Reports and every account — was a plain `Border`, which exposes no automation pattern: they announced as `Group` and offered nothing to invoke. Found while driving the app through UI Automation, where the only way into the Reviews page was to compute its rectangle and click by screen coordinates. `NavigationRow` (a `ContentControl`, because `Border` is sealed) now carries a peer reporting control type **Button** with `IInvokeProvider`. Verified live: all rows report Button + Invoke, and invoking Reviews opens the page. | ✅ done |
 
 **What guards this now.** `DesignScaleTests` reads **both `.xaml` and `.cs`** — a new off-scale font size,
 icon size or padding fails the build. That is what stops U1/U2/U7 re-drifting, and it is the reason those
@@ -111,9 +112,6 @@ and these are the distance between that claim and evidence.
   distinguishes "the app never opened a window" from "this environment cannot automate one") and stopped it
   discarding the structural audit and unit results on the way out — but the underlying "hosted runners have
   no interactive desktop" question is unresolved. The `Build` workflow, which gates releases, is green.
-- **The Reviews nav item cannot be activated by UI Automation.** It is a `Group` with no Invoke pattern, so
-  driving it required clicking by coordinates. Enter/Space do work, but a screen-reader user may have no way
-  to reach the page. Belongs with U9/U10 as accessibility work, and it is the sharpest of the three.
 - **A real screen reader has never been run.** Both audit sessions read the UIA tree those tools consume,
   in focus order — much closer than a static dump, but nobody has listened to it.
 - **Soak under account churn.** The 3.6-hour soak found no leak, but it was **idle**. A leak that only

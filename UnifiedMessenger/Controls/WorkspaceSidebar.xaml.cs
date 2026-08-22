@@ -16,7 +16,7 @@ public sealed partial class WorkspaceSidebar : Grid
 {
     private readonly WorkspaceSidebarViewModel _viewModel = new();
     private ApplicationServices _services = ApplicationServiceProvider.Current;
-    private readonly Dictionary<string, Border> _instanceRows = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, NavigationRow> _instanceRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, InfoBadge> _instanceBadges = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Ellipse> _instanceStatusDots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBlock> _instanceStatusLabels = new(StringComparer.OrdinalIgnoreCase);
@@ -30,7 +30,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private readonly Dictionary<string, FontIcon> _groupChevrons = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyDictionary<string, int> _groupCounts = new Dictionary<string, int>();
 
-    private Border? _dashboardRow;
+    private NavigationRow? _dashboardRow;
     private SidebarMenuPlan? _currentPlan;
     private string? _selectedKey = WorkspaceSidebarHelper.DashboardSelectionKey;
     private bool _isCompact;
@@ -45,7 +45,7 @@ public sealed partial class WorkspaceSidebar : Grid
     private int _nextSidebarTabIndex = AccessibilityTabOrderHelper.SidebarMenuBase;
 
     /// <summary>Section rows (Analytics / Reviews / Reports), keyed by selection key, for selection visuals.</summary>
-    private readonly Dictionary<string, Border> _sectionRows = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, NavigationRow> _sectionRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _sectionTitles = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Thickness s_compactRowPadding = new(6, 8, 4, 8);
@@ -341,14 +341,14 @@ public sealed partial class WorkspaceSidebar : Grid
         return created;
     }
 
-    private void RegisterInstanceRow(MessengerInstance instance, Border row)
+    private void RegisterInstanceRow(MessengerInstance instance, NavigationRow row)
     {
         var instanceId = instance.Id.Trim();
         _instanceRows[instanceId] = row;
         UpdateInstanceHealth(instanceId, instance);
     }
 
-    private void UpdateInstanceRowContent(Border row, MessengerInstance instance)
+    private void UpdateInstanceRowContent(NavigationRow row, MessengerInstance instance)
     {
         var instanceId = instance.Id.Trim();
         if (_instanceTitleLabels.TryGetValue(instanceId, out var titleLabel))
@@ -685,11 +685,14 @@ public sealed partial class WorkspaceSidebar : Grid
         return hint;
     }
 
-    private Border CreateDashboardRow()
+    private NavigationRow CreateDashboardRow()
     {
         var row = CreateSelectableRow(WorkspaceSidebarHelper.DashboardSelectionKey, null, "Dashboard", "Overview", null);
         row.PointerPressed += DashboardRow_PointerPressed;
         row.KeyDown += DashboardRow_KeyDown;
+        // Same action the Enter/Space handler runs, so the pointer, keyboard and automation routes all end
+        // in one place and cannot drift apart.
+        row.Invoked = ActivateDashboardRow;
         _dashboardRow = row;
         return row;
     }
@@ -714,12 +717,13 @@ public sealed partial class WorkspaceSidebar : Grid
     /// account rows use, so selection visuals, compact density, focus and tab order all behave identically
     /// without a second code path.
     /// </summary>
-    private Border CreateSectionRow(SidebarMenuEntry entry, ShellSection section)
+    private NavigationRow CreateSectionRow(SidebarMenuEntry entry, ShellSection section)
     {
         var title = entry.SectionTitle ?? WorkspaceSidebarMenuPlanner.SectionTitle(section);
         var row = CreateSelectableRow(entry.Key, null, title, "Overview", null, entry.IconGlyph ?? string.Empty);
 
         row.PointerPressed += (_, _) => SectionRequested?.Invoke(this, section);
+        row.Invoked = () => SectionRequested?.Invoke(this, section);
         row.KeyDown += (_, args) =>
         {
             if (args.Key is VirtualKey.Enter or VirtualKey.Space)
@@ -749,7 +753,7 @@ public sealed partial class WorkspaceSidebar : Grid
         return host;
     }
 
-    private Border CreateInstanceRow(MessengerInstance instance)
+    private NavigationRow CreateInstanceRow(MessengerInstance instance)
     {
         var instanceId = instance.Id.Trim();
         var connectionStatus = _services.ConnectionStatus.GetStatus(instanceId);
@@ -775,6 +779,7 @@ public sealed partial class WorkspaceSidebar : Grid
 
         row.PointerPressed += (sender, e) => InstanceRow_PointerPressed(sender, e, instanceId, instance, row);
         row.Tapped += (_, _) => InstanceRequested?.Invoke(this, instanceId);
+        row.Invoked = () => InstanceRequested?.Invoke(this, instanceId);
         row.KeyDown += (sender, e) => InstanceRow_KeyDown(sender, e, instanceId, instance, row);
         ToolTipService.SetToolTip(
             row,
@@ -795,7 +800,7 @@ public sealed partial class WorkspaceSidebar : Grid
         PointerRoutedEventArgs e,
         string instanceId,
         MessengerInstance instance,
-        Border row)
+        NavigationRow row)
     {
         // Right-click → context menu. Left-click navigation is handled on Tapped (not PointerPressed):
         // navigating on press triggers a heavy WebView switch the instant a drag begins, which freezes
@@ -811,7 +816,7 @@ public sealed partial class WorkspaceSidebar : Grid
         KeyRoutedEventArgs e,
         string instanceId,
         MessengerInstance instance,
-        Border row)
+        NavigationRow row)
     {
         if (e.Key is not (VirtualKey.Enter or VirtualKey.Space))
         {
@@ -822,7 +827,7 @@ public sealed partial class WorkspaceSidebar : Grid
         e.Handled = true;
     }
 
-    private Border CreateSelectableRow(
+    private NavigationRow CreateSelectableRow(
         string key,
         MessengerInstance? instance,
         string title,
@@ -832,7 +837,7 @@ public sealed partial class WorkspaceSidebar : Grid
     {
         accentBrush ??= PlatformBrandingHelper.GetAccentBrush((string?)null);
 
-        var row = new Border
+        var row = new NavigationRow
         {
             Tag = key,
             Padding = new Thickness(10, 10, 8, 10),
@@ -842,7 +847,11 @@ public sealed partial class WorkspaceSidebar : Grid
             BorderBrush = ResolveTransparentBrush(),
             IsTabStop = true,
             TabIndex = _nextSidebarTabIndex++,
-            UseSystemFocusVisuals = true
+            UseSystemFocusVisuals = true,
+            // Border stretched its child; ContentControl defaults to Left/Top, which would collapse the row
+            // to the width of its text and break the badge's right alignment.
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch
         };
 
         var grid = new Grid { ColumnSpacing = 10 };
@@ -931,7 +940,7 @@ public sealed partial class WorkspaceSidebar : Grid
         grid.Children.Add(trailing);
         Grid.SetColumn(trailing, 2);
 
-        row.Child = grid;
+        row.Content = grid;
         ToolTipService.SetToolTip(row, $"{title}\n{subtitle}");
 
         if (!WorkspaceSidebarHelper.IsSelectionMatch(key, WorkspaceSidebarHelper.DashboardSelectionKey))
@@ -964,7 +973,7 @@ public sealed partial class WorkspaceSidebar : Grid
     }
 
     private static void UpdateSelectableRowAccessibility(
-        Border row,
+        NavigationRow row,
         string key,
         string title,
         string subtitle,
@@ -1086,7 +1095,7 @@ public sealed partial class WorkspaceSidebar : Grid
             : ResolveTransparentBrush();
     }
 
-    private static void ApplyRowSelection(Border row, bool selected)
+    private static void ApplyRowSelection(NavigationRow row, bool selected)
     {
         row.Background = selected
             ? ResolveBrush("CardBackgroundFillColorDefaultBrush")

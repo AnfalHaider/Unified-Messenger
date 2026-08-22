@@ -43,15 +43,15 @@ internal static class WorkspaceSidebarAccessibility
         }
         else
         {
-            // The row is a Border with a KeyDown handler, not a Button, so it exposes no Invoke pattern —
-            // a screen reader announces it as a plain Group and gives no hint that it does anything.
-            // Enter and Space DO open the account (InstanceRow_KeyDown), so the capability is there and
-            // only the affordance was missing.
+            // Kept, but no longer load-bearing. This phrase was added when the rows were plain Borders that
+            // exposed no automation pattern at all — a screen reader announced them as Groups, and baking
+            // the action into the name was the only affordance available. `NavigationRow` now reports as a
+            // Button and implements IInvokeProvider, so the control type already says it can be pressed and
+            // assistive tech can activate it directly rather than only via Enter/Space.
             //
-            // The location headers directly above these rows already solve it the same way, by baking the
-            // action into the name ("…, press to collapse or expand"). A tab-order walk of the live app
-            // put the two side by side: the header said what it did, the account under it did not.
-            // Skipped when the row is already the selected one, where "press to open" is just noise.
+            // It stays because it costs one clause and still helps at verbosity settings that do not
+            // announce control type, and because the location headers above these rows word themselves the
+            // same way ("…, press to collapse or expand"). Skipped on the selected row, where it is noise.
             parts.Add("press to open");
         }
 
