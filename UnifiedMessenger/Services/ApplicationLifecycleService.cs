@@ -123,7 +123,8 @@ public static class ApplicationLifecycleService
             ("ContactHistory", ContactHistoryStore.Instance.FlushAsync),
             ("AwaitingOverrides", AwaitingOverrideStore.Instance.FlushAsync),
             ("KpiTrends", KpiTrendStore.Instance.FlushAsync),
-            ("ReviewHistory", ReviewHistoryStore.Instance.FlushAsync)
+            ("ReviewHistory", ReviewHistoryStore.Instance.FlushAsync),
+            ("ReviewAsks", ReviewAskStore.Instance.FlushAsync)
         ];
 
         LastFlushFailures = await FlushStoresAsync(stores, cancellationToken).ConfigureAwait(false);

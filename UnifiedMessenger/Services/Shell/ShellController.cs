@@ -207,6 +207,9 @@ public sealed class ShellController
         // Daily review readings per Google account. Without this the Review Desk starts every run with
         // no rating, no trend and no velocity, because the snapshot service only holds them in memory.
         await ReviewHistoryStore.Instance.LoadAsync().ConfigureAwait(true);
+        // Who has already been asked for a review. Loaded before anything can offer to ask again:
+        // "ask once, ever" is only a promise if the record survives the restart.
+        await ReviewAskStore.Instance.LoadAsync().ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);

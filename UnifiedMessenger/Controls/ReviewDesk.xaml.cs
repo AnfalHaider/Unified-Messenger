@@ -148,6 +148,7 @@ public sealed partial class ReviewDesk : UserControl
         RenderThemes();
         RenderFilters();
         RenderQueue(accounts.Count, anyRead);
+        RenderAskPanel();
         RenderBranches(snapshots);
     }
 
@@ -957,6 +958,165 @@ public sealed partial class ReviewDesk : UserControl
         ReviewUrgency.Unrated => Brush("UmStatusMutedBrush"),
         _ => Brush("UmStatusSuccessBrush")
     };
+
+    // ---- ask for a review -----------------------------------------------------------------------------
+
+    /// <summary>
+    /// Customers whose WhatsApp conversation ended with them saying thank you, and a drafted request.
+    /// </summary>
+    /// <remarks>
+    /// Hidden entirely when there is nobody to ask — an empty "ask for a review" panel is an invitation to
+    /// lower the bar on who qualifies, and the bar is the feature.
+    /// </remarks>
+    private void RenderAskPanel()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var whatsAppAccounts = _services.Registry.Instances
+            .Where(i => i.IsProfessional)
+            .Where(i => PlatformDefinition.NormalizePlatformId(i.Platform) is "whatsapp" or "whatsappbusiness")
+            .Select(i => (
+                i.Id,
+                Name: string.IsNullOrWhiteSpace(i.DisplayName) ? "WhatsApp" : i.DisplayName,
+                Chats: OversightChatSnapshotService.Instance.GetChats(i.Id)))
+            .ToList();
+
+        var candidates = ReviewAskCandidates.Select(
+            whatsAppAccounts, ReviewAsks.Current.AskedPhones(), DateTimeOffset.UtcNow);
+
+        if (candidates.Count == 0)
+        {
+            AskPanel.Visibility = Visibility.Collapsed;
+            AskPanel.Child = null;
+            return;
+        }
+
+        var body = new StackPanel { Spacing = UmScale.Space.Sm };
+        body.Children.Add(new TextBlock
+        {
+            Text = "Ask for a review",
+            FontSize = UmScale.Text.BodyStrong,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "Customers who messaged recently and said thank you. Drafted for WhatsApp — you press send.",
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorTertiaryBrush"),
+            TextWrapping = TextWrapping.WrapWholeWords
+        });
+
+        foreach (var candidate in candidates)
+        {
+            body.Children.Add(BuildAskRow(candidate));
+        }
+
+        // Asked-count only. The app can count what it asked and can count what arrived, but it cannot know
+        // that one caused the other — printing the two side by side would invite exactly that reading.
+        var askedRecently = ReviewAsks.Current.AskedWithin(30);
+        body.Children.Add(new TextBlock
+        {
+            Text = askedRecently > 0
+                ? $"{askedRecently} asked in the last 30 days. Never sends on its own."
+                : "Never sends on its own — you send every message yourself.",
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorTertiaryBrush"),
+            Margin = new Thickness(0, UmScale.Space.Sm, 0, 0)
+        });
+
+        AskPanel.Child = body;
+        AskPanel.Visibility = Visibility.Visible;
+    }
+
+    private Grid BuildAskRow(ReviewAskCandidate candidate)
+    {
+        var line = new Grid { Margin = new Thickness(0, UmScale.Space.Xs, 0, UmScale.Space.Xs) };
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var who = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        who.Children.Add(new TextBlock
+        {
+            Text = candidate.CustomerName,
+            FontSize = UmScale.Text.Body,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+        });
+        who.Children.Add(new TextBlock
+        {
+            Text = $"{candidate.AccountName} · messaged {ReviewAskCandidates.WhenLabel(candidate.LastActivityUtc, DateTimeOffset.UtcNow)} · said thank you",
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorTertiaryBrush")
+        });
+        line.Children.Add(who);
+
+        var draft = new Button
+        {
+            Content = "Draft",
+            FontSize = UmScale.Text.Caption,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            draft, $"Draft a review request to {candidate.CustomerName}. Opens WhatsApp; you send it.");
+        draft.Click += async (_, _) => await DraftAskAsync(candidate, draft);
+        Grid.SetColumn(draft, 1);
+        line.Children.Add(draft);
+
+        return line;
+    }
+
+    /// <summary>
+    /// Puts the request on the clipboard, opens that customer's WhatsApp chat, and records the ask.
+    /// </summary>
+    /// <remarks>
+    /// <b>The send is the owner's.</b> Nothing here transmits a message; WhatsApp is opened on the right
+    /// conversation with the text ready to paste. The ask is recorded as soon as the chat is opened rather
+    /// than on some later confirmation the app cannot observe — erring towards never asking twice, which is
+    /// the direction that protects the customer.
+    /// </remarks>
+    private async Task DraftAskAsync(ReviewAskCandidate candidate, Button trigger)
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        trigger.IsEnabled = false;
+        try
+        {
+            var instance = _services.Registry.Instances.FirstOrDefault(i => i.Id == candidate.InstanceId);
+            if (instance is null)
+            {
+                return;
+            }
+
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(ReviewAskDraft.Build(candidate.CustomerName, candidate.AccountName));
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+
+            await ReviewAsks.Current.MarkAskedAsync(candidate.AskKey);
+
+            await ConversationFocusHelper.TryFocusConversationWithRetryAsync(
+                InstanceSessionManager.Instance,
+                instance,
+                candidate.ConversationKey,
+                candidate.CustomerName,
+                contactPhone: candidate.Phone);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogWarning(
+                "ReviewAsk",
+                $"Could not open the customer's chat: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            trigger.IsEnabled = true;
+            Render();
+        }
+    }
 
     // ---- by branch ------------------------------------------------------------------------------------
 

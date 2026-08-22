@@ -103,6 +103,16 @@
             UseSystemFocusVisuals="True"
             Spacing="8" />
 
+        <!-- ASK FOR A REVIEW — hidden unless there is somebody it would be reasonable to ask. -->
+        <Border
+            x:Name="AskPanel"
+            Background="{ThemeResource UmSurfaceBrush}"
+            BorderBrush="{ThemeResource UmHairlineBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="{StaticResource UmPaddingLg}"
+            Visibility="Collapsed" />
+
         <!-- BY BRANCH -->
         <Border
             x:Name="BranchPanel"

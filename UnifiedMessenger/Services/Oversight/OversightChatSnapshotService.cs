@@ -531,6 +531,17 @@ public sealed class OversightChatSnapshotService
     /// since last week must still appear in "Today". Kept as parameters for call-site compatibility. Empty
     /// when there is no snapshot.
     /// </summary>
+    /// <summary>Every chat in the account's last snapshot, or empty when there is none.</summary>
+    /// <remarks>
+    /// Added for the review-request list, which needs the conversations that are <i>not</i> awaiting — the
+    /// ones that ended with the customer saying thank you. <see cref="GetAwaiting"/> is the opposite filter,
+    /// so it could not serve that.
+    /// </remarks>
+    public IReadOnlyList<ChatEntry> GetChats(string instanceId) =>
+        !string.IsNullOrWhiteSpace(instanceId) && _byInstance.TryGetValue(instanceId.Trim(), out var snapshot)
+            ? snapshot.Chats
+            : [];
+
     public IReadOnlyList<ChatEntry> GetAwaiting(
         string instanceId,
         DateTimeOffset? windowStartUtc = null,
