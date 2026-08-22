@@ -5,6 +5,36 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.41
+
+**Every review was being shown as five stars, including the angry ones.** This is the one to read. Google
+draws all five stars with the same symbol and colours them in — gold for earned, grey for not — and the app
+was counting the symbols instead of the colours, so everything came back as five. Checked against DHA-2's
+live page: **five unanswered one-star reviews and a two-star** were sitting in your list labelled "★5 ·
+Positive", ranked politely below the compliments. *"Very unprofessional staff and poor service"* was filed
+as a five-star review. It now reads the colours, and the unhappy customers come first.
+
+**The Reviews page is now a desk you work through.** One list across all three salons, worst first: an
+unhappy review from three weeks ago sits above a compliment from this morning, whichever branch each came
+from. Arrow keys move, Enter opens the review in Google, Home and End jump. A one-star review gets its own
+red band at the top of the page with an **Open it** button, because that is not something to find by
+scrolling.
+
+**The page tells you what it hasn't read.** Your rating, review totals and reply rate sit at the top —
+4.6 across 1,671 reviews — with the coverage stated plainly: *"covers the 150 most recent of 1,671"*, never
+"all". Where a figure isn't knowable yet, the tile says so rather than showing a number.
+
+**Your rating no longer disappears every time you open the app.** Nothing about reviews was kept between
+sessions, so every launch started blank until a fresh check ran. Readings are now saved daily, and the
+figures are there the moment the window opens.
+
+**Trends start building from today.** Reviews gained, quiet branches, and rating movement all need a second
+day of readings before they can say anything, so they tell you how many days they have rather than
+pretending. From tomorrow they fill in on their own.
+
+**Star-only reviews say so.** A review with a rating and no words was showing Google's internal placeholder
+text as though the customer had written it.
+
 ## v4.99.40
 
 **Your review figures were going stale in the background without saying so.** The app is supposed to
