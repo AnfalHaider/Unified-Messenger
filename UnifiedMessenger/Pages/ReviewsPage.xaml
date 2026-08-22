@@ -10,30 +10,20 @@
     xmlns:local="using:UnifiedMessenger.Pages">
 
     <ScrollViewer Padding="{StaticResource UmPaddingXl}" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
-        <StackPanel Spacing="16" HorizontalAlignment="Stretch">
-            <StackPanel Spacing="2">
-                <TextBlock Text="Reviews" Style="{StaticResource TitleTextBlockStyle}" />
-                <TextBlock
-                    FontSize="{StaticResource UmFontSizeBodyStrong}"
-                    Opacity="0.7"
-                    Text="Google Business review health — which reviews are still waiting for a reply."
-                    TextWrapping="WrapWholeWords" />
-            </StackPanel>
-
-            <!-- The desk goes above the per-account panel deliberately. The panel answers "how is each
-                 location doing"; the desk answers "what do I reply to first", which is what someone opens
-                 this page to do. -->
+        <Grid>
+            <!-- The desk owns the whole surface, including its own header and refresh. It used to sit above
+                 ReviewHealthPanel, which meant the page showed a queue and then repeated the same figures as
+                 per-account cards underneath. -->
             <controls:ReviewDesk x:Name="ReviewDesk" />
 
-            <controls:ReviewHealthPanel x:Name="ReviewHealthPanel" />
-
-            <!-- The panel collapses itself when no Google Business account is connected, which would leave
-                 this page blank. This is the page's own honest empty state for that case. -->
+            <!-- The desk states "no Google Business account is connected" inside its queue area, but with no
+                 account there are also no numbers above it, so the page needs its own answer for that case. -->
             <StackPanel
                 x:Name="NoAccountsState"
                 Spacing="8"
                 Padding="{StaticResource UmPaddingXl}"
                 HorizontalAlignment="Center"
+                VerticalAlignment="Top"
                 Visibility="Collapsed">
                 <FontIcon FontSize="{StaticResource UmIconSizeLg}" Glyph="&#xE734;" HorizontalAlignment="Center" Opacity="0.55" />
                 <TextBlock
@@ -48,6 +38,6 @@
                     TextWrapping="WrapWholeWords"
                     Text="Add a Google Business account to track your rating, reply rate, and which reviews still need a response." />
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </ScrollViewer>
 </Page>

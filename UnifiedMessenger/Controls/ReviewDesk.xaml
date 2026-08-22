@@ -7,38 +7,100 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <!-- The desk is built imperatively in code-behind, the same pattern as CommandCenterPanel and
-         ReviewHealthPanel: the rows are data-shaped rather than template-shaped, and the ordering work
-         lives in ReviewQueue. This host supplies the frame, the header, and the keyboard surface. -->
-    <Border
-        Background="{ThemeResource UmSurfaceBrush}"
-        BorderBrush="{ThemeResource UmHairlineBrush}"
-        BorderThickness="1"
-        CornerRadius="8"
-        Padding="{StaticResource UmPaddingLg}">
-        <StackPanel Spacing="12">
+    <!-- The whole Reviews surface, laid out to docs/design/review-desk-spec.md.
+         Everything with live numbers is built in code-behind, because the values decide the shape: the
+         critical strip only exists when there IS a one-star, and a KPI whose data we cannot compute yet has
+         to say so rather than render a plausible figure. -->
+    <StackPanel Spacing="14">
+
+        <!-- HEADER -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <StackPanel Spacing="2">
                 <TextBlock
-                    x:Name="DeskTitle"
-                    FontSize="{StaticResource UmFontSizeSubtitle}"
+                    FontSize="{StaticResource UmFontSizeTitle}"
                     FontWeight="SemiBold"
-                    Text="Review desk" />
+                    Text="Reviews" />
                 <TextBlock
-                    x:Name="DeskSummary"
-                    FontSize="{StaticResource UmFontSizeBody}"
+                    x:Name="HeaderSub"
+                    FontSize="{StaticResource UmFontSizeCaption}"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
+            <Button
+                x:Name="CheckNowButton"
+                Grid.Column="1"
+                VerticalAlignment="Top"
+                Style="{StaticResource AccentButtonStyle}"
+                Content="Check now" />
+        </Grid>
 
-            <!-- IsTabStop so the queue itself takes focus and the arrow keys work without the owner having
-                 to tab onto an individual row first. Named because a focusable element that announces
-                 nothing is a dead end for anyone not using a mouse. -->
-            <StackPanel
-                x:Name="QueueHost"
-                AutomationProperties.Name="Review queue. Use the up and down arrow keys to move through it, Enter to open a review in Google."
-                IsTabStop="True"
-                UseSystemFocusVisuals="True"
-                Spacing="6" />
-        </StackPanel>
-    </Border>
+        <!-- HERO — rating, trend, needs-a-reply -->
+        <Border
+            Background="{ThemeResource UmSurfaceBrush}"
+            BorderBrush="{ThemeResource UmHairlineBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="{StaticResource UmPaddingLg}">
+            <Grid x:Name="HeroHost">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+            </Grid>
+        </Border>
+
+        <!-- CRITICAL STRIP — present only when an unhappy review is waiting -->
+        <Border
+            x:Name="AlertStrip"
+            Background="{ThemeResource UmStatusDangerWashBrush}"
+            BorderBrush="{ThemeResource UmStatusDangerBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="{StaticResource UmPaddingMd}"
+            Visibility="Collapsed" />
+
+        <!-- KPI STRIP — columns are added in code so the tile count can change without touching markup. -->
+        <Grid x:Name="KpiHost" ColumnSpacing="9" />
+
+        <!-- TOOLS — filters + keyboard hint -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel x:Name="FilterHost" Orientation="Horizontal" Spacing="6" />
+            <TextBlock
+                x:Name="KeyboardHint"
+                Grid.Column="1"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                FontSize="{StaticResource UmFontSizeCaption}"
+                Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                Text="↑ ↓ move · Enter open · Home / End jump" />
+        </Grid>
+
+        <!-- QUEUE -->
+        <StackPanel
+            x:Name="QueueHost"
+            AutomationProperties.Name="Review queue. Use the up and down arrow keys to move through it, Enter to open a review in Google."
+            IsTabStop="True"
+            UseSystemFocusVisuals="True"
+            Spacing="8" />
+
+        <!-- BY BRANCH -->
+        <Border
+            x:Name="BranchPanel"
+            Background="{ThemeResource UmSurfaceBrush}"
+            BorderBrush="{ThemeResource UmHairlineBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="{StaticResource UmPaddingLg}"
+            Visibility="Collapsed" />
+    </StackPanel>
 </UserControl>

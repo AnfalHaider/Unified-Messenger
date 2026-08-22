@@ -7,10 +7,14 @@ using UnifiedMessenger.Services;
 namespace UnifiedMessenger.Pages;
 
 /// <summary>
-/// The Reviews section. A thin host over the existing <c>ReviewHealthPanel</c>, plus the empty state the
-/// panel can't provide for itself: it collapses to <see cref="Visibility.Collapsed"/> when there is no
-/// Google Business account, which as a dashboard card is right but as a whole page would render blank.
+/// The Reviews section — a thin host over <c>ReviewDesk</c>, which owns the whole surface.
 /// </summary>
+/// <remarks>
+/// The page previously hosted <c>ReviewHealthPanel</c>, and briefly both that and the desk, which meant it
+/// showed a queue and then repeated the same figures as per-account cards below it. The desk covers
+/// everything that panel did — rating, lifetime total, reply rate, the pending list and the refresh — so it
+/// replaced it rather than joining it.
+/// </remarks>
 public sealed partial class ReviewsPage : Page
 {
     private ApplicationServices _services = ApplicationServiceProvider.Current;
@@ -26,17 +30,8 @@ public sealed partial class ReviewsPage : Page
             _services = services;
         }
 
-        ReviewHealthPanel.ConfigureServices(_services);
-        ReviewHealthPanel.Render();
-
         ReviewDesk.ConfigureServices(_services);
         ReviewDesk.Render();
-
-        // The desk reads the same cache the panel does, so when the panel's refresh brings back new counts
-        // the queue must be rebuilt too — otherwise the owner replies to a review, the panel's number drops,
-        // and the desk still lists it.
-        ReviewHealthPanel.Refreshed -= OnReviewDataRefreshed;
-        ReviewHealthPanel.Refreshed += OnReviewDataRefreshed;
 
         var hasGoogleAccount = _services.Registry.Instances.Any(instance =>
             string.Equals(
@@ -45,7 +40,6 @@ public sealed partial class ReviewsPage : Page
                 StringComparison.OrdinalIgnoreCase));
 
         NoAccountsState.Visibility = hasGoogleAccount ? Visibility.Collapsed : Visibility.Visible;
+        ReviewDesk.Visibility = hasGoogleAccount ? Visibility.Visible : Visibility.Collapsed;
     }
-
-    private void OnReviewDataRefreshed(object? sender, EventArgs e) => ReviewDesk.Render();
 }

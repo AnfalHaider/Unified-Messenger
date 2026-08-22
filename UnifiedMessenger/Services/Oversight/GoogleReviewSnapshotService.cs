@@ -98,12 +98,24 @@ public sealed class GoogleReviewSnapshotService
         // Stars are Material icon-font glyphs (filled star = U+E838), not text — five slots rendered
         // filled-first, so the rating is the leading run of the FIRST codepoint. Deriving it that way avoids
         // hard-coding which codepoint means filled vs outline (only the 5-star case was observable live).
-        "window.__umGRStars=function(s){var first=s.charCodeAt(0);" +
-        "if(!(first>=57344&&first<=63743))return 0;" +
-        "var total=0,lead=0,leading=true;" +
-        "for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);if(!(c>=57344&&c<=63743))break;" +
-        "total++;if(leading&&c===first)lead++;else leading=false;}" +
-        "return (total>=1&&total<=5)?lead:0;};" +
+        // THE RATING IS IN THE COLOUR, NOT THE GLYPH. Verified live over 19 pending reviews on DHA-2: every
+        // review renders FIVE spans of the identical codepoint U+E838, and the rating is how many of them are
+        // gold rgb(251,188,4) versus grey rgb(218,220,224). The previous reader counted the leading run of
+        // the first CODEPOINT, which is five every time — so every review on the page was reported as 5
+        // stars. Five unanswered ONE-star reviews were being shown to the owner as "★5 · Positive" and
+        // ranked below praise, which is precisely backwards from what this surface is for.
+        //
+        // The leading run of the COLOUR is the rating: Google has no zero-star review, so the first star is
+        // always filled, and the filled ones always come first. Comparing against the first span's own colour
+        // rather than a hard-coded gold means a Google restyle changes nothing here.
+        "window.__umGRStarsFromCard=function(card){try{" +
+        "var els=[].slice.call(card.querySelectorAll('*')).filter(function(el){" +
+        "return el.children.length===0&&/[\\uE000-\\uF8FF]/.test(el.textContent||'');});" +
+        "if(els.length<5)return 0;" +
+        "var cols=els.slice(0,5).map(function(el){return getComputedStyle(el).color;});" +
+        "var first=cols[0],n=0;" +
+        "for(var i=0;i<cols.length;i++){if(cols[i]===first)n++;else break;}" +
+        "return (n>=1&&n<=5)?n:0;}catch(e){return 0;}};" +
         // Google truncates long reviews in the DOM ("…impressed by the... More"), so full text only exists
         // after its More expander is clicked. Scoped to the cards we actually read, once per page load.
         // ponytail: synthetic .click() on the leaf element whose exact text is "More" — same jsaction bet as
@@ -152,13 +164,19 @@ public sealed class GoogleReviewSnapshotService
         "var mi=-1;for(var i=0;i<raw.length;i++){" +
         "if(window.__umGRAgeRe.test(raw[i].replace(window.__umGRPua,'').trim())){mi=i;break;}}" +
         "var stars=0,age='',name='',body='';" +
-        "if(mi>=0){age=raw[mi].replace(window.__umGRPua,'').trim();stars=window.__umGRStars(raw[mi]);" +
+        // Stars come from the CARD, not the meta line: the line's glyphs are identical for every rating and
+        // only their rendered colour differs. See __umGRStarsFromCard.
+        "if(mi>=0){age=raw[mi].replace(window.__umGRPua,'').trim();stars=window.__umGRStarsFromCard(card);" +
         "name=mi>0?raw[mi-1]:'';" +
         "body=raw.slice(mi+1).filter(function(l){return !isAct(l);}).join(' ');}" +
         // No meta line (locale/layout drift): show the text but NO name — the first line is the location, and
         // a wrong reviewer name is worse than a generic one.
         "else{body=raw.filter(function(l){return !isAct(l);}).join(' ');}" +
         "body=body.replace(/\\s*(\\.\\.\\.|\\u2026)\\s*More$/i,'\\u2026').replace(window.__umGRPua,'').trim();" +
+        // Google's own placeholder for a star-only review. It was being scraped as the review body and shown
+        // in the queue as though the customer had written it, which reads as a real sentence from a real
+        // person. A rating with no words is a fact worth showing, but it is not a quote.
+        "if(/^the user didn'?t write a review/i.test(body))body='';" +
         "return {reviewer:(name||'Reviewer').slice(0,60),text:body.slice(0,1200),stars:stars,age:age,idx:idx};};";
 
     // Counts Reply (unanswered) vs Edit (answered) buttons on the reviews page; navigates there first if the

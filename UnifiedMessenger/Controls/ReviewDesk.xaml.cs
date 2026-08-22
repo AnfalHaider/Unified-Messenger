@@ -9,48 +9,115 @@ using Windows.System;
 namespace UnifiedMessenger.Controls;
 
 /// <summary>
-/// One answer-this-first queue of unanswered Google reviews across every location.
+/// The Reviews surface: what to answer first, across every location.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>What it adds over the health panel.</b> That panel reports per account — three salons, three lists,
-/// and no way to see that the angriest unanswered review in the business is the one-star at the bottom of
-/// the second one. This merges them and ranks them worst-first (see <see cref="ReviewQueue"/>), so the
-/// review at the top is the one costing the most money.
+/// Laid out to <c>docs/design/review-desk-spec.md</c>. It replaced <c>ReviewHealthPanel</c> on this page
+/// rather than sitting above it — the page was showing a queue and then repeating the same information as
+/// per-account cards underneath.
 /// </para>
 /// <para>
-/// <b>Keyboard.</b> Up/Down move the selection, Enter opens the selected review in Google. Replying to
-/// reviews is a sit-down-and-work-through-them job, and reaching for the mouse for every row is what makes
-/// people stop doing it.
+/// <b>The rule this control exists to hold.</b> Several tiles in the approved design need data the app
+/// cannot yet compute — rating history, monthly velocity, reply times. Each of those renders a stated gap,
+/// never a plausible number. A fabricated median reply time is worse than an empty one, because the owner
+/// cannot tell it is fabricated, and the whole brief is "no wrong numbers".
 /// </para>
 /// </remarks>
 public sealed partial class ReviewDesk : UserControl
 {
     private ApplicationServices? _services;
     private IReadOnlyList<QueuedReview> _queue = [];
+    private ReviewUrgency? _filter;
     private int _selected;
+    private bool _refreshing;
+    private DispatcherTimer? _autoRefreshTimer;
 
-    /// <summary>Row containers in queue order, so selection can move without rebuilding.</summary>
     private readonly List<Button> _rows = [];
 
     /// <summary>
-    /// How many rows the desk shows. The scrape itself only reports the first several pending reviews per
-    /// account, so this is a display bound rather than a promise about the total — the footer states the
-    /// remainder explicitly rather than letting the list imply it is everything.
+    /// Reviews change slowly, but the owner is often on this page immediately after replying to one. The
+    /// 30-minute background pass is the safety net; this is the "I am looking at it" cadence.
     /// </summary>
+    private static readonly TimeSpan AutoRefreshInterval = TimeSpan.FromMinutes(5);
+
+    /// <summary>Rows shown before the list is truncated. The remainder is stated, not implied.</summary>
     private const int MaxRows = 12;
 
     public ReviewDesk()
     {
         InitializeComponent();
         QueueHost.KeyDown += OnQueueKeyDown;
+        CheckNowButton.Click += async (_, _) => await RefreshAsync(allowNavigate: true);
         ActualThemeChanged += (_, _) => Render();
+
+        Loaded += (_, _) =>
+        {
+            Render();
+            StartAutoRefresh();
+        };
+        Unloaded += (_, _) => _autoRefreshTimer?.Stop();
     }
 
     public void ConfigureServices(ApplicationServices services) => _services = services;
 
-    /// <summary>Fired when the owner opens a review, so the host can refresh other surfaces.</summary>
-    public event EventHandler? ReviewOpened;
+    private void StartAutoRefresh()
+    {
+        _ = RefreshAsync(allowNavigate: false);
+
+        _autoRefreshTimer ??= new DispatcherTimer { Interval = AutoRefreshInterval };
+        _autoRefreshTimer.Tick -= OnAutoRefreshTick;
+        _autoRefreshTimer.Tick += OnAutoRefreshTick;
+        _autoRefreshTimer.Start();
+    }
+
+    private void OnAutoRefreshTick(object? sender, object e) => _ = RefreshAsync(allowNavigate: false);
+
+    /// <summary>
+    /// Re-reads every Google account, then redraws.
+    /// </summary>
+    /// <param name="allowNavigate">
+    /// True only for the owner-driven "Check now", which is also the only path allowed to bypass the
+    /// service's freshness floor — a refresh button that answers with a cached number is a broken button.
+    /// </param>
+    public async Task RefreshAsync(bool allowNavigate = true)
+    {
+        if (_services is null || _refreshing)
+        {
+            return;
+        }
+
+        var accounts = GoogleAccounts().ToList();
+        if (accounts.Count == 0)
+        {
+            Render();
+            return;
+        }
+
+        _refreshing = true;
+        CheckNowButton.IsEnabled = false;
+        try
+        {
+            foreach (var instance in accounts)
+            {
+                if (allowNavigate)
+                {
+                    // Rating and lifetime total live on the Search merchant view, not the reviews manager,
+                    // so this navigates away and the reviews scrape below navigates back.
+                    await GoogleReviewSnapshotService.Instance.ScrapeRatingAsync(instance.Id);
+                }
+
+                await GoogleReviewSnapshotService.Instance.ScrapeAsync(
+                    instance.Id, allowNavigate, force: allowNavigate);
+                Render();
+            }
+        }
+        finally
+        {
+            _refreshing = false;
+            CheckNowButton.IsEnabled = true;
+        }
+    }
 
     public void Render()
     {
@@ -60,52 +127,26 @@ public sealed partial class ReviewDesk : UserControl
         }
 
         var accounts = GoogleAccounts().ToList();
-        _queue = ReviewQueue.Build(accounts.Select(instance => (
-            instance.Id,
-            string.IsNullOrWhiteSpace(instance.DisplayName) ? "Google Business" : instance.DisplayName,
-            (GoogleReviewSnapshotService.ReviewHealth?)GoogleReviewSnapshotService.Instance.Get(instance.Id))));
+        var snapshots = accounts
+            .Select(instance => (
+                Instance: instance,
+                Name: string.IsNullOrWhiteSpace(instance.DisplayName) ? "Google Business" : instance.DisplayName,
+                Health: GoogleReviewSnapshotService.Instance.Get(instance.Id),
+                Rating: GoogleReviewSnapshotService.Instance.GetRating(instance.Id)))
+            .ToList();
 
-        var anyRead = accounts.Any(instance =>
-            GoogleReviewSnapshotService.Instance.Get(instance.Id) is { HasData: true });
+        _queue = ReviewQueue.Build(snapshots.Select(s =>
+            (s.Instance.Id, s.Name, (GoogleReviewSnapshotService.ReviewHealth?)s.Health)));
 
-        DeskSummary.Text = ReviewQueue.Summarise(_queue, anyRead);
+        var anyRead = snapshots.Any(s => s.Health.HasData);
 
-        QueueHost.Children.Clear();
-        _rows.Clear();
-
-        if (_queue.Count == 0)
-        {
-            // The summary above already states which kind of empty this is, so the body only speaks when it
-            // has something the summary cannot say — no account connected at all.
-            if (accounts.Count == 0)
-            {
-                QueueHost.Children.Add(BuildEmptyState());
-            }
-
-            return;
-        }
-
-        _selected = Math.Clamp(_selected, 0, Math.Min(_queue.Count, MaxRows) - 1);
-
-        for (var i = 0; i < _queue.Count && i < MaxRows; i++)
-        {
-            var row = BuildRow(_queue[i], i);
-            _rows.Add(row);
-            QueueHost.Children.Add(row);
-        }
-
-        if (_queue.Count > MaxRows)
-        {
-            QueueHost.Children.Add(new TextBlock
-            {
-                Text = $"+ {_queue.Count - MaxRows} more waiting, further down the list",
-                FontSize = UmScale.Text.Caption,
-                Foreground = Brush("TextFillColorTertiaryBrush"),
-                Margin = new Thickness(UmScale.Space.Sm, UmScale.Space.Xs, 0, 0)
-            });
-        }
-
-        ApplySelection();
+        RenderHeader(snapshots, anyRead);
+        RenderHero(snapshots, anyRead);
+        RenderAlert();
+        RenderKpis(snapshots, anyRead);
+        RenderFilters();
+        RenderQueue(accounts.Count, anyRead);
+        RenderBranches(snapshots);
     }
 
     private IEnumerable<MessengerInstance> GoogleAccounts() =>
@@ -117,96 +158,500 @@ public sealed partial class ReviewDesk : UserControl
                     "googlebusiness",
                     StringComparison.OrdinalIgnoreCase));
 
+    // ---- header ---------------------------------------------------------------------------------------
+
+    private void RenderHeader(
+        IReadOnlyList<(MessengerInstance Instance, string Name, GoogleReviewSnapshotService.ReviewHealth Health,
+            GoogleReviewSnapshotService.ProfileRating? Rating)> snapshots,
+        bool anyRead)
+    {
+        var parts = new List<string>
+        {
+            snapshots.Count == 1 ? "1 Google location" : $"{snapshots.Count} Google locations"
+        };
+
+        if (GoogleReviewSnapshotService.Instance.LastCapturedUtc is { } captured)
+        {
+            parts.Add($"checked {RelativeAge(captured)}");
+        }
+
+        // The design's header said "covers all 239 reviews". It cannot say "all" while the scrape reads one
+        // page of 50 per account — that wording is the exact false-completeness this surface must avoid.
+        var loaded = snapshots.Sum(s => s.Health.HasData ? s.Health.Total : 0);
+        var lifetime = SumLifetime(snapshots);
+        if (anyRead)
+        {
+            parts.Add(ReviewCoverage.Describe(loaded, lifetime));
+        }
+
+        HeaderSub.Text = string.Join(" · ", parts);
+    }
+
+    private static int? SumLifetime(
+        IReadOnlyList<(MessengerInstance Instance, string Name, GoogleReviewSnapshotService.ReviewHealth Health,
+            GoogleReviewSnapshotService.ProfileRating? Rating)> snapshots)
+    {
+        // Only meaningful if EVERY location reported one; summing the two we know and calling it the total
+        // would understate the business.
+        if (snapshots.Count == 0 || snapshots.Any(s => s.Rating?.Total is null))
+        {
+            return null;
+        }
+
+        return snapshots.Sum(s => s.Rating!.Value.Total!.Value);
+    }
+
+    // ---- hero -----------------------------------------------------------------------------------------
+
+    private void RenderHero(
+        IReadOnlyList<(MessengerInstance Instance, string Name, GoogleReviewSnapshotService.ReviewHealth Health,
+            GoogleReviewSnapshotService.ProfileRating? Rating)> snapshots,
+        bool anyRead)
+    {
+        HeroHost.Children.Clear();
+
+        // --- rating across all locations ---
+        var ratingBlock = new StackPanel { Spacing = UmScale.Space.Xs };
+        var average = WeightedRating(snapshots);
+
+        ratingBlock.Children.Add(new TextBlock
+        {
+            Text = average?.ToString("0.0") ?? "—",
+            FontSize = UmScale.Text.Hero,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+        });
+        ratingBlock.Children.Add(new TextBlock
+        {
+            Text = average is { } a ? StarsFor(a) : "☆☆☆☆☆",
+            FontSize = UmScale.Text.Body,
+            Foreground = Brush("UmStatusWarningBrush")
+        });
+
+        var lifetime = SumLifetime(snapshots);
+        ratingBlock.Children.Add(new TextBlock
+        {
+            // Google publishes a rating per location, never one for the business. This is a mean weighted by
+            // each location's review count, and it says so — an unlabelled aggregate would read as Google's
+            // own figure and disagree with every profile page the owner checks it against.
+            Text = lifetime is { } total
+                ? $"{total:N0} reviews · weighted across {snapshots.Count} locations"
+                : "all locations",
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorTertiaryBrush")
+        });
+        HeroHost.Children.Add(ratingBlock);
+
+        // --- trend: not yet knowable ---
+        var trend = new StackPanel
+        {
+            Spacing = UmScale.Space.Xs,
+            Margin = new Thickness(UmScale.Space.Lg, 0, 0, 0),
+            BorderBrush = Brush("UmHairlineBrush"),
+            BorderThickness = new Thickness(1, 0, 0, 0),
+            Padding = new Thickness(UmScale.Space.Lg, 0, 0, 0)
+        };
+        trend.Children.Add(Label("Rating, last 6 months"));
+        trend.Children.Add(new TextBlock
+        {
+            // The design shows a sparkline and "4.4 → 4.6 up 0.2". Nothing is stored between scrapes yet, so
+            // there is no history to draw. Saying so is the honest render; a flat line would be a claim.
+            Text = "No history yet — starts building today.",
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorTertiaryBrush"),
+            TextWrapping = TextWrapping.WrapWholeWords,
+            MaxWidth = 190
+        });
+        Grid.SetColumn(trend, 1);
+        HeroHost.Children.Add(trend);
+
+        // --- needs a reply ---
+        var waiting = new StackPanel { Spacing = UmScale.Space.Xs, HorizontalAlignment = HorizontalAlignment.Right };
+        waiting.Children.Add(Label("Needs a reply", HorizontalAlignment.Right));
+        waiting.Children.Add(new TextBlock
+        {
+            Text = anyRead ? _queue.Count.ToString() : "—",
+            FontSize = UmScale.Text.Hero,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Foreground = _queue.Count > 0 ? Brush("UmStatusDangerBrush") : Brush("TextFillColorPrimaryBrush")
+        });
+        waiting.Children.Add(new TextBlock
+        {
+            Text = OldestWaitingLabel() is { } oldest ? $"oldest waiting {oldest}" : "nothing waiting",
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorTertiaryBrush"),
+            HorizontalAlignment = HorizontalAlignment.Right
+        });
+        Grid.SetColumn(waiting, 3);
+        HeroHost.Children.Add(waiting);
+    }
+
     /// <summary>
-    /// The only empty case the summary line cannot describe: there is no Google account at all.
+    /// The business-wide rating: a mean of each location's rating weighted by its review count.
     /// </summary>
     /// <remarks>
-    /// "Nothing waiting", "not read yet" and "no account connected" are three different situations and the
-    /// desk must never blur them — a scrape that has silently stopped working would otherwise report itself
-    /// as a clean queue. The first two are stated by <see cref="ReviewQueue.Summarise"/>; this is the third.
+    /// Null unless every location has both a rating and a total. A partial average would silently describe
+    /// a different business from the one the owner runs.
     /// </remarks>
-    private UIElement BuildEmptyState() => new TextBlock
+    private static double? WeightedRating(
+        IReadOnlyList<(MessengerInstance Instance, string Name, GoogleReviewSnapshotService.ReviewHealth Health,
+            GoogleReviewSnapshotService.ProfileRating? Rating)> snapshots)
     {
-        Text = "No Google Business account is connected.",
-        FontSize = UmScale.Text.Body,
-        Foreground = Brush("TextFillColorSecondaryBrush"),
-        TextWrapping = TextWrapping.WrapWholeWords
-    };
+        if (snapshots.Count == 0)
+        {
+            return null;
+        }
+
+        double weighted = 0;
+        var totalWeight = 0;
+
+        foreach (var snapshot in snapshots)
+        {
+            if (snapshot.Rating is not { Total: { } count } rating ||
+                !double.TryParse(rating.Rating, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var value) ||
+                count <= 0)
+            {
+                return null;
+            }
+
+            weighted += value * count;
+            totalWeight += count;
+        }
+
+        return totalWeight > 0 ? weighted / totalWeight : null;
+    }
+
+    private static string StarsFor(double rating)
+    {
+        var full = (int)Math.Round(rating, MidpointRounding.AwayFromZero);
+        full = Math.Clamp(full, 0, 5);
+        return new string('★', full) + new string('☆', 5 - full);
+    }
+
+    private string? OldestWaitingLabel()
+    {
+        if (_queue.Count == 0)
+        {
+            return null;
+        }
+
+        var oldest = _queue
+            .Select(review => ReviewAge.SortKey(review.Age))
+            .Where(span => span > TimeSpan.MinValue)
+            .DefaultIfEmpty(TimeSpan.MinValue)
+            .Max();
+
+        return oldest == TimeSpan.MinValue
+            ? null
+            : ReviewAge.ShortLabel(_queue.First(r => ReviewAge.SortKey(r.Age) == oldest).Age);
+    }
+
+    // ---- critical strip -------------------------------------------------------------------------------
+
+    private void RenderAlert()
+    {
+        var worst = _queue.FirstOrDefault(review => review.Urgency == ReviewUrgency.Critical);
+        if (worst.InstanceId is null or "")
+        {
+            AlertStrip.Visibility = Visibility.Collapsed;
+            AlertStrip.Child = null;
+            return;
+        }
+
+        var layout = new Grid();
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var text = new StackPanel { Spacing = UmScale.Space.Xs, VerticalAlignment = VerticalAlignment.Center };
+        var age = ReviewAge.ShortLabel(worst.Age);
+        text.Children.Add(new TextBlock
+        {
+            Text = $"★ {worst.Stars} · {(string.IsNullOrWhiteSpace(worst.Reviewer) ? "A customer" : worst.Reviewer)} " +
+                   $"left a {(worst.Stars == 1 ? "one" : "two")}-star review" +
+                   (string.IsNullOrWhiteSpace(age) ? string.Empty : $" {age} ago"),
+            FontSize = UmScale.Text.Body,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = Brush("UmStatusDangerBrush"),
+            TextWrapping = TextWrapping.WrapWholeWords
+        });
+        text.Children.Add(new TextBlock
+        {
+            Text = $"{worst.AccountName} · still unanswered",
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorSecondaryBrush")
+        });
+        layout.Children.Add(text);
+
+        var open = new Button
+        {
+            Content = "Open it",
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(UmScale.Space.Md, 0, 0, 0)
+        };
+        open.Click += async (_, _) => await OpenAsync(worst);
+        Grid.SetColumn(open, 1);
+        layout.Children.Add(open);
+
+        AlertStrip.Child = layout;
+        AlertStrip.Visibility = Visibility.Visible;
+    }
+
+    // ---- KPI strip ------------------------------------------------------------------------------------
+
+    private void RenderKpis(
+        IReadOnlyList<(MessengerInstance Instance, string Name, GoogleReviewSnapshotService.ReviewHealth Health,
+            GoogleReviewSnapshotService.ProfileRating? Rating)> snapshots,
+        bool anyRead)
+    {
+        KpiHost.Children.Clear();
+        KpiHost.ColumnDefinitions.Clear();
+
+        var lowStars = _queue.Count(r => r.Urgency is ReviewUrgency.Critical or ReviewUrgency.Elevated);
+        var answered = snapshots.Sum(s => s.Health.HasData ? s.Health.Answered : 0);
+        var loaded = snapshots.Sum(s => s.Health.HasData ? s.Health.Total : 0);
+        var replyRate = loaded > 0 ? MetricMath.HonestPercent(answered, loaded) : 0;
+
+        var tiles = new List<(string Label, string Value, string Sub, bool Known)>
+        {
+            ("Unanswered",
+                anyRead ? _queue.Count.ToString() : "—",
+                lowStars > 0 ? $"{lowStars} at 3 stars or below" : "none at 3 stars or below",
+                anyRead),
+
+            ("Oldest waiting",
+                OldestWaitingLabel() ?? "—",
+                OldestBranch() ?? "nothing waiting",
+                anyRead),
+
+            ("Reply rate",
+                anyRead ? $"{replyRate}%" : "—",
+                anyRead ? $"{answered:N0} of {loaded:N0} read" : "not read yet",
+                anyRead),
+
+            // Everything below needs history the app does not keep yet. Stated, not invented.
+            ("New this month", "—", "Needs a few days of history.", false),
+            ("Median reply time", "—", "Not measurable yet — see spec.", false),
+            ("Quietest branch", "—", "Needs a few days of history.", false)
+        };
+
+        for (var i = 0; i < tiles.Count; i++)
+        {
+            KpiHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var tile = BuildKpi(tiles[i]);
+            Grid.SetColumn(tile, i);
+            KpiHost.Children.Add(tile);
+        }
+    }
+
+    private string? OldestBranch()
+    {
+        if (_queue.Count == 0)
+        {
+            return null;
+        }
+
+        var oldest = _queue
+            .Select(review => ReviewAge.SortKey(review.Age))
+            .Where(span => span > TimeSpan.MinValue)
+            .DefaultIfEmpty(TimeSpan.MinValue)
+            .Max();
+
+        return oldest == TimeSpan.MinValue
+            ? null
+            : _queue.First(r => ReviewAge.SortKey(r.Age) == oldest).AccountName;
+    }
+
+    private Border BuildKpi((string Label, string Value, string Sub, bool Known) tile)
+    {
+        var body = new StackPanel { Spacing = UmScale.Space.Xs };
+        body.Children.Add(Label(tile.Label));
+        body.Children.Add(new TextBlock
+        {
+            Text = tile.Value,
+            FontSize = UmScale.Text.Metric,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Foreground = tile.Known ? Brush("TextFillColorPrimaryBrush") : Brush("TextFillColorTertiaryBrush")
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = tile.Sub,
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorTertiaryBrush"),
+            TextWrapping = TextWrapping.WrapWholeWords
+        });
+
+        return new Border
+        {
+            Background = Brush("UmSurfaceBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(UmScale.Space.Md),
+            Child = body
+        };
+    }
+
+    // ---- filters --------------------------------------------------------------------------------------
+
+    private void RenderFilters()
+    {
+        FilterHost.Children.Clear();
+
+        var counts = new (string Label, ReviewUrgency? Urgency)[]
+        {
+            ("All", null),
+            ("Unhappy", ReviewUrgency.Critical),
+            ("Mixed", ReviewUrgency.Elevated),
+            ("Rating unread", ReviewUrgency.Unrated),
+            ("Positive", ReviewUrgency.Routine)
+        };
+
+        foreach (var (label, urgency) in counts)
+        {
+            var n = urgency is null ? _queue.Count : _queue.Count(r => r.Urgency == urgency);
+
+            // A filter that leads to a guaranteed-empty list is a dead end, so buckets with nothing in them
+            // are not offered at all. "All" always stays, because it is the way back.
+            if (n == 0 && urgency is not null)
+            {
+                continue;
+            }
+
+            var isOn = _filter == urgency;
+            var chip = new Button
+            {
+                Content = $"{label}  {n}",
+                FontSize = UmScale.Text.Caption,
+                Padding = new Thickness(UmScale.Space.Sm, UmScale.Space.Xs, UmScale.Space.Sm, UmScale.Space.Xs),
+                CornerRadius = new CornerRadius(12),
+                Background = isOn ? Brush("UmAccentWashBrush") : Brush("UmSurfaceBrush"),
+                BorderBrush = isOn ? Brush("AccentFillColorDefaultBrush") : Brush("UmHairlineStrongBrush"),
+                BorderThickness = new Thickness(1),
+                Tag = urgency
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+                chip, $"Show {label.ToLowerInvariant()} reviews, {n} of them.");
+
+            chip.Click += (s, _) =>
+            {
+                _filter = (s as Button)?.Tag as ReviewUrgency?;
+                _selected = 0;
+                Render();
+            };
+            FilterHost.Children.Add(chip);
+        }
+    }
+
+    // ---- queue ----------------------------------------------------------------------------------------
+
+    private void RenderQueue(int accountCount, bool anyRead)
+    {
+        QueueHost.Children.Clear();
+        _rows.Clear();
+
+        var visible = _filter is null
+            ? _queue
+            : _queue.Where(r => r.Urgency == _filter).ToList();
+
+        if (visible.Count == 0)
+        {
+            QueueHost.Children.Add(new TextBlock
+            {
+                Text = accountCount == 0
+                    ? "No Google Business account is connected."
+                    : ReviewQueue.Summarise([], anyRead),
+                FontSize = UmScale.Text.Body,
+                Foreground = Brush("TextFillColorSecondaryBrush"),
+                TextWrapping = TextWrapping.WrapWholeWords
+            });
+            return;
+        }
+
+        _selected = Math.Clamp(_selected, 0, Math.Min(visible.Count, MaxRows) - 1);
+
+        for (var i = 0; i < visible.Count && i < MaxRows; i++)
+        {
+            var row = BuildRow(visible[i], i);
+            _rows.Add(row);
+            QueueHost.Children.Add(row);
+        }
+
+        if (visible.Count > MaxRows)
+        {
+            QueueHost.Children.Add(new TextBlock
+            {
+                Text = $"+ {visible.Count - MaxRows} more waiting",
+                FontSize = UmScale.Text.Caption,
+                Foreground = Brush("TextFillColorTertiaryBrush"),
+                Margin = new Thickness(UmScale.Space.Sm, UmScale.Space.Xs, 0, 0)
+            });
+        }
+
+        ApplySelection(moveFocus: false);
+    }
 
     private Button BuildRow(QueuedReview review, int position)
     {
-        var content = new StackPanel { Spacing = UmScale.Space.Xs };
+        var content = new StackPanel { Spacing = UmScale.Space.Sm };
 
-        var head = new StackPanel
+        var top = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = UmScale.Space.Sm
         };
-
-        head.Children.Add(new TextBlock
-        {
-            Text = review.Stars is >= 1 and <= 5
-                ? new string('★', review.Stars) + new string('☆', 5 - review.Stars)
-                : "☆☆☆☆☆",
-            FontSize = UmScale.Text.Caption,
-            Foreground = UrgencyBrush(review.Urgency),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        head.Children.Add(new TextBlock
+        top.Children.Add(new TextBlock
         {
             Text = string.IsNullOrWhiteSpace(review.Reviewer) ? "Reviewer" : review.Reviewer,
-            FontSize = UmScale.Text.Body,
+            FontSize = UmScale.Text.BodyStrong,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        // The location matters here in a way it never did on the per-account card: the whole point of one
-        // merged queue is that consecutive rows can belong to different salons.
-        head.Children.Add(new TextBlock
+        var age = ReviewAge.ShortLabel(review.Age);
+        top.Children.Add(new TextBlock
         {
-            Text = review.AccountName,
+            Text = string.IsNullOrWhiteSpace(age)
+                ? review.AccountName
+                : $"{review.AccountName} · {age} ago",
             FontSize = UmScale.Text.Caption,
             Foreground = Brush("TextFillColorTertiaryBrush"),
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var age = ReviewAge.ShortLabel(review.Age);
-        if (!string.IsNullOrWhiteSpace(age))
+        top.Children.Add(BuildChip(
+            review.Stars is >= 1 and <= 5
+                ? $"★ {review.Stars} · {ReviewQueue.Label(review.Urgency)}"
+                : ReviewQueue.Label(review.Urgency),
+            review.Urgency));
+        content.Children.Add(top);
+
+        content.Children.Add(new TextBlock
         {
-            head.Children.Add(new TextBlock
-            {
-                Text = "· waiting " + age,
-                FontSize = UmScale.Text.Caption,
-                Foreground = Brush("TextFillColorTertiaryBrush"),
-                VerticalAlignment = VerticalAlignment.Center
-            });
-        }
+            // A star-only review is common and still needs answering, so the row says so plainly rather
+            // than rendering an empty gap that looks like a scrape failure.
+            Text = string.IsNullOrWhiteSpace(review.Text) ? "Rating only — no written review." : review.Text,
+            FontSize = UmScale.Text.Body,
+            Foreground = string.IsNullOrWhiteSpace(review.Text)
+                ? Brush("TextFillColorTertiaryBrush")
+                : Brush("TextFillColorSecondaryBrush"),
+            FontStyle = string.IsNullOrWhiteSpace(review.Text)
+                ? Windows.UI.Text.FontStyle.Italic
+                : Windows.UI.Text.FontStyle.Normal,
+            TextWrapping = TextWrapping.Wrap,
+            MaxLines = 3,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, UmScale.Space.Xs, 0, 0)
+        });
 
-        content.Children.Add(head);
-
-        if (!string.IsNullOrWhiteSpace(review.Text))
-        {
-            content.Children.Add(new TextBlock
-            {
-                Text = review.Text,
-                FontSize = UmScale.Text.Caption,
-                Foreground = Brush("TextFillColorSecondaryBrush"),
-                TextWrapping = TextWrapping.Wrap,
-                MaxLines = 2,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-        }
-
-        // A coloured left rail rather than colour on the text: severity has to survive being read by
-        // someone who cannot distinguish the hues, so the star glyphs and the wording carry it too
-        // (WCAG 1.4.1 — colour is never the only channel).
+        // Severity also reads as a coloured edge, but never ONLY as colour — the chip above carries the
+        // star count and the word, so the ranking survives being read by someone who cannot see the hue.
         var rail = new Border
         {
             Width = UmScale.Space.Xs,
             CornerRadius = new CornerRadius(2),
             Background = UrgencyBrush(review.Urgency),
-            Margin = new Thickness(0, 0, UmScale.Space.Sm, 0)
+            Margin = new Thickness(0, 0, UmScale.Space.Md, 0)
         };
 
         var layout = new Grid();
@@ -217,33 +662,25 @@ public sealed partial class ReviewDesk : UserControl
         layout.Children.Add(rail);
         layout.Children.Add(content);
 
-        // A Button, not a Border. Selection used to be nothing but a background colour on a Border, which
-        // means someone using a screen reader pressing Down heard silence — the row is what changed, and a
-        // Border cannot take focus or announce itself. As a Button each row is focusable, so moving the
-        // selection moves focus, which is both the visual highlight and the thing that gets read out. It
-        // also gets Enter and Space activation for free rather than hand-rolled.
         var row = new Button
         {
-            Padding = new Thickness(UmScale.Space.Sm),
-            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(UmScale.Space.Md),
+            CornerRadius = new CornerRadius(8),
             BorderThickness = new Thickness(1),
-            BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-            Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderBrush = Brush("UmHairlineBrush"),
+            Background = Brush("UmSurfaceBrush"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Left,
             Tag = position,
             Content = layout
         };
 
-        row.Click += (_, _) =>
+        row.Click += async (_, _) =>
         {
             _selected = position;
-            ApplySelection();
-            OpenSelected();
+            ApplySelection(moveFocus: false);
+            await OpenAsync(review);
         };
-
-        // Keep the highlight following real focus, however focus arrived — Tab, a screen reader's own
-        // navigation, or the arrow keys below.
         row.GotFocus += (_, _) =>
         {
             _selected = position;
@@ -268,6 +705,32 @@ public sealed partial class ReviewDesk : UserControl
         return row;
     }
 
+    private Border BuildChip(string text, ReviewUrgency urgency)
+    {
+        var wash = urgency switch
+        {
+            ReviewUrgency.Critical => "UmStatusDangerWashBrush",
+            ReviewUrgency.Elevated => "UmStatusWarningWashBrush",
+            ReviewUrgency.Routine => "UmStatusSuccessWashBrush",
+            _ => "UmSurfaceSunkenBrush"
+        };
+
+        return new Border
+        {
+            Background = Brush(wash),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(UmScale.Space.Sm, 2, UmScale.Space.Sm, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = text,
+                FontSize = UmScale.Text.Caption,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = UrgencyBrush(urgency)
+            }
+        };
+    }
+
     private Brush UrgencyBrush(ReviewUrgency urgency) => urgency switch
     {
         ReviewUrgency.Critical => Brush("UmStatusDangerBrush"),
@@ -276,20 +739,94 @@ public sealed partial class ReviewDesk : UserControl
         _ => Brush("UmStatusSuccessBrush")
     };
 
-    /// <param name="moveFocus">
-    /// False when this is reacting to focus that has already moved, which would otherwise recurse.
-    /// </param>
+    // ---- by branch ------------------------------------------------------------------------------------
+
+    private void RenderBranches(
+        IReadOnlyList<(MessengerInstance Instance, string Name, GoogleReviewSnapshotService.ReviewHealth Health,
+            GoogleReviewSnapshotService.ProfileRating? Rating)> snapshots)
+    {
+        var rated = snapshots
+            .Where(s => s.Rating is { Total: > 0 })
+            .OrderByDescending(s => double.TryParse(
+                s.Rating!.Value.Rating, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 0)
+            .ToList();
+
+        if (rated.Count == 0)
+        {
+            BranchPanel.Visibility = Visibility.Collapsed;
+            BranchPanel.Child = null;
+            return;
+        }
+
+        var body = new StackPanel { Spacing = UmScale.Space.Sm };
+        body.Children.Add(new TextBlock
+        {
+            Text = "By branch",
+            FontSize = UmScale.Text.BodyStrong,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+        });
+        body.Children.Add(new TextBlock
+        {
+            // The design also shows reviews gained in 30 days. That needs history, so it is absent rather
+            // than guessed, and the subtitle only claims what the row actually shows.
+            Text = "Rating and lifetime reviews. Change over time needs a few days of history.",
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorTertiaryBrush"),
+            TextWrapping = TextWrapping.WrapWholeWords
+        });
+
+        var rank = 1;
+        foreach (var snapshot in rated)
+        {
+            var line = new Grid();
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var n = new TextBlock
+            {
+                Text = rank.ToString(),
+                FontSize = UmScale.Text.Caption,
+                Foreground = Brush("TextFillColorTertiaryBrush"),
+                Margin = new Thickness(0, 0, UmScale.Space.Sm, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var name = new TextBlock
+            {
+                Text = snapshot.Name,
+                FontSize = UmScale.Text.Body,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var score = new TextBlock
+            {
+                Text = $"{snapshot.Rating!.Value.Rating}  ·  {snapshot.Rating.Value.Total:N0}",
+                FontSize = UmScale.Text.Body,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(name, 1);
+            Grid.SetColumn(score, 2);
+            line.Children.Add(n);
+            line.Children.Add(name);
+            line.Children.Add(score);
+            body.Children.Add(line);
+            rank++;
+        }
+
+        BranchPanel.Child = body;
+        BranchPanel.Visibility = Visibility.Visible;
+    }
+
+    // ---- selection + keyboard -------------------------------------------------------------------------
+
     private void ApplySelection(bool moveFocus = true)
     {
         for (var i = 0; i < _rows.Count; i++)
         {
             var isSelected = i == _selected;
-            _rows[i].Background = isSelected
-                ? Brush("UmAccentWashBrush")
-                : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            _rows[i].BorderBrush = isSelected
-                ? Brush("UmHairlineStrongBrush")
-                : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            _rows[i].Background = isSelected ? Brush("UmAccentWashBrush") : Brush("UmSurfaceBrush");
+            _rows[i].BorderBrush = isSelected ? Brush("UmHairlineStrongBrush") : Brush("UmHairlineBrush");
         }
 
         if (_selected < 0 || _selected >= _rows.Count)
@@ -316,12 +853,14 @@ public sealed partial class ReviewDesk : UserControl
         switch (e.Key)
         {
             case VirtualKey.Down:
+            case VirtualKey.J:
                 _selected = Math.Min(_selected + 1, _rows.Count - 1);
                 ApplySelection();
                 e.Handled = true;
                 break;
 
             case VirtualKey.Up:
+            case VirtualKey.K:
                 _selected = Math.Max(_selected - 1, 0);
                 ApplySelection();
                 e.Handled = true;
@@ -344,19 +883,12 @@ public sealed partial class ReviewDesk : UserControl
         }
     }
 
-    private async void OpenSelected()
+    private async Task OpenAsync(QueuedReview review)
     {
-        if (_selected < 0 || _selected >= _queue.Count)
-        {
-            return;
-        }
-
-        var review = _queue[_selected];
         try
         {
             await GoogleReviewSnapshotService.Instance.FocusReviewAsync(
                 review.InstanceId, review.Reviewer, review.Index);
-            ReviewOpened?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -366,6 +898,34 @@ public sealed partial class ReviewDesk : UserControl
                 "ReviewDesk",
                 $"Could not open the selected review in Google: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    // ---- small helpers --------------------------------------------------------------------------------
+
+    private TextBlock Label(string text, HorizontalAlignment align = HorizontalAlignment.Left) => new()
+    {
+        Text = text.ToUpperInvariant(),
+        FontSize = UmScale.Text.Caption,
+        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        Foreground = Brush("TextFillColorTertiaryBrush"),
+        HorizontalAlignment = align
+    };
+
+    private static string RelativeAge(DateTimeOffset whenUtc)
+    {
+        var span = DateTimeOffset.UtcNow - whenUtc;
+        if (span < TimeSpan.Zero)
+        {
+            span = TimeSpan.Zero;
+        }
+
+        return span.TotalMinutes switch
+        {
+            < 1 => "just now",
+            < 60 => $"{(int)span.TotalMinutes} min ago",
+            < 1440 => $"{(int)span.TotalHours}h ago",
+            _ => $"{(int)span.TotalDays}d ago"
+        };
     }
 
     private Brush Brush(string key) => ThemeBrushResolver.Resolve(this, key);
