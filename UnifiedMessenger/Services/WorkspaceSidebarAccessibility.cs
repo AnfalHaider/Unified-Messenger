@@ -10,11 +10,16 @@ internal static class WorkspaceSidebarAccessibility
     public static string ComposeDashboardName(bool selected) =>
         selected ? "Sidebar Dashboard, selected" : "Sidebar Dashboard";
 
+    /// <param name="badgeCountsReviews">
+    /// True for a Google Business account, where the badge is reviews awaiting a reply rather than unread
+    /// messages.
+    /// </param>
     public static string ComposeInstanceName(
         string displayName,
         string statusSubtitle,
         int badgeCount,
-        bool selected)
+        bool selected,
+        bool badgeCountsReviews = false)
     {
         var parts = new List<string> { displayName.Trim() };
         if (!string.IsNullOrWhiteSpace(statusSubtitle))
@@ -24,7 +29,12 @@ internal static class WorkspaceSidebarAccessibility
 
         if (badgeCount > 0)
         {
-            parts.Add(badgeCount == 1 ? "1 unread" : $"{badgeCount} unread");
+            // The same badge now carries two different meanings. Google Business has no unread messages —
+            // that channel has no messaging at all — so announcing "6 unread" on a review count is simply
+            // false to anyone who cannot see which kind of account the row is.
+            parts.Add(badgeCountsReviews
+                ? badgeCount == 1 ? "1 review awaiting a reply" : $"{badgeCount} reviews awaiting a reply"
+                : badgeCount == 1 ? "1 unread" : $"{badgeCount} unread");
         }
 
         if (selected)

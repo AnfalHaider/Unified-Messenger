@@ -425,6 +425,12 @@ public sealed class GoogleReviewSnapshotService
     private readonly ConcurrentDictionary<string, (DateTimeOffset At, bool ReadData)> _lastScrapeAttempt =
         new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>UI thread for raising toasts from the background pass.</summary>
+    private DispatcherQueue? _ui;
+
+    /// <summary>Drives the sidebar's unanswered-review badge. Optional: the pass works without it.</summary>
+    private INotificationHubService? _notificationHub;
+
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _scrapeLocks =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -490,6 +496,101 @@ public sealed class GoogleReviewSnapshotService
 
         var floor = lastAttemptReadData ? MinimumRescrapeInterval : FailedRetryInterval;
         return nowUtc - last < floor;
+    }
+
+    /// <summary>
+    /// Puts each Google account's unanswered-review count on its sidebar row.
+    /// </summary>
+    /// <remarks>
+    /// The rail already renders a badge per account, driven by NotificationHub — Google accounts simply
+    /// never set one, because nothing about reviews fed into it. This is the whole of that fix: the count
+    /// the desk already computes, published through the plumbing that was always there.
+    ///
+    /// <para>
+    /// Only published for accounts that were actually read. Writing 0 for an account whose scrape failed
+    /// would clear a real badge and say "nothing waiting" about a location nobody managed to check.
+    /// </para>
+    /// </remarks>
+    private void PublishUnansweredBadges(IReadOnlyList<MessengerInstance> accounts)
+    {
+        if (_notificationHub is null)
+        {
+            return;
+        }
+
+        foreach (var account in accounts)
+        {
+            var health = Get(account.Id);
+            if (!health.HasData)
+            {
+                continue;
+            }
+
+            var unanswered = health.Unanswered;
+            _ui?.TryEnqueue(() =>
+            {
+                try
+                {
+                    _notificationHub?.UpdateBadgeCount(account.Id, unanswered);
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.LogWarning("GoogleReviews", $"Badge update failed: {ex.Message}");
+                }
+            });
+        }
+    }
+
+    /// <summary>
+    /// Notifies the owner about unhappy reviews seen for the first time.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Runs at the end of a background pass, when every account has been read, so a batch that spans two
+    /// locations produces one notification rather than one per account.
+    /// </para>
+    /// <para>
+    /// <b>Quiet hours are honoured by skipping the whole evaluation, not just the toast.</b> Marking the
+    /// reviews as seen and then staying silent would mean the owner is never told about a one-star that
+    /// landed overnight — it would be "already seen" by morning. Leaving them unrecorded means the first
+    /// pass after quiet hours end raises them properly.
+    /// </para>
+    /// </remarks>
+    private async Task RaiseUnhappyReviewAlertsAsync(IReadOnlyList<MessengerInstance> accounts)
+    {
+        try
+        {
+            if (QuietHours.IsQuietNow(AppSettingsService.Instance.Settings))
+            {
+                return;
+            }
+
+            var queue = ReviewQueue.Build(accounts.Select(account => (
+                account.Id,
+                string.IsNullOrWhiteSpace(account.DisplayName) ? "Google Business" : account.DisplayName,
+                (ReviewHealth?)Get(account.Id))));
+
+            var tracking = ReviewAlertTracking.Current;
+            var (fresh, seen) = ReviewAlerts.Evaluate(queue, tracking.Seen(), tracking.Seeded);
+            await tracking.RecordAsync(seen).ConfigureAwait(true);
+
+            if (ReviewAlerts.BuildToast(fresh) is not { } toast)
+            {
+                return;
+            }
+
+            AppLogger.LogInfo(
+                "GoogleReviews",
+                $"Notifying about {fresh.Count} newly-seen unhappy review(s).");
+
+            _ui?.TryEnqueue(() =>
+                AppNotificationService.Instance.ShowInfoToast(toast.Title, toast.Body, fresh[0].InstanceId));
+        }
+        catch (Exception ex)
+        {
+            // A missed notification must never break the pass that produces the numbers.
+            AppLogger.LogWarning("GoogleReviews", $"Review alerting failed: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     public ReviewHealth Get(string instanceId) =>
@@ -725,7 +826,10 @@ public sealed class GoogleReviewSnapshotService
     /// WebView and the owner is waiting to see their dashboard.
     /// </para>
     /// </remarks>
-    public void StartBackgroundRefresh(IInstanceRegistryService registry, DispatcherQueue ui)
+    public void StartBackgroundRefresh(
+        IInstanceRegistryService registry,
+        DispatcherQueue ui,
+        INotificationHubService? notificationHub = null)
     {
         if (_backgroundStarted || registry is null || ui is null)
         {
@@ -734,6 +838,8 @@ public sealed class GoogleReviewSnapshotService
 
         _backgroundStarted = true;
         _registry = registry;
+        _ui = ui;
+        _notificationHub = notificationHub;
 
         _backgroundTimer = ui.CreateTimer();
         _backgroundTimer.Interval = FirstPassDelay;
@@ -821,6 +927,9 @@ public sealed class GoogleReviewSnapshotService
                 // this call is a no-op whenever the cached value is still fresh.
                 await ScrapeRatingAsync(account.Id, force: false, allowNavigate: false).ConfigureAwait(true);
             }
+
+            PublishUnansweredBadges(accounts);
+            await RaiseUnhappyReviewAlertsAsync(accounts).ConfigureAwait(true);
         }
         catch (Exception ex)
         {

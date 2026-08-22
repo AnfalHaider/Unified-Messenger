@@ -38,7 +38,10 @@ public sealed class ShellCommandPaletteCoordinator
             new()
             {
                 Title = "Reviews",
-                Subtitle = "Google Business review health",
+                // Was "Google Business review health", which described the old per-account panel. The page
+                // is a worst-first queue now, and the palette is where someone decides whether it is the
+                // thing they were reaching for.
+                Subtitle = "What to answer first, across every location",
                 Category = "Navigation",
                 IconGlyph = "\uE734",
                 Selection = new CommandPaletteSelection

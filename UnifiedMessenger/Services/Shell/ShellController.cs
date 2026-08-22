@@ -210,6 +210,10 @@ public sealed class ShellController
         // Who has already been asked for a review. Loaded before anything can offer to ask again:
         // "ask once, ever" is only a promise if the record survives the restart.
         await ReviewAskStore.Instance.LoadAsync().ConfigureAwait(true);
+        // Which unhappy reviews have already been notified about. Loaded before the first background
+        // pass can evaluate: unloaded, every restart looks like a first run, and a first run stays
+        // silent — so a one-star that arrived while the app was closed would never be raised.
+        await ReviewAlertStore.Instance.LoadAsync().ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);

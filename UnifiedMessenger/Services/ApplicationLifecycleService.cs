@@ -124,7 +124,8 @@ public static class ApplicationLifecycleService
             ("AwaitingOverrides", AwaitingOverrideStore.Instance.FlushAsync),
             ("KpiTrends", KpiTrendStore.Instance.FlushAsync),
             ("ReviewHistory", ReviewHistoryStore.Instance.FlushAsync),
-            ("ReviewAsks", ReviewAskStore.Instance.FlushAsync)
+            ("ReviewAsks", ReviewAskStore.Instance.FlushAsync),
+            ("ReviewAlerts", ReviewAlertStore.Instance.FlushAsync)
         ];
 
         LastFlushFailures = await FlushStoresAsync(stores, cancellationToken).ConfigureAwait(false);

@@ -287,7 +287,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         }
 
         OversightAlertMonitor.Instance.Start(registry, DispatcherQueue);
-        GoogleReviewSnapshotService.Instance.StartBackgroundRefresh(registry, DispatcherQueue);
+        GoogleReviewSnapshotService.Instance.StartBackgroundRefresh(registry, DispatcherQueue, _services.NotificationHub);
     }
 
     public void ShowFromTray()

@@ -976,7 +976,16 @@ public sealed partial class WorkspaceSidebar : Grid
             row,
             WorkspaceSidebarHelper.IsSelectionMatch(key, WorkspaceSidebarHelper.DashboardSelectionKey)
                 ? WorkspaceSidebarAccessibility.ComposeDashboardName(selected)
-                : WorkspaceSidebarAccessibility.ComposeInstanceName(title, subtitle, badgeCount, selected));
+                : WorkspaceSidebarAccessibility.ComposeInstanceName(
+                    title,
+                    subtitle,
+                    badgeCount,
+                    selected,
+                    // The subtitle is the platform's own display name, which is the only platform signal
+                    // this method receives. Google Business badges count reviews awaiting a reply, not
+                    // unread messages — that channel has no messaging at all.
+                    badgeCountsReviews: string.Equals(
+                        subtitle?.Trim(), "Google Business", StringComparison.OrdinalIgnoreCase)));
     }
 
     private void ApplySelectionVisuals()
