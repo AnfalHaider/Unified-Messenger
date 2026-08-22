@@ -132,7 +132,7 @@ public sealed partial class ReviewDesk : UserControl
                 Instance: instance,
                 Name: string.IsNullOrWhiteSpace(instance.DisplayName) ? "Google Business" : instance.DisplayName,
                 Health: GoogleReviewSnapshotService.Instance.Get(instance.Id),
-                Rating: GoogleReviewSnapshotService.Instance.GetRating(instance.Id)))
+                Rating: EffectiveRating(instance.Id)))
             .ToList();
 
         _queue = ReviewQueue.Build(snapshots.Select(s =>
@@ -147,6 +147,40 @@ public sealed partial class ReviewDesk : UserControl
         RenderFilters();
         RenderQueue(accounts.Count, anyRead);
         RenderBranches(snapshots);
+    }
+
+    /// <summary>
+    /// The account's rating and lifetime total: this session's scrape if it has run, otherwise the last
+    /// reading on disk.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The scrape's own cache lives only in memory, and the rating is read at most every six hours, so for
+    /// the first minutes of every run the hero showed "—" for figures the app had known perfectly well the
+    /// day before. Persisting the readings only fixes that if something actually falls back to them.
+    /// </para>
+    /// <para>
+    /// Safe to substitute because these are slow-moving profile facts — a lifetime total and a rating to one
+    /// decimal — not live counts. The queue deliberately does NOT fall back this way: it needs the reviews
+    /// themselves, and history stores only the numbers.
+    /// </para>
+    /// </remarks>
+    private static GoogleReviewSnapshotService.ProfileRating? EffectiveRating(string instanceId)
+    {
+        if (GoogleReviewSnapshotService.Instance.GetRating(instanceId) is { Total: not null } live)
+        {
+            return live;
+        }
+
+        var stored = ReviewHistoryStore.Instance.GetHistory(instanceId)
+            .LastOrDefault(point => point is { Rating: not null, LifetimeTotal: > 0 });
+
+        return stored is { Rating: { } rating, LifetimeTotal: { } total }
+            ? new GoogleReviewSnapshotService.ProfileRating(
+                rating.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
+                total,
+                new DateTimeOffset(stored.Day.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero))
+            : null;
     }
 
     private IEnumerable<MessengerInstance> GoogleAccounts() =>
@@ -250,17 +284,47 @@ public sealed partial class ReviewDesk : UserControl
             BorderThickness = new Thickness(1, 0, 0, 0),
             Padding = new Thickness(UmScale.Space.Lg, 0, 0, 0)
         };
-        trend.Children.Add(Label("Rating, last 6 months"));
-        trend.Children.Add(new TextBlock
+        var ids = snapshots.Select(s => s.Instance.Id).ToList();
+        var combined = ReviewHistoryStore.Instance.GetCombinedHistory(ids);
+        var ratingChange = ReviewTrend.RatingChange(combined, 180);
+
+        trend.Children.Add(Label(ratingChange is null ? "Rating trend" : "Rating"));
+
+        if (ratingChange is { } change)
         {
-            // The design shows a sparkline and "4.4 → 4.6 up 0.2". Nothing is stored between scrapes yet, so
-            // there is no history to draw. Saying so is the honest render; a flat line would be a claim.
-            Text = "No history yet — starts building today.",
-            FontSize = UmScale.Text.Caption,
-            Foreground = Brush("TextFillColorTertiaryBrush"),
-            TextWrapping = TextWrapping.WrapWholeWords,
-            MaxWidth = 190
-        });
+            var delta = change.To - change.From;
+            trend.Children.Add(new TextBlock
+            {
+                Text = $"{change.From:0.0} → {change.To:0.0}",
+                FontSize = UmScale.Text.Body,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+            });
+            trend.Children.Add(new TextBlock
+            {
+                // Rounded to one decimal because that is the precision Google publishes; showing "up 0.04"
+                // from a figure given as 4.6 would be inventing significance.
+                Text = Math.Abs(delta) < 0.05
+                    ? $"steady {ReviewTrend.SpanLabel(change.OverDays)}"
+                    : $"{(delta > 0 ? "up" : "down")} {Math.Abs(delta):0.0} {ReviewTrend.SpanLabel(change.OverDays)}",
+                FontSize = UmScale.Text.Caption,
+                Foreground = Math.Abs(delta) < 0.05
+                    ? Brush("TextFillColorTertiaryBrush")
+                    : delta > 0 ? Brush("UmStatusSuccessBrush") : Brush("UmStatusDangerBrush")
+            });
+        }
+        else
+        {
+            trend.Children.Add(new TextBlock
+            {
+                // A flat line drawn from one reading would be a claim about stability that one measurement
+                // cannot support, so the panel says what it is waiting for instead.
+                Text = HistoryPending(combined),
+                FontSize = UmScale.Text.Caption,
+                Foreground = Brush("TextFillColorTertiaryBrush"),
+                TextWrapping = TextWrapping.WrapWholeWords,
+                MaxWidth = 190
+            });
+        }
         Grid.SetColumn(trend, 1);
         HeroHost.Children.Add(trend);
 
@@ -412,6 +476,12 @@ public sealed partial class ReviewDesk : UserControl
         var loaded = snapshots.Sum(s => s.Health.HasData ? s.Health.Total : 0);
         var replyRate = loaded > 0 ? MetricMath.HonestPercent(answered, loaded) : 0;
 
+        var ids = snapshots.Select(s => s.Instance.Id).ToList();
+        var combined = ReviewHistoryStore.Instance.GetCombinedHistory(ids);
+
+        var gained = ReviewTrend.ReviewsGained(combined, 30);
+        var quietest = QuietestBranch(snapshots);
+
         var tiles = new List<(string Label, string Value, string Sub, bool Known)>
         {
             ("Unanswered",
@@ -426,13 +496,22 @@ public sealed partial class ReviewDesk : UserControl
 
             ("Reply rate",
                 anyRead ? $"{replyRate}%" : "—",
-                anyRead ? $"{answered:N0} of {loaded:N0} read" : "not read yet",
+                ReplyRateSub(combined, answered, loaded, anyRead),
                 anyRead),
 
-            // Everything below needs history the app does not keep yet. Stated, not invented.
-            ("New this month", "—", "Needs a few days of history.", false),
-            ("Median reply time", "—", "Not measurable yet — see spec.", false),
-            ("Quietest branch", "—", "Needs a few days of history.", false)
+            // Velocity comes from the lifetime total's increase between two readings, not from per-review
+            // dates the scrape never sees. The span is always the one actually measured — "+2 in 4 days"
+            // rather than a figure that reads as a month's worth.
+            gained is { } g
+                ? ("New reviews", $"+{Math.Max(0, g.To - g.From)}", ReviewTrend.SpanLabel(g.OverDays), true)
+                : ("New reviews", "—", HistoryPending(combined), false),
+
+            // Still genuinely unobtainable: nothing on the page says when a reply was posted.
+            ("Median reply time", "—", "Google doesn't publish reply dates.", false),
+
+            quietest is { } q
+                ? ("Quietest branch", q.Name, $"no new review in {q.Days} days", true)
+                : ("Quietest branch", "—", HistoryPending(combined), false)
         };
 
         for (var i = 0; i < tiles.Count; i++)
@@ -442,6 +521,61 @@ public sealed partial class ReviewDesk : UserControl
             Grid.SetColumn(tile, i);
             KpiHost.Children.Add(tile);
         }
+    }
+
+    /// <summary>
+    /// How the page says "not yet" — with how far off it is, so it reads as progress rather than breakage.
+    /// </summary>
+    private static string HistoryPending(IReadOnlyList<ReviewDayPoint> combined) => combined.Count switch
+    {
+        0 => "Starts building today.",
+        1 => "One day recorded — needs a second.",
+        _ => $"{combined.Count} days recorded so far."
+    };
+
+    private static string ReplyRateSub(
+        IReadOnlyList<ReviewDayPoint> combined, int answered, int loaded, bool anyRead)
+    {
+        if (!anyRead)
+        {
+            return "not read yet";
+        }
+
+        var basis = $"{answered:N0} of {loaded:N0} read";
+        return ReviewTrend.ReplyRateChange(combined, 30) is { } change && change.To != change.From
+            ? $"{basis} · {(change.To > change.From ? "+" : "")}{change.To - change.From} {ReviewTrend.SpanLabel(change.OverDays)}"
+            : basis;
+    }
+
+    /// <summary>
+    /// The location that has gone longest without a new review.
+    /// </summary>
+    /// <remarks>
+    /// Only reported once at least one location has two readings to compare; a branch cannot be called quiet
+    /// on the strength of a single measurement.
+    /// </remarks>
+    private static (string Name, int Days)? QuietestBranch(
+        IReadOnlyList<(MessengerInstance Instance, string Name, GoogleReviewSnapshotService.ReviewHealth Health,
+            GoogleReviewSnapshotService.ProfileRating? Rating)> snapshots)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        (string Name, int Days)? worst = null;
+
+        foreach (var snapshot in snapshots)
+        {
+            var history = ReviewHistoryStore.Instance.GetHistory(snapshot.Instance.Id);
+            if (ReviewTrend.DaysSinceNewReview(history, today) is not { } days)
+            {
+                continue;
+            }
+
+            if (worst is null || days > worst.Value.Days)
+            {
+                worst = (snapshot.Name, days);
+            }
+        }
+
+        return worst;
     }
 
     private string? OldestBranch()
@@ -766,11 +900,15 @@ public sealed partial class ReviewDesk : UserControl
             FontSize = UmScale.Text.BodyStrong,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
         });
+        var anyGains = rated.Any(s =>
+            ReviewTrend.ReviewsGained(ReviewHistoryStore.Instance.GetHistory(s.Instance.Id), 30) is not null);
+
         body.Children.Add(new TextBlock
         {
-            // The design also shows reviews gained in 30 days. That needs history, so it is absent rather
-            // than guessed, and the subtitle only claims what the row actually shows.
-            Text = "Rating and lifetime reviews. Change over time needs a few days of history.",
+            // The subtitle only claims what the rows actually show, so it changes once gains are real.
+            Text = anyGains
+                ? "Rating, lifetime reviews, and how many arrived recently."
+                : "Rating and lifetime reviews. Change over time needs a second day of readings.",
             FontSize = UmScale.Text.Caption,
             Foreground = Brush("TextFillColorTertiaryBrush"),
             TextWrapping = TextWrapping.WrapWholeWords
@@ -798,18 +936,38 @@ public sealed partial class ReviewDesk : UserControl
                 FontSize = UmScale.Text.Body,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            var score = new TextBlock
+            var right = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = UmScale.Space.Sm,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            right.Children.Add(new TextBlock
             {
                 Text = $"{snapshot.Rating!.Value.Rating}  ·  {snapshot.Rating.Value.Total:N0}",
                 FontSize = UmScale.Text.Body,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
-            };
+            });
+
+            if (ReviewTrend.ReviewsGained(ReviewHistoryStore.Instance.GetHistory(snapshot.Instance.Id), 30) is { } gain)
+            {
+                var delta = gain.To - gain.From;
+                right.Children.Add(new TextBlock
+                {
+                    Text = delta > 0 ? $"+{delta}" : "no change",
+                    FontSize = UmScale.Text.Caption,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Foreground = delta > 0 ? Brush("UmStatusSuccessBrush") : Brush("TextFillColorTertiaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+            }
+
             Grid.SetColumn(name, 1);
-            Grid.SetColumn(score, 2);
+            Grid.SetColumn(right, 2);
             line.Children.Add(n);
             line.Children.Add(name);
-            line.Children.Add(score);
+            line.Children.Add(right);
             body.Children.Add(line);
             rank++;
         }

@@ -204,6 +204,9 @@ public sealed class ShellController
         await SavedReplyStore.Instance.LoadAsync().ConfigureAwait(true);
         // Daily caught-up% / awaiting history for the KPI micro-trend sparklines.
         await KpiTrendStore.Instance.LoadAsync().ConfigureAwait(true);
+        // Daily review readings per Google account. Without this the Review Desk starts every run with
+        // no rating, no trend and no velocity, because the snapshot service only holds them in memory.
+        await ReviewHistoryStore.Instance.LoadAsync().ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);

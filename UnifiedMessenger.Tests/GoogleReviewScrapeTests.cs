@@ -8,8 +8,57 @@ namespace UnifiedMessenger.Tests;
 /// with a fake connection the parser is testable without a live WebView.
 /// </summary>
 [Collection("InstanceConnection")]
-public class GoogleReviewScrapeTests
+public class GoogleReviewScrapeTests : IDisposable
 {
+    private readonly ReviewHistoryStore _originalHistory = ReviewHistory.Current;
+    private readonly string _historyPath = Path.Combine(
+        Path.GetTempPath(), $"um-scrape-history-{Guid.NewGuid():N}.json");
+
+    /// <summary>
+    /// Point the scrape's history writes at a throwaway file.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is not tidiness.</b> ScrapeAsync records a daily reading, and without this the singleton store
+    /// wrote entries for the fake ids below straight into
+    /// <c>%LOCALAPPDATA%\UnifiedMessenger\review-history.json</c> — a real test run overwrote a real day of
+    /// the owner's review history with "g-review-1". A test must never be able to reach live business data.
+    /// </remarks>
+    public GoogleReviewScrapeTests() => ReviewHistory.Current = new ReviewHistoryStore(_historyPath);
+
+    public void Dispose()
+    {
+        ReviewHistory.Current = _originalHistory;
+        if (File.Exists(_historyPath))
+        {
+            File.Delete(_historyPath);
+        }
+    }
+
+    [Fact]
+    public async Task ScrapeAsync_RecordsItsReadingIntoTheAmbientHistoryStore()
+    {
+        // Also the guard on the isolation above: if the scrape ever stops writing through
+        // ReviewHistory.Current, this fails rather than silently resuming writes to the real file.
+        var original = InstanceConnection.Current;
+        InstanceConnection.Current = new FakeConnection("{\"state\":\"done\",\"unanswered\":2,\"answered\":8}");
+        try
+        {
+            await GoogleReviewSnapshotService.Instance.ScrapeAsync("g-review-history");
+
+            var day = Assert.Single(ReviewHistory.Current.GetHistory("g-review-history"));
+            Assert.Equal(2, day.Unanswered);
+            Assert.Equal(8, day.Answered);
+
+            // The reviews scrape does not read the rating, and must not record a zero for it.
+            Assert.Null(day.Rating);
+            Assert.Null(day.LifetimeTotal);
+        }
+        finally
+        {
+            InstanceConnection.Current = original;
+        }
+    }
+
     private sealed class FakeConnection : IInstanceConnection
     {
         private readonly string? _readResult;

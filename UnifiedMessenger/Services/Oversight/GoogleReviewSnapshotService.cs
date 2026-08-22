@@ -635,6 +635,16 @@ public sealed class GoogleReviewSnapshotService
                 var result = new ProfileRating(rating ?? string.Empty, total, DateTimeOffset.UtcNow);
                 _ratingByInstance[id] = result;
 
+                // The other half of the day's reading. Parsed here rather than stored as a string so the
+                // history holds a number the trend maths can use directly.
+                double? numericRating = double.TryParse(
+                    rating, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var parsedRating)
+                    ? parsedRating
+                    : null;
+                ReviewHistory.Current.Record(
+                    id, numericRating, total, unanswered: null, answered: null);
+
                 // Logged because the lifetime total is what the coverage line leans on, and a null total is
                 // invisible in the UI — it just quietly degrades "covers the first 50 of 991" to "covers 50
                 // loaded reviews". Two of the owner's three profiles were silently in that state.
@@ -1043,6 +1053,11 @@ public sealed class GoogleReviewSnapshotService
         // Counts came back, so this attempt earns the long freshness floor. Everything that reaches here
         // without setting this — a timeout, an exception, a page that never rendered — keeps the short one.
         _lastScrapeAttempt[instanceId.Trim()] = (DateTimeOffset.UtcNow, true);
+
+        // Nulls for rating and total: this scrape does not read them, and passing 0 would record a collapse
+        // on every day the six-hourly rating scrape happened not to run.
+        ReviewHistory.Current.Record(
+            instanceId.Trim(), rating: null, lifetimeTotal: null, unanswered: unanswered, answered: answered);
 
         AppLogger.LogInfo(
             $"GoogleReviews.{instanceId}",
