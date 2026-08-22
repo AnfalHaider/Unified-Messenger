@@ -5,6 +5,15 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.44
+
+**The sidebar now works properly with a screen reader.** Every row in the left rail — Dashboard, Analytics,
+Reviews, Reports and each of your accounts — was being described as an anonymous group with nothing to
+press. Pressing Enter on one always worked, but assistive software had no way to know that, and could not
+activate a row on its own. Found while driving the app the way those tools do: the only way to open the
+Reviews page was to work out where it was on screen and click the spot. Every row is now described as a
+button and can be activated directly. Nothing looks any different.
+
 ## v4.99.43
 
 **The summary line above your reviews was making things up.** With the AI model installed, it took a

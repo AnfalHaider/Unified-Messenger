@@ -1,6 +1,6 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-08-22 · **Baseline:** v4.99.43 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-22 · **Baseline:** v4.99.44 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
 > completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
@@ -8,7 +8,7 @@
 
 ---
 
-# §0 · Current backlog (v4.99.43)
+# §0 · Current backlog (v4.99.44)
 
 Grouped by what actually gates each item. Nothing here is speculative — every measurement below was taken
 from the tree at this baseline, and every finding ID is traceable to `docs/audit/`.
