@@ -67,6 +67,15 @@ public sealed class ReviewReplyService
         string businessName,
         CancellationToken cancellationToken = default)
     {
+        // A rating with no words is answered from a template, before AI is even consulted — see
+        // ReviewReplyDraft.IsRatingOnly for the live output that made this necessary. It also means these
+        // reviews can be answered with local AI switched off entirely.
+        if (ReviewReplyDraft.IsRatingOnly(review))
+        {
+            return new ReplyDraftResult(
+                DraftVerdict.Ok, ReviewReplyDraft.BuildRatingOnlyReply(review), string.Empty);
+        }
+
         if (!_aiEnabledProvider())
         {
             return new ReplyDraftResult(

@@ -653,22 +653,21 @@ public sealed partial class ReviewDesk : UserControl
             return;
         }
 
-        // Signature so the phrasing is regenerated only when the underlying facts change, not on every redraw.
-        var signature = string.Join("|", themes.Select(t => $"{t.Label}:{t.Count}")) + $"#{withText}";
-        var aiLine = OversightInsightService.Instance.TryGet(ThemeCacheKey, signature);
-
-        if (aiLine is null)
-        {
-            OversightInsightService.Instance.Request(
-                ThemeCacheKey,
-                signature,
-                $"Facts: {computed}\n\nRewrite this as one natural sentence for the owner.",
-                "You rewrite one supplied sentence about a salon's Google reviews into plainer English for " +
-                "the owner. Keep every number and place name exactly as given. Never add numbers, facts, " +
-                "causes or advice that are not in the sentence. One sentence, max 30 words, no markdown.",
-                () => DispatcherQueue?.TryEnqueue(Render));
-        }
-
+        // NO MODEL RUNS HERE, and the reason is worth keeping.
+        //
+        // This line used to be handed to the local model to "rephrase more naturally", on the theory that a
+        // model given a finished sentence — no reviews, no arithmetic — had nothing left to be wrong about.
+        // That theory was wrong. Observed live with phi3:mini, the computed sentence
+        //   "Two of the 3 waiting reviews with text mention good results, all at Google Depilex DHA-2."
+        // was rendered on the dashboard as
+        //   "Two positive waiter experiences were mentioned in the last three Google reviews about our
+        //    product, Depladuril HA-2, praising its effectiveness."
+        // It read "waiting" as "waiter", invented a product name, invented what the reviews praised, and
+        // turned a salon into a product line. A small model rewriting a sentence is still generating text,
+        // and every word it changes is a word it can get wrong.
+        //
+        // The computed sentence is already plain English and is correct by construction, so the rewrite was
+        // adding latency and risk for nothing. Tier 3's value here is the counting, which is deterministic.
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = UmScale.Space.Sm };
         row.Children.Add(new TextBlock
         {
@@ -679,7 +678,7 @@ public sealed partial class ReviewDesk : UserControl
         });
         row.Children.Add(new TextBlock
         {
-            Text = aiLine ?? computed,
+            Text = computed,
             FontSize = UmScale.Text.Body,
             Foreground = Brush("TextFillColorSecondaryBrush"),
             TextWrapping = TextWrapping.WrapWholeWords
@@ -689,7 +688,6 @@ public sealed partial class ReviewDesk : UserControl
         ThemesStrip.Visibility = Visibility.Visible;
     }
 
-    private const string ThemeCacheKey = "review-desk-themes";
 
     // ---- filters --------------------------------------------------------------------------------------
 

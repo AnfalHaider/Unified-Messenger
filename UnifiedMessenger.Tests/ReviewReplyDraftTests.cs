@@ -158,3 +158,64 @@ public class ReviewReplyDraftTests
         // Opening a public reply with the wrong name is worse than opening with none.
         Assert.Equal(expected, ReviewReplyDraft.FirstName(reviewer));
 }
+
+/// <summary>
+/// A rating with no words is answered from a template, never by the model.
+/// </summary>
+/// <remarks>
+/// Observed live with phi3:mini on a two-star rating-only review: it produced "thank you for your feedback
+/// regarding Google Depilex DHA-2 products and service experience" — inventing a product line and a
+/// described experience out of an empty review, despite the prompt forbidding exactly that. The validator
+/// cannot catch it; nothing in that sentence is a refund or a link. There is also only one sensible reply
+/// to a wordless rating, so generating it buys nothing.
+/// </remarks>
+public class RatingOnlyReplyTests
+{
+    private static QueuedReview Review(string text, int stars, string reviewer = "Irtizs Khawaja") =>
+        new("id", "Depilex DHA-2", reviewer, text, stars, "2 days ago", 0);
+
+    [Fact]
+    public void AReviewWithNoWordsIsRecognised()
+    {
+        Assert.True(ReviewReplyDraft.IsRatingOnly(Review("", 2)));
+        Assert.True(ReviewReplyDraft.IsRatingOnly(Review("   ", 5)));
+        Assert.False(ReviewReplyDraft.IsRatingOnly(Review("Great haircut", 5)));
+    }
+
+    [Fact]
+    public void AnUnhappyRatingIsNotThankedCheerfully()
+    {
+        // A two-star rating answered with "we're glad you enjoyed your visit" reads as not having looked.
+        var reply = ReviewReplyDraft.BuildRatingOnlyReply(Review("", 2));
+
+        Assert.StartsWith("Irtizs,", reply);
+        Assert.Contains("sorry", reply);
+        Assert.DoesNotContain("glad you enjoyed", reply);
+    }
+
+    [Fact]
+    public void AHappyRatingIsThanked()
+    {
+        var reply = ReviewReplyDraft.BuildRatingOnlyReply(Review("", 5, "Maryam Saad"));
+
+        Assert.StartsWith("Maryam,", reply);
+        Assert.Contains("glad you enjoyed", reply);
+    }
+
+    [Fact]
+    public void AnUnusableNameIsDroppedAndTheSentenceStillReadsProperly()
+    {
+        // "K.Z.A.K" is not a first name; the reply must not open with a comma or a lowercase letter.
+        var reply = ReviewReplyDraft.BuildRatingOnlyReply(Review("", 5, "K.Z.A.K"));
+
+        Assert.StartsWith("Thank you", reply);
+        Assert.DoesNotContain(",  ", reply);
+    }
+
+    [Fact]
+    public void TheTemplateSurvivesItsOwnValidator() =>
+        // Whatever it produces still has to pass the same guardrails a generated draft does.
+        Assert.Equal(
+            DraftVerdict.Ok,
+            ReviewReplyDraft.Validate(ReviewReplyDraft.BuildRatingOnlyReply(Review("", 2)), out _));
+}

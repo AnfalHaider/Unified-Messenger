@@ -47,6 +47,41 @@ public static class ReviewReplyDraft
         "them to contact the salon so it can be put right. For a positive review: thank them warmly and " +
         "briefly, mentioning what they praised.";
 
+    /// <summary>
+    /// Whether this review should be answered from a template rather than by the model.
+    /// </summary>
+    /// <remarks>
+    /// A rating with no words gives the model nothing to work from, and asked anyway it fills the gap.
+    /// Observed live with phi3:mini on a two-star rating-only review: it produced "thank you for your
+    /// feedback regarding Google Depilex DHA-2 <i>products</i> and service experience" — inventing both a
+    /// product line and a described experience out of an empty review, despite the prompt forbidding exactly
+    /// that. The validator cannot catch it either; nothing in that sentence is a refund or a link.
+    ///
+    /// <para>
+    /// There is also only one sensible reply to a wordless rating, so generating it buys nothing. Using a
+    /// template removes the invention risk completely and answers instantly.
+    /// </para>
+    /// </remarks>
+    public static bool IsRatingOnly(QueuedReview review) => string.IsNullOrWhiteSpace(review.Text);
+
+    /// <summary>The fixed reply for a review that has a rating and no words.</summary>
+    public static string BuildRatingOnlyReply(QueuedReview review)
+    {
+        var first = FirstName(review.Reviewer);
+
+        // Anything at three stars or below is someone who was not happy, and a cheerful thank-you would read
+        // as not having looked at the rating.
+        var body = review.Stars is >= 1 and <= 3
+            ? "thank you for taking the time to rate us. We're sorry your visit didn't go as it should have. " +
+              "Please contact the salon so we can understand what happened and put it right."
+            : "thank you for the kind rating. We're really glad you enjoyed your visit, and we look forward " +
+              "to seeing you again.";
+
+        return string.IsNullOrWhiteSpace(first)
+            ? char.ToUpperInvariant(body[0]) + body[1..]
+            : $"{first}, {body}";
+    }
+
     /// <summary>The prompt for one review.</summary>
     /// <remarks>
     /// Only the reviewer's first name, star rating and their own public words are included. There is nothing
