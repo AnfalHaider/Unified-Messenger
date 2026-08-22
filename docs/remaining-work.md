@@ -1,6 +1,6 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-08-19 · **Baseline:** v4.99.37 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-22 · **Baseline:** v4.99.43 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
 > completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
@@ -8,7 +8,7 @@
 
 ---
 
-# §0 · Current backlog (v4.99.37)
+# §0 · Current backlog (v4.99.43)
 
 Grouped by what actually gates each item. Nothing here is speculative — every measurement below was taken
 from the tree at this baseline, and every finding ID is traceable to `docs/audit/`.
@@ -51,8 +51,37 @@ The brief's hardest line is **no wrong numbers**, and this is where the remainin
 |---|---|---|---|
 | **D1** | **Call outcomes** | **Done (v4.99.37).** Every call-log entry was counted as a missed call needing a call back, regardless of outcome or direction. Reading WhatsApp's own `callOutcome` live: of 317 inbound calls only 166 were actually missed. Missed calls 86 → 36, total waiting 258 → 206. | ✅ done |
 | **D2** | **The IndexedDB fallback cannot read `callOutcome`** | It has no decrypted message model, so it emits an empty outcome and every call stays counted. Correct by design — unknown never closes a chat — but it means an account running on the fallback still over-counts missed calls. Surfacing *which* path an account is on is F-SNAP-02. | ☐ open |
-| **D3** | **"Uncategorised" is now the largest queue bucket** | 84 of 206 waiting. It was hidden behind the inflated missed-call count; now it is the biggest single unknown in the queue, and nobody has looked at what is in it. | ☐ open |
+| **D3** | **"Uncategorised" was the largest queue bucket** | **Done (v4.99.38).** Read through: not unclassifiable, but Roman Urdu enquiries, bare names sent to book, attachments and sign-offs with typos. Customers chasing an unanswered message now count as at-risk. Fell from roughly two in five waiting conversations to about one in five. | ✅ done |
 | **D4** | **`instances.json.bak` (489 bytes, dated 2026-08-12)** | A stale seeded-default store sitting beside the real one. Harmless, but it is exactly the kind of file that misleads the next person diagnosing "my accounts are gone". | ☐ open |
+| **D5** | **Google reviews are read 50 at a time, out of 1,671** | Pagination is off (`MaxPages = 1`) after walking every page produced 2,000 reviews for a 991-review profile and 1,200 for a 435 — two to three times over. The desk states its own coverage ("covers the 150 most recent of 1,671") rather than implying completeness, so this is honest but partial. Re-enable only on proof of identical totals across two consecutive passes. | ☐ open |
+| **D6** | **Median reply time is not obtainable** | Google publishes no reply dates anywhere the scrape can reach. The tile says so rather than showing a number. The alternative — measuring from when *we* first saw a review unanswered, labelled "since install" — is an owner decision (§0.6), not an engineering one. | ☐ open |
+| **D7** | **Per-review stars were wrong for the entire life of the feature** | **Done (v4.99.41).** Every review reported 5 stars: all five glyphs are the same codepoint and the rating is carried in their *colour*. Five unanswered one-stars and a two-star at DHA-2 were displayed as "★5 · Positive" and ranked below praise. Now reads the leading run of colour. | ✅ done |
+
+## 0.2b · Review Desk — all five tiers shipped (v4.99.40 → v4.99.43)
+
+The Reviews page was rebuilt from the approved design in
+[review-desk-spec.md](../design/review-desk-spec.md). `ReviewHealthPanel` no longer appears on it; the desk
+absorbed everything that panel did. What follows is the state of each tier and what is genuinely left.
+
+| Tier | What shipped | Left |
+|---|---|---|
+| **0 · Trust** | Coverage stated everywhere ("covers the 150 most recent of 1,671", "of the 50 most recent"), never "all". Weighted business-wide rating, labelled as a weighted mean because Google publishes one per location and never one for the business. | D5 — the 50-per-page limit itself |
+| **1 · Queue** | One worst-first queue across every location; severity by star rating with unread ratings ranked below known complaints and above known praise; ↑↓/J/K/Home/End with focus as the selection so a screen reader hears it; critical strip for any one- or two-star. | Mark handled / snooze for reviews (no equivalent of `AwaitingOverrideStore` yet) |
+| **2 · History** | `ReviewHistoryStore` — one reading per account per day, surviving restarts. Velocity derived from the lifetime total's movement rather than per-review dates the scrape never sees. Every figure carries the span it was actually measured over. | Needs a second day of readings before the trend tiles say anything; D6 |
+| **3 · Local AI** | Reply drafting for reviews that have words, with guardrails that refuse refunds, discounts, free treatments, invented links and unfilled templates. Themes computed deterministically. | Nothing outstanding — but see the lesson below |
+| **4 · Ask for a review** | Candidate selection, the once-ever store, and the WhatsApp hand-off. | Never seen with a live qualifying customer — see §0.4 |
+| **5 · Native** | Unanswered-review badges on the sidebar, an unhappy-review toast that stays silent on install day, honest badge wording for a channel with no messages. | — |
+
+**The lesson from tier 3, recorded because it cost a user-visible bug.** The themes line was routed through
+the local model to "rephrase more naturally", on the reasoning that a model handed a finished sentence — no
+reviews, no arithmetic — had nothing left to be wrong about. That reasoning was wrong. With `phi3:mini`
+installed it rendered the correct sentence *"Two of the 3 waiting reviews with text mention good results,
+all at Google Depilex DHA-2"* as *"Two positive **waiter** experiences were mentioned in the last three
+Google reviews about our **product, Depladuril HA-2**, praising its **effectiveness**"* — misreading
+"waiting" as "waiter", inventing a product name, and inventing what the reviews praised. Rewriting is
+generating. **Where the app can compute something correct, do not route it through a model afterwards.** The
+AI surface is now confined to the one place with something genuinely to write: a reply to a review that has
+actual words in it.
 
 ## 0.3 · Open audit findings
 
@@ -69,6 +98,22 @@ The brief's hardest line is **no wrong numbers**, and this is where the remainin
 Not defects — gaps in what has actually been *proven*. Listed because the brief is "sellable tomorrow",
 and these are the distance between that claim and evidence.
 
+- **The "ask for a review" panel has never been seen with a live candidate.** Replaying the owner's real
+  chat snapshot through the selector: 42 chats, 33 awaiting a reply, 1 where the salon spoke last, and the
+  7 that reach the gratitude check have **no preview text** to judge on — previews fill in from the store
+  bridge about a minute after an account loads. The rules are covered by test and by that replay; the panel
+  correctly renders nothing today, which is indistinguishable from a panel that would never render anything.
+- **The unhappy-review toast has never actually fired.** Its *silence* is verified — a cleared store plus a
+  full pass recorded two existing two-star reviews and raised nothing, which is the install-day rule. The
+  firing path needs a genuinely new one- or two-star review to arrive.
+- **The nightly UI smoke workflow is still red**, and has been for many runs. FlaUI cannot attach to a
+  desktop on a hosted GitHub runner. Increment 45 made it report *which* failure it is (a Win32 probe
+  distinguishes "the app never opened a window" from "this environment cannot automate one") and stopped it
+  discarding the structural audit and unit results on the way out — but the underlying "hosted runners have
+  no interactive desktop" question is unresolved. The `Build` workflow, which gates releases, is green.
+- **The Reviews nav item cannot be activated by UI Automation.** It is a `Group` with no Invoke pattern, so
+  driving it required clicking by coordinates. Enter/Space do work, but a screen-reader user may have no way
+  to reach the page. Belongs with U9/U10 as accessibility work, and it is the sharpest of the three.
 - **A real screen reader has never been run.** Both audit sessions read the UIA tree those tools consume,
   in focus order — much closer than a static dump, but nobody has listened to it.
 - **Soak under account churn.** The 3.6-hour soak found no leak, but it was **idle**. A leak that only
@@ -115,6 +160,10 @@ Recorded rather than guessed, because each changes what the numbers *mean*.
   figure on the screen and the one least connected to reality. Either the target reflects the business (and
   the dashboard should say how far off it is), or it should move. A business decision, not a bug, and the
   single highest-value thing on this list that costs no engineering time.
+- **Whether "median reply time" should measure from installation.** Google publishes no reply dates, so the
+  tile is blank and says why. It *could* measure from when the app first saw a review unanswered — honest,
+  but covering only replies made after install, and it must be labelled that way. Worth having, or drop the
+  tile? A judgement about what the owner wants to see, not a technical limit.
 - **Whether the backlog cutoff stays at 7 days.** The live/backlog split at 7 days is what turned 466
   "waiting" into a workable 58-item queue; the boundary itself was chosen, not derived.
 - **Whether `main`'s "Audit Files" commit (`954145e`, ~1,400 graphify cache files) should be dropped.**

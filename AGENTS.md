@@ -98,7 +98,7 @@ Also update `docs/phase-status.md` header date + baseline version.
 targeted filter only postpones the failure to a place with a slower feedback loop.
 
 ```powershell
-# Before every push. 1536 tests, ~25s.
+# Before every push. 1730 tests, ~25s.
 dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet
 ```
 
@@ -346,9 +346,10 @@ Do **not** add `Co-Authored-By` / tool-attribution trailers to commits in this r
 
 ---
 
-## Phase roadmap (current as of v4.99.28)
+## Phase roadmap (current as of v4.99.43)
 
-> **The current backlog is [`docs/remaining-work.md` §0](docs/remaining-work.md)** — rewritten at v4.99.34,
+> **The current backlog is [`docs/remaining-work.md` §0](docs/remaining-work.md)** — rewritten at v4.99.34
+> and updated at v4.99.43,
 > grouped by what gates each item (UI/UX consistency · open findings · untested-and-material · gated on an
 > external dependency · owner decisions). Start there.
 >
@@ -366,10 +367,25 @@ Do **not** add `Co-Authored-By` / tool-attribution trailers to commits in this r
 > colour from Windows, focus order outside the dashboard shell is untested, and "instance" still leaks into
 > accessible names.
 >
-> **The current sharp edge is §0.2 · data accuracy** — the brief's "no wrong numbers" line. Call outcomes
-> were fixed in v4.99.37 (missed calls 86 → 36); what is left is that the IndexedDB fallback cannot read
-> `callOutcome` at all, and that "Uncategorised" is now the largest queue bucket at 84 of 206 and nobody has
-> looked inside it.
+> **§0.2 · data accuracy** is where the brief's "no wrong numbers" line still bites. Call outcomes were
+> fixed in v4.99.37 (missed calls 86 → 36) and "Uncategorised" in v4.99.38 (roughly two in five waiting
+> conversations down to one in five). What is left: the IndexedDB fallback cannot read `callOutcome` at all,
+> Google reviews are read 50 at a time out of 1,671 (pagination is off — walking every page over-counted by
+> two to three times), and reply time is not obtainable from Google in any form. The last two are stated on
+> screen rather than papered over.
+>
+> **The Review Desk shipped across v4.99.40 → v4.99.43** — the Reviews page is a worst-first queue across
+> every location, with daily history, on-device reply drafting, review requests drafted for WhatsApp,
+> sidebar badges and an unhappy-review toast. Design in `docs/design/review-desk-spec.md`, per-tier state in
+> §0.2b. Two findings from it generalise beyond reviews:
+>
+> - **A Material icon-font rating is carried in the glyphs' COLOUR, not the codepoints.** All five stars are
+>   the same character. Reading the codepoints reported 5 stars for every review, so five unanswered
+>   one-stars sat in the queue labelled "Positive" for the whole life of the feature.
+> - **Do not route a computed sentence through a local model to "phrase it".** Asked to rephrase a correct
+>   line, `phi3:mini` misread "waiting" as "waiter", invented a product name and invented what the reviews
+>   praised — on the dashboard. Rewriting is generating. AI belongs where there is genuinely something to
+>   write, not as a polish pass over text the app already got right.
 
 See `docs/remaining-work.md` for the detailed backlog. Summary:
 

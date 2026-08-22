@@ -148,6 +148,20 @@ merchant view on a 6-hour throttle. The Business Profile API remains excluded by
 2024-07-15, feature removed 2024-07-31, history deleted, Takeout closed 2024-08-30). There is no
 Google message channel to build.
 
+**Rebuilt as the Review Desk, v4.99.40 → v4.99.43.** The page is now a worst-first queue across every
+location rather than a per-account panel, with daily history, on-device reply drafting, review requests
+drafted for WhatsApp, sidebar badges and an unhappy-review toast. See
+[review-desk-spec.md](design/review-desk-spec.md) for the design and
+[remaining-work.md §0.2b](remaining-work.md) for the per-tier state.
+
+Two things this stream corrected are worth carrying into any future scraping work:
+- **Per-review stars were wrong for the entire life of the feature.** All five glyphs are the same
+  codepoint; the rating is in their *colour*. Every review reported 5 stars, so five unanswered one-stars
+  sat in the queue labelled "Positive". Anything reading a Material icon-font rating must check colour.
+- **The scrape reads one page of 50.** Walking every page produced totals two to three times too high, so
+  pagination is off and the page states its own coverage instead. Partial and honest beats complete and
+  wrong.
+
 ## Phase 5 — Additional channels (Telegram, then Meta)
 ◑ **Embed slice done (v4.21.0).** Telegram (`web.telegram.org`) and Messenger (`messenger.com`) are registered platforms — selectable in "Add account", each gets its own isolated WebView session and branded accent colour. Routes to `NullPlatformAdapter` (no metric scraping yet). A Telegram adapter reading unread/awaiting from `web.telegram.org` DOM and a Messenger adapter (passive read-only; Meta fights automation) are future work that need a live logged-in account to tune.
 
@@ -182,7 +196,7 @@ Remaining work, highest-leverage first:
 0. **UI/UX modernization (v4.22–4.24, cross-cutting).** ☐ Three-increment visual redesign tracked below. Highest priority — the product works but the dashboard doesn't look or feel premium compared to the proposed design.
 1. **Phase 2 — deeper AI tiers.** ✅ Insight strips now have optional Ollama-phrased lines (v4.17.0, heuristic fallback). Remaining: **outbound staff-reply tone/quality** scoring; Tier-1 lightweight ONNX (net-new).
 2. **Phase 3 leftovers.** ✅ Command-center entity search + compact density (v4.18.0); ✅ generic-URL webview instances (v4.19.0). Remaining: sidebar-rail search/density at very large account counts.
-3. **Phase 4 — Google Business reviews channel.** ✅ Complete — embed (v4.20.0), review-health scraper (v4.42.0), actionable reviews + click-through (v4.49.0), rating + lifetime total. Reviews + Q&A only; Google has no message channel.
+3. **Phase 4 — Google Business reviews channel.** ✅ Complete — embed (v4.20.0), review-health scraper (v4.42.0), actionable reviews + click-through (v4.49.0), rating + lifetime total, and the **Review Desk** rebuild across v4.99.40–v4.99.43 (worst-first queue, daily history, on-device drafting, review requests, badges and toast). Reviews + Q&A only; Google has no message channel. Open: reads 50 reviews per page of 1,671, and reply time is not obtainable at all — both stated on screen rather than papered over.
 4. **Phase 5 — Telegram, then Meta.** ◑ Embed slice done (v4.21.0). Remaining: metric-scraping adapters — needs live logged-in accounts.
 5. **Polish/cleanup.** Remove dead drag code; awaiting-list preview reliability; contrast remediation; CI stress fixtures.
 
