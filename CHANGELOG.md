@@ -5,6 +5,23 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.43
+
+**The summary line above your reviews was making things up.** With the AI model installed, it took a
+correct sentence — *"Two of the 3 waiting reviews with text mention good results, all at Google Depilex
+DHA-2"* — and displayed *"Two positive waiter experiences were mentioned in the last three Google reviews
+about our product, Depladuril HA-2, praising its effectiveness."* It misread "waiting" as "waiter",
+invented a product name, and invented what the reviews praised. The line is now written by the app itself
+and shown exactly as calculated. It no longer needs AI at all.
+
+**Replies to star-only reviews were describing feedback nobody gave.** A two-star rating with no written
+review was being answered with "thank you for your feedback regarding our products and service
+experience". There was no feedback and there are no products. Ratings without words now get a short,
+fixed reply — an apology for a low rating, thanks for a high one — written instantly and without AI.
+
+Both were only visible once the AI model was actually downloaded, which is why they follow v4.99.42 so
+closely. Everything the app calculates itself was unaffected.
+
 ## v4.99.42
 
 **Unanswered reviews now show on the sidebar, like unread messages do.** Google Depilex DHA-2 shows 6,
