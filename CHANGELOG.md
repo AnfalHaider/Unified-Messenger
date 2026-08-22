@@ -5,6 +5,34 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.42
+
+**Unanswered reviews now show on the sidebar, like unread messages do.** Google Depilex DHA-2 shows 6,
+Men DHA-2 shows 3, F-11 shows nothing because it has nothing waiting. A branch the app couldn't read is
+left alone rather than cleared to zero — an empty badge should mean "nothing waiting", not "nobody
+checked".
+
+**You get told when an unhappy review lands.** One notification for a new one- or two-star review, naming
+the customer and the branch. Several at once make one notification, not several. It stays quiet during
+your quiet hours, and raises them properly afterwards rather than treating them as already seen.
+
+**It won't announce your existing reviews on the day you install it.** The first time the app looks at a
+salon's reviews it records them silently. Only reviews that arrive *after* that are worth interrupting you
+for.
+
+**Your salon can be told what its reviews keep saying.** One line above the queue — *"Two of the waiting
+reviews mention waiting time, all at F-11"*. The counting is done by the app, not the AI; where local AI is
+switched on it only rephrases the sentence more naturally. It works with AI switched off.
+
+**Replies can be drafted for you, and you always send them.** A draft appears in the review, editable, and
+goes to your clipboard with Google's reply box opened — you read it and press send. Drafts that promise a
+refund, a discount or a free treatment are thrown away rather than shown, because pre-written wording
+arrives looking approved and a promise is easy to skim past.
+
+**Customers who thanked you can be asked for a review.** Recent WhatsApp conversations that ended with a
+thank you, drafted for WhatsApp, sent by you. Anyone still waiting on a reply is never asked, "ok" doesn't
+count as being pleased, and nobody is ever asked twice.
+
 ## v4.99.41
 
 **Every review was being shown as five stars, including the angry ones.** This is the one to read. Google
