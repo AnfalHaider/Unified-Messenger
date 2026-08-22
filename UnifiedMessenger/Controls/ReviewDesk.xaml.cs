@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Ai;
 using Windows.System;
 
 namespace UnifiedMessenger.Controls;
@@ -144,6 +145,7 @@ public sealed partial class ReviewDesk : UserControl
         RenderHero(snapshots, anyRead);
         RenderAlert();
         RenderKpis(snapshots, anyRead);
+        RenderThemes();
         RenderFilters();
         RenderQueue(accounts.Count, anyRead);
         RenderBranches(snapshots);
@@ -626,6 +628,68 @@ public sealed partial class ReviewDesk : UserControl
         };
     }
 
+    // ---- themes ---------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// One line on what the waiting reviews keep saying.
+    /// </summary>
+    /// <remarks>
+    /// The counts come from <see cref="ReviewThemes"/>, never from the model. When local AI is on, the model
+    /// is handed the finished sentence and asked to phrase it more naturally — it is given no reviews and no
+    /// numbers to work out, so it has nothing to be wrong about. With AI off, the computed sentence is what
+    /// shows, which is why this strip works at all without Ollama.
+    /// </remarks>
+    private void RenderThemes()
+    {
+        var withText = _queue.Count(r => !string.IsNullOrWhiteSpace(r.Text));
+        var themes = ReviewThemes.Extract(_queue);
+        var computed = ReviewThemes.Describe(themes, withText);
+
+        if (computed is null)
+        {
+            ThemesStrip.Visibility = Visibility.Collapsed;
+            ThemesStrip.Child = null;
+            return;
+        }
+
+        // Signature so the phrasing is regenerated only when the underlying facts change, not on every redraw.
+        var signature = string.Join("|", themes.Select(t => $"{t.Label}:{t.Count}")) + $"#{withText}";
+        var aiLine = OversightInsightService.Instance.TryGet(ThemeCacheKey, signature);
+
+        if (aiLine is null)
+        {
+            OversightInsightService.Instance.Request(
+                ThemeCacheKey,
+                signature,
+                $"Facts: {computed}\n\nRewrite this as one natural sentence for the owner.",
+                "You rewrite one supplied sentence about a salon's Google reviews into plainer English for " +
+                "the owner. Keep every number and place name exactly as given. Never add numbers, facts, " +
+                "causes or advice that are not in the sentence. One sentence, max 30 words, no markdown.",
+                () => DispatcherQueue?.TryEnqueue(Render));
+        }
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = UmScale.Space.Sm };
+        row.Children.Add(new TextBlock
+        {
+            Text = "✦",
+            FontSize = UmScale.Text.Body,
+            Foreground = Brush("AccentFillColorDefaultBrush"),
+            VerticalAlignment = VerticalAlignment.Top
+        });
+        row.Children.Add(new TextBlock
+        {
+            Text = aiLine ?? computed,
+            FontSize = UmScale.Text.Body,
+            Foreground = Brush("TextFillColorSecondaryBrush"),
+            TextWrapping = TextWrapping.WrapWholeWords
+        });
+
+        ThemesStrip.Child = row;
+        ThemesStrip.Visibility = Visibility.Visible;
+    }
+
+    private const string ThemeCacheKey = "review-desk-themes";
+
     // ---- filters --------------------------------------------------------------------------------------
 
     private void RenderFilters()
@@ -795,6 +859,27 @@ public sealed partial class ReviewDesk : UserControl
         Grid.SetColumn(content, 1);
         layout.Children.Add(rail);
         layout.Children.Add(content);
+
+        // Actions live inside the row so the draft can be shown in place. Only offered when local AI is on —
+        // a button that always fails is worse than no button.
+        if (ReviewReplyService.Instance.IsEnabled)
+        {
+            var actions = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = UmScale.Space.Sm,
+                Margin = new Thickness(0, UmScale.Space.Sm, 0, 0)
+            };
+
+            var draftHost = new StackPanel { Spacing = UmScale.Space.Sm };
+
+            var draftButton = new Button { Content = "Draft a reply", FontSize = UmScale.Text.Caption };
+            draftButton.Click += async (_, _) => await DraftForAsync(review, draftButton, draftHost);
+            actions.Children.Add(draftButton);
+
+            content.Children.Add(actions);
+            content.Children.Add(draftHost);
+        }
 
         var row = new Button
         {
@@ -1038,6 +1123,98 @@ public sealed partial class ReviewDesk : UserControl
 
             // Enter and Space are deliberately absent: each row is a Button, so it activates on both by
             // itself and raises Click. Handling them here as well would open the review twice.
+        }
+    }
+
+    /// <summary>
+    /// Asks the local model for a reply and shows it in the row for the owner to read and edit.
+    /// </summary>
+    /// <remarks>
+    /// The end of this flow is deliberately manual: the draft goes to the clipboard and Google's reply box is
+    /// opened, and the owner presses send. The app has no path that publishes anything, which is what makes
+    /// an AI-written reply to an angry customer safe to offer at all.
+    /// </remarks>
+    private async Task DraftForAsync(QueuedReview review, Button trigger, Panel host)
+    {
+        trigger.IsEnabled = false;
+        trigger.Content = "Drafting…";
+        host.Children.Clear();
+
+        try
+        {
+            var result = await ReviewReplyService.Instance.DraftAsync(review, review.AccountName);
+
+            if (!result.HasDraft)
+            {
+                host.Children.Add(new TextBlock
+                {
+                    Text = result.Message,
+                    FontSize = UmScale.Text.Caption,
+                    Foreground = Brush("TextFillColorTertiaryBrush"),
+                    TextWrapping = TextWrapping.WrapWholeWords
+                });
+                return;
+            }
+
+            var box = new StackPanel { Spacing = UmScale.Space.Sm };
+            box.Children.Add(new TextBlock
+            {
+                Text = "SUGGESTED REPLY · ON THIS DEVICE · YOU SEND IT",
+                FontSize = UmScale.Text.Caption,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = Brush("AccentFillColorDefaultBrush")
+            });
+
+            // Editable in place: the owner is expected to change it, and a read-only block invites pasting
+            // it unchanged.
+            var editor = new TextBox
+            {
+                Text = result.Text,
+                FontSize = UmScale.Text.Body,
+                TextWrapping = TextWrapping.Wrap,
+                AcceptsReturn = true,
+                Background = Brush("UmSurfaceBrush")
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(editor, "Suggested reply, editable");
+            box.Children.Add(editor);
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = UmScale.Space.Sm };
+            var copyOpen = new Button
+            {
+                Content = "Copy & open in Google",
+                FontSize = UmScale.Text.Caption,
+                Style = Application.Current.Resources["AccentButtonStyle"] as Style
+            };
+            copyOpen.Click += async (_, _) =>
+            {
+                var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                package.SetText(editor.Text);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+                await OpenAsync(review);
+            };
+            buttons.Children.Add(copyOpen);
+
+            var discard = new Button { Content = "Discard", FontSize = UmScale.Text.Caption };
+            discard.Click += (_, _) => host.Children.Clear();
+            buttons.Children.Add(discard);
+
+            box.Children.Add(buttons);
+
+            var frame = new Border
+            {
+                Background = Brush("UmAccentWashBrush"),
+                BorderBrush = Brush("AccentFillColorDefaultBrush"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(UmScale.Space.Md),
+                Child = box
+            };
+            host.Children.Add(frame);
+        }
+        finally
+        {
+            trigger.IsEnabled = true;
+            trigger.Content = "Draft a reply";
         }
     }
 

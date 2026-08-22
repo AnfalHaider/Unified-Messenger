@@ -72,6 +72,71 @@ public sealed class OllamaInferenceClient : IAiInferenceClient, IDisposable
         }
     }
 
+    /// <summary>
+    /// Whether the named model has actually been pulled onto this machine.
+    /// </summary>
+    /// <remarks>
+    /// The runtime being up and the model being present are different things, and confusing them produces a
+    /// dead end: with Ollama running but nothing pulled, generation just returns null and the feature can
+    /// only say "that didn't work". Knowing which of the two is missing is what lets the UI point at
+    /// Settings → AI instead. Returns true when the list cannot be read, so an unexpected API shape degrades
+    /// into the old behaviour rather than blocking a model that is really there.
+    /// </remarks>
+    public async Task<bool> IsModelInstalledAsync(string modelName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(modelName))
+        {
+            return false;
+        }
+
+        try
+        {
+            var endpoint = OllamaOptions.NormalizeEndpoint(_endpointProvider());
+            using var response = await _healthClient
+                .GetAsync($"{endpoint}api/tags", cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return true;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            if (!document.RootElement.TryGetProperty("models", out var models) ||
+                models.ValueKind != System.Text.Json.JsonValueKind.Array)
+            {
+                return true;
+            }
+
+            // Ollama reports "phi3:mini"; a user may have configured plain "phi3". Match either way round so
+            // an omitted ":latest"-style tag is not reported as missing.
+            var wanted = modelName.Trim();
+            foreach (var model in models.EnumerateArray())
+            {
+                var name = model.TryGetProperty("name", out var n) ? n.GetString() : null;
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                if (name.Equals(wanted, StringComparison.OrdinalIgnoreCase) ||
+                    name.StartsWith(wanted + ":", StringComparison.OrdinalIgnoreCase) ||
+                    wanted.StartsWith(name + ":", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Ollama model probe failed: {ex.Message}");
+            return true;
+        }
+    }
+
     public async Task<AiInferenceResult?> GenerateStructuredAsync(
         string transcript,
         string modelName,

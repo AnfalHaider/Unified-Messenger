@@ -68,6 +68,16 @@
         <!-- KPI STRIP — columns are added in code so the tile count can change without touching markup. -->
         <Grid x:Name="KpiHost" ColumnSpacing="9" />
 
+        <!-- THEMES — what the waiting reviews keep saying. Hidden when nothing recurs. -->
+        <Border
+            x:Name="ThemesStrip"
+            Background="{ThemeResource UmSurfaceSunkenBrush}"
+            BorderBrush="{ThemeResource UmHairlineBrush}"
+            BorderThickness="1"
+            CornerRadius="8"
+            Padding="{StaticResource UmPaddingMd}"
+            Visibility="Collapsed" />
+
         <!-- TOOLS — filters + keyboard hint -->
         <Grid>
             <Grid.ColumnDefinitions>
