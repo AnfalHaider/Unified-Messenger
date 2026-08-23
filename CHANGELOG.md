@@ -5,6 +5,32 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.45
+
+Four fixes from a review of the Review Desk code. All four were wrong figures or wrong wording rather than
+crashes, and all four only appear when a check *partly* fails — which on a real machine is the ordinary
+case, not a rare one.
+
+**A first run that couldn't reach Google would have announced all your old bad reviews.** The app is meant
+to look at your existing reviews once, quietly, and only tell you about ones that arrive afterwards. But a
+first check that failed completely — which is what normally happens in the two minutes after opening, while
+the Google pages are still loading — counted as that quiet first look. The next check, the first that
+actually worked, would then have treated every unanswered one-star you already had as brand new. It now
+waits for a check that genuinely read something.
+
+**A day where only some salons could be read no longer counts.** Reading your rating fails for individual
+locations fairly often. When it did, that day was recorded using only the salons that answered — so a day
+with one of three would show 435 reviews against yesterday's 1,671, and the trend would report "up 0.1"
+with nothing having moved, then "+1,236 new reviews" once the other two came back. Incomplete days are now
+skipped entirely. The trade: if one salon stays unreadable, the business-wide trend stays blank rather than
+wrong.
+
+**Review requests named WhatsApp instead of your salon.** The message drafted for a customer read "would
+you mind leaving Depilex DHA-2 WhatsApp a review on Google". Now it just says the salon.
+
+**Filtering to "Unhappy" and clearing them no longer says "Nothing waiting for a reply."** It says how many
+are still waiting under the other filters.
+
 ## v4.99.44
 
 **The sidebar now works properly with a screen reader.** Every row in the left rail — Dashboard, Analytics,
