@@ -42,7 +42,10 @@ public sealed class AppNotificationService : IAppNotificationService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"App notification registration failed: {ex.Message}");
+            // Debug.WriteLine is [Conditional("DEBUG")] and vanishes from the shipping build, so this
+            // failure used to be completely invisible in Release — no log, no symptom except toasts
+            // silently never appearing.
+            AppLogger.LogWarning("Notifications", $"Toast registration failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -117,7 +120,7 @@ public sealed class AppNotificationService : IAppNotificationService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Native toast failed: {ex.Message}");
+            AppLogger.LogWarning("Notifications", $"Alert toast failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -145,7 +148,7 @@ public sealed class AppNotificationService : IAppNotificationService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Info toast failed: {ex.Message}");
+            AppLogger.LogWarning("Notifications", $"Info toast failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -167,7 +170,7 @@ public sealed class AppNotificationService : IAppNotificationService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Launch notification activation failed: {ex.Message}");
+            AppLogger.LogWarning("Notifications", $"Launch activation failed: {ex.GetType().Name}: {ex.Message}");
         }
 
         return false;
