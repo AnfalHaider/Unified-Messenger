@@ -162,3 +162,87 @@ public class SidebarReviewBadgeWordingTests
             WorkspaceSidebarAccessibility.ComposeInstanceName(
                 "Depilex DHA-2 WhatsApp", "WhatsApp", 4, selected: false));
 }
+
+/// <summary>
+/// Seeding must not complete on a pass that read nothing.
+/// </summary>
+/// <remarks>
+/// The install-day rule is "the first look alerts on nothing". The bug was that a pass which read nothing at
+/// all still counted as that first look — and on a cold start that is the normal outcome, because the first
+/// background pass runs two minutes after launch while the Google sessions are still not running scripts.
+/// The installation was then marked seeded with zero keys, so the first pass that actually worked treated
+/// every pre-existing one-star as new.
+/// </remarks>
+public class ReviewAlertSeedingTests : IDisposable
+{
+    private readonly string _path = Path.Combine(Path.GetTempPath(), $"um-alerts-{Guid.NewGuid():N}.json");
+
+    public void Dispose()
+    {
+        if (File.Exists(_path))
+        {
+            File.Delete(_path);
+        }
+    }
+
+    [Fact]
+    public async Task APassThatReadNothingDoesNotCountAsTheFirstLook()
+    {
+        var store = new ReviewAlertStore(_path);
+        await store.RecordAsync([], passReadSomething: false);
+
+        Assert.False(store.Seeded);
+    }
+
+    [Fact]
+    public async Task TheFirstSuccessfulPassSeedsEvenWithNoUnhappyReviews()
+    {
+        // Read fine, nothing unhappy: that IS the first look, and a one-star arriving tomorrow must alert.
+        var store = new ReviewAlertStore(_path);
+        await store.RecordAsync([], passReadSomething: true);
+
+        Assert.True(store.Seeded);
+    }
+
+    [Fact]
+    public async Task AFailedFirstPassDoesNotTurnTheNextOneIntoABurst()
+    {
+        // The whole scenario, end to end.
+        var store = new ReviewAlertStore(_path);
+
+        // Cold start: every scrape fails, so the queue is empty and nothing was read.
+        var (firstAlerts, firstSeen) = ReviewAlerts.Evaluate([], store.Seen(), store.Seeded);
+        await store.RecordAsync(firstSeen, passReadSomething: false);
+        Assert.Empty(firstAlerts);
+
+        // Next pass, sessions warm: five pre-existing one-stars appear for the first time. Because the
+        // failed pass did not seed, this one is still the first look and must stay silent.
+        QueuedReview R(string who) => new("acc-1", "DHA-2", who, "text", 1, "3 weeks ago", 0);
+        var backlog = new[] { R("A"), R("B"), R("C"), R("D"), R("E") };
+
+        var (secondAlerts, secondSeen) = ReviewAlerts.Evaluate(backlog, store.Seen(), store.Seeded);
+        await store.RecordAsync(secondSeen, passReadSomething: true);
+
+        Assert.Empty(secondAlerts);
+        Assert.True(store.Seeded);
+
+        // And a genuinely new one after that does alert.
+        var (thirdAlerts, _) = ReviewAlerts.Evaluate(
+            backlog.Append(R("Newcomer")), store.Seen(), store.Seeded);
+
+        Assert.Equal("Newcomer", Assert.Single(thirdAlerts).Reviewer);
+    }
+
+    [Fact]
+    public async Task SeededSurvivesAReload()
+    {
+        var store = new ReviewAlertStore(_path);
+        await store.RecordAsync(["acc-1|angry|1"], passReadSomething: true);
+
+        var reloaded = new ReviewAlertStore(_path);
+        await reloaded.LoadAsync();
+
+        Assert.True(reloaded.Seeded);
+        Assert.Contains("acc-1|angry|1", reloaded.Seen());
+    }
+}

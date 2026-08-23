@@ -570,9 +570,12 @@ public sealed class GoogleReviewSnapshotService
                 string.IsNullOrWhiteSpace(account.DisplayName) ? "Google Business" : account.DisplayName,
                 (ReviewHealth?)Get(account.Id))));
 
+            // A pass where every scrape failed must not count as the first look — see RecordAsync.
+            var readSomething = accounts.Any(account => Get(account.Id).HasData);
+
             var tracking = ReviewAlertTracking.Current;
             var (fresh, seen) = ReviewAlerts.Evaluate(queue, tracking.Seen(), tracking.Seeded);
-            await tracking.RecordAsync(seen).ConfigureAwait(true);
+            await tracking.RecordAsync(seen, readSomething).ConfigureAwait(true);
 
             if (ReviewAlerts.BuildToast(fresh) is not { } toast)
             {

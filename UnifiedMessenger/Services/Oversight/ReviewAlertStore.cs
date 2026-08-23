@@ -45,8 +45,23 @@ public sealed class ReviewAlertStore
 
     public ISet<string> Seen() => new HashSet<string>(_seen, StringComparer.Ordinal);
 
-    /// <summary>Records the keys observed in this pass and marks the installation seeded.</summary>
-    public async Task RecordAsync(IReadOnlyCollection<string> seen, CancellationToken cancellationToken = default)
+    /// <summary>Records the keys observed in this pass, and marks the installation seeded once one succeeds.</summary>
+    /// <param name="passReadSomething">
+    /// Whether this pass actually got review data from at least one account.
+    /// </param>
+    /// <remarks>
+    /// <b>Seeding must not complete on a pass that read nothing.</b> An empty key set is ambiguous — it means
+    /// either "read fine, no unhappy reviews" or "every scrape failed" — and treating the second as seeded
+    /// defeats the whole rule. The failing case is the normal one on a cold start: the first background pass
+    /// runs two minutes after launch, the Google sessions are not running scripts yet, and every scrape gives
+    /// up. Seeding there would leave the installation marked seeded with zero keys, so the next pass — the
+    /// first that actually works — would treat every pre-existing one-star as new and fire the install-day
+    /// burst this class exists to prevent.
+    /// </remarks>
+    public async Task RecordAsync(
+        IReadOnlyCollection<string> seen,
+        bool passReadSomething,
+        CancellationToken cancellationToken = default)
     {
         var changed = false;
         foreach (var key in seen)
@@ -54,7 +69,7 @@ public sealed class ReviewAlertStore
             changed |= _seen.Add(key);
         }
 
-        if (!Seeded)
+        if (!Seeded && passReadSomething)
         {
             Seeded = true;
             changed = true;

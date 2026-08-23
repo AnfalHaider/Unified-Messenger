@@ -122,6 +122,43 @@ public class ReviewHistoryStoreTests : IDisposable
     }
 
     [Fact]
+    public void ADayWhereALocationDidNotReportAtAllIsDropped()
+    {
+        // The bug this replaced: the day was emitted using only the locations present, so a pass where two
+        // of three rating scrapes gave up produced total 435 against the previous day's 1,671 and that one
+        // location's 4.7 against a weighted 4.63. The trend then read "up 0.1" with nothing moved, and the
+        // velocity tile read "+1,236 new reviews" the moment the other two came back. Rating scrapes failing
+        // per account is the normal case, not an edge one.
+        var store = NewStore();
+        store.Record("a", 4.6, 992, 0, 0);   // only one of the three reported today
+
+        Assert.Empty(store.GetCombinedHistory(["a", "b", "c"]));
+    }
+
+    [Fact]
+    public void ACompleteDayIsStillReported()
+    {
+        var store = NewStore();
+        store.Record("a", 4.6, 992, 1, 9);
+        store.Record("b", 4.7, 435, 2, 8);
+
+        var day = Assert.Single(store.GetCombinedHistory(["a", "b"]));
+        Assert.Equal(1427, day.LifetimeTotal);
+        Assert.Equal(3, day.Unanswered);
+    }
+
+    [Fact]
+    public void APartialDayDoesNotUnderCountTheReplyRateEither()
+    {
+        // Counts have the same failure mode as totals: summing only the locations that reported makes the
+        // reply rate a rate over a different business from the day before.
+        var store = NewStore();
+        store.Record("a", null, null, 5, 45);
+
+        Assert.Empty(store.GetCombinedHistory(["a", "b"]));
+    }
+
+    [Fact]
     public void DaysOfHistoryCountsDistinctDays()
     {
         var store = NewStore();

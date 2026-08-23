@@ -221,3 +221,38 @@ public class ReviewAskTests : IDisposable
     public void AnEmptyStoreExcludesNobody() =>
         Assert.Empty(new ReviewAskStore(_path).AskedPhones());
 }
+
+/// <summary>
+/// The name the customer sees in a review request.
+/// </summary>
+public class ReviewAskBusinessNameTests
+{
+    [Theory]
+    [InlineData("Depilex DHA-2 WhatsApp", "Depilex DHA-2")]
+    [InlineData("Depilex F-11 WhatsApp", "Depilex F-11")]
+    [InlineData("Depilex Men DHA-2 WhatsApp Business", "Depilex Men DHA-2")]
+    [InlineData("Depilex DHA-2", "Depilex DHA-2")]
+    public void TheChannelIsStrippedFromTheBusinessName(string account, string expected) =>
+        // Candidates come from WhatsApp accounts, so the display name carries the channel. Unstripped, the
+        // message asked the customer to "leave Depilex DHA-2 WhatsApp a review on Google" — naming a
+        // messaging app to someone who only knows the salon.
+        Assert.Equal(expected, ReviewAskDraft.BusinessNameFrom(account));
+
+    [Fact]
+    public void AnAccountNamedOnlyForItsChannelKeepsThatName() =>
+        // "WhatsApp" is the best name that account has; stripping it would leave nothing.
+        Assert.Equal("WhatsApp", ReviewAskDraft.BusinessNameFrom("WhatsApp"));
+
+    [Fact]
+    public void NoNameAtAllFallsBackToSomethingSayable() =>
+        Assert.Equal("us", ReviewAskDraft.BusinessNameFrom(""));
+
+    [Fact]
+    public void TheDraftUsesTheStrippedName()
+    {
+        var text = ReviewAskDraft.Build("Tayyaba Qasim", "Depilex DHA-2 WhatsApp");
+
+        Assert.Contains("Depilex DHA-2 a review on Google", text);
+        Assert.DoesNotContain("WhatsApp", text);
+    }
+}

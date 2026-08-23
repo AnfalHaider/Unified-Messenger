@@ -120,10 +120,23 @@ public sealed class ReviewHistoryStore
     /// The business-wide history: each day's readings summed across accounts.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The rating is a mean weighted by each account's lifetime total, matching how the hero computes today's
-    /// figure — an unweighted mean would let a 244-review location move the number as much as a 992-review
-    /// one. A day is only given a rating if EVERY account that reported a total that day also reported a
-    /// rating, so the series never mixes a two-location average with a three-location one.
+    /// figure — an unweighted mean would let a 244-review location move the number as much as a 992-review one.
+    /// </para>
+    /// <para>
+    /// <b>A day only counts when every requested account reported.</b> This previously required only that the
+    /// accounts <i>present that day</i> agreed, which is not the same thing and produced invented movement:
+    /// rating scrapes fail per account routinely, so a day where one of three locations reported gave a total
+    /// of 435 against the previous day's 1,671 and that location's own 4.7 against a weighted 4.63. The trend
+    /// then read "up 0.1" when nothing had moved, and the velocity tile read "+1,236 new reviews" the moment
+    /// the missing two came back. A partial day is not a smaller reading of the business, it is a reading of a
+    /// different business, so it is dropped entirely rather than blended in.
+    /// </para>
+    /// <para>
+    /// The cost is that one permanently-failing location suppresses the whole business trend. That is the
+    /// right way round: no trend is recoverable, a wrong one is not.
+    /// </para>
     /// </remarks>
     public IReadOnlyList<ReviewDayPoint> GetCombinedHistory(IEnumerable<string> instanceIds)
     {
@@ -150,16 +163,25 @@ public sealed class ReviewHistoryStore
         var combined = new List<ReviewDayPoint>();
         foreach (var (day, points) in byDay.OrderBy(kv => kv.Key))
         {
-            var withTotals = points.Where(p => p.LifetimeTotal is > 0).ToList();
-            int? total = withTotals.Count > 0 ? withTotals.Sum(p => p.LifetimeTotal!.Value) : null;
+            // Every requested account must have a reading, or the day describes a different set of
+            // locations from its neighbours and the difference between them is not a change in the business.
+            if (points.Count != ids.Count)
+            {
+                continue;
+            }
+
+            // The lifetime total is all-or-nothing for the same reason. The rating scrape and the reviews
+            // scrape fail independently, so a day can legitimately carry counts but no totals.
+            var haveEveryTotal = points.All(p => p.LifetimeTotal is > 0);
+            int? total = haveEveryTotal ? points.Sum(p => p.LifetimeTotal!.Value) : null;
 
             double? rating = null;
-            if (withTotals.Count > 0 && withTotals.All(p => p.Rating is not null))
+            if (haveEveryTotal && points.All(p => p.Rating is not null))
             {
-                var weight = withTotals.Sum(p => p.LifetimeTotal!.Value);
+                var weight = points.Sum(p => p.LifetimeTotal!.Value);
                 if (weight > 0)
                 {
-                    rating = withTotals.Sum(p => p.Rating!.Value * p.LifetimeTotal!.Value) / weight;
+                    rating = points.Sum(p => p.Rating!.Value * p.LifetimeTotal!.Value) / weight;
                 }
             }
 

@@ -753,11 +753,30 @@ public sealed partial class ReviewDesk : UserControl
 
         if (visible.Count == 0)
         {
+            // A filter matching nothing is NOT an empty queue, and saying "nothing waiting for a reply"
+            // while seven reviews wait is exactly the kind of false all-clear this surface exists to avoid.
+            // Reachable without doing anything odd: filter to Unhappy, answer both, and the chip disappears
+            // on the next render while _filter still points at it.
+            string message;
+            if (accountCount == 0)
+            {
+                message = "No Google Business account is connected.";
+            }
+            else if (_filter is { } activeFilter && _queue.Count > 0)
+            {
+                var label = ReviewQueue.Label(activeFilter).ToLowerInvariant();
+                message = _queue.Count == 1
+                    ? $"No {label} reviews. 1 other review is still waiting — clear the filter to see it."
+                    : $"No {label} reviews. {_queue.Count} others are still waiting — clear the filter to see them.";
+            }
+            else
+            {
+                message = ReviewQueue.Summarise([], anyRead);
+            }
+
             QueueHost.Children.Add(new TextBlock
             {
-                Text = accountCount == 0
-                    ? "No Google Business account is connected."
-                    : ReviewQueue.Summarise([], anyRead),
+                Text = message,
                 FontSize = UmScale.Text.Body,
                 Foreground = Brush("TextFillColorSecondaryBrush"),
                 TextWrapping = TextWrapping.WrapWholeWords

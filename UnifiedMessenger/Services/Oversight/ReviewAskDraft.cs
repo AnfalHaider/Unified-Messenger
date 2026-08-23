@@ -32,7 +32,7 @@ public static class ReviewAskDraft
     {
         var first = ReviewReplyDraft.FirstName(customerName);
         var greeting = string.IsNullOrWhiteSpace(first) ? "Hello!" : $"Hi {first}!";
-        var where = string.IsNullOrWhiteSpace(salonName) ? "us" : salonName;
+        var where = BusinessNameFrom(salonName);
 
         var ask = string.IsNullOrWhiteSpace(reviewLink)
             ? $"If you have a minute, would you mind leaving {where} a review on Google? "
@@ -40,5 +40,40 @@ public static class ReviewAskDraft
 
         return greeting + " Thank you for your lovely message — it really made our day. " + ask +
                "It genuinely helps a small business like ours. No worries at all if you'd rather not.";
+    }
+
+    /// <summary>
+    /// The business name to use in a message to a customer, from the account's display name.
+    /// </summary>
+    /// <remarks>
+    /// Candidates come from WhatsApp accounts, whose display names carry the channel — "Depilex DHA-2
+    /// WhatsApp", "Depilex F-11 WhatsApp". Passed through unchanged, the message asked the customer to
+    /// "leave Depilex DHA-2 WhatsApp a review on Google", naming a messaging app to someone who only knows
+    /// the salon. The owner edits before sending, but the default should not be wrong.
+    /// </remarks>
+    public static string BusinessNameFrom(string? accountDisplayName)
+    {
+        var name = (accountDisplayName ?? string.Empty).Trim();
+        if (name.Length == 0)
+        {
+            return "us";
+        }
+
+        // Only a trailing channel word, and only when something is left over — "WhatsApp" on its own is the
+        // best name that account has, and stripping it would leave nothing.
+        foreach (var suffix in (string[])["whatsapp business", "whatsapp", "google business", "google", "messenger", "instagram", "telegram"])
+        {
+            if (name.Length > suffix.Length &&
+                name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                var trimmed = name[..^suffix.Length].TrimEnd(' ', '-', '–', '·', ',');
+                if (trimmed.Length > 0)
+                {
+                    return trimmed;
+                }
+            }
+        }
+
+        return name;
     }
 }
