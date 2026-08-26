@@ -54,6 +54,26 @@ public static class ReviewCoverage
             : DescribeReplyRateBasis(loaded, profileTotal);
 
     /// <summary>
+    /// Whether the reply queue holds every unanswered review, or only a sample of them.
+    /// </summary>
+    /// <remarks>
+    /// The scrape reads the reply-button COUNT for the whole page but builds preview text for only the
+    /// first handful, because a preview costs a DOM expansion each. So the queue is a sample and
+    /// <c>ReviewHealth.Unanswered</c> is the total, and they are routinely different numbers. The desk
+    /// rendered the queue length as "Unanswered", which put "8" on the page beside a sidebar badge reading
+    /// 45 and a basis line implying the same — a truncated sample presented as a total. Anything derived
+    /// from the queue (oldest waiting, how many are at three stars or below) is a fact about the sample
+    /// only, and has to say so.
+    /// </remarks>
+    public static bool QueueIsSample(int shown, int unanswered) => unanswered > shown;
+
+    /// <summary>Suffix naming the sample a queue-derived figure was actually computed over.</summary>
+    public static string DescribeQueueSample(int shown, int unanswered) =>
+        QueueIsSample(shown, unanswered)
+            ? shown == 1 ? "in the 1 loaded" : $"in the {shown:N0} loaded"
+            : string.Empty;
+
+    /// <summary>
     /// Whether the scrape saw every review the profile has. Null total means unknown, which is NOT complete.
     /// </summary>
     /// <remarks>

@@ -85,7 +85,7 @@ public sealed partial class AnalyticsPage : Page
             formatY: v => $"{(int)v}%", emptyHint: "No replies tracked yet");
 
         SlaChart.Slices = BuildSlaSlices(view.Sla);
-        SlaChart.CentreCaption = view.Sla.HasData ? $"{SlaMetPercent(view.Sla)}%\nSLA met" : string.Empty;
+        SlaChart.CentreCaption = view.Sla.HasData ? $"{CaughtUpPercent(view.Sla)}%\ncaught up" : string.Empty;
 
         ShareChart.Slices = view.AccountShare;
         ShareChart.CentreCaption = view.TotalMessages > 0
@@ -202,15 +202,27 @@ public sealed partial class AnalyticsPage : Page
         card.Delta = kpi.Delta;
     }
 
-    private static int SlaMetPercent(SlaBreakdown sla) =>
-        sla.Total <= 0 ? 0 : (int)Math.Round(sla.Met * 100.0 / sla.Total);
+    /// <summary>
+    /// Share of threads that are caught up, over every thread including the ones we cannot time.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MetricMath.HonestPercent"/>, not <c>Math.Round</c>: rounding reserved nothing for
+    /// "not quite everything", so 99.6% printed as 100% directly above a visible "Behind" slice. That is
+    /// the same rounding lie the rest of the app was fixed for; this site was missed because it does its
+    /// own arithmetic instead of going through the shared helper.
+    /// </remarks>
+    internal static int CaughtUpPercent(SlaBreakdown sla) =>
+        sla.Total <= 0 ? 0 : MetricMath.HonestPercent(sla.Met, sla.Total);
 
-    private static IReadOnlyList<DonutSlice> BuildSlaSlices(SlaBreakdown sla) =>
+    /// <summary>
+    /// Slice labels say what the numbers ARE — see the comment on the section header in the XAML.
+    /// </summary>
+    internal static IReadOnlyList<DonutSlice> BuildSlaSlices(SlaBreakdown sla) =>
         ChartSeriesBuilder.BuildShareSlices(
         [
-            ("SLA met", "#22C55E", sla.Met),
-            ("SLA missed", "#DC2626", sla.Missed),
-            ("No SLA", "#94A3B8", sla.NoSla)
+            ("Caught up", "#22C55E", sla.Met),
+            ("Behind", "#DC2626", sla.Missed),
+            ("Not measured", "#94A3B8", sla.NoSla)
         ]);
 
     private void RangeBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

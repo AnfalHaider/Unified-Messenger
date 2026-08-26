@@ -19,6 +19,8 @@ public sealed partial class MainWindow : Window, IShellUiHost
     private readonly KeyboardShortcutService _keyboardShortcuts;
     private readonly ShellController _shell;
     private bool _forceShutdown;
+
+    private bool _shutdownComplete;
     private int _startupWarmCompleted;
     private bool _suppressScopeSelectorChange;
     private bool _suppressAiToggleChange;
@@ -305,7 +307,20 @@ public sealed partial class MainWindow : Window, IShellUiHost
         }
 
         _forceShutdown = true;
-        await ApplicationLifecycleService.ShutdownAsync().ConfigureAwait(true);
+
+        // async void: an escape here reaches App.OnUnhandledException, which leaves Handled=false on
+        // purpose, so Quit-from-tray would kill the process instead of exiting it.
+        try
+        {
+            await ApplicationLifecycleService.ShutdownAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Lifecycle.Shutdown", ex);
+        }
+
+        // Tells OnAppWindowClosing not to cancel and redo the work it has already done here.
+        _shutdownComplete = true;
         _services.SystemTray.Dispose();
         Close();
     }
@@ -413,17 +428,46 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
     private void OnAppWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        if (!ApplicationLifecycleService.ShouldHideOnClose(
+        if (ApplicationLifecycleService.ShouldHideOnClose(
                 _forceShutdown,
                 _services.AppSettings.Settings.RunInBackgroundOnClose))
         {
+            args.Cancel = true;
+            ApplicationLifecycleService.FlushPersistentStateFireAndForget();
+            sender.Hide();
+            _shell.Chrome.IsAppInForeground = false;
             return;
         }
 
+        if (_shutdownComplete)
+        {
+            return; // second pass — shutdown is done, let the window go
+        }
+
+        // Shutdown has to be AWAITED, not blocked on. Window.Closed used to call it with
+        // .GetAwaiter().GetResult(), which blocks the UI thread; shutdown then resumes on a thread-pool
+        // thread and marshals back to the UI thread to close the WebView2 sessions, which can never run
+        // because that thread is blocked. The process survived holding the single-instance mutex, and
+        // every relaunch afterwards exited instantly with no window. Closing is cancellable, so we take
+        // the cancel, do the work properly, and close again when it is finished.
         args.Cancel = true;
-        ApplicationLifecycleService.FlushPersistentStateFireAndForget();
-        sender.Hide();
-        _shell.Chrome.IsAppInForeground = false;
+        _ = ShutdownThenCloseAsync();
+    }
+
+    private async Task ShutdownThenCloseAsync()
+    {
+        try
+        {
+            await ApplicationLifecycleService.ShutdownAsync();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Lifecycle.Shutdown", ex);
+        }
+
+        _shutdownComplete = true;
+        _forceShutdown = true;
+        Close();
     }
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)

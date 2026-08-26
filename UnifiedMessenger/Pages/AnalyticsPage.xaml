@@ -99,7 +99,13 @@
 
                 <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource UmSurfaceCardStyle}">
                     <StackPanel Spacing="10">
-                        <TextBlock Text="SLA Performance" Style="{StaticResource DashboardSectionHeaderStyle}" />
+                        <!-- NOT "SLA Performance". This donut is apportioned by each account's caught-up
+                             percentage, which is the unread proxy the dashboard labels "Caught up" — not
+                             reply timing. Calling it SLA put a second, differently-computed "SLA met"
+                             figure on the same screen as the KPI card above, which is measured from first
+                             response times over a different denominator. The two could disagree by any
+                             amount. Pinned by AnalyticsSlaLabellingTests. -->
+                        <TextBlock Text="Caught up by thread" Style="{StaticResource DashboardSectionHeaderStyle}" />
                         <charts:DonutChartView x:Name="SlaChart" MinHeight="180" />
                     </StackPanel>
                 </Border>

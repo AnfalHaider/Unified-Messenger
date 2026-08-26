@@ -48,10 +48,24 @@ public enum MetricPolarity
 public readonly record struct DonutSlice(string Label, string ColorHex, int Value, int Percent);
 
 /// <summary>
-/// SLA outcomes split three ways for a donut. "No SLA" is real and must be shown separately: a channel we
-/// cannot time (<c>SupportsResponseTiming == false</c>) neither met nor missed — printing it as either
-/// would lie. Counts are threads/accounts, not percentages.
+/// Thread counts split three ways for a donut: caught up (<c>Met</c>), behind (<c>Missed</c>), and not
+/// measurable (<c>NoSla</c>). Counts are threads/accounts, not percentages.
 /// </summary>
+/// <remarks>
+/// <b>The names say SLA; the numbers do not.</b> <c>Met</c>/<c>Missed</c> are apportioned by each entity's
+/// <c>OnTimePercent</c>, which on the live chat-snapshot path is <c>caught-up</c> — the share of active
+/// threads with unread cleared (<c>OversightRollupBuilder</c>) — and NOT first-response timing. Rendering
+/// it as "SLA met" put a second, differently-computed SLA figure on the Analytics page beside the KPI
+/// card, which really is FRT-based and uses a different denominator; they could disagree by any amount.
+/// The user-facing labels now say caught up / behind / not measured. The field names are left alone
+/// deliberately — renaming them reaches five files and the tests — so this remark is the warning:
+/// <b>do not label anything built from this type "SLA".</b> <c>AnalyticsSlaLabellingTests</c> enforces it.
+/// <para>
+/// "Not measured" is real and must stay separate: a channel that cannot be timed
+/// (<c>SupportsResponseTiming == false</c>) is neither caught up nor behind, and printing it as either
+/// would lie.
+/// </para>
+/// </remarks>
 public readonly record struct SlaBreakdown(int Met, int Missed, int NoSla)
 {
     public int Total => Met + Missed + NoSla;

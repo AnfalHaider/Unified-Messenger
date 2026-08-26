@@ -152,8 +152,13 @@ public sealed class GoogleReviewSnapshotService
         // reviews, and that silently broke the page-change guard: the fingerprint is the first card's text,
         // the expander REWRITES that text, so a page that had not actually advanced still produced a
         // different fingerprint. Every page counted itself again until the 40-page ceiling — 2,000 reviews
-        // for a salon with roughly 239. Previews are capped at 24 and come from the early pages anyway, so
-        // leaving later pages unexpanded costs nothing that matters.
+        // for a salon with roughly 239. Previews come from the early pages anyway, so leaving later pages
+        // unexpanded costs nothing that matters.
+        //
+        // The effective preview cap is EIGHT, not the 24 this comment used to claim: the read below slices
+        // replyBtns to the first 8, and MaxPages is 1, so the C# accumulator's 24 is never reached. That
+        // gap is why the desk's "Unanswered" tile was a sample masquerading as a total — see
+        // ReviewCoverage.QueueIsSample.
 
         "try{n.click();}catch(e){return false;}" +
         "window.__umGR={state:'loading'};return true;};" +

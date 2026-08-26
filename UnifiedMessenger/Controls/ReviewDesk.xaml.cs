@@ -238,6 +238,30 @@ public sealed partial class ReviewDesk : UserControl
         return snapshots.Sum(s => s.Rating!.Value.Total!.Value);
     }
 
+    /// <summary>
+    /// Sub-line for the Unanswered tile, naming the set the low-star count was computed over.
+    /// </summary>
+    internal static string LowStarSub(int lowStars, int shown, int unanswered)
+    {
+        var suffix = ReviewCoverage.DescribeQueueSample(shown, unanswered);
+        var body = lowStars > 0 ? $"{lowStars} at 3 stars or below" : "none at 3 stars or below";
+        return suffix.Length > 0 ? $"{body} {suffix}" : body;
+    }
+
+    /// <summary>
+    /// How many reviews are actually awaiting a reply, across every location.
+    /// </summary>
+    /// <remarks>
+    /// This — not <c>_queue.Count</c> — is the number to show. The queue only holds the reviews the scrape
+    /// built preview text for (the first handful per page), while <c>Health.Unanswered</c> is the full
+    /// reply-button count the same pass recorded. The sidebar badge has always used this one, so rendering
+    /// the queue length here made the badge and the page contradict each other on screen.
+    /// </remarks>
+    private static int SumUnanswered(
+        IReadOnlyList<(MessengerInstance Instance, string Name, GoogleReviewSnapshotService.ReviewHealth Health,
+            GoogleReviewSnapshotService.ProfileRating? Rating)> snapshots) =>
+        snapshots.Sum(s => s.Health.HasData ? s.Health.Unanswered : 0);
+
     // ---- hero -----------------------------------------------------------------------------------------
 
     private void RenderHero(
@@ -332,19 +356,25 @@ public sealed partial class ReviewDesk : UserControl
         HeroHost.Children.Add(trend);
 
         // --- needs a reply ---
+        var unanswered = SumUnanswered(snapshots);
         var waiting = new StackPanel { Spacing = UmScale.Space.Xs, HorizontalAlignment = HorizontalAlignment.Right };
         waiting.Children.Add(Label("Needs a reply", HorizontalAlignment.Right));
         waiting.Children.Add(new TextBlock
         {
-            Text = anyRead ? _queue.Count.ToString() : "—",
+            Text = anyRead ? unanswered.ToString() : "—",
             FontSize = UmScale.Text.Hero,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             HorizontalAlignment = HorizontalAlignment.Right,
-            Foreground = _queue.Count > 0 ? Brush("UmStatusDangerBrush") : Brush("TextFillColorPrimaryBrush")
+            Foreground = unanswered > 0 ? Brush("UmStatusDangerBrush") : Brush("TextFillColorPrimaryBrush")
         });
         waiting.Children.Add(new TextBlock
         {
-            Text = OldestWaitingLabel() is { } oldest ? $"oldest waiting {oldest}" : "nothing waiting",
+            // "Oldest waiting" is computed over the queue, and the queue is the newest slice of the
+            // backlog — so when it is a sample, the oldest review in it is nowhere near the oldest the
+            // business has. Say which it is rather than quietly presenting one as the other.
+            Text = ReviewCoverage.QueueIsSample(_queue.Count, unanswered)
+                ? $"showing the {_queue.Count:N0} most recent"
+                : OldestWaitingLabel() is { } oldest ? $"oldest waiting {oldest}" : "nothing waiting",
             FontSize = UmScale.Text.Caption,
             Foreground = Brush("TextFillColorTertiaryBrush"),
             HorizontalAlignment = HorizontalAlignment.Right
@@ -478,6 +508,8 @@ public sealed partial class ReviewDesk : UserControl
         var answered = snapshots.Sum(s => s.Health.HasData ? s.Health.Answered : 0);
         var loaded = snapshots.Sum(s => s.Health.HasData ? s.Health.Total : 0);
         var replyRate = loaded > 0 ? MetricMath.HonestPercent(answered, loaded) : 0;
+        var unanswered = SumUnanswered(snapshots);
+        var sampleSuffix = ReviewCoverage.DescribeQueueSample(_queue.Count, unanswered);
 
         var ids = snapshots.Select(s => s.Instance.Id).ToList();
         var combined = ReviewHistoryStore.Instance.GetCombinedHistory(ids);
@@ -487,14 +519,18 @@ public sealed partial class ReviewDesk : UserControl
 
         var tiles = new List<(string Label, string Value, string Sub, bool Known)>
         {
+            // The value is the real reply-button count; lowStars is only ever computed over the queue, so
+            // when the queue is a sample the sub-line has to name what it counted.
             ("Unanswered",
-                anyRead ? _queue.Count.ToString() : "—",
-                lowStars > 0 ? $"{lowStars} at 3 stars or below" : "none at 3 stars or below",
+                anyRead ? unanswered.ToString() : "—",
+                LowStarSub(lowStars, _queue.Count, unanswered),
                 anyRead),
 
             ("Oldest waiting",
                 OldestWaitingLabel() ?? "—",
-                OldestBranch() ?? "nothing waiting",
+                sampleSuffix.Length > 0
+                    ? $"{OldestBranch() ?? "oldest"} · {sampleSuffix}"
+                    : OldestBranch() ?? "nothing waiting",
                 anyRead),
 
             ("Reply rate",

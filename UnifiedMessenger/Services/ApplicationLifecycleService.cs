@@ -10,6 +10,8 @@ namespace UnifiedMessenger.Services;
 public static class ApplicationLifecycleService
 {
     private static readonly TimeSpan WorkerShutdownTimeout = TimeSpan.FromSeconds(2);
+
+    private static readonly TimeSpan ShutdownOnCloseTimeout = TimeSpan.FromSeconds(10);
     private static int _shutdownStarted;
 
     private static int _flushSuppressed;
@@ -33,6 +35,23 @@ public static class ApplicationLifecycleService
     public static void FlushPersistentStateFireAndForget() =>
         _ = FlushPersistentStateAsync();
 
+    /// <summary>
+    /// Last-resort shutdown for a close that never raised <c>AppWindow.Closing</c>.
+    /// </summary>
+    /// <remarks>
+    /// The ordinary path is <c>MainWindow.OnAppWindowClosing</c>, which cancels the close, awaits
+    /// <see cref="ShutdownAsync"/> properly, and only then closes — so by the time this runs
+    /// <see cref="_shutdownStarted"/> is already 1 and it returns immediately.
+    /// <para>
+    /// It is bounded because it used to hang forever. <see cref="ShutdownAsync"/> uses
+    /// <c>ConfigureAwait(false)</c> throughout, so after the first genuinely-async await it resumes on a
+    /// thread-pool thread and then calls <c>CloseAllSessionsAsync</c>, which marshals BACK to the UI
+    /// thread — the same thread blocked here inside <c>GetResult()</c>, with no message pump. Neither side
+    /// could proceed: the process stayed alive holding <c>UnifiedMessenger_AppMutex</c>, after which every
+    /// relaunch exited instantly with no window and no message. The timeout does not make that correct, it
+    /// makes it survivable: a slightly unclean exit instead of an app the owner can never open again.
+    /// </para>
+    /// </remarks>
     public static void TryShutdownOnWindowClosed(bool forceShutdown, bool runInBackgroundOnClose)
     {
         if (!forceShutdown && runInBackgroundOnClose)
@@ -42,11 +61,15 @@ public static class ApplicationLifecycleService
 
         try
         {
-            ShutdownAsync().GetAwaiter().GetResult();
+            if (!ShutdownAsync().Wait(ShutdownOnCloseTimeout))
+            {
+                AppLogger.LogWarning(
+                    "Lifecycle.Shutdown",
+                    $"Shutdown did not finish within {ShutdownOnCloseTimeout.TotalSeconds:0}s on window close; exiting anyway.");
+            }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Lifecycle shutdown on close failed: {ex.Message}");
             AppLogger.LogError("Lifecycle.Shutdown", ex);
         }
     }
