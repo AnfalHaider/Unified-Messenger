@@ -409,9 +409,9 @@ dotnet build UnifiedMessenger/UnifiedMessenger.csproj -c Release --nologo -v qui
 # Publish — the -p:Platform=x64 is MANDATORY, and kill the app first (it locks the dll)
 dotnet publish UnifiedMessenger/UnifiedMessenger.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true --nologo -v quiet
 
-# Tests — ALWAYS filter by exact class name; never run unfiltered (hangs headless).
-# Do NOT pass -p:Platform to dotnet test.
-dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet --filter "FullyQualifiedName~ExactClassName"
+# Tests — run the FULL suite before pushing (~1730 tests, ~25s); targeted filters have hidden
+# CI-red failures. Kill the app first (SecondInstanceActivatorTests). Do NOT pass -p:Platform.
+dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet
 ```
 
 The full regression filter used throughout (all 164 tests):
@@ -434,10 +434,11 @@ bucketing, also run the suites that cover the modified classes — the sweep use
 FullyQualifiedName~MessageAnalyticsServiceTests|FullyQualifiedName~MessageAnalyticsServiceBranchFilterTests|FullyQualifiedName~ActivityPatternsTests|FullyQualifiedName~ResponseTimeTrackerTests|FullyQualifiedName~OversightRollupBuilderTests|FullyQualifiedName~OversightRollupCapabilityTests|FullyQualifiedName~BusinessReportTests|FullyQualifiedName~KpiTrendStoreTests|FullyQualifiedName~InstallerScriptTests
 ```
 
-Installer (ISCC is a **per-user** install here, not Program Files):
+Installer (ISCC is a **machine-wide** install here — Program Files (x86); it was per-user under
+`%LOCALAPPDATA%` before 2026-08-26, so check both if the path below is missing):
 
 ```
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" "D:\Projects\Unified Messenger\installer.iss"
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "D:\Projects\Unified Messenger\installer.iss"
 ```
 
 **Version sync — six files, always in lockstep:** `UnifiedMessenger.csproj` (3 fields), `app.manifest`,
