@@ -706,7 +706,7 @@
 
         // The in-memory message is decrypted, so this is a real preview for EVERY chat — not just the
         // ~60 rendered sidebar rows the DOM harvest could reach.
-        var preview = bodyOf(last).slice(0, 120);
+        var preview = window.__umTruncate(bodyOf(last), 120);
         if (preview) {
           scanDiag.withPreview++;
         }

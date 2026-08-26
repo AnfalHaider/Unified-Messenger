@@ -1072,7 +1072,7 @@
       if (preview && title && preview === title) {
         preview = '';
       }
-      preview = preview ? preview.slice(0, 90) : '';
+      preview = preview ? window.__umTruncate(preview, 90) : '';
 
       // data-icon="recalled" marks a deleted-for-everyone last message ("This message was deleted").
       var hint = { title: title, preview: preview, lastFromMe: umRowLastFromMe(row), recalled: !!row.querySelector('[data-icon="recalled"]'), present: true };
@@ -1105,7 +1105,7 @@
         var preview = titleSpans[1] ? normalizeText(titleSpans[1].getAttribute('title') || titleSpans[1].textContent || '') : '';
         preview = preview.replace(/\b(?:wds-)?ic-[\w-]+/g, '').replace(/\s{2,}/g, ' ').trim();
         if (preview && title && preview === title) { preview = ''; }
-        preview = preview ? preview.slice(0, 100) : '';
+        preview = preview ? window.__umTruncate(preview, 100) : '';
 
         if (!title && !preview) { continue; }
 

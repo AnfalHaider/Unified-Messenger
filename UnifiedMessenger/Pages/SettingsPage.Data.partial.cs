@@ -137,9 +137,23 @@ public sealed partial class SettingsPage
         try
         {
             var restored = await LocalBackupService.Instance.RestoreAsync(file.Path);
+
+            // The restore replaced the files on disk, but every store is still live in memory holding the
+            // pre-restore state — and the shutdown flush would write that straight back over all ten of
+            // them. Asking the owner to restart was not enough: closing the app normally is exactly what
+            // triggered the overwrite, so "Restore complete" was followed by silently getting the old data
+            // back. Suppress the flush, then close ourselves so there is no window in which a normal exit
+            // can undo the restore.
+            ApplicationLifecycleService.SuppressPersistentStateFlush();
+
             await ShowMessageDialogAsync(
                 "Restore complete",
-                $"Restored {restored} file(s). Please restart Unified Messenger to load the restored data.");
+                $"Restored {restored} file(s). Unified Messenger will now close — reopen it to load the restored data.");
+
+            // Same exit path the updater uses after staging its installer (GitHubUpdateService).
+            // Deliberately not relaunching: the single-instance mutex is still held by this process, so a
+            // relaunch here would race it and exit silently with no window.
+            DispatcherQueue.TryEnqueue(Application.Current.Exit);
         }
         catch (Exception ex)
         {

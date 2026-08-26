@@ -31,6 +31,31 @@
   };
 
   /**
+   * Truncates to at most `max` UTF-16 units WITHOUT splitting a surrogate pair.
+   *
+   * Every preview here is cut to a fixed length, and a plain .slice() cuts by code unit. An emoji is a
+   * surrogate pair, so slicing mid-emoji leaves a lone high surrogate; JSON.stringify emits it as a bare
+   * \uD83D, and System.Text.Json throws "Cannot read incomplete UTF-16 JSON text as string with missing
+   * low surrogate" when it reads that property. ChatEntryParser catches per row, so the conversation was
+   * silently dropped from every scan — measured live at 1 of 894 rows, every pass. A customer that the
+   * dashboard never shows is the worst failure this product has, so cut one unit short instead.
+   */
+  window.__umTruncate = function (value, max) {
+    var text = String(value || '');
+    if (!(max > 0) || text.length <= max) {
+      return text;
+    }
+
+    var end = max;
+    var lastCode = text.charCodeAt(end - 1);
+    if (lastCode >= 0xd800 && lastCode <= 0xdbff) {
+      end -= 1; // high surrogate would be orphaned by the cut
+    }
+
+    return text.slice(0, end);
+  };
+
+  /**
    * Resolves the active WhatsApp chat JID from sidebar selection or conversation header.
    * Shared by whatsapp-adapter, conversation-context-scraper, and whatsapp-voice-monitor.
    */
@@ -148,7 +173,7 @@
 
     var messagePreview = window.__umCollapseWhitespace(options.messagePreview || options.messageText || '');
     if (messagePreview.length >= 8) {
-      return messagePreview.length <= 48 ? messagePreview : messagePreview.slice(0, 48).trim();
+      return messagePreview.length <= 48 ? messagePreview : window.__umTruncate(messagePreview, 48).trim();
     }
 
     return 'unknown';
@@ -748,7 +773,7 @@
           var lastNode = nodes[nodes.length - 1];
           var text = String(lastNode.textContent || lastNode.innerText || '').replace(/\s+/g, ' ').trim();
           if (text.length >= 1) {
-            return text.length > 160 ? text.slice(0, 157) + '...' : text;
+            return text.length > 160 ? window.__umTruncate(text, 157) + '...' : text;
           }
         }
       }

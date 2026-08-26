@@ -154,16 +154,19 @@ public static class ThemeService
         }
     }
 
-    private static void OnHighContrastChanged(AccessibilitySettings sender, object args)
-    {
-        ApplyHighContrastOverrides(sender.HighContrast);
-
-        if (App.CurrentWindow?.Content is FrameworkElement root)
+    private static void OnHighContrastChanged(AccessibilitySettings sender, object args) =>
+        // Windows raises this on a background thread; everything below is UI-thread-only XAML.
+        // See OnSystemColorValuesChanged for what that costs when it is not marshalled.
+        UiThreadRunner.Post(() =>
         {
-            var preference = AppSettingsService.Instance.Settings.ThemePreference;
-            SyncTitleBarTheme(App.CurrentWindow, ResolveEffectiveElementTheme(preference));
-        }
-    }
+            ApplyHighContrastOverrides(sender.HighContrast);
+
+            if (App.CurrentWindow?.Content is FrameworkElement)
+            {
+                var preference = AppSettingsService.Instance.Settings.ThemePreference;
+                SyncTitleBarTheme(App.CurrentWindow, ResolveEffectiveElementTheme(preference));
+            }
+        });
 
     private static void EnsureSystemThemeWatcher(AppThemePreference preference)
     {
@@ -181,12 +184,19 @@ public static class ThemeService
 
     private static void OnSystemColorValuesChanged(UISettings sender, object args)
     {
+        // Reading the saved preference is a plain POCO field — safe on any thread, and worth doing before
+        // paying for a dispatcher hop when the user has pinned Light or Dark.
         if (AppSettingsService.Instance.Settings.ThemePreference != AppThemePreference.System)
         {
             return;
         }
 
-        Apply(AppThemePreference.System);
+        // UISettings.ColorValuesChanged is raised on a background thread, and Apply() reads
+        // Window.Content — a UI-thread-only interface. Calling it here threw COMException 0x8001010E
+        // (RPC_E_WRONGTHREAD) past App.OnUnhandledException, which leaves Handled=false on purpose, so a
+        // routine Windows light/dark or accent switch terminated the app. System is the default
+        // preference, which is what made this reachable in ordinary use.
+        UiThreadRunner.Post(() => Apply(AppThemePreference.System));
     }
 
     private static ElementTheme ReadSystemElementTheme()

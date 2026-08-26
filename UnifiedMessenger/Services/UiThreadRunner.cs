@@ -45,6 +45,38 @@ internal static class UiThreadRunner
         ?? throw new InvalidOperationException("No UI dispatcher is available.");
 
     /// <summary>
+    /// Queues UI-bound work onto the dispatcher and returns immediately.
+    /// </summary>
+    /// <remarks>
+    /// For callers that cannot await and cannot report a failure — WinRT event handlers, which Windows
+    /// raises on a background thread. <see cref="RunAsync(Func{Task})"/> is wrong for those: it blocks the
+    /// raising thread on a <c>TaskCompletionSource</c>, and its <c>GetDispatcher</c> throws once the window
+    /// is gone. This never throws; work queued after teardown is dropped with a log line instead. The
+    /// action always runs on the dispatcher, never inline, so behaviour does not depend on which thread
+    /// happened to raise the event.
+    /// </remarks>
+    public static void Post(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        DispatcherQueue? dispatcher;
+        try
+        {
+            dispatcher = _dispatcher ?? App.CurrentWindow?.DispatcherQueue;
+        }
+        catch
+        {
+            // Reading CurrentWindow can itself fail once the window is torn down.
+            return;
+        }
+
+        if (dispatcher?.TryEnqueue(() => action()) != true)
+        {
+            AppLogger.LogWarning("UiThread", "Dropped UI work: no dispatcher available.");
+        }
+    }
+
+    /// <summary>
     /// Ensures subsequent UI-bound work runs on the dispatcher thread.
     /// Call after awaits that may touch WebView2 or XAML.
     /// </summary>

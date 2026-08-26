@@ -12,6 +12,21 @@ public static class ApplicationLifecycleService
     private static readonly TimeSpan WorkerShutdownTimeout = TimeSpan.FromSeconds(2);
     private static int _shutdownStarted;
 
+    private static int _flushSuppressed;
+
+    /// <summary>
+    /// Stops the next shutdown from writing the in-memory stores to disk.
+    /// </summary>
+    /// <remarks>
+    /// For restore-from-backup, and nothing else. <see cref="LocalBackupService.RestoreAsync"/> replaces
+    /// the JSON on disk while all ten stores are still live in memory holding the *pre-restore* state, so
+    /// the ordinary shutdown flush serialised that stale state straight back over every restored file: the
+    /// owner was told "Restore complete", closed the app normally, and silently got their old data back.
+    /// Suppressing only the flush — rather than short-circuiting <see cref="ShutdownAsync"/> — keeps WebView
+    /// session teardown and the Ollama runtime shutdown intact, which a restart still needs.
+    /// </remarks>
+    public static void SuppressPersistentStateFlush() => Volatile.Write(ref _flushSuppressed, 1);
+
     public static bool ShouldHideOnClose(bool forceShutdown, bool runInBackgroundOnClose) =>
         !forceShutdown && runInBackgroundOnClose;
 
@@ -112,6 +127,12 @@ public static class ApplicationLifecycleService
     /// </remarks>
     public static async Task FlushPersistentStateAsync(CancellationToken cancellationToken = default)
     {
+        if (Volatile.Read(ref _flushSuppressed) == 1)
+        {
+            LastFlushFailures = [];
+            return;
+        }
+
         var services = TryGetServices();
 
         (string Name, Func<CancellationToken, Task> Flush)[] stores =

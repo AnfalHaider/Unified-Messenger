@@ -116,7 +116,8 @@ public static class ReviewAskCandidates
                 // Identity must be something stable, or "ask once, ever" cannot be kept — a display name
                 // is not. The phone when WhatsApp has resolved one, the conversation key when it has not.
                 var phone = (chat.ContactPhone ?? string.Empty).Trim();
-                var askKey = phone.Length > 0 ? phone : (chat.ConversationKey ?? string.Empty).Trim();
+                var conversationKey = (chat.ConversationKey ?? string.Empty).Trim();
+                var askKey = phone.Length > 0 ? phone : conversationKey;
                 if (askKey.Length == 0 || alreadyAsked.Contains(askKey))
                 {
                     continue;
@@ -125,7 +126,11 @@ public static class ReviewAskCandidates
                 picked.Add(new ReviewAskCandidate(
                     instanceId,
                     accountName,
-                    chat.ConversationKey,
+                    // Normalised, not raw: the record declares this non-nullable and AskKey dereferences it
+                    // when there is no phone. Passing the raw value put a null behind a non-null contract
+                    // (CS8604) — harmless only because the guard above happens to reject the one case that
+                    // reaches it today.
+                    conversationKey,
                     string.IsNullOrWhiteSpace(chat.CustomerName) ? askKey : chat.CustomerName,
                     phone,
                     chat.LastActivityUtc));
