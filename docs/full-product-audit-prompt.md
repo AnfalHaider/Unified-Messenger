@@ -145,12 +145,15 @@ dotnet build UnifiedMessenger/UnifiedMessenger.csproj -c Release --nologo -v qui
 # Publish (the -p:Platform=x64 is MANDATORY — without it the installer silently ships a stale binary)
 dotnet publish UnifiedMessenger/UnifiedMessenger.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true --nologo -v quiet
 
-# Tests — ALWAYS targeted by exact class name. Never run the suite unfiltered; many tests spin up
-# WebView2 or registry fixtures and hang headless. Do NOT pass -p:Platform to dotnet test.
-dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet --filter "FullyQualifiedName~ExactClassName"
+# Tests — run the FULL suite before pushing (~1730 tests, ~25s). CI runs it on every push, so a
+# targeted filter only postpones the failure. Kill the app first — a live instance makes
+# SecondInstanceActivatorTests fail. Do NOT pass -p:Platform to dotnet test.
+dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet
+# While iterating on one class, filter by EXACT class name — loose substrings grab extra classes:
+#   dotnet test ... --filter "FullyQualifiedName~PlatformDefinitionTests"
 
-# Installer (ISCC is a per-user install here, not Program Files)
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" "D:\Projects\Unified Messenger\installer.iss"
+# Installer (ISCC is a machine-wide install here — Program Files (x86), not per-user)
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "D:\Projects\Unified Messenger\installer.iss"
 ```
 
 **Always `Stop-Process -Name UnifiedMessenger -Force` before any smoke test** — the single-instance
@@ -439,7 +442,9 @@ Write `docs/audit/FINAL-REPORT.md` and summarize it in chat. It must contain:
 - **Cosmetic churn.** Renaming and reformatting things that work, while an S1 sits open.
 - **Breaking a constraint to close a finding.** See §1.
 - **Trusting a subagent's confident wrong answer.** Spot-check S1 claims yourself.
-- **Running the test suite unfiltered.** It hangs. Exact class names only.
+- **Filtering the test suite instead of running it.** The full suite takes ~25s and CI runs it on
+  every push; targeted filters have hidden failures that stayed red across several pushes. Use exact
+  class names only while iterating on one class.
 - **Publishing without `-p:Platform=x64`.** The installer will ship a stale binary and everything you
   verify afterwards will be a lie.
 
