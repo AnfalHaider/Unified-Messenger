@@ -113,13 +113,13 @@ public sealed class LocalBackupService
         catch (IOException ex)
         {
             throw new IOException(
-                $"That file could not be opened — it may be in use by another program, or still syncing. ({ex.Message})",
+                "That file could not be opened — it may be in use by another program, or still syncing.",
                 ex);
         }
         catch (UnauthorizedAccessException ex)
         {
             throw new UnauthorizedAccessException(
-                $"Unified Messenger does not have permission to read that file. ({ex.Message})",
+                "Unified Messenger does not have permission to read that file.",
                 ex);
         }
     }

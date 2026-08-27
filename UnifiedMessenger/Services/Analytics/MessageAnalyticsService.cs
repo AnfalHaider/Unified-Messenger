@@ -281,10 +281,14 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
                     .DeserializeAsync<AnalyticsStore>(stream, JsonOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (JsonException ex)
+            // Widened from JsonException: this store is loaded during app startup, so a file held open by
+            // a backup tool threw IOException out of ShellController.InitializeAsync and stopped the app
+            // opening at all. IsUnreadable names exactly the "could not read this file" set and
+            // deliberately excludes OperationCanceledException, so a cancelled shutdown load never moves a
+            // perfectly good file aside.
+            catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
             {
-                AppLogger.LogWarning("Analytics", $"Analytics file is corrupt; resetting to empty: {ex.Message}");
-                BackupCorruptFile();
+                CorruptFileRecovery.Preserve(_storePath, "Analytics", ex);
                 _isLoaded = true;
                 return;
             }
@@ -1932,24 +1936,6 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             LastPairedConversationKey = stats.LastPairedConversationKey,
             LastPairedAtUtc = stats.LastPairedAtUtc
         };
-    }
-
-    private void BackupCorruptFile()
-    {
-        try
-        {
-            if (!File.Exists(_storePath))
-            {
-                return;
-            }
-
-            var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
-            File.Move(_storePath, backupPath, overwrite: true);
-        }
-        catch (Exception ex)
-        {
-            AppLogger.LogWarning("Analytics", $"Could not back up corrupt analytics file: {ex.Message}");
-        }
     }
 
     private static string CsvEscape(string value)

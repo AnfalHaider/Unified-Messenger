@@ -143,10 +143,12 @@ public sealed class OversightChatSnapshotService
                     .DeserializeAsync<SnapshotStore>(stream, JsonOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (JsonException ex)
+            // Widened from JsonException for the same reason as the analytics store: this load runs during
+            // startup, and an unreadable — not merely malformed — file used to take the whole app down with
+            // it rather than costing one cached snapshot.
+            catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
             {
-                AppLogger.LogWarning("Oversight.Snapshot", $"Oversight snapshot is corrupt; resetting: {ex.Message}");
-                BackupCorruptFile();
+                CorruptFileRecovery.Preserve(_storePath, "Oversight.Snapshot", ex);
                 _isLoaded = true;
                 return;
             }
@@ -658,21 +660,6 @@ public sealed class OversightChatSnapshotService
         finally
         {
             _gate.Release();
-        }
-    }
-
-    private void BackupCorruptFile()
-    {
-        try
-        {
-            if (File.Exists(_storePath))
-            {
-                File.Move(_storePath, $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak", overwrite: true);
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.LogWarning("Oversight.Snapshot", $"Could not back up corrupt oversight snapshot: {ex.Message}");
         }
     }
 

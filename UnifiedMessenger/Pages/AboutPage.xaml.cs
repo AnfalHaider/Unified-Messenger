@@ -82,7 +82,7 @@ public sealed partial class AboutPage : Page
                     XamlRoot = XamlRoot,
                     Content = new TextBlock
                     {
-                        Text = $"Could not install the update: {ex.Message}",
+                        Text = $"Could not install the update: {UserFacingError.Describe("About.ApplyUpdate", ex)}",
                         TextWrapping = TextWrapping.WrapWholeWords
                     }
                 }.ShowManagedAsync();

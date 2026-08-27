@@ -5,6 +5,35 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.48
+
+Two failure paths that had never been looked at: one could stop the app opening, the other could destroy
+the owner's reply-time history — both silently.
+
+**A locked statistics file could stop the app from starting.** `ShellController.InitializeAsync` opened
+with eleven unguarded store loads. Several of those stores caught malformed JSON and nothing else, so a
+file an antivirus or backup tool held open for a moment threw straight through startup and into
+`App.LaunchAsync`, which shows "could not start" and exits. The account registry has had retry-and-recover
+for exactly this case for a long time; the history and cache stores never got it. Each of the five is now
+routed through `CorruptFileRecovery`, and the shell absorbs any load failure regardless — so the twelfth
+store added to that list inherits the guarantee instead of reintroducing the bug.
+
+**Two stores reset themselves without keeping the bytes.** `ResponseTimeTracker` and `ContactHistoryStore`
+logged the corruption and returned empty, and the next debounced save then wrote that emptiness over the
+unreadable file. `response-times.json` is the only source of median reply time, SLA met % and the
+response-time trend, so losing it silently reset the owner's whole history and the dashboard carried on
+showing the new numbers as though nothing had happened. Both now preserve the file first.
+`BackfillDedupeStore` gained the handler it never had, and now writes through a temp file like every other
+store rather than truncating the live one.
+
+**Failures reach the log, and stop reaching the owner as file paths.** Around twenty dialogs — every
+account operation, every backup / restore / import / export, the AI status lines, and the app's own
+"could not start" — showed a raw exception message and wrote nothing to `app.log`. The owner saw a path
+from inside `%LOCALAPPDATA%`; the one file support asks them to send said nothing at all. `UserFacingError`
+now logs the exception in full and returns a line with absolute paths redacted and no bare type names. It
+deliberately does not paraphrase: .NET's own sentences are accurate, and inventing a friendlier cause would
+be guessing.
+
 ## v4.99.47
 
 The rest of the audit's backlog, plus a stack of documentation that had stopped being true.

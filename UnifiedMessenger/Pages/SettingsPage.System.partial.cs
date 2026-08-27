@@ -37,7 +37,7 @@ public sealed partial class SettingsPage
             _suppressToggleEvents = true;
             LaunchAtStartupToggle.IsOn = StartupTaskService.IsRegisteredForCurrentExecutable();
             _suppressToggleEvents = false;
-            await ShowMessageDialogAsync("Startup registration failed", ex.Message);
+            await ShowMessageDialogAsync("Startup registration failed", UserFacingError.Describe("Settings.StartupRegistration", ex));
         }
     }
 

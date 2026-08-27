@@ -89,7 +89,7 @@ public static class AccountIconChangeFlow
         }
         catch (Exception ex)
         {
-            await services.Dialog.ShowErrorAsync("Could not change icon", ex.Message);
+            await services.Dialog.ShowErrorAsync("Could not change icon", UserFacingError.Describe("Account.ChangeIcon", ex));
         }
     }
 

@@ -115,7 +115,7 @@ public sealed partial class ReportsPage : Page
         {
             // A save the owner asked for that silently does nothing is worse than an error: they walk away
             // believing the file is there. A full or read-only disk is the common cause.
-            await _services.Dialog.ShowErrorAsync("Couldn't save the report", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Couldn't save the report", UserFacingError.Describe("Reports.Save", ex));
         }
     }
 
@@ -133,7 +133,7 @@ public sealed partial class ReportsPage : Page
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Couldn't export the data", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Couldn't export the data", UserFacingError.Describe("Reports.Export", ex));
         }
     }
 }

@@ -93,7 +93,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            await ShowMessageDialogAsync("Backup failed", ex.Message);
+            await ShowMessageDialogAsync("Backup failed", UserFacingError.Describe("Settings.Backup", ex));
         }
     }
 
@@ -125,7 +125,7 @@ public sealed partial class SettingsPage
         {
             // Distinct from "not a backup" on purpose: a locked or unreadable file is the owner's genuine
             // backup, and telling them it is not one invites them to delete it.
-            await ShowMessageDialogAsync("Couldn't open that file", ex.Message);
+            await ShowMessageDialogAsync("Couldn't open that file", UserFacingError.Describe("Settings.OpenFile", ex));
             return;
         }
 
@@ -167,7 +167,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            await ShowMessageDialogAsync("Restore failed", ex.Message);
+            await ShowMessageDialogAsync("Restore failed", UserFacingError.Describe("Settings.Restore", ex));
         }
     }
 
@@ -220,7 +220,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            await ShowMessageDialogAsync("Export failed", ex.Message);
+            await ShowMessageDialogAsync("Export failed", UserFacingError.Describe("Settings.Export", ex));
         }
     }
 
@@ -289,7 +289,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            await ShowMessageDialogAsync("Import failed", ex.Message);
+            await ShowMessageDialogAsync("Import failed", UserFacingError.Describe("Settings.Import", ex));
         }
     }
 }

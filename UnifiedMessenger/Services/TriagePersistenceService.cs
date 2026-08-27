@@ -335,21 +335,4 @@ public sealed class TriagePersistenceService
         }
     }
 
-    private void BackupCorruptFile()
-    {
-        try
-        {
-            if (!File.Exists(_storePath))
-            {
-                return;
-            }
-
-            var backupPath = $"{_storePath}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}.bak";
-            File.Move(_storePath, backupPath, overwrite: true);
-        }
-        catch (Exception ex)
-        {
-            AppLogger.LogWarning("Triage.Store", $"Could not back up corrupt triage file: {ex.Message}");
-        }
-    }
 }

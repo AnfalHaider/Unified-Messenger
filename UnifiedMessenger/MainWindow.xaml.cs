@@ -200,7 +200,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         catch (Exception ex)
         {
             AppLogger.LogWarning("Browse.SaveSite", $"{ex.GetType().Name}: {ex.Message}");
-            await _services.Dialog.ShowErrorAsync("Couldn't save this site", ex.Message).ConfigureAwait(true);
+            await _services.Dialog.ShowErrorAsync("Couldn't save this site", UserFacingError.Describe("Shell.SaveCustomSite", ex)).ConfigureAwait(true);
         }
     }
 
@@ -441,7 +441,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
             }
             catch (Exception ex)
             {
-                await _services.Dialog.ShowErrorAsync("Could not restore account", ex.Message);
+                await _services.Dialog.ShowErrorAsync("Could not restore account", UserFacingError.Describe("Shell.RestoreAccount", ex));
             }
         }, nameof(OnArchivedInstanceRestoreRequested));
     }

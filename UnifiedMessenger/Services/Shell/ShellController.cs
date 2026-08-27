@@ -181,39 +181,73 @@ public sealed class ShellController
         }
     }
 
+    /// <summary>
+    /// Loads one auxiliary store, absorbing any failure so startup continues without it.
+    /// </summary>
+    /// <remarks>
+    /// These eleven loads used to be bare <c>await</c>s. Each store's own handler caught the malformed-JSON
+    /// case, but several caught nothing else — so a file an antivirus or backup tool held open for a moment
+    /// threw <see cref="IOException"/> straight through <see cref="InitializeAsync"/>, through
+    /// <c>MainWindow.RunInitializationAsync</c>, and into <c>App.LaunchAsync</c>'s catch, which shows
+    /// "The application could not start." and exits. A statistics file being briefly locked stopped the
+    /// owner opening the app that holds their accounts.
+    ///
+    /// The stores were each fixed to route through <see cref="CorruptFileRecovery"/>, but that fix is
+    /// per-store and a new store added to the list would not inherit it. This makes the guarantee
+    /// structural: whatever a store does or fails to do, it cannot take startup down with it. The failure
+    /// is logged with the store's name, so <c>app.log</c> says which one and why.
+    ///
+    /// <see cref="OperationCanceledException"/> is deliberately not special-cased — during startup there is
+    /// no cancellation to honour, and swallowing it here would be the same silence being removed.
+    /// </remarks>
+    internal static async Task LoadStoreAsync(string scope, Func<CancellationToken, Task> load)
+    {
+        try
+        {
+            await load(CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError($"Shell.Load.{scope}", ex);
+        }
+    }
+
     public async Task InitializeAsync()
     {
         // App.OnLaunched loads settings first; this call is idempotent via AppSettingsService._isLoaded
         // and keeps ShellController safe when initialization order changes (e.g. tests, future entry points).
         await _services.AppSettings.LoadAsync().ConfigureAwait(true);
         await _services.Registry.LoadAsync().ConfigureAwait(true);
-        await _services.MessageAnalytics.LoadAsync().ConfigureAwait(true);
-        await _services.TriagePersistence.LoadAsync().ConfigureAwait(true);
+
+        // Everything below is an auxiliary store: history, caches and overrides. Losing one costs a
+        // feature; it must never cost the app. Each load is isolated by LoadStoreAsync — see its remarks.
+        await LoadStoreAsync("Analytics", _services.MessageAnalytics.LoadAsync).ConfigureAwait(true);
+        await LoadStoreAsync("Triage.Store", _services.TriagePersistence.LoadAsync).ConfigureAwait(true);
         // Last-known oversight snapshot, so the command center shows numbers immediately on launch
         // (labeled "as of …") instead of going blank until the next scan.
-        await OversightChatSnapshotService.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("Oversight.Snapshot", OversightChatSnapshotService.Instance.LoadAsync).ConfigureAwait(true);
         // Forward-tracked First Response Time samples + in-flight pending waits.
-        await ResponseTimeTracker.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ResponseTimes", ResponseTimeTracker.Instance.LoadAsync).ConfigureAwait(true);
         // Per-customer first/last-seen history for the new-vs-returning insight.
-        await ContactHistoryStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ContactHistory", ContactHistoryStore.Instance.LoadAsync).ConfigureAwait(true);
         // Manual "handled elsewhere" / snooze overrides for the awaiting lists.
-        await AwaitingOverrideStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("AwaitingOverrides", AwaitingOverrideStore.Instance.LoadAsync).ConfigureAwait(true);
 
         // Seeded on first run, so the reply library does something the day it is installed rather than
         // being an empty feature the owner has to build before it helps.
-        await SavedReplyStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("SavedReplies", SavedReplyStore.Instance.LoadAsync).ConfigureAwait(true);
         // Daily caught-up% / awaiting history for the KPI micro-trend sparklines.
-        await KpiTrendStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("KpiTrends", KpiTrendStore.Instance.LoadAsync).ConfigureAwait(true);
         // Daily review readings per Google account. Without this the Review Desk starts every run with
         // no rating, no trend and no velocity, because the snapshot service only holds them in memory.
-        await ReviewHistoryStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ReviewHistory", ReviewHistoryStore.Instance.LoadAsync).ConfigureAwait(true);
         // Who has already been asked for a review. Loaded before anything can offer to ask again:
         // "ask once, ever" is only a promise if the record survives the restart.
-        await ReviewAskStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ReviewAsks", ReviewAskStore.Instance.LoadAsync).ConfigureAwait(true);
         // Which unhappy reviews have already been notified about. Loaded before the first background
         // pass can evaluate: unloaded, every restart looks like a first run, and a first run stays
         // silent — so a one-star that arrived while the app was closed would never be raised.
-        await ReviewAlertStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ReviewAlerts", ReviewAlertStore.Instance.LoadAsync).ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);
@@ -245,7 +279,7 @@ public sealed class ShellController
             }
             catch (Exception ex)
             {
-                await _services.Dialog.ShowErrorAsync("Could not start your accounts", ShellErrorFormatter.Format(ex));
+                await _services.Dialog.ShowErrorAsync("Could not start your accounts", UserFacingError.Describe("Shell.StartAccounts", ex));
             }
             finally
             {
@@ -398,7 +432,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not add account", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not add account", UserFacingError.Describe("Shell.AddAccount", ex));
         }
     }
 
@@ -442,7 +476,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not save this site", ex.Message).ConfigureAwait(true);
+            await _services.Dialog.ShowErrorAsync("Could not save this site", UserFacingError.Describe("Shell.SaveCustomSite", ex)).ConfigureAwait(true);
         }
     }
 
@@ -587,7 +621,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update memory tier", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update memory tier", UserFacingError.Describe("Shell.MemoryTier", ex));
         }
     }
 
@@ -602,7 +636,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not move account", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not move account", UserFacingError.Describe("Shell.MoveAccount", ex));
         }
     }
 
@@ -640,7 +674,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not set location", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not set location", UserFacingError.Describe("Shell.SetLocation", ex));
         }
     }
 
@@ -665,7 +699,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update workspace", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update workspace", UserFacingError.Describe("Shell.UpdateWorkspace", ex));
         }
     }
 
@@ -693,7 +727,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not rename account", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not rename account", UserFacingError.Describe("Shell.RenameAccount", ex));
         }
     }
 
@@ -784,7 +818,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update account details", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update account details", UserFacingError.Describe("Shell.UpdateAccountDetails", ex));
         }
     }
 
@@ -810,7 +844,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update notification mute", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update notification mute", UserFacingError.Describe("Shell.NotificationMute", ex));
         }
     }
 
@@ -854,7 +888,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not remove account", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not remove account", UserFacingError.Describe("Shell.RemoveAccount", ex));
         }
     }
 

@@ -61,7 +61,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            await ShowMessageDialogAsync("WebView refresh failed", ex.Message);
+            await ShowMessageDialogAsync("WebView refresh failed", UserFacingError.Describe("Settings.RefreshWebView", ex));
         }
         finally
         {

@@ -199,7 +199,7 @@ public sealed class ShellNavigationCoordinator
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not load account", ShellErrorFormatter.Format(ex));
+            await _services.Dialog.ShowErrorAsync("Could not load account", UserFacingError.Describe("Shell.LoadAccount", ex));
         }
         finally
         {

@@ -69,10 +69,12 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            AppLogger.LogError("App.Launch", ex);
+            // Describe logs the exception in full and returns the owner-readable line. It used to be a raw
+            // ex.Message here, which meant the product's single most visible string showed a path from
+            // inside %LOCALAPPDATA% to someone who has no use for it.
             NativeDialogService.ShowError(
                 "Unified Messenger",
-                $"The application could not start.\n\n{ex.Message}");
+                $"Unified Messenger could not start.\n\n{UserFacingError.Describe("App.Launch", ex)}");
             CurrentWindow?.Close();
             Exit();
         }
