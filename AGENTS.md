@@ -42,6 +42,11 @@ A **free, fully-local Windows oversight app** for a multi-location business owne
 dotnet build UnifiedMessenger/UnifiedMessenger.csproj -c Release --nologo -v quiet
 ```
 
+`dotnet build` with no project argument (i.e. against `UnifiedMessenger.sln`) works as of v4.99.47. It
+used to fail with `NETSDK1032` because the solution mapped the app project's `Any CPU` configuration to
+`x86`, which is incompatible with its `win-x64` RuntimeIdentifier. If you see that error again, check the
+`Any CPU` rows for `{2DA27A40-…}` in `UnifiedMessenger.sln`.
+
 **Publish win-x64 (shipping binary):**
 ```
 dotnet publish UnifiedMessenger/UnifiedMessenger.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true --nologo -v quiet
@@ -77,7 +82,7 @@ Get-Process UnifiedMessenger  # must show ALIVE
 
 ---
 
-## Version sync — 4 files, always in lockstep
+## Version sync — 5 files, always in lockstep
 
 When bumping to a new version (e.g. `4.22.0`):
 
@@ -219,7 +224,7 @@ These were confirmed by reading the live WhatsApp Web IndexedDB via F12 DevTools
 - **Message bodies are ENCRYPTED at rest** in the `message` store's `msgRowOpaqueData` blob (`iv`/`_keyId`/`_scheme`). The `chat` store has no body. So **no readable preview exists in IndexedDB**; decryption is out of scope. The only plaintext preview source is the **live sidebar DOM**.
 - **Sidebar row DOM:** each `[role="row"]` exposes two `span[title]` — `[0]` = name/phone, `[1]` = last-message text — and carries **no `data-id`**. `window.__umStartPreviewHarvest()` does a **synchronous** single pass over the ~60 rendered rows (background webviews throttle `setTimeout` to ~1/sec, so scrolling never finishes), keying previews by the title's phone digits into `window.__umHarvestedPreviews`; the scan joins by resolved phone.
 - **Two C# parse paths build `ChatEntry` from the scan JSON — keep both in sync:** `WhatsAppBackfillProvider.ProcessIndexedDbConversationsAsync` and `OversightSnapshotReader.ParseChatEntries`. Both must read `contactPhone`. `OversightThreadEnricher.Enrich` prefers `chat.ContactPhone` → `+<digits>`. Tests: `OversightThreadEnricherTests` (7, green).
-- **`OnResyncHistory` reloads each account's WebView before probing** so freshly-installed scraper JS takes effect (the adapter script is injected only on document creation). `HarvestPreviewsAsync` waits ~25s for the chat list to re-render before harvesting. Preview harvest runs on the manual Re-sync path only — never the background `OversightAlertMonitor` (so it never scrolls the visible list passively).
+- **`CommandCenterPanel.RunResyncAsync` reloads each account's WebView before probing** so freshly-installed scraper JS takes effect (the adapter script is injected only on document creation). `HarvestPreviewsAsync` waits ~25s for the chat list to re-render before harvesting. Preview harvest runs on the manual Re-sync path only — never the background `OversightAlertMonitor` (so it never scrolls the visible list passively).
 - Known limits (accepted): previews only for chats among the ~60 rendered rows (awaiting chats are near the top) and only when the last message has text. Re-sync is slower because it reloads each account first.
 
 ### Google Business channel — VERIFIED FACTS
@@ -310,7 +315,7 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 | Native AOT / trimming disabled | WinUI 3 + WebView2 require full runtime — don't enable |
 | `ExecuteScriptAsync` doesn't await JS promises | Use start/poll pattern with a watchdog; never `.Result` a promise bridge |
 | Long `message`-store IndexedDB cursor hangs read transaction | Use bounded `chat` `getAll` instead of per-message cursors |
-| Test filter too broad → hangs headless | Use exact class names in `--filter`, not loose substrings |
+| Test filter too broad grabs unintended classes | Filters are for iteration only — run the FULL suite before pushing (see the retraction above). Use exact class names, never loose substrings. |
 | `NullPlatformAdapter.PlatformId` is `"generic"` not `"whatsapp"` | Adapter factory tests for new platforms expect `"generic"` |
 | Unsaved contacts show `@lid` JIDs, not phone numbers | Phone is in the `contact` store's `phoneNumber` field, keyed by `@lid` id. The `lid-pn-mapping` store is empty — don't use it. (See P2-A section.) |
 | Message preview is blank | **Preferred:** the store bridge (`whatsapp-store-bridge.js`) reads the decrypted in-memory models — previews for every chat. **Fallback only:** bodies are encrypted at rest (`msgRowOpaqueData`), so the IndexedDB path harvests preview from the live sidebar DOM (`__umStartPreviewHarvest`). |
@@ -318,6 +323,14 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 | Background webview throttles `setTimeout` (~1/sec) | Don't rely on timed loops (e.g. scroll harvest) in non-visible webviews; do synchronous single-pass DOM reads. |
 | `ChatEntry` field added but not populated | All readers now funnel through `ChatEntryParser.ParseConversations` (backfill, oversight, and the store bridge). Add the field there once — but make sure **both producers** emit it: `whatsapp-adapter.js` (IndexedDB scan) and `whatsapp-store-bridge.js` (in-memory scan). |
 | Tempted to add messaging metrics to the Google channel | Google Business Messages was shut down in July 2024 and the data deleted. Reviews + Q&A only, permanently. |
+| A failure you can only see with a debugger attached | `Debug.WriteLine` is `[Conditional("DEBUG")]` and vanishes from every build a customer runs. All 94 sites were converted to `AppLogger` in v4.99.47 and the sweep immediately exposed three defects nobody knew about. Never add another one: use `AppLogger.LogWarning`/`LogError`, or `LogWarningThrottled` for anything that fires per scraped message. |
+| Tempted to log the raw scraped payload | Don't. It carries customer names and message previews, and `app.log` is the file support asks the owner to send. Log the payload **length** — see `PlatformAdapters.HandleWebMessage` and `WebMessageIngressService`. |
+| Windows App SDK notification/badge APIs "don't work" | They don't, in this configuration, and they say so: the badge API's own message is *"Not applicable for unpackaged applications"*, and `AppNotificationManager.Register()` throws `COMException: The specified module could not be found` because the COM server lives in the WindowsAppRuntime **Singleton** package a self-contained build does not carry. Both now fall back — toasts to the classic shell notifier (needs the AUMID on the Start Menu shortcut, see `installer-shared.iss`), badges to the taskbar overlay. |
+| A COM `QueryInterface` fails with `E_NOINTERFACE` | Check the `[Guid]` on the interface is the **IID**, not the **CLSID**. `TaskbarOverlayService` carried `CLSID_TaskbarList` on `ITaskbarList3` for the life of the feature, so the taskbar badge never worked. The exception message names the id it asked for — read it. |
+| Keying per-WebView state by `instanceId` instead of `CoreWebView2` | Only safe when a **stale** entry is harmless. `PlatformNavigationHooks` moved to a string key because a stale entry there only causes a redundant `-=`. The registration guards (`BasePlatformAdapter.RegisteredHosts`, `WebViewChromeStyleInjector`) stay on `ConditionalWeakTable` because a stale entry would mean "already registered" for a WebView that is not — an account that silently never scrapes again. |
+| Calling a UI-thread-only WinRT property from a WinRT event handler | `UISettings.ColorValuesChanged` and `AccessibilitySettings.HighContrastChanged` are raised on a **background** thread. Reading `Window.Content` there throws `COMException 0x8001010E` (RPC_E_WRONGTHREAD) past `App.OnUnhandledException`, which leaves `Handled=false` on purpose — so it terminates the app. Marshal with `UiThreadRunner.Post`. |
+| Truncating text that a customer wrote | Cut with `window.__umTruncate` (JS) or `TranscriptBuilder.Truncate` (C#), never a raw `slice`/range. A cut through an emoji leaves a lone surrogate, and `System.Text.Json` then throws on that property — which silently dropped one real conversation from every single scan. |
+| Calling an account an "instance" in the UI | The product's word is **account**; "instance" is the type name. `AccountVocabularyTests` fails on any user-visible string or `AutomationProperties.SetName` containing it. The one allowed phrase is "Ollama instance". |
 | Google rating/total "isn't available" | It is — `GoogleReviewSnapshotService.ProfileRating`. It's on the Search merchant view, not the reviews manager page. Don't re-derive; see the Google Business verified-facts section. |
 | Custom-URL (generic) account shows a blank page | Not the start URL, the guard. Never key per-WebView state on a `CoreWebView2` in a `ConditionalWeakTable`/dictionary — it is a CsWinRT projection, so the managed wrapper can be collected and re-created for the same native object and the entry silently vanishes. `WebViewNavigationGuard` now captures each allowlist in its handler closure. The failure was invisible for months because the fallback (`DefaultAllowedHosts`) contains every built-in platform host, so only Custom URL broke. Diagnose via `app.log`: `[WebView.Nav] Navigation guard attached: allowAllHosts=… hosts=…` on attach, `Blocked navigation to disallowed URI: …` on a cancel. |
 | A "needs reply" chat that genuinely needs no reply | `AwaitingOverrideStore` (mark-handled / snooze) has existed since v4.51.0 — if it looks missing, it's a *surfacing* bug, not a missing feature. `Controls/Shared/AwaitingChatActions.Build` is the one control; use it on every awaiting row so a surface can't ship without it (that's how the per-account drill-down went a release with no way to close a chat). |
@@ -416,5 +429,8 @@ Remaining work is **gated on external dependencies** (task #s in the running lis
 3. Tier-1 ONNX — needs a chosen, downloaded model + runtime packaging (can't be built blind)
 4. Icon import-from-account robustness · brand-logo import for other channels — live per-platform DOM tuning
 
-> Optional follow-ups (feasible now, not blocked): business-hours-aware FRT, AI-narrated report headline,
-> OS-scheduled report, PNG/PDF export, a dedicated empty-state sweep. P2-C (outbound tone scoring) was dropped.
+> Optional follow-ups (feasible now, not blocked): OS-scheduled report, PDF export.
+> Already shipped despite appearing on older versions of this list: business-hours-aware FRT
+> (`Services/Oversight/BusinessHoursCalculator.cs`), the AI-narrated report headline
+> (`CommandCenterPanel.xaml.cs`), PNG export (`WeeklyReportDialog`), and the empty-state sweep (v4.99.47).
+> P2-C (outbound tone scoring) was dropped.
