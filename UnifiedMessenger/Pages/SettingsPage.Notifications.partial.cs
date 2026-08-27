@@ -7,6 +7,30 @@ namespace UnifiedMessenger.Pages;
 
 public sealed partial class SettingsPage
 {
+    /// <summary>
+    /// Shows the toast channel's state above the controls that depend on it.
+    /// </summary>
+    /// <remarks>
+    /// Stays hidden on the healthy path — a green "working" banner over five working toggles is noise.
+    /// It appears only when there is something the owner would otherwise have no way to learn: toasts are
+    /// off entirely, or they display but cannot open the app when clicked.
+    /// </remarks>
+    private void ApplyToastHealth()
+    {
+        var delivery = AppNotificationService.Instance.Delivery;
+        if (delivery == NotificationDelivery.WindowsAppSdk)
+        {
+            ToastHealthText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ToastHealthText.Text = AppNotificationService.Instance.DeliveryDescription;
+        ToastHealthText.Foreground = delivery == NotificationDelivery.Unavailable
+            ? UmSemanticBrushes.StatusDanger
+            : UmSemanticBrushes.StatusWarning;
+        ToastHealthText.Visibility = Visibility.Visible;
+    }
+
     private void EnsureNotificationsComboBoxesInitialized()
     {
         if (PanelAutoOpenBox.ItemsSource is null)

@@ -144,6 +144,7 @@ public sealed partial class SettingsPage : Page
         var settings = _services.AppSettings.Settings;
 
         _suppressToggleEvents = true;
+        ApplyToastHealth();
         BackgroundToastsToggle.IsOn = settings.EnableBackgroundToasts;
         TaskbarBadgeToggle.IsOn = settings.ShowTaskbarBadge;
         ThemePreferenceBox.SelectedItem = ((ThemePreferenceOption[])ThemePreferenceBox.ItemsSource!)

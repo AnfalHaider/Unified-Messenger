@@ -36,6 +36,10 @@ public partial class App : Application
             StartupTaskService.EnsureRegistrationMatchesPreference(
                 services.AppSettings.Settings.LaunchAtStartup);
 
+            // Must precede the first window: the shell reads a process's AppUserModelID when it creates the
+            // window, and the toast channel needs the same identity to exist before it can be claimed.
+            AppNotificationService.ApplyAppUserModelId();
+
             // Application.RequestedTheme must be set before the first Window is created (WinUI COM 0x80131515).
             ThemeService.ApplyInitialLaunchTheme(services.AppSettings.Settings.ThemePreference);
 

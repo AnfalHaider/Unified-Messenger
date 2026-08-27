@@ -8,6 +8,12 @@
 #define MyAppVersion "4.99.45"
 #define MyAppMutex "UnifiedMessenger_AppMutex"
 
+; Shell identity for toasts and taskbar grouping. MUST match AppNotificationService.Aumid in C#.
+; An unpackaged app has no identity of its own, so the classic shell notifier will not create a
+; notifier at all unless a Start Menu shortcut carries this exact string. Toast notifications had
+; never worked in a shipping build before this was added - see AppNotificationService.Initialize.
+#define MyAppUserModelId "AnfalHaider.UnifiedMessenger"
+
 #define OllamaRuntimeDir "{localappdata}\UnifiedMessenger\ollama\runtime"
 #define OllamaModelsDir "{localappdata}\UnifiedMessenger\ollama\models"
 
