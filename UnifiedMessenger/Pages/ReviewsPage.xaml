@@ -12,7 +12,7 @@
     <ScrollViewer Padding="{StaticResource UmPaddingXl}" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
         <Grid>
             <!-- The desk owns the whole surface, including its own header and refresh. It used to sit above
-                 ReviewHealthPanel, which meant the page showed a queue and then repeated the same figures as
+                 the old ReviewHealthPanel, which meant the page showed a queue and then repeated the same figures as
                  per-account cards underneath. -->
             <controls:ReviewDesk x:Name="ReviewDesk" />
 
@@ -37,6 +37,14 @@
                     TextAlignment="Center"
                     TextWrapping="WrapWholeWords"
                     Text="Add a Google Business account to track your rating, reply rate, and which reviews still need a response." />
+                <!-- The state told the owner what to do and then gave them no way to do it — a dead end
+                     on the one screen a new install is most likely to open first. -->
+                <Button
+                    x:Name="AddAccountFromReviewsButton"
+                    HorizontalAlignment="Center"
+                    Margin="0,4,0,0"
+                    Click="AddAccountButton_Click"
+                    Content="Add account" />
             </StackPanel>
         </Grid>
     </ScrollViewer>

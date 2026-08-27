@@ -648,20 +648,57 @@ public sealed partial class WorkspaceSidebar : Grid
             Child = grid
         };
 
-        header.PointerPressed += (_, _) => ToggleLocationGroup(key);
+        void Toggle()
+        {
+            ToggleLocationGroup(key);
+
+            // Re-state the name so the change is observable. It used to be a constant ending "press to
+            // collapse or expand", so a screen-reader user pressed Enter, heard nothing, and had no way to
+            // know the group had just collapsed — the chevron only rotates, which tells them nothing.
+            ApplyLocationHeaderName(header, title, count, _collapsedGroups.Contains(key));
+        }
+
+        header.PointerPressed += (_, _) => Toggle();
         header.KeyDown += (_, e) =>
         {
             if (e.Key is VirtualKey.Enter or VirtualKey.Space)
             {
-                ToggleLocationGroup(key);
+                Toggle();
                 e.Handled = true;
             }
         };
 
-        AutomationProperties.SetName(header,
-            $"{title} location, {count} {(count == 1 ? "account" : "accounts")}, press to collapse or expand");
+        ApplyLocationHeaderName(header, title, count, _collapsedGroups.Contains(key));
         _compactHiddenElements.Add(header);
         return header;
+    }
+
+    /// <summary>
+    /// Names a location header including its current expanded/collapsed state, and announces the change.
+    /// </summary>
+    /// <remarks>
+    /// A <c>Border</c> exposes no ExpandCollapse pattern, so the state has to live in the name. A proper
+    /// fix would be a custom control carrying an <c>ExpandCollapse</c> peer, the way <c>NavigationRow</c>
+    /// carries Invoke — worth doing if these headers grow any more behaviour, but the user-visible defect
+    /// here is simply that nothing was said at all.
+    /// </remarks>
+    private static void ApplyLocationHeaderName(Border header, string title, int count, bool collapsed)
+    {
+        AutomationProperties.SetName(
+            header,
+            $"{title} location, {count} {(count == 1 ? "account" : "accounts")}, {(collapsed ? "collapsed" : "expanded")}");
+
+        try
+        {
+            Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer
+                .FromElement(header)
+                ?.RaiseAutomationEvent(Microsoft.UI.Xaml.Automation.Peers.AutomationEvents.PropertyChanged);
+        }
+        catch (Exception ex)
+        {
+            // Only assistive tech is listening; never let a peer failure break the toggle itself.
+            AppLogger.LogWarning("Sidebar", $"Could not announce group state: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private TextBlock CreateEmptyHint(string text, string key)
@@ -1091,7 +1128,7 @@ public sealed partial class WorkspaceSidebar : Grid
 
         button.BorderThickness = new Thickness(3, 0, 0, 0);
         button.BorderBrush = selected
-            ? ResolveBrush("SystemFillColorSuccessBrush")
+            ? ResolveBrush("UmBrandTealBrush")
             : ResolveTransparentBrush();
     }
 
@@ -1104,7 +1141,7 @@ public sealed partial class WorkspaceSidebar : Grid
 
         row.BorderThickness = new Thickness(3, 0, 0, 0);
         row.BorderBrush = selected
-            ? ResolveBrush("SystemFillColorSuccessBrush")
+            ? ResolveBrush("UmBrandTealBrush")
             : ResolveTransparentBrush();
     }
 

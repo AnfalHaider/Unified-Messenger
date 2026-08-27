@@ -10,7 +10,7 @@ namespace UnifiedMessenger.Pages;
 /// The Reviews section — a thin host over <c>ReviewDesk</c>, which owns the whole surface.
 /// </summary>
 /// <remarks>
-/// The page previously hosted <c>ReviewHealthPanel</c>, and briefly both that and the desk, which meant it
+/// The page previously hosted a separate ReviewHealthPanel (deleted in v4.99.47), and briefly both that and the desk, which meant it
 /// showed a queue and then repeated the same figures as per-account cards below it. The desk covers
 /// everything that panel did — rating, lifetime total, reply rate, the pending list and the refresh — so it
 /// replaced it rather than joining it.
@@ -42,4 +42,7 @@ public sealed partial class ReviewsPage : Page
         NoAccountsState.Visibility = hasGoogleAccount ? Visibility.Collapsed : Visibility.Visible;
         ReviewDesk.Visibility = hasGoogleAccount ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private void AddAccountButton_Click(object sender, RoutedEventArgs e) =>
+        _services.Navigation.RequestAddInstance();
 }

@@ -212,7 +212,7 @@
                         x:Name="InstanceLoadingText"
                         HorizontalAlignment="Center"
                         Opacity="0.8"
-                        Text="Loading instance..." />
+                        Text="Loading account..." />
                 </StackPanel>
 
                 <!-- Opaque, on purpose. This Frame used to have no Background at all, so MicaBackdrop

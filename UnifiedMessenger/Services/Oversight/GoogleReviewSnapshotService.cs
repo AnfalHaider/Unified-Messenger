@@ -354,7 +354,7 @@ public sealed class GoogleReviewSnapshotService
     /// <b>Why this is not optional.</b> A traversal CLICKS THROUGH the account's live WebView, so two of
     /// them on one account do not merely duplicate work — they corrupt each other, each counting whatever
     /// page the other just advanced to. Two callers exist by design (this service's background pass and
-    /// ReviewHealthPanel's own refresh) and they collided the moment paging was introduced: the log showed
+    /// the desk's own refresh) and they collided the moment paging was introduced: the log showed
     /// the same account finishing twice in the same second with different answers — "Read 250 across 5
     /// pages" beside "Read 600 across 12 pages", and 197 unanswered beside 167.
     ///
@@ -822,7 +822,7 @@ public sealed class GoogleReviewSnapshotService
     /// Starts the periodic review refresh.
     /// </summary>
     /// <remarks>
-    /// <b>Why this exists at all.</b> <c>ReviewHealthPanel</c> was the ONLY caller of
+    /// <b>Why this exists at all.</b> <c>ReviewDesk</c> (then <c>ReviewHealthPanel</c>) was the ONLY caller of
     /// <see cref="ScrapeAsync"/>, so reviews were read exclusively while the owner had the Reviews page
     /// open — and its two triggers both forbade navigation, so even then it usually read nothing. The
     /// dashboard's Reviews card reads this service's cache, which therefore stayed empty forever and
@@ -878,7 +878,7 @@ public sealed class GoogleReviewSnapshotService
         _passRunning = true;
         try
         {
-            // Deliberately the same predicate ReviewHealthPanel.GoogleInstances uses, including the
+            // Deliberately the same predicate ReviewDesk uses to pick Google accounts, including the
             // sidebar-visibility check. If the background pass and the panel disagreed about which accounts
             // count, the dashboard card and the Reviews page would quietly report different totals.
             var accounts = _registry.Instances
@@ -927,7 +927,7 @@ public sealed class GoogleReviewSnapshotService
                 await ScrapeAsync(account.Id, allowNavigate: false).ConfigureAwait(true);
 
                 // The lifetime total belongs in the background pass for the same reason the review scrape
-                // does: until this call was added, ReviewHealthPanel was its ONLY caller, so an owner who
+                // does: until this call was added, the Reviews page was its ONLY caller, so an owner who
                 // never opened the Reviews page had no rating and no lifetime total — which silently
                 // downgrades the coverage line from "covers the first 50 of 991" to "covers 50 loaded
                 // reviews", the honest wording for a number we never read. Own throttle
@@ -1005,7 +1005,7 @@ public sealed class GoogleReviewSnapshotService
         }
 
         // FRESHNESS FLOOR — measured, not theoretical. On startup this scraped every Google account roughly
-        // six times in two minutes. ReviewHealthPanel kicks off a scrape from its Loaded handler, and the
+        // six times in two minutes. ReviewDesk kicks off a scrape from its Loaded handler, and the
         // dashboard reloads that panel on every alert-monitor tick and adapter-health change, so each reload
         // fired a fresh pass over all three accounts. The existing SemaphoreSlim only blocks CONCURRENT
         // passes; a pass that finishes in three seconds is not concurrent with the one that follows it.
@@ -1034,7 +1034,7 @@ public sealed class GoogleReviewSnapshotService
         // WHY THIS IS NOT SIMPLY `allowNavigate`.
         //
         // The reviews scrape can only read business.google.com/reviews, and the guard below refused to
-        // navigate there on any background refresh. Both entry points in ReviewHealthPanel — the initial
+        // navigate there on any background refresh. Both entry points in ReviewDesk — the initial
         // load and the auto-refresh timer — pass allowNavigate:false. So unless the owner happened to be
         // sitting on the reviews page themselves, the kickoff returned 'notreviews' and the panel showed
         // "Not scanned yet" indefinitely.

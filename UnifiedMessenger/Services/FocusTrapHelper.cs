@@ -94,6 +94,22 @@ public sealed class FocusTrapHelper : IDisposable
                Windows.UI.Core.CoreVirtualKeyStates.Down;
     }
 
+    /// <summary>
+    /// Tab-focusable controls, in the order a keyboard user should reach them.
+    /// </summary>
+    /// <remarks>
+    /// <b>The tiebreak used to be <c>GetHashCode()</c>.</b> WinUI's default <c>TabIndex</c> is
+    /// <c>int.MaxValue</c>, and none of the surfaces that use this helper set one — so every control tied
+    /// on the primary key and a managed hash code decided the entire tab order. It was arbitrary, and it
+    /// changed between runs: Tab could go Display name → Platform → Cancel → Branch key one launch and
+    /// something else the next. Worse, the handler is registered with <c>handledEventsToo: true</c> and
+    /// sets <c>e.Handled</c>, so this overrode the correct loop <c>ContentDialog</c> already provides.
+    /// <para>
+    /// <see cref="WalkFocusableTree"/> is depth-first, which IS visual order, and LINQ's
+    /// <c>OrderBy</c> is a stable sort — so simply dropping the tiebreak leaves explicit tab indices
+    /// honoured and everything else in the order it appears on screen.
+    /// </para>
+    /// </remarks>
     private static List<Control> CollectTabFocusableElements(DependencyObject root)
     {
         var elements = new List<Control>();
@@ -104,7 +120,6 @@ public sealed class FocusTrapHelper : IDisposable
                 element.Visibility == Visibility.Visible &&
                 element.IsTabStop)
             .OrderBy(element => element.TabIndex)
-            .ThenBy(element => element.GetHashCode())
             .ToList();
     }
 

@@ -8,7 +8,7 @@
     PrimaryButtonText="Rename"
     SecondaryButtonText="Cancel"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
-    Title="Rename instance">
+    Title="Rename account">
 
     <StackPanel MinWidth="360" Spacing="12">
         <TextBox

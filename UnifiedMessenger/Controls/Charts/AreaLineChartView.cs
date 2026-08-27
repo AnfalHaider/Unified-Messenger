@@ -106,6 +106,7 @@ public sealed class AreaLineChartView : ContentControl
         {
             _xFirst.Text = string.Empty;
             _xLast.Text = string.Empty;
+            AnnounceSummary(hasData: false, 0);
             return;
         }
 
@@ -170,5 +171,47 @@ public sealed class AreaLineChartView : ContentControl
         _yMax.Text = _formatY(max);
         _xFirst.Text = _labels.Count > 0 ? _labels[0] : string.Empty;
         _xLast.Text = _labels.Count > 0 ? _labels[^1] : string.Empty;
+
+        AnnounceSummary(hasData: true, max);
+    }
+
+    /// <summary>
+    /// Gives the chart a spoken summary, the way <c>BarChartView</c> and <c>DonutChartView</c> already do.
+    /// </summary>
+    /// <remarks>
+    /// This control had none, so Narrator read three of the five Analytics charts and skipped the two
+    /// response-time ones entirely — the owner heard nothing at all where the screen shows a trend. A
+    /// sighted-only chart is not a minor gap on a page whose entire purpose is telling you how you are
+    /// doing. The summary names the shape rather than reading every point: first and last value, the peak,
+    /// and the span, which is what someone actually takes from a line.
+    /// </remarks>
+    private void AnnounceSummary(bool hasData, double max)
+    {
+        if (!hasData || _values.Count == 0)
+        {
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(this, $"Line chart. {_emptyHint}.");
+            return;
+        }
+
+        var first = _formatY(_values[0]);
+        var last = _formatY(_values[^1]);
+        var peakIndex = -1;
+        for (var i = 0; i < _values.Count; i++)
+        {
+            if (_values[i] >= max)
+            {
+                peakIndex = i;
+                break;
+            }
+        }
+
+        var peakLabel = peakIndex >= 0 && peakIndex < _labels.Count ? _labels[peakIndex] : null;
+
+        var span = _labels.Count > 1 ? $" from {_labels[0]} to {_labels[^1]}" : string.Empty;
+        var peak = peakLabel is null ? $", peak {_formatY(max)}" : $", peak {_formatY(max)} on {peakLabel}";
+
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            this,
+            $"Line chart, {_values.Count} points{span}. Starts at {first}, ends at {last}{peak}.");
     }
 }

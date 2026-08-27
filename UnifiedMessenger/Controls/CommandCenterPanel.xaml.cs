@@ -3555,6 +3555,10 @@ public sealed partial class CommandCenterPanel : UserControl
         var pros = _services.Registry.Instances.Where(instance => instance.IsProfessional).ToList();
         if (pros.Count == 0)
         {
+            // Silently returning made the dashboard's primary recovery button look like a frozen app: a
+            // new owner clicks Re-sync, the button stays enabled, and nothing anywhere changes.
+            AttentionBanner.Visibility = Visibility.Visible;
+            AttentionText.Text = "Nothing to sync yet — add a business account first.";
             return;
         }
 

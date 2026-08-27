@@ -245,7 +245,7 @@ public sealed class ShellController
             }
             catch (Exception ex)
             {
-                await _services.Dialog.ShowErrorAsync("Could not start instances", ShellErrorFormatter.Format(ex));
+                await _services.Dialog.ShowErrorAsync("Could not start your accounts", ShellErrorFormatter.Format(ex));
             }
             finally
             {
@@ -398,7 +398,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not add instance", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not add account", ex.Message);
         }
     }
 
@@ -472,36 +472,36 @@ public sealed class ShellController
                 : "Move to Professional workspace"
         };
         AutomationProperties.SetName(moveItem, args.Instance.IsProfessional
-            ? "Move instance to Personal workspace"
-            : "Move instance to Professional workspace");
+            ? "Move account to Personal workspace"
+            : "Move account to Professional workspace");
         moveItem.Click += (_, _) => _ = ToggleInstanceCategoryAsync(args.InstanceId);
         flyout.Items.Add(moveItem);
 
         if (args.Instance.IsProfessional)
         {
             var locationItem = new MenuFlyoutItem { Text = "Set location..." };
-            AutomationProperties.SetName(locationItem, "Set instance location");
+            AutomationProperties.SetName(locationItem, "Set account location");
             locationItem.Click += (_, _) => _ = SetInstanceLocationAsync(args.InstanceId);
             flyout.Items.Add(locationItem);
         }
 
         var moveUpItem = new MenuFlyoutItem { Text = "Move up" };
-        AutomationProperties.SetName(moveUpItem, "Move instance up in sidebar");
+        AutomationProperties.SetName(moveUpItem, "Move account up in sidebar");
         moveUpItem.Click += (_, _) => _ = ReorderInstanceByDirectionAsync(args.InstanceId, -1);
         flyout.Items.Add(moveUpItem);
 
         var moveDownItem = new MenuFlyoutItem { Text = "Move down" };
-        AutomationProperties.SetName(moveDownItem, "Move instance down in sidebar");
+        AutomationProperties.SetName(moveDownItem, "Move account down in sidebar");
         moveDownItem.Click += (_, _) => _ = ReorderInstanceByDirectionAsync(args.InstanceId, 1);
         flyout.Items.Add(moveDownItem);
 
-        var renameItem = new MenuFlyoutItem { Text = "Rename instance...", AccessKey = "R" };
-        AutomationProperties.SetName(renameItem, "Rename instance");
+        var renameItem = new MenuFlyoutItem { Text = "Rename account...", AccessKey = "R" };
+        AutomationProperties.SetName(renameItem, "Rename account");
         renameItem.Click += (_, _) => _ = RenameInstanceAsync(args.InstanceId);
         flyout.Items.Add(renameItem);
 
         var iconItem = new MenuFlyoutItem { Text = "Change icon...", AccessKey = "I" };
-        AutomationProperties.SetName(iconItem, "Change instance icon");
+        AutomationProperties.SetName(iconItem, "Change account icon");
         iconItem.Click += (_, _) => _ = ChangeInstanceIconAsync(args.InstanceId);
         flyout.Items.Add(iconItem);
 
@@ -513,30 +513,30 @@ public sealed class ShellController
             AccessKey = "M"
         };
         AutomationProperties.SetName(muteItem, args.Instance.NotificationsMuted
-            ? "Unmute instance notifications"
-            : "Mute instance notifications");
+            ? "Unmute notifications for this account"
+            : "Mute notifications for this account");
         muteItem.Click += (_, _) => _ = ToggleInstanceMuteAsync(args.InstanceId);
         flyout.Items.Add(muteItem);
 
         flyout.Items.Add(BuildMemoryTierSubmenu(args.InstanceId, args.Instance.MemoryTier));
 
         var refreshItem = new MenuFlyoutItem { Text = "Refresh WebView" };
-        AutomationProperties.SetName(refreshItem, "Refresh instance WebView");
+        AutomationProperties.SetName(refreshItem, "Reload this account's web view");
         refreshItem.Click += (_, _) => _ = _services.SessionManager.ReloadSessionAsync(args.InstanceId);
         flyout.Items.Add(refreshItem);
 
         if (_services.AppSettings.Settings.EnableEditInstanceMetadata)
         {
-            var editItem = new MenuFlyoutItem { Text = "Edit instance metadata..." };
-            AutomationProperties.SetName(editItem, "Edit instance metadata");
+            var editItem = new MenuFlyoutItem { Text = "Edit account details..." };
+            AutomationProperties.SetName(editItem, "Edit account details");
             editItem.Click += (_, _) => _ = EditInstanceMetadataAsync(args.InstanceId);
             flyout.Items.Add(editItem);
         }
 
         flyout.Items.Add(new MenuFlyoutSeparator());
 
-        var removeItem = new MenuFlyoutItem { Text = "Remove instance...", AccessKey = "X" };
-        AutomationProperties.SetName(removeItem, "Remove instance permanently");
+        var removeItem = new MenuFlyoutItem { Text = "Remove account...", AccessKey = "X" };
+        AutomationProperties.SetName(removeItem, "Remove account permanently");
         removeItem.Click += (_, _) => _ = DeleteInstanceAsync(args.InstanceId);
         flyout.Items.Add(removeItem);
 
@@ -602,7 +602,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not move instance", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not move account", ex.Message);
         }
     }
 
@@ -693,7 +693,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not rename instance", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not rename account", ex.Message);
         }
     }
 
@@ -784,7 +784,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update instance metadata", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update account details", ex.Message);
         }
     }
 
@@ -854,7 +854,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not remove instance", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not remove account", ex.Message);
         }
     }
 

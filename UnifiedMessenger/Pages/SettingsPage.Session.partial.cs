@@ -13,7 +13,7 @@ public sealed partial class SettingsPage
         {
             StartupWarmModeBox.ItemsSource = new[]
             {
-                new StartupWarmModeOption(StartupWarmMode.WarmAll, "Warm all (loads every instance)"),
+                new StartupWarmModeOption(StartupWarmMode.WarmAll, "Warm all (loads every account)"),
                 new StartupWarmModeOption(StartupWarmMode.VisibleOnly, "Visible only (recommended)"),
                 new StartupWarmModeOption(StartupWarmMode.Lazy, "Lazy (load on demand)")
             };

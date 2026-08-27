@@ -97,7 +97,7 @@ public sealed partial class EditInstanceMetadataDialog : ContentDialog
 
         if (!submission.IsValid)
         {
-            ShowValidation(submission.ValidationMessage ?? "Could not save instance metadata.");
+            ShowValidation(submission.ValidationMessage ?? "Could not save these account details.");
             args.Cancel = true;
             return;
         }

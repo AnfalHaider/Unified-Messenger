@@ -57,11 +57,24 @@ public sealed partial class AnalyticsPage : Page
     private int SelectedDays() =>
         RangeBox.SelectedItem is ComboBoxItem { Tag: int days } ? days : DashboardReportHelper.Ranges[0].Days;
 
+    private void AddAccountButton_Click(object sender, RoutedEventArgs e) =>
+        _services.Navigation.RequestAddInstance();
+
     private void Refresh()
     {
         var instances = _services.Registry.Instances
             .Where(i => i.IsProfessional)
             .ToList();
+
+        // Nothing connected is a different state from nothing happening, and the page had no way to say
+        // so — it rendered zeros, which reads as a report on a bad week rather than an empty install.
+        var hasAccounts = instances.Count > 0;
+        NoAccountsState.Visibility = hasAccounts ? Visibility.Collapsed : Visibility.Visible;
+        AnalyticsContent.Visibility = hasAccounts ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasAccounts)
+        {
+            return;
+        }
 
         // Stamped on every refresh, and flagged once it is old enough that the poll has been failing
         // rather than merely lagging.

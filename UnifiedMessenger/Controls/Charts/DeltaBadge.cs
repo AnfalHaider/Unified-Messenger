@@ -11,6 +11,11 @@ namespace UnifiedMessenger.Controls.Charts;
 /// no-judgement — not its arrow direction, so response time falling shows a green down-arrow while raw
 /// message volume falling shows a neutral one. Feed it a <see cref="MetricDelta"/> from
 /// <see cref="ChartSeriesBuilder.ComputeDelta"/>; it hides itself when there is no prior period to compare.
+/// <para>
+/// Sentiment is carried three ways — colour, a tick/warning glyph, and the words "better"/"worse" in the
+/// automation name — because it used to be carried by colour alone. The arrow only ever encoded
+/// direction, so "20 percent down" was all a screen reader said for both good and bad news.
+/// </para>
 /// </summary>
 public sealed class DeltaBadge : ContentControl
 {
@@ -26,12 +31,16 @@ public sealed class DeltaBadge : ContentControl
     private readonly TextBlock _percent = new() { FontSize = UmScale.Icon.Sm, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _comparison = new() { FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7 };
 
+    /// <summary>Non-colour cue for whether the change is good or bad. See <see cref="Rebuild"/>.</summary>
+    private readonly FontIcon _meaning = new() { FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center };
+
     public DeltaBadge()
     {
         IsTabStop = false;
         var stack = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         stack.Children.Add(_arrow);
         stack.Children.Add(_percent);
+        stack.Children.Add(_meaning);
         stack.Children.Add(_comparison);
         Content = stack;
         Rebuild();
@@ -73,7 +82,28 @@ public sealed class DeltaBadge : ContentControl
         _arrow.Foreground = brush;
         _percent.Foreground = brush;
 
+        // Whether a change is GOOD was carried by the brush and nothing else: a 20% drop in response time
+        // is good news and a 20% drop in messages is bad, and both rendered as "20 percent down". Anyone
+        // using Narrator, or with red/green colour-vision deficiency, got the direction and not the
+        // meaning. WCAG 1.4.1 — never colour alone — and this control's own class doc said the colour was
+        // the only carrier.
         var dir = delta.Direction == DeltaDirection.Up ? "up" : "down";
-        AutomationProperties.SetName(this, $"{delta.Percent} percent {dir} {ComparisonLabel}");
+        var meaning = delta.Sentiment switch
+        {
+            DeltaSentiment.Favourable => ", better",
+            DeltaSentiment.Adverse => ", worse",
+            _ => string.Empty
+        };
+
+        _meaning.Glyph = delta.Sentiment switch
+        {
+            DeltaSentiment.Favourable => "", // CheckMark
+            DeltaSentiment.Adverse => "",    // Warning
+            _ => string.Empty
+        };
+        _meaning.Foreground = brush;
+        _meaning.Visibility = _meaning.Glyph.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        AutomationProperties.SetName(this, $"{delta.Percent} percent {dir}{meaning} {ComparisonLabel}");
     }
 }

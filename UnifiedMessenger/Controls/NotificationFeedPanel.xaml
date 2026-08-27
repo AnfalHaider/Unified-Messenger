@@ -219,7 +219,7 @@
             <shared:EmptyStateView
                 x:Name="EmptyStatePanel"
                 VerticalAlignment="Center"
-                Hint="Unread badges appear on sidebar icons. Message previews show here when intercepted."
+                Hint="Unread counts appear on the sidebar. New messages show up here as your accounts sync."
                 IconGlyph="&#xEA8F;"
                 Title="No notifications yet." />
         </Grid>

@@ -33,7 +33,7 @@
                     AutomationProperties.AutomationId="CommandPaletteSearch"
                     AutomationProperties.Name="Command Palette Search"
                     Margin="12,12,12,8"
-                    PlaceholderText="Search instances, alerts, and actions..."
+                    PlaceholderText="Search accounts, alerts, and actions..."
                     QueryIcon="Find"
                     QuerySubmitted="SearchBox_QuerySubmitted"
                     TextChanged="SearchBox_TextChanged" />

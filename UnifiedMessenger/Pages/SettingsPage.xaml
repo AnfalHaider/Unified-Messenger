@@ -128,7 +128,7 @@
                             Toggled="ToastGroupToggle_Toggled">
                             <ToggleSwitch.Header>
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="Group toasts by instance" />
+                                    <TextBlock Text="Group toasts by account" />
                                     <TextBlock
                                         FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
@@ -149,7 +149,7 @@
                                     <TextBlock
                                         FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
-                                        Text="Use instance display name as the toast header line."
+                                        Text="Use the account's display name as the toast header line."
                                         TextWrapping="WrapWholeWords" />
                                 </StackPanel>
                             </ToggleSwitch.Header>
@@ -379,7 +379,7 @@
                                     <TextBlock
                                         FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
-                                        Text="Load non-visible instances in the background after startup instead of all at once."
+                                        Text="Load non-visible accounts in the background after startup instead of all at once."
                                         TextWrapping="WrapWholeWords" />
                                 </StackPanel>
                             </ToggleSwitch.Header>
@@ -392,11 +392,11 @@
                             Toggled="EnablePerInstanceSleepUnloadToggle_Toggled">
                             <ToggleSwitch.Header>
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="Sleep unload inactive instances" />
+                                    <TextBlock Text="Sleep unload inactive accounts" />
                                     <TextBlock
                                         FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
-                                        Text="Unload the WebView of instances not used for a while to reduce memory usage."
+                                        Text="Unload the WebView of accounts not used for a while to reduce memory usage."
                                         TextWrapping="WrapWholeWords" />
                                 </StackPanel>
                             </ToggleSwitch.Header>
@@ -409,11 +409,11 @@
                             Toggled="EnableEditInstanceMetadataToggle_Toggled">
                             <ToggleSwitch.Header>
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="Edit instance metadata" />
+                                    <TextBlock Text="Edit account details" />
                                     <TextBlock
                                         FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
-                                        Text="Adds an 'Edit instance metadata' option to the instance context menu for changing display name, URL, platform, notes, and branch tag."
+                                        Text="Adds an 'Edit account details' option to an account's right-click menu, for changing its display name, URL, platform, notes, and branch tag."
                                         TextWrapping="WrapWholeWords" />
                                 </StackPanel>
                             </ToggleSwitch.Header>
@@ -426,11 +426,11 @@
                             Toggled="EnableImportExportInstancesToggle_Toggled">
                             <ToggleSwitch.Header>
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="Import and export instance registry" />
+                                    <TextBlock Text="Import and export your account list" />
                                     <TextBlock
                                         FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
-                                        Text="Shows import and export controls in Data &amp; Privacy to back up or migrate your instance list between devices."
+                                        Text="Shows import and export controls in Data &amp; Privacy to back up or migrate your account list between devices."
                                         TextWrapping="WrapWholeWords" />
                                 </StackPanel>
                             </ToggleSwitch.Header>
@@ -443,11 +443,11 @@
                             Toggled="EnableInstanceNotesTagsToggle_Toggled">
                             <ToggleSwitch.Header>
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="Instance notes and branch tags" />
+                                    <TextBlock Text="Account notes and branch tags" />
                                     <TextBlock
                                         FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
-                                        Text="Allows attaching free-text notes and a branch tag to each instance for team or multi-workspace setups."
+                                        Text="Allows attaching free-text notes and a branch tag to each account for team or multi-workspace setups."
                                         TextWrapping="WrapWholeWords" />
                                 </StackPanel>
                             </ToggleSwitch.Header>
@@ -659,12 +659,12 @@
                                 x:Name="ExportInstancesButton"
                                 HorizontalAlignment="Left"
                                 Click="ExportInstancesButton_Click"
-                                Content="Export instances.json" />
+                                Content="Export accounts" />
                             <Button
                                 x:Name="ImportInstancesButton"
                                 HorizontalAlignment="Left"
                                 Click="ImportInstancesButton_Click"
-                                Content="Import instances.json" />
+                                Content="Import accounts" />
                         </StackPanel>
                     </StackPanel>
                     </shared:SurfaceCard.CardBody>
@@ -686,7 +686,7 @@
                         <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+D — Go to dashboard" />
                         <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+, — Open settings" />
                         <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+Shift+N — Toggle notification panel" />
-                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+1–9 — Switch to instance by sidebar order" />
+                        <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Ctrl+1–9 — Switch to account by sidebar order" />
                         <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Alt+Up / Alt+Down — Reorder cards in a kanban column" />
                         <TextBlock FontSize="{StaticResource UmFontSizeBody}" Opacity="0.75" Text="Escape — Cancel keyboard panel move" />
                     </StackPanel>
@@ -813,9 +813,10 @@
                                         </StackPanel>
                                         <Button
                                             Grid.Column="2"
+                                            AutomationProperties.Name="{x:Bind ChangeIconAccessibleName}"
                                             VerticalAlignment="Center"
                                             Click="ChangeAccountIconButton_Click"
-                                            Content="Change icon..."
+                                            Content="Change icon…"
                                             Tag="{x:Bind InstanceId}" />
                                     </Grid>
                                 </DataTemplate>
@@ -876,10 +877,12 @@
                                             Orientation="Horizontal"
                                             Spacing="8">
                                             <Button
+                                                AutomationProperties.Name="{x:Bind RestoreAccessibleName}"
                                                 Click="RestoreAccountButton_Click"
                                                 Content="Restore"
                                                 Tag="{x:Bind InstanceId}" />
                                             <Button
+                                                AutomationProperties.Name="{x:Bind DeletePermanentlyAccessibleName}"
                                                 Click="PermanentDeleteAccountButton_Click"
                                                 Content="Delete permanently"
                                                 Tag="{x:Bind InstanceId}" />
@@ -906,7 +909,7 @@
                         <TextBlock
                             FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.65"
-                            Text="Instance registry" />
+                            Text="Account registry" />
                         <TextBlock
                             x:Name="InstancesPathText"
                             IsTextSelectionEnabled="True"

@@ -8,9 +8,25 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
+    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     xmlns:local="using:UnifiedMessenger.Pages">
 
-    <ScrollViewer Padding="{StaticResource UmPaddingXl}" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+    <Grid>
+    <!-- With no account connected this page used to render a KPI row of zeros and five separately-empty
+         cards, which reads as "your business did nothing" rather than "nothing is connected yet". -->
+    <shared:EmptyStateView
+        x:Name="NoAccountsState"
+        IconGlyph="&#xE9D9;"
+        Title="No accounts connected yet"
+        Hint="Analytics is built from your connected conversations. Add an account and your first numbers appear as soon as it syncs."
+        VerticalAlignment="Center"
+        Visibility="Collapsed">
+        <shared:EmptyStateView.ActionContent>
+            <Button x:Name="AddAccountFromAnalyticsButton" Click="AddAccountButton_Click" Content="Add account" />
+        </shared:EmptyStateView.ActionContent>
+    </shared:EmptyStateView>
+
+    <ScrollViewer x:Name="AnalyticsContent" Padding="{StaticResource UmPaddingXl}" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
         <StackPanel Spacing="16" HorizontalAlignment="Stretch">
 
             <!-- Header: title + range + export -->
@@ -161,4 +177,5 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
+    </Grid>
 </Page>

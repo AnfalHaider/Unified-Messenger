@@ -3,16 +3,19 @@ namespace UnifiedMessenger.Services;
 /// <summary>
 /// Tab order constants for keyboard navigation across primary surfaces.
 /// </summary>
+/// <remarks>
+/// Four constants were deleted here because nothing applied them: <c>DashboardTabs</c>,
+/// <c>OccRefreshButton</c>, <c>OccBranchPillBar</c> and <c>OccLayoutButton</c> all named the standalone
+/// Operations Command Center, which was retired in v4.27.0. A constant no call site uses is not a tab
+/// order — it is a claim that one exists.
+/// <para>
+/// The sidebar footer values below are duplicated as literals in <c>WorkspaceSidebar.xaml</c>, and they
+/// had drifted: the XAML read 90/92/93, so Notifications carried Settings' number and Settings carried one
+/// that appears nowhere here. Keep the two in step, or move the XAML onto these constants.
+/// </para>
+/// </remarks>
 public static class AccessibilityTabOrderHelper
 {
-    public const int DashboardTabs = 10;
-
-    public const int OccRefreshButton = 20;
-
-    public const int OccBranchPillBar = 30;
-
-    public const int OccLayoutButton = 40;
-
     public const int PersonalSearchBox = 20;
 
     public const int SidebarMenuBase = 1;

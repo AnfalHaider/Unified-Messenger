@@ -59,9 +59,25 @@ public sealed partial class ReportsPage : Page
             ? days
             : DashboardReportHelper.Ranges[0].Days;
 
+    private void AddAccountButton_Click(object sender, RoutedEventArgs e) =>
+        _services.Navigation.RequestAddInstance();
+
     private void Rebuild(int days)
     {
         var instances = _services.Registry.Instances.ToList();
+
+        // Without this the page reached WeeklyReportDialog.Populate, whose only empty branch says
+        // "Nothing notable in this period — activity looks steady". That is the no-anomalies message, and
+        // telling a brand-new install its activity looks steady is a confident answer to a question the
+        // app has no data for.
+        var hasAccounts = instances.Count > 0;
+        NoAccountsState.Visibility = hasAccounts ? Visibility.Collapsed : Visibility.Visible;
+        ReportsContent.Visibility = hasAccounts ? Visibility.Visible : Visibility.Collapsed;
+        if (!hasAccounts)
+        {
+            return;
+        }
+
         var inputs = DashboardReportHelper.GatherInputs(instances, days);
         _report = BusinessReport.Build(inputs);
 

@@ -8,7 +8,7 @@
     PrimaryButtonText="Save"
     SecondaryButtonText="Cancel"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
-    Title="Edit instance metadata">
+    Title="Edit account details">
 
     <StackPanel MinWidth="360" Spacing="12">
         <TextBox

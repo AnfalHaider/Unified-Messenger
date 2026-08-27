@@ -6,9 +6,26 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
+    xmlns:shared="using:UnifiedMessenger.Controls.Shared"
     xmlns:local="using:UnifiedMessenger.Pages">
 
-    <ScrollViewer Padding="{StaticResource UmPaddingXl}" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
+    <Grid>
+    <!-- A fresh install opening Reports was told "Nothing notable in this period — activity looks steady",
+         which is the report generator's genuine no-anomalies message being asked a question it cannot
+         answer. No account has ever been connected; there is no period and no activity to be steady. -->
+    <shared:EmptyStateView
+        x:Name="NoAccountsState"
+        IconGlyph="&#xE9F9;"
+        Title="No accounts connected yet"
+        Hint="Reports summarise how your connected accounts performed over a period. Add one and your first report builds once it has a day of activity."
+        VerticalAlignment="Center"
+        Visibility="Collapsed">
+        <shared:EmptyStateView.ActionContent>
+            <Button x:Name="AddAccountFromReportsButton" Click="AddAccountButton_Click" Content="Add account" />
+        </shared:EmptyStateView.ActionContent>
+    </shared:EmptyStateView>
+
+    <ScrollViewer x:Name="ReportsContent" Padding="{StaticResource UmPaddingXl}" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
         <StackPanel Spacing="16" HorizontalAlignment="Stretch" MaxWidth="900">
             <StackPanel Spacing="2">
                 <TextBlock Text="Reports" Style="{StaticResource TitleTextBlockStyle}" />
@@ -44,4 +61,5 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
+    </Grid>
 </Page>

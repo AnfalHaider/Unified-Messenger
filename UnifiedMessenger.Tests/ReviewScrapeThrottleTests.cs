@@ -8,7 +8,7 @@ namespace UnifiedMessenger.Tests;
 /// <remarks>
 /// <para>
 /// Measured before this existed: six scrapes per Google account in the two minutes after launch; one each
-/// afterwards. <c>ReviewHealthPanel</c> starts a scrape from its Loaded handler, and the dashboard reloads
+/// afterwards. <c>ReviewDesk</c> starts a scrape from its Loaded handler, and the dashboard reloads
 /// that panel on every alert-monitor tick and adapter-health change, so each reload fired a fresh pass over
 /// every account. The service's SemaphoreSlim only blocks <i>concurrent</i> passes — a pass that finishes in
 /// three seconds is not concurrent with the one after it.
@@ -46,7 +46,7 @@ public class ReviewScrapeThrottleTests
     [Fact]
     public void ThePanelsOwnFiveMinuteTimerAlwaysGetsThrough()
     {
-        // The floor is deliberately below ReviewHealthPanel's 5-minute auto-refresh so the periodic read
+        // The floor is deliberately below the desk's 5-minute auto-refresh so the periodic read
         // still happens every time and only the incidental re-entries around it collapse. Raise the floor
         // past 5 minutes and that timer silently becomes a no-op — hence this test.
         Assert.True(

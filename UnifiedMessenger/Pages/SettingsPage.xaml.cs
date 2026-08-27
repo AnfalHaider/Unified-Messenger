@@ -49,7 +49,7 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(PanelAutoOpenBox, "Auto-open notification panel");
         AutomationProperties.SetName(ToastSoundBox, "Toast sound");
         AutomationProperties.SetName(IncludeMutedBadgesToggle, "Include muted chats in badge totals");
-        AutomationProperties.SetName(ToastGroupToggle, "Group toasts by instance");
+        AutomationProperties.SetName(ToastGroupToggle, "Group toasts by account");
         AutomationProperties.SetName(ToastBrandingToggle, "Use platform branding on toasts");
         AutomationProperties.SetName(ClearNotificationsButton, "Clear notification history");
         AutomationProperties.SetName(ThemePreferenceBox, "Theme preference");
@@ -59,10 +59,10 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(RefreshAllWebViewsButton, "Refresh all WebViews");
         AutomationProperties.SetName(ExperimentalExpander, "Experimental session options");
         AutomationProperties.SetName(EnableLazyWebViewLoadingToggle, "Enable lazy WebView loading");
-        AutomationProperties.SetName(EnablePerInstanceSleepUnloadToggle, "Enable per-instance sleep unload");
-        AutomationProperties.SetName(EnableEditInstanceMetadataToggle, "Enable edit instance metadata");
-        AutomationProperties.SetName(EnableImportExportInstancesToggle, "Enable import export instances");
-        AutomationProperties.SetName(EnableInstanceNotesTagsToggle, "Enable instance notes and tags");
+        AutomationProperties.SetName(EnablePerInstanceSleepUnloadToggle, "Sleep unload inactive accounts");
+        AutomationProperties.SetName(EnableEditInstanceMetadataToggle, "Enable edit account details");
+        AutomationProperties.SetName(EnableImportExportInstancesToggle, "Enable import and export of your account list");
+        AutomationProperties.SetName(EnableInstanceNotesTagsToggle, "Enable account notes and branch tags");
         AutomationProperties.SetName(SlaThresholdBox, "SLA threshold minutes");
         AutomationProperties.SetName(DashboardUrgencyThresholdBox, "Dashboard urgency threshold");
         AutomationProperties.SetName(OccCompactCardDensityToggle, "Compact Operations card density");
@@ -80,8 +80,8 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(PullLocalAiModelButton, "Pull selected local AI model");
         AutomationProperties.SetName(OpenWorkspaceManagerButton, "Open workspace manager");
         AutomationProperties.SetName(ClearAnalyticsButton, "Clear operational data");
-        AutomationProperties.SetName(ExportInstancesButton, "Export instances");
-        AutomationProperties.SetName(ImportInstancesButton, "Import instances");
+        AutomationProperties.SetName(ExportInstancesButton, "Export accounts");
+        AutomationProperties.SetName(ImportInstancesButton, "Import accounts");
         AutomationProperties.SetName(RunInBackgroundOnCloseToggle, "Run in background on close");
         AutomationProperties.SetName(LaunchAtStartupToggle, "Launch at startup");
         AutomationProperties.SetName(PromptPinToTaskbarToggle, "Suggest pin to taskbar");

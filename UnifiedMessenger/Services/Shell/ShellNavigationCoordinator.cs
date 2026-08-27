@@ -199,7 +199,7 @@ public sealed class ShellNavigationCoordinator
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not load instance", ShellErrorFormatter.Format(ex));
+            await _services.Dialog.ShowErrorAsync("Could not load account", ShellErrorFormatter.Format(ex));
         }
         finally
         {
@@ -211,7 +211,7 @@ public sealed class ShellNavigationCoordinator
     {
         _viewModel.SetInstanceLoading(
             isLoading,
-            message ?? (isLoading ? "Loading instance..." : null));
+            message ?? (isLoading ? "Loading account..." : null));
         ApplyInstanceLoadingUi();
     }
 
@@ -230,7 +230,7 @@ public sealed class ShellNavigationCoordinator
 
         _ui.StartupWarmProgressBar.Visibility = Visibility.Collapsed;
         _ui.InstanceLoadingText.Text = string.IsNullOrWhiteSpace(_viewModel.InstanceLoadingMessage)
-            ? "Loading instance..."
+            ? "Loading account..."
             : _viewModel.InstanceLoadingMessage;
     }
 

@@ -190,4 +190,65 @@ public class StatusContrastTests
         Assert.True(light >= 3.0, $"{key} measures {light:0.00}:1 on the light surface (needs 3:1).");
         Assert.True(dark >= 3.0, $"{key} measures {dark:0.00}:1 on the dark surface (needs 3:1).");
     }
+
+    /// <summary>
+    /// Selection is not a health state, so it must not be painted with a health colour.
+    /// </summary>
+    /// <remarks>
+    /// The sidebar's 3px selection bar used <c>SystemFillColorSuccessBrush</c>, so "this row is selected"
+    /// and "this account is healthy" were the same green — on a rail whose entire job is showing which
+    /// accounts are in trouble. A selected, failing account showed a green bar. It now uses the brand
+    /// accent, which this app does not assign a status meaning to.
+    /// </remarks>
+    [Fact]
+    public void SidebarSelectionIsNotPaintedWithAStatusColour()
+    {
+        var sidebar = File.ReadAllText(Path.Combine(
+            WcagContrast.RepoRoot(), "UnifiedMessenger", "Controls", "WorkspaceSidebar.xaml.cs"));
+
+        var selectionBlock = sidebar
+            .Split("BorderBrush = selected", StringSplitOptions.None)
+            .Skip(1)
+            .Select(part => part.Split('\n')[1])
+            .ToList();
+
+        Assert.NotEmpty(selectionBlock);
+        Assert.All(selectionBlock, line =>
+            Assert.False(
+                line.Contains("Success", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Critical", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Caution", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Danger", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("Warning", StringComparison.OrdinalIgnoreCase),
+                $"Selection is painted with a status colour: {line.Trim()}"));
+    }
+
+    /// <summary>
+    /// Holds the line on the second, unaudited status palette rather than letting it grow.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is a ratchet, not a ban.</b> The app ships two full status palettes: its own audited
+    /// <c>UmStatus*</c> tokens and Windows' <c>SystemFillColor*</c> ones, which means two greens, two
+    /// ambers and two reds can appear on one screen. Every SystemFillColor pairing was measured during the
+    /// 2026-08-26 audit and every one passes AA, so this is a consistency defect and not a contrast one —
+    /// which is exactly why migrating all of them blind, at the tail of a long change, would risk more
+    /// than it fixes. The count is pinned here so the split cannot quietly widen, and shrinking it is a
+    /// deliberate piece of work with its own contrast pass.
+    /// </remarks>
+    [Fact]
+    public void TheSystemPaletteDoesNotSpreadFurther()
+    {
+        var uiRoot = Path.Combine(WcagContrast.RepoRoot(), "UnifiedMessenger");
+        var references = new[] { "*.xaml", "*.cs" }
+            .SelectMany(pattern => Directory.EnumerateFiles(uiRoot, pattern, SearchOption.AllDirectories))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Sum(path => File.ReadAllText(path).Split("SystemFillColor").Length - 1);
+
+        // Measured at 69 after the sidebar selection fix. Lower this as sites migrate; never raise it.
+        Assert.True(
+            references <= 69,
+            $"SystemFillColor* references rose to {references}. The app has its own audited status palette "
+            + "(UmSemanticBrushes) — use it, or lower this ceiling deliberately.");
+    }
 }

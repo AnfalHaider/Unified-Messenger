@@ -7,7 +7,7 @@
     CloseButtonText="Cancel"
     DefaultButton="Close"
     PrimaryButtonText="Remove from sidebar"
-    Title="Remove instance">
+    Title="Remove account">
 
     <StackPanel MinWidth="380" Spacing="12">
         <TextBlock

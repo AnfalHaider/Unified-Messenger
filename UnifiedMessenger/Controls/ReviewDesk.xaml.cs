@@ -14,7 +14,7 @@ namespace UnifiedMessenger.Controls;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Laid out to <c>docs/design/review-desk-spec.md</c>. It replaced <c>ReviewHealthPanel</c> on this page
+/// Laid out to <c>docs/design/review-desk-spec.md</c>. It replaced the old ReviewHealthPanel on this page (deleted in v4.99.47)
 /// rather than sitting above it — the page was showing a queue and then repeating the same information as
 /// per-account cards underneath.
 /// </para>

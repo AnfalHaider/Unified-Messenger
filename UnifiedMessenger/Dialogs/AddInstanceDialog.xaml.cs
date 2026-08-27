@@ -151,7 +151,7 @@ public sealed partial class AddInstanceDialog : ContentDialog
 
         if (!submission.IsValid)
         {
-            ShowValidation(submission.ValidationMessage ?? "Could not add this instance.");
+            ShowValidation(submission.ValidationMessage ?? "Could not add this account.");
             args.Cancel = true;
             return;
         }
