@@ -158,14 +158,29 @@ public static class ReviewAskCandidates
     }
 
     /// <summary>How the visit is described in the list — "yesterday", "on Tuesday".</summary>
-    public static string WhenLabel(DateTimeOffset lastActivityUtc, DateTimeOffset nowUtc)
+    /// <param name="zone">
+    /// Defaults to the machine's zone. A parameter only so this is testable: the owner's machine runs at
+    /// UTC+5, so a test that could only use the local zone could never exercise a western offset — the same
+    /// reason <see cref="LocalDayBoundary"/> takes one.
+    /// </param>
+    public static string WhenLabel(DateTimeOffset lastActivityUtc, DateTimeOffset nowUtc, TimeZoneInfo? zone = null)
     {
-        var days = (int)(nowUtc.Date - lastActivityUtc.ToLocalTime().Date).TotalDays;
+        // Both dates have to be read on the same calendar. This subtracted a LOCAL date from `nowUtc.Date`,
+        // and because DateTimeOffset.Date reads the date in whatever offset the value carries — zero, for
+        // UtcNow — that was the UTC date. The two calendars disagree for as many hours a day as the zone is
+        // from Greenwich: east of it over the local early morning (at UTC+5, midnight to 05:00, where the
+        // UTC date is still yesterday's), west of it over the local evening. In that window a customer who
+        // messaged the day before was labelled "messaged today" on the ask-for-a-review panel — a wrong
+        // statement about a real person, on the one surface whose whole job is deciding whether to contact
+        // them. It reversed sign either side of Greenwich, which is why it reads as an off-by-one rather
+        // than as anything systematic.
+        var tz = zone ?? TimeZoneInfo.Local;
+        var days = (int)(LocalDayBoundary.LocalDate(nowUtc, tz) - LocalDayBoundary.LocalDate(lastActivityUtc, tz)).TotalDays;
         return days switch
         {
             <= 0 => "today",
             1 => "yesterday",
-            < 7 => $"on {lastActivityUtc.ToLocalTime():dddd}",
+            < 7 => $"on {TimeZoneInfo.ConvertTime(lastActivityUtc, tz):dddd}",
             _ => $"{days} days ago"
         };
     }

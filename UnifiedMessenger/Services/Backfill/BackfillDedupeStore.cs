@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text.Json;
 using UnifiedMessenger.Models;
 
@@ -36,13 +37,27 @@ public sealed class BackfillDedupeStore
 
     public static BackfillDedupeStore Instance => LazyInstance.Value;
 
+    /// <summary>
+    /// The conversation+day key that gates one backfill row per conversation per day.
+    /// </summary>
+    /// <remarks>
+    /// The day is the <b>local</b> calendar day, because that is the day the count lands in: accepting a row
+    /// here is what runs <c>MessageAnalyticsService.RecordBackfillInbound</c>, whose daily bucket is keyed by
+    /// <see cref="LocalDayBoundary.LocalDate"/>. This used to key by the UTC day, and at the owner's UTC+5
+    /// the two boundaries sit five hours apart, so the gate and the bucket disagreed about which day it was
+    /// for the first five hours of every local day — in both directions. A conversation active at 02:00 and
+    /// again at 20:00 local straddles the UTC boundary, so both rows were accepted and that one local day
+    /// was counted twice; a conversation active at 20:00 and again at 02:00 the next morning shares a UTC
+    /// day, so the second row was dropped and the new local day recorded nothing for it at all. Neither is
+    /// visible anywhere — it just moves the messages-per-day figure and the activity chart a row at a time.
+    /// </remarks>
     public static string BuildDayKey(
         string instanceId,
         string platform,
         string conversationKey,
         DateTimeOffset timestampUtc)
     {
-        var day = timestampUtc.ToUniversalTime().ToString("yyyy-MM-dd");
+        var day = LocalDayBoundary.LocalDate(timestampUtc).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var normalizedPlatform = PlatformDefinition.NormalizePlatformId(platform);
         var conversation = string.IsNullOrWhiteSpace(conversationKey) ? string.Empty : conversationKey.Trim();
         return $"{instanceId.Trim()}|{normalizedPlatform}|{conversation}|{day}";
@@ -134,6 +149,18 @@ public sealed class BackfillDedupeStore
                 return;
             }
 
+            if (dto is not null && dto.Version != BackfillDedupeStoreDto.CurrentVersion)
+            {
+                // Keys from an older shape can never match one built now, so keeping them would only grow
+                // the file. Dropping them costs at most one re-ingested row per conversation, once.
+                AppLogger.LogInfo(
+                    "Backfill.Dedupe",
+                    $"Discarding {dto.Entries?.Count ?? 0} dedupe key(s) written in format v{dto.Version}; "
+                    + $"keys are now built on the local calendar day (v{BackfillDedupeStoreDto.CurrentVersion}).");
+                _isLoaded = true;
+                return;
+            }
+
             if (dto?.Entries is not null)
             {
                 foreach (var entry in dto.Entries)
@@ -164,6 +191,7 @@ public sealed class BackfillDedupeStore
             PruneStaleEntries();
             var dto = new BackfillDedupeStoreDto
             {
+                Version = BackfillDedupeStoreDto.CurrentVersion,
                 Entries = _seen
                     .Select(pair => new BackfillDedupeEntryDto
                     {
@@ -219,6 +247,21 @@ public sealed class BackfillDedupeStore
 
     private sealed class BackfillDedupeStoreDto
     {
+        /// <summary>
+        /// Bumped when the shape of a key changes, so entries written under the old shape are discarded
+        /// rather than sitting in the map never matching anything. Version 2 moved the day component from
+        /// the UTC calendar day to the local one — see <see cref="BuildDayKey"/>.
+        /// </summary>
+        public const int CurrentVersion = 2;
+
+        /// <summary>
+        /// Defaults to 1, not <see cref="CurrentVersion"/>. A file written before this field existed has no
+        /// <c>version</c> property at all, and System.Text.Json leaves an absent property at whatever the
+        /// initializer set — so defaulting to the current version would quietly declare every legacy file
+        /// up to date and keep exactly the keys this version exists to discard. Writers set it explicitly.
+        /// </summary>
+        public int Version { get; set; } = 1;
+
         public List<BackfillDedupeEntryDto> Entries { get; set; } = [];
     }
 

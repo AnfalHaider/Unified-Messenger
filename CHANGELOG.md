@@ -5,6 +5,31 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.50
+
+Two places that mixed the UTC calendar day with the local one. A date is not a point in time, and
+`DateTimeOffset.Date` reads it in whatever offset the value happens to carry — zero, for anything derived
+from `UtcNow`. Comparing that against a date derived with `ToLocalTime()` compares two different calendars,
+and they disagree for as many hours a day as the zone is from Greenwich: at the owner's UTC+5, the first
+five hours of every local day.
+
+**Startup backfill counted some days twice and others not at all.** The gate that allows one row per
+conversation per day keyed on the UTC day; accepting a row is what records it into the analytics daily
+bucket, which keys on the local day. A conversation active at 02:00 and again at 20:00 local straddles the
+UTC boundary, so both rows were accepted and that local day was counted twice. One active at 20:00 and
+again at 02:00 the next morning shares a UTC day, so the second row was dropped and the new local day
+recorded nothing for it. Nothing on screen showed either — it just moved messages-per-day and the activity
+chart a row at a time. The dedupe file now carries a format version, so keys written under the old shape
+are discarded on first load rather than sitting there matching nothing.
+
+**"Messaged today" was said about people who messaged yesterday.** The ask-for-a-review panel's date label
+made the same mistake, and it reversed sign either side of Greenwich. This is the one surface whose whole
+job is deciding whether to contact a real person, so a wrong statement on it costs more than a wrong pixel.
+
+Both fixes are pinned by tests that were first confirmed to fail against the old arithmetic — including
+against a western zone, which needed the label to take its zone as a parameter, the same reason
+`LocalDayBoundary` already does. A machine at UTC+5 cannot exercise a western offset otherwise.
+
 ## v4.99.49
 
 Found by reading `app.log` on a real launch rather than by reading code — the pattern the previous audit
