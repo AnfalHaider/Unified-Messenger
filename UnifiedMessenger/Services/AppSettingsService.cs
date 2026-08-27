@@ -127,28 +127,77 @@ public sealed class AppSettingsService : IAppSettingsService
         }
     }
 
+    /// <summary>
+    /// Raised the first time a save fails after a run of successful ones. Carries the owner-readable
+    /// reason. Not raised again until a save succeeds, so a jammed file cannot produce a dialog per
+    /// keystroke in a NumberBox.
+    /// </summary>
+    public event EventHandler<string>? SaveFailed;
+
+    /// <summary>Why the most recent save failed, or null when the last one succeeded.</summary>
+    public string? LastSaveFailure { get; private set; }
+
+    /// <summary>
+    /// Writes the settings file, reporting rather than throwing when it cannot be written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to let an <see cref="IOException"/> out, and roughly thirty Settings handlers are
+    /// <c>async void</c> event handlers that call it with no <c>try</c> of their own — a shape the file
+    /// itself is inconsistent about, since the toggle immediately below <c>RunInBackgroundOnClose</c> does
+    /// catch. An exception from an <c>async void</c> handler reaches <c>App.OnUnhandledException</c>, which
+    /// deliberately leaves <c>Handled=false</c>, so <b>flipping a Settings toggle while the settings file
+    /// was locked closed the app</b>. Antivirus, a backup tool mid-scan, a full disk, a roaming profile on
+    /// an unreachable share: all ordinary, none the owner's fault, and the app simply vanished.
+    /// </para>
+    /// <para>
+    /// Fixing it in the thirty-odd call sites would have left the thirty-first to be written without the
+    /// guard. Fixing it here also covers the fire-and-forget callers (<c>_ = UpdateAsync(…)</c> in
+    /// <c>MainWindow</c> and <c>ShellNavigationCoordinator</c>) whose failures were not fatal but were
+    /// entirely silent — the preference just did not persist, and nothing anywhere said so.
+    /// </para>
+    /// <para>
+    /// Absorbing the failure must not mean hiding it: the reason is logged, kept on
+    /// <see cref="LastSaveFailure"/>, and raised once through <see cref="SaveFailed"/> for the shell to put
+    /// in front of the owner. Programmer errors are deliberately not caught — only the file-unwritable set.
+    /// </para>
+    /// </remarks>
     private async Task SaveCoreAsync(CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
-        Settings.Normalize();
-
-        var tempPath = _storePath + ".tmp";
-
-        await using (var stream = new FileStream(
-                         tempPath,
-                         FileMode.Create,
-                         FileAccess.Write,
-                         FileShare.None,
-                         bufferSize: 4096,
-                         options: FileOptions.Asynchronous))
+        try
         {
-            await JsonSerializer
-                .SerializeAsync(stream, Settings, JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
-            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-        }
+            Directory.CreateDirectory(Path.GetDirectoryName(_storePath)!);
+            Settings.Normalize();
 
-        File.Move(tempPath, _storePath, overwrite: true);
+            var tempPath = _storePath + ".tmp";
+
+            await using (var stream = new FileStream(
+                             tempPath,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             bufferSize: 4096,
+                             options: FileOptions.Asynchronous))
+            {
+                await JsonSerializer
+                    .SerializeAsync(stream, Settings, JsonOptions, cancellationToken)
+                    .ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            File.Move(tempPath, _storePath, overwrite: true);
+            LastSaveFailure = null;
+        }
+        catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
+        {
+            var wasFailing = LastSaveFailure is not null;
+            LastSaveFailure = UserFacingError.Describe("Settings.Save", ex);
+
+            if (!wasFailing)
+            {
+                SaveFailed?.Invoke(this, LastSaveFailure);
+            }
+        }
     }
 
     private static AppSettings CreateDefaultSettings() =>

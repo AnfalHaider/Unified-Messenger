@@ -5,6 +5,30 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.52
+
+**Flipping a Settings toggle could close the app.** Writing the settings file let an `IOException` out, and
+around thirty of the Settings handlers are `async void` event handlers with no `try` of their own. An
+exception from an `async void` handler reaches the app's unhandled-exception hook, which deliberately
+leaves it unhandled so genuinely unrecoverable faults end the process — so a toggle flipped while
+antivirus, a backup tool or a full disk was holding the settings file simply closed the app. None of those
+is the owner's fault and none of them is unrecoverable. The file itself was inconsistent about this: the
+toggle immediately below "run in background on close" already caught, which is how the gap stayed hidden.
+
+The same write is also made fire-and-forget in two places, where the failure was not fatal but was
+completely silent — the preference did not persist and nothing anywhere said so.
+
+Fixing it at the thirty call sites would have left the thirty-first to be written without the guard, so it
+is fixed once in the settings service. It now absorbs a write failure, keeps the reason, logs it, and
+raises it once so the shell can tell the owner their change is active but will not survive a restart.
+Absorbing without reporting would have swapped a crash for a lie. A fault inside the caller is deliberately
+still allowed through — turning the settings service into a catch-all would hide real bugs behind "your
+settings could not be saved".
+
+**Stale-adapter recovery could also take the app down.** It runs from a background timer against a WebView
+that may have been reaped or navigated away in the meantime — a race whose whole point is that recovery is
+best-effort — and it was the one `TryEnqueue(async …)` in the app with no `catch`.
+
 ## v4.99.51
 
 Two things the app already knew and did not say on the screen the owner actually reads.
