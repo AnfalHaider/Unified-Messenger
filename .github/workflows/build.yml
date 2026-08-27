@@ -343,16 +343,58 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $repo = "${{ github.repository }}"
-          $notes = @"
-          ## Unified Messenger $tag
 
-          Installers built by GitHub Actions from tag ``$tag``.
+          # Release notes come from CHANGELOG.md's section for this tag. They used to be four lines of
+          # boilerplate that said only "built by GitHub Actions", so a release that changed real behaviour
+          # — and reaches existing installs automatically, because auto-update is on by default — told
+          # nobody what had changed. The changelog already carries notes written for a non-technical
+          # reader; this stops them being written twice and one copy going stale.
+          #
+          # Assembled line by line into a FILE rather than interpolated into a here-string: changelog prose
+          # is full of backticks and dollar signs, which PowerShell would treat as escapes and variables.
+          # --notes-file also sidesteps the command-line length limit on a long section.
+          $body = @()
+          $lines = @(Get-Content 'CHANGELOG.md' -Encoding utf8)
+          $start = -1
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i].Trim() -eq "## $tag") { $start = $i + 1; break }
+          }
 
-          - x64: ``UnifiedMessengerSetup.exe`` (+ ``.sha256`` sidecar)
-          - ARM64: ``UnifiedMessengerSetup-arm64.exe`` (+ ``.sha256`` sidecar)
+          if ($start -ge 0) {
+            for ($i = $start; $i -lt $lines.Count; $i++) {
+              if ($lines[$i] -match '^##\s') { break }
+              $body += $lines[$i]
+            }
+          }
 
-          Requires Windows 10 1809+ and WebView2 Runtime.
-          "@
+          $body = @($body) -join "`n"
+          $body = $body.Trim()
+
+          if ($body.Length -eq 0) {
+            # Loud, not silent. A release with no notes is a small failure, but discovering it from the
+            # Releases page a week later is a worse one — so it is annotated on the run summary.
+            Write-Output "::warning::CHANGELOG.md has no '## $tag' section; publishing with boilerplate notes only."
+            $body = 'See CHANGELOG.md in the repository for what changed in this release.'
+          }
+          else {
+            Write-Host "Release notes taken from CHANGELOG.md '## $tag' ($($body.Length) chars)."
+          }
+
+          $notesLines = @($body -split "`n")
+          $notesLines += ''
+          $notesLines += '---'
+          $notesLines += ''
+          $notesLines += ('Installers built by GitHub Actions from tag `' + $tag + '`.')
+          $notesLines += ''
+          $notesLines += '- x64: `UnifiedMessengerSetup.exe` (+ `.sha256` sidecar)'
+          $notesLines += '- ARM64: `UnifiedMessengerSetup-arm64.exe` (+ `.sha256` sidecar)'
+          $notesLines += ''
+          $notesLines += 'Check a download against its `.sha256` sidecar before running it.'
+          $notesLines += ''
+          $notesLines += 'Requires Windows 10 1809+ and the WebView2 Runtime.'
+
+          $notesPath = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          Set-Content -Path $notesPath -Value $notesLines -Encoding utf8
 
           $assets = @(
             "dist/UnifiedMessengerSetup.exe",
@@ -363,7 +405,14 @@ jobs:
 
           $view = gh release view $tag --repo $repo 2>&1
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag exists; uploading assets."
+            Write-Host "Release $tag exists; refreshing notes and uploading assets."
+
+            # The step is called "Create or UPDATE", and it only ever updated the assets. A re-run after a
+            # changelog correction left the old notes in place, which is how a release ends up describing
+            # something other than what it ships.
+            gh release edit $tag --repo $repo --notes-file $notesPath
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
             gh release upload $tag `
               --repo $repo `
               --clobber `
@@ -377,7 +426,7 @@ jobs:
           gh release create $tag `
             --repo $repo `
             --title "Unified Messenger $tag" `
-            --notes $notes `
+            --notes-file $notesPath `
             dist/UnifiedMessengerSetup.exe `
             dist/UnifiedMessengerSetup.exe.sha256 `
             dist/UnifiedMessengerSetup-arm64.exe `
