@@ -5,6 +5,32 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.49
+
+Found by reading `app.log` on a real launch rather than by reading code — the pattern the previous audit
+established, applied to the lines nobody had questioned.
+
+**Three log lines that existed to explain a skip explained nothing.** Every launch wrote `Theme:
+ApplyInitialLaunchTheme skipped:` and `HighContrastChanged subscription skipped:` with nothing after the
+colon. The messages really are empty — WinRT raises these through an error object with no description — so
+the HRESULT was the only identifying detail, and it was the one thing not being logged.
+
+**With the HRESULT visible, the app turned out never to notice High Contrast at all.** The registration
+failed with `0x80070490` twice per launch, the second time long after the window existed — which disproves
+the comment sitting next to it, blaming the absence of a window. `Windows.UI.ViewManagement` events want a
+CoreWindow, which an unpackaged desktop app never has, so that subscription fails now and will keep
+failing. An owner switching High Contrast on while the app was open saw nothing change until they
+restarted it, and the only trace was an INF line stating the opposite of what was happening.
+
+High-contrast re-evaluation now rides on `UISettings.ColorValuesChanged`, which does reach this process,
+and that subscription is no longer dropped when the owner pins Light or Dark — high contrast is an
+accessibility setting, not a preference, and has to win over both. The failed registration is now reported
+once, at warning level, naming the fallback.
+
+*Not verified:* that a live High Contrast toggle repaints the app. Confirming it means changing the
+machine's system accessibility settings, which was out of scope. What is confirmed from the log is that the
+fallback subscription attaches without error where the old one raised `0x80070490` every time.
+
 ## v4.99.48
 
 Two failure paths that had never been looked at: one could stop the app opening, the other could destroy
