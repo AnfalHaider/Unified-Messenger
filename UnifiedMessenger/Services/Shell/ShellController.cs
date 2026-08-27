@@ -479,7 +479,7 @@ public sealed class ShellController
 
         if (args.Instance.IsProfessional)
         {
-            var locationItem = new MenuFlyoutItem { Text = "Set location..." };
+            var locationItem = new MenuFlyoutItem { Text = "Set location…" };
             AutomationProperties.SetName(locationItem, "Set account location");
             locationItem.Click += (_, _) => _ = SetInstanceLocationAsync(args.InstanceId);
             flyout.Items.Add(locationItem);
@@ -495,12 +495,12 @@ public sealed class ShellController
         moveDownItem.Click += (_, _) => _ = ReorderInstanceByDirectionAsync(args.InstanceId, 1);
         flyout.Items.Add(moveDownItem);
 
-        var renameItem = new MenuFlyoutItem { Text = "Rename account...", AccessKey = "R" };
+        var renameItem = new MenuFlyoutItem { Text = "Rename account…", AccessKey = "R" };
         AutomationProperties.SetName(renameItem, "Rename account");
         renameItem.Click += (_, _) => _ = RenameInstanceAsync(args.InstanceId);
         flyout.Items.Add(renameItem);
 
-        var iconItem = new MenuFlyoutItem { Text = "Change icon...", AccessKey = "I" };
+        var iconItem = new MenuFlyoutItem { Text = "Change icon…", AccessKey = "I" };
         AutomationProperties.SetName(iconItem, "Change account icon");
         iconItem.Click += (_, _) => _ = ChangeInstanceIconAsync(args.InstanceId);
         flyout.Items.Add(iconItem);
@@ -527,7 +527,7 @@ public sealed class ShellController
 
         if (_services.AppSettings.Settings.EnableEditInstanceMetadata)
         {
-            var editItem = new MenuFlyoutItem { Text = "Edit account details..." };
+            var editItem = new MenuFlyoutItem { Text = "Edit account details…" };
             AutomationProperties.SetName(editItem, "Edit account details");
             editItem.Click += (_, _) => _ = EditInstanceMetadataAsync(args.InstanceId);
             flyout.Items.Add(editItem);
@@ -535,7 +535,7 @@ public sealed class ShellController
 
         flyout.Items.Add(new MenuFlyoutSeparator());
 
-        var removeItem = new MenuFlyoutItem { Text = "Remove account...", AccessKey = "X" };
+        var removeItem = new MenuFlyoutItem { Text = "Remove account…", AccessKey = "X" };
         AutomationProperties.SetName(removeItem, "Remove account permanently");
         removeItem.Click += (_, _) => _ = DeleteInstanceAsync(args.InstanceId);
         flyout.Items.Add(removeItem);

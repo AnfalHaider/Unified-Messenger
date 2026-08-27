@@ -17,4 +17,4 @@ Large code-behind files (especially Operations Command Center) mixed UI event wi
 ## Consequences
 
 - Testable presenter/VM units without UI thread.
-- OCC main code-behind split into partials and `Controls/Occ/` helpers (Wave 13; main file &lt; 400 lines).
+- OCC main code-behind split into partials and helpers (Wave 13; main file &lt; 400 lines). **The standalone OCC and its `Controls/Occ/` folder were retired in v4.27.0** — the command centre is now `Controls/CommandCenterPanel`. The MVVM decision this ADR records still stands.

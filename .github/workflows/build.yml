@@ -252,6 +252,12 @@ jobs:
           if-no-files-found: error
           retention-days: 5
 
+  # NOTE: this job does NOT gate `release` — that job needs `package`, not this one, and deliberately so.
+  # The harness drives the real UI through UI Automation, which cannot attach to a desktop on a hosted
+  # runner, so requiring it would block every release for a limitation of the runner rather than a defect
+  # in the build. It still runs on every push for the structural audit and the unit suite it also carries,
+  # and it now fails properly when the app genuinely does not start (exit 4) while reporting the
+  # can't-automate-a-desktop case as skipped (exit 5).
   ui-smoke:
     runs-on: windows-latest
     needs: package
@@ -280,6 +286,18 @@ jobs:
             -c ${{ env.CONFIGURATION }} `
             --no-build `
             -- $exe.Path
+          $code = $LASTEXITCODE
+
+          # 5 means the app opened a window and UI Automation could not attach to it — this runner has no
+          # interactive desktop. Reporting that as a failure is what made this job permanently red and
+          # therefore ignored, which cost it the two signals it DOES carry here: the structural audit and
+          # the full Release unit suite. Exit 4 (no window at all) is a real launch failure and still fails.
+          if ($code -eq 5) {
+            Write-Warning "UI automation could not attach to a desktop on this runner; steps 3-4 skipped. Steps 1-2 passed."
+            exit 0
+          }
+
+          exit $code
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')

@@ -53,11 +53,19 @@ public static class PlatformModuleSettingsHelper
     private static readonly HashSet<string> HiddenFromPicker =
         new(StringComparer.OrdinalIgnoreCase) { "telegram", "metabusinesssuite", "instagram" };
 
+    /// <summary>
+    /// The platforms offered in the Add-account picker.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="settings"/> is not read. It is kept because the hidden set was once expected to be
+    /// user-configurable and the call sites already pass one; dropping it is a signature change across the
+    /// two dialogs and their tests for no behaviour. If it is still unused when something else here
+    /// changes, remove it then.
+    /// </remarks>
     public static IReadOnlyList<PlatformDefinition> GetSelectablePlatforms(AppSettings settings) =>
         PlatformDefinition.All.Where(p => !HiddenFromPicker.Contains(p.Id)).ToList();
 
-    public static void NormalizePlatformModules(AppSettings settings)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-    }
+    // NormalizePlatformModules was deleted here: it took AppSettings, null-checked it, and did nothing
+    // else, with no caller anywhere. A method named "normalize" that normalizes nothing is worse than dead
+    // code — it is a claim that something is being kept consistent.
 }

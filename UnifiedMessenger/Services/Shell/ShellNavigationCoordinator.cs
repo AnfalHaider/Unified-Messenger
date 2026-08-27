@@ -211,7 +211,7 @@ public sealed class ShellNavigationCoordinator
     {
         _viewModel.SetInstanceLoading(
             isLoading,
-            message ?? (isLoading ? "Loading account..." : null));
+            message ?? (isLoading ? "Loading account…" : null));
         ApplyInstanceLoadingUi();
     }
 
@@ -230,7 +230,7 @@ public sealed class ShellNavigationCoordinator
 
         _ui.StartupWarmProgressBar.Visibility = Visibility.Collapsed;
         _ui.InstanceLoadingText.Text = string.IsNullOrWhiteSpace(_viewModel.InstanceLoadingMessage)
-            ? "Loading account..."
+            ? "Loading account…"
             : _viewModel.InstanceLoadingMessage;
     }
 

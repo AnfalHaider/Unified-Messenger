@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (v1.1)
+**Superseded (v4.27.0.)** The standalone Operations Command Center and its 12-column grid were retired; the command centre is now `CommandCenterPanel`, which builds its cards imperatively. `RichTriageStore`, `OccPanelPlacement` and `OccLayoutGridApplier` no longer exist, and `AppSettings.CurrentVersion` is 19, not 5. Retained for history.
 
 ## Context
 

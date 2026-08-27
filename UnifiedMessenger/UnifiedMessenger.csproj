@@ -26,9 +26,9 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 
     <!-- Versioning (keep in sync with app.manifest assemblyIdentity and installer.iss). -->
-    <Version>4.99.46</Version>
-    <AssemblyVersion>4.99.46.0</AssemblyVersion>
-    <FileVersion>4.99.46.0</FileVersion>
+    <Version>4.99.47</Version>
+    <AssemblyVersion>4.99.47.0</AssemblyVersion>
+    <FileVersion>4.99.47.0</FileVersion>
     <ApplicationDisplayVersion>4.63.0</ApplicationDisplayVersion>
     <NoWarn>$(NoWarn);CS9057</NoWarn>
 
@@ -45,6 +45,17 @@
     <PublishAot>false</PublishAot>
     <PublishTrimmed>false</PublishTrimmed>
     <PublishReadyToRun>false</PublishReadyToRun>
+  </PropertyGroup>
+
+  <!--
+    Stack traces in app.log carried the full build path of whoever compiled the binary — a real one read
+    "D:\Projects\Unified Messenger\.claude\worktrees\project-skills-plugins-cf86f5\...". app.log is the file
+    support asks the owner to send, so that is a developer's directory layout travelling to a stranger for
+    no benefit. Deterministic source paths replace it with a stable "/_/" prefix, which also makes the same
+    commit produce byte-identical output from any machine.
+  -->
+  <PropertyGroup>
+    <DeterministicSourcePaths Condition="'$(Configuration)' == 'Release'">true</DeterministicSourcePaths>
   </PropertyGroup>
 
   <ItemGroup>

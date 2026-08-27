@@ -1,5 +1,10 @@
 # PROMPT — Rebuild Unified Messenger's UI to match the team's reference vision
 
+> **⚠ Status: WP0, WP1, WP3, WP5 and WP6 shipped (v4.95.0 – v4.99.47).** Open: WP2 partial, WP4 Inbox
+> (deferred, see ADR-008), WP7 Notifications page, WP8, WP9. Three factual corrections to the text below:
+> the version sync is **5** files, not 4; `SettingsPage` has **9** partial classes, not 8; and the
+> "headless-hang rule" it cites was retracted in AGENTS.md — run the full suite before pushing.
+
 > Copy everything below this line into a fresh Claude Code session started in
 > `D:\Projects\Unified Messenger`. Attach the 9 reference screenshots to the same message.
 
@@ -44,7 +49,7 @@ literal mockup version of a dropped item.
 | "Assign to Fahad", Team, mentions, "assigned to you" notifications | **DROP** | Single-user constraint. |
 | Users & Roles tab, 2FA, Role-Based Access, Active Sessions | **DROP** | Single-user, local app. Replace Security card with "Local data & privacy" (everything stays on this PC). |
 | Review "Reply" button | **ADAPT** | Deep-link to the review in the embedded Google Business web client (click-through already shipped v4.49.0). |
-| Avg rating 4.7 / Total reviews 971 KPIs | **ADAPT** | Google's embedded surface doesn't expose rating/total (documented in AGENTS.md Phase 4). Show what `GoogleReviewSnapshotService` provides (unanswered, reply rate, actionable reviews); add rating/total only if the live DOM verifiably exposes them — never fabricate. |
+| Avg rating 4.7 / Total reviews 971 KPIs | **ADAPT** | Google DOES expose rating and lifetime total — `GoogleReviewSnapshotService.ProfileRating`, scraped from the Search merchant view on a 6-hour throttle. Use it; do not re-derive it (AGENTS.md, Google verified-facts). Show what `GoogleReviewSnapshotService` provides (unanswered, reply rate, actionable reviews); add rating/total only if the live DOM verifiably exposes them — never fabricate. |
 | Q&A section (Reviews page) | **ADAPT** | Best-effort scrape; hide section when no data. |
 | Instagram/Messenger/Telegram "Connected" tiles | **ADAPT** | Show real per-account connection state from `InstanceConnectionStatusService`; embeds exist, metric scrapers are pending (#24) — badge them "Embed only / metrics pending", never fake "Connected + metrics". |
 | Workspace language/timezone/date-format settings | **ADAPT** | Keep what exists (workspace name exists via `WorkspaceManagementDialog`); add date/time-format + first-day-of-week only if genuinely wired into the charts/reports. No fake settings. |

@@ -14,17 +14,20 @@ Merged in `App.xaml`.
 
 | Control | Use |
 |---------|-----|
-| `EmptyStateView` | Centered empty states with icon, title, hint, optional action |
+| `EmptyStateView` | Icon + title + hint + optional action — every no-data surface |
 | `LoadingOverlayView` | Full-surface loading with message |
-| `MetricCardView` | KPI label/value/subtext — OCC live-thread KPI row (`IsAccent` for revenue-at-risk) |
-| `SectionHeaderView` | Section title with optional badge — Settings sections, OCC KPI header |
-| `SurfaceCard` | Standard padded card container — OCC immediate lane, kanban, highlights |
-| `AccessibleChartHost` | Chart wrapper with automation summary — sentiment and weekly activity charts |
-| `OperationsThreadCardView` | OCC/kanban thread cards |
+| `MetricCardView` | KPI label / value / subtext |
+| `MiniSparkline` | Micro-trend under a KPI tile |
+| `SectionHeaderView` | Section title with optional badge — Settings sections, page headers |
+| `SurfaceCard` | Standard padded card container |
+| `AwaitingChatActions` | Mark-handled / snooze on an awaiting row — use on EVERY awaiting surface |
 
-## OCC layout
+## Charts (`Controls/Charts`)
 
-Operations Command Center uses a **fixed responsive layout** (KPI grid, branch pills, immediate queue, three-column kanban). User-controlled **display order** within kanban columns is persisted in `triage_v2.json` via `ThreadDisplayOrderService`.
+`BarChartView`, `AreaLineChartView`, `DonutChartView`, `KpiStatCard`, `DeltaBadge`. Each carries its own
+automation summary; `AccessibleChartHost` was deleted in v4.99.47 as unreachable.
+
+Type, icon, spacing and radius scales live in [scales.md](scales.md).
 
 ## Semantic colors
 

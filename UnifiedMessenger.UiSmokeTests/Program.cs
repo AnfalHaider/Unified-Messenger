@@ -68,6 +68,12 @@ internal static class Program
 
         FlaUI.Core.Application? app = null;
         var uiStepFailed = false;
+
+        // Distinguishes "the app never opened a window" from "this environment cannot automate one".
+        // The probe below already told them apart in the OUTPUT; the exit code did not, so a hosted runner
+        // with no interactive desktop reported the same failure as a genuinely broken build, and the job
+        // was permanently red for a reason nobody could act on.
+        var sawWindowHandle = false;
         try
         {
             app = FlaUI.Core.Application.Launch(exePath);
@@ -79,6 +85,7 @@ internal static class Program
             // being unable to drive a desktop. Reporting the second as an app failure is how this workflow
             // came to be permanently red while the app was fine.
             var hwnd = WaitForMainWindowHandle(app, TimeSpan.FromSeconds(45));
+            sawWindowHandle = hwnd != IntPtr.Zero;
             Console.WriteLine(hwnd == IntPtr.Zero
                 ? "  Win32 probe: the process created NO top-level window."
                 : $"  Win32 probe: top-level window present (hwnd 0x{hwnd.ToInt64():X}).");
@@ -122,7 +129,19 @@ internal static class Program
         if (uiStepFailed)
         {
             Console.Error.WriteLine();
-            Console.Error.WriteLine("Steps 1-2 above still ran; step 3-4 did not. See the Win32 probe line for which failure this is.");
+            Console.Error.WriteLine("Steps 1-2 above still ran; step 3-4 did not.");
+
+            if (sawWindowHandle)
+            {
+                // The app started and put a window on screen; only UI Automation could not attach to it.
+                // That is a property of the machine, not of the build, so it must not read as a defect.
+                Console.Error.WriteLine(
+                    "The app DID open a window — UI Automation could not attach to it. That is an environment "
+                    + "limitation (a headless or non-interactive session), not an app failure. Exit 5.");
+                return 5;
+            }
+
+            Console.Error.WriteLine("The app opened NO top-level window. This is a real launch failure. Exit 4.");
             return 4;
         }
 

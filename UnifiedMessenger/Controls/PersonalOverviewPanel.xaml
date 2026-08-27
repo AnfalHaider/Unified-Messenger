@@ -68,7 +68,7 @@
                 Tag="Search"
                 AutomationProperties.AutomationId="PersonalGlobalSearch"
                 AutomationProperties.Name="Search personal accounts"
-                PlaceholderText="Search personal accounts, senders, or messages..."
+                PlaceholderText="Search personal accounts, senders, or messages…"
                 QueryIcon="Find"
                 TabIndex="20"
                 QuerySubmitted="GlobalSearchBox_QuerySubmitted"

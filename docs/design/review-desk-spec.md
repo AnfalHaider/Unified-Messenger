@@ -1,5 +1,9 @@
 # Review Desk — build spec
 
+> **⚠ Implemented v4.99.40 → v4.99.43.** The State columns below record the state BEFORE the build and are
+> historical: everything they call "new", "needs Ollama" or "does not exist" now ships. Current per-tier
+> state is in [remaining-work.md §0.2b](../remaining-work.md).
+
 **The design is fixed.** The approved mock is the Review Desk artifact; this file is the wiring contract for
 it. Nothing here re-opens layout decisions — it maps every element on that page to the data behind it, says
 what exists today, and says what the element renders **before** its data exists.

@@ -15,6 +15,15 @@ public static class WebViewChromeStyleInjector
     private const string StyleElementId = "unified-messenger-chrome";
 
     private static readonly string StylesRoot = Path.Combine(AppContext.BaseDirectory, "Assets", "Styles");
+    /// <summary>
+    /// Injection guard, keyed on <see cref="CoreWebView2"/> for the same reason as
+    /// <c>BasePlatformAdapter.RegisteredHosts</c> — see the note there.
+    /// </summary>
+    /// <remarks>
+    /// A dropped entry re-injects a stylesheet, which is idempotent. A stale string key would skip
+    /// injection for a WebView that never received it, leaving the account's chrome unstyled with no way
+    /// to recover short of a restart.
+    /// </remarks>
     private static readonly ConditionalWeakTable<CoreWebView2, object> RegisteredWebViews = new();
     private static readonly Dictionary<string, string> CssCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object CacheLock = new();

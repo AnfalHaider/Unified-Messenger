@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-08-27 · **Baseline:** v4.99.46 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-08-27 · **Baseline:** v4.99.47 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
@@ -86,6 +86,10 @@
 >
 > **Key deviation from the plan:** on-time was redefined from *reply-latency SLA* to **"caught up %" = WhatsApp's own unread signal**, read directly from WhatsApp Web's local `model-storage` IndexedDB `chat` store. Reason (verified live): WhatsApp Web multi-device keeps only a small recent `message` cache, does **not** persist per-chat `lastMessage`, and uses `@lid` privacy ids — so reply-latency history is not reliably available, but `unreadCount` is. See [[whatsapp-web-indexeddb-oversight]] memory and `OversightChatSnapshotService`. Gotchas fixed along the way: `ExecuteScriptAsync` doesn't await promises (start/poll), long `message`-store cursors hang the read transaction (use bounded `chat` `getAll`), focus by sidebar `data-id` JID not title text.
 
+> **⚠ Historical — written pre-v4.20 and superseded by the per-phase tables above.** Several things it
+> calls "mostly ☐" have shipped: Google reviews, generic URL, the digest, threshold alerts,
+> business-hours SLA, the workspace rail and the command centre. Phase 1 is marked complete at the end of
+> this file and Phase 4 is marked Done. Read the tables, not this paragraph.
 > **Honest summary:** the **backend engine** (triage, SLA, analytics, backfill, Ollama, notifications, live WebView) is largely ✅/◑. The **product redesign** (workspace-rail IA, command-center, Workspace Management, channel-aware dashboards) and the **new channels/features** (Google reviews, Telegram, Meta, generic URL, digest, threshold alerts, ONNX tier, tone, business-hours SLA) are mostly ☐. No phase is "complete." This is a multi-week build; nothing below was implemented in this pass — it is a code-grounded audit.
 
 ---
@@ -97,7 +101,7 @@
 | Live view of a chat (L2) | ✅ | `InstanceSessionManager` + `ShellNavigationCoordinator.NavigateToInstanceAsync` |
 | Analytics baseline, no-AI (Tier 0) | ✅ | `HeuristicTriageProcessor` (keyword urgency/sentiment) |
 | SLA integrity (exclude backfilled, at-risk) | ✅ | shipped v4.5.0 (`ThreadData.IsSlaBreached/IsSlaAtRisk`) |
-| L1 WhatsApp metrics + work queue | ✅ | OCC KPIs + work queue (`OperationsCommandCenterService`) |
+| L1 WhatsApp metrics + work queue | ✅ | Command-centre KPIs + needs-reply queue (`CommandCenterPanel` + `OversightService`). The standalone OCC and `OperationsCommandCenterService` were retired in v4.27.0. |
 | Personal/Professional scope | ✅ | **v4.11.0:** sidebar scope switch (All / Professional / Personal, persisted, shown only when both scopes exist) + scope-grouped sections |
 | Command center (L0) — **backend engine** | ✅ | **Increment 2 (2026-06-16):** `OversightRollupBuilder` produces per-entity health (account *or* location) — on-time %, urgent, dropped, freshness, worst-first sort, needs-attention summary; works in ByInstance/ByLocation. Pure + 4 unit tests. |
 | Command center (L0) — **live bridge** | ✅ | **Increment 3 (2026-06-16):** `OversightService.BuildSnapshot(grouping, instances)` wires the rollup to live threads + per-location SLA + connection-status freshness; registered in DI as `_services.Oversight`. Startup smoke clean. |
@@ -110,7 +114,7 @@
 | Workspace Management — **data layer** (per-location SLA + business hours) | ✅ | **Increment 1 (2026-06-16):** `WorkspaceProfile`/`BusinessHours` models, persisted in `AppSettings.WorkspaceProfiles`; `BusinessHoursCalculator` (SLA clock pauses outside hours); per-location threshold via `OperationalThresholds.GetSlaThresholdMinutes(locationKey)`; wired into the SLA clock. Backward-compatible (no profiles → identical). 5 new unit tests; 48/48 green. |
 | Workspace Management — **UI** (per-location hours + SLA editor) | ◑ | **Increment 4 (2026-06-16):** `WorkspaceManagementDialog` (ContentDialog) edits per-location SLA + business hours; launched via the **command palette** (Ctrl+K → "Manage workspaces") and **Ctrl+Shift+W** (low-blast-radius — a dialog, not a SettingsPage rewrite). `WorkspaceManagementHelper` derives locations from professional accounts (2 tests). Build + 11 tests + startup smoke green. **Pending: visual verification by user** (sandbox blocks UI rendering check). Instance-assignment UI deferred. |
 | WhatsApp history backfill (robust) | ✅* | **R-1 done (v4.8.x), reframed:** reads conversation state straight from local IndexedDB (`chat`-store `getAll`, stable JIDs) instead of DOM-walking; promise start/poll + watchdog; reconciliation marks answered chats. *Honest limit: WhatsApp Web only reliably exposes **current unread state**, not deep reply-latency history — so the metric is unread-based, not latency-based.* |
-| Instance lifecycle (connected-but-light, stale, sane default cap) | ◑ | sessions + `MemoryUsageTargetLevel.Low` + LRU ✅; **default cap = 0 (unbounded)**, stale marking, orphan-handler fix ☐ |
+| Account lifecycle (connected-but-light, stale, sane default cap) | ✅ | sessions + `MemoryUsageTargetLevel.Low` + LRU ✅; default cap = **6** (`AppSettingsService.cs:158`) ✅; stale marking ✅; orphan `NavigationCompleted` handler fixed v4.99.47 ✅ |
 | First-run onboarding | ✅ | **v4.13.0:** 4-step guided cold-start wizard (Welcome → Add account → Set locations → Hours/SLA), per-step skip, exception-guarded |
 | Command center as L0 home + Work Queue (L1) | ✅ | **v4.13.0:** Dashboard *is* the command center; OCC moved to a dedicated Work Queue page (sidebar button, Ctrl+Shift+Q, nav-command routing) |
 
@@ -135,7 +139,7 @@
 | Proactive **threshold** alerts (waiting > X / on-time < Y) | ✅ | **v4.9.0/4.9.2:** `OversightAlertMonitor` toasts when an account's awaiting-reply count crosses a configurable threshold (edge-triggered) |
 | "Since you last opened" digest | ✅ | **v4.9.2:** `BuildDigest` summarizes new-since-last-seen / total awaiting on first command-center view per session |
 | Search + cards/list density at scale | ◑ | command-palette search ✅, `OccCompactCardDensity` ✅; entity/rail search + list-density ☐ |
-| Generic-URL webview instances | ☐ | `PlatformDefinition` is WhatsApp-only |
+| Generic-URL webview accounts | ✅ | v4.19.0 — the `generic` platform, `AllowsCustomUrl`, and an editable address bar (ADR-007). `PlatformDefinition` registers nine platforms, six offered in the picker. |
 
 ## Phase 4 — Google Business reviews channel
 ✅ **Done** (this section was written pre-v4.20 and said "Not started" — that is stale; `AGENTS.md` is
@@ -163,7 +167,7 @@ Two things this stream corrected are worth carrying into any future scraping wor
   wrong.
 
 ## Phase 5 — Additional channels (Telegram, then Meta)
-◑ **Embed slice done (v4.21.0).** Telegram (`web.telegram.org`) and Messenger (`messenger.com`) are registered platforms — selectable in "Add account", each gets its own isolated WebView session and branded accent colour. Routes to `NullPlatformAdapter` (no metric scraping yet). A Telegram adapter reading unread/awaiting from `web.telegram.org` DOM and a Messenger adapter (passive read-only; Meta fights automation) are future work that need a live logged-in account to tune.
+◑ **Embed slice done (v4.21.0).** Telegram (`web.telegram.org`) and Messenger (`messenger.com`) are registered platforms. **Messenger is selectable in "Add account"; Telegram is not** — it sits in `PlatformModuleSettingsHelper.HiddenFromPicker` alongside Meta Business Suite and Instagram, so it resolves only for accounts that already exist. Each gets its own isolated WebView session and branded accent colour, and routes to `NullPlatformAdapter` (no metric scraping). A Telegram adapter reading unread/awaiting from the `web.telegram.org` DOM, and a Messenger adapter (passive read-only; Meta fights automation), are future work needing a live logged-in account to tune.
 
 ## Cross-cutting (any phase)
 
@@ -180,6 +184,7 @@ Two things this stream corrected are worth carrying into any future scraping wor
 ---
 
 ## What this means
+> **⚠ Historical (pre-v4.20).** The ☐ list below is long out of date — see the per-phase tables above.
 - **Done (✅):** the conversation-analytics engine — triage, SLA timing, work queue, backfill plumbing, Ollama AI, live chat navigation, notifications plumbing, heuristic no-AI baseline.
 - **Partial (◑):** everything that exists as "branches + OCC tabs + flat sidebar" but must become "locations + command center + workspace rail," plus AI-strip UX, time-range, search/density, onboarding, backfill robustness, instance lifecycle.
 - **Not started (☐):** the workspace-rail IA, Workspace Management (business hours + per-location SLA), channel-aware dashboards, **Google reviews / Telegram / Meta / generic-URL channels**, "since you last opened" digest, threshold alerts, Tier-1 ONNX, tone analysis, and the WebView2 memory/abstraction work.

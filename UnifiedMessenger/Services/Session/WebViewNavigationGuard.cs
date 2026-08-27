@@ -43,6 +43,12 @@ public static class WebViewNavigationGuard
     // to fail back to DefaultAllowedHosts — invisible for built-in platforms (their hosts are in the
     // defaults) but it cancelled every Custom-URL tab's navigation and left it on about:blank.
     // Each binding therefore captures its own allowlist in the handler closure.
+    //
+    // A dropped entry here leaks a subscription rather than changing a decision, and every Detach call
+    // site closes the WebView immediately afterwards (InstanceSessionManager), so the handlers it leaves
+    // behind are attached to a native object that is about to go away and can never fire again. Re-Attach
+    // only happens at WebView creation, on a fresh object. So this one is left keyed as it is — the
+    // asymmetry that made PlatformNavigationHooks worth re-keying does not apply.
     private static readonly ConditionalWeakTable<CoreWebView2, GuardBinding> Bindings = new();
 
     public static void Attach(CoreWebView2 coreWebView) => Attach(coreWebView, additionalHosts: null);

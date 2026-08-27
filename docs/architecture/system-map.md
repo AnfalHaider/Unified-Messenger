@@ -1,6 +1,9 @@
 # Unified Messenger — system map
 
-Gate 0 / Wave 12 architecture reference (updated v3.2.0).
+> **⚠ Stale — last revised at v3.2.0; the shipping version is 4.99.47.** This document predates the
+> Oversight engine, the section-navigation shell (ADR-008), the Analytics / Reviews / Reports pages, the
+> `Controls/Charts` set, and the retirement of the standalone OCC in v4.27.0. Several types it names no
+> longer exist. Verify against the tree before relying on any row below.
 
 ## Runtime layers
 
@@ -47,7 +50,7 @@ Gate 0 / Wave 12 architecture reference (updated v3.2.0).
 
 | Flow | Entry | Core services | UI surface |
 |------|-------|---------------|------------|
-| Professional triage | JS `inbound-message-selected` | MessageTriageService → ThreadRegistryService → OperationsCommandCenterService | OCC |
+| Professional triage | JS `inbound-message-selected` | MessageTriageService → ThreadRegistryService → OversightService | Command centre |
 | Personal notifications | JS `notification-preview` | NotificationHub → PersonalDashboardService | Personal overview, feed panel |
 | Instance navigation | `INavigationService.OpenInstance` | ShellNavigationService → InstanceSessionManager | MainWindow WebView host |
 | Operational refresh | Triage/thread/analytics events | DashboardRefreshCoordinator (450 ms debounce) | DashboardPage |
@@ -60,7 +63,7 @@ Gate 0 / Wave 12 architecture reference (updated v3.2.0).
 | Surface | ViewModel | Presenter / helper |
 |---------|-----------|-------------------|
 | Shell | MainWindowViewModel, WorkspaceSidebarViewModel, NotificationFeedViewModel | NotificationFeedPresenter, WorkspaceSidebarMenuPlanner |
-| OCC | OperationsCommandCenterViewModel, BranchWorkspacePillBarViewModel | OccSnapshotPresenter, OccThreadCardPresenter |
+| Command centre | (imperative — no view-model) | `CommandCenterPanel`, `OversightRollupBuilder` |
 | Personal | PersonalOverviewViewModel | PersonalSnapshotPresenter, PersonalOverviewSearchPresenter |
 | Settings | SettingsViewModel | SettingsArchivedAccountsPresenter, SettingsImportExportPresenter |
 | Charts | WeeklyActivityChartViewModel | WeeklyActivityChartHelper |
@@ -69,7 +72,7 @@ Gate 0 / Wave 12 architecture reference (updated v3.2.0).
 
 | Job | Purpose |
 |-----|---------|
-| `verify` | Build + unit tests (442) |
+| `verify` | Build + unit tests (~1800) |
 | `package` | Publish win-x64 / win-arm64 + Inno installers + SHA-256 sidecars |
 | `ui-smoke` | FlaUI harness against published x64 binary |
 | `release` | Tag-driven GitHub release from CI artifacts |
@@ -81,4 +84,4 @@ Gate 0 / Wave 12 architecture reference (updated v3.2.0).
 
 ## Platform scope
 
-WhatsApp and WhatsApp Business Web only (v3.0+ lite baseline).
+WhatsApp, WhatsApp Business, Google Business, Messenger, Discord and Custom URL — nine registered platforms, six offered in the picker.

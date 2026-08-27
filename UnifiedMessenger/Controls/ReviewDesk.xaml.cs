@@ -419,11 +419,24 @@ public sealed partial class ReviewDesk : UserControl
         return totalWeight > 0 ? weighted / totalWeight : null;
     }
 
-    private static string StarsFor(double rating)
+    /// <summary>
+    /// Star glyphs for a rating, with a half star rather than a rounded-up whole one.
+    /// </summary>
+    /// <remarks>
+    /// This rounded away from zero, so anything from 4.5 to 4.99 drew five filled stars directly beneath
+    /// the number "4.6" — the glyphs contradicting the figure they illustrate, on the one screen whose
+    /// subject is what customers think of the business. Five filled stars is a claim of perfection and
+    /// belongs to 5.0 alone.
+    /// </remarks>
+    internal static string StarsFor(double rating)
     {
-        var full = (int)Math.Round(rating, MidpointRounding.AwayFromZero);
-        full = Math.Clamp(full, 0, 5);
-        return new string('★', full) + new string('☆', 5 - full);
+        var clamped = Math.Clamp(rating, 0, 5);
+        var full = (int)Math.Floor(clamped);
+        var half = clamped - full >= 0.25 && full < 5;
+
+        return new string('★', full)
+             + (half ? "⯨" : string.Empty)
+             + new string('☆', 5 - full - (half ? 1 : 0));
     }
 
     private string? OldestWaitingLabel()

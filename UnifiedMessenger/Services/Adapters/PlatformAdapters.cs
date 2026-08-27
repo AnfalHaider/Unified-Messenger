@@ -24,6 +24,24 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
     private const string PublishBadgeScript =
         "if (window.__unifiedMessengerPublishBadge) { window.__unifiedMessengerPublishBadge(); }";
 
+    /// <summary>
+    /// Registration guard. Stays keyed on <see cref="CoreWebView2"/>, deliberately.
+    /// </summary>
+    /// <remarks>
+    /// AGENTS.md warns against keying per-WebView state on a <c>CoreWebView2</c>, because the CsWinRT
+    /// wrapper can be collected and re-created for the same native object and the entry silently vanishes.
+    /// That warning is about state whose LOSS breaks something. Here loss is the safe direction: a dropped
+    /// entry means "not yet registered", so the adapter registers again — recoverable, and now harmless,
+    /// because <see cref="PlatformNavigationHooks"/> is keyed by instance id and removes the previous
+    /// handler on re-attach rather than leaving two.
+    /// <para>
+    /// Keying this by instance id would invert the failure: the table would outlive the WebView it
+    /// describes, and a session that was reaped and reopened would be told it is already registered. Its
+    /// scripts would never be injected and that account would silently stop producing data — the worst
+    /// failure this product has, traded for a duplicate script injection. The weak table's automatic
+    /// lifetime is exactly what makes the safe direction the default here, so it stays.
+    /// </para>
+    /// </remarks>
     private static readonly ConditionalWeakTable<CoreWebView2, object> RegisteredHosts = new();
     private static readonly Dictionary<string, string> ScriptTemplates = new(StringComparer.OrdinalIgnoreCase);
     private static readonly object ScriptCacheLock = new();

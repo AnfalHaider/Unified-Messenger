@@ -151,7 +151,7 @@ Checked, and each carries words or a glyph independent of colour:
 | Awaiting pill | Text — "N awaiting" vs "caught up" |
 | Hero rail (green / caution / red) | Three distinct headlines, pinned by test |
 
-`StatusCueTests` (6, green) pins the parts that are reachable without a UI thread, including the general
+`StatusCueTests` (10, green) pins the parts that are reachable without a UI thread, including the general
 rule: **any two connection states painted different colours must also read differently.**
 
 **One judgement recorded rather than changed.** The delta badge's *direction* is carried by the glyph, but

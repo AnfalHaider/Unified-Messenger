@@ -5,6 +5,43 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.47
+
+The rest of the audit's backlog, plus a stack of documentation that had stopped being true.
+
+**Two features that never worked at all now do.** Desktop notifications and the taskbar badge both fail on
+this app's shipping configuration, and both said so only in a log line the shipping build never wrote.
+Toasts now fall back to the classic Windows notifier; the badge now uses the taskbar overlay, whose COM
+call had been asking Windows for the wrong interface since the feature was written. Settings shows the
+state of the notification channel instead of offering five controls that govern nothing.
+
+**Failures you could not see, you now can.** 94 error paths reported themselves only to a debugger. All of
+them now write to `app.log` — and doing that immediately exposed three more defects nobody knew about,
+including one introduced by the notification fix earlier in the same release. Two of those paths were
+about to write customer names into the log; they now record only the size of what they could not read.
+
+**"Instance" is gone from the screen.** About fifty labels, dialog titles, menu items and screen-reader
+announcements called an account an "instance". They all say account now.
+
+**Numbers that quietly redefined themselves.** Opening a past date range overwrote *today's* entry in the
+KPI history. Sparklines drew readings weeks apart as if they were consecutive days. "Answered today" read
+zero whenever a date filter was applied. The weekly report printed one figure under two different names,
+and an all-time busiest day inside a report about a single week.
+
+**Empty screens now say what is actually true.** Reports told brand-new installs that their activity
+"looks steady"; Analytics showed a row of zeros. Both now explain that nothing is connected and offer to
+fix it — as does the Reviews page, which previously told you what to do and gave you no way to do it.
+
+**Accessibility.** Dialog tab order was decided by an internal hash and changed between runs. The
+archived-accounts list read out four identical buttons with no way to tell which account they belonged to.
+Sidebar groups never announced whether they were open or closed. Two charts were silent. Rising and
+falling figures were distinguished only by colour. All fixed.
+
+**Also:** restoring a backup no longer captures stale data or reports a locked file as corrupt; saving a
+report or exporting data now tells you when it fails instead of doing nothing; the dashboard no longer
+prints internal operation names or raw error text; five-star ratings are reserved for 5.0; and the
+developer's own folder path no longer travels inside crash reports.
+
 ## v4.99.46
 
 Seven defects from a full-product audit, four of them confirmed against the installed build rather than

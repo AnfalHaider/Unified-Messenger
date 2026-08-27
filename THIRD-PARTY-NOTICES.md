@@ -18,6 +18,10 @@ other service it embeds. All product names and logos are the property of their r
 | [OllamaSharp](https://github.com/awaescher/OllamaSharp) | MIT |
 | [H.NotifyIcon.WinUI](https://github.com/HavenDV/H.NotifyIcon) | MIT |
 | [xUnit](https://github.com/xunit/xunit) (tests only) | Apache-2.0 |
+| [xunit.runner.visualstudio](https://github.com/xunit/visualstudio.xunit) (tests only) | Apache-2.0 |
+| [Xunit.SkippableFact](https://github.com/AArnott/Xunit.SkippableFact) (tests only) | MS-PL |
+| [Microsoft.NET.Test.Sdk](https://github.com/microsoft/vstest) (tests only) | MIT |
+| [coverlet.collector](https://github.com/coverlet-coverage/coverlet) (tests only) | MIT |
 | [FlaUI](https://github.com/FlaUI/FlaUI) (UI smoke tests only) | MIT |
 | [Inno Setup](https://jrsoftware.org/isinfo.php) (installer tooling) | Inno Setup License |
 

@@ -48,7 +48,7 @@ public sealed class KpiTrendStore
     /// <summary>Record today's whole-business caught-up % and awaiting count (overwrites the day's value).</summary>
     public void Record(int caughtUpPercent, int awaiting)
     {
-        var key = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var key = LocalDayBoundary.LocalDate(DateTimeOffset.Now).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         _byDay[key] = new DayPoint(Math.Clamp(caughtUpPercent, 0, 100), Math.Max(0, awaiting));
         ScheduleSave();
     }
@@ -79,7 +79,7 @@ public sealed class KpiTrendStore
 
     private IReadOnlyDictionary<string, int> DateKeyed(int days, Func<DayPoint, int> select)
     {
-        var today = DateTime.Now.Date;
+        var today = LocalDayBoundary.LocalDate(DateTimeOffset.Now);
         var map = new Dictionary<string, int>(StringComparer.Ordinal);
         for (var i = days - 1; i >= 0; i--)
         {
@@ -107,7 +107,7 @@ public sealed class KpiTrendStore
     /// </remarks>
     private IReadOnlyList<int> Series(int days, Func<DayPoint, int> select)
     {
-        var today = DateTime.Now.Date;
+        var today = LocalDayBoundary.LocalDate(DateTimeOffset.Now);
         var result = new List<int>();
 
         // Walk backwards from today and stop at the first day with no reading.

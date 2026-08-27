@@ -678,7 +678,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         NavigationRetryScheduler.Instance.Forget(instanceId);
 
         DetachMessageHandler(entry);
-        DetachNavigationHandler(entry);
+        DetachNavigationHandler(entry, instanceId);
 
         if (_host?.Children.Contains(entry.WebView) == true)
         {
@@ -705,14 +705,14 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         await Task.CompletedTask;
     }
 
-    private static void DetachNavigationHandler(SessionEntry entry)
+    private static void DetachNavigationHandler(SessionEntry entry, string instanceId)
     {
         if (entry.WebView.CoreWebView2 is null)
         {
             return;
         }
 
-        PlatformNavigationHooks.Detach(entry.WebView.CoreWebView2);
+        PlatformNavigationHooks.Detach(entry.WebView.CoreWebView2, instanceId);
     }
 
     private static void DetachMessageHandler(SessionEntry entry)

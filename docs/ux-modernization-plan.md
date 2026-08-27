@@ -1,5 +1,11 @@
 # UI/UX modernization plan — customer-facing surfaces
 
+> **⚠ Baseline v4.56.0.** Phase A shipped across v4.99.26–v4.99.36 and the empty-state sweep in v4.99.47.
+> Issue D ("`Tokens.xaml` declares flat `<Color>` keys with no `ThemeDictionaries`") is **resolved** —
+> `Themes/Tokens.xaml` is wrapped in `ResourceDictionary.ThemeDictionaries`; see
+> [design-system/contrast-audit.md](design-system/contrast-audit.md). The type ramp that actually shipped is
+> in [design-system/scales.md](design-system/scales.md), not the one proposed here.
+
 **As of:** 2026-07-07 · **Baseline:** v4.56.0 · **Scope:** every screen the business owner actually sees
 **Method:** full read of the live XAML/design-system + imperative builders, cross-checked against 2025–2026
 dashboard/Fluent best-practice research (sources at the bottom).
