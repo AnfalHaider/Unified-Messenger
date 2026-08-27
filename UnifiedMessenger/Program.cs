@@ -74,7 +74,9 @@ public static class Program
 
         TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
         {
-            AppLogger.LogWarning("UnobservedTask", eventArgs.Exception.ToString());
+            // LogError, not LogWarning: this is a full exception with a stack trace, and warnings are
+            // flattened to a single line on the way out.
+            AppLogger.LogError("UnobservedTask", eventArgs.Exception);
             eventArgs.SetObserved();
         };
     }

@@ -13,11 +13,14 @@ public static class TaskbarOverlayService
 
     public static bool TrySetOverlayCount(int count)
     {
+        // No window yet is not a failure — the badge is cleared at startup, before the shell has anything
+        // to hang an overlay on. Logging it as one put two warnings in app.log on every single launch.
         if (App.CurrentWindow is null)
         {
             return false;
         }
 
+        object? taskbarComObject = null;
         try
         {
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.CurrentWindow);
@@ -26,8 +29,8 @@ public static class TaskbarOverlayService
                 return false;
             }
 
-            var taskbar = (ITaskbarList3?)Activator.CreateInstance(Type.GetTypeFromCLSID(TaskbarListClsid)!);
-            if (taskbar is null)
+            taskbarComObject = Activator.CreateInstance(Type.GetTypeFromCLSID(TaskbarListClsid)!);
+            if (taskbarComObject is not ITaskbarList3 taskbar)
             {
                 return false;
             }
@@ -56,8 +59,17 @@ public static class TaskbarOverlayService
         }
         catch (Exception ex)
         {
-            AppLogger.LogWarning("Notifications.Badge", $"Taskbar overlay fallback failed: {ex.Message}");
+            AppLogger.LogWarning("Notifications.Badge", $"Taskbar overlay failed: {ex.Message}");
             return false;
+        }
+        finally
+        {
+            // A fresh TaskbarList is created per call, and this runs on every unread-count change.
+            // Releasing it here keeps that from accumulating RCWs until a GC happens to notice.
+            if (taskbarComObject is not null && Marshal.IsComObject(taskbarComObject))
+            {
+                Marshal.FinalReleaseComObject(taskbarComObject);
+            }
         }
     }
 
@@ -86,8 +98,20 @@ public static class TaskbarOverlayService
         _cachedOverlayIcon = IntPtr.Zero;
     }
 
+    /// <summary>
+    /// IID_ITaskbarList3 — the INTERFACE id, which is not the same as CLSID_TaskbarList above.
+    /// </summary>
+    /// <remarks>
+    /// This attribute carried the CLSID, so every call created the taskbar object correctly and then asked
+    /// it to QueryInterface for <c>{56FDF344-…}</c> — an id it implements as a class, not as an interface.
+    /// The result was <c>E_NOINTERFACE</c> on every single badge update, which meant the overlay fallback
+    /// had never worked; and because the Windows App SDK badge API does not work in this app's unpackaged
+    /// self-contained configuration either, the taskbar badge as a whole had never worked, while Settings
+    /// went on offering a toggle for it. The failure named its own cause in the exception message and was
+    /// invisible for the life of the feature because it was reported with <c>Debug.WriteLine</c>.
+    /// </remarks>
     [ComImport]
-    [Guid("56FDF344-FD6D-11d0-958A-006097C9A090")]
+    [Guid("ea1afb91-9e28-4b86-90e9-9e9f8a5eefaf")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface ITaskbarList3
     {

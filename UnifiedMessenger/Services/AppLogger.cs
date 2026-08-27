@@ -52,10 +52,26 @@ internal static class AppLogger
         Write("ERR", context, message);
 
     public static void LogWarning(string context, string message) =>
-        Write("WRN", context, message);
+        Write("WRN", context, OneLine(message));
 
     public static void LogInfo(string context, string message) =>
-        Write("INF", context, message);
+        Write("INF", context, OneLine(message));
+
+    /// <summary>
+    /// Collapses embedded line breaks so one logged event stays one line.
+    /// </summary>
+    /// <remarks>
+    /// Warnings and info are single sentences that usually interpolate an exception message, and some
+    /// WinRT messages carry their own line breaks: the badge failure reads "A method was called at an
+    /// unexpected time.\r\n\r\nNot applicable for unpackaged applications", which split one record across
+    /// three lines — including a blank one — and left the sentence's own tail stranded on a line with no
+    /// timestamp. <see cref="LogError(string, Exception)"/> deliberately does NOT go through this: a stack
+    /// trace over multiple lines is the readable form, and flattening it would be the real loss.
+    /// </remarks>
+    private static string OneLine(string message) =>
+        string.IsNullOrEmpty(message)
+            ? message
+            : string.Join(" ", message.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
     /// <summary>
     /// Logs a warning at most once per minute per <paramref name="throttleKey"/>, counting what it skipped.

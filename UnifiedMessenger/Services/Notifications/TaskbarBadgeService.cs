@@ -40,14 +40,25 @@ public sealed class TaskbarBadgeService : ITaskbarBadgeService
                 return Task.CompletedTask;
             }
 
+            bool applied;
             if (TrySetBadgeWithAppSdk(badgeCount))
             {
                 TaskbarOverlayService.ClearOverlay();
+                applied = true;
             }
             else
             {
                 ClearAppSdkBadge();
-                TaskbarOverlayService.TrySetOverlayCount(badgeCount);
+                applied = TaskbarOverlayService.TrySetOverlayCount(badgeCount);
+            }
+
+            // Only remember what was actually applied. This used to record success unconditionally, so a
+            // badge attempted before the window existed — which is normal during startup — marked itself
+            // as done, and every later call with the same count short-circuited on the cache and never
+            // retried. The badge would then stay absent until the number happened to change.
+            if (!applied)
+            {
+                return Task.CompletedTask;
             }
 
             _lastAppliedVisible = true;
@@ -63,20 +74,46 @@ public sealed class TaskbarBadgeService : ITaskbarBadgeService
         TaskbarOverlayService.ClearOverlay();
     }
 
+    /// <summary>
+    /// Set once the Windows App SDK badge API has proved unavailable, so it is not retried.
+    /// </summary>
+    /// <remarks>
+    /// It fails on this app's shipping configuration — unpackaged plus <c>WindowsAppSDKSelfContained</c> —
+    /// with "A method was called at an unexpected time", the same family of problem as
+    /// <see cref="AppNotificationService"/>: the badge platform expects an identity and runtime support a
+    /// self-contained unpackaged build does not carry. Retrying it on every unread-count change achieved
+    /// nothing except two identical warnings per change once those warnings became real log lines. The
+    /// taskbar overlay is the correct Win32 mechanism here anyway, and is now what actually runs.
+    /// </remarks>
+    private static bool _appSdkBadgeUnavailable;
+
     private static void ClearAppSdkBadge()
     {
+        if (_appSdkBadgeUnavailable)
+        {
+            return;
+        }
+
         try
         {
             BadgeNotificationManager.Current.ClearBadge();
         }
         catch (Exception ex)
         {
-            AppLogger.LogWarning("Notifications.Badge", $"BadgeNotificationManager clear failed: {ex.Message}");
+            _appSdkBadgeUnavailable = true;
+            AppLogger.LogInfo(
+                "Notifications.Badge",
+                $"Badge API unavailable ({ex.Message.Trim()}); using the taskbar overlay instead.");
         }
     }
 
     private static bool TrySetBadgeWithAppSdk(int badgeCount)
     {
+        if (_appSdkBadgeUnavailable)
+        {
+            return false;
+        }
+
         try
         {
             BadgeNotificationManager.Current.SetBadgeAsCount((uint)badgeCount);
@@ -84,8 +121,14 @@ public sealed class TaskbarBadgeService : ITaskbarBadgeService
         }
         catch (Exception ex)
         {
-            AppLogger.LogWarning("Notifications.Badge", $"BadgeNotificationManager update failed: {ex.Message}");
+            _appSdkBadgeUnavailable = true;
+            AppLogger.LogInfo(
+                "Notifications.Badge",
+                $"Badge API unavailable ({ex.Message.Trim()}); using the taskbar overlay instead.");
             return false;
         }
     }
+
+    /// <summary>Test seam: forget that the SDK badge API failed.</summary>
+    internal static void ResetAvailabilityForTests() => _appSdkBadgeUnavailable = false;
 }
