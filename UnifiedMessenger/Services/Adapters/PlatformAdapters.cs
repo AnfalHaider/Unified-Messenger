@@ -1,11 +1,11 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Backfill;
+
 namespace UnifiedMessenger.Services.Adapters;
 
 public interface IPlatformAdapter
@@ -145,7 +145,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Adapter reinject failed for {instance.Id}: {ex.Message}");
+            AppLogger.LogWarning("Adapter", $"Adapter reinject failed for {instance.Id}: {ex.Message}");
             throw;
         }
     }
@@ -162,11 +162,23 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
         catch (JsonException ex)
         {
-            Debug.WriteLine($"WebMessage parse failed: {ex.Message} | Raw: {messageJson}");
+            // The payload length, never the payload. The raw scraped JSON carries customer names and
+            // message previews, and app.log is the file the owner is told to send to support — putting
+            // customer data in it would break the product's central promise to fix a diagnostic gap.
+            // Throttled because this fires per scraped message: a broken scraper would otherwise churn
+            // through the 256 KB rotation in seconds and destroy the log it was meant to improve.
+            AppLogger.LogWarningThrottled(
+                "Adapter",
+                $"WebMessage parse failed ({messageJson?.Length ?? 0} chars): {ex.GetType().Name}: {ex.Message}",
+                "adapter.parse");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WebMessage handling failed: {ex.Message} | Raw: {messageJson}");
+            // Length only — see the note on the parse failure above.
+            AppLogger.LogWarningThrottled(
+                "Adapter",
+                $"WebMessage handling failed ({messageJson?.Length ?? 0} chars): {ex.GetType().Name}: {ex.Message}",
+                "adapter.handle");
         }
     }
 
@@ -197,7 +209,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
             {
                 if (!SupportsInboundAutoDraft)
                 {
-                    Debug.WriteLine(
+                    AppLogger.LogWarning("Adapter", 
                         $"Ignoring inbound message for {instance.Id}; adapter does not support inbound monitoring.");
                     return;
                 }
@@ -220,7 +232,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
 
             if (!AdapterMessageTypes.IsKnownType(type))
             {
-                Debug.WriteLine($"Ignoring unknown adapter message type '{type}' for {instance.Id}.");
+                AppLogger.LogWarning("Adapter", $"Ignoring unknown adapter message type '{type}' for {instance.Id}.");
                 return;
             }
 
@@ -228,7 +240,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WebMessage handling failed: {ex.Message}");
+            AppLogger.LogWarning("Adapter", $"WebMessage handling failed: {ex.Message}");
         }
     }
 
@@ -264,7 +276,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Connection handshake failed for {instance.Id}: {ex.Message}");
+            AppLogger.LogWarning("Adapter", $"Connection handshake failed for {instance.Id}: {ex.Message}");
             InstanceConnectionStatusService.Instance.SetError(instance.Id, ex.Message);
         }
     }
@@ -323,7 +335,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(
+            AppLogger.LogWarning("Adapter", 
                 $"Thread status update failed for {instance.Id}: {ex.Message}");
         }
     }
@@ -694,7 +706,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Publish badge script failed: {ex.Message}");
+            AppLogger.LogWarning("Adapter", $"Publish badge script failed: {ex.Message}");
         }
     }
 }

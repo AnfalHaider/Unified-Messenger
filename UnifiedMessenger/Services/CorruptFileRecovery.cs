@@ -41,7 +41,6 @@ internal static class CorruptFileRecovery
     /// <returns>Where the file was preserved, or null if it could not be preserved.</returns>
     public static string? Preserve(string path, string scope, Exception ex)
     {
-        // AppLogger, never Debug.WriteLine — this has to survive into the shipping build.
         AppLogger.LogError($"{scope}.Load.Corrupt", ex);
 
         try

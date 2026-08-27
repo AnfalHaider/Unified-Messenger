@@ -71,7 +71,7 @@ public sealed class TaskbarBadgeService : ITaskbarBadgeService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"BadgeNotificationManager clear failed: {ex.Message}");
+            AppLogger.LogWarning("Notifications.Badge", $"BadgeNotificationManager clear failed: {ex.Message}");
         }
     }
 
@@ -84,7 +84,7 @@ public sealed class TaskbarBadgeService : ITaskbarBadgeService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"BadgeNotificationManager update failed: {ex.Message}");
+            AppLogger.LogWarning("Notifications.Badge", $"BadgeNotificationManager update failed: {ex.Message}");
             return false;
         }
     }

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
@@ -26,7 +25,7 @@ internal static class WindowsAppRuntimeBootstrapHelper
             var hr = WindowsAppRuntimeNative.EnsureIsLoaded();
             if (hr < 0)
             {
-                Debug.WriteLine($"WindowsAppRuntime_EnsureIsLoaded failed: 0x{hr:X8}");
+                AppLogger.LogWarning("Startup", $"WindowsAppRuntime_EnsureIsLoaded failed: 0x{hr:X8}");
                 StartupDiagnostics.Log($"WindowsAppRuntime_EnsureIsLoaded failed: 0x{hr:X8}");
                 return false;
             }
@@ -35,7 +34,7 @@ internal static class WindowsAppRuntimeBootstrapHelper
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Windows App Runtime load failed: {ex}");
+            AppLogger.LogWarning("Startup", $"Windows App Runtime load failed: {ex}");
             StartupDiagnostics.Log($"Windows App Runtime load failed: {ex}");
             return false;
         }
@@ -66,7 +65,7 @@ internal static class WindowsAppRuntimeBootstrapHelper
         }
         catch (JsonException ex)
         {
-            Debug.WriteLine($"Could not read runtime config: {ex.Message}");
+            AppLogger.LogWarning("Startup", $"Could not read runtime config: {ex.Message}");
             return false;
         }
     }

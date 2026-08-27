@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Services;
+
 namespace UnifiedMessenger;
 
 public partial class App : Application
@@ -68,7 +69,6 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Application launch failed: {ex}");
             AppLogger.LogError("App.Launch", ex);
             NativeDialogService.ShowError(
                 "Unified Messenger",
@@ -80,15 +80,12 @@ public partial class App : Application
 
     private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs eventArgs)
     {
-        Debug.WriteLine($"Unhandled XAML exception: {eventArgs.Message}");
-
         if (eventArgs.Exception is null)
         {
             AppLogger.LogError("App.UnhandledException", new Exception(eventArgs.Message ?? "Unknown unhandled exception"));
             return;
         }
 
-        Debug.WriteLine(eventArgs.Exception.ToString());
         AppLogger.LogError("App.UnhandledException", eventArgs.Exception);
 
         // Leave Handled=false so the process can terminate on non-recoverable faults.

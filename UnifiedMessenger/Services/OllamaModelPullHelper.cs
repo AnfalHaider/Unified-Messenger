@@ -90,7 +90,7 @@ public static class OllamaModelPullHelper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ollama list models failed: {ex.Message}");
+            AppLogger.LogWarning("Ollama.Models", $"Ollama list models failed: {ex.Message}");
             return [];
         }
     }

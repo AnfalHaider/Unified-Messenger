@@ -50,6 +50,21 @@ public sealed class LocalBackupService
             throw new ArgumentException("Destination path is required.", nameof(destinationZipPath));
         }
 
+        // Write the live stores to disk BEFORE zipping them. Several of them debounce their saves by
+        // design, so without this a backup taken right after a working session silently omitted that
+        // session — the triage decisions and KPI trend points the owner had just made were still in memory
+        // and never reached the archive. A backup that quietly excludes your most recent work is worse
+        // than no backup, because you only discover it when you need it.
+        await ApplicationLifecycleService.FlushPersistentStateAsync(cancellationToken).ConfigureAwait(false);
+
+        if (ApplicationLifecycleService.LastFlushFailures.Count > 0)
+        {
+            throw new IOException(
+                "Some of your data could not be written to disk, so a backup taken now would be incomplete: "
+                + string.Join(", ", ApplicationLifecycleService.LastFlushFailures)
+                + ". Close and reopen Unified Messenger, then try again.");
+        }
+
         return await Task.Run(() =>
         {
             var entries = EnumerateBackupEntries();
@@ -76,6 +91,13 @@ public sealed class LocalBackupService
     }
 
     /// <summary>True when the zip at <paramref name="zipPath"/> looks like a Unified Messenger backup.</summary>
+    /// <remarks>
+    /// Only a genuine "this is not one of our archives" answers false. A bare <c>catch</c> here used to
+    /// swallow <see cref="IOException"/> (file held by OneDrive or antivirus) and
+    /// <see cref="UnauthorizedAccessException"/> as well, so the caller told the owner their perfectly good
+    /// backup "isn't a recognised Unified Messenger backup" — and they might reasonably delete it. Those
+    /// two now propagate, carrying a message that says what actually went wrong.
+    /// </remarks>
     public bool IsRecognisedBackup(string zipPath)
     {
         try
@@ -84,9 +106,21 @@ public sealed class LocalBackupService
             return archive.Entries.Any(entry =>
                 SignatureFiles.Contains(entry.FullName, StringComparer.OrdinalIgnoreCase));
         }
-        catch
+        catch (InvalidDataException)
         {
-            return false;
+            return false; // not a zip at all, or a corrupt one
+        }
+        catch (IOException ex)
+        {
+            throw new IOException(
+                $"That file could not be opened — it may be in use by another program, or still syncing. ({ex.Message})",
+                ex);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            throw new UnauthorizedAccessException(
+                $"Unified Messenger does not have permission to read that file. ({ex.Message})",
+                ex);
         }
     }
 

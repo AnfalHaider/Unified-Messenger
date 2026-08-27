@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using UnifiedMessenger.Services.Ai;
 using UnifiedMessenger.Services.Backfill;
 
@@ -102,7 +101,6 @@ public static class ApplicationLifecycleService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Lifecycle worker shutdown failed: {ex.Message}");
             AppLogger.LogError("Lifecycle", ex);
         }
 
@@ -117,7 +115,6 @@ public static class ApplicationLifecycleService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Lifecycle WebView session close failed: {ex.Message}");
             AppLogger.LogError("Lifecycle.Sessions", ex);
         }
 
@@ -127,7 +124,6 @@ public static class ApplicationLifecycleService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Lifecycle Ollama shutdown failed: {ex.Message}");
             AppLogger.LogError("Lifecycle.Ollama", ex);
         }
     }
@@ -212,7 +208,7 @@ public static class ApplicationLifecycleService
                 // Deliberately swallowed per store: shutdown must continue so the remaining stores still
                 // get their chance to persist. Cancellation is recorded too — a cancelled flush is data
                 // that did not reach disk, which is exactly what the user needs warning about.
-                Debug.WriteLine($"Lifecycle flush failed for {name}: {ex.Message}");
+                AppLogger.LogWarning("Lifecycle.Flush", $"Lifecycle flush failed for {name}: {ex.Message}");
                 logFailure($"Lifecycle.Flush.{name}", ex);
                 (failed ??= []).Add(name);
             }

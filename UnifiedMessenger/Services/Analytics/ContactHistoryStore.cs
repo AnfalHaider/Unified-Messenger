@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace UnifiedMessenger.Services;
@@ -191,7 +190,7 @@ public sealed class ContactHistoryStore
             }
             catch (JsonException ex)
             {
-                Debug.WriteLine($"Contact-history store is corrupt; resetting: {ex.Message}");
+                AppLogger.LogWarning("ContactHistory", $"Contact-history store is corrupt; resetting: {ex.Message}");
                 return;
             }
 
@@ -270,7 +269,7 @@ public sealed class ContactHistoryStore
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Contact-history save failed: {ex.Message}");
+                AppLogger.LogWarning("ContactHistory", $"Contact-history save failed: {ex.Message}");
             }
         }, token);
     }

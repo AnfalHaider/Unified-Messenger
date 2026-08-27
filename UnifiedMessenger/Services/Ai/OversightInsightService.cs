@@ -141,7 +141,7 @@ public sealed class OversightInsightService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Oversight insight generation failed: {ex.Message}");
+            AppLogger.LogWarning("Ai.Insight", $"Oversight insight generation failed: {ex.Message}");
         }
         finally
         {

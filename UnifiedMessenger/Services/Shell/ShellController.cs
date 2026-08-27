@@ -228,7 +228,6 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WebView environment warmup failed: {ex}");
             AppLogger.LogError("Shell.WebView", ex);
         }
 
@@ -1023,7 +1022,6 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Taskbar pin prompt failed: {ex.Message}");
             AppLogger.LogWarning("Shell.TaskbarPin", ex.Message);
         }
     }
@@ -1062,7 +1060,6 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Taskbar pin request failed: {ex.Message}");
             AppLogger.LogWarning("Shell.TaskbarPin", ex.Message);
             await _services.Dialog.ShowErrorAsync(
                 "Could not pin to taskbar",

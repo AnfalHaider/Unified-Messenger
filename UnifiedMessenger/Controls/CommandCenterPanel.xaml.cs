@@ -1012,10 +1012,19 @@ public sealed partial class CommandCenterPanel : UserControl
                 continue;
             }
 
+            // Missed calls are the one facet whose count depends on which reader an account is using.
+            // On the IndexedDB fallback there is no callOutcome to read, so answered calls stay counted;
+            // the number is over-stated and the owner has no way to know that from the chip alone.
+            var describe = facet == QueueFacet.MissedCall && StoreBridgeHealth.AnyAccountOnFallback
+                ? QueueFacets.Describe(facet)
+                  + " Some accounts are on the fallback reader, which cannot tell an answered call from a "
+                  + "missed one — so this count may be higher than the real number. See Settings → Data."
+                : QueueFacets.Describe(facet);
+
             facetRow.Children.Add(BuildFilterChip(
                 $"{QueueFacets.Label(facet)} · {count}",
                 _facetFilter == facet,
-                QueueFacets.Describe(facet),
+                describe,
                 () => { _facetFilter = facet; ForceRerender(); }));
         }
 
@@ -2063,7 +2072,11 @@ public sealed partial class CommandCenterPanel : UserControl
         // Record the number the tile SHOWS, so the sparkline underneath it cannot tell a different story
         // than the figure above it. This does step down on the release that introduces the split — the
         // definition changed, and drawing the trend against the old definition would be the fiction.
-        if (overallPct is { } recPct)
+        // ...but only while the tile is showing TODAY. The store is a daily history keyed by today's date,
+        // and overallPct is scoped to the selected range while awaitingSplit is always current-state — so
+        // opening "last 30 days" wrote a 30-day average into today's slot and permanently replaced the real
+        // reading. The sparkline then told a story about a day that never happened.
+        if (overallPct is { } recPct && rangeStart is null && rangeEnd is null)
         {
             KpiTrendStore.Instance.Record(recPct, awaitingSplit.NeedsReply);
         }
@@ -3583,7 +3596,11 @@ public sealed partial class CommandCenterPanel : UserControl
                 }
                 catch (Exception ex)
                 {
-                    parts[i] = $"{instance.DisplayName}: {ex.Message}";
+                    // The exception text belongs in the log, not on the dashboard. This banner used to
+                    // render things like "DHA-2: Object reference not set to an instance of an object.",
+                    // which tells the owner nothing they can act on and reads as a broken app.
+                    AppLogger.LogWarning("Resync", $"'{instance.Id}': {ex.GetType().Name}: {ex.Message}");
+                    parts[i] = $"{instance.DisplayName}: couldn't read this account — open it once, then try again";
                 }
                 finally
                 {
@@ -3600,7 +3617,9 @@ public sealed partial class CommandCenterPanel : UserControl
             Render();
 
             AttentionBanner.Visibility = Visibility.Visible;
-            AttentionText.Text = "Probe · " + string.Join("   |   ", parts);
+
+            // "Probe ·" was the internal name of this operation leaking onto the owner's dashboard.
+            AttentionText.Text = string.Join("   |   ", parts);
         }
         finally
         {

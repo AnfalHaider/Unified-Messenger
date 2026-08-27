@@ -152,7 +152,7 @@ public sealed class AiInferenceQueue : IDisposable
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"AI inference queue failed: {ex.Message}");
+                    AppLogger.LogWarning("Ai.Queue", $"AI inference queue failed: {ex.Message}");
                 }
             }
         }
@@ -211,7 +211,7 @@ public sealed class AiInferenceQueue : IDisposable
         }
         catch (OperationCanceledException) when (jobCts.IsCancellationRequested)
         {
-            System.Diagnostics.Debug.WriteLine($"AI inference timed out for thread {job.ThreadId}");
+            AppLogger.LogWarning("Ai.Queue", $"AI inference timed out for thread {job.ThreadId}");
         }
         finally
         {

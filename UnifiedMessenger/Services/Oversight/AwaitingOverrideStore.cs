@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace UnifiedMessenger.Services;
@@ -226,7 +225,7 @@ public sealed class AwaitingOverrideStore
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Awaiting-overrides save failed: {ex.Message}");
+                AppLogger.LogWarning("AwaitingOverrides", $"Awaiting-overrides save failed: {ex.Message}");
             }
         }, token);
     }

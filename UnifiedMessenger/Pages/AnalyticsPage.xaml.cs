@@ -244,9 +244,9 @@ public sealed partial class AnalyticsPage : Page
                     _services.Registry.Instances.ToList(), path);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Best-effort export; a failed save must not take the page down.
+            await _services.Dialog.ShowErrorAsync("Couldn't export the data", ex.Message);
         }
     }
 }

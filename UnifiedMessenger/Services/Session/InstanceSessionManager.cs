@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Windows.Foundation;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -362,7 +361,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WebView reload failed: {ex.Message}");
+            AppLogger.LogWarning("Session", $"WebView reload failed: {ex.Message}");
         }
     }
 
@@ -401,7 +400,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Adapter reinject failed: {ex.Message}");
+            AppLogger.LogWarning("Session", $"Adapter reinject failed: {ex.Message}");
         }
 
         await ReloadSessionAsync(instanceId, cancellationToken).ConfigureAwait(true);
@@ -428,7 +427,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WebView suspend failed: {ex.Message}");
+            AppLogger.LogWarning("Session", $"WebView suspend failed: {ex.Message}");
         }
     }
 
@@ -449,7 +448,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WebView resume failed: {ex.Message}");
+            AppLogger.LogWarning("Session", $"WebView resume failed: {ex.Message}");
         }
 
         return Task.CompletedTask;
@@ -631,7 +630,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Instance script execution failed: {ex.Message}");
+                AppLogger.LogWarning("Session", $"Instance script execution failed: {ex.Message}");
                 return null;
             }
         }).ConfigureAwait(false);
@@ -663,7 +662,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Adapter settings broadcast failed: {ex.Message}");
+                AppLogger.LogWarning("Session", $"Adapter settings broadcast failed: {ex.Message}");
             }
         }
     }

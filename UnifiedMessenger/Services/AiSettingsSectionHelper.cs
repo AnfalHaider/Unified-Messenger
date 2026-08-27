@@ -81,7 +81,7 @@ public static class AiSettingsSectionHelper
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Failed to load Ollama catalog: {ex.Message}");
+            AppLogger.LogWarning("Ai.Settings", $"Failed to load Ollama catalog: {ex.Message}");
             return DefaultCatalog();
         }
     }

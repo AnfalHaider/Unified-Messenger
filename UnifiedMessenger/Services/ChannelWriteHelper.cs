@@ -15,14 +15,21 @@ internal static class ChannelWriteHelper
             return true;
         }
 
+        // Both branches mean work was thrown away. Throttled per channel because a saturated channel
+        // saturates by definition — one line is a hiccup, "and 900 more since" is the finding.
         if (reader.TryRead(out _))
         {
-            System.Diagnostics.Debug.WriteLine(
-                $"[{channelName}] channel full — dropped oldest item to enqueue new work.");
+            AppLogger.LogWarningThrottled(
+                "Channel",
+                $"'{channelName}' is full; dropped the oldest item to make room.",
+                $"channel.dropoldest.{channelName}");
             return writer.TryWrite(item);
         }
 
-        System.Diagnostics.Debug.WriteLine($"[{channelName}] channel full — enqueue rejected.");
+        AppLogger.LogWarningThrottled(
+            "Channel",
+            $"'{channelName}' is full; rejected new work.",
+            $"channel.reject.{channelName}");
         return false;
     }
 }

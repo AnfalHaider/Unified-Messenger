@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Services;
@@ -26,11 +25,15 @@ public static class Program
         {
             if (SecondInstanceActivator.TryActivateExistingInstance())
             {
-                Debug.WriteLine("Unified Messenger is already running; restored existing window.");
+                AppLogger.LogInfo("SingleInstance", "Already running; restored the existing window.");
             }
             else
             {
-                Debug.WriteLine("Unified Messenger is already running; could not restore existing window.");
+                // The symptom the owner sees is "I clicked the icon and nothing happened". Worth a real
+                // log line: it is also what a hung shutdown holding the mutex looks like from outside.
+                AppLogger.LogWarning(
+                    "SingleInstance",
+                    "Already running, but the existing window could not be restored; this launch exited with no window.");
             }
 
             WindowsAppRuntimeBootstrapHelper.ShutdownIfNeeded();
@@ -61,14 +64,17 @@ public static class Program
         {
             if (eventArgs.ExceptionObject is Exception exception)
             {
-                Debug.WriteLine(
-                    $"AppDomain unhandled exception (terminating={eventArgs.IsTerminating}): {exception}");
+                // The last thing written before the process dies. Reporting it only to a debugger meant a
+                // crash on a customer's machine left no trace at all in the one file support asks for.
+                AppLogger.LogError(
+                    $"AppDomain.Unhandled(terminating={eventArgs.IsTerminating})",
+                    exception);
             }
         };
 
         TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
         {
-            Debug.WriteLine($"Unobserved task exception: {eventArgs.Exception}");
+            AppLogger.LogWarning("UnobservedTask", eventArgs.Exception.ToString());
             eventArgs.SetObserved();
         };
     }

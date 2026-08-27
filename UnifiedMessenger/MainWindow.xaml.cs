@@ -157,16 +157,25 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
         e.Handled = true;
 
-        var result = BrowserAddressNormalizer.Normalize(NavAddressBox.Text);
-        if (!result.IsValid)
+        // async void: anything escaping here reaches App.OnUnhandledException, which leaves Handled=false
+        // on purpose — so a bad address would terminate the app rather than show a message.
+        try
         {
-            await _services.Dialog
-                .ShowErrorAsync("Can't open that address", result.Error ?? "That doesn't look like a web address.")
-                .ConfigureAwait(true);
-            return;
-        }
+            var result = BrowserAddressNormalizer.Normalize(NavAddressBox.Text);
+            if (!result.IsValid)
+            {
+                await _services.Dialog
+                    .ShowErrorAsync("Can't open that address", result.Error ?? "That doesn't look like a web address.")
+                    .ConfigureAwait(true);
+                return;
+            }
 
-        _navBarWebView?.CoreWebView2?.Navigate(result.Url);
+            _navBarWebView?.CoreWebView2?.Navigate(result.Url);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogWarning("Browse.Navigate", $"{ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private async void NavSaveSiteButton_Click(object sender, RoutedEventArgs e)
@@ -181,7 +190,18 @@ public sealed partial class MainWindow : Window, IShellUiHost
             return;
         }
 
-        await _shell.SaveCurrentSiteAsInstanceAsync(result.Url).ConfigureAwait(true);
+        // SaveCurrentSiteAsInstanceAsync writes instances.json, and the registry refuses to save over a
+        // file it could not read — a documented, reachable state that throws InvalidOperationException.
+        // Unguarded in an async void handler, that killed the app instead of saying "couldn't save".
+        try
+        {
+            await _shell.SaveCurrentSiteAsInstanceAsync(result.Url).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogWarning("Browse.SaveSite", $"{ex.GetType().Name}: {ex.Message}");
+            await _services.Dialog.ShowErrorAsync("Couldn't save this site", ex.Message).ConfigureAwait(true);
+        }
     }
 
     private void NavBackButton_Click(object sender, RoutedEventArgs e)
@@ -690,7 +710,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[MainWindow] TryEnqueueSafe error in '{operationName}': {ex}");
+                AppLogger.LogWarning("MainWindow", $"[MainWindow] TryEnqueueSafe error in '{operationName}': {ex}");
             }
         });
     }
@@ -731,7 +751,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Could not persist sidebar pin: {ex.Message}");
+            AppLogger.LogWarning("MainWindow", $"Could not persist sidebar pin: {ex.Message}");
         }
     }
 }

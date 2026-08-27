@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Text.Json;
 using UnifiedMessenger.Models;
 
@@ -183,6 +182,15 @@ public sealed class ResponseTimeTracker
             {
                 foreach (var sample in list)
                 {
+                    // Counted BEFORE the range filter, and deliberately. This sat below the two guards, so
+                    // selecting any range that ends before now skipped every sample and a chip labelled
+                    // "answered today" silently read 0 — a figure that is about today, quietly redefined as
+                    // "today AND inside the range you happen to be looking at". Today is today.
+                    if (LocalDayBoundary.LocalDate(sample.AnsweredAtUtc, zone) == todayLocal)
+                    {
+                        answeredToday++;
+                    }
+
                     if (fromUtc is not null && sample.AnsweredAtUtc < fromUtc.Value)
                     {
                         continue;
@@ -197,11 +205,6 @@ public sealed class ResponseTimeTracker
                     if (slaThresholdMinutes <= 0 || sample.FrtMinutes <= slaThresholdMinutes)
                     {
                         withinSla++;
-                    }
-
-                    if (LocalDayBoundary.LocalDate(sample.AnsweredAtUtc, zone) == todayLocal)
-                    {
-                        answeredToday++;
                     }
                 }
             }
@@ -376,7 +379,7 @@ public sealed class ResponseTimeTracker
             }
             catch (JsonException ex)
             {
-                Debug.WriteLine($"Response-time store is corrupt; resetting: {ex.Message}");
+                AppLogger.LogWarning("ResponseTimes", $"Response-time store is corrupt; resetting: {ex.Message}");
                 return;
             }
 
@@ -471,7 +474,7 @@ public sealed class ResponseTimeTracker
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Response-time save failed: {ex.Message}");
+                AppLogger.LogWarning("ResponseTimes", $"Response-time save failed: {ex.Message}");
             }
         }, token);
     }

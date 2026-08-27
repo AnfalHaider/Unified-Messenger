@@ -23,7 +23,7 @@ public static class SingleInstanceGuard
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Single-instance mutex failed: {ex.Message}");
+            AppLogger.LogWarning("SingleInstance", $"Single-instance mutex failed: {ex.Message}");
             return true;
         }
     }
@@ -41,7 +41,7 @@ public static class SingleInstanceGuard
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Single-instance mutex release failed: {ex.Message}");
+            AppLogger.LogWarning("SingleInstance", $"Single-instance mutex release failed: {ex.Message}");
         }
         finally
         {

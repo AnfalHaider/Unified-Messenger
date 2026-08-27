@@ -16,6 +16,13 @@ internal static class AppLogger
 
     private static readonly object WriteLock = new();
 
+    private static readonly object ThrottleLock = new();
+
+    private static readonly TimeSpan ThrottleWindow = TimeSpan.FromMinutes(1);
+
+    private static readonly Dictionary<string, (DateTimeOffset LastWritten, int Suppressed)> Throttled =
+        new(StringComparer.Ordinal);
+
     /// <summary>
     /// When true, nothing is written to disk. Set once by the test assembly.
     /// </summary>
@@ -49,6 +56,45 @@ internal static class AppLogger
 
     public static void LogInfo(string context, string message) =>
         Write("INF", context, message);
+
+    /// <summary>
+    /// Logs a warning at most once per minute per <paramref name="throttleKey"/>, counting what it skipped.
+    /// </summary>
+    /// <remarks>
+    /// For failures that arrive per scraped message rather than per operation. The ingest funnel sees every
+    /// badge, heartbeat and chat update from every account, so routing its failures straight to
+    /// <see cref="LogWarning"/> would blow through the 256 KB rotation in seconds and destroy the log's
+    /// value as a diagnostic — the opposite of the point. Reporting "and N more since" keeps the rate
+    /// visible, which is the part that actually matters: one parse failure is noise, four hundred a minute
+    /// is a broken scraper.
+    /// </remarks>
+    public static void LogWarningThrottled(string context, string message, string throttleKey)
+    {
+        int suppressed;
+
+        lock (ThrottleLock)
+        {
+            var now = DateTimeOffset.Now;
+            if (Throttled.TryGetValue(throttleKey, out var state))
+            {
+                if (now - state.LastWritten < ThrottleWindow)
+                {
+                    Throttled[throttleKey] = (state.LastWritten, state.Suppressed + 1);
+                    return;
+                }
+
+                suppressed = state.Suppressed;
+            }
+            else
+            {
+                suppressed = 0;
+            }
+
+            Throttled[throttleKey] = (now, 0);
+        }
+
+        Write("WRN", context, suppressed > 0 ? $"{message} (and {suppressed} more since)" : message);
+    }
 
     private static void Write(string level, string context, string message)
     {

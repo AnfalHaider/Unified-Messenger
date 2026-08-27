@@ -30,7 +30,9 @@ public static class DashboardReportHelper
         var tracker = ResponseTimeTracker.Instance;
         var snapshots = OversightChatSnapshotService.Instance;
 
-        var (busyHour, busyDay) = analytics.GetBusiestWindow(instances);
+        // Scoped to the period the report is about. Unscoped, this printed an all-time busiest day inside a
+        // document headed "this week".
+        var (busyHour, busyDay) = analytics.GetBusiestWindow(instances, periodStart, DateTimeOffset.UtcNow);
         var contactInsight = ContactHistoryStore.Instance.GetInsight(
             instances.Where(i => !string.IsNullOrWhiteSpace(i.Id)).Select(i => i.Id),
             new DateTimeOffset(periodStart.UtcDateTime, TimeSpan.Zero),
@@ -75,7 +77,12 @@ public static class DashboardReportHelper
             FrtSamplesLastWeek: lastPeriod.SampleCount,
             SlaMetPercent: thisPeriod.SlaCompliancePercent,
             SlaThresholdMinutes: sla,
-            AnsweredThisWeek: thisPeriod.SampleCount, // each measured reply in the window = one customer answered
+            // Deliberately the same figure as FrtSamplesThisWeek — because it IS that figure. The report
+            // used to print it once as "N replies measured" and again as "replied to N waiting customers",
+            // two incompatible nouns for one number: a customer who enquires three times in the period
+            // produces three first-reply samples, not three customers. The wording now says
+            // "conversations", which is what the tracker actually counts.
+            AnsweredThisWeek: thisPeriod.SampleCount,
             AwaitingNow: awaitingTotal,
             BusiestDay: busyDay,
             BusiestHour: busyHour,

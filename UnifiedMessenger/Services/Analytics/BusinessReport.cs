@@ -187,7 +187,7 @@ public static class BusinessReport
             var share = MetricMath.HonestPercent(top.Messages, Math.Max(1, active.Sum(a => a.Messages)));
             insights.Add(new BusinessInsight(InsightSeverity.Info,
                 $"{top.DisplayName} is your busiest account",
-                $"{top.Messages} messages this week — {share}% of all customer volume."));
+                $"{top.Messages} messages this {noun} — {share}% of all customer volume."));
 
             var slowest = active.Where(a => a.FrtSamples > 0).OrderByDescending(a => a.MedianFrtMinutes).FirstOrDefault();
             if (slowest is not null && input.SlaThresholdMinutes > 0 && slowest.MedianFrtMinutes > input.SlaThresholdMinutes)
@@ -203,7 +203,7 @@ public static class BusinessReport
         {
             insights.Add(new BusinessInsight(InsightSeverity.Warn,
                 $"{a.DisplayName} may be neglected",
-                $"{a.AwaitingNow} waiting and no replies measured yet this week."));
+                $"{a.AwaitingNow} waiting and no replies measured yet this {noun}."));
         }
 
         // Warn first, then info, then good — most-actionable at the top.
@@ -257,7 +257,7 @@ public static class BusinessReport
                 .Append("** (").Append(input.FrtSamplesThisWeek).AppendLine(" replies measured)");
             sb.Append("- Replies within your ").Append(input.SlaThresholdMinutes).Append("-min target: **")
                 .Append(input.SlaMetPercent).AppendLine("%**");
-            sb.Append("- Replied to **").Append(input.AnsweredThisWeek).Append("** waiting customers this ").AppendLine(noun);
+            sb.Append("- Replied to **").Append(input.AnsweredThisWeek).Append("** waiting conversations this ").AppendLine(noun);
         }
 
         sb.Append("- Waiting on a reply right now: **").Append(input.AwaitingNow).AppendLine("**");

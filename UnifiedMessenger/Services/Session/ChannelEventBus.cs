@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 
 namespace UnifiedMessenger.Services;
 
@@ -65,7 +64,7 @@ public sealed class ChannelEventBus
             catch (Exception ex)
             {
                 // A broken subscriber must never take down the scraper that published.
-                Debug.WriteLine($"Channel event handler failed: {ex.Message}");
+                AppLogger.LogWarning("ChannelEvents", $"Channel event handler failed: {ex.Message}");
             }
         }
     }

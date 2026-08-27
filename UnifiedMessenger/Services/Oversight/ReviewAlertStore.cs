@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace UnifiedMessenger.Services;
@@ -146,7 +145,7 @@ public sealed class ReviewAlertStore
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Review-alert save failed: {ex.Message}");
+            AppLogger.LogWarning("ReviewAlerts", $"Review-alert save failed: {ex.Message}");
         }
         finally
         {

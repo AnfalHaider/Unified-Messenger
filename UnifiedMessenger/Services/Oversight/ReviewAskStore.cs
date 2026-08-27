@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
@@ -147,7 +146,7 @@ public sealed class ReviewAskStore
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Review-ask save failed: {ex.Message}");
+            AppLogger.LogWarning("ReviewAsks", $"Review-ask save failed: {ex.Message}");
         }
         finally
         {

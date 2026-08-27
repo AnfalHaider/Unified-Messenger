@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
@@ -54,7 +53,14 @@ public sealed class KpiTrendStore
         ScheduleSave();
     }
 
-    /// <summary>Caught-up % for the last <paramref name="days"/> days, oldest→newest, days without data omitted.</summary>
+    /// <summary>Writes a reading for a specific local day. Tests only — production always records today.</summary>
+    internal void RecordForTests(DateTime localDay, int caughtUpPercent, int awaiting)
+    {
+        var key = localDay.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        _byDay[key] = new DayPoint(Math.Clamp(caughtUpPercent, 0, 100), Math.Max(0, awaiting));
+    }
+
+    /// <summary>Caught-up % for the last <paramref name="days"/> days, oldest→newest, stopping at the first gap.</summary>
     public IReadOnlyList<int> GetCaughtUpTrend(int days = 14) => Series(days, p => p.CaughtUpPercent);
 
     /// <summary>Awaiting count for the last <paramref name="days"/> days, oldest→newest.</summary>
@@ -87,19 +93,36 @@ public sealed class KpiTrendStore
         return map;
     }
 
+    /// <summary>
+    /// The most recent unbroken run of daily readings, oldest→newest.
+    /// </summary>
+    /// <remarks>
+    /// Days with no reading used to be dropped from the middle of the series, which made a sparkline lie
+    /// about time: three readings taken weeks apart plotted as three adjacent points, so a slope the owner
+    /// read as "this week" could span a month. The x-axis has no labels, so nothing on screen contradicted
+    /// it. Carrying the last value forward across a gap would be worse — inventing readings for days the
+    /// app was never opened. So the series stops at the first gap instead: what it draws is real and
+    /// evenly spaced, and when there are not two consecutive days <c>MiniSparkline</c> already renders
+    /// nothing rather than a trend from one point.
+    /// </remarks>
     private IReadOnlyList<int> Series(int days, Func<DayPoint, int> select)
     {
         var today = DateTime.Now.Date;
         var result = new List<int>();
-        for (var i = days - 1; i >= 0; i--)
+
+        // Walk backwards from today and stop at the first day with no reading.
+        for (var i = 0; i < days; i++)
         {
             var key = today.AddDays(-i).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            if (_byDay.TryGetValue(key, out var p))
+            if (!_byDay.TryGetValue(key, out var p))
             {
-                result.Add(select(p));
+                break;
             }
+
+            result.Add(select(p));
         }
 
+        result.Reverse();
         return result;
     }
 
@@ -188,7 +211,7 @@ public sealed class KpiTrendStore
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"KPI-trend save failed: {ex.Message}");
+                AppLogger.LogWarning("KpiTrends", $"KPI-trend save failed: {ex.Message}");
             }
         }, token);
     }

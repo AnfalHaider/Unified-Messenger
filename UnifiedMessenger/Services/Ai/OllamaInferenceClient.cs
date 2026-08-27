@@ -67,7 +67,7 @@ public sealed class OllamaInferenceClient : IAiInferenceClient, IDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
-            System.Diagnostics.Debug.WriteLine($"Ollama health probe failed: {ex.Message}");
+            AppLogger.LogWarning("Ollama", $"Ollama health probe failed: {ex.Message}");
             return false;
         }
     }
@@ -132,7 +132,7 @@ public sealed class OllamaInferenceClient : IAiInferenceClient, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ollama model probe failed: {ex.Message}");
+            AppLogger.LogWarning("Ollama", $"Ollama model probe failed: {ex.Message}");
             return true;
         }
     }
@@ -217,7 +217,7 @@ public sealed class OllamaInferenceClient : IAiInferenceClient, IDisposable
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ollama text generation failed: {ex.Message}");
+            AppLogger.LogWarning("Ollama", $"Ollama text generation failed: {ex.Message}");
             return null;
         }
     }

@@ -56,7 +56,7 @@ public static class TaskbarOverlayService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Taskbar overlay fallback failed: {ex.Message}");
+            AppLogger.LogWarning("Notifications.Badge", $"Taskbar overlay fallback failed: {ex.Message}");
             return false;
         }
     }

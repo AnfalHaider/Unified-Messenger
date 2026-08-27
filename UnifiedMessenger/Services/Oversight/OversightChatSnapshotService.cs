@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Text.Json;
 
 namespace UnifiedMessenger.Services;
@@ -146,7 +145,7 @@ public sealed class OversightChatSnapshotService
             }
             catch (JsonException ex)
             {
-                Debug.WriteLine($"Oversight snapshot is corrupt; resetting: {ex.Message}");
+                AppLogger.LogWarning("Oversight.Snapshot", $"Oversight snapshot is corrupt; resetting: {ex.Message}");
                 BackupCorruptFile();
                 _isLoaded = true;
                 return;
@@ -608,7 +607,7 @@ public sealed class OversightChatSnapshotService
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Oversight snapshot save failed: {ex.Message}");
+                AppLogger.LogWarning("Oversight.Snapshot", $"Oversight snapshot save failed: {ex.Message}");
             }
         }, token);
     }
@@ -673,7 +672,7 @@ public sealed class OversightChatSnapshotService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Could not back up corrupt oversight snapshot: {ex.Message}");
+            AppLogger.LogWarning("Oversight.Snapshot", $"Could not back up corrupt oversight snapshot: {ex.Message}");
         }
     }
 

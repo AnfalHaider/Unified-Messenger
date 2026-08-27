@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 
@@ -292,7 +291,7 @@ public sealed class ReviewHistoryStore
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Review-history save failed: {ex.Message}");
+                AppLogger.LogWarning("ReviewHistory", $"Review-history save failed: {ex.Message}");
             }
         }, token);
     }

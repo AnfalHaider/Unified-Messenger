@@ -74,5 +74,17 @@ public static class StoreBridgeHealth
         return $"Active on {active} of {AttemptedCount} account{(AttemptedCount == 1 ? "" : "s")}{when}.";
     }
 
+    /// <summary>
+    /// True when at least one account has been probed and is running on the IndexedDB fallback.
+    /// </summary>
+    /// <remarks>
+    /// Matters beyond preview coverage: the IndexedDB scan has no decrypted message model, so it cannot
+    /// read WhatsApp's own <c>callOutcome</c> and emits an empty one. An empty outcome deliberately keeps
+    /// a call counted — unknown must never close a chat — which means an already-ANSWERED inbound call is
+    /// still queued as "missed · call back" on that path. Correct by design and over-stated in fact, so
+    /// any surface showing a missed-call count has to say which it is.
+    /// </remarks>
+    public static bool AnyAccountOnFallback => AttemptedCount > 0 && ActiveCount < AttemptedCount;
+
     internal static void Reset() => Entries.Clear();
 }

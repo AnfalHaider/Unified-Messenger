@@ -105,7 +105,14 @@ public sealed class WebMessageIngressService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"WebMessage ingress failed: {ex.Message}");
+                    // This is the single funnel every scraped badge, heartbeat and chat update passes
+                    // through. Reporting it only via Debug.WriteLine meant that when a WhatsApp Web change
+                    // broke the scraper, the queue quietly discarded everything and the dashboard went on
+                    // showing plausible, stale numbers — with nothing whatsoever in app.log.
+                    AppLogger.LogWarningThrottled(
+                        "Ingress",
+                        $"Dropped a scraped message: {ex.GetType().Name}: {ex.Message}",
+                        "ingress.process");
                 }
             }
         }
@@ -142,7 +149,12 @@ public sealed class WebMessageIngressService
         }
         catch (JsonException ex)
         {
-            System.Diagnostics.Debug.WriteLine($"WebMessage parse failed: {ex.Message} | Raw: {rawJson}");
+            // Length, not content: rawJson holds customer names and message previews, and app.log is the
+            // file support asks the owner for.
+            AppLogger.LogWarningThrottled(
+                "Ingress",
+                $"Could not parse a scraped message ({rawJson.Length} chars): {ex.Message}",
+                "ingress.parse");
             return;
         }
 

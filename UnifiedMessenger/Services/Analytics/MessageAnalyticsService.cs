@@ -283,7 +283,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             }
             catch (JsonException ex)
             {
-                Debug.WriteLine($"Analytics file is corrupt; resetting to empty: {ex.Message}");
+                AppLogger.LogWarning("Analytics", $"Analytics file is corrupt; resetting to empty: {ex.Message}");
                 BackupCorruptFile();
                 _isLoaded = true;
                 return;
@@ -1305,10 +1305,21 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
     }
 
     /// <summary>Compact "busiest window" summary, e.g. ("2–3 PM", "Tue"). Empty dashes when no data.</summary>
-    public (string Hour, string Day) GetBusiestWindow(IEnumerable<MessengerInstance> instances)
+    /// <summary>
+    /// The busiest hour and weekday, over <paramref name="from"/>–<paramref name="to"/> when given.
+    /// </summary>
+    /// <remarks>
+    /// The range parameters exist because the weekly report called this with none and then printed the
+    /// answer under a heading naming a specific period — so a report for last week stated an all-time
+    /// busiest day as though it were that week's. Callers that genuinely want all-time pass null.
+    /// </remarks>
+    public (string Hour, string Day) GetBusiestWindow(
+        IEnumerable<MessengerInstance> instances,
+        DateTimeOffset? from = null,
+        DateTimeOffset? to = null)
     {
-        var hour = BuildActivityPatterns(ActivityDimension.HourOfDay, instances, null, null);
-        var dow = BuildActivityPatterns(ActivityDimension.DayOfWeek, instances, null, null);
+        var hour = BuildActivityPatterns(ActivityDimension.HourOfDay, instances, from, to);
+        var dow = BuildActivityPatterns(ActivityDimension.DayOfWeek, instances, from, to);
         var hourLabel = hour.HasData && hour.PeakIndex >= 0
             ? $"{DateTime.Today.AddHours(hour.PeakIndex):h tt}".Replace(" ", "")
             : "—";
@@ -1812,7 +1823,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Analytics save failed: {ex.Message}");
+                AppLogger.LogWarning("Analytics", $"Analytics save failed: {ex.Message}");
             }
         }, token);
     }
@@ -1937,7 +1948,7 @@ public sealed class MessageAnalyticsService : IMessageAnalyticsService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Could not back up corrupt analytics file: {ex.Message}");
+            AppLogger.LogWarning("Analytics", $"Could not back up corrupt analytics file: {ex.Message}");
         }
     }
 

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using UnifiedMessenger.Models;
@@ -41,7 +40,7 @@ public static class ThemeService
         catch (COMException ex)
         {
             // Defensive: WinUI rejects Application.RequestedTheme after the first window exists.
-            Debug.WriteLine($"ApplyInitialLaunchTheme skipped: {ex.Message}");
+            AppLogger.LogInfo("Theme", $"ApplyInitialLaunchTheme skipped: {ex.Message}");
         }
 
         // Apply HC resource overrides only; event subscription requires a live window (HRESULT 0x80070490).
@@ -133,7 +132,7 @@ public static class ThemeService
         }
         catch (COMException ex)
         {
-            Debug.WriteLine($"Initial high-contrast overrides skipped: {ex.Message}");
+            AppLogger.LogInfo("Theme", $"Initial high-contrast overrides skipped: {ex.Message}");
         }
     }
 
@@ -150,7 +149,7 @@ public static class ThemeService
         catch (COMException ex)
         {
             // AccessibilitySettings events are unavailable before the first window is activated.
-            Debug.WriteLine($"HighContrastChanged subscription skipped: {ex.Message}");
+            AppLogger.LogInfo("Theme", $"HighContrastChanged subscription skipped: {ex.Message}");
         }
     }
 

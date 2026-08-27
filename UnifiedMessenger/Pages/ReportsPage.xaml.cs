@@ -95,9 +95,11 @@ public sealed partial class ReportsPage : Page
                 await File.WriteAllTextAsync(path, _report.Markdown);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Best-effort: a failed save must not take the page down.
+            // A save the owner asked for that silently does nothing is worse than an error: they walk away
+            // believing the file is there. A full or read-only disk is the common cause.
+            await _services.Dialog.ShowErrorAsync("Couldn't save the report", ex.Message);
         }
     }
 
@@ -113,9 +115,9 @@ public sealed partial class ReportsPage : Page
                     path);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Best-effort, as above.
+            await _services.Dialog.ShowErrorAsync("Couldn't export the data", ex.Message);
         }
     }
 }

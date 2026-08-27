@@ -113,9 +113,19 @@ public sealed partial class SettingsPage
             return;
         }
 
-        if (!LocalBackupService.Instance.IsRecognisedBackup(file.Path))
+        try
         {
-            await ShowMessageDialogAsync("Restore failed", "This file isn't a recognised Unified Messenger backup.");
+            if (!LocalBackupService.Instance.IsRecognisedBackup(file.Path))
+            {
+                await ShowMessageDialogAsync("Restore failed", "This file isn't a recognised Unified Messenger backup.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Distinct from "not a backup" on purpose: a locked or unreadable file is the owner's genuine
+            // backup, and telling them it is not one invites them to delete it.
+            await ShowMessageDialogAsync("Couldn't open that file", ex.Message);
             return;
         }
 

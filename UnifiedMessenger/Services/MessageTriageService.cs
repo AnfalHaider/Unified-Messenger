@@ -232,7 +232,7 @@ public sealed class MessageTriageService : IMessageTriageService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Message triage failed: {ex.Message}");
+                    AppLogger.LogWarning("Triage", $"Message triage failed: {ex.Message}");
                 }
             }
         }

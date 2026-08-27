@@ -196,7 +196,7 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Unexpected update check failure: {ex.Message}");
+            AppLogger.LogWarning("Update", $"Unexpected update check failure: {ex.Message}");
             return new UpdateCheckResult(
                 UpdateCheckStatus.Failed,
                 currentVersion,
@@ -370,7 +370,7 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
-            Debug.WriteLine($"SHA-256 sidecar fetch failed: {ex.Message}");
+            AppLogger.LogWarning("Update", $"SHA-256 sidecar fetch failed: {ex.Message}");
             return null;
         }
     }
@@ -462,7 +462,7 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
             }
             catch (IOException ex)
             {
-                Debug.WriteLine($"Could not delete rejected installer: {ex.Message}");
+                AppLogger.LogWarning("Update", $"Could not delete rejected installer: {ex.Message}");
             }
 
             throw new InvalidOperationException(verifyError ?? "Installer verification failed.");

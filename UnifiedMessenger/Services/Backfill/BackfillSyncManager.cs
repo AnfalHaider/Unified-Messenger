@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
@@ -163,7 +162,7 @@ public sealed class BackfillSyncManager
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Periodic analytics refresh failed for {id}: {ex.Message}");
+                AppLogger.LogWarning("Backfill", $"Periodic analytics refresh failed for {id}: {ex.Message}");
             }
             finally
             {
@@ -203,7 +202,7 @@ public sealed class BackfillSyncManager
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Backfill failed for {instance.Id}: {ex.Message}");
+            AppLogger.LogWarning("Backfill", $"Backfill failed for {instance.Id}: {ex.Message}");
             SetState(instance.Id, BackfillSyncState.Failed);
         }
     }

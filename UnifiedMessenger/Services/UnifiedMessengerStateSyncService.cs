@@ -111,7 +111,7 @@ public sealed class UnifiedMessengerStateSyncService
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Unified Messenger sync event failed: {ex.Message}");
+                    AppLogger.LogWarning("StateSync", $"Unified Messenger sync event failed: {ex.Message}");
                 }
             }
         }

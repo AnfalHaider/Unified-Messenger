@@ -278,9 +278,14 @@ public sealed class WeeklyReportDialog : ContentDialog
                 await File.WriteAllTextAsync(path, _report.Markdown);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // best-effort; a failed save shouldn't crash the dialog.
+            // The dialog stays open either way, so the owner can retry somewhere writable rather than
+            // being left to assume the file saved.
+            AppLogger.LogWarning("Report.Save", $"{ex.GetType().Name}: {ex.Message}");
+            await ApplicationServiceProvider.Current.Dialog
+                .ShowErrorAsync("Couldn't save the report", ex.Message)
+                .ConfigureAwait(true);
         }
         finally
         {

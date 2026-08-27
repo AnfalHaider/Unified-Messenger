@@ -49,7 +49,7 @@ internal static class TaskbarOverlayIconRenderer
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Taskbar overlay icon render failed: {ex.Message}");
+            AppLogger.LogWarning("Notifications.Badge", $"Taskbar overlay icon render failed: {ex.Message}");
             return false;
         }
     }

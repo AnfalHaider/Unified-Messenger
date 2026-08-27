@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -244,7 +243,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
 
     private (RegistryLoadOutcome Outcome, InstanceStore? Store, string? Failure) RecoverFromCorruptFile(string reason)
     {
-        Debug.WriteLine($"Instances file is corrupt; resetting to defaults: {reason}");
+        AppLogger.LogWarning("Registry", $"Instances file is corrupt; resetting to defaults: {reason}");
 
         var backupPath = BackupCorruptFile();
         if (backupPath is null)
@@ -772,7 +771,7 @@ public sealed partial class InstanceRegistryService : IInstanceRegistryService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Could not back up corrupt instances file: {ex.Message}");
+            AppLogger.LogWarning("Registry", $"Could not back up corrupt instances file: {ex.Message}");
             return null;
         }
     }

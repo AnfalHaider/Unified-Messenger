@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO.Pipes;
 
 namespace UnifiedMessenger.Services;
@@ -50,7 +49,7 @@ public static class SecondInstanceActivator
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Second-instance activator server error: {ex.Message}");
+                    AppLogger.LogWarning("SingleInstance", $"Second-instance activator server error: {ex.Message}");
                     try
                     {
                         await Task.Delay(250, token).ConfigureAwait(false);
@@ -88,7 +87,7 @@ public static class SecondInstanceActivator
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Second-instance activation failed: {ex.Message}");
+            AppLogger.LogWarning("SingleInstance", $"Second-instance activation failed: {ex.Message}");
             return false;
         }
     }

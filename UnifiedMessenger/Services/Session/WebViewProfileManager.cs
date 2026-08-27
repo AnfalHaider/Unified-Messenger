@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Web.WebView2.Core;
@@ -72,7 +71,7 @@ public sealed partial class WebViewProfileManager : IWebViewProfileManager
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WebView2 environment initialization failed: {ex.Message}");
+            AppLogger.LogWarning("WebView.Profile", $"WebView2 environment initialization failed: {ex.Message}");
             throw;
         }
         finally
