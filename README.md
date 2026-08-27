@@ -7,7 +7,7 @@ glance, **who is still waiting for a reply**.
 Everything runs on your own PC. No cloud service, no API keys, no subscription, and no oversight data
 ever leaves the machine.
 
-**Current release:** v4.99.45 — see the [changelog](CHANGELOG.md) or the
+**Current release:** v4.99.46 — see the [changelog](CHANGELOG.md) or the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
 ---
@@ -75,7 +75,9 @@ It is an **oversight tool, not a messaging client**. It watches; it never types,
 ### Local AI (optional)
 - On-device summaries and insight strips via **[Ollama](https://ollama.com)** — enable it in
   Settings → AI and pull a model.
-- Prompts contain **aggregate counts only** — never customer names or message text.
+- Dashboard insight strips send **aggregate counts only**. Message triage sends the customer name and
+  up to 800 characters of the message — to your local Ollama instance, over loopback. Nothing in either
+  path leaves the machine.
 - Entirely optional: with AI off, everything falls back to deterministic heuristics.
 
 ### Browse tabs
@@ -183,7 +185,7 @@ dotnet publish UnifiedMessenger/UnifiedMessenger.csproj -c Release -r win-x64 -p
 Compile the installer (ISCC is not on `PATH`; adjust if yours is a machine-wide install):
 
 ```powershell
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
 Run the tests:
@@ -218,4 +220,5 @@ Not affiliated with, endorsed by, or sponsored by WhatsApp, Meta, or Google.
 
 ## License
 
-See the repository license file for terms.
+No licence has been published for this project yet, so all rights are reserved. Third-party components
+keep their own licences — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

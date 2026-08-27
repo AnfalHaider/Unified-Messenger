@@ -5,6 +5,47 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.46
+
+Seven defects from a full-product audit, four of them confirmed against the installed build rather than
+inferred from reading code. Full findings in `docs/audit/AUDIT-2026-08-26.md`.
+
+**Desktop notifications now work.** They never had. Registering the Windows App SDK notification channel
+fails on this app's shipping configuration (unpackaged plus self-contained), because it needs a COM server
+that lives in a runtime package a self-contained build does not carry. Every toast surface in the product
+was therefore inert — awaiting-reply threshold alerts, the unhappy-review toast, background message alerts
+— while Settings offered five controls that governed nothing. The app now claims a shell identity, the
+installer stamps it on the Start Menu shortcut, and toasts fall back to the classic shell notifier when the
+newer channel is unavailable. On that fallback a click does not open the app, and Settings says so.
+
+**The app no longer closes when Windows changes theme.** `UISettings.ColorValuesChanged` is raised on a
+background thread, and the theme handler touched the window from it — which terminated the process. System
+is the default theme preference, so a laptop switching to dark at sunset was enough to trigger it.
+
+**Restoring a backup is no longer silently undone.** The restore replaced the files on disk, but every
+store was still live in memory holding the old state, and closing the app wrote that back over everything
+restored. Restore now suppresses that write and closes the app itself.
+
+**Closing the window can no longer hang the app.** Shutdown blocked the UI thread on work that needed the
+UI thread. The process stayed alive holding the single-instance lock, after which every relaunch exited
+instantly with no window — "the app won't open any more".
+
+**One customer conversation was dropped from every scan.** Message-preview truncation could cut an emoji in
+half, which made that conversation unreadable to the parser, and it was discarded silently. Measured on
+real data: one row in every 894, the same one each time.
+
+**Two numbers that contradicted themselves.**
+- The Reviews page showed the loaded reply queue's length under "Unanswered" — at most eight — while the
+  sidebar badge showed the real figure. Both now show the real count, and anything computed over the
+  loaded sample says so.
+- Analytics rendered two different percentages side by side, both labelled "SLA met". The donut is
+  apportioned by caught-up state, not reply timing, and now says so; its centre also stops rounding 99.6%
+  up to "100%" above a visible "behind" slice.
+
+**Also:** the README's description of what local AI prompts contain was wrong (triage does send the
+customer name and up to 800 characters of the message — to your own machine, never off it), it pointed at
+an installer path that does not exist, and it referred to a licence file that was never published.
+
 ## v4.99.45
 
 Four fixes from a review of the Review Desk code. All four were wrong figures or wrong wording rather than
