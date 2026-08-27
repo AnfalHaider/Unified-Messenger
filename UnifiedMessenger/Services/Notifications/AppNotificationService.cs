@@ -167,11 +167,29 @@ public sealed class AppNotificationService : IAppNotificationService
             case NotificationDelivery.ClassicShortcut when _classicNotifier is { } notifier:
                 var xml = new XmlDocument();
                 xml.LoadXml(notification.Payload);
+                var toast = new ToastNotification(xml);
 
                 // Tag and Group live on the AppNotification object, not inside its XML payload, so the
                 // grouping and replace-in-place behaviour the settings offer has to be copied across
                 // explicitly or toasts would stack instead of replacing.
-                var toast = new ToastNotification(xml) { Tag = notification.Tag, Group = notification.Group };
+                //
+                // Assign ONLY when non-empty. ToastNotification.Group rejects null with
+                // "ArgumentException: Value does not fall within the expected range" and Tag with "The
+                // parameter is incorrect" — and ShowInfoToast never sets a group, so copying it across
+                // unconditionally threw on every single info toast. The first version of this fallback did
+                // exactly that: the channel opened, reported itself healthy, and then failed on delivery.
+                // Only visible at all because the logging sweep had just replaced the Debug.WriteLine in
+                // the surrounding catch.
+                if (!string.IsNullOrEmpty(notification.Tag))
+                {
+                    toast.Tag = notification.Tag;
+                }
+
+                if (!string.IsNullOrEmpty(notification.Group))
+                {
+                    toast.Group = notification.Group;
+                }
+
                 notifier.Show(toast);
                 break;
         }
