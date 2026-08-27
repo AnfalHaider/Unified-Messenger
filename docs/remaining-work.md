@@ -1,6 +1,6 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-08-22 · **Baseline:** v4.99.45 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-27 · **Baseline:** v4.99.47 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
 > completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
@@ -8,164 +8,148 @@
 
 ---
 
-# §0 · Current backlog (v4.99.45)
+# §0 · Current backlog (v4.99.47)
 
-Grouped by what actually gates each item. Nothing here is speculative — every measurement below was taken
-from the tree at this baseline, and every finding ID is traceable to `docs/audit/`.
+Rewritten 2026-08-27 after the full-product audit ([AUDIT-2026-08-26.md](audit/AUDIT-2026-08-26.md),
+increments 66–75). Grouped by what actually gates each item. Every status below was re-checked against the
+tree at this baseline rather than carried forward.
 
-## 0.1 · UI/UX — mostly landed; three items left
+**What the audit closed:** all nine S1s, every S2 and S3 on its plan, and the S4 tail. Tests 1744 → 1797.
+Three of its last four findings were surfaced *by* its own logging sweep rather than by reading code —
+including one the audit itself had introduced. That pattern is the most useful thing it produced, and it is
+why §0.4 is now the most important section in this file.
 
-**No longer the largest open body of work.** v4.99.35 unified the type, icon and spacing scales, and
-v4.99.36 gave the app its own ground and accent — see [scales.md](../design-system/scales.md) and the
-CHANGELOG. What is left below is accessibility and audit coverage, not visual consistency.
+## 0.1 · UI/UX — closed, except one deliberate deferral
 
-> **The two headline "dated" problems were not design choices at all.** The warm background tint was the
-> owner's **desktop wallpaper** showing through MicaBackdrop into a content area with no background of its
-> own, and the brick red on every toggle was the **Windows personalization accent**. Both varied per
-> machine and both collided with the meanings this app assigns to colour. The fix was to make the app own
-> its surfaces and its accent, not to pick nicer colours. Worth remembering before diagnosing the next
-> "the app looks wrong" report: check what is inherited from Windows first.
+| # | Item | Status |
+|---|---|---|
+| **U1–U5, U7, U11** | Spacing grid, type/icon ramp, corner radius, no hardcoded colours, named icon-only controls, imperative builders on the shared scale, sidebar rows as buttons | ✅ done (v4.99.35–v4.99.44), pinned by `DesignScaleTests` |
+| **U6** | `SystemFillColor*` never contrast-measured | ✅ **measured** — every pairing passes AA in both themes. What remains is consistency; see §0.1a |
+| **U8** | Empty-state sweep | ✅ done (v4.99.47) — Analytics and Reports gained no-accounts states, Reviews gained the action its state was missing, the Notification Hub stopped saying "intercepted" |
+| **U9** | Focus order outside the dashboard | ◑ **partly.** `FocusTrapHelper` no longer orders dialog tab stops by `GetHashCode()`, and the sidebar's tab indices were realigned with their constants. **Nobody has tabbed through the pages and dialogs by hand.** |
+| **U10** | "Instance" in accessible names | ✅ done (v4.99.47), pinned by `AccountVocabularyTests` |
 
-| # | Item | Measured at this baseline | Status |
-|---|---|---|---|
-| **U1** | **Spacing on a 4px grid** | **Done (v4.99.35).** Was 33 distinct `Padding` values (4 token / 29 literal) across 62 uses, plus 19 `Margin` literals. Now 21 distinct (9 token / 12 literal), every literal on-grid and asymmetric by intent. Pinned by `EverySpacingValueSitsOnTheFourPixelGrid`. | ✅ done |
-| **U2** | **Seven-step type ramp, four-step icon scale** | **Done (v4.99.35).** Was 12 distinct text sizes and 12 icon sizes; the original "16" figure counted `obj/` build copies and merged the two scales — corrected in [scales.md](../design-system/scales.md). Now `11·12·14·16·20·24·32` text and `12·16·24·40` icons, with **zero literal font sizes** in either XAML or C#. Nothing below 11px. | ✅ done |
-| **U3** | **Corner radius** | **Fixed and guarded.** Down from 6 ad-hoc values to the 6/8/12 scale, pinned by `DesignScaleTests.EveryCornerRadiusComesFromTheScale`. | ✅ done |
-| **U4** | **No hardcoded colours in XAML** | Pinned by `DesignScaleTests.NoColourIsHardcodedInXaml`. | ✅ done |
-| **U5** | **Icon-only controls are named** | Pinned by `DesignScaleTests.EveryIconOnlyControlIsNamedForAScreenReader`. | ✅ done |
-| **U6** | **`SystemFillColor*` brushes were never contrast-measured** | They are used **more** than the app's own tokens (36/33/29 references vs 12/12/11), so the majority of status colour on screen is unaudited. Sharper since v4.99.36: the app now pins its own accent, so these are the last surfaces still taking their colour from Windows. | ☐ open |
-| **U7** | **Imperative card builders draw from the shared scale** | **Done (v4.99.35).** `Services/UmScale.cs` holds the ramp as constants (not a resource lookup — that would be a UI-thread WinRT call, the mistake that already cost one process-terminating crash). 116 literals across 16 files converted. `TheCodeScaleMatchesTheXamlTokens` pins the C# copy against `Tokens.xaml`, and `NoLiteralFontSizeInCode` is the guard that never existed. | ✅ done |
-| **U8** | **Dedicated empty-state sweep** | Partly done — every empty state *touched* during the audit was fixed, and v4.99.34 corrected the three account-list surfaces. The remaining surfaces (Analytics, Reviews, Reports, Notification Hub) have never been reviewed as a set. | ◑ partial |
-| **U9** | **Focus order outside the dashboard shell** | Settings, Analytics, Reviews, Reports and every dialog are untested. Shift+Tab and modal focus containment specifically. | ☐ open |
-| **U10** | **"Instance" leaks into accessible names** (F-ORCH-06) | Settings and the account context menu speak *"instance"* to a screen reader where the visible label says *"account"*. | ☐ open |
-| **U11** | **Sidebar rows could not be activated by assistive tech** | **Done (v4.99.44).** Every navigable row — Dashboard, Analytics, Reviews, Reports and every account — was a plain `Border`, which exposes no automation pattern: they announced as `Group` and offered nothing to invoke. Found while driving the app through UI Automation, where the only way into the Reviews page was to compute its rectangle and click by screen coordinates. `NavigationRow` (a `ContentControl`, because `Border` is sealed) now carries a peer reporting control type **Button** with `IInvokeProvider`. Verified live: all rows report Button + Invoke, and invoking Reviews opens the page. | ✅ done |
+### 0.1a · The one open UI item
 
-**What guards this now.** `DesignScaleTests` reads **both `.xaml` and `.cs`** — a new off-scale font size,
-icon size or padding fails the build. That is what stops U1/U2/U7 re-drifting, and it is the reason those
-three had to ship together rather than in sequence.
+**Two status palettes still ship** — the app's audited `UmStatus*` tokens and Windows' `SystemFillColor*`
+ones. Two greens, two ambers, two reds, occasionally on one screen. 69 references remain.
 
-## 0.2 · Data accuracy — what the numbers still get wrong
+This is a **consistency** defect, not a contrast one: every pairing was measured during the audit and every
+one passes AA. It was deliberately not migrated, because moving 69 colour references blind would risk
+contrast regressions across every status surface in order to fix a shade of green. The one genuine semantic
+collision is fixed — the sidebar's selection bar was painted with the *success* brush, so "selected" and
+"healthy" were the same colour on a rail whose entire job is showing trouble.
+`StatusContrastTests.TheSystemPaletteDoesNotSpreadFurther` pins the count so it cannot grow; shrinking it is
+deliberate work with its own contrast pass.
 
-The brief's hardest line is **no wrong numbers**, and this is where the remaining ones are.
+## 0.2 · Data accuracy
 
-| # | Item | Detail | Status |
-|---|---|---|---|
-| **D1** | **Call outcomes** | **Done (v4.99.37).** Every call-log entry was counted as a missed call needing a call back, regardless of outcome or direction. Reading WhatsApp's own `callOutcome` live: of 317 inbound calls only 166 were actually missed. Missed calls 86 → 36, total waiting 258 → 206. | ✅ done |
-| **D2** | **The IndexedDB fallback cannot read `callOutcome`** | It has no decrypted message model, so it emits an empty outcome and every call stays counted. Correct by design — unknown never closes a chat — but it means an account running on the fallback still over-counts missed calls. Surfacing *which* path an account is on is F-SNAP-02. | ☐ open |
-| **D3** | **"Uncategorised" was the largest queue bucket** | **Done (v4.99.38).** Read through: not unclassifiable, but Roman Urdu enquiries, bare names sent to book, attachments and sign-offs with typos. Customers chasing an unanswered message now count as at-risk. Fell from roughly two in five waiting conversations to about one in five. | ✅ done |
-| **D4** | **`instances.json.bak` (489 bytes, dated 2026-08-12)** | A stale seeded-default store sitting beside the real one. Harmless, but it is exactly the kind of file that misleads the next person diagnosing "my accounts are gone". | ☐ open |
-| **D5** | **Google reviews are read 50 at a time, out of 1,671** | Pagination is off (`MaxPages = 1`) after walking every page produced 2,000 reviews for a 991-review profile and 1,200 for a 435 — two to three times over. The desk states its own coverage ("covers the 150 most recent of 1,671") rather than implying completeness, so this is honest but partial. Re-enable only on proof of identical totals across two consecutive passes. | ☐ open |
-| **D6** | **Median reply time is not obtainable** | Google publishes no reply dates anywhere the scrape can reach. The tile says so rather than showing a number. The alternative — measuring from when *we* first saw a review unanswered, labelled "since install" — is an owner decision (§0.6), not an engineering one. | ☐ open |
-| **D7** | **Per-review stars were wrong for the entire life of the feature** | **Done (v4.99.41).** Every review reported 5 stars: all five glyphs are the same codepoint and the rating is carried in their *colour*. Five unanswered one-stars and a two-star at DHA-2 were displayed as "★5 · Positive" and ranked below praise. Now reads the leading run of colour. | ✅ done |
+| # | Item | Status |
+|---|---|---|
+| **D1, D3, D7** | Call outcomes, "Uncategorised", per-review stars | ✅ done (v4.99.37–v4.99.41) |
+| **D2** | The IndexedDB fallback cannot read `callOutcome`, so an answered inbound call stays counted as missed | ◑ **disclosed, not fixed.** Correct by design — unknown must never close a chat — and the missed-calls chip now says so when any account is on the fallback. Closing it needs a decrypted message model, which that path does not have. |
+| **D4** | Stale `instances.json.bak` beside the real store | ✅ **gone.** Verified from outside the MSIX container: no `.bak` files in `%LOCALAPPDATA%\UnifiedMessenger`. |
+| **D5** | Google reviews read 50 at a time, `MaxPages = 1` | ☐ **open, deliberately.** Pagination stays off until two consecutive passes agree on totals — walking every page over-counted by 2–3×. The desk states its own coverage, and as of v4.99.47 it can also say "covers all" when the traversal genuinely reached the last page, a fact it previously recorded and then discarded. |
+| **D6** | Google publishes no reply dates anywhere the scrape can reach | ☐ **unobtainable.** The tile says so rather than estimating. Whether to measure "since install" instead is an owner decision (§0.6). |
+| **D8** | *(new, from the audit)* One conversation was dropped from every scan by surrogate-splitting truncation | ✅ done (v4.99.46) |
+| **D9** | *(new, from the audit)* KPI history overwritten by viewing a past range; sparklines plotting non-adjacent days as adjacent; "answered today" zeroed by a date filter; the weekly report printing one number under two nouns, and an all-time busiest day inside a period report | ✅ done (v4.99.47) |
+| **D10** | *(new, from the audit)* Two different figures both labelled "SLA met" on the Analytics page; the Reviews page showing a ≤8 sample as the unanswered total while the sidebar badge showed the real count | ✅ done (v4.99.46) |
 
 ## 0.2b · Review Desk — all five tiers shipped (v4.99.40 → v4.99.43)
 
-The Reviews page was rebuilt from the approved design in
-[review-desk-spec.md](../design/review-desk-spec.md). `ReviewHealthPanel` no longer appears on it; the desk
-absorbed everything that panel did. What follows is the state of each tier and what is genuinely left.
+The Reviews page was built from [review-desk-spec.md](design/review-desk-spec.md). `ReviewHealthPanel` no
+longer exists — the desk absorbed everything it did, and the dead control was deleted in v4.99.47.
 
 | Tier | What shipped | Left |
 |---|---|---|
-| **0 · Trust** | Coverage stated everywhere ("covers the 150 most recent of 1,671", "of the 50 most recent"), never "all". Weighted business-wide rating, labelled as a weighted mean because Google publishes one per location and never one for the business. | D5 — the 50-per-page limit itself |
-| **1 · Queue** | One worst-first queue across every location; severity by star rating with unread ratings ranked below known complaints and above known praise; ↑↓/J/K/Home/End with focus as the selection so a screen reader hears it; critical strip for any one- or two-star. | Mark handled / snooze for reviews (no equivalent of `AwaitingOverrideStore` yet) |
-| **2 · History** | `ReviewHistoryStore` — one reading per account per day, surviving restarts. Velocity derived from the lifetime total's movement rather than per-review dates the scrape never sees. Every figure carries the span it was actually measured over. | Needs a second day of readings before the trend tiles say anything; D6 |
-| **3 · Local AI** | Reply drafting for reviews that have words, with guardrails that refuse refunds, discounts, free treatments, invented links and unfilled templates. Themes computed deterministically. | Nothing outstanding — but see the lesson below |
+| **0 · Trust** | Coverage stated everywhere, never "all" unless the traversal reached the last page (v4.99.47). Weighted business-wide rating, labelled as a weighted mean because Google publishes one per location and never one for the business. | D5 — the 50-per-page limit itself |
+| **1 · Queue** | One worst-first queue across every location; severity by star rating; ↑↓/J/K/Home/End with focus as the selection so a screen reader hears it; critical strip for any one- or two-star. The "Unanswered" figure is now the real reply-button count, not the loaded sample (v4.99.46). | Mark handled / snooze for reviews — still no equivalent of `AwaitingOverrideStore` |
+| **2 · History** | `ReviewHistoryStore` — one reading per account per day, surviving restarts. Velocity derived from the lifetime total's movement rather than per-review dates the scrape never sees. Every figure carries the span it was measured over. | Needs a second day of readings before the trend tiles say anything; D6 |
+| **3 · Local AI** | Reply drafting for reviews that have words, with guardrails refusing refunds, discounts, free treatments, invented links and unfilled templates. Themes computed deterministically. | Nothing outstanding — but see the lesson below |
 | **4 · Ask for a review** | Candidate selection, the once-ever store, and the WhatsApp hand-off. | Never seen with a live qualifying customer — see §0.4 |
-| **5 · Native** | Unanswered-review badges on the sidebar, an unhappy-review toast that stays silent on install day, honest badge wording for a channel with no messages. | — |
+| **5 · Native** | Unanswered-review badges on the sidebar, an unhappy-review toast that stays silent on install day, honest badge wording for a channel with no messages. | The toast could not fire at all until v4.99.46 — see §0.4 |
 
 **The lesson from tier 3, recorded because it cost a user-visible bug.** The themes line was routed through
 the local model to "rephrase more naturally", on the reasoning that a model handed a finished sentence — no
-reviews, no arithmetic — had nothing left to be wrong about. That reasoning was wrong. With `phi3:mini`
-installed it rendered the correct sentence *"Two of the 3 waiting reviews with text mention good results,
-all at Google Depilex DHA-2"* as *"Two positive **waiter** experiences were mentioned in the last three
-Google reviews about our **product, Depladuril HA-2**, praising its **effectiveness**"* — misreading
-"waiting" as "waiter", inventing a product name, and inventing what the reviews praised. Rewriting is
-generating. **Where the app can compute something correct, do not route it through a model afterwards.** The
-AI surface is now confined to the one place with something genuinely to write: a reply to a review that has
-actual words in it.
+reviews, no arithmetic — had nothing left to be wrong about. That reasoning was wrong. With `phi3:mini` it
+rendered the correct sentence *"Two of the 3 waiting reviews with text mention good results, all at Google
+Depilex DHA-2"* as *"Two positive **waiter** experiences were mentioned in the last three Google reviews
+about our **product, Depladuril HA-2**, praising its **effectiveness**"* — misreading "waiting" as "waiter",
+inventing a product name, and inventing what the reviews praised. Rewriting is generating. **Where the app
+can compute something correct, do not route it through a model afterwards.**
 
-## 0.3 · Open audit findings
+## 0.3 · Audit findings
 
-| ID | Sev | What | Why still open |
-|---|---|---|---|
-| **F-SNAP-02** | S2 | A *degraded* read (store bridge failed, IndexedDB succeeded) is visible only in `app.log` | Needs a surfaced health state, not just a log line |
-| **F-OFFLINE-07** | S3 | An **aborted** navigation puts an account into `Error` with no retry scheduled | Deliberately left: it changes *when* accounts enter the error state |
-| **F-OFFLINE-08** | S3 | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection returns | Small — needs the same connection-status join `ScanBlockedMessage` already got |
-| **F-ORCH-06** | S3 | "Instance" as an accessible name (see U10) | — |
-| **F-METRICS-11** | S4 | End-of-day projection skew | **WONTFIX by decision** — bound measured at under 2% |
+| ID | What | Status |
+|---|---|---|
+| **F-SNAP-02** | A degraded read (bridge failed, IndexedDB succeeded) visible only in `app.log` | ◑ Settings → Data shows the live reader, and the missed-call figure now carries the caveat. A per-account indicator on the dashboard itself is still absent. |
+| **F-OFFLINE-07** | An aborted navigation puts an account into `Error` with no retry scheduled | ☐ open, unchanged — still deliberate, because it changes *when* accounts enter the error state |
+| **F-OFFLINE-08** | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection returns | ☐ open. Sites: `CommandCenterPanel.xaml.cs:2863,2879,2881` and `ActivityPatternsPanel.xaml.cs:169,346`. Needs the connection-status join `ScanBlockedMessage` already has. |
+| **F-ORCH-06** | "Instance" as an accessible name | ✅ closed (v4.99.47) |
+| **F-METRICS-11** | End-of-day projection skew | WONTFIX by decision — bound measured under 2% |
 
-## 0.4 · Untested and material
+## 0.4 · Untested and material — now the largest open body of work
 
-Not defects — gaps in what has actually been *proven*. Listed because the brief is "sellable tomorrow",
-and these are the distance between that claim and evidence.
+Not defects. The distance between "sellable" and evidence. **The audit strengthened the case for this
+section rather than shrinking it:** three of its last four findings came from making failures visible, not
+from anyone reading code — which says the remaining defects are most likely where nobody has looked.
 
-- **The "ask for a review" panel has never been seen with a live candidate.** Replaying the owner's real
-  chat snapshot through the selector: 42 chats, 33 awaiting a reply, 1 where the salon spoke last, and the
-  7 that reach the gratitude check have **no preview text** to judge on — previews fill in from the store
-  bridge about a minute after an account loads. The rules are covered by test and by that replay; the panel
-  correctly renders nothing today, which is indistinguishable from a panel that would never render anything.
-- **The unhappy-review toast has never actually fired.** Its *silence* is verified — a cleared store plus a
-  full pass recorded two existing two-star reviews and raised nothing, which is the install-day rule. The
-  firing path needs a genuinely new one- or two-star review to arrive.
-- **The nightly UI smoke workflow is still red**, and has been for many runs. FlaUI cannot attach to a
-  desktop on a hosted GitHub runner. Increment 45 made it report *which* failure it is (a Win32 probe
-  distinguishes "the app never opened a window" from "this environment cannot automate one") and stopped it
-  discarding the structural audit and unit results on the way out — but the underlying "hosted runners have
-  no interactive desktop" question is unresolved. The `Build` workflow, which gates releases, is green.
-- **A real screen reader has never been run.** Both audit sessions read the UIA tree those tools consume,
-  in focus order — much closer than a static dump, but nobody has listened to it.
-- **Soak under account churn.** The 3.6-hour soak found no leak, but it was **idle**. A leak that only
-  appears when accounts cycle, re-sync or navigate would not have shown.
-- **The ~3.1 GB WebView2 footprint** — stable, but eight times the app's own, and unaddressed.
+- **No screen reader has ever been run.** Everything in the accessibility work is right by construction and
+  by test; nobody has listened to it. This is the single largest gap.
+- **Live metric accuracy is unverified end to end.** No account was signed in for any of the audit, so its
+  data ledger is a static trace. Not one displayed figure has been checked against reality.
+- **`ui-smoke` exit 5 is unproven.** v4.99.47 made the harness distinguish "this runner has no interactive
+  desktop" (exit 5, now green-with-a-warning) from "the app never opened a window" (exit 4, still red). No
+  run has reached that job since.
+- **Toast delivery has never been seen on screen** from the app itself. The absence of delivery errors is
+  verified, and toasts fired at the same AUMID from outside the app do render. On the classic fallback a
+  click does not open the app — stated in Settings.
+- **The taskbar badge glyph has never been seen** — it needs a non-zero unread count. What is proven is that
+  the COM call Windows was rejecting now succeeds.
+- **The "ask for a review" panel has never been seen with a live candidate**, and the unhappy-review toast
+  has never fired. Note it *could not have* before v4.99.46.
+- **Soak under account churn.** The 3.6-hour soak was idle. A leak that appears only when accounts cycle,
+  re-sync or navigate would not have shown.
 - **A network drop while pages are already loaded** — the commoner real case. No `NavigationCompleted`
-  fires, so the retry does not cover it, and the app may keep reporting "Connected" while the web client
-  is offline.
-- **The updater's own network path** against a real outage (the dead-proxy technique reaches only WebView2).
-- **Five of twelve dialogs have never been opened** — SetLocation, EditInstanceMetadata, PinToTaskbar,
-  AutoUpdate, ConfirmPermanentDelete (the last deliberately, being step two of permanent deletion on a
-  machine holding real accounts).
-- **The all-caught-up hero has never been rendered**, only reasoned about. It needs zero awaiting across
-  every account, which cannot be staged without overwriting live data.
-- **ARM64 is published but never installed.** Every release since v4.99.28 ships an ARM64 installer with a
-  verified checksum; no one has run it on ARM hardware.
-- **The uninstall data-erasure option** (v4.99.14) is unverified at runtime — confirming it would have
-  destroyed the owner's data.
-- **Nothing has been tested against the real store from a normal launch, historically.** Almost every
-  session drove the app from inside an MSIX container, which silently redirected its `%LOCALAPPDATA%`
-  writes. Resolved on 2026-08-19 by migrating 9.5 GB back to the real store, but it means older
-  measurements in this document were taken against the container copy, not the store an owner's install
-  actually reads. See the two AGENTS.md gotchas — the second one (identical bytes AND identical hashes from
-  both paths) is what made it invisible for so long.
+  fires, so the retry does not cover it.
+- **ARM64 is published but has never been installed**, and now carries a COM interface fix verified only on
+  x64.
+- **The uninstall data-erasure option** is unverified — confirming it would destroy the owner's data.
+- **Five of twelve dialogs have never been opened**, and the all-caught-up hero has never been rendered.
 
 ## 0.5 · Gated on an external dependency
 
-Unchanged in substance; still the only items that cannot be built on this machine today.
+Unchanged. Nothing in the audit unblocks any of these.
 
-1. **#24 Telegram / Messenger / Instagram DOM scrapers** — needs a live logged-in account per channel.
+1. **#24 Telegram / Messenger / Instagram DOM scrapers** — need a live logged-in account per channel.
    Highest user-facing value once unblocked. Meta is read-only and fights automation.
-2. **P3-D multi-channel L1 view** — the WhatsApp per-account drill-down ships (`AccountDetailDialog`,
-   v4.53.0); the channel-tabbed version depends on #24.
-3. **P3-B Tier-1 ONNX** — needs a chosen, downloaded model plus runtime packaging. Cannot be validated blind.
+2. **P3-D multi-channel L1 view** — depends on #24.
+3. **P3-B Tier-1 ONNX** — needs a chosen, downloaded model plus runtime packaging.
 4. **Icon import-from-account robustness · brand-logo import for other channels** — live per-platform DOM tuning.
 5. **Code-signing the installer** — needs a certificate. Closes F-OFFLINE-01 properly.
 
 ## 0.6 · Decisions only the owner can make
 
-Recorded rather than guessed, because each changes what the numbers *mean*.
-
-- **The SLA threshold is 15 minutes; the measured median reply time is hours, not minutes.** Every account
-  therefore reads as failing, and the dashboard currently shows **SLA met 0%** — now the most alarming
-  figure on the screen and the one least connected to reality. Either the target reflects the business (and
-  the dashboard should say how far off it is), or it should move. A business decision, not a bug, and the
-  single highest-value thing on this list that costs no engineering time.
-- **Whether "median reply time" should measure from installation.** Google publishes no reply dates, so the
-  tile is blank and says why. It *could* measure from when the app first saw a review unanswered — honest,
-  but covering only replies made after install, and it must be labelled that way. Worth having, or drop the
-  tile? A judgement about what the owner wants to see, not a technical limit.
-- **Whether the backlog cutoff stays at 7 days.** The live/backlog split at 7 days is what turned 466
-  "waiting" into a workable 58-item queue; the boundary itself was chosen, not derived.
+- **The SLA threshold is 15 minutes; the measured median reply time is hours.** Every account therefore
+  reads as failing, and the dashboard shows **SLA met 0%** — still the most alarming figure on the screen
+  and the one least connected to reality. **Unchanged by the audit, and still the highest-value item on this
+  entire list that costs no engineering time.** Either the target reflects the business, or it moves.
+- **Whether "median reply time" should measure from installation** (D6). Honest, but it would cover only
+  replies made after install and must be labelled that way. Worth having, or drop the tile?
+- **Whether the backlog cutoff stays at 7 days.** The live/backlog split is what turned 466 "waiting" into a
+  workable 58-item queue; the boundary was chosen, not derived.
 - **Whether `main`'s "Audit Files" commit (`954145e`, ~1,400 graphify cache files) should be dropped.**
   Repository housekeeping with a rewrite cost.
+
+## 0.7 · Operational
+
+- **v4.99.47's release notes are boilerplate.** The tag was pushed before the workflow learned to read
+  `CHANGELOG.md`, and a re-run would use the workflow file *from the tag*, so it cannot fix itself. Paste the
+  `## v4.99.47` section into the release description by hand. Every tag after this one is automatic.
+- **Build #205 (`98493e5`) shows "Startup failure"** — a GitHub-side infrastructure error ("an unexpected
+  error has occurred and we've been automatically notified"), not a repo problem, and the only one in 310
+  runs. That commit never ran CI, but it is docs-only and is now an ancestor of everything since, all of
+  which has been built and tested.
 
 ---
 

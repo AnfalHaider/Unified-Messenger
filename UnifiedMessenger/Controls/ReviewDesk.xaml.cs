@@ -212,13 +212,23 @@ public sealed partial class ReviewDesk : UserControl
             parts.Add($"checked {RelativeAge(captured)}");
         }
 
-        // The design's header said "covers all 239 reviews". It cannot say "all" while the scrape reads one
-        // page of 50 per account — that wording is the exact false-completeness this surface must avoid.
+        // The design's header said "covers all 239 reviews". It cannot say "all" while the scrape stops
+        // short — that wording is the exact false-completeness this surface must avoid.
+        //
+        // But it CAN say it when the traversal genuinely reached the last page, and it could not before:
+        // this called the two-argument overload and threw away `ReachedLastPage`, a fact the scrape had
+        // actually recorded. So a profile small enough to fit in one page — read completely — still
+        // reported "covers the 12 most recent of 12", which understates the app in the one direction this
+        // surface is otherwise careful never to overstate. Every account has to have got there for the
+        // combined line to claim it.
         var loaded = snapshots.Sum(s => s.Health.HasData ? s.Health.Total : 0);
         var lifetime = SumLifetime(snapshots);
+        var readEverything = snapshots.Count > 0
+            && snapshots.All(s => s.Health.HasData && s.Health.ReachedLastPage);
+
         if (anyRead)
         {
-            parts.Add(ReviewCoverage.Describe(loaded, lifetime));
+            parts.Add(ReviewCoverage.Describe(loaded, lifetime, readEverything));
         }
 
         HeaderSub.Text = string.Join(" · ", parts);
