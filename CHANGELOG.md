@@ -5,6 +5,28 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.51
+
+Two things the app already knew and did not say on the screen the owner actually reads.
+
+**"Click Re-sync" was the advice given to an owner with no internet.** When an account's numbers went cold
+the card said "out of date — click Re-sync", and so did its tooltip and its accessible name. Re-sync
+reloads the account's page, which cannot succeed without a connection — so the single instruction offered
+was the one thing that could not work, and it read as though the staleness were something the owner had
+neglected to do. The join that tells "not loaded yet" apart from "no internet" was already being made
+correctly in `app.log`; it had never reached the UI. Both dashboard sites and both Activity-patterns empty
+states now say what is actually happening, and that it will pick up on its own.
+
+**An account on the fallback reader now says so on its own card.** When the store bridge stops resolving
+the app falls soft to the IndexedDB scan, so metrics keep flowing and nothing looks wrong. That reader
+cannot read WhatsApp's call outcome, so an answered inbound call stays counted as missed. Settings has
+named the live reader since v4.99.47, but Settings is not where anyone looks; the card now carries a
+"reduced detail" line whose tooltip says exactly which figure to distrust.
+
+*Not verified:* neither of these has been seen rendered. Screen access was requested during this work and
+declined, so both are confirmed by unit tests and by the source guards that keep new surfaces from
+shipping the advice without the check — not by looking at them.
+
 ## v4.99.50
 
 Two places that mixed the UTC calendar day with the local one. A date is not a point in time, and

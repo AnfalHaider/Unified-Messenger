@@ -166,7 +166,11 @@ public sealed partial class ActivityPatternsPanel : UserControl
             {
                 IconGlyph = "", // Report / bar chart
                 Title = "No activity yet for this selection",
-                Hint = "Patterns build up as customer messages arrive. If you just updated, click Re-sync.",
+                // F-OFFLINE-08: Re-sync reloads each account's page, which cannot work with no connection.
+                Hint = OfflineState.AnyOffline(instances.Select(i => i.Id))
+                    ? "This PC cannot reach the internet, so no new messages can be read. Patterns will "
+                      + "build up again once the connection is back."
+                    : "Patterns build up as customer messages arrive. If you just updated, click Re-sync.",
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Center
             });
@@ -343,7 +347,10 @@ public sealed partial class ActivityPatternsPanel : UserControl
         {
             HeatmapHost.Children.Add(new TextBlock
             {
-                Text = "No activity yet for this selection — the heat map builds up as messages arrive. If you just updated, click Re-sync.",
+                Text = OfflineState.AnyOffline(instances.Select(i => i.Id))
+                    ? "No activity yet for this selection — and this PC cannot reach the internet, so no "
+                      + "new messages can be read. The heat map will build up again once the connection is back."
+                    : "No activity yet for this selection — the heat map builds up as messages arrive. If you just updated, click Re-sync.",
                 Foreground = Brush("TextFillColorSecondaryBrush"),
                 TextWrapping = TextWrapping.WrapWholeWords,
                 Margin = new Thickness(0, 8, 0, 0)
