@@ -77,3 +77,10 @@ dist/
 
 # graphify knowledge-graph output (regenerable build artifact)
 graphify-out/
+
+# Agent prompts and internal working notes — kept out of the product repo.
+# These are session scaffolding, not deliverables, and they date badly: the previous
+# audit prompt asserted live logged-in accounts were available when they were not, and
+# that false premise survived in-repo long enough to misdirect a later session.
+*-prompt.md
+docs/completion-todo.md

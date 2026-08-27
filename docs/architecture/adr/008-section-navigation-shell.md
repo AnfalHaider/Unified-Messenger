@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (v4.95.0) — WP0 of the UI vision in `docs/ui-vision-implementation-prompt.md`.
+Accepted (v4.95.0) — WP0 of the UI vision work-package plan (that planning document was internal scaffolding and is no longer tracked; the shipped result is this ADR plus `docs/design-system/`).
 
 ## Context
 
