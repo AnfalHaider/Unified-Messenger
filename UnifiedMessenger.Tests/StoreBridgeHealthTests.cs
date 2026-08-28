@@ -2,6 +2,7 @@ using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Tests;
 
+[Collection("StoreBridgeHealth")]
 public class StoreBridgeHealthTests
 {
     public StoreBridgeHealthTests() => StoreBridgeHealth.Reset();

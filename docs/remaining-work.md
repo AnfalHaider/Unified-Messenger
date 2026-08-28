@@ -1,6 +1,6 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-08-27 · **Baseline:** v4.99.47 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-27 · **Baseline:** v4.99.53 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
 > completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
@@ -8,16 +8,37 @@
 
 ---
 
-# §0 · Current backlog (v4.99.47)
+# §0 · Current backlog (v4.99.53)
 
 Rewritten 2026-08-27 after the full-product audit ([AUDIT-2026-08-26.md](audit/AUDIT-2026-08-26.md),
-increments 66–75). Grouped by what actually gates each item. Every status below was re-checked against the
-tree at this baseline rather than carried forward.
+increments 66–75), and re-checked against the tree after the completion-hardening pass (increments 78–84).
+Grouped by what actually gates each item. Every status below was re-checked against the tree at this
+baseline rather than carried forward.
 
 **What the audit closed:** all nine S1s, every S2 and S3 on its plan, and the S4 tail. Tests 1744 → 1797.
 Three of its last four findings were surfaced *by* its own logging sweep rather than by reading code —
 including one the audit itself had introduced. That pattern is the most useful thing it produced, and it is
 why §0.4 is now the most important section in this file.
+
+## 0.0 · What the completion-hardening pass closed (v4.99.48 → v4.99.53)
+
+Tests 1797 → 1845. The instrument-first ordering held: the high-contrast defect and the empty
+`skipped:` log lines came out of reading `app.log` on a real launch, not out of reading code.
+
+| What | Severity | Where |
+|---|---|---|
+| A briefly-locked *statistics* file stopped the app opening at all — eleven unguarded startup loads, five stores catching `JsonException` only | S1 | v4.99.48 |
+| `ResponseTimeTracker` and `ContactHistoryStore` reset without preserving the bytes, so the next flush destroyed the owner's whole reply-time history | S1 | v4.99.48 |
+| ~20 dialogs, including the app's own "could not start", showed a raw `ex.Message` — a `%LOCALAPPDATA%` path to the owner — and logged nothing at all | S2 | v4.99.48 |
+| `AccessibilitySettings.HighContrastChanged` never registered, so the app could not notice High Contrast at runtime; the log line said the opposite | S2 | v4.99.49 |
+| Backfill dedupe keyed the UTC day while its analytics bucket keyed the local one — days near the boundary counted twice or not at all | S2 | v4.99.50 |
+| The ask-for-a-review panel said "messaged today" about people who messaged yesterday, for hours a day, on both sides of Greenwich | S3 | v4.99.50 |
+| F-OFFLINE-08 and F-SNAP-02 — see §0.3 | S2 | v4.99.51 |
+| Flipping a Settings toggle while the settings file was locked closed the app (~30 `async void` handlers) | S2 | v4.99.52 |
+| 358 regenerable cache files tracked; `.cursorrules` describing the v1 product | S3 | v4.99.53 |
+
+Also produced: [egress-inventory.md](egress-inventory.md) — every outbound socket, what rides on it, the
+command that re-derives each row, and an explicit list of what it does *not* demonstrate.
 
 ## 0.1 · UI/UX — closed, except one deliberate deferral
 
@@ -47,7 +68,7 @@ deliberate work with its own contrast pass.
 | # | Item | Status |
 |---|---|---|
 | **D1, D3, D7** | Call outcomes, "Uncategorised", per-review stars | ✅ done (v4.99.37–v4.99.41) |
-| **D2** | The IndexedDB fallback cannot read `callOutcome`, so an answered inbound call stays counted as missed | ◑ **disclosed, not fixed.** Correct by design — unknown must never close a chat — and the missed-calls chip now says so when any account is on the fallback. Closing it needs a decrypted message model, which that path does not have. |
+| **D2** | The IndexedDB fallback cannot read `callOutcome`, so an answered inbound call stays counted as missed | ◑ **disclosed, not fixed — and now assessed as unclosable from that path.** The scan reads only the `chat` store, which carries no call outcome, and `whatsapp-adapter.js` never emits `lastCallOutcome` at all; the outcome is a prototype getter on the *decrypted in-memory message model*. Whether WhatsApp Web keeps a separate call-log object store is an empirical question needing a signed-in account. Falsifiable next step: run the adapter's existing `diag.stores` enumeration on a live account and look for one. Disclosed on the chip *and*, since v4.99.51, on the account card. |
 | **D4** | Stale `instances.json.bak` beside the real store | ✅ **gone.** Verified from outside the MSIX container: no `.bak` files in `%LOCALAPPDATA%\UnifiedMessenger`. |
 | **D5** | Google reviews read 50 at a time, `MaxPages = 1` | ☐ **open, deliberately.** Pagination stays off until two consecutive passes agree on totals — walking every page over-counted by 2–3×. The desk states its own coverage, and as of v4.99.47 it can also say "covers all" when the traversal genuinely reached the last page, a fact it previously recorded and then discarded. |
 | **D6** | Google publishes no reply dates anywhere the scrape can reach | ☐ **unobtainable.** The tile says so rather than estimating. Whether to measure "since install" instead is an owner decision (§0.6). |
@@ -82,9 +103,9 @@ can compute something correct, do not route it through a model afterwards.**
 
 | ID | What | Status |
 |---|---|---|
-| **F-SNAP-02** | A degraded read (bridge failed, IndexedDB succeeded) visible only in `app.log` | ◑ Settings → Data shows the live reader, and the missed-call figure now carries the caveat. A per-account indicator on the dashboard itself is still absent. |
+| **F-SNAP-02** | A degraded read (bridge failed, IndexedDB succeeded) visible only in `app.log` | ✅ closed (v4.99.51). The account card carries a "reduced detail — fallback reader" line whose tooltip names the figure to distrust. |
 | **F-OFFLINE-07** | An aborted navigation puts an account into `Error` with no retry scheduled | ☐ open, unchanged — still deliberate, because it changes *when* accounts enter the error state |
-| **F-OFFLINE-08** | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection returns | ☐ open. Sites: `CommandCenterPanel.xaml.cs:2863,2879,2881` and `ActivityPatternsPanel.xaml.cs:169,346`. Needs the connection-status join `ScanBlockedMessage` already has. |
+| **F-OFFLINE-08** | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection returns | ✅ closed (v4.99.51). `OfflineState` lifts the join `ScanBlockedMessage` was already making for the log, so the screen and `app.log` cannot disagree about whether the machine is online. All four sites plus both Activity-patterns empty states. **Not seen rendered** — screen access was requested during that work and declined. |
 | **F-ORCH-06** | "Instance" as an accessible name | ✅ closed (v4.99.47) |
 | **F-METRICS-11** | End-of-day projection skew | WONTFIX by decision — bound measured under 2% |
 
@@ -130,6 +151,10 @@ Unchanged. Nothing in the audit unblocks any of these.
 
 ## 0.6 · Decisions only the owner can make
 
+> Each of these is now written up with its options and consequences in
+> **[owner-decisions.md](owner-decisions.md)**, with a recommendation and the exact thing needed from the
+> owner. They had been carried across several work-streams without ever being put as a question.
+
 - **The SLA threshold is 15 minutes; the measured median reply time is hours.** Every account therefore
   reads as failing, and the dashboard shows **SLA met 0%** — still the most alarming figure on the screen
   and the one least connected to reality. **Unchanged by the audit, and still the highest-value item on this
@@ -139,7 +164,10 @@ Unchanged. Nothing in the audit unblocks any of these.
 - **Whether the backlog cutoff stays at 7 days.** The live/backlog split is what turned 466 "waiting" into a
   workable 58-item queue; the boundary was chosen, not derived.
 - **Whether `main`'s "Audit Files" commit (`954145e`, ~1,400 graphify cache files) should be dropped.**
-  Repository housekeeping with a rewrite cost.
+  Repository housekeeping with a rewrite cost. The files were **untracked going forward** at v4.99.53
+  (`git rm -r --cached`, no history touched, nothing deleted from disk), so nothing new accumulates. What
+  is still open is only whether to rewrite published history to reclaim the ~112 MiB `size-pack` — which
+  needs a force-push and is nobody's call but the owner's.
 
 ## 0.7 · Operational
 

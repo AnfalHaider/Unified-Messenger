@@ -6,6 +6,14 @@ namespace UnifiedMessenger.Tests;
 /// <summary>
 /// Regression cover for the metric-honesty fixes in the 2026-08-26 audit, phase 3.
 /// </summary>
+/// <remarks>
+/// Shares the "StoreBridgeHealth" collection with <see cref="StoreBridgeHealthTests"/>. Both classes
+/// <c>Reset()</c> and <c>Record()</c> into the same process-wide static, and xUnit runs test *classes* in
+/// parallel — so they raced, and the counts one asserted on included rows the other had just written. It
+/// stayed hidden until unrelated new tests changed the scheduling, which is how a latent flake usually
+/// announces itself. Same collection means never concurrent.
+/// </remarks>
+[Collection("StoreBridgeHealth")]
 public class Phase3HonestyTests : IDisposable
 {
     private readonly string _tempDir;

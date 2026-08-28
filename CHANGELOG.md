@@ -5,6 +5,36 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.53
+
+Housekeeping and documentation, plus two documents the repository did not have.
+
+**358 regenerable cache files are no longer tracked.** `graphify-out` has been in `.gitignore` for a while,
+but gitignore does not untrack what is already in the index. `git rm -r --cached` only — every file is
+still on disk, and no history was touched. This does not shrink the repository; the ~112 MiB already in
+history needs a rewrite, which is the owner's call and is written up rather than done.
+
+**`.cursorrules` stopped describing a different product.** It was 30 lines about the v1 idea — "multiple
+instances of web-based social media platforms" whose "defining feature is a unified native Notification
+Tab" — and it used *instances*, the word the product deliberately stopped using and that the build now
+fails over. It is a summary pointing at `AGENTS.md` now, and it says what it used to claim so the
+correction is not silent.
+
+**`docs/egress-inventory.md`** — the privacy invariant demonstrated instead of asserted. Every outbound
+socket the app can open, what rides on it, the command that re-derives each row, and an explicit list of
+what it does *not* demonstrate (it is a static read of the tree, not a packet capture).
+
+**`docs/owner-decisions.md`** — the four decisions that are not engineering's to make, each with options,
+consequences and a recommendation. The SLA target is the one that matters: it is 15 minutes, the measured
+median is hours, so every location reads as failing and the dashboard shows SLA met 0%. That is the most
+alarming figure on the screen and the one least connected to reality, and it costs no engineering time to
+fix — only a number.
+
+**`AGENTS.md` corrections.** It claimed every file under `Services/` sits in the flat
+`UnifiedMessenger.Services` namespace "so a file can be moved between module folders with zero code
+changes". Measured: true for six folders, false for four (`Ai`, `Adapters`, `Backfill`, `Shell`). Also
+seven new gotchas from this work-stream, and a test count that was 115 out of date.
+
 ## v4.99.52
 
 **Flipping a Settings toggle could close the app.** Writing the settings file let an `IOException` out, and
