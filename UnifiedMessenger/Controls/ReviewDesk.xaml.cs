@@ -1014,7 +1014,7 @@ public sealed partial class ReviewDesk : UserControl
         return new Border
         {
             Background = Brush(wash),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(12),
             Padding = new Thickness(UmScale.Space.Sm, 2, UmScale.Space.Sm, 2),
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock

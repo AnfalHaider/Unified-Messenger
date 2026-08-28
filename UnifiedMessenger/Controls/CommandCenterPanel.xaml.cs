@@ -629,7 +629,7 @@ public sealed partial class CommandCenterPanel : UserControl
             Background = Brush("CardBackgroundFillColorDefaultBrush"),
             BorderBrush = Brush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(12),
             Padding = _compact ? new Thickness(14, 4, 14, 6) : new Thickness(16, 10, 16, 12),
             Header = BuildHeader(entity),
             Content = BuildAwaitingPanel(entity),
@@ -1083,7 +1083,7 @@ public sealed partial class CommandCenterPanel : UserControl
             Content = new TextBlock { Text = label, FontSize = UmScale.Text.Body },
             IsChecked = selected,
             Padding = new Thickness(10, 3, 10, 3),
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(12),
             MinWidth = 0,
             MinHeight = 0
         };
@@ -1810,7 +1810,7 @@ public sealed partial class CommandCenterPanel : UserControl
         var chip = new Border
         {
             Background = Brush(background),
-            CornerRadius = new CornerRadius(5),
+            CornerRadius = new CornerRadius(6),
             Padding = new Thickness(6, 1, 6, 1),
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock
@@ -2153,7 +2153,7 @@ public sealed partial class CommandCenterPanel : UserControl
             ValueBrush = response.HasData ? primary : secondary,
             Delta = responseDeltaText,
             DeltaBrush = responseDeltaBrush,
-            Hint = response.HasData ? $"median · {response.SampleCount} replies" : "builds as you reply",
+            Hint = response.HasData ? $"median · {response.SampleCount} {(response.SampleCount == 1 ? "reply" : "replies")}" : "builds as you reply",
             Tooltip = $"Median time from a customer's message to your first reply (measured live since tracking began). Target: under {slaThreshold} min."
         });
 
@@ -3267,7 +3267,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Width = width,
             Height = height,
-            CornerRadius = new CornerRadius(4),
+            CornerRadius = new CornerRadius(6),
             Background = Brush("ControlFillColorSecondaryBrush"),
             HorizontalAlignment = HorizontalAlignment.Left
         };
@@ -3281,7 +3281,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Width = 30,
             Height = 30,
-            CornerRadius = new CornerRadius(15),
+            CornerRadius = new CornerRadius(12),
             Background = Brush("ControlFillColorSecondaryBrush")
         });
         top.Children.Add(lines);
@@ -3295,7 +3295,7 @@ public sealed partial class CommandCenterPanel : UserControl
             Background = Brush("CardBackgroundFillColorDefaultBrush"),
             BorderBrush = Brush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(12),
             Padding = new Thickness(16, 12, 16, 14),
             Child = inner
         };

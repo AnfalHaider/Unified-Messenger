@@ -5,6 +5,41 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.70
+
+**The corner-radius scale was enforced in XAML only, and the code side had drifted to eleven values.**
+`DesignScaleTests.EveryCornerRadiusComesFromTheScale` scanned `.xaml` and nothing else. Every XAML radius
+conformed; in C#, `new CornerRadius(N)` was unchecked and had reached
+`0, 2, 4, 5, 6, 8, 10, 12, 14, 15, 999`.
+
+The test's own docstring says radii *"had reached six distinct values across the app — cards rendered at 8,
+10, 12 and 14 — which is not a system, it is an accumulation"*. The cleanup behind that sentence, and the
+test written to hold it, both covered XAML — so the code side kept accumulating and ended up **worse than
+the number that triggered the original work**.
+
+**This is the second defect from that exact gap in this one file.** `NoLiteralFontSizeInCode` exists because
+of the first: *"`DesignScaleTests` read .xaml only, so every literal in `CommandCenterPanel.xaml.cs` and
+friends was invisible to it"* — eleven text sizes against seven. The lesson was applied to font size and not
+to radius.
+
+The scan now covers `.cs`. Snapped: `4 → 6`, `5 → 6`, `10 → 12` (×3), `14 → 12`, `15 → 12`, and a
+`WorkspaceSidebar` fallback of `4` corrected to `6` to match the token it falls back from.
+
+**The scale grew by one tier, deliberately.** `TheScaleStaysSmallEnoughToBeAScale` asserted ≤3 and failed —
+which is exactly what it is for. The fix was not to raise the number quietly: `UmCornerRadiusXsValue = 2` has
+been in `Tokens.xaml` the whole time for chips and small markers, so the fourth tier already existed and the
+list had never seen it. `0` (square) and `999` (pill) are allowed but **excluded from the tier count**, so
+the number cannot creep while looking like a system.
+
+**"1 replies."** `CommandCenterPanel.xaml.cs:2156` had no singular branch. Seen on the dashboard because
+reply history restarted on 2026-08-28 and there was exactly one sample. Swept the other 32 count-plus-plural
+strings: all either have a singular branch or are genuinely plural. One real instance.
+
+Also lands the Phase B/C/D audit deliverables in `docs/audit-2026-08/`.
+
+Tests 1899.
+
+
 ## v4.99.69
 
 **Captions dimmed to 0.55 were below AA in light theme** — 3.84:1, measured by compositing the foreground

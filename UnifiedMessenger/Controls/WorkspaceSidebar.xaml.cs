@@ -640,7 +640,7 @@ public sealed partial class WorkspaceSidebar : Grid
         {
             Tag = key,
             Padding = new Thickness(4, 8, 6, 4),
-            CornerRadius = ResolveCornerRadius("UmCornerRadiusSmValue", new CornerRadius(4)),
+            CornerRadius = ResolveCornerRadius("UmCornerRadiusSmValue", new CornerRadius(6)),
             Background = ResolveTransparentBrush(),
             IsTabStop = true,
             TabIndex = _nextSidebarTabIndex++,
