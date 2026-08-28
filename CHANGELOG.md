@@ -5,6 +5,37 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.62
+
+**The Reviews page was unusable in dark theme: six blank white tiles, white cards, invisible text.** Reported
+by the owner with a screenshot while the previous fix was being verified, which is the only reason it was
+found — nobody had opened that page in dark.
+
+v4.99.61 fixed this one key at a time, which was treating the symptom. The real rule is broader: **any key
+declared inside a `ThemeDictionary` is unsafe through `Application.Current.Resources`**, because that
+resolves the app-default theme rather than the element's — and that includes the app's own tokens.
+`Tokens.xaml` declares `UmSurfaceBrush`, `UmHairlineBrush`, `UmAccentWashBrush` and the rest inside
+`<ResourceDictionary.ThemeDictionaries>`. XAML consumers were always fine, because `{ThemeResource ...}`
+resolves per element. Imperative callers were not, and `ReviewDesk` is built imperatively — so it drew white
+cards and white filter pills, with text that had *correctly* resolved to white sitting on top of them.
+
+`ThemeBrushResolver` now looks a key up in the theme dictionary matching the element's own `ActualTheme`,
+searching the application dictionary and everything merged into it, before falling back to the flat lookup.
+That covers every themed token at once instead of key by key.
+
+High contrast is deliberately exempt: `ThemeService` installs `HighContrast.xaml` as a merged dictionary and
+it wins the ordinary lookup precisely because it is merged last. Reaching past it into a Light/Default theme
+dictionary would repaint high-contrast surfaces with ordinary colours — the one case where the flat lookup
+was already doing the right thing.
+
+Verified on screen, dark theme: the six review KPI tiles read, the filter pills read, and review cards show
+author, branch, stars, body and the reply action.
+
+Tests 1881, unchanged — no test could have caught this, and none added: the defect lives in WinUI resource
+resolution at runtime, which the suite does not host. It is recorded in docs/audit-2026-08/ as the clearest
+argument in this audit for rendering the UI rather than reasoning about it.
+
+
 ## v4.99.61
 
 **The AI insight was white text on a white bar, in dark theme, on every account card.** Seen on screen, not
