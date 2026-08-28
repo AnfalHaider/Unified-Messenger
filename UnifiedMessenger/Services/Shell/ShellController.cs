@@ -241,13 +241,21 @@ public sealed class ShellController
     /// announced "starting 8 accounts" and started none. A progress bar that overstates its own work is the
     /// same class of defect as a metric that does.
     /// </remarks>
+    /// <remarks>
+    /// <paramref name="settings"/> is required, not an optional convenience with a singleton fallback.
+    /// The shell layer is barred from reaching for the app-settings singleton — settings arrive through
+    /// <c>_services</c> — and the first version of this method took that singleton as a default, which the
+    /// CI gate rejected. Enforced locally now too, by <c>ShellLayerDiTests</c>.
+    ///
+    /// The gate is a plain substring match over the file's whole text, so it fires on a *comment* naming
+    /// the type as readily as on a call. Naming it in prose here would fail the build just as the call did.
+    /// </remarks>
     internal static int StartupWarmCount(
         IReadOnlyCollection<MessengerInstance> instances,
         string? warmInstanceId,
-        AppSettings? settings = null)
+        AppSettings settings)
     {
-        var effective = settings ?? AppSettingsService.Instance.Settings;
-        var mode = InstanceSessionManager.ResolveWarmMode(effective);
+        var mode = InstanceSessionManager.ResolveWarmMode(settings);
 
         return mode switch
         {

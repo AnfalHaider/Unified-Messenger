@@ -5,6 +5,24 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.59
+
+**A green local suite was not the gate, and CI said so.** `StartupWarmCount` was written taking the
+app-settings singleton as an optional default. The shell layer is barred from reaching for that singleton —
+it takes its collaborators through `ApplicationServices` — and CI enforces the rule in a step called
+"Enforce shell DI gate". Locally, 1863 tests passed. The v4.99.58 build and the merge to `main` both failed
+on a check nothing local ran, after `Build`, `Test with coverage` and the coverage threshold had all passed.
+
+The parameter is now required, which is what it should have been: every caller already had the settings to
+hand, and the fallback existed only to save typing.
+
+The durable half of the fix is `ShellLayerDiTests`, which runs the same rule in the suite, so the two
+cannot diverge again — plus a second test asserting the list here still matches the list in the workflow,
+in both directions, so a local run cannot quietly become weaker than the gate it stands in for. It earned
+itself immediately: the gate is a plain substring match over each file's whole text, so the *comment*
+explaining the fix tripped it exactly as the call had, and the test caught that before the push rather than
+after.
+
 ## v4.99.58
 
 **"Import icon from account" could fail five different ways and say nothing.** Every failure path returned
