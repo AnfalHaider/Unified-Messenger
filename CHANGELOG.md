@@ -5,6 +5,22 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.54
+
+Two log lines that stopped short of saying what happened. Both were found by reading `app.log` from
+a real launch of the installed build, which is where most of this work-stream's findings came from.
+
+**The log never said whether local AI came up.** Warmup logged each failed health probe and then nothing,
+so a log ending in three "health probe failed" lines left the reader — usually support, holding a log the
+owner sent — unable to tell whether Ollama started on the next attempt or never started at all, and
+therefore whether the insight text on screen is the model's or the heuristic's. The attempts were the
+working; the answer was missing. It now says which.
+
+**"ApplyInitialLaunchTheme skipped"** read like the owner's Light/Dark choice had been dropped. It had not:
+WinUI rejects `Application.RequestedTheme` in this configuration every time, and the preference is applied
+to the window's own content a moment later, which is what actually paints. The line now says so, so the
+next person to read it does not go looking for a theme defect that is not there.
+
 ## v4.99.53
 
 Housekeeping and documentation, plus two documents the repository did not have.

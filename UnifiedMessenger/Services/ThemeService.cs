@@ -39,8 +39,13 @@ public static class ThemeService
         }
         catch (COMException ex)
         {
-            // Defensive: WinUI rejects Application.RequestedTheme after the first window exists.
-            AppLogger.LogInfo("Theme", $"ApplyInitialLaunchTheme skipped: {Describe(ex)}");
+            // WinUI rejects Application.RequestedTheme in this configuration; on a real launch it throws
+            // 0x80131515 every time. Harmless, but the line used to stop at "skipped", which reads like the
+            // owner's Light/Dark choice was dropped. It is not: Apply() sets it on the window's own content
+            // a moment later, which is what actually paints. Say so, or the next reader chases a non-defect.
+            AppLogger.LogInfo(
+                "Theme",
+                $"ApplyInitialLaunchTheme skipped: {Describe(ex)}. The preference is applied per-window instead.");
         }
 
         // Reading AccessibilitySettings.HighContrast works; subscribing to its change event does not, in

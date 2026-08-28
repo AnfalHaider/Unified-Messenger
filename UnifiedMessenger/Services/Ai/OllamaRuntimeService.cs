@@ -92,6 +92,16 @@ public sealed class OllamaRuntimeService : IDisposable
         try
         {
             await EnsureRunningAsync(cancellationToken).ConfigureAwait(false);
+
+            // Warmup logged each failed probe and then nothing, so a log ending in three "health probe
+            // failed" lines left the reader unable to tell whether local AI came up on the fourth try or
+            // never came up at all — and whether the insight strips they are looking at are AI or the
+            // heuristic. The attempts are the working; this is the answer.
+            AppLogger.LogInfo(
+                "Ollama.Runtime",
+                ConnectionState == OllamaConnectionState.Running
+                    ? "Local AI is available."
+                    : $"Local AI is not available ({ConnectionState}); insights fall back to the heuristic.");
         }
         catch (Exception ex)
         {
