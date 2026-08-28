@@ -84,19 +84,11 @@ internal static class Program
             // catch; a window handle that UI Automation cannot attach to is the harness's own environment
             // being unable to drive a desktop. Reporting the second as an app failure is how this workflow
             // came to be permanently red while the app was fine.
-            // 90s, not 45s: a self-contained WinUI app starting cold on a hosted runner — no warm .NET
-            // file cache, contended disk — legitimately takes longer than a developer machine, and the
-            // probe returns the moment the window appears, so a longer ceiling costs nothing on a healthy
-            // run. Same commit passed one CI run and failed the next on the old value.
-            var probe = WaitForMainWindowHandle(app, TimeSpan.FromSeconds(90), out var hwnd);
-            sawWindowHandle = probe != WindowProbe.ProcessGone;
-            Console.WriteLine(probe switch
-            {
-                WindowProbe.WindowPresent => $"  Win32 probe: top-level window present (hwnd 0x{hwnd.ToInt64():X}).",
-                WindowProbe.ProcessGone => "  Win32 probe: the process created NO top-level window.",
-                _ => "  Win32 probe: process still running after 90s with no window — headless runner, or a "
-                     + "very slow start. Cannot tell the two apart, so this is not reported as a failure."
-            });
+            var hwnd = WaitForMainWindowHandle(app, TimeSpan.FromSeconds(45));
+            sawWindowHandle = hwnd != IntPtr.Zero;
+            Console.WriteLine(hwnd == IntPtr.Zero
+                ? "  Win32 probe: the process created NO top-level window."
+                : $"  Win32 probe: top-level window present (hwnd 0x{hwnd.ToInt64():X}).");
 
             using var automation = new UIA3Automation();
             var window = app.GetMainWindow(automation, TimeSpan.FromSeconds(45));
@@ -141,21 +133,15 @@ internal static class Program
 
             if (sawWindowHandle)
             {
-                // Covers both "a window appeared but UI Automation could not attach" and "the process is
-                // alive and never drew one". Both are properties of the machine, not of the build: a WinUI
-                // app on a session with no desktop stays up and window-less, which is indistinguishable
-                // from a slow start and is emphatically not evidence of a broken binary.
+                // The app started and put a window on screen; only UI Automation could not attach to it.
+                // That is a property of the machine, not of the build, so it must not read as a defect.
                 Console.Error.WriteLine(
-                    "The app process stayed alive; UI Automation could not drive a window on this session. "
-                    + "That is an environment limitation (headless or non-interactive), not an app failure. "
-                    + "Exit 5.");
+                    "The app DID open a window — UI Automation could not attach to it. That is an environment "
+                    + "limitation (a headless or non-interactive session), not an app failure. Exit 5.");
                 return 5;
             }
 
-            // Reached only when the process died or vanished — which is what a genuine launch failure does:
-            // App.LaunchAsync catches, shows "Unified Messenger could not start" and calls Exit().
-            Console.Error.WriteLine(
-                "The app process exited without opening a window. This is a real launch failure. Exit 4.");
+            Console.Error.WriteLine("The app opened NO top-level window. This is a real launch failure. Exit 4.");
             return 4;
         }
 
@@ -306,47 +292,8 @@ internal static class Program
     /// one and UIA still cannot attach, the problem is the harness's environment — a CI runner with no
     /// interactive desktop cannot be automated, and calling that an app defect makes the workflow lie.
     /// </remarks>
-    /// <summary>
-    /// Waits for a top-level window, and reports which of three different things happened.
-    /// </summary>
-    /// <remarks>
-    /// This used to return a bare <see cref="IntPtr"/>, so three outcomes collapsed into
-    /// <see cref="IntPtr.Zero"/>: the process died, the process vanished, and the process was still running
-    /// but had not drawn a window by the deadline. The caller read all three as "no window at all — a real
-    /// launch failure" and exited 4, which is red.
-    ///
-    /// <para>
-    /// Only the first two are launch failures. The third is ambiguous and, on a hosted runner with no
-    /// interactive desktop, is the *expected* outcome: a WinUI 3 app can start, stay alive and never
-    /// produce a window because there is no desktop to produce one on. Reporting that as a broken build is
-    /// the same mistake this file already documents fixing once — a job that is red for a reason nobody
-    /// can act on gets ignored, and takes the structural audit and the whole Release unit suite down with
-    /// it.
-    /// </para>
-    /// <para>
-    /// A genuine launch failure still reaches exit 4, because it kills the process: <c>App.LaunchAsync</c>
-    /// catches, shows "Unified Messenger could not start" and calls <c>Exit()</c>. Alive-but-window-less is
-    /// the one case where this harness genuinely cannot tell, so it says so instead of guessing.
-    /// </para>
-    /// </remarks>
-    private enum WindowProbe
+    private static IntPtr WaitForMainWindowHandle(FlaUI.Core.Application app, TimeSpan timeout)
     {
-        /// <summary>A top-level window appeared.</summary>
-        WindowPresent,
-
-        /// <summary>The process exited or vanished before showing one — a real launch failure.</summary>
-        ProcessGone,
-
-        /// <summary>Still running at the deadline with no window. Cannot distinguish slow from headless.</summary>
-        AliveWithoutWindow
-    }
-
-    private static WindowProbe WaitForMainWindowHandle(
-        FlaUI.Core.Application app,
-        TimeSpan timeout,
-        out IntPtr handle)
-    {
-        handle = IntPtr.Zero;
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
@@ -357,25 +304,24 @@ internal static class Program
                 if (process.HasExited)
                 {
                     Console.WriteLine($"  Win32 probe: the process exited early with code {process.ExitCode}.");
-                    return WindowProbe.ProcessGone;
+                    return IntPtr.Zero;
                 }
 
                 if (process.MainWindowHandle != IntPtr.Zero)
                 {
-                    handle = process.MainWindowHandle;
-                    return WindowProbe.WindowPresent;
+                    return process.MainWindowHandle;
                 }
             }
             catch (ArgumentException)
             {
                 // Process is gone entirely — no window, and nothing left to wait for.
-                return WindowProbe.ProcessGone;
+                return IntPtr.Zero;
             }
 
             Thread.Sleep(500);
         }
 
-        return WindowProbe.AliveWithoutWindow;
+        return IntPtr.Zero;
     }
 
     private static void StopExistingInstances()

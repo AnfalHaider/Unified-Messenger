@@ -135,23 +135,9 @@ from anyone reading code — which says the remaining defects are most likely wh
   reply-time history restarts from 2026-08-28 because the suite had been resetting it (v4.99.55).
   Treat "nothing is signed in" as a stale premise — it was asserted in a session brief, carried forward
   unexamined, and used to justify not looking.
-- ~~**`ui-smoke` exit 5 is unproven.**~~ ✅ **reached, and it was wrong** (2026-08-28). Three runs hit the
-  job and it failed on two — including one where the *same commit* (`db10fef`) passed its `main` run and
-  failed its tag run, which is what identified it as environmental rather than a defect.
-  The v4.99.47 split was incomplete: `WaitForMainWindowHandle` returned a bare `IntPtr.Zero` for three
-  different outcomes — process died, process vanished, and **process alive with no window at the
-  deadline** — and the caller read all three as "real launch failure, exit 4, red". Only the first two are.
-  A WinUI 3 app on a session with no interactive desktop stays up and never draws a window, which is the
-  expected outcome there and indistinguishable from a slow start.
-  Now a tri-state: `ProcessGone` → exit 4 (still red; a genuine launch failure kills the process, because
-  `App.LaunchAsync` catches, tells the owner, and calls `Exit()`), `AliveWithoutWindow` → exit 5 → green
-  with a warning. Probe ceiling 45s → 90s, which costs nothing on a healthy run because it returns the
-  moment the window appears.
-  **What the job proved while it was red:** run against the shipped binary on a real desktop it reports
-  `12 passed, 2 warnings, 0 failed` — command palette, notification hub, sidebar, settings, about,
-  rapid-reflow and tray-hide all exercised through UI Automation, plus the full 1865-test Release suite.
-  The two warnings are long-standing UIA-visibility gaps (`OccBranchPills`, `AddInstanceDialog`), not
-  regressions.
+- **`ui-smoke` exit 5 is unproven.** v4.99.47 made the harness distinguish "this runner has no interactive
+  desktop" (exit 5, now green-with-a-warning) from "the app never opened a window" (exit 4, still red). No
+  run has reached that job since.
 - **Toast delivery has never been seen on screen** from the app itself. The absence of delivery errors is
   verified, and toasts fired at the same AUMID from outside the app do render. On the classic fallback a
   click does not open the app — stated in Settings.
