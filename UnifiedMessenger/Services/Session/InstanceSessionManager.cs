@@ -74,6 +74,41 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
     /// <summary>
     /// Creates WebViews for every instance so background monitoring starts immediately.
     /// </summary>
+    /// <summary>
+    /// The effective startup warm mode.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>EnableLazyWebViewLoading</c> used to force <see cref="StartupWarmMode.Lazy"/> outright, which
+    /// made the entire "Startup warm mode" dropdown in Settings inert: the owner could pick "Warm all
+    /// (loads every account)" and nothing whatsoever would change, because the toggle above it — on by
+    /// default — overrode the choice before it was read. A control that cannot affect anything is worse
+    /// than a missing one.
+    /// </para>
+    /// <para>
+    /// The two settings now divide the job. The dropdown decides <i>whether</i> accounts are brought up at
+    /// startup; the lazy toggle decides <i>which</i>, and only narrows the set to the professional accounts
+    /// — the ones that feed oversight, and the ones the idle reaper already refuses to close. Turning it
+    /// off additionally warms personal accounts.
+    /// </para>
+    /// </remarks>
+    internal static StartupWarmMode ResolveWarmMode(AppSettings settings) => settings.StartupWarmMode;
+
+    /// <summary>
+    /// True when <paramref name="instance"/> should be brought up automatically at startup.
+    /// </summary>
+    internal static bool ShouldWarmAtStartup(MessengerInstance instance, AppSettings settings) =>
+        ResolveWarmMode(settings) switch
+        {
+            StartupWarmMode.Lazy => false,
+            StartupWarmMode.WarmAll => true,
+            // VisibleOnly: the professional accounts, because those are the ones background oversight
+            // scans. An account that is never brought up never reports Connected, and
+            // OversightAlertMonitor skips every account that has not — so leaving them cold meant the
+            // owner had to open each one by hand before any of its numbers moved.
+            _ => instance.IsProfessional || !settings.EnableLazyWebViewLoading
+        };
+
     public Task WarmAllSessionsAsync(
         IEnumerable<MessengerInstance> instances,
         string? visibleInstanceId = null,
@@ -92,9 +127,7 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         }
 
         var settings = AppSettingsService.Instance.Settings;
-        var warmMode = settings.EnableLazyWebViewLoading
-            ? StartupWarmMode.Lazy
-            : settings.StartupWarmMode;
+        var warmMode = ResolveWarmMode(settings);
 
         switch (warmMode)
         {
@@ -199,6 +232,93 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             SessionFailed?.Invoke(this, new InstanceSessionErrorEventArgs(instance, ex));
             throw;
         }
+    }
+
+    /// <summary>Breathing room between background session creations.</summary>
+    /// <remarks>
+    /// Each creation is already awaited, so this is not about ordering — it is about not spending every
+    /// slice of the UI thread on WebView2 construction for a minute while the owner is trying to read the
+    /// dashboard that just appeared.
+    /// </remarks>
+    private static readonly TimeSpan BackgroundWarmStagger = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>
+    /// Brings up the accounts that should be live at startup, one at a time, behind the shell.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately not awaited by startup. Bringing up six WebViews takes tens of seconds, and blocking
+    /// <c>InitializeAsync</c> on it would trade one problem for a worse one — the owner would stare at a
+    /// dead shell instead of a live one with accounts filling in behind it.
+    /// </para>
+    /// <para>
+    /// Sequential, not parallel: six simultaneous WebView2 constructions spike memory and contend for the
+    /// UI thread, and the point of doing this in the background is that the owner should not feel it.
+    /// Sessions already live are skipped, and <c>EnsureSessionCoreAsync</c> joins an initialisation already
+    /// in flight rather than starting a second, so a click on an account mid-warm costs nothing.
+    /// </para>
+    /// </remarks>
+    public async Task WarmBackgroundSessionsAsync(
+        IEnumerable<MessengerInstance> instances,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = AppSettingsService.Instance.Settings;
+        var targets = instances.Where(i => ShouldWarmAtStartup(i, settings)).ToList();
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        AppLogger.LogInfo(
+            "Session.Warm",
+            $"Bringing up {targets.Count} account(s) in the background (mode {ResolveWarmMode(settings)}).");
+
+        var brought = 0;
+        var failed = 0;
+
+        foreach (var instance in targets)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (_sessions.ContainsKey(instance.Id))
+            {
+                continue;
+            }
+
+            try
+            {
+                await EnsureSessionAsync(instance, cancellationToken).ConfigureAwait(false);
+                brought++;
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                // One account failing to come up must not stop the rest. Logged by id, never by display
+                // name: app.log is the file support asks the owner to send.
+                failed++;
+                AppLogger.LogWarning("Session.Warm", $"Could not bring up '{instance.Id}': {ex.GetType().Name}");
+            }
+
+            try
+            {
+                await Task.Delay(BackgroundWarmStagger, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+
+        // The outcome, not just the attempts — the same gap that made the Ollama probe lines unreadable.
+        AppLogger.LogInfo(
+            "Session.Warm",
+            $"Background warm finished: {brought} brought up, {failed} failed, {_sessions.Count} session(s) live.");
     }
 
     public Task EnsureSessionAsync(MessengerInstance instance, CancellationToken cancellationToken = default) =>

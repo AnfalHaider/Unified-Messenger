@@ -54,11 +54,11 @@ public sealed partial class SettingsPage : Page
         AutomationProperties.SetName(ClearNotificationsButton, "Clear notification history");
         AutomationProperties.SetName(ThemePreferenceBox, "Theme preference");
         AutomationProperties.SetName(PanelDockBox, "Notification panel dock position");
-        AutomationProperties.SetName(StartupWarmModeBox, "Startup warm mode");
+        AutomationProperties.SetName(StartupWarmModeBox, "Which accounts open at startup");
         AutomationProperties.SetName(MaxConcurrentWebViewsBox, "Maximum concurrent WebViews");
         AutomationProperties.SetName(RefreshAllWebViewsButton, "Refresh all WebViews");
         AutomationProperties.SetName(ExperimentalExpander, "Experimental session options");
-        AutomationProperties.SetName(EnableLazyWebViewLoadingToggle, "Enable lazy WebView loading");
+        AutomationProperties.SetName(EnableLazyWebViewLoadingToggle, "Start work accounts only");
         AutomationProperties.SetName(EnablePerInstanceSleepUnloadToggle, "Sleep unload inactive accounts");
         AutomationProperties.SetName(EnableEditInstanceMetadataToggle, "Enable edit account details");
         AutomationProperties.SetName(EnableImportExportInstancesToggle, "Enable import and export of your account list");

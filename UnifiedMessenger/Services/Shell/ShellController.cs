@@ -247,7 +247,7 @@ public sealed class ShellController
         AppSettings? settings = null)
     {
         var effective = settings ?? AppSettingsService.Instance.Settings;
-        var mode = effective.EnableLazyWebViewLoading ? StartupWarmMode.Lazy : effective.StartupWarmMode;
+        var mode = InstanceSessionManager.ResolveWarmMode(effective);
 
         return mode switch
         {
@@ -355,6 +355,36 @@ public sealed class ShellController
         }
 
         _services.GitHubUpdate.PromptForUpdateApplicationAsync = PromptForAutoUpdateAsync;
+
+        // Bring the professional accounts up behind the shell. Started last and never awaited: the whole
+        // point is that the owner gets a live window immediately and the accounts fill in behind it, so
+        // awaiting this here would reintroduce exactly the wait it exists to remove.
+        //
+        // Until now nothing was brought up automatically at all, so an account only reported Connected
+        // once the owner opened it by hand — and OversightAlertMonitor skips every account that has not,
+        // which meant the background scan never ran and the numbers only ever moved for accounts that had
+        // been clicked. Six professional accounts against a session cap of six, and the idle reaper
+        // already refuses to close professional sessions, so they stay up once they are up.
+        if (instances.Count > 0)
+        {
+            _ = WarmBackgroundSessionsAsync(instances);
+        }
+    }
+
+    /// <summary>
+    /// Fire-and-forget wrapper. An exception escaping an un-awaited task reaches the finalizer thread as an
+    /// unobserved-task fault, which is exactly how the session-map race stayed invisible for so long.
+    /// </summary>
+    private async Task WarmBackgroundSessionsAsync(IReadOnlyList<MessengerInstance> instances)
+    {
+        try
+        {
+            await _services.SessionManager.WarmBackgroundSessionsAsync(instances).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Shell.BackgroundWarm", ex);
+        }
     }
 
     public bool IsTrackingStartupWarm => _trackingStartupWarm;

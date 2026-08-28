@@ -5,6 +5,30 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.57
+
+**Work accounts now open by themselves at startup.** Every professional account is brought up in the
+background as soon as the shell appears, so its page loads, its adapter injects, and the oversight scan
+starts without anyone opening it. Previously only the last-opened account came up, and every other
+account's numbers stayed frozen until the owner clicked into it — which is slower than letting the app do
+it, and easy to forget entirely.
+
+Sequential and behind the shell, never awaited by startup: bringing up six WebViews takes time, and
+blocking startup on it would trade one wait for a worse one. The window is live and usable while the
+accounts fill in behind it. Personal accounts still wait until opened — they produce no oversight metrics,
+and leaving them out keeps the count inside the six-session cap so nothing evicts anything else.
+
+**A Settings control that could not do anything.** "Startup warm mode" — now **"Which accounts open at
+startup"** — was read only after `EnableLazyWebViewLoading` had already forced the lazy path, and that
+toggle is on by default. So the owner could select "Warm all (loads every account)" and nothing whatsoever
+would change. The two settings now divide the job honestly: the dropdown decides *whether* accounts open at
+startup (Every account · Work accounts · None), and the toggle — now **"Start work accounts only"** —
+decides *which*. Both descriptions were rewritten to say what actually happens.
+
+Measured on the installed build with the owner's eight accounts: `Bringing up 6 account(s) in the
+background (mode VisibleOnly)` → `Background warm finished: 5 brought up, 0 failed, 6 session(s) live`, five
+seconds after the shell appeared, six WebViews created where the previous release created one.
+
 ## v4.99.56
 
 **The startup warm warmed nothing, so background scanning never started.**

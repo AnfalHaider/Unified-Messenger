@@ -1,3 +1,4 @@
+using UnifiedMessenger.Services;
 using UnifiedMessenger.Models;
 using UnifiedMessenger.Services.Shell;
 
@@ -85,11 +86,13 @@ public class StartupWarmTests
     }
 
     /// <summary>
-    /// Lazy loading is a separate switch from the warm mode and wins over it, which is what made this
-    /// defect the default rather than an opt-in: a machine set to VisibleOnly still takes the lazy path.
+    /// `EnableLazyWebViewLoading` used to force `StartupWarmMode.Lazy` outright, which made the entire
+    /// "Which accounts open at startup" dropdown inert — the owner could pick "Every account" and nothing
+    /// changed, because a toggle further down the page overrode the choice before it was read. The two
+    /// settings now divide the job: the dropdown decides *whether*, the toggle decides *which*.
     /// </summary>
     [Fact]
-    public void LazyLoadingOverridesTheWarmMode()
+    public void TheToggleNoLongerOverridesTheDropdown()
     {
         var settings = new AppSettings
         {
@@ -97,6 +100,83 @@ public class StartupWarmTests
             StartupWarmMode = StartupWarmMode.WarmAll
         };
 
-        Assert.Equal(1, ShellController.StartupWarmCount(Accounts, "acct-b", settings));
+        Assert.Equal(StartupWarmMode.WarmAll, InstanceSessionManager.ResolveWarmMode(settings));
+        Assert.Equal(Accounts.Length, ShellController.StartupWarmCount(Accounts, "acct-b", settings));
+    }
+}
+
+/// <summary>
+/// Which accounts the background warm brings up. Professional accounts are the ones oversight scans, and
+/// the ones the idle reaper already refuses to close — so they are the set that has to be live for the
+/// dashboard's numbers to move without the owner opening each account by hand.
+/// </summary>
+public class StartupWarmSelectionTests
+{
+    private static MessengerInstance Work(string id) =>
+        new() { Id = id, DisplayName = id, Platform = "whatsapp", Category = WorkspaceCategory.Professional };
+
+    private static MessengerInstance Personal(string id) =>
+        new() { Id = id, DisplayName = id, Platform = "whatsapp", Category = WorkspaceCategory.Personal };
+
+    [Fact]
+    public void WorkAccountsAreBroughtUpByDefault()
+    {
+        var settings = new AppSettings { EnableLazyWebViewLoading = true, StartupWarmMode = StartupWarmMode.VisibleOnly };
+
+        Assert.True(InstanceSessionManager.ShouldWarmAtStartup(Work("w"), settings));
+    }
+
+    [Fact]
+    public void PersonalAccountsWaitUntilOpened()
+    {
+        var settings = new AppSettings { EnableLazyWebViewLoading = true, StartupWarmMode = StartupWarmMode.VisibleOnly };
+
+        Assert.False(InstanceSessionManager.ShouldWarmAtStartup(Personal("p"), settings));
+    }
+
+    [Fact]
+    public void TurningTheToggleOffStartsPersonalAccountsToo()
+    {
+        var settings = new AppSettings { EnableLazyWebViewLoading = false, StartupWarmMode = StartupWarmMode.VisibleOnly };
+
+        Assert.True(InstanceSessionManager.ShouldWarmAtStartup(Personal("p"), settings));
+    }
+
+    [Fact]
+    public void EveryAccountMeansEveryAccount()
+    {
+        var settings = new AppSettings { EnableLazyWebViewLoading = true, StartupWarmMode = StartupWarmMode.WarmAll };
+
+        Assert.True(InstanceSessionManager.ShouldWarmAtStartup(Work("w"), settings));
+        Assert.True(InstanceSessionManager.ShouldWarmAtStartup(Personal("p"), settings));
+    }
+
+    /// <summary>The one mode that must still bring up nothing on its own.</summary>
+    [Fact]
+    public void NoneMeansNone()
+    {
+        var settings = new AppSettings { EnableLazyWebViewLoading = false, StartupWarmMode = StartupWarmMode.Lazy };
+
+        Assert.False(InstanceSessionManager.ShouldWarmAtStartup(Work("w"), settings));
+        Assert.False(InstanceSessionManager.ShouldWarmAtStartup(Personal("p"), settings));
+    }
+
+    /// <summary>
+    /// The owner has six professional accounts and the session cap defaults to six, so the default
+    /// configuration fits exactly — no eviction, and nothing thrashes. If either number moves, the warm
+    /// starts evicting the accounts it just brought up.
+    /// </summary>
+    [Fact]
+    public void TheDefaultSessionCapFitsTheAccountsTheDefaultWarmBringsUp()
+    {
+        var settings = new AppSettings { EnableLazyWebViewLoading = true, StartupWarmMode = StartupWarmMode.VisibleOnly };
+        var accounts = Enumerable.Range(0, 6).Select(i => Work($"w{i}")).ToList();
+
+        var warmed = accounts.Count(a => InstanceSessionManager.ShouldWarmAtStartup(a, settings));
+
+        Assert.True(
+            warmed <= AppSettingsService.CreateDefaultSettings().MaxConcurrentWebViews,
+            $"The default warm brings up {warmed} accounts against a cap of "
+            + $"{AppSettingsService.CreateDefaultSettings().MaxConcurrentWebViews}; the cap would evict them.");
     }
 }

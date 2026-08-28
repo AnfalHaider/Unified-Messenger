@@ -200,7 +200,7 @@ public sealed class AppSettingsService : IAppSettingsService
         }
     }
 
-    private static AppSettings CreateDefaultSettings() =>
+    internal static AppSettings CreateDefaultSettings() =>
         new()
         {
             MaxConcurrentWebViews = 6,

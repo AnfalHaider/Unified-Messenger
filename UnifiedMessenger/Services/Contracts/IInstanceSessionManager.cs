@@ -27,6 +27,14 @@ public interface IInstanceSessionManager
         string? visibleInstanceId = null,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Brings up the accounts that should be live at startup, one at a time, behind the shell.
+    /// Never awaited by startup — see the implementation's remarks.
+    /// </summary>
+    Task WarmBackgroundSessionsAsync(
+        IEnumerable<MessengerInstance> instances,
+        CancellationToken cancellationToken = default);
+
     Task SwitchToAsync(MessengerInstance instance, CancellationToken cancellationToken = default);
 
     Task EnsureSessionAsync(MessengerInstance instance, CancellationToken cancellationToken = default);
