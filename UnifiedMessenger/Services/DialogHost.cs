@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace UnifiedMessenger.Services;
@@ -43,6 +44,30 @@ public static class DialogHost
     public static bool IsShowing => Gate.CurrentCount == 0;
 
     /// <summary>
+    /// Gives the dialog the theme of the window it is being shown over.
+    /// </summary>
+    /// <remarks>
+    /// A <see cref="ContentDialog"/> is hosted in a popup OUTSIDE the window root's visual subtree, so it
+    /// does not inherit the theme this app applies to that root. It falls back to the APPLICATION theme,
+    /// which this app never sets and which therefore reads Light — so every dialog rendered light-on-light
+    /// in dark mode. Observed on <c>ChangeIconDialog</c>: a white panel with dark text over a dark app.
+    /// <para>
+    /// Done here rather than in each dialog because this is the one place they all pass through, and five
+    /// of them have never been opened by anyone — a per-dialog fix would have missed exactly those.
+    /// </para>
+    /// </remarks>
+    private static void ApplyHostTheme(ContentDialog dialog)
+    {
+        var themeSource = dialog.XamlRoot?.Content as FrameworkElement
+            ?? App.CurrentWindow?.Content as FrameworkElement;
+
+        if (themeSource is not null && themeSource.ActualTheme != ElementTheme.Default)
+        {
+            dialog.RequestedTheme = themeSource.ActualTheme;
+        }
+    }
+
+    /// <summary>
     /// Shows a dialog, waiting for any dialog already on screen to close first.
     /// </summary>
     public static async Task<ContentDialogResult> ShowManagedAsync(this ContentDialog dialog)
@@ -66,6 +91,7 @@ public static class DialogHost
 
         try
         {
+            ApplyHostTheme(dialog);
             return await dialog.ShowAsync();
         }
         catch (Exception ex)
@@ -104,6 +130,7 @@ public static class DialogHost
 
         try
         {
+            ApplyHostTheme(dialog);
             return await dialog.ShowAsync();
         }
         catch (Exception ex)

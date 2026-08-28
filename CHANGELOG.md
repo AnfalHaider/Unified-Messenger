@@ -5,6 +5,37 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.64
+
+**Every dialog rendered light in dark theme.** A `ContentDialog` is hosted in a popup **outside** the window
+root's visual subtree, so it does not inherit the theme this app applies to that root. It falls back to the
+*application* theme, which this app never sets and which therefore reads Light. Observed on
+`ChangeIconDialog`: a white panel with dark text over a dark app, its helper line invisible entirely.
+
+Fixed in `DialogHost.ShowManagedAsync` / `ShowIfFreeAsync` — the one place every dialog passes through —
+rather than per dialog, because **five of the app's dialogs have never been opened by anyone** and a
+per-dialog fix would have missed exactly those.
+
+**Two test defects found while verifying, both pre-existing and both invisible on a green suite.**
+
+`BackfillDedupeStoreTests.TryAcceptForDayAsync_SuppressesSameConversationOnSameDay` used
+`DateTimeOffset.UtcNow` and added two hours, asserting both land on the same day. The store keys the
+**local** day (the v4.99.50 fix, so it agrees with the analytics bucket), so that holds only when `UtcNow` is
+more than two hours from local midnight. It went red at 22:00 local on this machine and would have gone green
+again at midnight — red for two hours of every day, here and on CI alike, which reads as flake rather than as
+a broken test. Confirmed pre-existing by stashing all local work and reproducing it at `e5033ae`.
+
+Its sibling `AllowsSameConversationOnDifferentDay` had the opposite defect: fixed dates of 2026-06-10/11,
+which by 2026-08-28 were 79 days old. `PruneStaleEntries` drops anything older than 45 days on every save, so
+both entries were discarded, both calls trivially returned true, and **the test passed without exercising
+day-keying at all** — it would have passed with dedupe removed entirely. Both now use 09:00 on a recent local
+day: recent enough to survive the prune, and far enough from midnight that adding two hours cannot cross it.
+
+Verified on screen: the Change-icon dialog renders dark, and its helper text — previously invisible — reads.
+
+Tests 1881.
+
+
 ## v4.99.63
 
 **Eight files had each rolled their own brush resolver, every one bypassing `ThemeBrushResolver`.** That is
