@@ -223,8 +223,8 @@ public sealed partial class SettingsPage
         {
             if (showProgress)
             {
-                AiRuntimeDownloadStatusText.Text = ex.Message;
-                AiConnectionStatusText.Text = ex.Message;
+                AiRuntimeDownloadStatusText.Text = UserFacingError.Describe("Settings.Ai.RuntimeDownload", ex);
+                AiConnectionStatusText.Text = UserFacingError.Format(ex);
             }
         }
         finally
@@ -290,7 +290,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            AiConnectionStatusText.Text = ex.Message;
+            AiConnectionStatusText.Text = UserFacingError.Describe("Settings.Ai.Connect", ex);
         }
         finally
         {
@@ -357,7 +357,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            AiModelPullStatusText.Text = ex.Message;
+            AiModelPullStatusText.Text = UserFacingError.Describe("Settings.Ai.ModelPull", ex);
         }
         finally
         {
@@ -398,7 +398,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            AiConnectionStatusText.Text = ex.Message;
+            AiConnectionStatusText.Text = UserFacingError.Describe("Settings.Ai.Probe", ex);
         }
     }
 }

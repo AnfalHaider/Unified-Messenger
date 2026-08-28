@@ -183,6 +183,12 @@ public sealed class ShellNavigationCoordinator
         SelectedInstanceId = instanceId;
         _viewModel.ApplySelection(CurrentSection, instanceId);
         ActiveWorkspaceContext.SetActiveInstance(instanceId);
+
+        // Remembered so the next launch's lazy warm has an account to bring up. Nothing recorded which
+        // account was open before this, which is why the startup warm was passed null and warmed nothing.
+        // Fire-and-forget: UpdateAsync absorbs a failed write and raises SaveFailed, and failing to
+        // remember this is not worth interrupting a navigation the owner just asked for.
+        _ = _services.AppSettings.UpdateAsync(s => s.LastVisitedInstanceId = instanceId);
         _chrome?.UpdateShellChromeSelection();
         _ui.ContentFrame.Visibility = Visibility.Collapsed;
         _ui.InstanceWebViewHost.Visibility = Visibility.Visible;
@@ -199,7 +205,7 @@ public sealed class ShellNavigationCoordinator
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not load account", ShellErrorFormatter.Format(ex));
+            await _services.Dialog.ShowErrorAsync("Could not load account", UserFacingError.Describe("Shell.LoadAccount", ex));
         }
         finally
         {

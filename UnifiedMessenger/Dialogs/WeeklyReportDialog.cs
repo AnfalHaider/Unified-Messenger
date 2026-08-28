@@ -284,7 +284,7 @@ public sealed class WeeklyReportDialog : ContentDialog
             // being left to assume the file saved.
             AppLogger.LogWarning("Report.Save", $"{ex.GetType().Name}: {ex.Message}");
             await ApplicationServiceProvider.Current.Dialog
-                .ShowErrorAsync("Couldn't save the report", ex.Message)
+                .ShowErrorAsync("Couldn't save the report", UserFacingError.Describe("Report.Save", ex))
                 .ConfigureAwait(true);
         }
         finally

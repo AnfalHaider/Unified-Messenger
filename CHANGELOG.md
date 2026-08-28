@@ -5,6 +5,284 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.58
+
+**"Import icon from account" could fail five different ways and say nothing.** Every failure path returned
+the same result and wrote nothing anywhere, so a script that never ran, a page that was not loaded, a photo
+that was not on screen, a canvas the browser refused to read, and a malformed image were all one silent
+non-event. Tuning that against a live account is listed as blocked on having one — but knowing *which*
+stage failed is not blocked on anything, and without it the tuning has nowhere to start. The commonest
+outcome, polling out with no photo on screen, now says so plainly rather than reading as a dead button.
+Lengths and exception types only: a data URL *is* the photo, and `app.log` is the file support asks the
+owner to send.
+
+**The Google review scrape now says why it stopped paginating.** Coverage was never at risk — "reached the
+last page" is only recorded when Google itself says there is no next page — but a traversal that stopped
+because the advance script threw was indistinguishable from one that ran out of pages. Pagination is capped
+at one page because walking every page over-counted by two to three times, and re-enabling it needs exactly
+that distinction. Failing to reach the reviews page at all is also logged, instead of leaving the Reviews
+card reporting nothing read yet — indistinguishable from a slow first pass, which is precisely the ambiguity
+that once hid the background refresh never arming.
+
+**A race introduced by the previous release's own fix.** The test that pins the shipping user-data path
+cleared the suite-wide redirect to assert against it and restored it afterwards. xUnit runs test *classes*
+in parallel, so anything resolving a store path inside that window got the developer's real user-data root
+back — and `TriagePersistenceServiceTests` failed on the next run. The path is now exposed as its own
+member so the assertion needs no global mutation at all.
+
+## v4.99.57
+
+**Work accounts now open by themselves at startup.** Every professional account is brought up in the
+background as soon as the shell appears, so its page loads, its adapter injects, and the oversight scan
+starts without anyone opening it. Previously only the last-opened account came up, and every other
+account's numbers stayed frozen until the owner clicked into it — which is slower than letting the app do
+it, and easy to forget entirely.
+
+Sequential and behind the shell, never awaited by startup: bringing up six WebViews takes time, and
+blocking startup on it would trade one wait for a worse one. The window is live and usable while the
+accounts fill in behind it. Personal accounts still wait until opened — they produce no oversight metrics,
+and leaving them out keeps the count inside the six-session cap so nothing evicts anything else.
+
+**A Settings control that could not do anything.** "Startup warm mode" — now **"Which accounts open at
+startup"** — was read only after `EnableLazyWebViewLoading` had already forced the lazy path, and that
+toggle is on by default. So the owner could select "Warm all (loads every account)" and nothing whatsoever
+would change. The two settings now divide the job honestly: the dropdown decides *whether* accounts open at
+startup (Every account · Work accounts · None), and the toggle — now **"Start work accounts only"** —
+decides *which*. Both descriptions were rewritten to say what actually happens.
+
+Measured on the installed build with the owner's eight accounts: `Bringing up 6 account(s) in the
+background (mode VisibleOnly)` → `Background warm finished: 5 brought up, 0 failed, 6 session(s) live`, five
+seconds after the shell appeared, six WebViews created where the previous release created one.
+
+## v4.99.56
+
+**The startup warm warmed nothing, so background scanning never started.**
+
+`ShellController` called `WarmAllSessionsAsync(instances, visibleInstanceId: null)`, and with the shipping
+defaults (`EnableLazyWebViewLoading` on) that lands in the lazy branch, which brings up the named account
+and returns. Named account null, so: nothing. It was passed null because nothing recorded which account
+had been open — `LastVisitedSection` stores a *section*, and `SelectInstanceAsync` persisted nothing at all.
+
+The cost was not a slower start, it was no data. An account only reports `Connected` once its page has
+loaded and the handshake has run, and the background monitor skips every account that has not — so the
+25–90 second oversight scan never started for anything. Metrics accrued only for accounts the owner opened
+by hand, which on this machine was three of eight. First-response time is sampled by seeing a chat waiting
+at one scan and answered at a later one, so scanning only on a manual visit misses the fast replies
+entirely and keeps the slow ones: the median it reports is biased by how often someone clicked.
+
+`LastVisitedInstanceId` now records the last account opened — not cleared when the owner moves to a
+section, because it records the last account, not the last thing on screen — and the warm brings it up.
+It warms without switching to it: the old branch also made the account visible, which is wrong at startup,
+where the shell then navigates to the owner's last section and the account would flash up and vanish.
+
+The progress readout announced the full account count in every mode, so the default configuration said
+"starting 8 accounts" and started none. It now counts what the mode will actually bring up.
+
+**A race the fix immediately exposed.** With a session finally being created during startup,
+`BroadcastAdapterSettingsCoreAsync` threw `Collection was modified; enumeration operation may not execute`
+— it iterates the live session map and awaits inside the loop, and an await releases the UI thread. It had
+been safe only because nothing else was ever creating a session while it ran. The failure lands on a task
+nobody awaits, so it never crashed and never surfaced; the accounts after the first simply never received
+the setting. The sibling `AllActiveWebViews` was the same defect waiting for a caller, and is materialised
+too.
+
+## v4.99.55
+
+**The test suite was writing into live oversight data, and that is why reply time never measured anything.**
+
+The suite exercises the real singletons — `OversightChatSnapshotService.Instance`,
+`ResponseTimeTracker.Instance`, `ContactHistoryStore.Instance`, `MessageAnalyticsService.Instance` — and
+every one of them resolves its file path from `ApplicationPaths.UserDataRoot`. So a test calling
+`svc.Update(...)` wrote fabricated chats straight into `%LOCALAPPDATA%\UnifiedMessenger`. The real store on
+this machine had the test account id `inst-1` filed alongside the owner's eight real accounts.
+
+The junk rows were the harmless half. That same `Update` reaches `ResponseTimeTracker.Observe`, which
+stamps a per-account **watch start** the first time it sees an account and thereafter measures only replies
+to messages that arrived *after* it. Every run of the suite pushed that stamp to "now" for every account it
+touched, disqualifying every conversation already in flight. That is why the store could hold 761 KB of
+scraped snapshot and 218 KB of contact history and still contain **zero** reply-time samples — the
+measurement was being reset faster than it could ever accrue, and "median reply time" and "SLA met" were
+computed and displayed from the result.
+
+`AppLogger.SuppressWritesForTests` had fixed exactly this disease for `app.log` and stopped there.
+Redirecting `UserDataRoot` for the test assembly covers every store at once, including ones not written
+yet, rather than adding a flag each new store has to remember.
+
+Proven rather than asserted: a full suite run with the four store files' timestamps captured either side
+reports all four `UNCHANGED`, and `TestIsolationTests` fails the build if that stops being true.
+
+## v4.99.54
+
+Two log lines that stopped short of saying what happened. Both were found by reading `app.log` from
+a real launch of the installed build, which is where most of this work-stream's findings came from.
+
+**The log never said whether local AI came up.** Warmup logged each failed health probe and then nothing,
+so a log ending in three "health probe failed" lines left the reader — usually support, holding a log the
+owner sent — unable to tell whether Ollama started on the next attempt or never started at all, and
+therefore whether the insight text on screen is the model's or the heuristic's. The attempts were the
+working; the answer was missing. It now says which.
+
+**"ApplyInitialLaunchTheme skipped"** read like the owner's Light/Dark choice had been dropped. It had not:
+WinUI rejects `Application.RequestedTheme` in this configuration every time, and the preference is applied
+to the window's own content a moment later, which is what actually paints. The line now says so, so the
+next person to read it does not go looking for a theme defect that is not there.
+
+## v4.99.53
+
+Housekeeping and documentation, plus two documents the repository did not have.
+
+**358 regenerable cache files are no longer tracked.** `graphify-out` has been in `.gitignore` for a while,
+but gitignore does not untrack what is already in the index. `git rm -r --cached` only — every file is
+still on disk, and no history was touched. This does not shrink the repository; the ~112 MiB already in
+history needs a rewrite, which is the owner's call and is written up rather than done.
+
+**`.cursorrules` stopped describing a different product.** It was 30 lines about the v1 idea — "multiple
+instances of web-based social media platforms" whose "defining feature is a unified native Notification
+Tab" — and it used *instances*, the word the product deliberately stopped using and that the build now
+fails over. It is a summary pointing at `AGENTS.md` now, and it says what it used to claim so the
+correction is not silent.
+
+**`docs/egress-inventory.md`** — the privacy invariant demonstrated instead of asserted. Every outbound
+socket the app can open, what rides on it, the command that re-derives each row, and an explicit list of
+what it does *not* demonstrate (it is a static read of the tree, not a packet capture).
+
+**`docs/owner-decisions.md`** — the four decisions that are not engineering's to make, each with options,
+consequences and a recommendation. The SLA target is the one that matters: it is 15 minutes, the measured
+median is hours, so every location reads as failing and the dashboard shows SLA met 0%. That is the most
+alarming figure on the screen and the one least connected to reality, and it costs no engineering time to
+fix — only a number.
+
+**`AGENTS.md` corrections.** It claimed every file under `Services/` sits in the flat
+`UnifiedMessenger.Services` namespace "so a file can be moved between module folders with zero code
+changes". Measured: true for six folders, false for four (`Ai`, `Adapters`, `Backfill`, `Shell`). Also
+seven new gotchas from this work-stream, and a test count that was 115 out of date.
+
+## v4.99.52
+
+**Flipping a Settings toggle could close the app.** Writing the settings file let an `IOException` out, and
+around thirty of the Settings handlers are `async void` event handlers with no `try` of their own. An
+exception from an `async void` handler reaches the app's unhandled-exception hook, which deliberately
+leaves it unhandled so genuinely unrecoverable faults end the process — so a toggle flipped while
+antivirus, a backup tool or a full disk was holding the settings file simply closed the app. None of those
+is the owner's fault and none of them is unrecoverable. The file itself was inconsistent about this: the
+toggle immediately below "run in background on close" already caught, which is how the gap stayed hidden.
+
+The same write is also made fire-and-forget in two places, where the failure was not fatal but was
+completely silent — the preference did not persist and nothing anywhere said so.
+
+Fixing it at the thirty call sites would have left the thirty-first to be written without the guard, so it
+is fixed once in the settings service. It now absorbs a write failure, keeps the reason, logs it, and
+raises it once so the shell can tell the owner their change is active but will not survive a restart.
+Absorbing without reporting would have swapped a crash for a lie. A fault inside the caller is deliberately
+still allowed through — turning the settings service into a catch-all would hide real bugs behind "your
+settings could not be saved".
+
+**Stale-adapter recovery could also take the app down.** It runs from a background timer against a WebView
+that may have been reaped or navigated away in the meantime — a race whose whole point is that recovery is
+best-effort — and it was the one `TryEnqueue(async …)` in the app with no `catch`.
+
+## v4.99.51
+
+Two things the app already knew and did not say on the screen the owner actually reads.
+
+**"Click Re-sync" was the advice given to an owner with no internet.** When an account's numbers went cold
+the card said "out of date — click Re-sync", and so did its tooltip and its accessible name. Re-sync
+reloads the account's page, which cannot succeed without a connection — so the single instruction offered
+was the one thing that could not work, and it read as though the staleness were something the owner had
+neglected to do. The join that tells "not loaded yet" apart from "no internet" was already being made
+correctly in `app.log`; it had never reached the UI. Both dashboard sites and both Activity-patterns empty
+states now say what is actually happening, and that it will pick up on its own.
+
+**An account on the fallback reader now says so on its own card.** When the store bridge stops resolving
+the app falls soft to the IndexedDB scan, so metrics keep flowing and nothing looks wrong. That reader
+cannot read WhatsApp's call outcome, so an answered inbound call stays counted as missed. Settings has
+named the live reader since v4.99.47, but Settings is not where anyone looks; the card now carries a
+"reduced detail" line whose tooltip says exactly which figure to distrust.
+
+*Not verified:* neither of these has been seen rendered. Screen access was requested during this work and
+declined, so both are confirmed by unit tests and by the source guards that keep new surfaces from
+shipping the advice without the check — not by looking at them.
+
+## v4.99.50
+
+Two places that mixed the UTC calendar day with the local one. A date is not a point in time, and
+`DateTimeOffset.Date` reads it in whatever offset the value happens to carry — zero, for anything derived
+from `UtcNow`. Comparing that against a date derived with `ToLocalTime()` compares two different calendars,
+and they disagree for as many hours a day as the zone is from Greenwich: at the owner's UTC+5, the first
+five hours of every local day.
+
+**Startup backfill counted some days twice and others not at all.** The gate that allows one row per
+conversation per day keyed on the UTC day; accepting a row is what records it into the analytics daily
+bucket, which keys on the local day. A conversation active at 02:00 and again at 20:00 local straddles the
+UTC boundary, so both rows were accepted and that local day was counted twice. One active at 20:00 and
+again at 02:00 the next morning shares a UTC day, so the second row was dropped and the new local day
+recorded nothing for it. Nothing on screen showed either — it just moved messages-per-day and the activity
+chart a row at a time. The dedupe file now carries a format version, so keys written under the old shape
+are discarded on first load rather than sitting there matching nothing.
+
+**"Messaged today" was said about people who messaged yesterday.** The ask-for-a-review panel's date label
+made the same mistake, and it reversed sign either side of Greenwich. This is the one surface whose whole
+job is deciding whether to contact a real person, so a wrong statement on it costs more than a wrong pixel.
+
+Both fixes are pinned by tests that were first confirmed to fail against the old arithmetic — including
+against a western zone, which needed the label to take its zone as a parameter, the same reason
+`LocalDayBoundary` already does. A machine at UTC+5 cannot exercise a western offset otherwise.
+
+## v4.99.49
+
+Found by reading `app.log` on a real launch rather than by reading code — the pattern the previous audit
+established, applied to the lines nobody had questioned.
+
+**Three log lines that existed to explain a skip explained nothing.** Every launch wrote `Theme:
+ApplyInitialLaunchTheme skipped:` and `HighContrastChanged subscription skipped:` with nothing after the
+colon. The messages really are empty — WinRT raises these through an error object with no description — so
+the HRESULT was the only identifying detail, and it was the one thing not being logged.
+
+**With the HRESULT visible, the app turned out never to notice High Contrast at all.** The registration
+failed with `0x80070490` twice per launch, the second time long after the window existed — which disproves
+the comment sitting next to it, blaming the absence of a window. `Windows.UI.ViewManagement` events want a
+CoreWindow, which an unpackaged desktop app never has, so that subscription fails now and will keep
+failing. An owner switching High Contrast on while the app was open saw nothing change until they
+restarted it, and the only trace was an INF line stating the opposite of what was happening.
+
+High-contrast re-evaluation now rides on `UISettings.ColorValuesChanged`, which does reach this process,
+and that subscription is no longer dropped when the owner pins Light or Dark — high contrast is an
+accessibility setting, not a preference, and has to win over both. The failed registration is now reported
+once, at warning level, naming the fallback.
+
+*Not verified:* that a live High Contrast toggle repaints the app. Confirming it means changing the
+machine's system accessibility settings, which was out of scope. What is confirmed from the log is that the
+fallback subscription attaches without error where the old one raised `0x80070490` every time.
+
+## v4.99.48
+
+Two failure paths that had never been looked at: one could stop the app opening, the other could destroy
+the owner's reply-time history — both silently.
+
+**A locked statistics file could stop the app from starting.** `ShellController.InitializeAsync` opened
+with eleven unguarded store loads. Several of those stores caught malformed JSON and nothing else, so a
+file an antivirus or backup tool held open for a moment threw straight through startup and into
+`App.LaunchAsync`, which shows "could not start" and exits. The account registry has had retry-and-recover
+for exactly this case for a long time; the history and cache stores never got it. Each of the five is now
+routed through `CorruptFileRecovery`, and the shell absorbs any load failure regardless — so the twelfth
+store added to that list inherits the guarantee instead of reintroducing the bug.
+
+**Two stores reset themselves without keeping the bytes.** `ResponseTimeTracker` and `ContactHistoryStore`
+logged the corruption and returned empty, and the next debounced save then wrote that emptiness over the
+unreadable file. `response-times.json` is the only source of median reply time, SLA met % and the
+response-time trend, so losing it silently reset the owner's whole history and the dashboard carried on
+showing the new numbers as though nothing had happened. Both now preserve the file first.
+`BackfillDedupeStore` gained the handler it never had, and now writes through a temp file like every other
+store rather than truncating the live one.
+
+**Failures reach the log, and stop reaching the owner as file paths.** Around twenty dialogs — every
+account operation, every backup / restore / import / export, the AI status lines, and the app's own
+"could not start" — showed a raw exception message and wrote nothing to `app.log`. The owner saw a path
+from inside `%LOCALAPPDATA%`; the one file support asks them to send said nothing at all. `UserFacingError`
+now logs the exception in full and returns a line with absolute paths redacted and no bare type names. It
+deliberately does not paraphrase: .NET's own sentences are accurate, and inventing a friendlier cause would
+be guessing.
+
 ## v4.99.47
 
 The rest of the audit's backlog, plus a stack of documentation that had stopped being true.

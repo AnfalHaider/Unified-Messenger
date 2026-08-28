@@ -84,3 +84,7 @@ graphify-out/
 # that false premise survived in-repo long enough to misdirect a later session.
 *-prompt.md
 docs/completion-todo.md
+
+# Claude Code workspace config (hooks, local settings, task locks). Session scaffolding,
+# like the agent prompts above — useful on one machine, meaningless in the product repo.
+.claude/

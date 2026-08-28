@@ -104,7 +104,7 @@ Also update `docs/phase-status.md` header date + baseline version.
 targeted filter only postpones the failure to a place with a slower feedback loop.
 
 ```powershell
-# Before every push. 1730 tests, ~25s.
+# Before every push. 1863 tests, ~25s.
 dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet
 ```
 
@@ -142,9 +142,8 @@ UnifiedMessenger/
   App.xaml / App.xaml.cs          — application entry, DI composition root
   MainWindow.xaml / .cs           — shell host, single window
   Models/                         — plain data models (AppSettings, PlatformDefinition, ChatEntry, …)
-  Services/                       — all business logic (no UI dependencies). Files stay in the flat
-                                    `UnifiedMessenger.Services` namespace regardless of folder, so a file can
-                                    be moved between module folders with zero code changes.
+  Services/                       — all business logic (no UI dependencies). MOST folders keep the flat
+                                    `UnifiedMessenger.Services` namespace, but four do NOT — see below.
     Oversight/                    — command-center engine (rollup, snapshot reader, awaiting, response time)
     Analytics/                    — message analytics, contact history, business report
     Session/                      — WebView2 session lifecycle, nav guard, connection
@@ -174,7 +173,27 @@ UnifiedMessenger.Tests/           — xUnit tests
 docs/
   MASTER-PLAN.md                  — authoritative product spec (read this before adding features)
   phase-status.md                 — current build status per phase (update after every increment)
+  egress-inventory.md             — every outbound socket, and how each claim was checked
   architecture/                   — ADRs
+```
+
+### Service namespaces are NOT uniformly flat
+
+This section used to promise that every file under `Services/` sits in the flat `UnifiedMessenger.Services`
+namespace "so a file can be moved between module folders with zero code changes". Measured at v4.99.53,
+that is true for six folders and false for four:
+
+| Flat `UnifiedMessenger.Services` | Nested |
+|---|---|
+| `Oversight` (39) · `Session` (17) · `Contracts` (15) · `Analytics` (9) · `Notifications` (9) · `Distribution` (7) | `Ai` → `.Ai` (10) · `Adapters` → `.Adapters` (9) · `Backfill` → `.Backfill` (8) · `Shell` → `.Shell` (7) |
+
+So moving a file **into or out of** those four folders does need a namespace change and `using` updates in
+its consumers. Check before assuming the move is free:
+
+```bash
+for d in Shell Oversight Analytics Session Notifications Distribution Adapters Ai Backfill Contracts; do
+  echo -n "$d: "; grep -h "^namespace" UnifiedMessenger/Services/$d/*.cs | sort -u | tr '\n' ' '; echo
+done
 ```
 
 ---
@@ -344,6 +363,18 @@ Scrapers need to be built against a **live, logged-in account** — DOM structur
 | Store-bridge model field reads as `undefined` | Fields are prototype getters over mangled storage: read `unreadCount`, never `__x_unreadCount` (that's an object). Verified-live accessors: `chat.formattedTitle` (NOT `chat.name`), `chat.t`, `chat.unreadCount`, `chat.msgs.last()` (NOT `chat.lastMessage`), `message.id.fromMe` (NOT `message.fromMe`), `contact.phoneNumber`. `chat.isGroup` doesn't exist — filter groups by the JID suffix. |
 | Store-bridge preview count is low right after an account loads | Expected. `chat.msgs` fills in lazily as WhatsApp syncs — measured 2% previews at load, 82% a minute later. Phone/name/awaiting are correct immediately; only preview text lags. |
 | Need to run JS inside the app's WebView2 from outside | Launch with `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9333"` (no code change needed), then drive CDP over the WebSocket at `http://127.0.0.1:9333/json/list`. Kill the app first — the installer auto-launches it and the single-instance mutex will silently swallow your launch, leaving a port-less instance. Relaunch without the variable when done. |
+| Adding a durable store, or a `LoadAsync` to `ShellController.InitializeAsync` | Route the load through `CorruptFileRecovery` (`IsUnreadable` names the full "cannot read this file" set — `JsonException` alone leaves an antivirus lock throwing straight out) and **preserve the bytes before resetting**, or the next flush overwrites them. Startup loads additionally go through `ShellController.LoadStoreAsync`, which absorbs anything a store still lets escape — pinned by `StoreLoadDurabilityTests`, including a source guard that fails on a bare `await …LoadAsync()` in that block. Before v4.99.48 a briefly-locked *statistics* file stopped the app opening at all. |
+| Showing an exception to the owner | `UserFacingError.Describe(scope, ex)` — never a raw `ex.Message`. It logs the exception in full and returns a line with absolute paths redacted and no bare type names. A .NET message routinely carries the full store path, and the app's own "could not start" dialog was showing one. `UserFacingErrorTests.NoDialogShowsARawExceptionMessage` fails the build on a new one. |
+| An `async void` handler that awaits anything | Its exception reaches `App.OnUnhandledException`, which leaves `Handled=false` **on purpose**, so the process ends. ~30 Settings toggles await the settings save; a locked settings file therefore closed the app. Fixed in `AppSettingsService.SaveCoreAsync` rather than at the call sites, so the next handler inherits it — and it raises `SaveFailed` so absorbing the failure does not become hiding it. The same applies to `DispatcherQueue.TryEnqueue(async () => …)`, which is `async void` too. |
+| A day bucket and the gate that feeds it | Derive both from `LocalDayBoundary`. `DateTimeOffset.Date` reads the date in whatever offset the value carries — zero for anything from `UtcNow` — so comparing it against a `ToLocalTime()` date compares two calendars that disagree for as many hours a day as the zone is from Greenwich (five, here). `BackfillDedupeStore` keyed the UTC day while its analytics bucket keyed the local one, so days near the boundary were counted twice or not at all. |
+| A date helper that reads `TimeZoneInfo.Local` implicitly | Give it an optional `TimeZoneInfo? zone = null`. This machine runs at UTC+5 with no DST, so a test that can only use the local zone cannot exercise a western offset or a transition — and both of the day-frame defects found at v4.99.50 reversed sign either side of Greenwich. `LocalDayBoundary` and `ReviewAskCandidates.WhenLabel` both take one for exactly this reason. |
+| Telling the owner to "click Re-sync" | Join it with `OfflineState.AnyOffline(instanceIds)` first. Re-sync reloads each account's page, which cannot work with no connection, so on an offline machine that advice is both futile and implies the fault is theirs. `OfflineAdviceOnScreenTests` guards every site, and pins that the screen and `app.log` answer "are we online" the same way. |
+| A test that touches a singleton store | It writes to the owner's **real** `%LOCALAPPDATA%\UnifiedMessenger`. `OversightChatSnapshotService.Instance` and friends resolve their paths from `ApplicationPaths.UserDataRoot`, and the suite uses those singletons — so `svc.Update(...)` in a test put fabricated chats in the live store, and reached `ResponseTimeTracker.Observe`, which stamps each account's watch start and only measures replies arriving after it. Every suite run therefore reset reply-time measurement to zero. `TestAssemblyInit` now redirects the whole root to TEMP; `TestIsolationTests` fails the build if that stops holding. |
+| Asserting the shipping user-data path in a test | Use `ApplicationPaths.DefaultUserDataRoot`. Do **not** clear `UserDataRootOverrideForTests` and restore it in a `finally` — xUnit runs test *classes* in parallel, so that window hands the real root to anything else resolving a store path, and it broke a different suite within one run. |
+| An account whose numbers never move | It is probably not `Connected`, and `OversightAlertMonitor` skips every account that is not — so it is never scanned. Accounts only reach `Connected` once their page has loaded and `connection-handshake.js` has run, which needs a session. `InstanceSessionManager.WarmBackgroundSessionsAsync` brings up the professional accounts at startup for exactly this reason. Check `app.log` for `[Session.Warm] Background warm finished: N brought up`. |
+| Trusting `StartupWarmMode` alone | `EnableLazyWebViewLoading` used to force `Lazy` before the dropdown was read, so the Settings ComboBox was inert — "Warm all" did nothing. They now split the job: the dropdown decides *whether* accounts open at startup, the toggle decides *which* (professional only, or all). `InstanceSessionManager.ResolveWarmMode` / `ShouldWarmAtStartup` are the single answer; don't re-derive it at a call site. |
+| The default warm and the session cap | Six professional accounts against `MaxConcurrentWebViews = 6` fits exactly. Move either number and the warm starts evicting the accounts it just brought up — `StartupWarmSelectionTests` fails if it would. |
+| A `Windows.UI.ViewManagement` event that "should" fire | It may never register. `AccessibilitySettings.HighContrastChanged` fails with `0x80070490` (ERROR_NOT_FOUND) in this configuration and always will — those events want a CoreWindow, which an unpackaged WinUI 3 desktop app never has. `UISettings.ColorValuesChanged` *does* reach the process and is what now carries high-contrast re-evaluation. If a WinRT `COMException` has an empty `Message` — several do — log `ex.HResult`, or the line says nothing at all. |
 
 ---
 
@@ -360,10 +391,10 @@ Do **not** add `Co-Authored-By` / tool-attribution trailers to commits in this r
 
 ---
 
-## Phase roadmap (current as of v4.99.43)
+## Phase roadmap (current as of v4.99.53)
 
 > **The current backlog is [`docs/remaining-work.md` §0](docs/remaining-work.md)** — rewritten at v4.99.34
-> and updated at v4.99.43,
+> and re-checked against the tree at v4.99.43 and again at v4.99.53,
 > grouped by what gates each item (UI/UX consistency · open findings · untested-and-material · gated on an
 > external dependency · owner decisions). Start there.
 >

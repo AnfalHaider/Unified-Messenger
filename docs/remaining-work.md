@@ -1,6 +1,6 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-08-27 · **Baseline:** v4.99.47 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-28 · **Baseline:** v4.99.58 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
 > completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
@@ -8,16 +8,46 @@
 
 ---
 
-# §0 · Current backlog (v4.99.47)
+# §0 · Current backlog (v4.99.58)
 
 Rewritten 2026-08-27 after the full-product audit ([AUDIT-2026-08-26.md](audit/AUDIT-2026-08-26.md),
-increments 66–75). Grouped by what actually gates each item. Every status below was re-checked against the
-tree at this baseline rather than carried forward.
+increments 66–75), and re-checked against the tree after the completion-hardening pass (increments 78–89).
+Grouped by what actually gates each item. Every status below was re-checked against the tree at this
+baseline rather than carried forward.
 
 **What the audit closed:** all nine S1s, every S2 and S3 on its plan, and the S4 tail. Tests 1744 → 1797.
 Three of its last four findings were surfaced *by* its own logging sweep rather than by reading code —
 including one the audit itself had introduced. That pattern is the most useful thing it produced, and it is
 why §0.4 is now the most important section in this file.
+
+## 0.0 · What the completion-hardening pass closed (v4.99.48 → v4.99.58)
+
+Tests 1797 → 1863. The instrument-first ordering held, and kept holding. The high-contrast defect and the
+empty `skipped:` log lines came out of reading `app.log` on a real launch. The last three — including two
+S1s — came out of the **owner** saying the SLA figure looked wrong and offering a theory. The theory was
+not the mechanism, but the instinct was right, and following it beat every static reading of the code that
+had already been done over the same files. Take a user's "this number looks wrong" as a finding.
+
+| What | Severity | Where |
+|---|---|---|
+| A briefly-locked *statistics* file stopped the app opening at all — eleven unguarded startup loads, five stores catching `JsonException` only | S1 | v4.99.48 |
+| `ResponseTimeTracker` and `ContactHistoryStore` reset without preserving the bytes, so the next flush destroyed the owner's whole reply-time history | S1 | v4.99.48 |
+| ~20 dialogs, including the app's own "could not start", showed a raw `ex.Message` — a `%LOCALAPPDATA%` path to the owner — and logged nothing at all | S2 | v4.99.48 |
+| `AccessibilitySettings.HighContrastChanged` never registered, so the app could not notice High Contrast at runtime; the log line said the opposite | S2 | v4.99.49 |
+| Backfill dedupe keyed the UTC day while its analytics bucket keyed the local one — days near the boundary counted twice or not at all | S2 | v4.99.50 |
+| The ask-for-a-review panel said "messaged today" about people who messaged yesterday, for hours a day, on both sides of Greenwich | S3 | v4.99.50 |
+| F-OFFLINE-08 and F-SNAP-02 — see §0.3 | S2 | v4.99.51 |
+| Flipping a Settings toggle while the settings file was locked closed the app (~30 `async void` handlers) | S2 | v4.99.52 |
+| 358 regenerable cache files tracked; `.cursorrules` describing the v1 product | S3 | v4.99.53 |
+| Two log lines that never stated an outcome — whether local AI came up, and whether the theme preference had been dropped | S4 | v4.99.54 |
+| The test suite wrote fabricated chats into live oversight data, and reset the reply-time watch start on every run — so no real account ever recorded a first-response sample | S1 | v4.99.55 |
+| The startup warm warmed nothing, so no account reached `Connected` and the background scan never ran; metrics accrued only for accounts opened by hand (3 of 8 here), biasing reply time toward slow replies | S1 | v4.99.56 |
+| `BroadcastAdapterSettingsCoreAsync` iterated the live session map across an await — silently skipped every account after the first | S2 | v4.99.56 |
+| Only the last-opened account was brought up at startup, so five of eight never scanned; the Settings dropdown that should have fixed it was inert, overridden by a toggle | S1 | v4.99.57 |
+| Icon import and the Google pagination stop both returned a result and logged nothing | S2 | v4.99.58 |
+
+Also produced: [egress-inventory.md](egress-inventory.md) — every outbound socket, what rides on it, the
+command that re-derives each row, and an explicit list of what it does *not* demonstrate.
 
 ## 0.1 · UI/UX — closed, except one deliberate deferral
 
@@ -47,7 +77,7 @@ deliberate work with its own contrast pass.
 | # | Item | Status |
 |---|---|---|
 | **D1, D3, D7** | Call outcomes, "Uncategorised", per-review stars | ✅ done (v4.99.37–v4.99.41) |
-| **D2** | The IndexedDB fallback cannot read `callOutcome`, so an answered inbound call stays counted as missed | ◑ **disclosed, not fixed.** Correct by design — unknown must never close a chat — and the missed-calls chip now says so when any account is on the fallback. Closing it needs a decrypted message model, which that path does not have. |
+| **D2** | The IndexedDB fallback cannot read `callOutcome`, so an answered inbound call stays counted as missed | ◑ **disclosed, not fixed — and now assessed as unclosable from that path.** The scan reads only the `chat` store, which carries no call outcome, and `whatsapp-adapter.js` never emits `lastCallOutcome` at all; the outcome is a prototype getter on the *decrypted in-memory message model*. Whether WhatsApp Web keeps a separate call-log object store is an empirical question needing a signed-in account. Falsifiable next step: run the adapter's existing `diag.stores` enumeration on a live account and look for one. Disclosed on the chip *and*, since v4.99.51, on the account card. |
 | **D4** | Stale `instances.json.bak` beside the real store | ✅ **gone.** Verified from outside the MSIX container: no `.bak` files in `%LOCALAPPDATA%\UnifiedMessenger`. |
 | **D5** | Google reviews read 50 at a time, `MaxPages = 1` | ☐ **open, deliberately.** Pagination stays off until two consecutive passes agree on totals — walking every page over-counted by 2–3×. The desk states its own coverage, and as of v4.99.47 it can also say "covers all" when the traversal genuinely reached the last page, a fact it previously recorded and then discarded. |
 | **D6** | Google publishes no reply dates anywhere the scrape can reach | ☐ **unobtainable.** The tile says so rather than estimating. Whether to measure "since install" instead is an owner decision (§0.6). |
@@ -82,9 +112,9 @@ can compute something correct, do not route it through a model afterwards.**
 
 | ID | What | Status |
 |---|---|---|
-| **F-SNAP-02** | A degraded read (bridge failed, IndexedDB succeeded) visible only in `app.log` | ◑ Settings → Data shows the live reader, and the missed-call figure now carries the caveat. A per-account indicator on the dashboard itself is still absent. |
+| **F-SNAP-02** | A degraded read (bridge failed, IndexedDB succeeded) visible only in `app.log` | ✅ closed (v4.99.51). The account card carries a "reduced detail — fallback reader" line whose tooltip names the figure to distrust. |
 | **F-OFFLINE-07** | An aborted navigation puts an account into `Error` with no retry scheduled | ☐ open, unchanged — still deliberate, because it changes *when* accounts enter the error state |
-| **F-OFFLINE-08** | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection returns | ☐ open. Sites: `CommandCenterPanel.xaml.cs:2863,2879,2881` and `ActivityPatternsPanel.xaml.cs:169,346`. Needs the connection-status join `ScanBlockedMessage` already has. |
+| **F-OFFLINE-08** | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection returns | ✅ closed (v4.99.51). `OfflineState` lifts the join `ScanBlockedMessage` was already making for the log, so the screen and `app.log` cannot disagree about whether the machine is online. All four sites plus both Activity-patterns empty states. **Not seen rendered** — screen access was requested during that work and declined. |
 | **F-ORCH-06** | "Instance" as an accessible name | ✅ closed (v4.99.47) |
 | **F-METRICS-11** | End-of-day projection skew | WONTFIX by decision — bound measured under 2% |
 
@@ -130,18 +160,43 @@ Unchanged. Nothing in the audit unblocks any of these.
 
 ## 0.6 · Decisions only the owner can make
 
-- **The SLA threshold is 15 minutes; the measured median reply time is hours.** Every account therefore
-  reads as failing, and the dashboard shows **SLA met 0%** — still the most alarming figure on the screen
-  and the one least connected to reality. **Unchanged by the audit, and still the highest-value item on this
-  entire list that costs no engineering time.** Either the target reflects the business, or it moves.
+> Each of these is now written up with its options and consequences in
+> **[owner-decisions.md](owner-decisions.md)**, with a recommendation and the exact thing needed from the
+> owner. They had been carried across several work-streams without ever being put as a question.
+
+- ~~**The SLA threshold is 15 minutes; the measured median reply time is hours.**~~ ✅ **DECIDED 2026-08-28:
+  the threshold stays at 15 minutes.** It is the standard the business holds itself to, not a forecast of
+  what it currently achieves. Do not raise it again and do not adjust it in `settings.json`.
+  **What is still open is the tile, not the target:** `SLA met 0%` reads as a broken metric rather than as
+  distance from a standard. Showing "median first reply 3h 20m · target 15m" says the same true thing and
+  changes no threshold — see [owner-decisions.md §1](owner-decisions.md).
 - **Whether "median reply time" should measure from installation** (D6). Honest, but it would cover only
   replies made after install and must be labelled that way. Worth having, or drop the tile?
 - **Whether the backlog cutoff stays at 7 days.** The live/backlog split is what turned 466 "waiting" into a
   workable 58-item queue; the boundary was chosen, not derived.
 - **Whether `main`'s "Audit Files" commit (`954145e`, ~1,400 graphify cache files) should be dropped.**
-  Repository housekeeping with a rewrite cost.
+  Repository housekeeping with a rewrite cost. The files were **untracked going forward** at v4.99.53
+  (`git rm -r --cached`, no history touched, nothing deleted from disk), so nothing new accumulates. What
+  is still open is only whether to rewrite published history to reclaim the ~112 MiB `size-pack` — which
+  needs a force-push and is nobody's call but the owner's.
 
 ## 0.7 · Operational
+
+- **The test residue in this machine's store is cleaned.** v4.99.55 stopped the suite writing there;
+  the rows earlier runs had left were removed on the owner's instruction, with the app stopped and a
+  backup taken first (`*.pre-clean-*.bak`, kept beside each store).
+  `oversight-snapshot.json` went from 18 account ids to 3 — 2,048 real chats kept (917 / 571 / 560),
+  42 fabricated chats and 15 ids dropped, including `inst-1` and `osr-1`.
+  `response-times.json` went from 18 ids to 3, 2,504 bytes to 718.
+  Done with `System.Text.Json`, deliberately **not** a PowerShell round-trip: `ConvertFrom-Json` parses
+  ISO-8601 into `DateTime` and re-serialises it differently, which would have rewritten every timestamp
+  in a file whose timestamps are what every metric is computed from. The tool refuses to run if the
+  registry parses to zero accounts, and re-parses what it wrote before replacing the original — the first
+  guard fired immediately, because these files are camelCase and `JsonNode` indexing is case-sensitive.
+  Verified afterwards: the app relaunched with 0 errors and no corrupt-file recovery, and the clean
+  survived a full app write cycle.
+  **Reply-time history still starts from now** — nothing recoverable was lost, because there was never a
+  real sample to lose. Reply time and SLA read `—` until replies accrue, then build up honestly.
 
 - **v4.99.47's release notes are boilerplate.** The tag was pushed before the workflow learned to read
   `CHANGELOG.md`, and a re-run would use the workflow file *from the tag*, so it cannot fix itself. Paste the

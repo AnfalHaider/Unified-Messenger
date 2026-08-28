@@ -259,7 +259,7 @@ public sealed partial class AnalyticsPage : Page
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Couldn't export the data", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Couldn't export the data", UserFacingError.Describe("Analytics.Export", ex));
         }
     }
 }

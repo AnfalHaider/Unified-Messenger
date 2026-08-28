@@ -377,9 +377,15 @@ public sealed class ResponseTimeTracker
                     .DeserializeAsync<ResponseStore>(stream, JsonOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (JsonException ex)
+            // Two separate defects lived here, both of the kind CorruptFileRecovery was written to
+            // centralise away. Only JsonException was caught, so a file a backup tool or antivirus held
+            // open threw IOException straight out of the load and — via ShellController.InitializeAsync —
+            // out of app startup. And the bytes were left in place for the next debounced SaveAsync to
+            // overwrite with an empty store, which silently destroyed the owner's entire reply-time
+            // history: the sole source of median reply time, SLA met %, and the response-time trend.
+            catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
             {
-                AppLogger.LogWarning("ResponseTimes", $"Response-time store is corrupt; resetting: {ex.Message}");
+                CorruptFileRecovery.Preserve(_storePath, "ResponseTimes", ex);
                 return;
             }
 

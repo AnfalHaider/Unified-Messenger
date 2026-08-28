@@ -200,7 +200,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         catch (Exception ex)
         {
             AppLogger.LogWarning("Browse.SaveSite", $"{ex.GetType().Name}: {ex.Message}");
-            await _services.Dialog.ShowErrorAsync("Couldn't save this site", ex.Message).ConfigureAwait(true);
+            await _services.Dialog.ShowErrorAsync("Couldn't save this site", UserFacingError.Describe("Shell.SaveCustomSite", ex)).ConfigureAwait(true);
         }
     }
 
@@ -366,6 +366,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         _services.SessionManager.SessionFailed += OnSessionFailed;
         _services.MessageAnalytics.Changed += OnMessageAnalyticsChanged;
         _services.AppSettings.Changed += OnAppSettingsChanged;
+        _services.AppSettings.SaveFailed += OnSettingsSaveFailed;
     }
 
     private void OnAddInstanceRequested(object? sender, EventArgs e) =>
@@ -420,6 +421,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
         _services.SessionManager.SessionFailed -= OnSessionFailed;
         _services.MessageAnalytics.Changed -= OnMessageAnalyticsChanged;
         _services.AppSettings.Changed -= OnAppSettingsChanged;
+        _services.AppSettings.SaveFailed -= OnSettingsSaveFailed;
     }
 
     private void OpenCommandPalette()
@@ -441,7 +443,7 @@ public sealed partial class MainWindow : Window, IShellUiHost
             }
             catch (Exception ex)
             {
-                await _services.Dialog.ShowErrorAsync("Could not restore account", ex.Message);
+                await _services.Dialog.ShowErrorAsync("Could not restore account", UserFacingError.Describe("Shell.RestoreAccount", ex));
             }
         }, nameof(OnArchivedInstanceRestoreRequested));
     }
@@ -511,6 +513,15 @@ public sealed partial class MainWindow : Window, IShellUiHost
             {
                 await _services.SessionManager.RecoverStaleAdapterAsync(instanceId);
                 RefreshAdapterHealthIndicators();
+            }
+            // An async lambda handed to TryEnqueue is async void: an exception escaping it reaches
+            // App.OnUnhandledException, which leaves Handled=false on purpose, and the process ends. This
+            // runs from a background timer against a WebView that may have been reaped or navigated away
+            // in the meantime — a race whose whole point is that recovery is best-effort — so the one
+            // thing it must not do is take the app down while trying to heal an account.
+            catch (Exception ex)
+            {
+                AppLogger.LogError($"Shell.RecoverStaleAdapter.{instanceId}", ex);
             }
             finally
             {
@@ -620,6 +631,23 @@ public sealed partial class MainWindow : Window, IShellUiHost
 
         _shell.Navigation.RefreshDashboardIfVisible();
     }
+
+    /// <summary>
+    /// Tells the owner their preference did not stick, once per run of failures.
+    /// </summary>
+    /// <remarks>
+    /// The settings service now absorbs an unwritable file instead of letting the exception out of thirty
+    /// <c>async void</c> handlers and taking the process with it. Absorbing it is only half the fix: the
+    /// preference genuinely was not saved, and a setting that silently reverts on the next launch is the
+    /// kind of thing an owner blames themselves for. <c>IAppSettingsService</c> already carries a warning
+    /// about adding state nobody reads — this is that consumer.
+    /// </remarks>
+    private void OnSettingsSaveFailed(object? sender, string reason) =>
+        DispatcherQueue.TryEnqueue(() => _ = _services.Dialog.ShowErrorAsync(
+            "Your settings could not be saved",
+            $"{reason}\n\nThe change is active now but will be lost when Unified Messenger restarts. "
+            + "This usually means another program — antivirus or a backup tool — is holding the file, or "
+            + "the disk is full."));
 
     private void OnAppSettingsChanged(object? sender, EventArgs e)
     {

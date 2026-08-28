@@ -181,39 +181,120 @@ public sealed class ShellController
         }
     }
 
+    /// <summary>
+    /// Loads one auxiliary store, absorbing any failure so startup continues without it.
+    /// </summary>
+    /// <remarks>
+    /// These eleven loads used to be bare <c>await</c>s. Each store's own handler caught the malformed-JSON
+    /// case, but several caught nothing else — so a file an antivirus or backup tool held open for a moment
+    /// threw <see cref="IOException"/> straight through <see cref="InitializeAsync"/>, through
+    /// <c>MainWindow.RunInitializationAsync</c>, and into <c>App.LaunchAsync</c>'s catch, which shows
+    /// "The application could not start." and exits. A statistics file being briefly locked stopped the
+    /// owner opening the app that holds their accounts.
+    ///
+    /// The stores were each fixed to route through <see cref="CorruptFileRecovery"/>, but that fix is
+    /// per-store and a new store added to the list would not inherit it. This makes the guarantee
+    /// structural: whatever a store does or fails to do, it cannot take startup down with it. The failure
+    /// is logged with the store's name, so <c>app.log</c> says which one and why.
+    ///
+    /// <see cref="OperationCanceledException"/> is deliberately not special-cased — during startup there is
+    /// no cancellation to honour, and swallowing it here would be the same silence being removed.
+    /// </remarks>
+    internal static async Task LoadStoreAsync(string scope, Func<CancellationToken, Task> load)
+    {
+        try
+        {
+            await load(CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError($"Shell.Load.{scope}", ex);
+        }
+    }
+
+    /// <summary>
+    /// The account the lazy startup warm should bring up, or null when there is nothing to warm.
+    /// </summary>
+    internal static string? ResolveStartupWarmInstanceId(
+        IReadOnlyCollection<MessengerInstance> instances,
+        string? lastVisitedInstanceId)
+    {
+        if (string.IsNullOrWhiteSpace(lastVisitedInstanceId))
+        {
+            return null;
+        }
+
+        var remembered = lastVisitedInstanceId.Trim();
+        return instances.Any(i => i.Id.Equals(remembered, StringComparison.OrdinalIgnoreCase))
+            ? remembered
+            : null;
+    }
+
+    private string? ResolveStartupWarmInstanceId(IReadOnlyCollection<MessengerInstance> instances) =>
+        ResolveStartupWarmInstanceId(instances, _services.AppSettings.Settings.LastVisitedInstanceId);
+
+    /// <summary>
+    /// How many accounts the warm about to run will actually bring up, for the progress readout.
+    /// </summary>
+    /// <remarks>
+    /// It was passed the full account count regardless of mode, so the default (lazy) configuration
+    /// announced "starting 8 accounts" and started none. A progress bar that overstates its own work is the
+    /// same class of defect as a metric that does.
+    /// </remarks>
+    internal static int StartupWarmCount(
+        IReadOnlyCollection<MessengerInstance> instances,
+        string? warmInstanceId,
+        AppSettings? settings = null)
+    {
+        var effective = settings ?? AppSettingsService.Instance.Settings;
+        var mode = InstanceSessionManager.ResolveWarmMode(effective);
+
+        return mode switch
+        {
+            StartupWarmMode.Lazy or StartupWarmMode.VisibleOnly => string.IsNullOrWhiteSpace(warmInstanceId) ? 0 : 1,
+            _ => instances.Count
+        };
+    }
+
+    private int StartupWarmCount(IReadOnlyCollection<MessengerInstance> instances, string? warmInstanceId) =>
+        StartupWarmCount(instances, warmInstanceId, _services.AppSettings.Settings);
+
     public async Task InitializeAsync()
     {
         // App.OnLaunched loads settings first; this call is idempotent via AppSettingsService._isLoaded
         // and keeps ShellController safe when initialization order changes (e.g. tests, future entry points).
         await _services.AppSettings.LoadAsync().ConfigureAwait(true);
         await _services.Registry.LoadAsync().ConfigureAwait(true);
-        await _services.MessageAnalytics.LoadAsync().ConfigureAwait(true);
-        await _services.TriagePersistence.LoadAsync().ConfigureAwait(true);
+
+        // Everything below is an auxiliary store: history, caches and overrides. Losing one costs a
+        // feature; it must never cost the app. Each load is isolated by LoadStoreAsync — see its remarks.
+        await LoadStoreAsync("Analytics", _services.MessageAnalytics.LoadAsync).ConfigureAwait(true);
+        await LoadStoreAsync("Triage.Store", _services.TriagePersistence.LoadAsync).ConfigureAwait(true);
         // Last-known oversight snapshot, so the command center shows numbers immediately on launch
         // (labeled "as of …") instead of going blank until the next scan.
-        await OversightChatSnapshotService.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("Oversight.Snapshot", OversightChatSnapshotService.Instance.LoadAsync).ConfigureAwait(true);
         // Forward-tracked First Response Time samples + in-flight pending waits.
-        await ResponseTimeTracker.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ResponseTimes", ResponseTimeTracker.Instance.LoadAsync).ConfigureAwait(true);
         // Per-customer first/last-seen history for the new-vs-returning insight.
-        await ContactHistoryStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ContactHistory", ContactHistoryStore.Instance.LoadAsync).ConfigureAwait(true);
         // Manual "handled elsewhere" / snooze overrides for the awaiting lists.
-        await AwaitingOverrideStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("AwaitingOverrides", AwaitingOverrideStore.Instance.LoadAsync).ConfigureAwait(true);
 
         // Seeded on first run, so the reply library does something the day it is installed rather than
         // being an empty feature the owner has to build before it helps.
-        await SavedReplyStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("SavedReplies", SavedReplyStore.Instance.LoadAsync).ConfigureAwait(true);
         // Daily caught-up% / awaiting history for the KPI micro-trend sparklines.
-        await KpiTrendStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("KpiTrends", KpiTrendStore.Instance.LoadAsync).ConfigureAwait(true);
         // Daily review readings per Google account. Without this the Review Desk starts every run with
         // no rating, no trend and no velocity, because the snapshot service only holds them in memory.
-        await ReviewHistoryStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ReviewHistory", ReviewHistoryStore.Instance.LoadAsync).ConfigureAwait(true);
         // Who has already been asked for a review. Loaded before anything can offer to ask again:
         // "ask once, ever" is only a promise if the record survives the restart.
-        await ReviewAskStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ReviewAsks", ReviewAskStore.Instance.LoadAsync).ConfigureAwait(true);
         // Which unhappy reviews have already been notified about. Loaded before the first background
         // pass can evaluate: unloaded, every restart looks like a first run, and a first run stays
         // silent — so a one-star that arrived while the app was closed would never be raised.
-        await ReviewAlertStore.Instance.LoadAsync().ConfigureAwait(true);
+        await LoadStoreAsync("ReviewAlerts", ReviewAlertStore.Instance.LoadAsync).ConfigureAwait(true);
 
         _chrome.PanePinned = _services.AppSettings.Settings.SidebarPinnedExpanded;
         _chrome.ApplySidebarLayout(forceVisible: true);
@@ -234,18 +315,24 @@ public sealed class ShellController
         var instances = _services.Registry.Instances.ToList();
         if (instances.Count > 0)
         {
+            // The account to bring up under the lazy warm modes. Passed null until v4.99.56, because
+            // nothing recorded which account had been open — so the default configuration warmed nothing,
+            // no account reached Connected, and the background scan skipped every one of them. Resolved
+            // against the registry because a remembered account can since have been deleted.
+            var warmInstanceId = ResolveStartupWarmInstanceId(instances);
+
             _trackingStartupWarm = true;
-            _viewModel.BeginStartupWarm(instances.Count);
+            _viewModel.BeginStartupWarm(StartupWarmCount(instances, warmInstanceId));
             _navigation.ApplyInstanceLoadingUi();
             try
             {
                 await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
-                await _services.SessionManager.WarmAllSessionsAsync(instances, visibleInstanceId: null)
+                await _services.SessionManager.WarmAllSessionsAsync(instances, warmInstanceId)
                     .ConfigureAwait(true);
             }
             catch (Exception ex)
             {
-                await _services.Dialog.ShowErrorAsync("Could not start your accounts", ShellErrorFormatter.Format(ex));
+                await _services.Dialog.ShowErrorAsync("Could not start your accounts", UserFacingError.Describe("Shell.StartAccounts", ex));
             }
             finally
             {
@@ -268,6 +355,36 @@ public sealed class ShellController
         }
 
         _services.GitHubUpdate.PromptForUpdateApplicationAsync = PromptForAutoUpdateAsync;
+
+        // Bring the professional accounts up behind the shell. Started last and never awaited: the whole
+        // point is that the owner gets a live window immediately and the accounts fill in behind it, so
+        // awaiting this here would reintroduce exactly the wait it exists to remove.
+        //
+        // Until now nothing was brought up automatically at all, so an account only reported Connected
+        // once the owner opened it by hand — and OversightAlertMonitor skips every account that has not,
+        // which meant the background scan never ran and the numbers only ever moved for accounts that had
+        // been clicked. Six professional accounts against a session cap of six, and the idle reaper
+        // already refuses to close professional sessions, so they stay up once they are up.
+        if (instances.Count > 0)
+        {
+            _ = WarmBackgroundSessionsAsync(instances);
+        }
+    }
+
+    /// <summary>
+    /// Fire-and-forget wrapper. An exception escaping an un-awaited task reaches the finalizer thread as an
+    /// unobserved-task fault, which is exactly how the session-map race stayed invisible for so long.
+    /// </summary>
+    private async Task WarmBackgroundSessionsAsync(IReadOnlyList<MessengerInstance> instances)
+    {
+        try
+        {
+            await _services.SessionManager.WarmBackgroundSessionsAsync(instances).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogError("Shell.BackgroundWarm", ex);
+        }
     }
 
     public bool IsTrackingStartupWarm => _trackingStartupWarm;
@@ -398,7 +515,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not add account", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not add account", UserFacingError.Describe("Shell.AddAccount", ex));
         }
     }
 
@@ -442,7 +559,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not save this site", ex.Message).ConfigureAwait(true);
+            await _services.Dialog.ShowErrorAsync("Could not save this site", UserFacingError.Describe("Shell.SaveCustomSite", ex)).ConfigureAwait(true);
         }
     }
 
@@ -587,7 +704,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update memory tier", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update memory tier", UserFacingError.Describe("Shell.MemoryTier", ex));
         }
     }
 
@@ -602,7 +719,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not move account", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not move account", UserFacingError.Describe("Shell.MoveAccount", ex));
         }
     }
 
@@ -640,7 +757,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not set location", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not set location", UserFacingError.Describe("Shell.SetLocation", ex));
         }
     }
 
@@ -665,7 +782,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update workspace", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update workspace", UserFacingError.Describe("Shell.UpdateWorkspace", ex));
         }
     }
 
@@ -693,7 +810,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not rename account", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not rename account", UserFacingError.Describe("Shell.RenameAccount", ex));
         }
     }
 
@@ -784,7 +901,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update account details", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update account details", UserFacingError.Describe("Shell.UpdateAccountDetails", ex));
         }
     }
 
@@ -810,7 +927,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not update notification mute", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not update notification mute", UserFacingError.Describe("Shell.NotificationMute", ex));
         }
     }
 
@@ -854,7 +971,7 @@ public sealed class ShellController
         }
         catch (Exception ex)
         {
-            await _services.Dialog.ShowErrorAsync("Could not remove account", ex.Message);
+            await _services.Dialog.ShowErrorAsync("Could not remove account", UserFacingError.Describe("Shell.RemoveAccount", ex));
         }
     }
 

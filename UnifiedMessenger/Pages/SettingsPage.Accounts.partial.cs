@@ -147,7 +147,7 @@ public sealed partial class SettingsPage
         }
         catch (Exception ex)
         {
-            await ShowMessageDialogAsync("Delete failed", ex.Message);
+            await ShowMessageDialogAsync("Delete failed", UserFacingError.Describe("Settings.DeleteAccount", ex));
         }
     }
 }

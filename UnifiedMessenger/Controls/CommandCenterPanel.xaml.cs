@@ -2859,11 +2859,17 @@ public sealed partial class CommandCenterPanel : UserControl
             // cut mid-sentence — which is how the stale state came to read "stale — right-click the accou…".
             // The recovery steps belong in the tooltip, in the owner's vocabulary: "WebView" is an
             // implementation detail and means nothing to the person paying for this.
+            // F-OFFLINE-08: "click Re-sync" is the wrong thing to say to an owner whose machine is
+            // offline. Re-sync reloads the account's page, which cannot succeed without a connection, so
+            // the one instruction given was the one that could not work — and it read as though the
+            // staleness were something they had neglected. The connection join was already being made in
+            // the log by ScanBlockedMessage; it just never reached the screen.
+            var offline = OfflineState.AnyOffline(entity.MemberInstanceIds);
             var freshness = entity.IsStale
-                ? "out of date — click Re-sync"
+                ? offline ? "out of date — no connection" : "out of date — click Re-sync"
                 : capturedAt is { } cap
                     ? $"updated {RelativeAge(cap)}{(entity.HistoricalOpenCount > 0 ? $" · {entity.HistoricalOpenCount} chats tracked" : string.Empty)}"
-                    : "waiting for first sync…";
+                    : offline ? "no connection — waiting" : "waiting for first sync…";
             var freshnessBlock = new TextBlock
             {
                 Text = freshness,
@@ -2871,16 +2877,45 @@ public sealed partial class CommandCenterPanel : UserControl
                 Foreground = entity.IsStale ? danger : Brush("TextFillColorTertiaryBrush"),
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
-            ToolTipService.SetToolTip(freshnessBlock, entity.IsStale
-                ? "This account has stopped reporting, so the numbers on this card are out of date. "
-                  + "Click Re-sync at the top of the command centre. If that doesn't help, right-click the "
-                  + "account in the sidebar and choose Refresh, then Re-sync again."
-                : "When this account's chat data was last read. Numbers on this card are only as fresh as "
-                  + "this stamp — click Re-sync to update.");
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(freshnessBlock, entity.IsStale
+            ToolTipService.SetToolTip(freshnessBlock, offline
+                ? "This PC cannot reach the internet, so this account's page has not been able to load and "
+                  + "its numbers have stopped updating. Nothing is wrong with the account. It will catch up "
+                  + "on its own once the connection is back."
+                : entity.IsStale
+                    ? "This account has stopped reporting, so the numbers on this card are out of date. "
+                      + "Click Re-sync at the top of the command centre. If that doesn't help, right-click "
+                      + "the account in the sidebar and choose Refresh, then Re-sync again."
+                    : "When this account's chat data was last read. Numbers on this card are only as fresh "
+                      + "as this stamp — click Re-sync to update.");
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(freshnessBlock, entity.IsStale && !offline
                 ? $"{entity.DisplayName}: data out of date, click Re-sync"
                 : $"{entity.DisplayName}: {freshness}");
             nameColumn.Children.Add(freshnessBlock);
+
+            // F-SNAP-02: which reader this account is on. A bridge failure falls soft to the IndexedDB
+            // scan, so metrics keep flowing and the degradation is invisible — but that reader cannot read
+            // WhatsApp's callOutcome, so answered calls stay counted as missed. Settings has said so since
+            // v4.99.47; the card the owner actually looks at did not.
+            if (entity.MemberInstanceIds.Any(id => StoreBridgeHealth.TryGet(id) is { Succeeded: false }))
+            {
+                var reducedBlock = new TextBlock
+                {
+                    Text = "reduced detail — fallback reader",
+                    FontSize = UmScale.Text.Caption,
+                    Foreground = Brush("TextFillColorTertiaryBrush"),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                ToolTipService.SetToolTip(
+                    reducedBlock,
+                    "This account is being read by the backup reader. Waiting counts and reply times are "
+                    + "still right, but message previews are sparser and an answered call cannot be told "
+                    + "apart from a missed one — so any missed-call figure for it may be too high. "
+                    + "See Settings → Data.");
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+                    reducedBlock,
+                    $"{entity.DisplayName}: on the fallback reader, missed-call count may be over-stated");
+                nameColumn.Children.Add(reducedBlock);
+            }
         }
 
             // Awaiting pill (right-aligned): a soft danger chip when behind, quiet text when caught up.
@@ -3007,10 +3042,13 @@ public sealed partial class CommandCenterPanel : UserControl
             // and customers may be waiting unseen. It is shown in the danger colour because it is the only
             // one of the three that needs action.
             var couldNotRead = entity.ReadFailed;
+            var readBlockedByNetwork = couldNotRead && OfflineState.AnyOffline(entity.MemberInstanceIds);
             var stateBlock = new TextBlock
             {
                 Text = couldNotRead
-                    ? "can't read this account — click Re-sync"
+                    ? readBlockedByNetwork
+                        ? "can't read this account — no connection"
+                        : "can't read this account — click Re-sync"
                     : !entity.HasChatData
                         ? "syncing…"
                         : $"no activity {_emptyStateWindowLabel}",
@@ -3020,15 +3058,22 @@ public sealed partial class CommandCenterPanel : UserControl
                 TextWrapping = TextWrapping.WrapWholeWords
             };
 
-            ToolTipService.SetToolTip(stateBlock, couldNotRead
-                ? "The last attempt to read this account returned no usable data, so its numbers are "
-                  + "missing rather than zero. This account is left out of your caught-up percentage "
-                  + "instead of counting as perfect. Click Re-sync; if it persists, right-click the "
-                  + "account in the sidebar and choose Refresh."
-                : "No customer activity was recorded for this account in the selected period.");
+            ToolTipService.SetToolTip(stateBlock, readBlockedByNetwork
+                ? "This PC cannot reach the internet, so this account's page has not loaded and there was "
+                  + "nothing to read. Its numbers are missing rather than zero, and it is left out of your "
+                  + "caught-up percentage instead of counting as perfect. It will pick up on its own once "
+                  + "the connection is back."
+                : couldNotRead
+                    ? "The last attempt to read this account returned no usable data, so its numbers are "
+                      + "missing rather than zero. This account is left out of your caught-up percentage "
+                      + "instead of counting as perfect. Click Re-sync; if it persists, right-click the "
+                      + "account in the sidebar and choose Refresh."
+                    : "No customer activity was recorded for this account in the selected period.");
 
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(stateBlock, couldNotRead
-                ? $"{entity.DisplayName}: cannot read this account, click Re-sync"
+                ? readBlockedByNetwork
+                    ? $"{entity.DisplayName}: cannot read this account, no internet connection"
+                    : $"{entity.DisplayName}: cannot read this account, click Re-sync"
                 : $"{entity.DisplayName}: no activity {_emptyStateWindowLabel}");
 
             Grid.SetColumn(stateBlock, 0);

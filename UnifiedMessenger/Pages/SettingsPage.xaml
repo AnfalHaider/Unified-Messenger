@@ -241,7 +241,7 @@
                     <StackPanel Spacing="12">
                         <ComboBox
                             x:Name="StartupWarmModeBox"
-                            Header="Startup warm mode"
+                            Header="Which accounts open at startup"
                             SelectionChanged="StartupWarmModeBox_SelectionChanged" />
 
                         <NumberBox
@@ -375,11 +375,11 @@
                             Toggled="EnableLazyWebViewLoadingToggle_Toggled">
                             <ToggleSwitch.Header>
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="Lazy WebView loading" />
+                                    <TextBlock Text="Start work accounts only" />
                                     <TextBlock
                                         FontSize="{StaticResource UmFontSizeBody}"
                                         Opacity="0.65"
-                                        Text="Load non-visible accounts in the background after startup instead of all at once."
+                                        Text="Work accounts open in the background at startup, so their numbers stay current without you visiting them. Personal accounts wait until you open them. Turn this off to start every account."
                                         TextWrapping="WrapWholeWords" />
                                 </StackPanel>
                             </ToggleSwitch.Header>

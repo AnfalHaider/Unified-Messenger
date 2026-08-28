@@ -188,9 +188,13 @@ public sealed class ContactHistoryStore
                     .DeserializeAsync<ContactHistoryStoreDto>(stream, JsonOptions, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (JsonException ex)
+            // As in ResponseTimeTracker: catching only JsonException let a locked or denied file abort app
+            // startup, and returning without preserving the bytes handed them to the next flush to
+            // overwrite. Losing this store resets every contact's first-seen date, so the new-vs-returning
+            // insight quietly reports every customer as new and hides itself for another seven days.
+            catch (Exception ex) when (CorruptFileRecovery.IsUnreadable(ex))
             {
-                AppLogger.LogWarning("ContactHistory", $"Contact-history store is corrupt; resetting: {ex.Message}");
+                CorruptFileRecovery.Preserve(_storePath, "ContactHistory", ex);
                 return;
             }
 
