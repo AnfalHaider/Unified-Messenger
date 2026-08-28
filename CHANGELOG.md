@@ -5,6 +5,34 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.68
+
+**A third status palette, and the dead code holding it up — both deleted.** The palette existed in three
+places. Two are kept in lockstep by `StatusContrastTests.TheCodePaletteMatchesTokensXamlExactly`.
+`Services/UmSemanticColors.cs` was a third that nothing checked, and it was already incoherent — a mix of
+light-theme values, dark-theme values, and values from neither:
+
+| Const | Value | What that value actually is |
+|---|---|---|
+| `StatusSuccess` | `#22C55E` | the **dark** theme's success |
+| `StatusWarning` | `#F59E0B` | the **dark** theme's warning |
+| `StatusDanger` | `#DC2626` | the **light** theme's danger (since v4.99.60, `#C81E1E`) |
+| `StatusNeutral` | `#64748B` | **neither** theme |
+| `StatusMuted` | `#94A3B8` | the dark **Neutral**, not Muted |
+
+A `const string` cannot be theme-aware, so it was unfixable in place — which is the argument for deleting it
+rather than correcting it.
+
+Its only consumer was `Services/UnifiedMessengerDashboardPresentationHelper.cs`, whose only consumers were
+its own two test files. **No application code called either.** Its surface (`FormatRevenue`,
+`ClientSentimentLabel`) describes a product this app is not. Verified across `*.cs`, `*.xaml`,
+`Assets/Scripts` and `Assets/Config` before deleting, not just the C# sources.
+
+Four files removed; the two doc references now point at `UmSemanticBrushes`.
+
+Tests 1902 → 1897 (the seven tests that existed only to exercise the deleted helper).
+
+
 ## v4.99.67
 
 **Three pairs of figures that contradicted each other on screen, and text that could never wrap.**
