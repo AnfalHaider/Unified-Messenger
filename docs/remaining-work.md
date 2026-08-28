@@ -1,6 +1,6 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-08-28 · **Baseline:** v4.99.56 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-28 · **Baseline:** v4.99.58 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
 > completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
@@ -8,10 +8,10 @@
 
 ---
 
-# §0 · Current backlog (v4.99.56)
+# §0 · Current backlog (v4.99.58)
 
 Rewritten 2026-08-27 after the full-product audit ([AUDIT-2026-08-26.md](audit/AUDIT-2026-08-26.md),
-increments 66–75), and re-checked against the tree after the completion-hardening pass (increments 78–87).
+increments 66–75), and re-checked against the tree after the completion-hardening pass (increments 78–89).
 Grouped by what actually gates each item. Every status below was re-checked against the tree at this
 baseline rather than carried forward.
 
@@ -20,9 +20,9 @@ Three of its last four findings were surfaced *by* its own logging sweep rather 
 including one the audit itself had introduced. That pattern is the most useful thing it produced, and it is
 why §0.4 is now the most important section in this file.
 
-## 0.0 · What the completion-hardening pass closed (v4.99.48 → v4.99.56)
+## 0.0 · What the completion-hardening pass closed (v4.99.48 → v4.99.58)
 
-Tests 1797 → 1857. The instrument-first ordering held, and kept holding. The high-contrast defect and the
+Tests 1797 → 1863. The instrument-first ordering held, and kept holding. The high-contrast defect and the
 empty `skipped:` log lines came out of reading `app.log` on a real launch. The last three — including two
 S1s — came out of the **owner** saying the SLA figure looked wrong and offering a theory. The theory was
 not the mechanism, but the instinct was right, and following it beat every static reading of the code that
@@ -43,6 +43,8 @@ had already been done over the same files. Take a user's "this number looks wron
 | The test suite wrote fabricated chats into live oversight data, and reset the reply-time watch start on every run — so no real account ever recorded a first-response sample | S1 | v4.99.55 |
 | The startup warm warmed nothing, so no account reached `Connected` and the background scan never ran; metrics accrued only for accounts opened by hand (3 of 8 here), biasing reply time toward slow replies | S1 | v4.99.56 |
 | `BroadcastAdapterSettingsCoreAsync` iterated the live session map across an await — silently skipped every account after the first | S2 | v4.99.56 |
+| Only the last-opened account was brought up at startup, so five of eight never scanned; the Settings dropdown that should have fixed it was inert, overridden by a toggle | S1 | v4.99.57 |
+| Icon import and the Google pagination stop both returned a result and logged nothing | S2 | v4.99.58 |
 
 Also produced: [egress-inventory.md](egress-inventory.md) — every outbound socket, what rides on it, the
 command that re-derives each row, and an explicit list of what it does *not* demonstrate.
@@ -180,15 +182,21 @@ Unchanged. Nothing in the audit unblocks any of these.
 
 ## 0.7 · Operational
 
-- **This machine's store still holds the test residue, and its reply-time clock restarts from now.**
-  v4.99.55 stopped the suite writing there; it did not clean up what earlier runs left.
-  `oversight-snapshot.json` holds 18 account ids — 3 real (570 / 916 / 558 chats) and **15 fabricated by
-  tests** (1–8 chats each, including `inst-1` and `osr-1`). They look inert, because the rollup iterates
-  registry accounts and these are not in it, but they are dead weight in a 761 KB file.
-  `response-times.json` is worse: it contains *only* test ids, so no real account has a reply-time sample
-  or a watch start that predates this work. Reply time and SLA therefore measure from the moment an
-  account is next scanned, and will read as no-data (`—`) until replies accrue. **Not cleaned here — it is
-  the owner's data, and deleting rows from a live store is their call.**
+- **The test residue in this machine's store is cleaned.** v4.99.55 stopped the suite writing there;
+  the rows earlier runs had left were removed on the owner's instruction, with the app stopped and a
+  backup taken first (`*.pre-clean-*.bak`, kept beside each store).
+  `oversight-snapshot.json` went from 18 account ids to 3 — 2,048 real chats kept (917 / 571 / 560),
+  42 fabricated chats and 15 ids dropped, including `inst-1` and `osr-1`.
+  `response-times.json` went from 18 ids to 3, 2,504 bytes to 718.
+  Done with `System.Text.Json`, deliberately **not** a PowerShell round-trip: `ConvertFrom-Json` parses
+  ISO-8601 into `DateTime` and re-serialises it differently, which would have rewritten every timestamp
+  in a file whose timestamps are what every metric is computed from. The tool refuses to run if the
+  registry parses to zero accounts, and re-parses what it wrote before replacing the original — the first
+  guard fired immediately, because these files are camelCase and `JsonNode` indexing is case-sensitive.
+  Verified afterwards: the app relaunched with 0 errors and no corrupt-file recovery, and the clean
+  survived a full app write cycle.
+  **Reply-time history still starts from now** — nothing recoverable was lost, because there was never a
+  real sample to lose. Reply time and SLA read `—` until replies accrue, then build up honestly.
 
 - **v4.99.47's release notes are boilerplate.** The tag was pushed before the workflow learned to read
   `CHANGELOG.md`, and a re-run would use the workflow file *from the tag*, so it cannot fix itself. Paste the
