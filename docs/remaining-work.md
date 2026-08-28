@@ -1,6 +1,6 @@
 # Remaining work — prioritized backlog
 
-**As of:** 2026-08-28 · **Baseline:** v4.99.53 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**As of:** 2026-08-28 · **Baseline:** v4.99.54 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a
 > completed work-stream. It was not maintained through v4.99.x, and several items it lists as pending have
@@ -8,10 +8,10 @@
 
 ---
 
-# §0 · Current backlog (v4.99.53)
+# §0 · Current backlog (v4.99.54)
 
 Rewritten 2026-08-27 after the full-product audit ([AUDIT-2026-08-26.md](audit/AUDIT-2026-08-26.md),
-increments 66–75), and re-checked against the tree after the completion-hardening pass (increments 78–84).
+increments 66–75), and re-checked against the tree after the completion-hardening pass (increments 78–85).
 Grouped by what actually gates each item. Every status below was re-checked against the tree at this
 baseline rather than carried forward.
 
@@ -20,7 +20,7 @@ Three of its last four findings were surfaced *by* its own logging sweep rather 
 including one the audit itself had introduced. That pattern is the most useful thing it produced, and it is
 why §0.4 is now the most important section in this file.
 
-## 0.0 · What the completion-hardening pass closed (v4.99.48 → v4.99.53)
+## 0.0 · What the completion-hardening pass closed (v4.99.48 → v4.99.54)
 
 Tests 1797 → 1845. The instrument-first ordering held: the high-contrast defect and the empty
 `skipped:` log lines came out of reading `app.log` on a real launch, not out of reading code.
@@ -36,6 +36,7 @@ Tests 1797 → 1845. The instrument-first ordering held: the high-contrast defec
 | F-OFFLINE-08 and F-SNAP-02 — see §0.3 | S2 | v4.99.51 |
 | Flipping a Settings toggle while the settings file was locked closed the app (~30 `async void` handlers) | S2 | v4.99.52 |
 | 358 regenerable cache files tracked; `.cursorrules` describing the v1 product | S3 | v4.99.53 |
+| Two log lines that never stated an outcome — whether local AI came up, and whether the theme preference had been dropped | S4 | v4.99.54 |
 
 Also produced: [egress-inventory.md](egress-inventory.md) — every outbound socket, what rides on it, the
 command that re-derives each row, and an explicit list of what it does *not* demonstrate.
