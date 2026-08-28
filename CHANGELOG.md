@@ -5,6 +5,38 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.56
+
+**The startup warm warmed nothing, so background scanning never started.**
+
+`ShellController` called `WarmAllSessionsAsync(instances, visibleInstanceId: null)`, and with the shipping
+defaults (`EnableLazyWebViewLoading` on) that lands in the lazy branch, which brings up the named account
+and returns. Named account null, so: nothing. It was passed null because nothing recorded which account
+had been open — `LastVisitedSection` stores a *section*, and `SelectInstanceAsync` persisted nothing at all.
+
+The cost was not a slower start, it was no data. An account only reports `Connected` once its page has
+loaded and the handshake has run, and the background monitor skips every account that has not — so the
+25–90 second oversight scan never started for anything. Metrics accrued only for accounts the owner opened
+by hand, which on this machine was three of eight. First-response time is sampled by seeing a chat waiting
+at one scan and answered at a later one, so scanning only on a manual visit misses the fast replies
+entirely and keeps the slow ones: the median it reports is biased by how often someone clicked.
+
+`LastVisitedInstanceId` now records the last account opened — not cleared when the owner moves to a
+section, because it records the last account, not the last thing on screen — and the warm brings it up.
+It warms without switching to it: the old branch also made the account visible, which is wrong at startup,
+where the shell then navigates to the owner's last section and the account would flash up and vanish.
+
+The progress readout announced the full account count in every mode, so the default configuration said
+"starting 8 accounts" and started none. It now counts what the mode will actually bring up.
+
+**A race the fix immediately exposed.** With a session finally being created during startup,
+`BroadcastAdapterSettingsCoreAsync` threw `Collection was modified; enumeration operation may not execute`
+— it iterates the live session map and awaits inside the loop, and an await releases the UI thread. It had
+been safe only because nothing else was ever creating a session while it ran. The failure lands on a task
+nobody awaits, so it never crashed and never surfaced; the accounts after the first simply never received
+the setting. The sibling `AllActiveWebViews` was the same defect waiting for a caller, and is materialised
+too.
+
 ## v4.99.55
 
 **The test suite was writing into live oversight data, and that is why reply time never measured anything.**

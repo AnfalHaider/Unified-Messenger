@@ -106,8 +106,14 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
                         i.Id.Equals(visibleInstanceId, StringComparison.OrdinalIgnoreCase));
                     if (visible is not null)
                     {
+                        // Warm only. This used to SwitchToAsync as well, which makes the account the
+                        // visible one — wrong at startup, where the shell then navigates to whichever
+                        // section the owner left off on and the account would flash up and disappear.
+                        // EnsureSessionAsync creates the WebView and navigates it to the account's start
+                        // URL, which is all that is needed: the page loads, the adapter injects, the
+                        // handshake reports Connected, and OversightAlertMonitor stops skipping it.
+                        // Visibility is the navigation layer's job and it does it a moment later.
                         await EnsureSessionAsync(visible, cancellationToken).ConfigureAwait(true);
-                        await SwitchToAsync(visible, cancellationToken).ConfigureAwait(true);
                     }
                 }
 
@@ -607,8 +613,15 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
         return _sessions.TryGetValue(instanceId, out var entry) ? entry.WebView : null;
     }
 
+    /// <summary>All live WebViews, as a snapshot.</summary>
+    /// <remarks>
+    /// Materialised deliberately. As a lazy <see cref="IEnumerable{T}"/> over the live dictionary this was
+    /// the same defect as the one fixed in <c>BroadcastAdapterSettingsCoreAsync</c>, just waiting for a
+    /// caller that enumerates it across an await or while the reaper runs. The collection is capped at the
+    /// session limit (6 by default), so the copy costs nothing worth measuring.
+    /// </remarks>
     public IEnumerable<WebView2> AllActiveWebViews =>
-        _sessions.Values.Select(entry => entry.WebView);
+        _sessions.Values.Select(entry => entry.WebView).ToList();
 
     public Task ExecuteScriptOnInstanceAsync(string instanceId, string script) =>
         TryExecuteScriptOnInstanceAsync(instanceId, script);
@@ -647,7 +660,17 @@ public sealed class InstanceSessionManager : IInstanceSessionManager
             $"window.__umIncludeMutedBadges = {includeMuted}; " +
             "if (window.__unifiedMessengerPublishBadge) { window.__unifiedMessengerPublishBadge(); }";
 
-        foreach (var entry in _sessions.Values)
+        // Snapshot first. This loop awaits inside itself, and an await releases the UI thread, so a session
+        // created or reaped in that window invalidated the enumerator mid-iteration:
+        //
+        //   [ERR] [UnobservedTask] InvalidOperationException: Collection was modified; enumeration
+        //         operation may not execute. at InstanceSessionManager.BroadcastAdapterSettingsCoreAsync()
+        //
+        // Seen on the first launch where startup actually warmed a session — the same code had been safe
+        // only because, with the lazy warm doing nothing, there was never a second session appearing
+        // while this ran. The failure lands on a Task nobody awaits, so it does not crash and does not
+        // surface: the remaining accounts simply never receive the setting.
+        foreach (var entry in _sessions.Values.ToList())
         {
             if (entry.WebView.CoreWebView2 is null)
             {

@@ -212,6 +212,53 @@ public sealed class ShellController
         }
     }
 
+    /// <summary>
+    /// The account the lazy startup warm should bring up, or null when there is nothing to warm.
+    /// </summary>
+    internal static string? ResolveStartupWarmInstanceId(
+        IReadOnlyCollection<MessengerInstance> instances,
+        string? lastVisitedInstanceId)
+    {
+        if (string.IsNullOrWhiteSpace(lastVisitedInstanceId))
+        {
+            return null;
+        }
+
+        var remembered = lastVisitedInstanceId.Trim();
+        return instances.Any(i => i.Id.Equals(remembered, StringComparison.OrdinalIgnoreCase))
+            ? remembered
+            : null;
+    }
+
+    private string? ResolveStartupWarmInstanceId(IReadOnlyCollection<MessengerInstance> instances) =>
+        ResolveStartupWarmInstanceId(instances, _services.AppSettings.Settings.LastVisitedInstanceId);
+
+    /// <summary>
+    /// How many accounts the warm about to run will actually bring up, for the progress readout.
+    /// </summary>
+    /// <remarks>
+    /// It was passed the full account count regardless of mode, so the default (lazy) configuration
+    /// announced "starting 8 accounts" and started none. A progress bar that overstates its own work is the
+    /// same class of defect as a metric that does.
+    /// </remarks>
+    internal static int StartupWarmCount(
+        IReadOnlyCollection<MessengerInstance> instances,
+        string? warmInstanceId,
+        AppSettings? settings = null)
+    {
+        var effective = settings ?? AppSettingsService.Instance.Settings;
+        var mode = effective.EnableLazyWebViewLoading ? StartupWarmMode.Lazy : effective.StartupWarmMode;
+
+        return mode switch
+        {
+            StartupWarmMode.Lazy or StartupWarmMode.VisibleOnly => string.IsNullOrWhiteSpace(warmInstanceId) ? 0 : 1,
+            _ => instances.Count
+        };
+    }
+
+    private int StartupWarmCount(IReadOnlyCollection<MessengerInstance> instances, string? warmInstanceId) =>
+        StartupWarmCount(instances, warmInstanceId, _services.AppSettings.Settings);
+
     public async Task InitializeAsync()
     {
         // App.OnLaunched loads settings first; this call is idempotent via AppSettingsService._isLoaded
@@ -268,13 +315,19 @@ public sealed class ShellController
         var instances = _services.Registry.Instances.ToList();
         if (instances.Count > 0)
         {
+            // The account to bring up under the lazy warm modes. Passed null until v4.99.56, because
+            // nothing recorded which account had been open — so the default configuration warmed nothing,
+            // no account reached Connected, and the background scan skipped every one of them. Resolved
+            // against the registry because a remembered account can since have been deleted.
+            var warmInstanceId = ResolveStartupWarmInstanceId(instances);
+
             _trackingStartupWarm = true;
-            _viewModel.BeginStartupWarm(instances.Count);
+            _viewModel.BeginStartupWarm(StartupWarmCount(instances, warmInstanceId));
             _navigation.ApplyInstanceLoadingUi();
             try
             {
                 await UiThreadRunner.YieldToUiAsync().ConfigureAwait(true);
-                await _services.SessionManager.WarmAllSessionsAsync(instances, visibleInstanceId: null)
+                await _services.SessionManager.WarmAllSessionsAsync(instances, warmInstanceId)
                     .ConfigureAwait(true);
             }
             catch (Exception ex)

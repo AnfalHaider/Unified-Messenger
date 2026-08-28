@@ -213,6 +213,26 @@ public sealed class AppSettings
     public string LastVisitedSection { get; set; } = "dashboard";
 
     /// <summary>
+    /// The account that was last opened, so the lazy startup warm has one to bring up.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>LastVisitedSection</c> only ever records a *section* — <c>SelectInstanceAsync</c> persisted
+    /// nothing — so there was no such thing as "the account we were last on". That is why
+    /// <c>ShellController</c> passed <c>null</c> to <c>WarmAllSessionsAsync</c>: it had nothing to pass.
+    /// With the default settings (<c>EnableLazyWebViewLoading</c> on) that made the warm a no-op, so no
+    /// account reached <c>Connected</c>, and <c>OversightAlertMonitor</c> skips every account that has not
+    /// — meaning background scanning never started for anything until the owner clicked into it by hand.
+    /// </para>
+    /// <para>
+    /// Deliberately *not* cleared when the owner navigates to a section. It records the last account
+    /// opened, not the last thing on screen: someone who ends a session on the dashboard still wants that
+    /// account warming next launch. Validated against the registry on read, because accounts get deleted.
+    /// </para>
+    /// </remarks>
+    public string LastVisitedInstanceId { get; set; } = string.Empty;
+
+    /// <summary>
     /// When on, the command center surfaces a "your weekly report is ready" banner once a week (the app
     /// is a persistent tray app, so this replaces an OS scheduled task — nothing leaves the machine).
     /// </summary>
