@@ -2164,7 +2164,15 @@ public sealed partial class CommandCenterPanel : UserControl
             ValueBrush = response.HasData ? primary : secondary,
             Delta = slaDeltaText,
             DeltaBrush = slaDeltaBrush,
-            Hint = response.HasData ? $"replied within {slaThreshold} min" : $"target {slaThreshold} min",
+            // The DENOMINATOR, not just the threshold. "SLA met 0%" computed from a single reply looked
+            // pixel-for-pixel identical to 0% computed from two hundred, and the dashboard defaults its
+            // window to Today — so early in the day this tile headlines a percentage built from one or two
+            // samples. The response-time tile beside it already says "median · N replies"; this one said
+            // only what the target was. Measured 2026-08-29: Today showed 0% from one reply while the same
+            // week read 83%, and both were correct.
+            Hint = response.HasData
+                ? $"{response.SampleCount} {(response.SampleCount == 1 ? "reply" : "replies")} · target {slaThreshold} min"
+                : $"target {slaThreshold} min",
             Tooltip = $"Share of replies sent within your {slaThreshold}-minute SLA target. Adjust the target in Settings → Session & performance."
         });
 

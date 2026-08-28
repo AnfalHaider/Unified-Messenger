@@ -5,6 +5,46 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.72
+
+**Switching branch on Analytics hung the app.** Introduced by v4.99.71 and reported immediately.
+`BranchBox_SelectionChanged` called `Refresh()`, and `Refresh()` called `PopulateBranchBox()`, which clears
+and rebuilds `BranchBox.Items` — so the app was rebuilding a `ComboBox` from inside its own
+`SelectionChanged` handler. The `_suppressRangeChange` guard does not help: `Items.Clear()` re-enters
+WinUI's selection machinery whatever the handler does with the event.
+
+The account list cannot change while the page is on screen, so the box is now populated once on navigation,
+exactly as `RangeBox` always was. `ReportsPage` already did this correctly — only Analytics had the cascade.
+
+**Every displayed figure was recomputed from the live store and checked.** The first time any figure in this
+product has been verified against its data; `remaining-work.md` §0.4 had conceded that none ever had. Full
+record in `docs/audit-2026-08/05-data-validation.md`.
+
+Everything checked was **correct**: reply-time medians and SLA percentages for both Today and the week,
+sample counts, the live/backlog/total split, and both thresholds read back from `settings.json`.
+
+Two things worth recording from it:
+
+- **An apparent contradiction that was not one.** The dashboard read `SLA met 0%` while Analytics read
+  `SLA Met 83%`. Both were right — the dashboard was scoped to **Today**, which held one reply that took 31
+  minutes, and Analytics to the **week**, which held 30. Recomputed both ways; both matched exactly.
+- **A near-miss.** The 7-day median first computed as 1.64 against a screen reading `1 min`, which looked
+  like a rounding fault. It was not: `ResponseTimeTracker.Percentile` uses the **nearest-rank** method
+  (1.45), and the check had used mean-of-middles. Both are valid medians. A figure that disagrees with a
+  hand calculation is not yet a bug — the definition has to be checked first.
+
+**The one real finding: the SLA tile did not disclose its denominator.** `SLA met 0%` computed from a single
+reply looked pixel-for-pixel identical to 0% from two hundred, and the dashboard defaults its window to
+Today. The response-time tile beside it already said `median · N replies`; the SLA tile said only what the
+target was. It now reads `N replies · target 15 min`.
+
+Also validated: the awaiting count of **298 raw → 108 shown** is correct and attributable. Overrides are
+empty, so the whole reduction is the closed-conversation classifier — WhatsApp system messages, protocol
+noise and answered calls — while the media types it must keep (`image`, `ptt`, `video`, `sticker`) are kept.
+
+Tests 1905.
+
+
 ## v4.99.71
 
 **Reports and Analytics can be filtered by branch.**

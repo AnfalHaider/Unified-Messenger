@@ -50,6 +50,8 @@ public sealed partial class AnalyticsPage : Page
             _suppressRangeChange = false;
         }
 
+        PopulateBranchBox();
+
         ActivityPatternsPanel.ConfigureServices(_services);
         ActivityPatternsPanel.BranchScope = SelectedBranchKey();
         ActivityPatternsPanel.Render();
@@ -127,7 +129,14 @@ public sealed partial class AnalyticsPage : Page
 
     private void Refresh()
     {
-        PopulateBranchBox();
+        // PopulateBranchBox is NOT called from here, and must not be. Refresh runs from
+        // BranchBox_SelectionChanged, and PopulateBranchBox clears and rebuilds BranchBox.Items — so calling
+        // it from here rebuilt a ComboBox from inside its own SelectionChanged handler and the app hung on
+        // every branch switch. The _suppressRangeChange flag does not help: Items.Clear() re-enters WinUI's
+        // selection machinery regardless of what the handler does with the event.
+        //
+        // The account list cannot change while this page is on screen, so the box is populated once on
+        // navigation, exactly like RangeBox.
         var instances = ScopedInstances();
 
         // Nothing connected is a different state from nothing happening, and the page had no way to say

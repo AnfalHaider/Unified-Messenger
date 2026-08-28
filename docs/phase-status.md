@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-08-28 · **Baseline:** v4.99.71 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-08-28 · **Baseline:** v4.99.72 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
