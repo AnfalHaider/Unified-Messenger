@@ -5,6 +5,46 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.66
+
+**A link followed from a scraped account replaced the session, with no way back.**
+`HandleNewWindowRequested` hopped the current frame for any **allow-listed** host. The allowlist is built
+from every platform's whole *registrable domain* plus the OAuth hosts, so from WhatsApp Web it spans all of
+`whatsapp.com` **and `google.com`**. Meanwhile `MainWindow` collapses the back/forward controls whenever
+`IsPlatformModuleEnabled` is true — which is true for exactly the WhatsApp family, the accounts that carry
+oversight. A help link, or a `google.com` link a customer sent, therefore replaced the scraped page with no
+way back, and oversight for that account stopped until the owner found right-click → Refresh WebView.
+
+The routing decision is now `ResolveNewWindowAction`, extracted from the event handler as a pure function
+because it previously needed a live `CoreWebView2` — which is why it had no coverage at all:
+
+| Case | Action |
+|---|---|
+| `blob:` / `data:` | hand back to WebView2 (downloads — unchanged) |
+| Same **host** as the current page | replace the frame |
+| An OAuth host | replace the frame |
+| Otherwise, user-initiated, safe scheme | open in the owner's browser |
+| Anything else | block, with a log line |
+
+**Same host, not same site.** Same registrable domain would keep `faq.whatsapp.com` in-frame, which is the
+exact case that stranded the owner. This handler only sees deliberate new-window intents — a redirect is a
+navigation and goes through `HandleNavigationStarting` — so "the site opened its own page in a new tab" is
+the only case where replacing the frame is right.
+
+**OAuth hosts still replace the frame.** Handing a sign-in popup to the default browser would land the
+session cookie in the owner's own browser rather than this WebView2 profile, so the sign-in it was serving
+could never complete.
+
+The regression test proves the defect rather than only the fix: it asserts the four stranding URIs *are*
+allow-listed — which is what made the old rule navigate in-frame — alongside the new routing.
+
+**The live reproduction was blocked, not skipped.** WebView2 renders in separate processes that the
+screenshot filter masks, so the account's page came back as a blank frame and no link could be clicked.
+The mechanism is instead proven deterministically by the extracted function and its 14 cases.
+
+Tests 1882 → 1900.
+
+
 ## v4.99.65
 
 **Eight `FontIcon`s shipped with an empty `Glyph`, from the initial commit onward.** A `FontIcon` whose
