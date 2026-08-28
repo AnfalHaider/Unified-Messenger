@@ -5,6 +5,43 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.71
+
+**Reports and Analytics can be filtered by branch.**
+
+Most of the groundwork already existed and had never been wired up: `MessengerInstance.BranchKey` is a real
+field editable via right-click → **Set location**, `BranchWorkspaceHelper.ResolveBranchKey` falls back to the
+display name so every account resolves to a branch even unset, and
+`BranchWorkspaceHelper.FilterByBranchKey` **existed with no caller anywhere in the app**. `GatherInputs`
+already accepted an arbitrary subset, so no report-engine change was needed.
+
+Three things that make it a filter rather than a decoration:
+
+- **The scope reaches the exports.** The selected branch is folded into `ReportInputs.PeriodLabel`, which is
+  what `BusinessReport` writes as `"# Business report — {PeriodLabel}"`. A single-branch report saved to a
+  file that does not name the branch stops being a report and becomes a wrong document the moment it leaves
+  the app. The report header now reads *"Aug 22 – Aug 29, 2026 · DHA-2"*.
+- **Both `.md` and `.csv` exports respect it.** Both previously used `_services.Registry.Instances` directly
+  — the CSV would have written the whole business to a file while the screen showed one branch. Every
+  consumer on both pages now goes through a single `ScopedInstances()`.
+- **`ActivityPatternsPanel` is scoped too.** It resolves its own accounts from the registry and has its own
+  selector, so without a `BranchScope` it would have kept showing the whole business underneath a page
+  filtered to one branch — two figures for the same thing in one viewport, the defect class the previous
+  four increments existed to remove.
+
+The control hides itself when there is only one branch: a filter whose only option is what is already on
+screen is furniture, and it invites the reader to believe a scoping is happening that is not.
+
+Analytics gets the same filter as Reports deliberately. Filtering one screen and not the other is how two
+surfaces start disagreeing about one business.
+
+**`FilterByBranchKey` had no coverage at all**, having had no callers. Six cases added. The one that matters
+is *a key matching nothing returns nothing* — a filter that fell open on an unrecognised branch would put the
+whole business on screen under one branch's name and export it that way.
+
+Tests 1899 → 1905.
+
+
 ## v4.99.70
 
 **The corner-radius scale was enforced in XAML only, and the code side had drifted to eleven values.**
