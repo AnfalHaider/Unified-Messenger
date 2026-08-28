@@ -5,6 +5,51 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.65
+
+**Eight `FontIcon`s shipped with an empty `Glyph`, from the initial commit onward.** A `FontIcon` whose
+`Glyph` is a zero-length string draws nothing, while the control around it stays present, laid out,
+focusable and clickable. The failure is invisible to a reader, invisible to the test suite, and invisible
+on screen — the only symptom is a control nobody can find.
+
+**What it cost.** The dashboard's per-account details button — tooltip *"Account details — reply speed,
+backlog, and who's waiting"* — was a 12-pixel sliver of pure button padding. The per-account L1 drill-down
+behind it shipped in v4.53.0 and has been unfindable by sight ever since; it was reached here only by
+computing where the button had to be from the layout and clicking that spot. `AccountDetailDialog` then
+opened correctly and rendered correctly, so nothing was wrong with it but the way in.
+
+The same defect blanked the **mark-done split button** on every awaiting row, which in *compact* density has
+no text label either — so the one control that closes an awaiting conversation had no visible presence at
+all. `AGENTS.md` records that control as existing "so a surface can't ship without it".
+
+All eight, with what each should have been (taken from the comment already beside it, or from the enclosing
+method's own docstring):
+
+| Where | Glyph |
+|---|---|
+| `CommandCenterPanel` scope chip | `\uE711` Cancel |
+| `CommandCenterPanel` unread line | `\uE7BA` Warning |
+| `CommandCenterPanel` headline | `\uE7BA` Warning |
+| `CommandCenterPanel` account details | `\uE9D2` BarChart |
+| `AwaitingChatActions` "Mark as done" | `\uE73E` CheckMark |
+| `AwaitingChatActions` Done split button | `\uE73E` CheckMark |
+| `ChangeIconDialog` import | `\uE896` Download |
+| `ChangeIconDialog` upload | `\uE898` Upload |
+
+Codepoints were chosen from those this app already renders successfully rather than picked from a chart.
+
+**Written as `"\uXXXX"`, never as an inline character.** All eight blanks were in the inline form; the 26
+glyphs already using the escape form were all intact. A private-use codepoint pasted into source is one
+encoding round-trip from vanishing, and it vanishes silently. The codebase is now 34 escaped and 10 inline.
+
+`DesignScaleTests.NoFontIconShipsWithAnEmptyGlyph` fails the build on the next one.
+
+Verified on screen: the details icon renders beside each account's open-count pill, and clicking it opens
+the account detail dialog. The remaining six are covered by the new test but have not been seen rendered.
+
+Tests 1881 → 1882.
+
+
 ## v4.99.64
 
 **Every dialog rendered light in dark theme.** A `ContentDialog` is hosted in a popup **outside** the window

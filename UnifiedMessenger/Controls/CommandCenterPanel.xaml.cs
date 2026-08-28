@@ -1233,7 +1233,10 @@ public sealed partial class CommandCenterPanel : UserControl
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
-        content.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center });
+        // "" (Cancel), not a literal character. Eight FontIcons in this app were written with the
+        // glyph inline and reached the repo EMPTY — a FontIcon with a zero-length Glyph draws nothing, so
+        // the control is invisible while remaining present, focusable and clickable. Use the escape form.
+        content.Children.Add(new FontIcon { Glyph = "\uE711", FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center });
 
         var chip = new Button
         {
@@ -1328,7 +1331,7 @@ public sealed partial class CommandCenterPanel : UserControl
         };
         unreadLine.Children.Add(new FontIcon
         {
-            Glyph = "", // Warning (ErrorBadge family) — Segoe Fluent
+            Glyph = "\uE7BA", // Warning (ErrorBadge family) — Segoe Fluent
             FontSize = UmScale.Icon.Sm,
             Foreground = danger,
             VerticalAlignment = VerticalAlignment.Center
@@ -2299,7 +2302,7 @@ public sealed partial class CommandCenterPanel : UserControl
             // actually have. A warning glyph and an explicit headline instead.
             headline.Children.Add(new FontIcon
             {
-                Glyph = "", // warning
+                Glyph = "\uE7BA", // warning
                 FontSize = UmScale.Icon.Lg,
                 Foreground = accent,
                 VerticalAlignment = VerticalAlignment.Center
@@ -3006,7 +3009,7 @@ public sealed partial class CommandCenterPanel : UserControl
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(6),
                 VerticalAlignment = VerticalAlignment.Center,
-                Content = new FontIcon { Glyph = "", FontSize = UmScale.Icon.Md } // BarChart
+                Content = new FontIcon { Glyph = "\uE9D2", FontSize = UmScale.Icon.Md } // BarChart
             };
             ToolTipService.SetToolTip(detailsButton, "Account details — reply speed, backlog, and who's waiting");
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(detailsButton, $"{entity.DisplayName} details");

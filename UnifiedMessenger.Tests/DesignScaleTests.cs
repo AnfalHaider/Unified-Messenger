@@ -185,6 +185,46 @@ public class DesignScaleTests
     }
 
     [Fact]
+    public void NoFontIconShipsWithAnEmptyGlyph()
+    {
+        // EIGHT of the app's 44 code-built icon glyphs reached the repo as the empty string, from the
+        // initial commit onward. A FontIcon with a zero-length Glyph draws NOTHING while the control around
+        // it stays present, laid out, focusable and clickable — so the failure is invisible in every way a
+        // test or a code reading can see, and invisible on screen too.
+        //
+        // What it cost: the per-account details button on the dashboard (tooltip "Account details — reply
+        // speed, backlog, and who's waiting") was a 12-pixel sliver of pure button padding. The L1
+        // drill-down behind it shipped in v4.53.0 and could not be found by looking; it was reached here
+        // only by computing where the button had to be from the layout and clicking that. The same defect
+        // blanked the mark-done split button, which in COMPACT density has no text label either — so the
+        // one control that closes an awaiting conversation had no visible presence at all.
+        //
+        // Write glyphs as "", never as an inline character: all eight blanks were in the inline form,
+        // and a private-use codepoint pasted into source is one encoding round-trip away from vanishing.
+        var offenders = new List<string>();
+
+        foreach (var file in SourceCSharp())
+        {
+            var text = File.ReadAllText(file);
+            foreach (Match match in Regex.Matches(text, @"(?:Glyph|IconGlyph)\s*=\s*""([^""]*)"""))
+            {
+                if (match.Groups[1].Value.Length != 0)
+                {
+                    continue;
+                }
+
+                var line = text[..match.Index].Count(c => c == '\n') + 1;
+                offenders.Add($"{Path.GetFileName(file)}:{line}");
+            }
+        }
+
+        Assert.True(
+            offenders.Count == 0,
+            "These FontIcons have an empty Glyph and will render as nothing, leaving an invisible but "
+            + "still-clickable control:\n  " + string.Join("\n  ", offenders));
+    }
+
+    [Fact]
     public void TheCodeScaleMatchesTheXamlTokens()
     {
         // UmScale duplicates Tokens.xaml so that code-built controls never make a UI-thread WinRT call to
