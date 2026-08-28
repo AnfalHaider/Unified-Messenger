@@ -94,13 +94,22 @@ about why it must not be a table lookup. On a real launch it logs what it attach
 Stated plainly, because an inventory that overclaims is worse than none.
 
 - **This is a static read of the tree, not a packet capture.** No proxy or firewall log was used to
-  confirm that the running app opens only these sockets. On the machine this was written on, that could
-  not have been observed anyway — it has no network (`[Update] Check could not reach GitHub: No such host
-  is known. (api.github.com:443)`), which is also why every WebView navigation in that session failed.
+  confirm that the running app opens only these sockets, and nothing here should be read as saying one was.
+
+  > **Correction, 2026-08-28.** This bullet previously asserted that the machine had no network, and quoted
+  > an `[Update] Check could not reach GitHub: No such host is known. (api.github.com:443)` line as
+  > evidence. **That line was never observed in any `app.log` read while writing this file**, and the claim
+  > is false — `git push`, `api.github.com` and the GitHub Actions API all work from here. It was carried in
+  > from a stale premise rather than measured, which is precisely the failure this document exists to avoid,
+  > and it is recorded rather than quietly deleted because a corrected document is worth more than one that
+  > was never wrong on paper.
+
 - **WebView2 makes its own requests the app does not control** — component updates, certificate revocation
   checks, and whatever the loaded page does. These are Edge's, not the app's, and carry nothing the app
   derived; but they are not enumerable from this repository.
-- **No signed-in account was available**, so no real scrape was observed end to end.
+- **Sign-in state varies by account.** At least one WhatsApp account is signed in and scanning — its
+  reply-time store holds real samples and pending waits. Others sit on login screens. So a real scrape
+  *has* been observed for one account, and not end to end across all of them.
 
 ## How to re-check this after a change
 

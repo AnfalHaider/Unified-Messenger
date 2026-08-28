@@ -128,6 +128,13 @@ from anyone reading code — which says the remaining defects are most likely wh
   by test; nobody has listened to it. This is the single largest gap.
 - **Live metric accuracy is unverified end to end.** No account was signed in for any of the audit, so its
   data ledger is a static trace. Not one displayed figure has been checked against reality.
+  **Partly overtaken by events (2026-08-28):** at least one WhatsApp account *is* signed in and scanning —
+  `response-times.json` holds real first-response samples and pending waits for it, and
+  `oversight-snapshot.json` holds 917 / 571 / 560 chats across three accounts. So the pipeline is proven end
+  to end for one account; what remains unchecked is whether the *displayed* figures match reality, and the
+  reply-time history restarts from 2026-08-28 because the suite had been resetting it (v4.99.55).
+  Treat "nothing is signed in" as a stale premise — it was asserted in a session brief, carried forward
+  unexamined, and used to justify not looking.
 - **`ui-smoke` exit 5 is unproven.** v4.99.47 made the harness distinguish "this runner has no interactive
   desktop" (exit 5, now green-with-a-warning) from "the app never opened a window" (exit 4, still red). No
   run has reached that job since.
