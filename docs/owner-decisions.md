@@ -10,7 +10,15 @@ consequences attached. Each has a recommendation; none has been acted on.
 
 ## 1 · The SLA target says every location is failing
 
-**This is the highest-value item on the entire backlog and it costs no engineering time.**
+> ### ✅ DECIDED 2026-08-28 — the target stays at 15 minutes. Option A is closed.
+>
+> The owner's call, made against the recommendation below, which is left in place unedited so the
+> reasoning that was weighed is still on the record. **Do not raise moving the threshold again**, and do
+> not "helpfully" adjust it in `settings.json` or in a workspace profile.
+>
+> **What this does not settle:** whether the *tile* keeps reading `SLA met 0%`. Option B — keep 15 minutes
+> as the target and show distance from it — is compatible with this decision and is still open. It is now
+> the only live question in this section.
 
 ### What the owner sees
 
@@ -38,12 +46,17 @@ The number is right and the bar is in the wrong place.
 | **B. Keep 15 minutes as an aspiration and show distance from it instead** | Replace "SLA met 0%" with "median first reply 3h 20m · target 15m" | Honest, never absurd, and still shows the gap. Loses the single-number comparability across locations. |
 | **C. Leave it** | | The most prominent figure on the dashboard stays 0% forever and trains the owner to disregard the whole band. |
 
-**Recommendation: A, with the target set from a week of real data** — pick the current median, round down,
-and let the number have somewhere to go. B is a good second if the 15-minute figure is a commitment made to
-customers rather than an internal hope.
+**Recommendation was: A, with the target set from a week of real data** — pick the current median, round
+down, and let the number have somewhere to go. B is a good second if the 15-minute figure is a commitment
+made to customers rather than an internal hope.
 
-**What is needed from the owner:** one number, or a decision to switch the tile to option B. Both are
-settings-level changes.
+**Outcome: C — the target stays at 15 minutes** (2026-08-28). The reading that makes this coherent is that
+15 minutes is the standard the business holds itself to, not a prediction of what it currently achieves;
+on that reading a target it does not yet meet is the point of having one, not a fault in it.
+
+**Still open:** the tile. `SLA met 0%` communicates "the metric is broken" more readily than "we are behind
+our standard", which is the opposite of what a fixed aspirational target is for. Option B says the same
+true thing without the permanent zero, and needs no change to the threshold. One instruction either way.
 
 ---
 

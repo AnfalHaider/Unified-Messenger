@@ -156,10 +156,12 @@ Unchanged. Nothing in the audit unblocks any of these.
 > **[owner-decisions.md](owner-decisions.md)**, with a recommendation and the exact thing needed from the
 > owner. They had been carried across several work-streams without ever being put as a question.
 
-- **The SLA threshold is 15 minutes; the measured median reply time is hours.** Every account therefore
-  reads as failing, and the dashboard shows **SLA met 0%** — still the most alarming figure on the screen
-  and the one least connected to reality. **Unchanged by the audit, and still the highest-value item on this
-  entire list that costs no engineering time.** Either the target reflects the business, or it moves.
+- ~~**The SLA threshold is 15 minutes; the measured median reply time is hours.**~~ ✅ **DECIDED 2026-08-28:
+  the threshold stays at 15 minutes.** It is the standard the business holds itself to, not a forecast of
+  what it currently achieves. Do not raise it again and do not adjust it in `settings.json`.
+  **What is still open is the tile, not the target:** `SLA met 0%` reads as a broken metric rather than as
+  distance from a standard. Showing "median first reply 3h 20m · target 15m" says the same true thing and
+  changes no threshold — see [owner-decisions.md §1](owner-decisions.md).
 - **Whether "median reply time" should measure from installation** (D6). Honest, but it would cover only
   replies made after install and must be labelled that way. Worth having, or drop the tile?
 - **Whether the backlog cutoff stays at 7 days.** The live/backlog split is what turned 466 "waiting" into a
