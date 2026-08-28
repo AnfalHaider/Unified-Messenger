@@ -22,7 +22,7 @@
             AutomationProperties.AutomationId="CommandPaletteRoot"
             AutomationProperties.Name="Command palette"
             Background="{ThemeResource LayerFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderBrush="{ThemeResource UmHairlineBrush}"
             BorderThickness="1"
             CornerRadius="12"
             PointerPressed="Panel_PointerPressed"

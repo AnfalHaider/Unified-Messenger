@@ -10,8 +10,11 @@ namespace UnifiedMessenger.Services;
 /// <see cref="Application"/>.Current.Resources: that resolves the app-default theme, not the element's actual
 /// theme, so on a light surface they can come back near-white and render invisibly (the light-mode command
 /// centre / activity / reviews text bug). We build those explicitly from the element's <c>ActualTheme</c>
-/// instead — black-on-light / white-on-dark at the fixed Fluent alphas. Everything else (semantic SystemFill*
-/// colours, accent, control fills) still comes from the app resources, where theme-invariance makes it safe.
+/// instead — black-on-light / white-on-dark at the fixed Fluent alphas. The same applies to the Fluent
+/// CONTROL FILL brushes, for the same reason; this docstring used to exempt them ("control fills ... where
+/// theme-invariance makes it safe") and that was simply wrong — see the switch below. What is left going to
+/// the app resources is the semantic SystemFill* status colours and the accent, which genuinely do not flip
+/// between themes.
 /// </summary>
 internal static class ThemeBrushResolver
 {
@@ -23,6 +26,20 @@ internal static class ThemeBrushResolver
             case "TextFillColorSecondaryBrush": return Neutral(element, 0x9E, 0xC5);
             case "TextFillColorTertiaryBrush": return Neutral(element, 0x72, 0x87);
             case "TextFillColorDisabledBrush": return Neutral(element, 0x5C, 0x5D);
+
+            // CONTROL FILLS ARE NOT THEME-INVARIANT EITHER, and the comment above used to claim they were.
+            // ControlSolidFillColorDefault is #FFFFFF on light and a dark grey on dark, so fetching it from
+            // Application.Current.Resources hit exactly the failure this class exists to prevent — with one
+            // extra twist that made it worse than the text case. BuildInsightStrip paired this background
+            // with TextFillColorPrimaryBrush, which IS resolved correctly above: in dark theme the text came
+            // back white (right) and the background came back white (wrong), so every per-account AI insight
+            // rendered white-on-white. Observed on screen on a fresh dark launch: three account cards, each
+            // showing a blank white bar with only the amber "AI" badge visible, on the dashboard's headline
+            // feature. The Card* helpers below were added when the same thing happened to the Needs-reply
+            // rows; the control fills were missed, so route them through the same themed surfaces.
+            case "ControlSolidFillColorDefaultBrush": return CardBackground(element);
+            case "ControlFillColorDefaultBrush": return CardBackground(element);
+            case "ControlFillColorSecondaryBrush": return CardBackgroundSecondary(element);
         }
 
         return Application.Current.Resources.TryGetValue(key, out var value) && value is Brush brush

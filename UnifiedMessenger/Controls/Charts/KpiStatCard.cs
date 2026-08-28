@@ -77,7 +77,7 @@ public sealed class KpiStatCard : ContentControl
             Padding = new Thickness(16),
             CornerRadius = TryCorner("UmCornerRadiusMdValue", new CornerRadius(8)),
             Background = ResolveBrush("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = ResolveBrush("CardStrokeColorDefaultBrush"),
+            BorderBrush = ResolveBrush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
             Child = body
         };

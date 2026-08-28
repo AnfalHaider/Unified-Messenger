@@ -627,7 +627,7 @@ public sealed partial class CommandCenterPanel : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Background = Brush("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = _compact ? new Thickness(14, 4, 14, 6) : new Thickness(16, 10, 16, 12),
@@ -2362,7 +2362,7 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         HeroCard.Child = grid;
-        HeroCard.BorderBrush = Brush("CardStrokeColorDefaultBrush");
+        HeroCard.BorderBrush = Brush("UmHairlineBrush");
         HeroCard.Visibility = Visibility.Visible;
         // (Depth via ThemeShadow was removed — the accent rail + large number already give the hero enough
         //  visual weight, and the imperative Shadow+Translation was an unverified, finicky variable.)
@@ -2755,7 +2755,7 @@ public sealed partial class CommandCenterPanel : UserControl
         return new Border
         {
             Background = bg,
-            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 7, 10, 7),
@@ -3285,7 +3285,7 @@ public sealed partial class CommandCenterPanel : UserControl
         var cardBorder = new Border
         {
             Background = Brush("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(16, 12, 16, 14),

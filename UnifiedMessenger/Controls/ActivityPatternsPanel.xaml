@@ -9,7 +9,7 @@
 
     <Border
         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+        BorderBrush="{ThemeResource UmHairlineBrush}"
         BorderThickness="1"
         CornerRadius="8"
         Padding="{StaticResource UmPaddingLg}">

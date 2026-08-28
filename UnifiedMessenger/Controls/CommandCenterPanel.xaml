@@ -117,7 +117,7 @@
             CornerRadius="12"
             Padding="24,16"
             BorderThickness="1"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderBrush="{ThemeResource UmHairlineBrush}"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             Visibility="Collapsed" />
         <ItemsRepeater x:Name="KpiBand">
@@ -145,7 +145,7 @@
                     <Button
                         AutomationProperties.Name="{x:Bind AccessibleName}"
                         Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderBrush="{ThemeResource UmHairlineBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Padding="16,12"
@@ -291,7 +291,7 @@
             x:Name="LocationCtaBanner"
             Grid.Row="3"
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderBrush="{ThemeResource UmHairlineBrush}"
             BorderThickness="1"
             CornerRadius="8"
             Padding="16,12"

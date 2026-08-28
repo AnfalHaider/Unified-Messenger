@@ -5,6 +5,51 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.61
+
+**The AI insight was white text on a white bar, in dark theme, on every account card.** Seen on screen, not
+inferred: three account cards each showing a blank white strip with only the amber "AI" badge visible — on
+the dashboard's headline feature, in the theme the owner uses.
+
+`ThemeBrushResolver` exists precisely to stop this. It resolves the Fluent neutral TEXT brushes from the
+element's own `ActualTheme`, because `Application.Current.Resources` returns the app-default theme instead.
+Its docstring then exempted control fills — "where theme-invariance makes it safe". That was wrong.
+`ControlSolidFillColorDefault` is `#FFFFFF` on light and a dark grey on dark. `BuildInsightStrip` paired it
+with `TextFillColorPrimaryBrush`, which *was* resolved correctly, so in dark theme the text came back white
+and the background came back white. The `Card*` helpers were added when the same thing hit the Needs-reply
+rows; the control fills were missed. They now route through the same themed surfaces, which fixes all four
+call sites rather than the one that was noticed.
+
+**Panels could not be told apart, which is a separate defect and the one the owner actually reported.** Every
+separation mechanism measured far below the 3:1 that WCAG 1.4.11 asks of a boundary:
+
+    surface fill vs sunken              dark 1.048   light 1.112
+    UmHairlineBrush                     dark 1.22    light 1.24
+    WinUI CardStrokeColorDefault (19x)  dark 1.15    light 1.14
+    shadow                              none         none
+
+Light gets away with less: a white card on a grey canvas is a familiar figure-ground cue and the eye
+discriminates lightness far better in bright ranges. A dark theme has neither advantage and cannot cast a
+shadow — there is nothing darker than near-black to cast it — which is why dark systems raise a surface by
+lightening it. This app did not, so every panel sat at the same apparent depth.
+
+  - dark `UmSurfaceColor` `#17191D` -> `#20242B` (vs canvas 1.09 -> 1.23)
+  - dark hairline `#262A31` -> `#464D5A` (1.22 -> 1.83), strong `#343943` -> `#515967` (2.21)
+  - light hairline `#E4E7EC` -> `#C4CBD4` (1.24 -> 1.64), strong `#D3D8E0` -> `#A6AFBC` (2.22)
+  - 19 card edges migrated off `CardStrokeColorDefaultBrush` (1.15:1, the weakest edge available and the
+    most used) onto `UmHairlineBrush`, including CommandCenterPanel, KpiStatCard, ActivityPatternsPanel and
+    NotificationFeedPanel — the panels in question. Strengthening the token alone would have reached none
+    of them.
+
+Every dark status colour still clears AA on the lighter surface; worst is Muted at 5.23:1. The bar for a
+card edge is pinned at 1.5 rather than 3.0 deliberately — 3:1 on every card edge is a wireframe, not a
+dashboard, and the fill difference carries part of the load.
+
+Verified on screen: fresh dark launch, all three insight strips readable, card edges visible.
+
+Tests 1878 -> 1881.
+
+
 ## v4.99.60
 
 **The contrast check measured surfaces the app does not ship.** `WcagContrast` held every status colour

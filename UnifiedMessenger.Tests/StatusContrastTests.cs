@@ -302,6 +302,73 @@ public class StatusContrastTests
 
     // ---- Opacity is not a contrast-safe way to make text quieter ---------------------------------------
 
+    // ---- Telling one panel from another ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Default")]
+    public void ACardsEdgeIsVisibleAgainstWhatIsBehindIt(string themeKey)
+    {
+        // The owner's report was "dark theme has no proper visibility", and the answer to "reading the text
+        // or telling the panels apart?" was telling the panels apart. Measured, every separation mechanism
+        // in the app was far under the 3:1 that WCAG 1.4.11 asks of a boundary:
+        //
+        //                                        dark     light
+        //   surface fill vs sunken               1.048    1.112
+        //   UmHairlineBrush                      1.22     1.24
+        //   UmHairlineStrongBrush                1.52     1.43
+        //   WinUI CardStrokeColorDefault (19x)   1.15     1.14
+        //   shadow                               none     none
+        //
+        // Light gets away with less because a white card on a grey canvas is a familiar figure-ground cue
+        // and the eye discriminates lightness far better in bright ranges. A dark theme has neither
+        // advantage AND cannot cast a shadow — there is nothing darker than near-black to cast it — which
+        // is why dark design systems raise a surface by lightening it. This app did not, so every panel
+        // sat at the same apparent depth.
+        //
+        // The bar here is 1.5 rather than 3.0 deliberately: 3:1 on every card edge is a wireframe, not a
+        // dashboard, and the fill difference carries part of the load. It is a ratchet on what was
+        // measured after the fix — raise it if the edges are still too quiet on screen, never lower it.
+        var hairline = WcagContrast.ThemeColor(themeKey, "UmHairlineColor");
+
+        foreach (var (name, surface) in WcagContrast.Surfaces(themeKey))
+        {
+            if (name == "sunken")
+            {
+                continue; // a sunken well is defined by being recessed, not by an edge
+            }
+
+            var ratio = WcagContrast.Ratio(hairline, surface);
+
+            Assert.True(
+                ratio >= 1.5,
+                $"the {themeKey} hairline ({hairline}) is {ratio:F2}:1 against the {name} surface "
+                + $"({surface}). Below about 1.5 a card edge stops reading and panels merge into one field.");
+        }
+    }
+
+    [Fact]
+    public void CardsDoNotDrawTheirEdgeWithTheSystemStroke()
+    {
+        // CardStrokeColorDefaultBrush measures 1.15:1 in both themes — the weakest edge available, and it
+        // was the most-used one: 19 sites including CommandCenterPanel, KpiStatCard, ActivityPatternsPanel
+        // and NotificationFeedBrush, which are exactly the panels that could not be told apart. Migrated to
+        // UmHairlineBrush so that strengthening the token actually reaches the dashboard.
+        var uiRoot = Path.Combine(WcagContrast.RepoRoot(), "UnifiedMessenger");
+        var offenders = new[] { "*.xaml", "*.cs" }
+            .SelectMany(pattern => Directory.EnumerateFiles(uiRoot, pattern, SearchOption.AllDirectories))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains("CardStrokeColorDefaultBrush", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            "these draw a card edge with the system stroke (1.15:1), which no amount of tuning the app's "
+            + $"own hairline will reach: {string.Join(", ", offenders)}. Use UmHairlineBrush.");
+    }
+
     [Fact]
     public void RawOpacityDimmingDoesNotSpreadFurther()
     {

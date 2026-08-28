@@ -26,7 +26,7 @@
             <Border
                 Padding="{StaticResource UmPaddingXxl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderBrush="{ThemeResource UmHairlineBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel HorizontalAlignment="Center" Spacing="14">
@@ -80,7 +80,7 @@
             <Border
                 Padding="{StaticResource UmPaddingXl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderBrush="{ThemeResource UmHairlineBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel Spacing="10">
@@ -96,7 +96,7 @@
             <Border
                 Padding="{StaticResource UmPaddingXl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderBrush="{ThemeResource UmHairlineBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel Spacing="14">
