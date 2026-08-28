@@ -64,6 +64,16 @@
             <Color x:Key="UmSurfaceSunkenColor">#F1F3F6</Color>
             <Color x:Key="UmHairlineColor">#C4CBD4</Color>
             <Color x:Key="UmHairlineStrongColor">#A6AFBC</Color>
+            <!--
+                 Tertiary TEXT. Exists because the app had NO foreground token of any kind, which is why
+                 88 sites reached for Opacity to make text quieter — there was nothing else to reach for.
+                 Dimming ordinary body text is mostly fine (0.65 is 7.95:1 on the dark surface, 5.10:1 on
+                 the light sunken one), but 0.55 measures 3.84:1 in light, BELOW AA, and no contrast test
+                 can see an Opacity because it is applied at the element. These values pass AA on the worst
+                 surface of their own theme: light #5B6773 is 5.20:1 on the sunken surface, dark #8A97A6 is
+                 5.92:1 on the raised one.
+            -->
+            <Color x:Key="UmTextTertiaryColor">#5B6773</Color>
             <!-- Tint of the brand blue, for selected rows and the AI strip. -->
             <Color x:Key="UmAccentWashColor">#EAF2FA</Color>
             <SolidColorBrush x:Key="UmCanvasBrush" Color="#F6F7F9" />
@@ -71,6 +81,7 @@
             <SolidColorBrush x:Key="UmSurfaceSunkenBrush" Color="#F1F3F6" />
             <SolidColorBrush x:Key="UmHairlineBrush" Color="#C4CBD4" />
             <SolidColorBrush x:Key="UmHairlineStrongBrush" Color="#A6AFBC" />
+            <SolidColorBrush x:Key="UmTextTertiaryBrush" Color="#5B6773" />
             <SolidColorBrush x:Key="UmAccentWashBrush" Color="#EAF2FA" />
 
             <!-- Status washes: chip and pill fills. Deliberately pale so the chip's TEXT carries the
@@ -127,12 +138,14 @@
             <Color x:Key="UmSurfaceSunkenColor">#121418</Color>
             <Color x:Key="UmHairlineColor">#464D5A</Color>
             <Color x:Key="UmHairlineStrongColor">#515967</Color>
+            <Color x:Key="UmTextTertiaryColor">#8A97A6</Color>
             <Color x:Key="UmAccentWashColor">#132434</Color>
             <SolidColorBrush x:Key="UmCanvasBrush" Color="#0E0F12" />
             <SolidColorBrush x:Key="UmSurfaceBrush" Color="#20242B" />
             <SolidColorBrush x:Key="UmSurfaceSunkenBrush" Color="#121418" />
             <SolidColorBrush x:Key="UmHairlineBrush" Color="#464D5A" />
             <SolidColorBrush x:Key="UmHairlineStrongBrush" Color="#515967" />
+            <SolidColorBrush x:Key="UmTextTertiaryBrush" Color="#8A97A6" />
             <SolidColorBrush x:Key="UmAccentWashBrush" Color="#132434" />
 
             <!-- Status washes, dark. Dim rather than pale, so the bright semantic text still clears AA. -->

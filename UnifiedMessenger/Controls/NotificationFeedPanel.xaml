@@ -42,7 +42,7 @@
                             FontWeight="SemiBold"
                             TextTrimming="CharacterEllipsis"
                             Text="{Binding GroupTitle}" />
-                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource UmSectionLabelTextStyle}" Opacity="0.55"
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource UmSectionLabelTextStyle}" Foreground="{ThemeResource UmTextTertiaryBrush}"
                             Text="{Binding GroupUnreadLabel}" />
                     </Grid>
                 </DataTemplate>

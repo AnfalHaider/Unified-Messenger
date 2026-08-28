@@ -824,7 +824,7 @@
                         </ListView>
                         <TextBlock
                             x:Name="NoAccountsText"
-                            Opacity="0.55"
+                            Foreground="{ThemeResource UmTextTertiaryBrush}"
                             Text="No accounts yet. Add one from the sidebar."
                             Visibility="Collapsed" />
                     </StackPanel>
@@ -868,7 +868,7 @@
                                                 Text="{x:Bind PlatformLabel}" />
                                             <TextBlock
                                                 FontSize="{StaticResource UmFontSizeCaption}"
-                                                Opacity="0.55"
+                                                Foreground="{ThemeResource UmTextTertiaryBrush}"
                                                 Text="{x:Bind ProfileLine}" />
                                         </StackPanel>
                                         <StackPanel
@@ -893,7 +893,7 @@
                         </ListView>
                         <TextBlock
                             x:Name="NoArchivedAccountsText"
-                            Opacity="0.55"
+                            Foreground="{ThemeResource UmTextTertiaryBrush}"
                             Text="No removed accounts."
                             Visibility="Collapsed" />
                     </StackPanel>

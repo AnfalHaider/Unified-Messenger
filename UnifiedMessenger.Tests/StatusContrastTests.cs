@@ -369,6 +369,29 @@ public class StatusContrastTests
             + $"own hairline will reach: {string.Join(", ", offenders)}. Use UmHairlineBrush.");
     }
 
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Default")]
+    public void TertiaryTextIsReadableOnEverySurfaceOfItsOwnTheme(string themeKey)
+    {
+        // This token exists because the app had NO foreground token of any kind — which is why 88 sites
+        // reached for Opacity to make text quieter: there was nothing else to reach for. Dimming ordinary
+        // body text is mostly fine (0.65 is 7.95:1 on the dark surface, 5.10:1 on the light sunken one),
+        // but 0.55 measures 3.84:1 in light, below AA, and no contrast test can see an Opacity because it
+        // is applied at the element rather than the brush. Four caption sites used it; they now use this.
+        var color = WcagContrast.ThemeColor(themeKey, "UmTextTertiaryColor");
+
+        foreach (var (name, surface) in WcagContrast.Surfaces(themeKey))
+        {
+            var ratio = WcagContrast.Ratio(color, surface);
+
+            Assert.True(
+                ratio >= WcagContrast.AaText,
+                $"UmTextTertiaryColor ({color}) on the {themeKey} {name} surface ({surface}) is "
+                + $"{ratio:F2}:1, needs {WcagContrast.AaText}:1.");
+        }
+    }
+
     [Fact]
     public void RawOpacityDimmingDoesNotSpreadFurther()
     {
@@ -398,10 +421,12 @@ public class StatusContrastTests
                         && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Sum(path => System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(path), @"Opacity=""0\.\d+""").Count);
 
-        // Measured at 88, of which 51 are in SettingsPage.xaml alone. Lower this as sites move to a named
-        // foreground; never raise it.
+        // Measured at 88, then 84 once the four 0.55 CAPTION sites moved to UmTextTertiaryBrush (v4.99.69)
+        // — 0.55 on text is 3.84:1 in light, below AA. The 0.55 uses that remain are FontIcon glyphs, which
+        // are non-text and clear 1.4.11's 3:1 bar. Lower this as further sites move to a named foreground;
+        // never raise it.
         Assert.True(
-            sites <= 88,
+            sites <= 84,
             $"raw Opacity dimming rose to {sites} XAML sites. Opacity is applied at the element, so no "
             + "contrast test can see what it renders — use a themed foreground brush, or lower this "
             + "ceiling deliberately.");

@@ -5,6 +5,27 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.69
+
+**Captions dimmed to 0.55 were below AA in light theme** — 3.84:1, measured by compositing the foreground
+over the surface at the alpha the app actually renders. On dark the same dimming is 6.09:1 and fine.
+
+The app had **no foreground token of any kind**. `Tokens.xaml` declared surfaces, status colours, opacities,
+font sizes and icon sizes, and nothing for text — which is why 88 sites reached for `Opacity` to make text
+quieter: there was nothing else to reach for. `UmTextTertiaryColor` / `UmTextTertiaryBrush` now exist per
+theme, chosen to pass AA on the **worst** surface of each: light `#5B6773` is 5.20:1 on the sunken surface,
+dark `#8A97A6` is 5.92:1 on the raised one.
+
+Four caption sites moved to it — three in Settings, one in the notification feed's group header. The 0.55
+uses that remain are `FontIcon` glyphs, which are non-text and clear 1.4.11's 3:1 bar at 3.84.
+
+`StatusContrastTests.TertiaryTextIsReadableOnEverySurfaceOfItsOwnTheme` asserts the new token on all three
+surfaces per theme — possible only now that the value is a token rather than an element property, since an
+`Opacity` is applied at the element and no contrast test can see it. The raw-`Opacity` ratchet drops 88 → 84.
+
+Tests 1897 → 1899.
+
+
 ## v4.99.68
 
 **A third status palette, and the dead code holding it up — both deleted.** The palette existed in three
