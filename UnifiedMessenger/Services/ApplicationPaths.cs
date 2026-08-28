@@ -10,8 +10,39 @@ public static class ApplicationPaths
 
     public const string ApplicationMutexName = "UnifiedMessenger_AppMutex";
 
+    /// <summary>
+    /// When set, every durable store writes here instead of the real user-data root. Set once by the test
+    /// assembly's module initializer; null in every shipping build.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The singleton stores — <c>OversightChatSnapshotService.Instance</c>,
+    /// <c>ResponseTimeTracker.Instance</c>, <c>ContactHistoryStore.Instance</c>,
+    /// <c>MessageAnalyticsService.Instance</c> — resolve their paths from
+    /// <see cref="UserDataRoot"/>, and the test suite uses those same singletons. So every run of
+    /// <c>dotnet test</c> wrote fabricated chats into the developer's own live oversight data: a scan of
+    /// the real store found a test account id (<c>inst-1</c>) sitting alongside the real ones.
+    /// </para>
+    /// <para>
+    /// The damaging part was not the junk rows. <c>OversightChatSnapshotService.Update</c> calls
+    /// <c>ResponseTimeTracker.Observe</c>, which stamps a per-account <i>watch start</i> the first time it
+    /// sees an account — and first-response time is only ever measured for messages that arrive after it.
+    /// Every suite run pushed that stamp to "now" for every account it touched, disqualifying every
+    /// conversation already in flight. That is why the store could hold 761 KB of scraped snapshot and
+    /// 218 KB of contact history and still contain <b>zero</b> reply-time samples: the measurement was
+    /// being reset faster than it could accrue, and the dashboard reported the result as fact.
+    /// </para>
+    /// <para>
+    /// <see cref="AppLogger.SuppressWritesForTests"/> fixed exactly this disease for <c>app.log</c> and
+    /// stopped there. Redirecting the root instead of adding a per-store flag means a store written next
+    /// month inherits the fix rather than needing to remember it.
+    /// </para>
+    /// </remarks>
+    internal static string? UserDataRootOverrideForTests { get; set; }
+
     public static string UserDataRoot =>
-        Path.Combine(
+        UserDataRootOverrideForTests
+        ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             AppDataFolderName);
 

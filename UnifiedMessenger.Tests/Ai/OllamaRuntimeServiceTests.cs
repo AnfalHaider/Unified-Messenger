@@ -1,3 +1,4 @@
+using UnifiedMessenger.Services;
 using UnifiedMessenger.Services.Ai;
 
 namespace UnifiedMessenger.Tests.Ai;
@@ -7,8 +8,13 @@ public class OllamaRuntimeServiceTests
     [Fact]
     public void DefaultPaths_UseUnifiedMessengerOwnedDirectories()
     {
-        Assert.EndsWith(Path.Combine("UnifiedMessenger", "ollama", "runtime"), OllamaOptions.RuntimeInstallDirectory, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith(Path.Combine("UnifiedMessenger", "ollama", "models"), OllamaOptions.ModelsDirectory, StringComparison.OrdinalIgnoreCase);
+        // Asserted against UserDataRoot rather than a literal "UnifiedMessenger" segment: the suite now
+        // redirects that root to TEMP so tests cannot write into live oversight data, and the invariant
+        // this test means to pin is "inside the app's own data root", not the folder's name.
+        Assert.StartsWith(ApplicationPaths.UserDataRoot, OllamaOptions.RuntimeInstallDirectory, StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith(ApplicationPaths.UserDataRoot, OllamaOptions.ModelsDirectory, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("ollama", "runtime"), OllamaOptions.RuntimeInstallDirectory, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("ollama", "models"), OllamaOptions.ModelsDirectory, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(Path.Combine(OllamaOptions.RuntimeInstallDirectory, "ollama.exe"), OllamaOptions.EmbeddedExecutablePath);
     }
 

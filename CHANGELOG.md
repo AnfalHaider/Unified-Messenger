@@ -5,6 +5,31 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.55
+
+**The test suite was writing into live oversight data, and that is why reply time never measured anything.**
+
+The suite exercises the real singletons — `OversightChatSnapshotService.Instance`,
+`ResponseTimeTracker.Instance`, `ContactHistoryStore.Instance`, `MessageAnalyticsService.Instance` — and
+every one of them resolves its file path from `ApplicationPaths.UserDataRoot`. So a test calling
+`svc.Update(...)` wrote fabricated chats straight into `%LOCALAPPDATA%\UnifiedMessenger`. The real store on
+this machine had the test account id `inst-1` filed alongside the owner's eight real accounts.
+
+The junk rows were the harmless half. That same `Update` reaches `ResponseTimeTracker.Observe`, which
+stamps a per-account **watch start** the first time it sees an account and thereafter measures only replies
+to messages that arrived *after* it. Every run of the suite pushed that stamp to "now" for every account it
+touched, disqualifying every conversation already in flight. That is why the store could hold 761 KB of
+scraped snapshot and 218 KB of contact history and still contain **zero** reply-time samples — the
+measurement was being reset faster than it could ever accrue, and "median reply time" and "SLA met" were
+computed and displayed from the result.
+
+`AppLogger.SuppressWritesForTests` had fixed exactly this disease for `app.log` and stopped there.
+Redirecting `UserDataRoot` for the test assembly covers every store at once, including ones not written
+yet, rather than adding a flag each new store has to remember.
+
+Proven rather than asserted: a full suite run with the four store files' timestamps captured either side
+reports all four `UNCHANGED`, and `TestIsolationTests` fails the build if that stops being true.
+
 ## v4.99.54
 
 Two log lines that stopped short of saying what happened. Both were found by reading `app.log` from

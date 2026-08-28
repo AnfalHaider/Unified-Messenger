@@ -30,6 +30,43 @@ internal static class TestAssemblyInit
     /// missed every other logging call — three of the four lines above come from suites it did not touch.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Points every durable store at a throwaway folder, so the suite cannot write into live oversight data.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The log fix above stopped at <c>app.log</c>. The same disease was still live for every *data* store:
+    /// the suite uses the real singletons (<c>OversightChatSnapshotService.Instance</c> and friends), and
+    /// those resolve their paths from <see cref="ApplicationPaths.UserDataRoot"/>. So
+    /// <c>AwaitingSplitTests</c> calling <c>svc.Update(...)</c> wrote fabricated chats straight into the
+    /// developer's own store — a scan of the real one found the test id <c>inst-1</c> filed beside the real
+    /// accounts.
+    /// </para>
+    /// <para>
+    /// The expensive part was silent: that same <c>Update</c> reaches
+    /// <c>ResponseTimeTracker.Observe</c>, which stamps each account's watch start on first sight and only
+    /// measures replies to messages arriving after it. Every suite run reset that stamp, so reply-time
+    /// samples could never accumulate — 761 KB of snapshot, 218 KB of contact history, zero samples — and
+    /// SLA compliance was computed and displayed from that emptiness.
+    /// </para>
+    /// <para>
+    /// Redirecting the root covers every store at once, including ones not written yet. The folder is left
+    /// on disk: it is small, it is under TEMP, and deleting it from a module initializer would race the
+    /// stores' own debounced saves still finishing as the process exits.
+    /// </para>
+    /// </remarks>
     [ModuleInitializer]
-    internal static void Initialize() => AppLogger.SuppressWritesForTests = true;
+    internal static void Initialize()
+    {
+        AppLogger.SuppressWritesForTests = true;
+
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "UnifiedMessengerTests",
+            "user-data",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(root);
+        ApplicationPaths.UserDataRootOverrideForTests = root;
+    }
 }

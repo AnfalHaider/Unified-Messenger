@@ -11,7 +11,19 @@ public class ApplicationPathsTests
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             ApplicationPaths.AppDataFolderName);
 
-        Assert.Equal(expected, ApplicationPaths.UserDataRoot);
+        // The whole suite runs with the root redirected to TEMP, because it used to write fabricated chats
+        // into the developer's live oversight data (see TestIsolationTests). This test is about the
+        // shipping formula, so it clears the redirect for the length of the assertion and puts it back.
+        var restore = ApplicationPaths.UserDataRootOverrideForTests;
+        try
+        {
+            ApplicationPaths.UserDataRootOverrideForTests = null;
+            Assert.Equal(expected, ApplicationPaths.UserDataRoot);
+        }
+        finally
+        {
+            ApplicationPaths.UserDataRootOverrideForTests = restore;
+        }
     }
 
     [Fact]
