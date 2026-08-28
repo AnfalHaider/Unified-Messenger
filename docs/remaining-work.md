@@ -135,9 +135,28 @@ from anyone reading code — which says the remaining defects are most likely wh
   reply-time history restarts from 2026-08-28 because the suite had been resetting it (v4.99.55).
   Treat "nothing is signed in" as a stale premise — it was asserted in a session brief, carried forward
   unexamined, and used to justify not looking.
-- **`ui-smoke` exit 5 is unproven.** v4.99.47 made the harness distinguish "this runner has no interactive
-  desktop" (exit 5, now green-with-a-warning) from "the app never opened a window" (exit 4, still red). No
-  run has reached that job since.
+- **`ui-smoke` is red on CI, and the cause is NOT yet known.** The job has now been reached — three times
+  on 2026-08-28 — and failed on every run that got to it. What is established:
+  - It is **not** the app. The harness run against the shipped binary on a real desktop reports
+    `12 passed, 2 warnings, 0 failed`, exit 0, including the full 1865-test suite and UI automation of the
+    command palette, notification hub, sidebar, rapid reflow and tray-hide.
+  - It is **intermittent**: commit `db10fef` passed its `main` run and failed its tag run.
+  - `verify`, both `package` legs and `release` all pass, so the release pipeline is unaffected.
+
+  **Two diagnoses were attempted and both were wrong**, recorded here so nobody spends the time again:
+  1. *"`AliveWithoutWindow` is being misreported as a launch failure."* A tri-state probe was written and
+     shipped; the next run failed identically. Reverted.
+  2. *"CI has no accounts, so the first-run `ContentDialog` blocks the shell."* The reproduction appeared
+     to confirm it — exit 3, four hard failures with empty `sample=` — but the reproduction was invalid:
+     `Environment.GetFolderPath(LocalApplicationData)` **ignores the `LOCALAPPDATA` environment
+     variable**, so the app read the real profile both times and the empty-profile condition was never
+     actually created. Do not use that env var to fake a user-data root; the app resolves it through the
+     shell API.
+
+  **What would settle it in one look:** the tail of the *Run UI smoke validation* step, which needs repo
+  admin to download (`/actions/jobs/{id}/logs` returns 403 otherwise). Either a `[FAIL]` row in the
+  Validation Report (exit 3, a module problem) or a `Win32 probe:` line with exit 4/5 (the window path).
+  Everything else is guesswork, and two rounds of it have already been spent.
 - **Toast delivery has never been seen on screen** from the app itself. The absence of delivery errors is
   verified, and toasts fired at the same AUMID from outside the app do render. On the classic fallback a
   click does not open the app — stated in Settings.
