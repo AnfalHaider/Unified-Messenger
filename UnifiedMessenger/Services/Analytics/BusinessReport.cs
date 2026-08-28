@@ -130,9 +130,29 @@ public static class BusinessReport
             }
             else
             {
-                insights.Add(new BusinessInsight(InsightSeverity.Good,
-                    "Reply speed is healthy",
-                    $"Median first reply is {FormatMinutes(thisWk)} across {input.FrtSamplesThisWeek} replies."));
+                // SURVIVORSHIP. The median is computed over conversations that GOT a reply; the ones still
+                // waiting have no first-response time yet and are absent from it by construction. So the
+                // report could say "Reply speed is healthy — median 1 min across 29 replies" six rows below
+                // "103 customers waiting on a reply right now", and mean both. The verdict was being read
+                // off the survivors and presented as the state of the business.
+                //
+                // Where more customers are waiting than were answered, the median describes too small a
+                // slice of the week to carry a healthy verdict — so it keeps the measurement and drops the
+                // claim, and names the population it actually covers.
+                var answered = input.FrtSamplesThisWeek;
+                var outnumbered = input.AwaitingNow > answered;
+
+                insights.Add(outnumbered
+                    ? new BusinessInsight(InsightSeverity.Info,
+                        $"Reply speed looks good for the {answered} that were answered",
+                        $"Median first reply is {FormatMinutes(thisWk)} across {answered} "
+                        + $"{(answered == 1 ? "reply" : "replies")} — but {input.AwaitingNow} "
+                        + $"{(input.AwaitingNow == 1 ? "customer is" : "customers are")} still waiting and "
+                        + "are not in that figure.")
+                    : new BusinessInsight(InsightSeverity.Good,
+                        "Reply speed is healthy",
+                        $"Median first reply is {FormatMinutes(thisWk)} across {answered} "
+                        + $"{(answered == 1 ? "reply" : "replies")}."));
             }
         }
 

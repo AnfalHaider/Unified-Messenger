@@ -5,6 +5,43 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.67
+
+**Three pairs of figures that contradicted each other on screen, and text that could never wrap.**
+All four were seen on screen before being fixed.
+
+**The notification badge and the notification panel counted different things under one label.** The
+sidebar badge is `NotificationHub.TotalUnreadCount` — unread *messages* summed across unmuted accounts.
+The panel lists *alerts the hub has raised*. Both were right; together they read as one quantity
+disagreeing with itself: **"Notification Hub 21"** in the rail beside **"No notifications yet."** in the
+panel. Not a counting bug, so neither number changed — the empty state now names what the badge counts
+instead of denying it: *"Nothing needs your attention here. The 21 on the sidebar are unread messages, not
+alerts."*
+
+**"Reply speed is healthy" was computed over the survivors.** The median first-reply time only includes
+conversations that *got* a reply; the ones still waiting have no first-response time and are absent by
+construction. So the report printed *"Reply speed is healthy — median 1 min across 29 replies"* six rows
+below *"103 customers waiting on a reply right now"*, and meant both. Where more customers are waiting than
+were answered, the verdict is now withheld and the population named: *"Reply speed looks good for the 29
+that were answered … but 103 customers are still waiting and are not in that figure."* The healthy verdict
+is not removed, only withheld where the answered set is too small a slice of the week to carry it.
+
+**A day with no data was drawn as a day with a zero.** In the 7-day reply-time chart, a day with no
+measured replies contributed an *empty* column — pixel-for-pixel what a zero-height bar looks like. Reply
+history restarted on 2026-08-28, so six of seven days had no data and the chart read as a catastrophe. Those
+days now carry an explicit "–" and a tooltip saying *unmeasured, not zero*, and the heading states coverage:
+*"Median first reply · 1 of the last 7 days measured"*.
+
+**Wrapping text in a horizontal `StackPanel` can never wrap.** That panel measures its children with
+*infinite* available width, so `TextWrapping` has nothing to act on — the text overflows and is clipped by
+the parent. The dashboard's AI shift briefing was cut mid-word with no ellipsis, and a sweep found the same
+shape in the Activity insights and all three About-page feature rows. All converted to a `Grid` with
+`Auto` + `*` columns. The one legitimate use is kept: the triage toast's container is
+`HorizontalAlignment="Left"` and must hug its content, so its text got a `MaxWidth` instead.
+
+Tests 1900 → 1902 (two survivorship cases).
+
+
 ## v4.99.66
 
 **A link followed from a scraped account replaced the session, with no way back.**

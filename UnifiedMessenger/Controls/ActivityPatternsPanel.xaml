@@ -79,15 +79,25 @@
                     Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
                     CornerRadius="6"
                     Padding="12,8">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontSize="{StaticResource UmIconSizeMd}" Foreground="{ThemeResource SystemFillColorCautionBrush}" Glyph="&#xEA80;" VerticalAlignment="Center" />
-                        <TextBlock x:Name="InsightText" FontSize="{StaticResource UmFontSizeBodyStrong}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
-                    </StackPanel>
+                    <!-- Grid, not a horizontal StackPanel: the latter measures children with infinite width,
+                         so this text could never wrap and was clipped by the Border instead. -->
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Grid.Column="0" FontSize="{StaticResource UmIconSizeMd}" Foreground="{ThemeResource SystemFillColorCautionBrush}" Glyph="&#xEA80;" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" x:Name="InsightText" FontSize="{StaticResource UmFontSizeBodyStrong}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+                    </Grid>
                 </Border>
-                <StackPanel x:Name="WeekRow" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
-                    <FontIcon FontSize="{StaticResource UmIconSizeMd}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE9D2;" VerticalAlignment="Center" />
-                    <TextBlock x:Name="WeekText" FontSize="{StaticResource UmFontSizeBody}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
-                </StackPanel>
+                <Grid x:Name="WeekRow" ColumnSpacing="8" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Grid.Column="0" FontSize="{StaticResource UmIconSizeMd}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE9D2;" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" x:Name="WeekText" FontSize="{StaticResource UmFontSizeBody}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
+                </Grid>
             </StackPanel>
         </Grid>
     </Border>

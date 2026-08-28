@@ -103,4 +103,36 @@ public class BusinessReportTests
         Assert.DoesNotContain(report.Insights, i => i.Severity == InsightSeverity.Warn);
         Assert.Contains("solid week", report.Summary, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void Build_MoreWaitingThanAnswered_DoesNotCallReplySpeedHealthy()
+    {
+        // SURVIVORSHIP. The median first-reply time is computed over conversations that GOT a reply; the
+        // ones still waiting have no first-response time yet and are absent from it by construction. The
+        // report therefore printed "Reply speed is healthy — median 1 min across 29 replies" six rows below
+        // "103 customers waiting on a reply right now", and meant both. The verdict was read off the
+        // survivors and presented as the state of the business.
+        var input = Base() with { MedianFrtThisWeekMinutes = 1, FrtSamplesThisWeek = 29, AwaitingNow = 103 };
+
+        var report = BusinessReport.Build(input);
+
+        Assert.DoesNotContain(report.Insights, i => i.Title == "Reply speed is healthy");
+
+        var speed = Assert.Single(report.Insights, i => i.Title.Contains("Reply speed", StringComparison.Ordinal));
+        Assert.NotEqual(InsightSeverity.Good, speed.Severity);
+        Assert.Contains("103", speed.Detail, StringComparison.Ordinal);
+        Assert.Contains("not in that figure", speed.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_FewerWaitingThanAnswered_StillCallsReplySpeedHealthy()
+    {
+        // The verdict is not removed, only withheld where the answered set is too small a slice to carry it.
+        var input = Base() with { MedianFrtThisWeekMinutes = 2, FrtSamplesThisWeek = 40, AwaitingNow = 3 };
+
+        var report = BusinessReport.Build(input);
+
+        Assert.Contains(report.Insights, i =>
+            i.Title == "Reply speed is healthy" && i.Severity == InsightSeverity.Good);
+    }
 }

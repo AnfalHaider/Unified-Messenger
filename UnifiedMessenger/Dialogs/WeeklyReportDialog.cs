@@ -244,6 +244,22 @@ public sealed class WeeklyReportDialog : ContentDialog
                     Margin = new Thickness(3, 0, 3, 0)
                 });
             }
+            else
+            {
+                // A day with no replies measured used to contribute an EMPTY column, which is pixel-for-pixel
+                // what a zero-height bar looks like — so "we have no data for Tuesday" and "we replied to
+                // nobody on Tuesday" rendered identically. Reply history restarted on 2026-08-28, so six of
+                // these seven days have no data at all and the chart read as a catastrophe.
+                col.Children.Add(new TextBlock
+                {
+                    Text = "–",
+                    FontSize = UmScale.Text.Caption,
+                    Foreground = Res("TextFillColorTertiaryBrush"),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 2)
+                });
+                ToolTipService.SetToolTip(col, $"No replies measured on {p.Label} — not zero, unmeasured.");
+            }
 
             Grid.SetColumn(col, i);
             chart.Children.Add(col);
@@ -253,8 +269,15 @@ public sealed class WeeklyReportDialog : ContentDialog
             axis.Children.Add(lbl);
         }
 
+        // Say how much of the window was actually measured. "last 7 days" over one measured day is a true
+        // statement about the axis and a false impression of the evidence.
+        var measured = points.Count(p => p.Count > 0);
+        var heading = measured == points.Count
+            ? $"Median first reply, last {points.Count} days"
+            : $"Median first reply · {measured} of the last {points.Count} days measured";
+
         var wrap = new StackPanel { Spacing = 2 };
-        wrap.Children.Add(new TextBlock { Text = "Median first reply, last 7 days", FontSize = UmScale.Text.Body, FontWeight = FontWeights.SemiBold });
+        wrap.Children.Add(new TextBlock { Text = heading, FontSize = UmScale.Text.Body, FontWeight = FontWeights.SemiBold });
         wrap.Children.Add(chart);
         wrap.Children.Add(axis);
 

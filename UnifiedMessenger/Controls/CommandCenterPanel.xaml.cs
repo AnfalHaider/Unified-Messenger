@@ -2731,12 +2731,15 @@ public sealed partial class CommandCenterPanel : UserControl
         var fg = Brush("TextFillColorPrimaryBrush");
         var badge = Brush("SystemFillColorCautionBrush");
 
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
+        // A GRID, not a horizontal StackPanel. A horizontal StackPanel measures its children with INFINITE
+        // available width, so a TextBlock inside one can never wrap however its TextWrapping is set — it
+        // overflows and is clipped by the parent Border. The insight line was being cut mid-word with no
+        // ellipsis ("…at end of shif"), on the dashboard's most prominent sentence. Auto + star gives the
+        // text a real width to wrap into.
+        var content = new Grid { ColumnSpacing = 6, HorizontalAlignment = HorizontalAlignment.Stretch };
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
         content.Children.Add(new TextBlock
         {
             Text = isAi ? "✦ AI" : "✦",
@@ -2747,13 +2750,15 @@ public sealed partial class CommandCenterPanel : UserControl
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 1, 0, 0)
         });
-        content.Children.Add(new TextBlock
+        var insightText = new TextBlock
         {
             Text = displayText,
             Foreground = fg,
             FontSize = UmScale.Text.Body,
             TextWrapping = TextWrapping.WrapWholeWords
-        });
+        };
+        Grid.SetColumn(insightText, 1);
+        content.Children.Add(insightText);
 
         return new Border
         {

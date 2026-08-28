@@ -183,17 +183,33 @@
             CornerRadius="8"
             Padding="12,8"
             Visibility="Collapsed">
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <!--
+                A Grid, not a horizontal StackPanel. A horizontal StackPanel measures its children with
+                INFINITE available width, so BriefingText could never wrap however TextWrapping was set — it
+                overflowed and was clipped by this Border. The shift briefing is the most prominent sentence
+                on the dashboard and it was cut mid-word with no ellipsis. Auto + star gives it a real width.
+            -->
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
                 <TextBlock
                     x:Name="BriefingBadge"
+                    Grid.Column="0"
                     FontSize="{StaticResource UmFontSizeCaption}"
                     FontWeight="SemiBold"
                     Foreground="{ThemeResource SystemFillColorCautionBrush}"
                     Text="✦"
                     VerticalAlignment="Top"
                     Margin="0,4,0,0" />
-                <TextBlock x:Name="BriefingText" FontSize="{StaticResource UmFontSizeBodyStrong}" TextWrapping="WrapWholeWords" VerticalAlignment="Center" />
-            </StackPanel>
+                <TextBlock
+                    x:Name="BriefingText"
+                    Grid.Column="1"
+                    FontSize="{StaticResource UmFontSizeBodyStrong}"
+                    TextWrapping="WrapWholeWords"
+                    VerticalAlignment="Center" />
+            </Grid>
         </Border>
         </StackPanel>
 
@@ -480,8 +496,16 @@
                     Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                     Glyph="&#xE73E;"
                     VerticalAlignment="Center" />
+                <!--
+                    The one horizontal StackPanel here that is CORRECT: this Border is
+                    HorizontalAlignment="Left", so it hugs its content and a toast should not stretch the
+                    width of the page. Converting it to Auto+star like the others would make a short
+                    confirmation span the whole dashboard. A MaxWidth instead gives the text a bound to wrap
+                    into, so a long message wraps rather than running off the edge.
+                -->
                 <TextBlock
                     x:Name="TriageToastText"
+                    MaxWidth="520"
                     FontSize="{StaticResource UmFontSizeBodyStrong}"
                     VerticalAlignment="Center"
                     TextWrapping="WrapWholeWords" />
