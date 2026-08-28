@@ -24,9 +24,7 @@ namespace UnifiedMessenger.Tests;
 /// </summary>
 public class TestIsolationTests
 {
-    private static string RealUserDataRoot => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        ApplicationPaths.AppDataFolderName);
+    private static string RealUserDataRoot => ApplicationPaths.DefaultUserDataRoot;
 
     [Fact]
     public void TheSuiteDoesNotWriteIntoTheRealUserDataRoot()

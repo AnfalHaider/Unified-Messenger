@@ -332,8 +332,14 @@ public sealed class GoogleReviewSnapshotService
                     return true;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // Gives up on this account for this pass, and used to do so without a word. The Reviews
+                // card then simply kept reporting nothing read yet, which is indistinguishable from a slow
+                // first pass — the exact ambiguity that hid the background refresh never arming at all.
+                AppLogger.LogWarning(
+                    $"GoogleReviews.{id}",
+                    $"Could not reach the reviews page: {ex.GetType().Name}.");
                 return false;
             }
 
@@ -1147,13 +1153,24 @@ public sealed class GoogleReviewSnapshotService
                     .ExecuteScriptAsync(instanceId, "(window.__umGRNext?window.__umGRNext():false)")
                     .ConfigureAwait(true);
             }
-            catch
+            // Coverage is safe either way — reachedLastPage is only set when Google itself says there is no
+            // next page — so a break here correctly reports "stopped before the last page". What was
+            // missing is *why* it stopped. D5 keeps pagination capped at one page because walking every
+            // page over-counted by two to three times, and re-enabling it needs to distinguish "Google ran
+            // out of pages" from "the advance script threw". Without that the traversal is unfalsifiable.
+            catch (Exception ex)
             {
+                AppLogger.LogWarning(
+                    $"GoogleReviews.{instanceId}",
+                    $"Stopped paginating after page {pagesRead}: the advance script threw {ex.GetType().Name}.");
                 break;
             }
 
             if (advanced is null || !advanced.Contains("true", StringComparison.OrdinalIgnoreCase))
             {
+                AppLogger.LogInfo(
+                    $"GoogleReviews.{instanceId}",
+                    $"Stopped paginating after page {pagesRead}: no further page was offered.");
                 break;
             }
         }

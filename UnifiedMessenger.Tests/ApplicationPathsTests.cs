@@ -12,18 +12,12 @@ public class ApplicationPathsTests
             ApplicationPaths.AppDataFolderName);
 
         // The whole suite runs with the root redirected to TEMP, because it used to write fabricated chats
-        // into the developer's live oversight data (see TestIsolationTests). This test is about the
-        // shipping formula, so it clears the redirect for the length of the assertion and puts it back.
-        var restore = ApplicationPaths.UserDataRootOverrideForTests;
-        try
-        {
-            ApplicationPaths.UserDataRootOverrideForTests = null;
-            Assert.Equal(expected, ApplicationPaths.UserDataRoot);
-        }
-        finally
-        {
-            ApplicationPaths.UserDataRootOverrideForTests = restore;
-        }
+        // into the developer's live oversight data (see TestIsolationTests). Asserted against
+        // DefaultUserDataRoot rather than by clearing the redirect: xUnit runs test classes in parallel, so
+        // clearing it — even with a finally to put it back — hands the real user-data root to whatever else
+        // happens to resolve a store path in that window. The first version of this test did that and
+        // TriagePersistenceServiceTests failed on the very next run.
+        Assert.Equal(expected, ApplicationPaths.DefaultUserDataRoot);
     }
 
     [Fact]

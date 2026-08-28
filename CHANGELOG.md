@@ -5,6 +5,31 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.58
+
+**"Import icon from account" could fail five different ways and say nothing.** Every failure path returned
+the same result and wrote nothing anywhere, so a script that never ran, a page that was not loaded, a photo
+that was not on screen, a canvas the browser refused to read, and a malformed image were all one silent
+non-event. Tuning that against a live account is listed as blocked on having one — but knowing *which*
+stage failed is not blocked on anything, and without it the tuning has nowhere to start. The commonest
+outcome, polling out with no photo on screen, now says so plainly rather than reading as a dead button.
+Lengths and exception types only: a data URL *is* the photo, and `app.log` is the file support asks the
+owner to send.
+
+**The Google review scrape now says why it stopped paginating.** Coverage was never at risk — "reached the
+last page" is only recorded when Google itself says there is no next page — but a traversal that stopped
+because the advance script threw was indistinguishable from one that ran out of pages. Pagination is capped
+at one page because walking every page over-counted by two to three times, and re-enabling it needs exactly
+that distinction. Failing to reach the reviews page at all is also logged, instead of leaving the Reviews
+card reporting nothing read yet — indistinguishable from a slow first pass, which is precisely the ambiguity
+that once hid the background refresh never arming.
+
+**A race introduced by the previous release's own fix.** The test that pins the shipping user-data path
+cleared the suite-wide redirect to assert against it and restored it afterwards. xUnit runs test *classes*
+in parallel, so anything resolving a store path inside that window got the developer's real user-data root
+back — and `TriagePersistenceServiceTests` failed on the next run. The path is now exposed as its own
+member so the assertion needs no global mutation at all.
+
 ## v4.99.57
 
 **Work accounts now open by themselves at startup.** Every professional account is brought up in the

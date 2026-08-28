@@ -33,8 +33,14 @@ public static class AvatarImportService
         {
             await connection.ExecuteScriptAsync(instanceId, BuildKickoffScript(platform)).ConfigureAwait(true);
         }
-        catch
+        // Every failure path in this method returned ImportResult.Failed and wrote nothing anywhere, so
+        // "import from account" doing nothing was indistinguishable at every stage: script blocked, page not
+        // loaded, photo not on screen, canvas tainted, base64 malformed. Tuning this against a live account
+        // is what remaining-work.md 0.5 lists as gated — but knowing *which* stage failed is not gated on
+        // anything, and without it the tuning has nowhere to start.
+        catch (Exception ex)
         {
+            AppLogger.LogWarning("AvatarImport", $"Kickoff script failed for '{instanceId}': {ex.GetType().Name}");
             return ImportResult.Failed;
         }
 
@@ -48,8 +54,9 @@ public static class AvatarImportService
             {
                 raw = await connection.ExecuteScriptAsync(instanceId, ReadScript).ConfigureAwait(true);
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.LogWarning("AvatarImport", $"Read script failed for '{instanceId}': {ex.GetType().Name}");
                 return ImportResult.Failed;
             }
 
@@ -101,12 +108,18 @@ public static class AvatarImportService
 
         if (string.IsNullOrWhiteSpace(dataUrl) || !dataUrl.StartsWith("data:image", StringComparison.OrdinalIgnoreCase))
         {
+            // The commonest real outcome, and the one that reads as "the button does nothing": the poll ran
+            // out with the photo never on screen. Logged so a support log distinguishes it from a failure.
+            AppLogger.LogInfo(
+                "AvatarImport",
+                $"No profile photo found for '{instanceId}' after polling; the account may not be loaded or signed in.");
             return ImportResult.NotLoadedOrNotFound;
         }
 
         var comma = dataUrl.IndexOf(',');
         if (comma < 0 || comma + 1 >= dataUrl.Length)
         {
+            AppLogger.LogWarning("AvatarImport", $"Malformed data URL for '{instanceId}' ({dataUrl.Length} chars).");
             return ImportResult.Failed;
         }
 
@@ -115,14 +128,21 @@ public static class AvatarImportService
             var bytes = Convert.FromBase64String(dataUrl[(comma + 1)..]);
             if (bytes.Length == 0)
             {
+                AppLogger.LogWarning("AvatarImport", $"Decoded an empty image for '{instanceId}'.");
                 return ImportResult.NotLoadedOrNotFound;
             }
 
             await ProfileAvatarService.SaveAvatarAsync(instanceId, bytes).ConfigureAwait(true);
+            AppLogger.LogInfo("AvatarImport", $"Imported a profile photo for '{instanceId}' ({bytes.Length} bytes).");
             return ImportResult.Imported;
         }
-        catch
+        catch (Exception ex)
         {
+            // Never the image itself: a data URL is the photo, and app.log is the file support asks the
+            // owner to send. Length and type only.
+            AppLogger.LogWarning(
+                "AvatarImport",
+                $"Could not decode or save the photo for '{instanceId}': {ex.GetType().Name}");
             return ImportResult.Failed;
         }
     }

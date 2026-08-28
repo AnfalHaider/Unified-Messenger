@@ -40,11 +40,22 @@ public static class ApplicationPaths
     /// </remarks>
     internal static string? UserDataRootOverrideForTests { get; set; }
 
-    public static string UserDataRoot =>
-        UserDataRootOverrideForTests
-        ?? Path.Combine(
+    /// <summary>
+    /// The shipping location, ignoring any test override.
+    /// </summary>
+    /// <remarks>
+    /// Exists so a test can assert the real formula without clearing
+    /// <see cref="UserDataRootOverrideForTests"/> to do it. The first version of that test did exactly that
+    /// and restored it afterwards, which is a global mutation in a suite where xUnit runs test *classes* in
+    /// parallel — any other class resolving a store path inside that window got the developer's real
+    /// user-data root back. It failed within one run.
+    /// </remarks>
+    internal static string DefaultUserDataRoot =>
+        Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             AppDataFolderName);
+
+    public static string UserDataRoot => UserDataRootOverrideForTests ?? DefaultUserDataRoot;
 
     /// <summary>Default per-user install folder for the unpackaged WinExe (binaries only).</summary>
     public static string DefaultInstallRoot =>
