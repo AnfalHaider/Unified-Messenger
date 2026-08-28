@@ -104,7 +104,7 @@ Also update `docs/phase-status.md` header date + baseline version.
 targeted filter only postpones the failure to a place with a slower feedback loop.
 
 ```powershell
-# Before every push. 1863 tests, ~25s.
+# Before every push. 1878 tests, ~25s.
 dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet
 ```
 

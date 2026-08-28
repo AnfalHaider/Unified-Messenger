@@ -43,13 +43,13 @@ public static class UmSemanticBrushes
         {
             [StatusSuccessBrushKey] = ("#15803D", "#22C55E"),
             [StatusWarningBrushKey] = ("#B45309", "#F59E0B"),
-            [StatusDangerBrushKey] = ("#DC2626", "#F87171"),
+            [StatusDangerBrushKey] = ("#C81E1E", "#F87171"),
             // The three the sidebar's connection dot needs. They must be in this table as well as in the
             // theme dictionary: a key missing here falls through to grey, which is how a status signal
             // silently stops signalling.
             [StatusInfoBrushKey] = ("#1D4ED8", "#60A5FA"),
             [StatusNeutralBrushKey] = ("#5B6773", "#94A3B8"),
-            [StatusMutedBrushKey] = ("#6B7684", "#8A97A6")
+            [StatusMutedBrushKey] = ("#626D7A", "#8A97A6")
         };
 
     public static SolidColorBrush StatusSuccess => Get(StatusSuccessBrushKey);

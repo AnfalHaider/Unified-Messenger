@@ -251,4 +251,92 @@ public class StatusContrastTests
             $"SystemFillColor* references rose to {references}. The app has its own audited status palette "
             + "(UmSemanticBrushes) — use it, or lower this ceiling deliberately.");
     }
+
+    // ---- Every surface, not a representative one ------------------------------------------------------
+
+    /// <summary>
+    /// The full semantic palette, including the three that were only ever measured at the 3:1 dot bar.
+    /// </summary>
+    /// <remarks>
+    /// Muted and Neutral are not only dots. <c>ReviewDesk.UrgencyBrush</c> hands
+    /// <c>UmStatusMutedBrush</c> to a <c>TextBlock.Foreground</c> for an unrated review, and
+    /// <c>DeltaBadge</c> paints its arrow and percentage with <c>UmStatusNeutralBrush</c>. Both are
+    /// caption-size text, so 4.5:1 applies to them and never got asserted.
+    /// </remarks>
+    public static TheoryData<string, string> AllStatusColoursByTheme()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (var key in new[]
+        {
+            "UmStatusSuccessColor", "UmStatusWarningColor", "UmStatusDangerColor",
+            "UmStatusInfoColor", "UmStatusNeutralColor", "UmStatusMutedColor"
+        })
+        {
+            data.Add(key, "Light");
+            data.Add(key, "Default");
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(AllStatusColoursByTheme))]
+    public void EveryStatusColourIsReadableOnEverySurfaceOfItsOwnTheme(string colorKey, string themeKey)
+    {
+        // Cards sit on the canvas, on the surface, and on the sunken surface, and a status colour is drawn
+        // as text inside all three. The old assertions measured ONE background per theme — and on light
+        // that background was #FFFFFF, the most forgiving surface the app has. The sunken surface is
+        // roughly 10% darker, which is exactly enough to push two colours under the bar.
+        var color = WcagContrast.ThemeColor(themeKey, colorKey);
+
+        foreach (var (name, surface) in WcagContrast.Surfaces(themeKey))
+        {
+            var ratio = WcagContrast.Ratio(color, surface);
+
+            Assert.True(
+                ratio >= WcagContrast.AaText,
+                $"{colorKey} ({color}) on the {themeKey} {name} surface ({surface}) is {ratio:F2}:1, "
+                + $"needs {WcagContrast.AaText}:1. It is drawn as text, not only as a dot.");
+        }
+    }
+
+    // ---- Opacity is not a contrast-safe way to make text quieter ---------------------------------------
+
+    [Fact]
+    public void RawOpacityDimmingDoesNotSpreadFurther()
+    {
+        // Why a ceiling rather than an assertion about contrast: Opacity is applied at the ELEMENT, so
+        // what it renders is invisible to every measurement in this file unless the exact foreground and
+        // the exact surface behind it are both known at the call site. WcagContrast.Composite exists to
+        // measure a specific pairing when one is in question; it cannot audit the pattern in general.
+        //
+        // What was measured, so it is not re-derived from scratch next time:
+        //   * Dimming ordinary body text is FINE. WinUI's primary foreground at 0.65 is 7.95:1 on the
+        //     dark surface and 5.10:1 on the light sunken surface — both clear of AA. The 51 sites in
+        //     SettingsPage.xaml are not a contrast defect, and a session brief that said they were had
+        //     counted bin/obj copies (352) and assumed the worst about all of them.
+        //   * Dimming a STATUS colour would not be fine — all six fall under 4.5:1 by 0.65, and Danger
+        //     and Muted fail at 0.75. Measured at zero such sites in XAML. The two C# sites that pair a
+        //     Foreground with an Opacity dim TextFillColorSecondaryBrush (0.7) and
+        //     SystemFillColorCautionBrush (0.9), neither of which is a UmStatus* token.
+        //   * 0.55 applied to body text is 3.84:1 in light — BELOW AA. Several SettingsPage captions use
+        //     it (UmOpacitySubtle). That is a real defect and is tracked separately; it is not fixable by
+        //     a ceiling, only by giving those captions a real foreground.
+        //
+        // The bin/obj exclusion below is load-bearing: counting build output inflates this exactly 4x.
+        var uiRoot = Path.Combine(WcagContrast.RepoRoot(), "UnifiedMessenger");
+        var sites = Directory
+            .EnumerateFiles(uiRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Sum(path => System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(path), @"Opacity=""0\.\d+""").Count);
+
+        // Measured at 88, of which 51 are in SettingsPage.xaml alone. Lower this as sites move to a named
+        // foreground; never raise it.
+        Assert.True(
+            sites <= 88,
+            $"raw Opacity dimming rose to {sites} XAML sites. Opacity is applied at the element, so no "
+            + "contrast test can see what it renders — use a themed foreground brush, or lower this "
+            + "ceiling deliberately.");
+    }
 }

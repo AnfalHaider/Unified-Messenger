@@ -5,6 +5,31 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.60
+
+**The contrast check measured surfaces the app does not ship.** `WcagContrast` held every status colour
+against `#2D2D30` and `#1E1E1E` — WinUI defaults the app replaced with its own tokens long ago. It ships
+`#17191D` / `#121418` / `#0E0F12` on dark, and on light only `#FFFFFF` was ever measured, never the sunken
+`#F1F3F6`. So the suite measured the right foregrounds against backgrounds that are never drawn.
+
+Two real failures were hiding there. `UmStatusMutedColor` (`#6B7684`) measured **4.15:1** and
+`UmStatusDangerColor` (`#DC2626`) **4.34:1** on the light sunken surface — below AA **at full opacity**,
+before any dimming. Both are drawn as text, not only as dots: `ReviewDesk.UrgencyBrush` hands Muted to a
+`TextBlock.Foreground` for an unrated review. Now `#626D7A` (4.74:1) and `#C81E1E` (5.16:1).
+
+The surfaces are now read from `Tokens.xaml` like the colours already were, and every status colour is
+asserted against **all three** surfaces of its own theme rather than one representative. `Composite` /
+`RatioAtOpacity` were added so a dimmed pairing can be measured at all, and a ratchet caps raw `Opacity`
+dimming at its current 88 XAML sites.
+
+**What this did not find, recorded because a lot was written assuming otherwise:** dimming ordinary body
+text is fine. WinUI's primary foreground at 0.65 — 42 of the 88 sites — is 7.95:1 on the dark surface and
+5.10:1 on the light sunken one. No XAML element pairs a status `Foreground` with an `Opacity` at all. The
+0.55 token *is* below AA on light text (3.84:1) and is tracked separately.
+
+Tests 1865 → 1878.
+
+
 ## v4.99.59
 
 **A green local suite was not the gate, and CI said so.** `StartupWarmCount` was written taking the

@@ -27,10 +27,10 @@
             -->
             <Color x:Key="UmStatusSuccessColor">#15803D</Color>
             <Color x:Key="UmStatusWarningColor">#B45309</Color>
-            <Color x:Key="UmStatusDangerColor">#DC2626</Color>
+            <Color x:Key="UmStatusDangerColor">#C81E1E</Color>
             <SolidColorBrush x:Key="UmStatusSuccessBrush" Color="#15803D" />
             <SolidColorBrush x:Key="UmStatusWarningBrush" Color="#B45309" />
-            <SolidColorBrush x:Key="UmStatusDangerBrush" Color="#DC2626" />
+            <SolidColorBrush x:Key="UmStatusDangerBrush" Color="#C81E1E" />
             <!--
                 Info, neutral and muted joined the themed set when the sidebar's connection dot was found
                 still painting itself from hardcoded ARGB literals (#0063B1 blue, #808080 grey) months after
@@ -39,10 +39,10 @@
             -->
             <Color x:Key="UmStatusInfoColor">#1D4ED8</Color>
             <Color x:Key="UmStatusNeutralColor">#5B6773</Color>
-            <Color x:Key="UmStatusMutedColor">#6B7684</Color>
+            <Color x:Key="UmStatusMutedColor">#626D7A</Color>
             <SolidColorBrush x:Key="UmStatusInfoBrush" Color="#1D4ED8" />
             <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="#5B6773" />
-            <SolidColorBrush x:Key="UmStatusMutedBrush" Color="#6B7684" />
+            <SolidColorBrush x:Key="UmStatusMutedBrush" Color="#626D7A" />
 
             <!--
                 SURFACE SYSTEM, light theme.
