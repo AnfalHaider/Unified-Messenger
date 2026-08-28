@@ -1,8 +1,14 @@
 # Roadmap — remaining work
 
-**Updated:** 2026-08-28 · **Branch:** `feat/audit-2026-08` (6 commits, **not pushed**)
-**Head:** `dd54f01`, v4.99.65 · **Suite:** 1882 pass / 0 fail / 23 s · **App builds:** 0 warnings
+**Updated:** 2026-08-29 · **Branch:** `feat/audit-2026-08` (13 commits, **not pushed**)
+**Head:** `abf3824`, v4.99.69 · **Suite:** 1899 pass / 0 fail / 23 s · **App builds:** 0 warnings
 **Audit basis:** [00-remaining-work.md](00-remaining-work.md) (Phase A, complete)
+
+> ### ✅ Every increment this roadmap scheduled (91–102) has shipped.
+>
+> Twelve increments, v4.99.60 → v4.99.69. What remains is in **§4** (recorded, unscheduled), **§5**
+> (phases B/C/D, which have not run), **§6** (gated) and **§7** (owner decisions). Nothing in §3 is
+> outstanding.
 
 Evidence labels are used strictly throughout:
 
@@ -47,197 +53,39 @@ only because the owner sent a screenshot.
 
 ---
 
-## 3 · Scheduled — the ordered list
+## 3 · Shipped — increments 97–102
 
-### Increment 97 · A followed link strands the account, with no way back — **S1**
+All six landed. Each verified as noted; none pushed.
 
-`v4.99.66: a followed link stranded the account with no way back (Phase 1 — navigation) (Increment 97)`
-
-| | |
-|---|---|
-| **Problem** | `WebViewNavigationGuard.HandleNewWindowRequested` hops the **current frame** for any allow-listed host. Back/forward are hidden for exactly the platforms that scrape. |
-| **Owner impact** | The primary channel becomes a dead end. Recovery is right-click → Refresh WebView, which an owner will not find. Oversight for that account silently stops until they do. |
-| **Where** | `Services/Session/WebViewNavigationGuard.cs:337` · `MainWindow.xaml.cs:71–72` |
-| **Effort** | **S** |
-| **Evidence** | **CONFIRMED by reading**, both halves. **Not reproduced live** — that is task one inside this increment. |
-
-**Blast radius is wider than first stated.** `BuildDefaultAllowedHosts` (`:162`) adds each platform's host
-*and its whole registrable domain*, plus `CommonOAuthHosts`. From WhatsApp Web that includes `whatsapp.com`
-**and `google.com`** — so a `google.com` link in a customer message strands the account too. Any fix that
-special-cases `whatsapp.com` is incomplete.
-
-**Correction.** Narrow the in-frame hop to a genuine same-site redirect and send everything else to the
-owner's browser, which the handler already does for non-allow-listed hosts — and for the reason its own
-comment gives: *"Anything else the owner deliberately clicked is THEIR link."*
-
-```csharp
-if (IsAllowedNavigationUri(args.Uri, allowlist) && IsSameSiteAsStartUrl(args.Uri, startHost))
-{
-    coreWebView.Navigate(args.Uri);   // a real in-app redirect (sign-in hop)
-    return;
-}
-if (TryOpenExternally(args.Uri, args.IsUserInitiated)) { return; }
-```
-
-Preferred over "always show Back" because the adapter injects on document creation, so a frame hop costs the
-scraper until reload — Back fixes the escape route and leaves the interruption.
-
-**What could break.** Google Business needs the `business.google.com → www.google.com` hop, and the rating
-scrape deliberately parks on `www.google.com/search…`. `IsSameSiteAsStartUrl` must treat those as same-site
-via the registrable domain, or the Google channel breaks — the bug the comment at `:177` records fixing once.
-
-**Test.** `WebViewNavigationGuardTests`: an allow-listed *cross-site* URI (`faq.whatsapp.com`, `google.com`)
-from a WhatsApp account routes to `IsExternallyOpenableUri`, not to an in-frame navigate. Assert on that
-predicate, never call the launcher — the first version of those tests opened four browser windows.
-
----
-
-### Increment 98 · Figures that contradict each other on screen — **S1/S2**
-
-`v4.99.67: three pairs of figures disagreed with each other on screen (Phase 3 — data accuracy) (Increment 98)`
-
-All four **CONFIRMED on screen** this session. Grouped because they are one class: the dashboard asserting
-two incompatible things in one viewport.
-
-| # | What the owner sees | Why it is wrong | Where |
+| Inc | Version | What | Verified |
 |---|---|---|---|
-| **98-A** | Sidebar badge **"Notification Hub 21"** beside a panel reading **"No notifications yet."** | Two counts of the same thing, in one screenshot, disagreeing. One of them is lying and the owner cannot tell which. | `WorkspaceSidebar` footer badge vs `NotificationFeedPanel` empty state |
-| **98-B** | **"Reply speed is healthy — median 1 min across 29 replies"** six rows below **"103 customers waiting on a reply right now."** | Survivorship bias in a headline verdict. The 29 are the conversations that *got* answered; the 103 are not in the denominator. The verdict is computed over the survivors and presented as the state of the business. | `WeeklyReportDialog.Populate` insight rows |
-| **98-C** | **"Median first reply, last 7 days"** with one bar (Fri) and six empty days | Reply history restarted 2026-08-28, so six days have **no data** — but they render as zero-height, which reads as "we replied to nobody". The brief names this exactly: a figure showing 0 where it means unknown. | `WeeklyReportDialog.BuildResponseTrend` |
-| **98-D** | AI insight line on the dashboard clipped mid-word, no ellipsis | `TextTrimming` not set on that block. | `CommandCenterPanel.BuildInsightStrip` |
+| **97** | v4.99.66 | **A followed link replaced the scraped session with no way back.** `HandleNewWindowRequested` hopped the frame for any *allow-listed* host, and the allowlist spans each platform's whole registrable domain plus the OAuth hosts — so from WhatsApp Web it covered all of `whatsapp.com` **and `google.com`**. Back/forward are hidden for exactly the WhatsApp family. Routing is now `ResolveNewWindowAction`: same **host** or an OAuth host replaces the frame, everything else opens in the owner's browser. | 14 test cases. **Live repro blocked, not skipped** — WebView2 renders in separate processes the screenshot filter masks, so the page came back blank and no link could be clicked. |
+| **98** | v4.99.67 | **Three pairs of figures that disagreed on screen, and text that could never wrap.** Badge-vs-panel, the survivorship verdict, the no-data-as-zero chart, and wrapping text inside horizontal `StackPanel`s. | **All four on screen.** |
+| **99** | v4.99.69 | **Captions at 0.55 were 3.84:1 in light — below AA.** The app had *no* foreground token at all, which is why 88 sites reached for `Opacity`. Added `UmTextTertiary` per theme; four caption sites migrated; ratchet 88 → 84. | Test on all three surfaces per theme. Not seen rendered. |
+| **100** | v4.99.68 | **A third status palette and the dead code holding it up, deleted.** `UmSemanticColors` was theme-blind, unchecked, and already incoherent; its only consumer's only consumers were its own tests. | Enumerated across `*.cs`, `*.xaml`, `Assets/Scripts`, `Assets/Config`. |
+| **101** | — | **UI-smoke exit code printed into the run annotations.** A probe, labelled as one. | Needs a CI run. |
+| **102** | — | **Four false doc claims corrected; five gotchas recorded** in `AGENTS.md`, each of which cost time this session. | — |
 
-**98-B is the one that matters most.** It is the only place in the app that tells the owner their reply speed
-is *fine*, and it does so while a hundred people wait. Either qualify it ("across the 29 that were answered")
-or compute it over the full population.
+### What increment 98 fixed, in the owner's words
 
-**Effort:** A **S**, B **S**, C **S**, D **XS**.
+- **Badge vs panel.** "Notification Hub 21" beside "No notifications yet." Two different quantities under
+  one label — the badge counts unread *messages*, the panel lists *alerts*. Neither number changed; the
+  empty state now names what the badge counts instead of denying it.
+- **The survivorship verdict.** "Reply speed is healthy — median 1 min across 29 replies" sat six rows below
+  "103 customers waiting". The median only includes conversations that *got* a reply. Now: *"Reply speed
+  looks good for the 30 that were answered … but 100 customers are still waiting and are not in that
+  figure."*
+- **No data drawn as zero.** A day with no measured replies contributed an *empty* column — identical to a
+  zero-height bar. Those days now carry a "–" and the heading states coverage: *"2 of the last 7 days
+  measured."*
+- **Text that could not wrap.** A horizontal `StackPanel` measures children with infinite width, so
+  `TextWrapping` had nothing to act on. The dashboard's AI briefing was cut mid-word; the same shape was in
+  the Activity insights and all three About-page rows. All converted to `Grid` Auto+`*`.
 
----
-
-### Increment 99 · `UmOpacitySubtle` (0.55) on text is 3.84:1 in light — **S3**
-
-`v4.99.68: dimmed captions fell below AA in light theme (Phase 3 — accessibility) (Increment 99)`
-
-Body text at 0.55 measures **3.84:1** on the light surface — below AA. On dark the same dimming is 6.09:1 and
-fine. **CONFIRMED** by composite measurement.
-
-- **Where:** `Themes/Tokens.xaml:204` (`UmOpacitySubtle`) · `Pages/SettingsPage.xaml:827, 871, 896` ·
-  `Controls/NotificationFeedPanel.xaml:45`
-- **Correction (preferred):** add `UmTextTertiaryColor` per theme — light `#5B6773` (5.20:1 on the sunken
-  surface), dark `#8A97A6` (5.92:1) — and give these four sites a real foreground instead of a dim. Four
-  sites, not the 88 the original plan assumed.
-- **Leave the 0.55 `FontIcon` glyphs alone** (`CommandPalette.xaml:59`, `PersonalOverviewPanel.xaml:397`,
-  `ReviewsPage.xaml:28`): non-text, so 1.4.11's 3:1 applies and 3.84 clears it.
-- **Test:** once the token exists it can be read from `Tokens.xaml` and asserted on all three surfaces per
-  theme, exactly as the status colours now are. It could not be written before the token existed, which is
-  why increment 91 used a ratchet instead.
-- **Effort:** **S**
-
----
-
-### Increment 100 · A third status palette, and the dead code holding it up — **S3**
-
-`v4.99.69: a third status palette, and the dead code holding it up (Phase 3 — deletion) (Increment 100)`
-
-The palette exists in **three** places. Two are kept in lockstep by a test. `Services/UmSemanticColors.cs` is
-a third that nothing checks — and it is already incoherent, predating any change made this session:
-
-| Const | Value | What that value actually is |
-|---|---|---|
-| `StatusSuccess` | `#22C55E` | the **dark** theme's success |
-| `StatusWarning` | `#F59E0B` | the **dark** theme's warning |
-| `StatusDanger` | `#DC2626` | the **light** theme's danger (now `#C81E1E`) |
-| `StatusNeutral` | `#64748B` | **neither** theme |
-| `StatusMuted` | `#94A3B8` | the dark **Neutral**, not Muted |
-
-A `const string` cannot be theme-aware, so it is unfixable in place — that is the point, not an oversight.
-
-**Correction: delete it.** It is referenced only by itself, by
-`Services/UnifiedMessengerDashboardPresentationHelper.cs`, and by two docs. That helper is referenced only by
-itself and its own two test files — **no application code calls it**, and its surface (`FormatRevenue`,
-`ClientSentimentLabel`) describes a product this app is not. Delete both plus the two test files; update the
-two doc references; record the new test count in `AGENTS.md` in the same commit.
-
-**Verify before deleting**, and state the result in the commit body: `grep -rn` both type names across
-`*.cs`, `*.xaml`, `Assets/Scripts` and `Assets/Config`. Deleting live code because a grep was too narrow is
-the failure mode here. **Effort: S** · **CONFIRMED** by enumeration.
-
----
-
-### Increment 101 · The UI-smoke exit code never reaches the workflow — **S3, PROBE**
-
-`v4.99.70: the UI smoke job's exit code never reached the workflow (Phase 3 — CI) (Increment 101)`
-
-**Label this a probe in the commit body and revert it if the notice does not read 5.**
-
-What Phase A established, all **CONFIRMED**:
-
-- `ui-smoke` is **green on `HEAD`** and intermittent (~2 of 7 recent `main` runs pass). Runs 212 and 213 are
-  the *same commit* with opposite outcomes.
-- It is **not a timeout**: passes took 126 s and 159 s, failures 150 s and 183 s — run 214 failed *faster*
-  than run 216 passed.
-- The failures **exit 1** (runs 214 and 215, from check-run annotations, which need no repo admin).
-- The harness returns 1 at exactly one place — `Program.cs:17`, "executable not found" — which fires before
-  any work, yet the failing steps run for 150–183 s.
-- An unhandled exception via `dotnet run` returns **-532462766**, not 1 — measured directly.
-
-**Both previous diagnoses are excluded**: #1 targeted the 4-vs-5 distinction, #2 targeted exit 3. The job
-returns none of those. So exit 1 most likely comes from the `pwsh` wrapper aborting between `dotnet run` and
-`exit $code`, before the `if ($code -eq 5)` tolerance can act. **LIKELY** — not reproducible here because
-`pwsh` (PowerShell 7) is not installed on this machine and the behaviour is 7.3+-specific.
-
-**The probe** puts the answer in an annotation rather than the log:
-
-```pwsh
-$ErrorActionPreference = 'Continue'
-$PSNativeCommandUseErrorActionPreference = $false
-dotnet run ... -- $exe.Path
-$code = $LASTEXITCODE
-Write-Host "::notice::ui-smoke harness exit code = $code"
-if ($code -eq 5) { exit 0 }
-exit $code
-```
-
-Reads 5 → confirmed and fixed in one change. Reads 3 or 4 → hypothesis dead, but the true code is now
-visible without admin.
-
-**Still UNKNOWN, artifact named:** the tail of *Run UI smoke validation* on a failing run
-(`/actions/jobs/{id}/logs`, 403 without repo admin). Now that the exit code is known, the thing to look for
-is narrow — whether the output ends in a PowerShell `NativeCommandError` **after** the harness's own report
-printed normally. **One paste from the owner removes the guesswork.**
-
----
-
-### Increment 102 · Correct the record — **S3/S4, docs only**
-
-`v4.99.71: the docs stated things the tree contradicts (Phase 3 — correctness of the record) (Increment 102)`
-
-| Fix | Where |
-|---|---|
-| U6 claims "every pairing passes AA in both themes" — measured against stale surfaces, full opacity only, and two pairings failed | `remaining-work.md` §0.1 |
-| D4 claims "no `.bak` files" — two `pre-clean-*.bak` are present (the deliberate §0.7 backups). The D4 defect itself *is* closed | `remaining-work.md` §0.2 |
-| "`ui-smoke` is red on CI" — green on `HEAD`, intermittent | `remaining-work.md` §0.4 |
-| §0.2b tier-1 "Left: mark handled / snooze for reviews" — still true, confirm and keep | `remaining-work.md` |
-| Namespace counts: `Oversight` 39→**40**, `Shell` 7→**6**. Structural claim is correct | `AGENTS.md` |
-| Test count → **1882** | `AGENTS.md` |
-
-**Three new gotchas to add to `AGENTS.md`** — each cost real time this session:
-
-> **Deciding whether your shell is inside an MSIX container.** Write the marker **from your shell** and read
-> it from a `Win32_Process`-created process — not the other way round. Container reads fall through to the
-> real path when no local copy exists, so an outside-write/inside-read test passes either way and proves
-> nothing. Measured 2026-08-28: this shell **is** containerised; the redirect target is
-> `…\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\`. Never write under `%LOCALAPPDATA%\UnifiedMessenger`
-> from an agent shell — it forks the owner's store invisibly, and both paths then compare identical.
-
-> **A `FontIcon` with an empty `Glyph` draws nothing and stays clickable.** Write glyphs as `"\uXXXX"`, never
-> as an inline character. Eight shipped empty from the initial commit; all eight were inline, and all 26 in
-> escape form were intact. Pinned by `DesignScaleTests.NoFontIconShipsWithAnEmptyGlyph`.
-
-> **`TriagePersistenceServiceTests` is not isolated from a running app** either — it failed once during this
-> work with the app open. The existing warning names only `SecondInstanceActivatorTests`.
-
----
+> **A note on method, because it nearly cost a regression.** The first attempt at that last item converted
+> the XAML by regex and silently mangled the Re-sync button, closing a `<Grid>` with `</StackPanel>`. It was
+> caught by reading the diff, reverted, and redone as explicit edits. Bulk-editing XAML by pattern is how
+> that happens.
 
 ## 4 · Recorded, not yet scheduled
 
@@ -252,6 +100,11 @@ because they are verification debt rather than defects.
 | **R4** | **Report date-range header** (`Aug 21 – Aug 28, 2026`) is near-illegible in dark — dark grey on a dark card. Confirmed by zoom. | S3 |
 | **R5** | **`AwaitingChatActions` in compact density** now has an icon, but the underlying design question stands: a split button with no label in compact is discoverable only by tooltip. | S4 / design |
 | **R6** | The **`SystemFillColor*` ratchet sits exactly on its ceiling (69)**. Any new use fails the build. Shrinking it is deliberate work with its own contrast pass. | S4 |
+| **R7** | **The navigation fix (97) was never reproduced live.** WebView2 renders in separate processes that the computer-use screenshot filter masks, so an account's page comes back as a blank frame and no link can be clicked. Proven deterministically by 14 test cases instead. **LIKELY-observed, not CONFIRMED-on-screen** — the one increment this session that is not. | Verification debt |
+| **R8** | **Increment 99's four caption sites were not seen rendered.** The token is asserted on all three surfaces per theme; the migrated captions themselves are unviewed. | Verification debt |
+| **R9** | **The installer was never compiled or run this session.** Every deploy went by copying the publish output over the installed app from outside the MSIX container. `ISCC` + a silent install + the `FileVersion` check are therefore unexercised across all twelve increments. | Verification debt |
+| **R10** | **`themePreference` flipped from `Dark` to `Light`** in `settings.json` mid-session (file written 22:43). Cannot be attributed — a stray click of mine during dialog hunting is as likely as the app rewriting it. Recorded rather than claimed. Reproducing means setting Dark, relaunching several times, and watching the file. | **UNKNOWN** |
+| **R11** | **"median · 1 replies"** — the reply-time tile does not singularise. Seen on screen 2026-08-29. | S4 |
 
 ---
 
