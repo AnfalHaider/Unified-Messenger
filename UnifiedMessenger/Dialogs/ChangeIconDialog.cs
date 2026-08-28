@@ -316,8 +316,7 @@ public sealed class ChangeIconDialog : ContentDialog
             return PlatformBrandingHelper.GetAccentBrush(keyOrHex);
         }
 
-        return Application.Current.Resources.TryGetValue(keyOrHex, out var value) && value is SolidColorBrush brush
-            ? brush
-            : new SolidColorBrush(Colors.Gray);
+        return Services.ThemeBrushResolver.Resolve(keyOrHex) as SolidColorBrush
+            ?? new SolidColorBrush(Colors.Gray);
     }
 }

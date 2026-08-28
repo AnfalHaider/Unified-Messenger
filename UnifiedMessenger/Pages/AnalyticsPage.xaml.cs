@@ -82,7 +82,7 @@ public sealed partial class AnalyticsPage : Page
         FreshnessText.Text = freshness.Text;
         FreshnessText.Foreground = freshness.IsStale
             ? UmSemanticBrushes.Get(UmSemanticBrushes.StatusWarningBrushKey, this)
-            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
+            : Services.ThemeBrushResolver.Resolve(this, "TextFillColorTertiaryBrush");
 
         var view = AnalyticsPagePresenter.Build(instances, SelectedDays());
 
@@ -148,8 +148,7 @@ public sealed partial class AnalyticsPage : Page
             Width = 24,
             Height = 24,
             CornerRadius = new CornerRadius(12),
-            Background = Application.Current.Resources.TryGetValue("CardBackgroundFillColorSecondaryBrush", out var bg)
-                && bg is Brush brush ? brush : null,
+            Background = Services.ThemeBrushResolver.Resolve("CardBackgroundFillColorSecondaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock
             {

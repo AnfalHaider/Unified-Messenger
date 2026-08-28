@@ -392,13 +392,14 @@ public sealed class WeeklyReportDialog : ContentDialog
         return await picker.PickSaveFileAsync();
     }
 
+    // Both went straight to Application.Current.Resources, which resolves the APP-default theme rather than
+    // this dialog's — the systemic cause of the white-in-dark surfaces across this app.
+    // Static because Populate is: the report body is built by the same code for this dialog and for the
+    // Reports page. The no-element overload resolves against the window root, whose ActualTheme is the
+    // applied theme, and everything built here is parented into that same window.
     private static SolidColorBrush Res(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var v) && v is SolidColorBrush b
-            ? b
-            : new SolidColorBrush(Microsoft.UI.Colors.Gray);
+        Services.ThemeBrushResolver.Resolve(key) as SolidColorBrush
+            ?? new SolidColorBrush(Microsoft.UI.Colors.Gray);
 
-    private static Brush Res2(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var v) && v is Brush b
-            ? b
-            : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+    private static Brush Res2(string key) => Services.ThemeBrushResolver.Resolve(key);
 }

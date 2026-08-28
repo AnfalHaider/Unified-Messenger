@@ -32,7 +32,7 @@ public sealed partial class ReportsPage : Page
         FreshnessText.Text = freshness.Text;
         FreshnessText.Foreground = freshness.IsStale
             ? UmSemanticBrushes.Get(UmSemanticBrushes.StatusWarningBrushKey, this)
-            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
+            : Services.ThemeBrushResolver.Resolve(this, "TextFillColorTertiaryBrush");
 
         if (e.Parameter is RegistryNavigationArgs { Services: { } services })
         {

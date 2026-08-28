@@ -68,6 +68,22 @@ internal static class ThemeBrushResolver
     }
 
     /// <summary>
+    /// For static builders that have no element to hand — resolves against the window root's theme.
+    /// </summary>
+    /// <remarks>
+    /// Correct because the root's <c>ActualTheme</c> is the applied theme, and every surface these builders
+    /// produce is parented into that same window. Prefer the element overload wherever an element exists;
+    /// this is for helpers like <c>WeeklyReportDialog.Populate</c>, which is static and shared between the
+    /// dialog and the Reports page.
+    /// </remarks>
+    public static Brush Resolve(string key) =>
+        UnifiedMessenger.App.CurrentWindow?.Content is FrameworkElement root
+            ? Resolve(root, key)
+            : Application.Current.Resources.TryGetValue(key, out var value) && value is Brush brush
+                ? brush
+                : new SolidColorBrush(Microsoft.UI.Colors.Gray);
+
+    /// <summary>
     /// Looks <paramref name="key"/> up in the theme dictionary matching <paramref name="element"/>'s actual
     /// theme, searching the application dictionary and everything merged into it.
     /// </summary>

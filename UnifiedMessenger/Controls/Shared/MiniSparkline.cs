@@ -73,8 +73,7 @@ public sealed class MiniSparkline : ContentControl
         Content = host;
     }
 
-    private static Brush ResolveBrush(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var v) && v is Brush b
-            ? b
-            : new SolidColorBrush(Microsoft.UI.Colors.Gray);
+    // Went straight to Application.Current.Resources, which resolves the APP-default theme rather than
+    // this element's — the systemic cause of the white-in-dark surfaces across this app.
+    private Brush ResolveBrush(string key) => Services.ThemeBrushResolver.Resolve(this, key);
 }

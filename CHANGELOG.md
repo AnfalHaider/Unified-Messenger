@@ -5,6 +5,38 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.63
+
+**Eight files had each rolled their own brush resolver, every one bypassing `ThemeBrushResolver`.** That is
+the systemic cause of the white-in-dark surfaces, and why the two previous fixes kept leaving instances
+behind — they were fixing call sites while the pattern kept reappearing somewhere new.
+
+`KpiStatCard`, `MiniSparkline`, `AccountDetailDialog`, `ChangeIconDialog`, `WeeklyReportDialog`,
+`AnalyticsPage`, `ReportsPage`, `WorkspaceSidebar` and `ShellChromeCoordinator` each had a private
+`Application.Current.Resources.TryGetValue(key, …)` helper. All now route through `ThemeBrushResolver`. Added
+a no-element overload for the genuinely static builders — `WeeklyReportDialog.Populate` is shared between the
+dialog and the Reports page — which resolves against the window root, whose `ActualTheme` is the applied one.
+
+`WorkspaceSidebar` was the widest of them: it resolves `TextFillColorSecondary`,
+`CardBackgroundFillColorDefault`, `LayerFillColorDefault` and `UmBrandTeal`, all themed, for the left rail.
+
+**A second, different bug in the same tiles.** `KpiStatCard` resolved its brushes once **in its
+constructor** — before the control is in the visual tree, so `ActualTheme` is still `Default`. This app
+applies its theme on the window root rather than at application level, so the fallback
+(`Application.Current.RequestedTheme`) reads `Light` even in dark mode, and light surfaces were baked in
+permanently: a pale grey card carrying white text, on the Analytics page's four headline metrics. Brushes are
+now applied on `ActualThemeChanged` and `Loaded` as well. Every other imperative control escaped this only
+because it rebuilds its content after being parented; this one builds once and afterwards only updates text.
+
+The `SystemFillColor*` ratchet earned its keep here: the first version of this fix duplicated a brush
+reference and the build failed on the count.
+
+Verified on screen in dark theme: the four Analytics KPI tiles render dark with visible edges and readable
+values, and "Caught up by thread" now agrees with the dashboard's caught-up figure.
+
+Tests 1881.
+
+
 ## v4.99.62
 
 **The Reviews page was unusable in dark theme: six blank white tiles, white cards, invisible text.** Reported

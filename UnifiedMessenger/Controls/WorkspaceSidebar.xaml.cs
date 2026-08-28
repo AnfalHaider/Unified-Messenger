@@ -1173,10 +1173,11 @@ public sealed partial class WorkspaceSidebar : Grid
     private static Brush ResolveTransparentBrush() =>
         ResolveBrush("UmTransparentBrush") ?? new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
 
-    private static Brush? ResolveBrush(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var resource) && resource is Brush brush
-            ? brush
-            : null;
+    // Went straight to Application.Current.Resources, which resolves the APP-default theme rather than the
+    // rail's own. Every key it is asked for is themed — TextFillColorSecondary, CardBackgroundFillColorDefault,
+    // LayerFillColorDefault, UmBrandTeal — so the sidebar picked light-theme surfaces in dark. Same systemic
+    // cause as the Reviews desk and the Analytics KPI tiles.
+    private static Brush? ResolveBrush(string key) => Services.ThemeBrushResolver.Resolve(key);
 
     private static double ResolveDouble(string key, double fallback) =>
         Application.Current.Resources.TryGetValue(key, out var resource) && resource is double value

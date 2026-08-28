@@ -178,9 +178,10 @@ public sealed class AccountDetailDialog : ContentDialog
     private static string StatusKey(int percent) =>
         percent >= 90 ? "SystemFillColorSuccessBrush" : percent >= 70 ? "SystemFillColorCautionBrush" : "SystemFillColorCriticalBrush";
 
-    private static SolidColorBrush Res(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var v) && v is SolidColorBrush b ? b : new SolidColorBrush(Microsoft.UI.Colors.Gray);
+    // Both went straight to Application.Current.Resources, which resolves the APP-default theme and not
+    // this dialog's — the systemic cause of the white-in-dark surfaces across this app.
+    private SolidColorBrush Res(string key) =>
+        Services.ThemeBrushResolver.Resolve(this, key) as SolidColorBrush ?? new SolidColorBrush(Microsoft.UI.Colors.Gray);
 
-    private static Brush Res2(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var v) && v is Brush b ? b : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+    private Brush Res2(string key) => Services.ThemeBrushResolver.Resolve(this, key);
 }

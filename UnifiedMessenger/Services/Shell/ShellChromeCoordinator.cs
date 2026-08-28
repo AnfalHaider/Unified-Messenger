@@ -97,15 +97,17 @@ public sealed class ShellChromeCoordinator
             NotificationPanelVisible);
 
         var notificationSelected = NotificationPanelVisible;
+        // Both of these went straight to Application.Current.Resources, which resolves the APP-default theme
+        // rather than the button's — and the hardcoded fallback below was a LIGHT grey, which is what gave
+        // it away. Resolved against the button itself now.
         _ui.NotificationToggleButton.Background = notificationSelected
-            ? Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush
-              ?? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 243, 243, 243))
+            ? Services.ThemeBrushResolver.Resolve(_ui.NotificationToggleButton, "LayerFillColorDefaultBrush")
             : new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
         _ui.NotificationToggleButton.BorderThickness = notificationSelected
             ? new Thickness(0, 0, 0, 2)
             : new Thickness(0);
         _ui.NotificationToggleButton.BorderBrush = notificationSelected
-            ? Application.Current.Resources["AccentFillColorDefaultBrush"] as Brush
+            ? Services.ThemeBrushResolver.Resolve(_ui.NotificationToggleButton, "AccentFillColorDefaultBrush")
             : null;
     }
 
