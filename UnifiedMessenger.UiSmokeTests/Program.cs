@@ -145,8 +145,32 @@ internal static class Program
             return 4;
         }
 
-        var hardFailures = allResults.Count(result => result.Severity == ModuleValidationSeverity.Fail);
-        return hardFailures == 0 ? 0 : 3;
+        var failed = allResults.Where(result => result.Severity == ModuleValidationSeverity.Fail).ToList();
+
+        // Name the failures where they can be read WITHOUT repo admin. The job log needs
+        // `/actions/jobs/{id}/logs`, which returns 403 to everyone but a repo admin — so for months this
+        // job could only be observed as "red", and four separate diagnoses were argued from that one bit.
+        // A `::notice::` reaches the check-run annotations, which the REST API serves to anyone. Printing
+        // the exit code that way is what finally established it was 3 (a module failure) rather than the 5
+        // everyone had assumed; this does the same for WHICH module.
+        //
+        // Only four modules can ever return Fail: UnitTests, Layout.RapidReflow, MainWindow.Shell and
+        // Dashboard.OperationsCommandCenter. The detail is included because
+        // Dashboard.OperationsCommandCenter's carries a `sample=` list of the names it COULD see, which
+        // distinguishes "the shell is behind a first-run dialog" from "the shell rendered but the markers
+        // moved".
+        foreach (var failure in failed)
+        {
+            var detail = failure.Detail?.Replace('\r', ' ').Replace('\n', ' ') ?? string.Empty;
+            if (detail.Length > 400)
+            {
+                detail = detail[..400];
+            }
+
+            Console.WriteLine($"::notice::ui-smoke FAIL module={failure.Module} layer={failure.Layer} detail={detail}");
+        }
+
+        return failed.Count == 0 ? 0 : 3;
     }
 
     private static void PrintReport(IReadOnlyList<ModuleValidationResult> results)
