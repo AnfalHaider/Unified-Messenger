@@ -1,7 +1,12 @@
 # Free-API research — verdict matrix
 
-**As of:** 2026-08-29 · **Baseline:** v4.99.72 · **Phase 1 of 3.** Phase 2 (visualise) and Phase 3
-(roadmap) are not started and must not be until the owner picks routes from §7.
+**As of:** 2026-08-29 · **Baseline:** v4.99.72 · **Phase 1 of 3, complete.**
+
+> **§7 was answered on 2026-08-29 — the decisions are recorded in [§10](#10--owner-decisions--2026-08-29)
+> and they, not §7's recommendations, are what Phases 2 and 3 are built against.** Read §10 before §7.
+> Scope is now: **read-only oversight**, via the **Google Business Profile API** and the **Meta
+> Conversations API** for **Instagram and Messenger**. The Google account is a personal `@gmail.com`, which
+> closes the cheap OAuth path. §9 is the open-source library survey the owner asked for on top.
 
 Written after the owner relaxed one hard constraint on 2026-08-29: *"We can use free APIs that are free
 to use, and don't risk account ban."* Every other constraint in [`AGENTS.md`](../AGENTS.md) stands.
@@ -331,3 +336,76 @@ Every source opened for this document.
 | 18 | `azure.microsoft.com/pricing/details/trusted-signing` (via search) | $9.99/month, $99.99/month tiers |
 | 19 | `signpath.org/terms.html`, `signpath.io/solutions/open-source-community` (via search) | Free for OSS only; signed as SignPath Foundation |
 | 20 | ONNX Runtime / MiniLM sizing write-ups (via search) | ≈ 90 MB FP32, ≈ 23 MB INT8 — LIKELY |
+| 21 | `nuget.org/packages?q=Google.Apis.MyBusiness` | The nine published packages, versions and dates — **no v4/reviews package** |
+| 22 | `developers.google.com/my-business/samples` | Which languages Google publishes clients for |
+| 23 | `nuget.org/packages/Google.Apis.Auth` | Apache-2.0, 1.76.0 (2026-08-20), 580.7M downloads |
+| 24 | `github.com/TelegramBots/Telegram.Bot` | MIT, Bot API 10.3, 2,332 commits |
+| 25 | Facebook C# SDK status (via search) | Official SDK deprecated and unsupported |
+
+---
+
+## 9 · Addendum — open-source libraries for the chosen routes
+
+Requested by the owner alongside the route selection. The `AGENTS.md` ban is on **unofficial protocol
+libraries** (Baileys, whatsmeow) because they carry ban risk. A client wrapper around a **vendor's own
+public API** is a different category and carries none — it is the same HTTP the vendor documents. Each
+candidate below is assessed on licence, maintenance, and whether it earns its place at all.
+
+| Route | Library | Licence | State | Verdict |
+|---|---|---|---|---|
+| Google reviews (v4) | **none exists** | — | — | **Raw `HttpClient`.** See the finding below |
+| Google OAuth | `Google.Apis.Auth` | Apache-2.0 | 1.76.0, published 2026-08-20, 580.7M downloads | **Take it.** Handles the installed-app authorization-code flow and token refresh; writing that by hand is the wrong kind of lazy |
+| Meta Graph (IG + Messenger) | official Facebook C# SDK | — | **Deprecated and unsupported** | **Raw `HttpClient`.** Community forks exist (`fabricatorsltd/facebook-sdk-dotnet`, `devTaras/fb-dotnet-sdk`) and none is worth a dependency for four GET calls |
+| Telegram | `TelegramBots/Telegram.Bot` | MIT | Bot API 10.3, 2,332 commits, actively developed | **Would take it if Telegram were in scope.** Business updates landed in Bot API 7.2, well below 10.3, so coverage is LIKELY — unverified because Telegram is deferred |
+
+### The finding: there is no .NET client for the reviews API
+
+CONFIRMED. NuGet publishes **nine** `Google.Apis.MyBusiness*` / `BusinessProfile*` packages. Every one is a
+**v1** API. **None of them is reviews** — reviews only ever existed on v4, and v4 was never regenerated into
+a client library. Google's own samples page lists .NET among its client languages, which is true of the v1
+APIs and misleading about the one endpoint this project needs.
+
+Practically this is good news, not bad. The route is two authenticated GETs against a documented REST
+endpoint — `Google.Apis.Auth` for the token, `HttpClient` for the call, `System.Text.Json` (already
+referenced) for the response. No heavyweight generated client, no new transitive tree.
+
+### Second trap, recorded so nobody loses an afternoon
+
+**`Google.Apis.MyBusinessQA.v1` is still on NuGet, last updated 2026-05-12** — nine months *after* the API
+it wraps was shut down (§5.2). A maintained package for a dead service is more convincing than a stale doc
+page, and it would take a working build and a runtime 404 to discover otherwise. The sunset table is the
+only authority. Do not treat a live NuGet package as evidence that an API exists.
+
+### What this means for `egress-inventory.md`
+
+Every adopted route adds rows to §1 of that file — new `HttpClient` call sites to `oauth2.googleapis.com`,
+`mybusiness.googleapis.com` and `graph.facebook.com`. The file's whole value is that it is re-derivable
+rather than asserted, so **updating it is part of the definition of done for each increment**, not a
+follow-up. Note also that these will be the first non-loopback requests the app makes that carry an
+`Authorization` header, and the first that are not plain `GetAsync` with a constant URL.
+
+---
+
+## 10 · Owner decisions — 2026-08-29
+
+Recorded at the close of Phase 1. These fix the scope of Phases 2 and 3.
+
+| # | Decision | Consequence |
+|---|---|---|
+| **1** | **Read-only oversight.** Not click-through, not composing, not sending | `reviews.updateReply` is **out of scope** even though the token can reach it. The Meta send API is out of scope. The Reviews page's existing on-device reply *drafting* is unaffected — it drafts for the owner to paste and has never sent |
+| **2** | Routes: **Google Business Profile API**, **Meta Conversations API** | Plus a request to survey open-source libraries for these — §9 |
+| **3** | The Google account is a **personal `@gmail.com`** | The Workspace escape (§5.1a) is **closed**. The route now requires sensitive-scope verification: public homepage, privacy policy hosted on the same domain and linked from the consent screen, Search Console domain ownership, published branding, and a demo video. 3–5 business days, no fee. The alternative is re-authorising every 7 days forever, which is not shippable |
+| **4** | Customers message on **Instagram** and **Facebook Messenger**. Not Telegram, not Discord | Both are the same Meta submission, so Messenger is nearly free once Instagram is in. Discord closes entirely |
+
+**One contradiction, flagged not resolved.** Telegram Business Mode was selected as a route in (2) but
+Telegram was **not** listed as a channel customers use in (4). It is researched above and it is genuinely
+viable, but building an API integration for a channel with no customers on it is the most expensive kind of
+waste this project can produce. **It is excluded from the Phase 3 roadmap unless the owner says there are
+customers there**, at which point it is a small, well-understood piece of work.
+
+**One honesty note on decision 3, since read-only was chosen.** Google offers no read-only scope for
+reviews — `business.manage` is the only one, and it can write. The app will therefore hold a credential
+capable of posting public replies while deliberately never using it. That is worth saying out loud rather
+than discovering later, and Phase 3 should pin "the app issues no write to Google" with a test, the way
+`UserFacingErrorTests` and `AccountVocabularyTests` pin their rules, rather than relying on nobody adding
+the call.
