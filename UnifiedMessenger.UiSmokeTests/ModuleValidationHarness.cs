@@ -480,19 +480,41 @@ internal static class ModuleValidationHarness
 
     private static ModuleValidationResult ValidateInstanceSwitch(AutomationElement window)
     {
+        // "Contains WhatsApp" is not enough, and this is what made ui-smoke red on roughly half of all runs
+        // for months. On a CI runner there are no accounts, so the dashboard shows its empty state:
+        //
+        //     "Click + in the sidebar to add your first WhatsApp account, then mark it Professional to see
+        //      its oversight here."
+        //
+        // That sentence contains "WhatsApp", so it matched, the harness tried to CLICK a paragraph of
+        // guidance text, and returned Fail — exit 3. The `instanceName is null` guard below never fired,
+        // because a match genuinely was found; it was simply the wrong kind of thing. It was intermittent
+        // because whether that text had rendered when the harness probed is a race.
+        //
+        // An account row's name is a display name — short, no sentence punctuation. Guidance copy is prose.
+        // Rejecting prose turns "this machine has no accounts" back into the Warn it always should have
+        // been, which is the honest result: you cannot validate switching to an account on a machine that
+        // has none.
+        static bool LooksLikeAnAccountRow(string name) =>
+            name.Length <= 60 &&
+            !name.Contains(". ", StringComparison.Ordinal) &&
+            !name.EndsWith('.') &&
+            !name.Contains("Click ", StringComparison.OrdinalIgnoreCase);
+
         var condition = window.ConditionFactory.ByControlType(ControlType.Text);
         var instanceName = window.FindAllDescendants(condition)
             .Select(element => element.Name)
             .FirstOrDefault(name =>
                 !string.IsNullOrWhiteSpace(name) &&
-                name.Contains("WhatsApp", StringComparison.OrdinalIgnoreCase));
+                name.Contains("WhatsApp", StringComparison.OrdinalIgnoreCase) &&
+                LooksLikeAnAccountRow(name));
 
         if (instanceName is null)
         {
             return ModuleValidationResult.Warn(
                 "InstanceSession.WebViewHost",
                 "Shell",
-                "No WhatsApp instance rows found for live WebView switch");
+                "No WhatsApp account rows on this machine — nothing to switch to. Expected on CI.");
         }
 
         if (!UiAutomationHelpers.ClickByName(window, instanceName))
