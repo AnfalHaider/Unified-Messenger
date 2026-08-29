@@ -38,7 +38,7 @@ for in substance.
 | 98 | .67 | 3 contradicting figure-pairs + text that could never wrap | **All four on screen** |
 | 99 | .69 | Captions at 0.55 were 3.84:1 in light | Token test |
 | 100 | .68 | Third status palette + its dead code, deleted | Enumerated |
-| 101 | — | UI-smoke exit code printed to CI annotations (**probe**) | Needs a run |
+| 101 | — | UI-smoke exit code printed to CI annotations (**probe**) | ✅ **Ran — see §2b** |
 | 102 | — | 4 false doc claims corrected; 5 gotchas recorded | — |
 | 103 | .70 | Corner-radius scale enforced in XAML only; 11 values in C# | Test + snapped |
 
@@ -129,6 +129,34 @@ now states how many days were measured. Those are correct and are the model for 
 **Prerequisite:** do this on a machine with the app **running and scanning**, against the live store, and
 **never write to `%LOCALAPPDATA%\UnifiedMessenger` from an agent shell** — it is MSIX-redirected and the
 write forks the owner's data invisibly.
+
+---
+
+## 2b · `ui-smoke` — ANSWERED, and my own hypothesis was wrong
+
+The Increment 101 probe ran on the **v4.99.72 tag build** (run 219, 2026-08-29) and printed:
+
+```
+::notice::ui-smoke harness exit code = 3
+```
+
+**Exit 3, not 5.** The hypothesis this probe was built to test — that the harness returned the tolerated
+headless-runner code 5 and PowerShell swallowed it before `if ($code -eq 5)` could act — is **false**.
+
+Exit 3 means **one or more `[FAIL]` module rows**: a genuine module-validation failure inside the harness.
+That is diagnosis #2's territory, which had been ruled out earlier on the strength of the *step* exiting 1.
+Both were true at once and they are different things: the harness returns 3, and the step still reports 1.
+
+**Four hypotheses have now been wrong about this job** — two before this session, plus the exit-1-from
+`Program.cs:17` reading and the pwsh-swallowing theory. What settled it was not a better guess; it was
+printing the number where it could be read without repo admin.
+
+**The remaining question is narrow and mechanical: WHICH module fails.** The next change prints the failing
+module names as a `::notice::` alongside the exit code, exactly as this probe printed the code. Still no repo
+admin needed. **Effort XS.** The probe stays in place.
+
+`ui-smoke` does not gate `release` — deliberately, and that held: `v4.99.72` published normally with all four
+installer assets while this job was red.
 
 ---
 
