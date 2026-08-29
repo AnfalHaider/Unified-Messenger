@@ -7,6 +7,39 @@ Release notes and installers for each version are on the
 
 ## v4.99.72
 
+> **This release closes a full audit — 13 increments since v4.99.59.** The headline for anyone updating:
+> **dark theme is fixed**, reports and analytics can now be **filtered by branch**, and every figure the
+> dashboard shows has been **checked against the underlying data for the first time**.
+>
+> **What you will notice**
+>
+> - **Dark theme works properly.** Panels are distinguishable again — the elevation between a card and the
+>   background was below the threshold at which a layer reads as raised at all. The AI insight on every
+>   account card was white text on a white bar. The whole Reviews page rendered as blank white tiles. Every
+>   dialog opened in light theme over the dark app.
+> - **A hidden button is visible.** Eight icons shipped with an empty glyph — present, clickable, invisible.
+>   One of them was the per-account details button, so the drill-down behind it could not be found by
+>   looking. Another was the mark-done control on every waiting conversation.
+> - **Following a link no longer strands an account.** A help link, or a `google.com` link a customer sent,
+>   replaced the scraped WhatsApp session with no way back — and oversight for that account stopped until
+>   you found right-click → Refresh WebView.
+> - **Filter reports and analytics by branch.** The selected branch scopes every figure, chart and insight,
+>   and is written into the `.md` and `.csv` exports so a saved report always says which branch it covers.
+> - **Numbers say what they mean.** The report no longer calls reply speed "healthy" using only the
+>   conversations that got answered while others wait. A day with no data no longer looks like a day with a
+>   zero. The SLA tile now shows how many replies it was computed from.
+>
+> **What was checked and found correct:** reply-time medians and SLA percentages, sample counts, the
+> live/backlog split, and the awaiting count of 298 raw down to 108 shown — that reduction is the
+> closed-conversation filter excluding system messages, protocol noise and answered calls, exactly as
+> designed. Full record in `docs/audit-2026-08/05-data-validation.md`.
+>
+> **Still open, and honest about it:** no screen reader has ever been run against this app; nothing inside
+> the embedded WhatsApp view has been visually inspected; and display scaling, right-to-left text and
+> high-contrast mode remain untested. These are listed in `docs/audit-2026-08/04-roadmap.md`.
+
+---
+
 **Switching branch on Analytics hung the app.** Introduced by v4.99.71 and reported immediately.
 `BranchBox_SelectionChanged` called `Refresh()`, and `Refresh()` called `PopulateBranchBox()`, which clears
 and rebuilds `BranchBox.Items` — so the app was rebuilding a `ComboBox` from inside its own
