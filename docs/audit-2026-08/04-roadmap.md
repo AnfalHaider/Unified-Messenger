@@ -151,9 +151,43 @@ Both were true at once and they are different things: the harness returns 3, and
 `Program.cs:17` reading and the pwsh-swallowing theory. What settled it was not a better guess; it was
 printing the number where it could be read without repo admin.
 
-**The remaining question is narrow and mechanical: WHICH module fails.** The next change prints the failing
-module names as a `::notice::` alongside the exit code, exactly as this probe printed the code. Still no repo
-admin needed. **Effort XS.** The probe stays in place.
+### The answer — `ui-smoke` was clicking a paragraph of guidance text
+
+The module-naming probe answered on run `33246935838`:
+
+```
+module=InstanceSession.WebViewHost  layer=Shell
+detail=Could not click instance 'Click + in the sidebar to add your first WhatsApp account,
+       then mark it Professional to see its oversight here.'
+```
+
+`ValidateInstanceSwitch` took the first `Text` element whose name **contains "WhatsApp"**. A CI runner has
+no accounts, so the dashboard shows its empty state — and that sentence contains "WhatsApp". The harness
+matched the guidance copy, tried to **click a paragraph**, and returned `Fail` → exit 3.
+
+The `instanceName is null` guard that correctly returns *Warn — no instance rows* never fired, because a
+match genuinely **was** found; it was simply the wrong kind of thing. It was intermittent because whether
+that text had rendered when the harness probed is a race — which is the ~50% flake rate seen since June.
+
+**It is a harness bug, not an app bug.** The app was right the whole time: no accounts, so it shows an empty
+state with guidance. The harness asserted a behaviour that requires an account to exist, and treated its
+absence as a defect.
+
+**Fixed** — a candidate must now look like an account row (a display name: short, no sentence punctuation),
+so "this machine has no accounts" returns the Warn it always should have, which does not fail the job.
+
+### Five wrong hypotheses, and what actually settled it
+
+1. `AliveWithoutWindow` misreported as a launch failure — a tri-state probe shipped; no change.
+2. A first-run `ContentDialog` blocks the shell — **right premise, wrong mechanism**, discarded because its
+   reproduction was invalid (`GetFolderPath` ignores the `LOCALAPPDATA` env var).
+3. Exit 1 came from `Program.cs:17`, "executable not found" — excluded by the 150 s runtime.
+4. The `pwsh` wrapper swallowed a tolerated exit 5 — **mine**, disproved by the probe printing 3.
+5. Only four modules could return `Fail` — **also mine**, wrong because I had grepped one file.
+
+Diagnosis #2 was closest and was dropped for the right reason at the time. **What settled it was not a better
+guess: it was printing the module name somewhere readable without repo admin.** Two `::notice::` lines
+answered a question five rounds of reasoning had not.
 
 `ui-smoke` does not gate `release` — deliberately, and that held: `v4.99.72` published normally with all four
 installer assets while this job was red.
