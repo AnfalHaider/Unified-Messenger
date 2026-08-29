@@ -627,9 +627,9 @@ public sealed partial class CommandCenterPanel : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Background = Brush("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(12),
             Padding = _compact ? new Thickness(14, 4, 14, 6) : new Thickness(16, 10, 16, 12),
             Header = BuildHeader(entity),
             Content = BuildAwaitingPanel(entity),
@@ -1083,7 +1083,7 @@ public sealed partial class CommandCenterPanel : UserControl
             Content = new TextBlock { Text = label, FontSize = UmScale.Text.Body },
             IsChecked = selected,
             Padding = new Thickness(10, 3, 10, 3),
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(12),
             MinWidth = 0,
             MinHeight = 0
         };
@@ -1233,7 +1233,10 @@ public sealed partial class CommandCenterPanel : UserControl
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
-        content.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center });
+        // "" (Cancel), not a literal character. Eight FontIcons in this app were written with the
+        // glyph inline and reached the repo EMPTY — a FontIcon with a zero-length Glyph draws nothing, so
+        // the control is invisible while remaining present, focusable and clickable. Use the escape form.
+        content.Children.Add(new FontIcon { Glyph = "\uE711", FontSize = UmScale.Icon.Sm, VerticalAlignment = VerticalAlignment.Center });
 
         var chip = new Button
         {
@@ -1328,7 +1331,7 @@ public sealed partial class CommandCenterPanel : UserControl
         };
         unreadLine.Children.Add(new FontIcon
         {
-            Glyph = "", // Warning (ErrorBadge family) — Segoe Fluent
+            Glyph = "\uE7BA", // Warning (ErrorBadge family) — Segoe Fluent
             FontSize = UmScale.Icon.Sm,
             Foreground = danger,
             VerticalAlignment = VerticalAlignment.Center
@@ -1807,7 +1810,7 @@ public sealed partial class CommandCenterPanel : UserControl
         var chip = new Border
         {
             Background = Brush(background),
-            CornerRadius = new CornerRadius(5),
+            CornerRadius = new CornerRadius(6),
             Padding = new Thickness(6, 1, 6, 1),
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock
@@ -2150,7 +2153,7 @@ public sealed partial class CommandCenterPanel : UserControl
             ValueBrush = response.HasData ? primary : secondary,
             Delta = responseDeltaText,
             DeltaBrush = responseDeltaBrush,
-            Hint = response.HasData ? $"median · {response.SampleCount} replies" : "builds as you reply",
+            Hint = response.HasData ? $"median · {response.SampleCount} {(response.SampleCount == 1 ? "reply" : "replies")}" : "builds as you reply",
             Tooltip = $"Median time from a customer's message to your first reply (measured live since tracking began). Target: under {slaThreshold} min."
         });
 
@@ -2161,7 +2164,15 @@ public sealed partial class CommandCenterPanel : UserControl
             ValueBrush = response.HasData ? primary : secondary,
             Delta = slaDeltaText,
             DeltaBrush = slaDeltaBrush,
-            Hint = response.HasData ? $"replied within {slaThreshold} min" : $"target {slaThreshold} min",
+            // The DENOMINATOR, not just the threshold. "SLA met 0%" computed from a single reply looked
+            // pixel-for-pixel identical to 0% computed from two hundred, and the dashboard defaults its
+            // window to Today — so early in the day this tile headlines a percentage built from one or two
+            // samples. The response-time tile beside it already says "median · N replies"; this one said
+            // only what the target was. Measured 2026-08-29: Today showed 0% from one reply while the same
+            // week read 83%, and both were correct.
+            Hint = response.HasData
+                ? $"{response.SampleCount} {(response.SampleCount == 1 ? "reply" : "replies")} · target {slaThreshold} min"
+                : $"target {slaThreshold} min",
             Tooltip = $"Share of replies sent within your {slaThreshold}-minute SLA target. Adjust the target in Settings → Session & performance."
         });
 
@@ -2299,7 +2310,7 @@ public sealed partial class CommandCenterPanel : UserControl
             // actually have. A warning glyph and an explicit headline instead.
             headline.Children.Add(new FontIcon
             {
-                Glyph = "", // warning
+                Glyph = "\uE7BA", // warning
                 FontSize = UmScale.Icon.Lg,
                 Foreground = accent,
                 VerticalAlignment = VerticalAlignment.Center
@@ -2362,7 +2373,7 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         HeroCard.Child = grid;
-        HeroCard.BorderBrush = Brush("CardStrokeColorDefaultBrush");
+        HeroCard.BorderBrush = Brush("UmHairlineBrush");
         HeroCard.Visibility = Visibility.Visible;
         // (Depth via ThemeShadow was removed — the accent rail + large number already give the hero enough
         //  visual weight, and the imperative Shadow+Translation was an unverified, finicky variable.)
@@ -2728,12 +2739,15 @@ public sealed partial class CommandCenterPanel : UserControl
         var fg = Brush("TextFillColorPrimaryBrush");
         var badge = Brush("SystemFillColorCautionBrush");
 
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
+        // A GRID, not a horizontal StackPanel. A horizontal StackPanel measures its children with INFINITE
+        // available width, so a TextBlock inside one can never wrap however its TextWrapping is set — it
+        // overflows and is clipped by the parent Border. The insight line was being cut mid-word with no
+        // ellipsis ("…at end of shif"), on the dashboard's most prominent sentence. Auto + star gives the
+        // text a real width to wrap into.
+        var content = new Grid { ColumnSpacing = 6, HorizontalAlignment = HorizontalAlignment.Stretch };
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
         content.Children.Add(new TextBlock
         {
             Text = isAi ? "✦ AI" : "✦",
@@ -2744,18 +2758,20 @@ public sealed partial class CommandCenterPanel : UserControl
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 1, 0, 0)
         });
-        content.Children.Add(new TextBlock
+        var insightText = new TextBlock
         {
             Text = displayText,
             Foreground = fg,
             FontSize = UmScale.Text.Body,
             TextWrapping = TextWrapping.WrapWholeWords
-        });
+        };
+        Grid.SetColumn(insightText, 1);
+        content.Children.Add(insightText);
 
         return new Border
         {
             Background = bg,
-            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 7, 10, 7),
@@ -3006,7 +3022,7 @@ public sealed partial class CommandCenterPanel : UserControl
                 BorderThickness = new Thickness(0),
                 Padding = new Thickness(6),
                 VerticalAlignment = VerticalAlignment.Center,
-                Content = new FontIcon { Glyph = "", FontSize = UmScale.Icon.Md } // BarChart
+                Content = new FontIcon { Glyph = "\uE9D2", FontSize = UmScale.Icon.Md } // BarChart
             };
             ToolTipService.SetToolTip(detailsButton, "Account details — reply speed, backlog, and who's waiting");
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(detailsButton, $"{entity.DisplayName} details");
@@ -3259,7 +3275,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Width = width,
             Height = height,
-            CornerRadius = new CornerRadius(4),
+            CornerRadius = new CornerRadius(6),
             Background = Brush("ControlFillColorSecondaryBrush"),
             HorizontalAlignment = HorizontalAlignment.Left
         };
@@ -3273,7 +3289,7 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             Width = 30,
             Height = 30,
-            CornerRadius = new CornerRadius(15),
+            CornerRadius = new CornerRadius(12),
             Background = Brush("ControlFillColorSecondaryBrush")
         });
         top.Children.Add(lines);
@@ -3285,9 +3301,9 @@ public sealed partial class CommandCenterPanel : UserControl
         var cardBorder = new Border
         {
             Background = Brush("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = Brush("CardStrokeColorDefaultBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(12),
             Padding = new Thickness(16, 12, 16, 14),
             Child = inner
         };

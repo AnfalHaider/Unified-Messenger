@@ -281,12 +281,38 @@ jobs:
       - name: Run UI smoke validation
         shell: pwsh
         run: |
+          # PROBE (v4.99.70). This job fails intermittently — roughly 2 runs in 7 pass, and commit db10fef
+          # passed one run and failed another. What is established, all from the run API rather than the
+          # job log (which needs repo admin):
+          #
+          #   * NOT a timeout. Passes took 126s and 159s, failures 150s and 183s; run 214 failed FASTER
+          #     than run 216 passed.
+          #   * The failures exit 1 (runs 214 and 215, from the check-run annotations).
+          #   * The harness returns 1 at exactly ONE place — Program.cs:17, "executable not found" —
+          #     which fires before any work, yet the failing steps run for 150-183 seconds.
+          #   * An unhandled exception through `dotnet run` returns -532462766, not 1. Measured directly.
+          #
+          # So exit 1 is most likely NOT the harness's return value but this pwsh wrapper aborting between
+          # `dotnet run` and `exit $code`, before the exit-5 tolerance below can act. That would also
+          # explain why the previous fix appeared to do nothing: it computed 5 correctly and the wrapper
+          # discarded it. Two earlier diagnoses targeted exit 4-vs-5 and exit 3; the job returns neither.
+          #
+          # These two lines stop a non-zero native exit from throwing, and the ::notice:: puts the real code
+          # in the run's ANNOTATIONS, which are readable without repo admin. If the notice reads 5 and the
+          # job goes green, the diagnosis is confirmed and fixed together. If it reads 3 or 4, this
+          # hypothesis is dead and the true code is finally visible — revert these two lines, keep the
+          # notice.
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
+
           $exe = Resolve-Path "publish/win-x64/UnifiedMessenger.exe"
           dotnet run --project UnifiedMessenger.UiSmokeTests/UnifiedMessenger.UiSmokeTests.csproj `
             -c ${{ env.CONFIGURATION }} `
             --no-build `
             -- $exe.Path
           $code = $LASTEXITCODE
+
+          Write-Host "::notice::ui-smoke harness exit code = $code"
 
           # 5 means the app opened a window and UI Automation could not attach to it — this runner has no
           # interactive desktop. Reporting that as a failure is what made this job permanently red and

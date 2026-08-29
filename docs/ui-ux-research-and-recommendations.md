@@ -227,7 +227,7 @@ Effort: S (<1d) · M (1-3d) · L (1-2wk) · XL (>2wk). Impact: ★–★★★.
 - **R2 · Filter state unification** — there are separate states `OccFilterState`, `OccQueueFilterState`, `OccDateRangeFilterState`, `OccViewModeState` (🔵). Introduce one `OccQueryState` facade (composing the four) so the new unified filter bar binds to a single source of truth. *Enables P1-2; reduces the kind of cross-state bug already fixed this session.*
 - **R3 · DI lifetimes** — the Sprint-5 MEDI container bridges ~30 static singletons via `_ => X.Instance` (🔵 `ServiceRegistration`). Migrate hot-path state/services to real DI lifetimes to cut global state and make the OCC view-model testable in isolation. *Enables reliable P1-3 work.*
 - **R4 · Empty/loading/error state component** — generalize `EmptyStateView` into a tri-state (`EmptyStateView` + skeleton + error) shared control so every panel gets consistent first-run treatment. *Enables P1-1.*
-- **R5 · Status presentation helper** — centralize SLA/sentiment/delivery → (color, icon, label) mapping (extend `UmSemanticColors`) so non-color cues (U1) are added once. *Enables P1-5.*
+- **R5 · Status presentation helper** — centralize SLA/sentiment/delivery → (color, icon, label) mapping (extend `UmSemanticBrushes` — `UmSemanticColors` was deleted at v4.99.68 as an unchecked, theme-blind third copy of the palette) so non-color cues (U1) are added once. *Enables P1-5.*
 - **R6 · CI guard** — add a publish check that fails if `Assets/*` are missing from output (the class of bug that caused the v4.4.0 tray crash). *Prevents regressions.*
 
 ---

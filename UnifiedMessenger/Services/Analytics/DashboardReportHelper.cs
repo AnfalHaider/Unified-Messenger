@@ -16,7 +16,17 @@ public static class DashboardReportHelper
         ("Last 90 days", 90, "quarter"),
     ];
 
-    public static ReportInputs GatherInputs(IReadOnlyList<MessengerInstance> instances, int periodDays = 7)
+    /// <param name="scopeLabel">
+    /// The branch this report covers, when it covers only one. It is folded into
+    /// <see cref="ReportInputs.PeriodLabel"/> rather than carried separately because that label is what
+    /// reaches the Markdown export (<c>BusinessReport</c> writes <c>"# Business report — {PeriodLabel}"</c>).
+    /// A single-branch report saved to a file that does not say which branch it covers stops being a report
+    /// and becomes a wrong document the moment it leaves the app.
+    /// </param>
+    public static ReportInputs GatherInputs(
+        IReadOnlyList<MessengerInstance> instances,
+        int periodDays = 7,
+        string? scopeLabel = null)
     {
         periodDays = Math.Clamp(periodDays, 1, 366);
         var noun = Ranges.FirstOrDefault(r => r.Days == periodDays).Noun ?? (periodDays <= 7 ? "week" : periodDays <= 31 ? "month" : "quarter");
@@ -68,7 +78,9 @@ public static class DashboardReportHelper
         }
 
         return new ReportInputs(
-            PeriodLabel: $"{periodStart:MMM d} – {now:MMM d, yyyy}",
+            PeriodLabel: string.IsNullOrWhiteSpace(scopeLabel)
+                ? $"{periodStart:MMM d} – {now:MMM d, yyyy}"
+                : $"{periodStart:MMM d} – {now:MMM d, yyyy} · {scopeLabel.Trim()}",
             MessagesThisWeek: breakdown.Total,
             MessagesLastWeek: priorBreakdown.Total,
             MedianFrtThisWeekMinutes: thisPeriod.MedianMinutes,

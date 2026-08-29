@@ -251,4 +251,184 @@ public class StatusContrastTests
             $"SystemFillColor* references rose to {references}. The app has its own audited status palette "
             + "(UmSemanticBrushes) — use it, or lower this ceiling deliberately.");
     }
+
+    // ---- Every surface, not a representative one ------------------------------------------------------
+
+    /// <summary>
+    /// The full semantic palette, including the three that were only ever measured at the 3:1 dot bar.
+    /// </summary>
+    /// <remarks>
+    /// Muted and Neutral are not only dots. <c>ReviewDesk.UrgencyBrush</c> hands
+    /// <c>UmStatusMutedBrush</c> to a <c>TextBlock.Foreground</c> for an unrated review, and
+    /// <c>DeltaBadge</c> paints its arrow and percentage with <c>UmStatusNeutralBrush</c>. Both are
+    /// caption-size text, so 4.5:1 applies to them and never got asserted.
+    /// </remarks>
+    public static TheoryData<string, string> AllStatusColoursByTheme()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (var key in new[]
+        {
+            "UmStatusSuccessColor", "UmStatusWarningColor", "UmStatusDangerColor",
+            "UmStatusInfoColor", "UmStatusNeutralColor", "UmStatusMutedColor"
+        })
+        {
+            data.Add(key, "Light");
+            data.Add(key, "Default");
+        }
+
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(AllStatusColoursByTheme))]
+    public void EveryStatusColourIsReadableOnEverySurfaceOfItsOwnTheme(string colorKey, string themeKey)
+    {
+        // Cards sit on the canvas, on the surface, and on the sunken surface, and a status colour is drawn
+        // as text inside all three. The old assertions measured ONE background per theme — and on light
+        // that background was #FFFFFF, the most forgiving surface the app has. The sunken surface is
+        // roughly 10% darker, which is exactly enough to push two colours under the bar.
+        var color = WcagContrast.ThemeColor(themeKey, colorKey);
+
+        foreach (var (name, surface) in WcagContrast.Surfaces(themeKey))
+        {
+            var ratio = WcagContrast.Ratio(color, surface);
+
+            Assert.True(
+                ratio >= WcagContrast.AaText,
+                $"{colorKey} ({color}) on the {themeKey} {name} surface ({surface}) is {ratio:F2}:1, "
+                + $"needs {WcagContrast.AaText}:1. It is drawn as text, not only as a dot.");
+        }
+    }
+
+    // ---- Opacity is not a contrast-safe way to make text quieter ---------------------------------------
+
+    // ---- Telling one panel from another ---------------------------------------------------------------
+
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Default")]
+    public void ACardsEdgeIsVisibleAgainstWhatIsBehindIt(string themeKey)
+    {
+        // The owner's report was "dark theme has no proper visibility", and the answer to "reading the text
+        // or telling the panels apart?" was telling the panels apart. Measured, every separation mechanism
+        // in the app was far under the 3:1 that WCAG 1.4.11 asks of a boundary:
+        //
+        //                                        dark     light
+        //   surface fill vs sunken               1.048    1.112
+        //   UmHairlineBrush                      1.22     1.24
+        //   UmHairlineStrongBrush                1.52     1.43
+        //   WinUI CardStrokeColorDefault (19x)   1.15     1.14
+        //   shadow                               none     none
+        //
+        // Light gets away with less because a white card on a grey canvas is a familiar figure-ground cue
+        // and the eye discriminates lightness far better in bright ranges. A dark theme has neither
+        // advantage AND cannot cast a shadow — there is nothing darker than near-black to cast it — which
+        // is why dark design systems raise a surface by lightening it. This app did not, so every panel
+        // sat at the same apparent depth.
+        //
+        // The bar here is 1.5 rather than 3.0 deliberately: 3:1 on every card edge is a wireframe, not a
+        // dashboard, and the fill difference carries part of the load. It is a ratchet on what was
+        // measured after the fix — raise it if the edges are still too quiet on screen, never lower it.
+        var hairline = WcagContrast.ThemeColor(themeKey, "UmHairlineColor");
+
+        foreach (var (name, surface) in WcagContrast.Surfaces(themeKey))
+        {
+            if (name == "sunken")
+            {
+                continue; // a sunken well is defined by being recessed, not by an edge
+            }
+
+            var ratio = WcagContrast.Ratio(hairline, surface);
+
+            Assert.True(
+                ratio >= 1.5,
+                $"the {themeKey} hairline ({hairline}) is {ratio:F2}:1 against the {name} surface "
+                + $"({surface}). Below about 1.5 a card edge stops reading and panels merge into one field.");
+        }
+    }
+
+    [Fact]
+    public void CardsDoNotDrawTheirEdgeWithTheSystemStroke()
+    {
+        // CardStrokeColorDefaultBrush measures 1.15:1 in both themes — the weakest edge available, and it
+        // was the most-used one: 19 sites including CommandCenterPanel, KpiStatCard, ActivityPatternsPanel
+        // and NotificationFeedBrush, which are exactly the panels that could not be told apart. Migrated to
+        // UmHairlineBrush so that strengthening the token actually reaches the dashboard.
+        var uiRoot = Path.Combine(WcagContrast.RepoRoot(), "UnifiedMessenger");
+        var offenders = new[] { "*.xaml", "*.cs" }
+            .SelectMany(pattern => Directory.EnumerateFiles(uiRoot, pattern, SearchOption.AllDirectories))
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains("CardStrokeColorDefaultBrush", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            "these draw a card edge with the system stroke (1.15:1), which no amount of tuning the app's "
+            + $"own hairline will reach: {string.Join(", ", offenders)}. Use UmHairlineBrush.");
+    }
+
+    [Theory]
+    [InlineData("Light")]
+    [InlineData("Default")]
+    public void TertiaryTextIsReadableOnEverySurfaceOfItsOwnTheme(string themeKey)
+    {
+        // This token exists because the app had NO foreground token of any kind — which is why 88 sites
+        // reached for Opacity to make text quieter: there was nothing else to reach for. Dimming ordinary
+        // body text is mostly fine (0.65 is 7.95:1 on the dark surface, 5.10:1 on the light sunken one),
+        // but 0.55 measures 3.84:1 in light, below AA, and no contrast test can see an Opacity because it
+        // is applied at the element rather than the brush. Four caption sites used it; they now use this.
+        var color = WcagContrast.ThemeColor(themeKey, "UmTextTertiaryColor");
+
+        foreach (var (name, surface) in WcagContrast.Surfaces(themeKey))
+        {
+            var ratio = WcagContrast.Ratio(color, surface);
+
+            Assert.True(
+                ratio >= WcagContrast.AaText,
+                $"UmTextTertiaryColor ({color}) on the {themeKey} {name} surface ({surface}) is "
+                + $"{ratio:F2}:1, needs {WcagContrast.AaText}:1.");
+        }
+    }
+
+    [Fact]
+    public void RawOpacityDimmingDoesNotSpreadFurther()
+    {
+        // Why a ceiling rather than an assertion about contrast: Opacity is applied at the ELEMENT, so
+        // what it renders is invisible to every measurement in this file unless the exact foreground and
+        // the exact surface behind it are both known at the call site. WcagContrast.Composite exists to
+        // measure a specific pairing when one is in question; it cannot audit the pattern in general.
+        //
+        // What was measured, so it is not re-derived from scratch next time:
+        //   * Dimming ordinary body text is FINE. WinUI's primary foreground at 0.65 is 7.95:1 on the
+        //     dark surface and 5.10:1 on the light sunken surface — both clear of AA. The 51 sites in
+        //     SettingsPage.xaml are not a contrast defect, and a session brief that said they were had
+        //     counted bin/obj copies (352) and assumed the worst about all of them.
+        //   * Dimming a STATUS colour would not be fine — all six fall under 4.5:1 by 0.65, and Danger
+        //     and Muted fail at 0.75. Measured at zero such sites in XAML. The two C# sites that pair a
+        //     Foreground with an Opacity dim TextFillColorSecondaryBrush (0.7) and
+        //     SystemFillColorCautionBrush (0.9), neither of which is a UmStatus* token.
+        //   * 0.55 applied to body text is 3.84:1 in light — BELOW AA. Several SettingsPage captions use
+        //     it (UmOpacitySubtle). That is a real defect and is tracked separately; it is not fixable by
+        //     a ceiling, only by giving those captions a real foreground.
+        //
+        // The bin/obj exclusion below is load-bearing: counting build output inflates this exactly 4x.
+        var uiRoot = Path.Combine(WcagContrast.RepoRoot(), "UnifiedMessenger");
+        var sites = Directory
+            .EnumerateFiles(uiRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Sum(path => System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(path), @"Opacity=""0\.\d+""").Count);
+
+        // Measured at 88, then 84 once the four 0.55 CAPTION sites moved to UmTextTertiaryBrush (v4.99.69)
+        // — 0.55 on text is 3.84:1 in light, below AA. The 0.55 uses that remain are FontIcon glyphs, which
+        // are non-text and clear 1.4.11's 3:1 bar. Lower this as further sites move to a named foreground;
+        // never raise it.
+        Assert.True(
+            sites <= 84,
+            $"raw Opacity dimming rose to {sites} XAML sites. Opacity is applied at the element, so no "
+            + "contrast test can see what it renders — use a themed foreground brush, or lower this "
+            + "ceiling deliberately.");
+    }
 }

@@ -46,7 +46,7 @@ public static class AwaitingChatActions
         var done = new MenuFlyoutItem
         {
             Text = "Mark as done",
-            Icon = new FontIcon { Glyph = "" }
+            Icon = new FontIcon { Glyph = "\uE73E" }
         };
         ToolTipService.SetToolTip(done,
             "Removes this conversation from Needs reply. It comes back only if the customer sends a new message.");
@@ -77,7 +77,7 @@ public static class AwaitingChatActions
         // the snooze options. The old design put both behind an unlabelled "…", which is why the capability
         // read as missing.
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        content.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Sm });
+        content.Children.Add(new FontIcon { Glyph = "\uE73E", FontSize = UmScale.Icon.Sm });
         if (!compact)
         {
             content.Children.Add(new TextBlock { Text = "Done", FontSize = UmScale.Icon.Sm });

@@ -125,4 +125,104 @@ public class ExternalLinkAndDownloadTests
         // and the guard keeps their hosts. Asserting it was blocked was wrong about the app, not the fix.
         Assert.False(WebViewNavigationGuard.IsAllowedNavigationUri("https://news.example.com/article"));
     }
+
+    // ---- A new-window request must not strand the account ----------------------------------------------
+
+    /// <summary>
+    /// The account was left on a page it could not leave.
+    /// </summary>
+    /// <remarks>
+    /// <c>HandleNewWindowRequested</c> hopped the current frame for any ALLOW-LISTED host, and the allowlist
+    /// spans each platform's whole registrable domain plus the OAuth hosts — so from WhatsApp Web it covers
+    /// all of <c>whatsapp.com</c> and <c>google.com</c>. Meanwhile <c>MainWindow</c> collapses the
+    /// back/forward controls whenever <c>IsPlatformModuleEnabled</c> is true, which is true for exactly the
+    /// WhatsApp family. A help link, or a <c>google.com</c> link a customer sent, therefore replaced the
+    /// scraped session with no way back, and oversight for that account stopped until the owner found
+    /// right-click → Refresh WebView.
+    /// <para>
+    /// Asserted through <c>ResolveNewWindowAction</c>, which was extracted from the event handler so the
+    /// decision could be tested at all — it previously needed a live <c>CoreWebView2</c>, which is why this
+    /// went uncovered.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("https://faq.whatsapp.com/general/security", "https://web.whatsapp.com/")]
+    [InlineData("https://www.whatsapp.com/download", "https://web.whatsapp.com/")]
+    [InlineData("https://google.com/search?q=salon", "https://web.whatsapp.com/")]
+    [InlineData("https://maps.google.com/place/xyz", "https://web.whatsapp.com/")]
+    [InlineData("https://news.example.com/article", "https://web.whatsapp.com/")]
+    public void ALinkOffTheCurrentPageOpensExternallyInsteadOfReplacingTheSession(string target, string page)
+    {
+        Assert.Equal(
+            WebViewNavigationGuard.NewWindowAction.OpenExternally,
+            WebViewNavigationGuard.ResolveNewWindowAction(target, page, isUserInitiated: true));
+    }
+
+    [Theory]
+    [InlineData("https://faq.whatsapp.com/general/security")]
+    [InlineData("https://www.whatsapp.com/download")]
+    [InlineData("https://google.com/search?q=salon")]
+    [InlineData("https://maps.google.com/place/xyz")]
+    public void TheStrandingLinksWereAllOnTheAllowlist(string target)
+    {
+        // The other half of the proof. The old rule was "allow-listed → hop the current frame", so this
+        // assertion is what made every URI above replace the scraped session. It is kept green on purpose:
+        // the allowlist is still correct for its own job (deciding what the WebView may NAVIGATE to), and
+        // it was reading it as a routing instruction for new-window requests that was wrong.
+        Assert.True(WebViewNavigationGuard.IsAllowedNavigationUri(target));
+    }
+
+    [Theory]
+    [InlineData("https://web.whatsapp.com/send?phone=123", "https://web.whatsapp.com/")]
+    [InlineData("https://business.google.com/reviews?page=2", "https://business.google.com/")]
+    public void ASitesOwnPageStillReplacesTheFrame(string target, string page)
+    {
+        // Same host: the site opened its own page in a new tab. Keeping it in-frame preserves the
+        // single-window model and, for a scraped account, the session the adapter is attached to.
+        Assert.Equal(
+            WebViewNavigationGuard.NewWindowAction.NavigateInFrame,
+            WebViewNavigationGuard.ResolveNewWindowAction(target, page, isUserInitiated: true));
+    }
+
+    [Theory]
+    [InlineData("https://accounts.google.com/o/oauth2/auth", "https://business.google.com/")]
+    [InlineData("https://login.microsoftonline.com/common/oauth2", "https://web.whatsapp.com/")]
+    public void ASignInPopupKeepsTheCookieJar(string target, string page)
+    {
+        // Handing an OAuth popup to the default browser would land the session cookie in the owner's own
+        // browser rather than this WebView2 profile, so the sign-in it was serving could never complete.
+        Assert.Equal(
+            WebViewNavigationGuard.NewWindowAction.NavigateInFrame,
+            WebViewNavigationGuard.ResolveNewWindowAction(target, page, isUserInitiated: true));
+    }
+
+    [Fact]
+    public void ADownloadStillReachesWebView2FromTheNewWindowPath()
+    {
+        Assert.Equal(
+            WebViewNavigationGuard.NewWindowAction.LetWebViewHandle,
+            WebViewNavigationGuard.ResolveNewWindowAction(
+                "blob:https://web.whatsapp.com/6f2b1c44", "https://web.whatsapp.com/", isUserInitiated: true));
+    }
+
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("file:///C:/Windows/System32")]
+    [InlineData("ms-settings:windowsupdate")]
+    public void ADangerousSchemeIsBlockedRatherThanRoutedAnywhere(string target)
+    {
+        Assert.Equal(
+            WebViewNavigationGuard.NewWindowAction.Block,
+            WebViewNavigationGuard.ResolveNewWindowAction(target, "https://web.whatsapp.com/", isUserInitiated: true));
+    }
+
+    [Fact]
+    public void APageThatOpensAWindowByItselfIsNotShelledOut()
+    {
+        // Not user-initiated: a page opening a window on its own must never reach the shell.
+        Assert.Equal(
+            WebViewNavigationGuard.NewWindowAction.Block,
+            WebViewNavigationGuard.ResolveNewWindowAction(
+                "https://news.example.com/popup", "https://web.whatsapp.com/", isUserInitiated: false));
+    }
 }

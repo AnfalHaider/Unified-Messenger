@@ -244,6 +244,22 @@ public sealed class WeeklyReportDialog : ContentDialog
                     Margin = new Thickness(3, 0, 3, 0)
                 });
             }
+            else
+            {
+                // A day with no replies measured used to contribute an EMPTY column, which is pixel-for-pixel
+                // what a zero-height bar looks like — so "we have no data for Tuesday" and "we replied to
+                // nobody on Tuesday" rendered identically. Reply history restarted on 2026-08-28, so six of
+                // these seven days have no data at all and the chart read as a catastrophe.
+                col.Children.Add(new TextBlock
+                {
+                    Text = "–",
+                    FontSize = UmScale.Text.Caption,
+                    Foreground = Res("TextFillColorTertiaryBrush"),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 0, 0, 2)
+                });
+                ToolTipService.SetToolTip(col, $"No replies measured on {p.Label} — not zero, unmeasured.");
+            }
 
             Grid.SetColumn(col, i);
             chart.Children.Add(col);
@@ -253,8 +269,15 @@ public sealed class WeeklyReportDialog : ContentDialog
             axis.Children.Add(lbl);
         }
 
+        // Say how much of the window was actually measured. "last 7 days" over one measured day is a true
+        // statement about the axis and a false impression of the evidence.
+        var measured = points.Count(p => p.Count > 0);
+        var heading = measured == points.Count
+            ? $"Median first reply, last {points.Count} days"
+            : $"Median first reply · {measured} of the last {points.Count} days measured";
+
         var wrap = new StackPanel { Spacing = 2 };
-        wrap.Children.Add(new TextBlock { Text = "Median first reply, last 7 days", FontSize = UmScale.Text.Body, FontWeight = FontWeights.SemiBold });
+        wrap.Children.Add(new TextBlock { Text = heading, FontSize = UmScale.Text.Body, FontWeight = FontWeights.SemiBold });
         wrap.Children.Add(chart);
         wrap.Children.Add(axis);
 
@@ -392,13 +415,14 @@ public sealed class WeeklyReportDialog : ContentDialog
         return await picker.PickSaveFileAsync();
     }
 
+    // Both went straight to Application.Current.Resources, which resolves the APP-default theme rather than
+    // this dialog's — the systemic cause of the white-in-dark surfaces across this app.
+    // Static because Populate is: the report body is built by the same code for this dialog and for the
+    // Reports page. The no-element overload resolves against the window root, whose ActualTheme is the
+    // applied theme, and everything built here is parented into that same window.
     private static SolidColorBrush Res(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var v) && v is SolidColorBrush b
-            ? b
-            : new SolidColorBrush(Microsoft.UI.Colors.Gray);
+        Services.ThemeBrushResolver.Resolve(key) as SolidColorBrush
+            ?? new SolidColorBrush(Microsoft.UI.Colors.Gray);
 
-    private static Brush Res2(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var v) && v is Brush b
-            ? b
-            : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+    private static Brush Res2(string key) => Services.ThemeBrushResolver.Resolve(key);
 }

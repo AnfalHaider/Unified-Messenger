@@ -15,7 +15,21 @@ namespace UnifiedMessenger.Tests;
 public class DesignScaleTests
 {
     /// <summary>Small controls and chips · medium surfaces · cards. Three tiers, deliberately.</summary>
-    private static readonly int[] AllowedCornerRadii = [6, 8, 12];
+    /// <remarks>
+    /// <c>0</c> is square (an explicit choice, not a stray value), <c>2</c> is <c>UmCornerRadiusXsValue</c>
+    /// — a token that already existed in <c>Tokens.xaml</c> and that this list simply failed to name — and
+    /// <c>999</c> is the pill/capsule idiom, where the radius is deliberately larger than the control so the
+    /// ends round fully.
+    /// </remarks>
+    private static readonly int[] CornerRadiusTiers = [2, 6, 8, 12];
+
+    /// <summary>Not a rounding tier: an explicit square corner.</summary>
+    private const int SquareRadius = 0;
+
+    /// <summary>Not a rounding tier: deliberately larger than the control, so the ends round fully.</summary>
+    private const int PillRadius = 999;
+
+    private static readonly int[] AllowedCornerRadii = [.. CornerRadiusTiers, SquareRadius, PillRadius];
 
     private static IEnumerable<string> SourceFiles(string pattern)
     {
@@ -39,25 +53,32 @@ public class DesignScaleTests
     [Fact]
     public void EveryCornerRadiusComesFromTheScale()
     {
+        // XAML *and* C#. This read .xaml only, which is exactly the gap NoLiteralFontSizeInCode was written
+        // to close for font sizes — its own comment calls the XAML-only scan "the reason the C# builders
+        // accumulated ELEVEN distinct text sizes against the whole XAML surface's seven". The same thing had
+        // happened here and nobody could see it: every XAML radius conformed, while the code side had drifted
+        // to EIGHT distinct values (0, 2, 4, 5, 6, 8, 10, 12, 14, 15, 999) — worse than the six that
+        // triggered the original cleanup. Snapped to the scale at v4.99.70.
         var offenders = new List<string>();
 
-        foreach (var file in SourceXaml())
+        foreach (var (file, text, pattern) in
+            SourceXaml().Select(f => (f, File.ReadAllText(f), @"CornerRadius=""(\d+)"""))
+                .Concat(SourceCSharp().Select(f => (f, File.ReadAllText(f), @"new CornerRadius\(\s*(\d+)\s*\)"))))
         {
-            var text = File.ReadAllText(file);
-            foreach (Match match in Regex.Matches(text, @"CornerRadius=""(\d+)"""))
+            foreach (Match match in Regex.Matches(text, pattern))
             {
                 var value = int.Parse(match.Groups[1].Value);
                 if (!AllowedCornerRadii.Contains(value))
                 {
                     var line = text[..match.Index].Count(c => c == '\n') + 1;
-                    offenders.Add($"{Path.GetFileName(file)}:{line} uses CornerRadius=\"{value}\"");
+                    offenders.Add($"{Path.GetFileName(file)}:{line} uses radius {value}");
                 }
             }
         }
 
         Assert.True(
             offenders.Count == 0,
-            "Corner radii must come from the 6 / 8 / 12 scale. Off-scale values:\n  "
+            "Corner radii must come from the 0 / 2 / 6 / 8 / 12 scale (or the 999 pill idiom). Off-scale:\n  "
             + string.Join("\n  ", offenders));
     }
 
@@ -65,8 +86,19 @@ public class DesignScaleTests
     public void TheScaleStaysSmallEnoughToBeAScale()
     {
         // Three tiers is a system a person can hold in their head. Adding a fourth should require deciding
-        // what it is FOR, which is what failing this test forces.
-        Assert.True(AllowedCornerRadii.Length <= 3);
+        // what it is FOR, which is what failing this test forces — and it did, at v4.99.70.
+        //
+        // The fourth tier is 2, and the decision was already taken: Tokens.xaml has declared
+        // UmCornerRadiusXsValue = 2 the whole time, for chips and small inline markers. This list said three
+        // because it scanned XAML literals only and never saw either the token or the five C# uses of it.
+        // So this is not a fourth value being added — it is the fourth that already existed being counted.
+        //
+        // 0 (square) and 999 (pill) are excluded from the count on purpose: neither is a rounding tier, and
+        // folding them in would let the number creep while looking like a system.
+        Assert.True(
+            CornerRadiusTiers.Length <= 4,
+            $"The radius scale has grown to {CornerRadiusTiers.Length} tiers. Decide what the new one is "
+            + "FOR, and name it in Tokens.xaml, before raising this.");
     }
 
     [Fact]
@@ -182,6 +214,46 @@ public class DesignScaleTests
             offenders.Count == 0,
             "Code-built controls must use UmScale.Text.* or UmScale.Icon.*, not literals:\n  "
             + string.Join("\n  ", offenders));
+    }
+
+    [Fact]
+    public void NoFontIconShipsWithAnEmptyGlyph()
+    {
+        // EIGHT of the app's 44 code-built icon glyphs reached the repo as the empty string, from the
+        // initial commit onward. A FontIcon with a zero-length Glyph draws NOTHING while the control around
+        // it stays present, laid out, focusable and clickable — so the failure is invisible in every way a
+        // test or a code reading can see, and invisible on screen too.
+        //
+        // What it cost: the per-account details button on the dashboard (tooltip "Account details — reply
+        // speed, backlog, and who's waiting") was a 12-pixel sliver of pure button padding. The L1
+        // drill-down behind it shipped in v4.53.0 and could not be found by looking; it was reached here
+        // only by computing where the button had to be from the layout and clicking that. The same defect
+        // blanked the mark-done split button, which in COMPACT density has no text label either — so the
+        // one control that closes an awaiting conversation had no visible presence at all.
+        //
+        // Write glyphs as "", never as an inline character: all eight blanks were in the inline form,
+        // and a private-use codepoint pasted into source is one encoding round-trip away from vanishing.
+        var offenders = new List<string>();
+
+        foreach (var file in SourceCSharp())
+        {
+            var text = File.ReadAllText(file);
+            foreach (Match match in Regex.Matches(text, @"(?:Glyph|IconGlyph)\s*=\s*""([^""]*)"""))
+            {
+                if (match.Groups[1].Value.Length != 0)
+                {
+                    continue;
+                }
+
+                var line = text[..match.Index].Count(c => c == '\n') + 1;
+                offenders.Add($"{Path.GetFileName(file)}:{line}");
+            }
+        }
+
+        Assert.True(
+            offenders.Count == 0,
+            "These FontIcons have an empty Glyph and will render as nothing, leaving an invisible but "
+            + "still-clickable control:\n  " + string.Join("\n  ", offenders));
     }
 
     [Fact]

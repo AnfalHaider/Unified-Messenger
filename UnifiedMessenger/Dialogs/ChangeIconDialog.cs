@@ -121,7 +121,7 @@ public sealed class ChangeIconDialog : ContentDialog
             HorizontalContentAlignment = HorizontalAlignment.Left
         };
         var importContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        importContent.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Md }); // Download
+        importContent.Children.Add(new FontIcon { Glyph = "\uE896", FontSize = UmScale.Icon.Md }); // Download
         importContent.Children.Add(new TextBlock { Text = "Import this account's profile photo" });
         importButton.Content = importContent;
         // Panel content again — the visible label is a TextBlock inside a StackPanel, which yields no
@@ -141,7 +141,7 @@ public sealed class ChangeIconDialog : ContentDialog
             HorizontalContentAlignment = HorizontalAlignment.Left
         };
         var uploadContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        uploadContent.Children.Add(new FontIcon { Glyph = "", FontSize = UmScale.Icon.Md }); // Upload
+        uploadContent.Children.Add(new FontIcon { Glyph = "\uE898", FontSize = UmScale.Icon.Md }); // Upload
         uploadContent.Children.Add(new TextBlock { Text = "Upload an image from this PC" });
         uploadButton.Content = uploadContent;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(uploadButton, "Upload an image from this PC");
@@ -316,8 +316,7 @@ public sealed class ChangeIconDialog : ContentDialog
             return PlatformBrandingHelper.GetAccentBrush(keyOrHex);
         }
 
-        return Application.Current.Resources.TryGetValue(keyOrHex, out var value) && value is SolidColorBrush brush
-            ? brush
-            : new SolidColorBrush(Colors.Gray);
+        return Services.ThemeBrushResolver.Resolve(keyOrHex) as SolidColorBrush
+            ?? new SolidColorBrush(Colors.Gray);
     }
 }

@@ -98,7 +98,7 @@ public static class WebViewNavigationGuard
                 HandleNavigationStarting(args, allowlist);
 
             void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs args) =>
-                HandleNewWindowRequested(sender, args, allowlist);
+                HandleNewWindowRequested(sender, args);
 
             coreWebView.NavigationStarting += OnNavigationStarting;
             coreWebView.NewWindowRequested += OnNewWindowRequested;
@@ -278,6 +278,95 @@ public static class WebViewNavigationGuard
         (uri.StartsWith("blob:", StringComparison.OrdinalIgnoreCase) ||
          uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>What to do with a <c>target="_blank"</c> / <c>window.open</c> request.</summary>
+    internal enum NewWindowAction
+    {
+        /// <summary>A download in disguise — hand it back to WebView2's own pipeline.</summary>
+        LetWebViewHandle,
+
+        /// <summary>Replace the current page. Only ever right when the session must be preserved.</summary>
+        NavigateInFrame,
+
+        /// <summary>The owner's own link — their browser.</summary>
+        OpenExternally,
+
+        /// <summary>Neither safe to shell out nor part of the site. Dropped, with a log line.</summary>
+        Block
+    }
+
+    /// <summary>
+    /// Routes a new-window request. Pure, so the decision can be asserted without a live
+    /// <see cref="CoreWebView2"/> — which is why it was never covered before.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The defect this replaces.</b> The rule used to be "allow-listed host → hop the current frame".
+    /// The allowlist is built from every platform's <i>registrable domain</i> plus the OAuth hosts, so from
+    /// WhatsApp Web it spans all of <c>whatsapp.com</c> AND <c>google.com</c>. Any help link, any marketing
+    /// link, any <c>google.com</c> link a customer sent therefore replaced the scraped WhatsApp session in
+    /// place — and back/forward are hidden for exactly the WhatsApp family, because
+    /// <c>IsPlatformModuleEnabled</c> is true for them and <c>MainWindow</c> collapses the nav controls when
+    /// it is. The owner was left on a marketing page with no way back, and oversight for that account
+    /// stopped until they found right-click → Refresh WebView.
+    /// </para>
+    /// <para>
+    /// <b>Why same-host and not same-site.</b> Same registrable domain would keep <c>faq.whatsapp.com</c>
+    /// in-frame, which is the exact case that stranded the owner. This handler only sees deliberate
+    /// new-window intents — a redirect is a navigation and goes through
+    /// <see cref="HandleNavigationStarting"/> — so "the site opened its own page in a new tab" is the only
+    /// case where replacing the frame is right.
+    /// </para>
+    /// <para>
+    /// <b>Why OAuth hosts stay in-frame.</b> A sign-in popup handed to the default browser would put the
+    /// session cookie in the owner's browser rather than this WebView2 profile, so the sign-in it was
+    /// serving could never complete. Those hosts must keep the cookie jar.
+    /// </para>
+    /// </remarks>
+    internal static NewWindowAction ResolveNewWindowAction(
+        string? targetUri,
+        string? currentPageUri,
+        bool isUserInitiated)
+    {
+        if (IsDownloadLikeScheme(targetUri))
+        {
+            return NewWindowAction.LetWebViewHandle;
+        }
+
+        if (SharesHost(targetUri, currentPageUri) || IsOAuthHost(targetUri))
+        {
+            return NewWindowAction.NavigateInFrame;
+        }
+
+        if (isUserInitiated && IsExternallyOpenableUri(targetUri))
+        {
+            return NewWindowAction.OpenExternally;
+        }
+
+        return NewWindowAction.Block;
+    }
+
+    private static bool SharesHost(string? a, string? b) =>
+        TryHost(a, out var hostA) && TryHost(b, out var hostB) &&
+        string.Equals(hostA, hostB, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsOAuthHost(string? uri) =>
+        TryHost(uri, out var host) &&
+        CommonOAuthHosts.Contains(host, StringComparer.OrdinalIgnoreCase);
+
+    private static bool TryHost(string? uri, out string host)
+    {
+        host = string.Empty;
+        if (string.IsNullOrWhiteSpace(uri) ||
+            !Uri.TryCreate(uri.Trim(), UriKind.Absolute, out var parsed) ||
+            string.IsNullOrWhiteSpace(parsed.Host))
+        {
+            return false;
+        }
+
+        host = parsed.Host;
+        return true;
+    }
+
     private static void HandleNavigationStarting(
         CoreWebView2NavigationStartingEventArgs args,
         IReadOnlySet<string> allowlist)
@@ -307,8 +396,7 @@ public static class WebViewNavigationGuard
 
     private static void HandleNewWindowRequested(
         object? sender,
-        CoreWebView2NewWindowRequestedEventArgs args,
-        IReadOnlySet<string> allowlist)
+        CoreWebView2NewWindowRequestedEventArgs args)
     {
         // A DOWNLOAD, not a popup. WhatsApp decrypts a received file to a blob and opens it — which arrives
         // here as a new-window request for a `blob:` URI. This handler used to set Handled = true and then
@@ -319,7 +407,10 @@ public static class WebViewNavigationGuard
         //
         // Leaving Handled = false hands the request back to WebView2, which runs its own download pipeline
         // and shows the built-in save UI — the browser behaviour the owner expects.
-        if (IsDownloadLikeScheme(args.Uri))
+        var coreWebView = sender as CoreWebView2;
+        var action = ResolveNewWindowAction(args.Uri, coreWebView?.Source, args.IsUserInitiated);
+
+        if (action == NewWindowAction.LetWebViewHandle)
         {
             args.Handled = false;
             return;
@@ -327,23 +418,16 @@ public static class WebViewNavigationGuard
 
         args.Handled = true;
 
-        if (sender is not CoreWebView2 coreWebView)
+        switch (action)
         {
-            return;
-        }
+            case NewWindowAction.NavigateInFrame when coreWebView is not null:
+                coreWebView.Navigate(args.Uri);
+                return;
 
-        // An allow-listed host is part of the monitored site — hop the current frame, as before.
-        if (IsAllowedNavigationUri(args.Uri, allowlist))
-        {
-            coreWebView.Navigate(args.Uri);
-            return;
-        }
-
-        // Anything else the owner deliberately clicked is THEIR link, and belongs in their own browser.
-        // Customers send links constantly; every one of them used to vanish on click.
-        if (TryOpenExternally(args.Uri, args.IsUserInitiated))
-        {
-            return;
+            // Anything else the owner deliberately clicked is THEIR link, and belongs in their own browser.
+            // Customers send links constantly; every one of them used to vanish on click.
+            case NewWindowAction.OpenExternally when TryOpenExternally(args.Uri, args.IsUserInitiated):
+                return;
         }
 
         AppLogger.LogWarning("WebView.Nav", $"Blocked new-window request to disallowed URI: {args.Uri}");

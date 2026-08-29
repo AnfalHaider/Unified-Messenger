@@ -71,6 +71,11 @@ public sealed partial class NotificationFeedPanel : UserControl
         AlertsList.ItemsSource = ViewModel.FeedItems;
         AlertsList.Visibility = presentation.ShowAlertList ? Visibility.Visible : Visibility.Collapsed;
         EmptyStatePanel.Visibility = presentation.ShowAlertList ? Visibility.Collapsed : Visibility.Visible;
+
+        // Set from the presentation rather than fixed in XAML, so this panel can never say "No notifications
+        // yet." while the sidebar badge beside it shows a number.
+        EmptyStatePanel.Title = presentation.EmptyTitle;
+        EmptyStatePanel.Hint = presentation.EmptyHint;
     }
 
     private void CollapseButton_Click(object sender, RoutedEventArgs e) =>

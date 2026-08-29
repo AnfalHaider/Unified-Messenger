@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Navigation;
 using UnifiedMessenger.Controls.Charts;
 using UnifiedMessenger.Controls.Shared;
 using UnifiedMessenger.Dialogs;
+using UnifiedMessenger.Models;
 using UnifiedMessenger.Services;
 
 namespace UnifiedMessenger.Pages;
@@ -49,7 +50,10 @@ public sealed partial class AnalyticsPage : Page
             _suppressRangeChange = false;
         }
 
+        PopulateBranchBox();
+
         ActivityPatternsPanel.ConfigureServices(_services);
+        ActivityPatternsPanel.BranchScope = SelectedBranchKey();
         ActivityPatternsPanel.Render();
         Refresh();
     }
@@ -60,11 +64,80 @@ public sealed partial class AnalyticsPage : Page
     private void AddAccountButton_Click(object sender, RoutedEventArgs e) =>
         _services.Navigation.RequestAddInstance();
 
+    /// <summary>The branch selected, or null for "All branches".</summary>
+    private string? SelectedBranchKey() =>
+        BranchBox.SelectedItem is ComboBoxItem { Tag: string key } && !string.IsNullOrWhiteSpace(key)
+            ? key
+            : null;
+
+    /// <summary>
+    /// The professional accounts this page covers. Every consumer must go through here — the CSV export
+    /// used the unfiltered registry, which would write the whole business to a file while the screen showed
+    /// one branch.
+    /// </summary>
+    private List<MessengerInstance> ScopedInstances() =>
+        BranchWorkspaceHelper
+            .FilterByBranchKey(_services.Registry.Instances.Where(i => i.IsProfessional), SelectedBranchKey())
+            .ToList();
+
+    private void PopulateBranchBox()
+    {
+        var branches = _services.Registry.Instances
+            .Where(i => i.IsProfessional)
+            .Select(BranchWorkspaceHelper.ResolveBranchKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // One branch is not a choice — showing the filter would imply a scoping that is not happening.
+        var worthShowing = branches.Count > 1;
+        BranchBox.Visibility = worthShowing ? Visibility.Visible : Visibility.Collapsed;
+        if (!worthShowing)
+        {
+            return;
+        }
+
+        var previous = SelectedBranchKey();
+
+        _suppressRangeChange = true;
+        BranchBox.Items.Clear();
+        BranchBox.Items.Add(new ComboBoxItem { Content = "All branches", Tag = string.Empty });
+        foreach (var branch in branches)
+        {
+            BranchBox.Items.Add(new ComboBoxItem { Content = branch, Tag = branch });
+        }
+
+        var restored = previous is null
+            ? 0
+            : branches.FindIndex(b => b.Equals(previous, StringComparison.OrdinalIgnoreCase)) + 1;
+        BranchBox.SelectedIndex = restored > 0 ? restored : 0;
+        _suppressRangeChange = false;
+    }
+
+    private void BranchBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressRangeChange)
+        {
+            return;
+        }
+
+        ActivityPatternsPanel.BranchScope = SelectedBranchKey();
+        ActivityPatternsPanel.Render();
+        Refresh();
+    }
+
     private void Refresh()
     {
-        var instances = _services.Registry.Instances
-            .Where(i => i.IsProfessional)
-            .ToList();
+        // PopulateBranchBox is NOT called from here, and must not be. Refresh runs from
+        // BranchBox_SelectionChanged, and PopulateBranchBox clears and rebuilds BranchBox.Items — so calling
+        // it from here rebuilt a ComboBox from inside its own SelectionChanged handler and the app hung on
+        // every branch switch. The _suppressRangeChange flag does not help: Items.Clear() re-enters WinUI's
+        // selection machinery regardless of what the handler does with the event.
+        //
+        // The account list cannot change while this page is on screen, so the box is populated once on
+        // navigation, exactly like RangeBox.
+        var instances = ScopedInstances();
 
         // Nothing connected is a different state from nothing happening, and the page had no way to say
         // so — it rendered zeros, which reads as a report on a bad week rather than an empty install.
@@ -82,7 +155,7 @@ public sealed partial class AnalyticsPage : Page
         FreshnessText.Text = freshness.Text;
         FreshnessText.Foreground = freshness.IsStale
             ? UmSemanticBrushes.Get(UmSemanticBrushes.StatusWarningBrushKey, this)
-            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorTertiaryBrush"];
+            : Services.ThemeBrushResolver.Resolve(this, "TextFillColorTertiaryBrush");
 
         var view = AnalyticsPagePresenter.Build(instances, SelectedDays());
 
@@ -148,8 +221,7 @@ public sealed partial class AnalyticsPage : Page
             Width = 24,
             Height = 24,
             CornerRadius = new CornerRadius(12),
-            Background = Application.Current.Resources.TryGetValue("CardBackgroundFillColorSecondaryBrush", out var bg)
-                && bg is Brush brush ? brush : null,
+            Background = Services.ThemeBrushResolver.Resolve("CardBackgroundFillColorSecondaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock
             {
@@ -253,8 +325,9 @@ public sealed partial class AnalyticsPage : Page
             var path = await WeeklyReportDialog.PickSavePathAsync("Message analytics", "CSV", ".csv");
             if (path is not null)
             {
-                await MessageAnalyticsService.Instance.ExportCsvAsync(
-                    _services.Registry.Instances.ToList(), path);
+                // ScopedInstances, not the whole registry — an export that contradicts the screen it was
+                // taken from is worse than no export.
+                await MessageAnalyticsService.Instance.ExportCsvAsync(ScopedInstances(), path);
             }
         }
         catch (Exception ex)

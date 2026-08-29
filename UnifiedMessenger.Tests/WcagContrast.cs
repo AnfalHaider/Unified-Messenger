@@ -22,10 +22,74 @@ internal static class WcagContrast
     /// <summary>WCAG 1.4.3 AA for large text, and 1.4.11 for UI components and graphical objects.</summary>
     public const double AaLargeOrUi = 3.0;
 
-    // The surfaces these colours are actually drawn on, taken from the WinUI defaults the app uses.
-    public const string LightCard = "#FFFFFF";
-    public const string DarkCard = "#2D2D30";
-    public const string DarkChrome = "#1E1E1E";
+    // The surfaces these colours are actually drawn on.
+    //
+    // These were hard-coded to "#FFFFFF" / "#2D2D30" / "#1E1E1E" and described as "the WinUI defaults the
+    // app uses". That was true when written and stopped being true when the app gained its own surface
+    // tokens: it ships #17191D / #121418 / #0E0F12 on dark, and neither #2D2D30 nor #1E1E1E appears
+    // anywhere in Tokens.xaml. So this file measured the right foregrounds against backgrounds that are
+    // never drawn, and — because only ONE light surface was listed — never measured the light sunken
+    // surface at all. That is where the two real failures were hiding (see
+    // EveryStatusColourIsReadableOnEverySurfaceOfItsOwnTheme).
+    //
+    // Reading them from Tokens.xaml is the same rule the colours already follow, and for the same reason
+    // the docstring above gives: changing one without re-checking contrast should fail the build.
+    public static string LightCard => ThemeColor("Light", "UmSurfaceColor");
+    public static string DarkCard => ThemeColor("Default", "UmSurfaceColor");
+    public static string DarkChrome => ThemeColor("Default", "UmCanvasColor");
+
+    /// <summary>
+    /// Every surface a card or its text can sit on, for the given theme dictionary ("Light" / "Default").
+    /// </summary>
+    /// <remarks>
+    /// Contrast has to hold on the worst of these, not on a representative one. A status colour is drawn
+    /// inside cards that sit on all three, and picking one surface to test is how the sunken surface went
+    /// unmeasured for the life of the palette.
+    /// </remarks>
+    public static (string Name, string Hex)[] Surfaces(string themeKey) =>
+    [
+        ("surface", ThemeColor(themeKey, "UmSurfaceColor")),
+        ("sunken", ThemeColor(themeKey, "UmSurfaceSunkenColor")),
+        ("canvas", ThemeColor(themeKey, "UmCanvasColor"))
+    ];
+
+    /// <summary>
+    /// The colour actually rendered when <paramref name="foreground"/> is drawn at
+    /// <paramref name="alpha"/> over <paramref name="background"/>.
+    /// </summary>
+    /// <remarks>
+    /// WinUI's <c>Opacity</c> composites the element against whatever is behind it. Measuring the
+    /// undimmed token therefore measures a pixel that is never drawn — the token can be compliant while
+    /// the rendered text is not, and nothing in this file could previously tell the two apart.
+    /// </remarks>
+    public static string Composite(string foreground, string background, double alpha)
+    {
+        static int Channel(string hex, int offset) => int.Parse(
+            hex.TrimStart('#').Substring(offset, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+
+        var blended = new[] { 0, 2, 4 }.Select(offset =>
+        {
+            var value = Channel(foreground, offset) * alpha + Channel(background, offset) * (1 - alpha);
+            return ((int)Math.Round(value)).ToString("X2", CultureInfo.InvariantCulture);
+        });
+
+        return "#" + string.Concat(blended);
+    }
+
+    /// <summary>Contrast of <paramref name="foreground"/> drawn at <paramref name="alpha"/> over
+    /// <paramref name="background"/>, against that same background.</summary>
+    public static double RatioAtOpacity(string foreground, string background, double alpha) =>
+        Ratio(Composite(foreground, background, alpha), background);
+
+    /// <summary>
+    /// The opacity values <c>Tokens.xaml</c> declares for dimmed text, read from the file.
+    /// </summary>
+    public static double OpacityToken(string key)
+    {
+        var match = Regex.Match(TokensXaml(), $@"x:Key=""{Regex.Escape(key)}"">([0-9.]+)<");
+        Assert.True(match.Success, $"'{key}' is not declared in Tokens.xaml");
+        return double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+    }
 
     public static string RepoRoot()
     {

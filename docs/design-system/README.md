@@ -31,7 +31,7 @@ Type, icon, spacing and radius scales live in [scales.md](scales.md).
 
 ## Semantic colors
 
-Delivery and status accents are centralized in `UmSemanticColors` (aligned with brand tokens).
+Delivery and status accents are centralized in `UmSemanticBrushes` (kept in lockstep with `Themes/Tokens.xaml` by `StatusContrastTests.TheCodePaletteMatchesTokensXamlExactly`). A third copy, `UmSemanticColors`, was deleted at v4.99.68 — it was `const string`, so it could not be theme-aware, nothing checked it, and its values were a mix of light-theme, dark-theme and neither.
 
 ## Adoption
 

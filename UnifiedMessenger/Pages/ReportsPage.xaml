@@ -49,6 +49,26 @@
                     Opacity="0.7"
                     VerticalAlignment="Center" />
                 <ComboBox x:Name="RangeBox" AutomationProperties.Name="Reporting period" MinWidth="180" SelectionChanged="RangeBox_SelectionChanged" />
+                <!--
+                    Collapsed by default and shown only when there is more than one branch — a filter with a
+                    single option is furniture. The selected branch is folded into the report's period label
+                    so it reaches the .md and .csv exports; a single-branch report that does not say so
+                    becomes a wrong document once it leaves the app.
+                -->
+                <TextBlock
+                    x:Name="BranchLabel"
+                    Text="Branch"
+                    FontSize="{StaticResource UmFontSizeBody}"
+                    Foreground="{ThemeResource UmTextTertiaryBrush}"
+                    VerticalAlignment="Center"
+                    Visibility="Collapsed" />
+                <ComboBox
+                    x:Name="BranchBox"
+                    AutomationProperties.Name="Branch"
+                    MinWidth="180"
+                    SelectionChanged="BranchBox_SelectionChanged"
+                    ToolTipService.ToolTip="Scopes this whole report — including what Save and Export write out"
+                    Visibility="Collapsed" />
                 <Button x:Name="SaveMarkdownButton" Click="SaveMarkdownButton_Click" Content="Save report (.md)" />
                 <Button x:Name="ExportCsvButton" Click="ExportCsvButton_Click" Content="Export data (.csv)" />
             </StackPanel>

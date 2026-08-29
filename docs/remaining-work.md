@@ -54,7 +54,7 @@ command that re-derives each row, and an explicit list of what it does *not* dem
 | # | Item | Status |
 |---|---|---|
 | **U1–U5, U7, U11** | Spacing grid, type/icon ramp, corner radius, no hardcoded colours, named icon-only controls, imperative builders on the shared scale, sidebar rows as buttons | ✅ done (v4.99.35–v4.99.44), pinned by `DesignScaleTests` |
-| **U6** | `SystemFillColor*` never contrast-measured | ✅ **measured** — every pairing passes AA in both themes. What remains is consistency; see §0.1a |
+| **U6** | `SystemFillColor*` never contrast-measured | ◑ **the measurement itself was wrong** (corrected v4.99.60). It ran against `#2D2D30` / `#1E1E1E` — WinUI defaults the app replaced with its own surface tokens long ago — and on light it only ever used `#FFFFFF`, never the sunken `#F1F3F6`. Re-measured against the surfaces the app actually ships, **two pairings failed AA at full opacity**: `UmStatusMuted` 4.15 and `UmStatusDanger` 4.34 on the light sunken surface, both drawn as text. Both fixed; surfaces are now read from `Tokens.xaml`. Consistency (§0.1a) remains. |
 | **U8** | Empty-state sweep | ✅ done (v4.99.47) — Analytics and Reports gained no-accounts states, Reviews gained the action its state was missing, the Notification Hub stopped saying "intercepted" |
 | **U9** | Focus order outside the dashboard | ◑ **partly.** `FocusTrapHelper` no longer orders dialog tab stops by `GetHashCode()`, and the sidebar's tab indices were realigned with their constants. **Nobody has tabbed through the pages and dialogs by hand.** |
 | **U10** | "Instance" in accessible names | ✅ done (v4.99.47), pinned by `AccountVocabularyTests` |
@@ -78,7 +78,7 @@ deliberate work with its own contrast pass.
 |---|---|---|
 | **D1, D3, D7** | Call outcomes, "Uncategorised", per-review stars | ✅ done (v4.99.37–v4.99.41) |
 | **D2** | The IndexedDB fallback cannot read `callOutcome`, so an answered inbound call stays counted as missed | ◑ **disclosed, not fixed — and now assessed as unclosable from that path.** The scan reads only the `chat` store, which carries no call outcome, and `whatsapp-adapter.js` never emits `lastCallOutcome` at all; the outcome is a prototype getter on the *decrypted in-memory message model*. Whether WhatsApp Web keeps a separate call-log object store is an empirical question needing a signed-in account. Falsifiable next step: run the adapter's existing `diag.stores` enumeration on a live account and look for one. Disclosed on the chip *and*, since v4.99.51, on the account card. |
-| **D4** | Stale `instances.json.bak` beside the real store | ✅ **gone.** Verified from outside the MSIX container: no `.bak` files in `%LOCALAPPDATA%\UnifiedMessenger`. |
+| **D4** | Stale `instances.json.bak` beside the real store | ✅ **gone** — `instances.json.bak` is genuinely absent, re-verified from outside the MSIX container 2026-08-28. The claim "no `.bak` files" was too strong and is corrected: the folder does hold `oversight-snapshot.json.pre-clean-*.bak` and `response-times.json.pre-clean-*.bak`, which are the deliberate §0.7 backups, not the D4 defect. |
 | **D5** | Google reviews read 50 at a time, `MaxPages = 1` | ☐ **open, deliberately.** Pagination stays off until two consecutive passes agree on totals — walking every page over-counted by 2–3×. The desk states its own coverage, and as of v4.99.47 it can also say "covers all" when the traversal genuinely reached the last page, a fact it previously recorded and then discarded. |
 | **D6** | Google publishes no reply dates anywhere the scrape can reach | ☐ **unobtainable.** The tile says so rather than estimating. Whether to measure "since install" instead is an owner decision (§0.6). |
 | **D8** | *(new, from the audit)* One conversation was dropped from every scan by surrogate-splitting truncation | ✅ done (v4.99.46) |
@@ -135,8 +135,22 @@ from anyone reading code — which says the remaining defects are most likely wh
   reply-time history restarts from 2026-08-28 because the suite had been resetting it (v4.99.55).
   Treat "nothing is signed in" as a stale premise — it was asserted in a session brief, carried forward
   unexamined, and used to justify not looking.
-- **`ui-smoke` is red on CI, and the cause is NOT yet known.** The job has now been reached — three times
-  on 2026-08-28 — and failed on every run that got to it. What is established:
+- **`ui-smoke` is INTERMITTENT on CI — not steadily red — and the cause is narrowed but not settled.**
+  Corrected 2026-08-28: it is **green on `HEAD`** (run 216, `a146d33`) and roughly 2 runs in 7 pass. Runs
+  212 and 213 are the *same commit* with opposite outcomes.
+  **What v4.99.70 added, all from the run API rather than the job log** (annotations are readable without
+  repo admin; only the log text is 403):
+  - **Not a timeout.** Passes took 126 s and 159 s, failures 150 s and 183 s — run 214 failed *faster* than
+    run 216 passed.
+  - **The failures exit 1** (runs 214 and 215). The harness returns 1 at exactly one place — `Program.cs:17`,
+    "executable not found" — which fires *before any work*, yet the failing steps run 150–183 s.
+  - An unhandled exception through `dotnet run` returns **-532462766**, not 1 (measured directly), so a
+    harness crash is excluded.
+  - **Both earlier diagnoses are therefore excluded**: #1 targeted exit 4-vs-5, #2 targeted exit 3. The job
+    returns neither. Leading hypothesis is the `pwsh` wrapper aborting between `dotnet run` and `exit $code`,
+    which would also explain why #1's fix appeared to change nothing — it computed 5 correctly and the
+    wrapper discarded it. A `::notice::` probe now prints the real exit code into the annotations.
+  What is established from before:
   - It is **not** the app. The harness run against the shipped binary on a real desktop reports
     `12 passed, 2 warnings, 0 failed`, exit 0, including the full 1865-test suite and UI automation of the
     command palette, notification hub, sidebar, rapid reflow and tray-hide.

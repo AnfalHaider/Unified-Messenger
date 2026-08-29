@@ -5,7 +5,7 @@
 
     <Style x:Key="DashboardMetricCardStyle" TargetType="Border">
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource UmHairlineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
     </Style>
@@ -13,7 +13,7 @@
     <Style x:Key="DashboardCardStyle" TargetType="Border">
         <Setter Property="Padding" Value="{StaticResource UmPaddingMd}" />
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource UmHairlineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
     </Style>
@@ -21,7 +21,7 @@
     <Style x:Key="UmSurfaceCardStyle" TargetType="Border">
         <Setter Property="Padding" Value="{StaticResource UmPaddingLg}" />
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource UmHairlineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusMdValue}" />
     </Style>
@@ -236,7 +236,7 @@
     <Style x:Key="KanbanColumnDropZoneStyle" TargetType="Border">
         <Setter Property="MinHeight" Value="{StaticResource UmKanbanColumnMinHeight}" />
         <Setter Property="Padding" Value="{StaticResource UmPaddingKanbanColumn}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource UmHairlineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusSmValue}" />
     </Style>
@@ -255,7 +255,7 @@
     <Style x:Key="UmKanbanEmptyStateStyle" TargetType="Border">
         <Setter Property="Padding" Value="{StaticResource UmPaddingMd}" />
         <Setter Property="Background" Value="{ThemeResource LayerFillColorDefaultBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource UmHairlineBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource UmCornerRadiusSmValue}" />
     </Style>

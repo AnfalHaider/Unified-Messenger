@@ -5,6 +5,453 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.72
+
+**Switching branch on Analytics hung the app.** Introduced by v4.99.71 and reported immediately.
+`BranchBox_SelectionChanged` called `Refresh()`, and `Refresh()` called `PopulateBranchBox()`, which clears
+and rebuilds `BranchBox.Items` — so the app was rebuilding a `ComboBox` from inside its own
+`SelectionChanged` handler. The `_suppressRangeChange` guard does not help: `Items.Clear()` re-enters
+WinUI's selection machinery whatever the handler does with the event.
+
+The account list cannot change while the page is on screen, so the box is now populated once on navigation,
+exactly as `RangeBox` always was. `ReportsPage` already did this correctly — only Analytics had the cascade.
+
+**Every displayed figure was recomputed from the live store and checked.** The first time any figure in this
+product has been verified against its data; `remaining-work.md` §0.4 had conceded that none ever had. Full
+record in `docs/audit-2026-08/05-data-validation.md`.
+
+Everything checked was **correct**: reply-time medians and SLA percentages for both Today and the week,
+sample counts, the live/backlog/total split, and both thresholds read back from `settings.json`.
+
+Two things worth recording from it:
+
+- **An apparent contradiction that was not one.** The dashboard read `SLA met 0%` while Analytics read
+  `SLA Met 83%`. Both were right — the dashboard was scoped to **Today**, which held one reply that took 31
+  minutes, and Analytics to the **week**, which held 30. Recomputed both ways; both matched exactly.
+- **A near-miss.** The 7-day median first computed as 1.64 against a screen reading `1 min`, which looked
+  like a rounding fault. It was not: `ResponseTimeTracker.Percentile` uses the **nearest-rank** method
+  (1.45), and the check had used mean-of-middles. Both are valid medians. A figure that disagrees with a
+  hand calculation is not yet a bug — the definition has to be checked first.
+
+**The one real finding: the SLA tile did not disclose its denominator.** `SLA met 0%` computed from a single
+reply looked pixel-for-pixel identical to 0% from two hundred, and the dashboard defaults its window to
+Today. The response-time tile beside it already said `median · N replies`; the SLA tile said only what the
+target was. It now reads `N replies · target 15 min`.
+
+Also validated: the awaiting count of **298 raw → 108 shown** is correct and attributable. Overrides are
+empty, so the whole reduction is the closed-conversation classifier — WhatsApp system messages, protocol
+noise and answered calls — while the media types it must keep (`image`, `ptt`, `video`, `sticker`) are kept.
+
+Tests 1905.
+
+
+## v4.99.71
+
+**Reports and Analytics can be filtered by branch.**
+
+Most of the groundwork already existed and had never been wired up: `MessengerInstance.BranchKey` is a real
+field editable via right-click → **Set location**, `BranchWorkspaceHelper.ResolveBranchKey` falls back to the
+display name so every account resolves to a branch even unset, and
+`BranchWorkspaceHelper.FilterByBranchKey` **existed with no caller anywhere in the app**. `GatherInputs`
+already accepted an arbitrary subset, so no report-engine change was needed.
+
+Three things that make it a filter rather than a decoration:
+
+- **The scope reaches the exports.** The selected branch is folded into `ReportInputs.PeriodLabel`, which is
+  what `BusinessReport` writes as `"# Business report — {PeriodLabel}"`. A single-branch report saved to a
+  file that does not name the branch stops being a report and becomes a wrong document the moment it leaves
+  the app. The report header now reads *"Aug 22 – Aug 29, 2026 · DHA-2"*.
+- **Both `.md` and `.csv` exports respect it.** Both previously used `_services.Registry.Instances` directly
+  — the CSV would have written the whole business to a file while the screen showed one branch. Every
+  consumer on both pages now goes through a single `ScopedInstances()`.
+- **`ActivityPatternsPanel` is scoped too.** It resolves its own accounts from the registry and has its own
+  selector, so without a `BranchScope` it would have kept showing the whole business underneath a page
+  filtered to one branch — two figures for the same thing in one viewport, the defect class the previous
+  four increments existed to remove.
+
+The control hides itself when there is only one branch: a filter whose only option is what is already on
+screen is furniture, and it invites the reader to believe a scoping is happening that is not.
+
+Analytics gets the same filter as Reports deliberately. Filtering one screen and not the other is how two
+surfaces start disagreeing about one business.
+
+**`FilterByBranchKey` had no coverage at all**, having had no callers. Six cases added. The one that matters
+is *a key matching nothing returns nothing* — a filter that fell open on an unrecognised branch would put the
+whole business on screen under one branch's name and export it that way.
+
+Tests 1899 → 1905.
+
+
+## v4.99.70
+
+**The corner-radius scale was enforced in XAML only, and the code side had drifted to eleven values.**
+`DesignScaleTests.EveryCornerRadiusComesFromTheScale` scanned `.xaml` and nothing else. Every XAML radius
+conformed; in C#, `new CornerRadius(N)` was unchecked and had reached
+`0, 2, 4, 5, 6, 8, 10, 12, 14, 15, 999`.
+
+The test's own docstring says radii *"had reached six distinct values across the app — cards rendered at 8,
+10, 12 and 14 — which is not a system, it is an accumulation"*. The cleanup behind that sentence, and the
+test written to hold it, both covered XAML — so the code side kept accumulating and ended up **worse than
+the number that triggered the original work**.
+
+**This is the second defect from that exact gap in this one file.** `NoLiteralFontSizeInCode` exists because
+of the first: *"`DesignScaleTests` read .xaml only, so every literal in `CommandCenterPanel.xaml.cs` and
+friends was invisible to it"* — eleven text sizes against seven. The lesson was applied to font size and not
+to radius.
+
+The scan now covers `.cs`. Snapped: `4 → 6`, `5 → 6`, `10 → 12` (×3), `14 → 12`, `15 → 12`, and a
+`WorkspaceSidebar` fallback of `4` corrected to `6` to match the token it falls back from.
+
+**The scale grew by one tier, deliberately.** `TheScaleStaysSmallEnoughToBeAScale` asserted ≤3 and failed —
+which is exactly what it is for. The fix was not to raise the number quietly: `UmCornerRadiusXsValue = 2` has
+been in `Tokens.xaml` the whole time for chips and small markers, so the fourth tier already existed and the
+list had never seen it. `0` (square) and `999` (pill) are allowed but **excluded from the tier count**, so
+the number cannot creep while looking like a system.
+
+**"1 replies."** `CommandCenterPanel.xaml.cs:2156` had no singular branch. Seen on the dashboard because
+reply history restarted on 2026-08-28 and there was exactly one sample. Swept the other 32 count-plus-plural
+strings: all either have a singular branch or are genuinely plural. One real instance.
+
+Also lands the Phase B/C/D audit deliverables in `docs/audit-2026-08/`.
+
+Tests 1899.
+
+
+## v4.99.69
+
+**Captions dimmed to 0.55 were below AA in light theme** — 3.84:1, measured by compositing the foreground
+over the surface at the alpha the app actually renders. On dark the same dimming is 6.09:1 and fine.
+
+The app had **no foreground token of any kind**. `Tokens.xaml` declared surfaces, status colours, opacities,
+font sizes and icon sizes, and nothing for text — which is why 88 sites reached for `Opacity` to make text
+quieter: there was nothing else to reach for. `UmTextTertiaryColor` / `UmTextTertiaryBrush` now exist per
+theme, chosen to pass AA on the **worst** surface of each: light `#5B6773` is 5.20:1 on the sunken surface,
+dark `#8A97A6` is 5.92:1 on the raised one.
+
+Four caption sites moved to it — three in Settings, one in the notification feed's group header. The 0.55
+uses that remain are `FontIcon` glyphs, which are non-text and clear 1.4.11's 3:1 bar at 3.84.
+
+`StatusContrastTests.TertiaryTextIsReadableOnEverySurfaceOfItsOwnTheme` asserts the new token on all three
+surfaces per theme — possible only now that the value is a token rather than an element property, since an
+`Opacity` is applied at the element and no contrast test can see it. The raw-`Opacity` ratchet drops 88 → 84.
+
+Tests 1897 → 1899.
+
+
+## v4.99.68
+
+**A third status palette, and the dead code holding it up — both deleted.** The palette existed in three
+places. Two are kept in lockstep by `StatusContrastTests.TheCodePaletteMatchesTokensXamlExactly`.
+`Services/UmSemanticColors.cs` was a third that nothing checked, and it was already incoherent — a mix of
+light-theme values, dark-theme values, and values from neither:
+
+| Const | Value | What that value actually is |
+|---|---|---|
+| `StatusSuccess` | `#22C55E` | the **dark** theme's success |
+| `StatusWarning` | `#F59E0B` | the **dark** theme's warning |
+| `StatusDanger` | `#DC2626` | the **light** theme's danger (since v4.99.60, `#C81E1E`) |
+| `StatusNeutral` | `#64748B` | **neither** theme |
+| `StatusMuted` | `#94A3B8` | the dark **Neutral**, not Muted |
+
+A `const string` cannot be theme-aware, so it was unfixable in place — which is the argument for deleting it
+rather than correcting it.
+
+Its only consumer was `Services/UnifiedMessengerDashboardPresentationHelper.cs`, whose only consumers were
+its own two test files. **No application code called either.** Its surface (`FormatRevenue`,
+`ClientSentimentLabel`) describes a product this app is not. Verified across `*.cs`, `*.xaml`,
+`Assets/Scripts` and `Assets/Config` before deleting, not just the C# sources.
+
+Four files removed; the two doc references now point at `UmSemanticBrushes`.
+
+Tests 1902 → 1897 (the seven tests that existed only to exercise the deleted helper).
+
+
+## v4.99.67
+
+**Three pairs of figures that contradicted each other on screen, and text that could never wrap.**
+All four were seen on screen before being fixed.
+
+**The notification badge and the notification panel counted different things under one label.** The
+sidebar badge is `NotificationHub.TotalUnreadCount` — unread *messages* summed across unmuted accounts.
+The panel lists *alerts the hub has raised*. Both were right; together they read as one quantity
+disagreeing with itself: **"Notification Hub 21"** in the rail beside **"No notifications yet."** in the
+panel. Not a counting bug, so neither number changed — the empty state now names what the badge counts
+instead of denying it: *"Nothing needs your attention here. The 21 on the sidebar are unread messages, not
+alerts."*
+
+**"Reply speed is healthy" was computed over the survivors.** The median first-reply time only includes
+conversations that *got* a reply; the ones still waiting have no first-response time and are absent by
+construction. So the report printed *"Reply speed is healthy — median 1 min across 29 replies"* six rows
+below *"103 customers waiting on a reply right now"*, and meant both. Where more customers are waiting than
+were answered, the verdict is now withheld and the population named: *"Reply speed looks good for the 29
+that were answered … but 103 customers are still waiting and are not in that figure."* The healthy verdict
+is not removed, only withheld where the answered set is too small a slice of the week to carry it.
+
+**A day with no data was drawn as a day with a zero.** In the 7-day reply-time chart, a day with no
+measured replies contributed an *empty* column — pixel-for-pixel what a zero-height bar looks like. Reply
+history restarted on 2026-08-28, so six of seven days had no data and the chart read as a catastrophe. Those
+days now carry an explicit "–" and a tooltip saying *unmeasured, not zero*, and the heading states coverage:
+*"Median first reply · 1 of the last 7 days measured"*.
+
+**Wrapping text in a horizontal `StackPanel` can never wrap.** That panel measures its children with
+*infinite* available width, so `TextWrapping` has nothing to act on — the text overflows and is clipped by
+the parent. The dashboard's AI shift briefing was cut mid-word with no ellipsis, and a sweep found the same
+shape in the Activity insights and all three About-page feature rows. All converted to a `Grid` with
+`Auto` + `*` columns. The one legitimate use is kept: the triage toast's container is
+`HorizontalAlignment="Left"` and must hug its content, so its text got a `MaxWidth` instead.
+
+Tests 1900 → 1902 (two survivorship cases).
+
+
+## v4.99.66
+
+**A link followed from a scraped account replaced the session, with no way back.**
+`HandleNewWindowRequested` hopped the current frame for any **allow-listed** host. The allowlist is built
+from every platform's whole *registrable domain* plus the OAuth hosts, so from WhatsApp Web it spans all of
+`whatsapp.com` **and `google.com`**. Meanwhile `MainWindow` collapses the back/forward controls whenever
+`IsPlatformModuleEnabled` is true — which is true for exactly the WhatsApp family, the accounts that carry
+oversight. A help link, or a `google.com` link a customer sent, therefore replaced the scraped page with no
+way back, and oversight for that account stopped until the owner found right-click → Refresh WebView.
+
+The routing decision is now `ResolveNewWindowAction`, extracted from the event handler as a pure function
+because it previously needed a live `CoreWebView2` — which is why it had no coverage at all:
+
+| Case | Action |
+|---|---|
+| `blob:` / `data:` | hand back to WebView2 (downloads — unchanged) |
+| Same **host** as the current page | replace the frame |
+| An OAuth host | replace the frame |
+| Otherwise, user-initiated, safe scheme | open in the owner's browser |
+| Anything else | block, with a log line |
+
+**Same host, not same site.** Same registrable domain would keep `faq.whatsapp.com` in-frame, which is the
+exact case that stranded the owner. This handler only sees deliberate new-window intents — a redirect is a
+navigation and goes through `HandleNavigationStarting` — so "the site opened its own page in a new tab" is
+the only case where replacing the frame is right.
+
+**OAuth hosts still replace the frame.** Handing a sign-in popup to the default browser would land the
+session cookie in the owner's own browser rather than this WebView2 profile, so the sign-in it was serving
+could never complete.
+
+The regression test proves the defect rather than only the fix: it asserts the four stranding URIs *are*
+allow-listed — which is what made the old rule navigate in-frame — alongside the new routing.
+
+**The live reproduction was blocked, not skipped.** WebView2 renders in separate processes that the
+screenshot filter masks, so the account's page came back as a blank frame and no link could be clicked.
+The mechanism is instead proven deterministically by the extracted function and its 14 cases.
+
+Tests 1882 → 1900.
+
+
+## v4.99.65
+
+**Eight `FontIcon`s shipped with an empty `Glyph`, from the initial commit onward.** A `FontIcon` whose
+`Glyph` is a zero-length string draws nothing, while the control around it stays present, laid out,
+focusable and clickable. The failure is invisible to a reader, invisible to the test suite, and invisible
+on screen — the only symptom is a control nobody can find.
+
+**What it cost.** The dashboard's per-account details button — tooltip *"Account details — reply speed,
+backlog, and who's waiting"* — was a 12-pixel sliver of pure button padding. The per-account L1 drill-down
+behind it shipped in v4.53.0 and has been unfindable by sight ever since; it was reached here only by
+computing where the button had to be from the layout and clicking that spot. `AccountDetailDialog` then
+opened correctly and rendered correctly, so nothing was wrong with it but the way in.
+
+The same defect blanked the **mark-done split button** on every awaiting row, which in *compact* density has
+no text label either — so the one control that closes an awaiting conversation had no visible presence at
+all. `AGENTS.md` records that control as existing "so a surface can't ship without it".
+
+All eight, with what each should have been (taken from the comment already beside it, or from the enclosing
+method's own docstring):
+
+| Where | Glyph |
+|---|---|
+| `CommandCenterPanel` scope chip | `\uE711` Cancel |
+| `CommandCenterPanel` unread line | `\uE7BA` Warning |
+| `CommandCenterPanel` headline | `\uE7BA` Warning |
+| `CommandCenterPanel` account details | `\uE9D2` BarChart |
+| `AwaitingChatActions` "Mark as done" | `\uE73E` CheckMark |
+| `AwaitingChatActions` Done split button | `\uE73E` CheckMark |
+| `ChangeIconDialog` import | `\uE896` Download |
+| `ChangeIconDialog` upload | `\uE898` Upload |
+
+Codepoints were chosen from those this app already renders successfully rather than picked from a chart.
+
+**Written as `"\uXXXX"`, never as an inline character.** All eight blanks were in the inline form; the 26
+glyphs already using the escape form were all intact. A private-use codepoint pasted into source is one
+encoding round-trip from vanishing, and it vanishes silently. The codebase is now 34 escaped and 10 inline.
+
+`DesignScaleTests.NoFontIconShipsWithAnEmptyGlyph` fails the build on the next one.
+
+Verified on screen: the details icon renders beside each account's open-count pill, and clicking it opens
+the account detail dialog. The remaining six are covered by the new test but have not been seen rendered.
+
+Tests 1881 → 1882.
+
+
+## v4.99.64
+
+**Every dialog rendered light in dark theme.** A `ContentDialog` is hosted in a popup **outside** the window
+root's visual subtree, so it does not inherit the theme this app applies to that root. It falls back to the
+*application* theme, which this app never sets and which therefore reads Light. Observed on
+`ChangeIconDialog`: a white panel with dark text over a dark app, its helper line invisible entirely.
+
+Fixed in `DialogHost.ShowManagedAsync` / `ShowIfFreeAsync` — the one place every dialog passes through —
+rather than per dialog, because **five of the app's dialogs have never been opened by anyone** and a
+per-dialog fix would have missed exactly those.
+
+**Two test defects found while verifying, both pre-existing and both invisible on a green suite.**
+
+`BackfillDedupeStoreTests.TryAcceptForDayAsync_SuppressesSameConversationOnSameDay` used
+`DateTimeOffset.UtcNow` and added two hours, asserting both land on the same day. The store keys the
+**local** day (the v4.99.50 fix, so it agrees with the analytics bucket), so that holds only when `UtcNow` is
+more than two hours from local midnight. It went red at 22:00 local on this machine and would have gone green
+again at midnight — red for two hours of every day, here and on CI alike, which reads as flake rather than as
+a broken test. Confirmed pre-existing by stashing all local work and reproducing it at `e5033ae`.
+
+Its sibling `AllowsSameConversationOnDifferentDay` had the opposite defect: fixed dates of 2026-06-10/11,
+which by 2026-08-28 were 79 days old. `PruneStaleEntries` drops anything older than 45 days on every save, so
+both entries were discarded, both calls trivially returned true, and **the test passed without exercising
+day-keying at all** — it would have passed with dedupe removed entirely. Both now use 09:00 on a recent local
+day: recent enough to survive the prune, and far enough from midnight that adding two hours cannot cross it.
+
+Verified on screen: the Change-icon dialog renders dark, and its helper text — previously invisible — reads.
+
+Tests 1881.
+
+
+## v4.99.63
+
+**Eight files had each rolled their own brush resolver, every one bypassing `ThemeBrushResolver`.** That is
+the systemic cause of the white-in-dark surfaces, and why the two previous fixes kept leaving instances
+behind — they were fixing call sites while the pattern kept reappearing somewhere new.
+
+`KpiStatCard`, `MiniSparkline`, `AccountDetailDialog`, `ChangeIconDialog`, `WeeklyReportDialog`,
+`AnalyticsPage`, `ReportsPage`, `WorkspaceSidebar` and `ShellChromeCoordinator` each had a private
+`Application.Current.Resources.TryGetValue(key, …)` helper. All now route through `ThemeBrushResolver`. Added
+a no-element overload for the genuinely static builders — `WeeklyReportDialog.Populate` is shared between the
+dialog and the Reports page — which resolves against the window root, whose `ActualTheme` is the applied one.
+
+`WorkspaceSidebar` was the widest of them: it resolves `TextFillColorSecondary`,
+`CardBackgroundFillColorDefault`, `LayerFillColorDefault` and `UmBrandTeal`, all themed, for the left rail.
+
+**A second, different bug in the same tiles.** `KpiStatCard` resolved its brushes once **in its
+constructor** — before the control is in the visual tree, so `ActualTheme` is still `Default`. This app
+applies its theme on the window root rather than at application level, so the fallback
+(`Application.Current.RequestedTheme`) reads `Light` even in dark mode, and light surfaces were baked in
+permanently: a pale grey card carrying white text, on the Analytics page's four headline metrics. Brushes are
+now applied on `ActualThemeChanged` and `Loaded` as well. Every other imperative control escaped this only
+because it rebuilds its content after being parented; this one builds once and afterwards only updates text.
+
+The `SystemFillColor*` ratchet earned its keep here: the first version of this fix duplicated a brush
+reference and the build failed on the count.
+
+Verified on screen in dark theme: the four Analytics KPI tiles render dark with visible edges and readable
+values, and "Caught up by thread" now agrees with the dashboard's caught-up figure.
+
+Tests 1881.
+
+
+## v4.99.62
+
+**The Reviews page was unusable in dark theme: six blank white tiles, white cards, invisible text.** Reported
+by the owner with a screenshot while the previous fix was being verified, which is the only reason it was
+found — nobody had opened that page in dark.
+
+v4.99.61 fixed this one key at a time, which was treating the symptom. The real rule is broader: **any key
+declared inside a `ThemeDictionary` is unsafe through `Application.Current.Resources`**, because that
+resolves the app-default theme rather than the element's — and that includes the app's own tokens.
+`Tokens.xaml` declares `UmSurfaceBrush`, `UmHairlineBrush`, `UmAccentWashBrush` and the rest inside
+`<ResourceDictionary.ThemeDictionaries>`. XAML consumers were always fine, because `{ThemeResource ...}`
+resolves per element. Imperative callers were not, and `ReviewDesk` is built imperatively — so it drew white
+cards and white filter pills, with text that had *correctly* resolved to white sitting on top of them.
+
+`ThemeBrushResolver` now looks a key up in the theme dictionary matching the element's own `ActualTheme`,
+searching the application dictionary and everything merged into it, before falling back to the flat lookup.
+That covers every themed token at once instead of key by key.
+
+High contrast is deliberately exempt: `ThemeService` installs `HighContrast.xaml` as a merged dictionary and
+it wins the ordinary lookup precisely because it is merged last. Reaching past it into a Light/Default theme
+dictionary would repaint high-contrast surfaces with ordinary colours — the one case where the flat lookup
+was already doing the right thing.
+
+Verified on screen, dark theme: the six review KPI tiles read, the filter pills read, and review cards show
+author, branch, stars, body and the reply action.
+
+Tests 1881, unchanged — no test could have caught this, and none added: the defect lives in WinUI resource
+resolution at runtime, which the suite does not host. It is recorded in docs/audit-2026-08/ as the clearest
+argument in this audit for rendering the UI rather than reasoning about it.
+
+
+## v4.99.61
+
+**The AI insight was white text on a white bar, in dark theme, on every account card.** Seen on screen, not
+inferred: three account cards each showing a blank white strip with only the amber "AI" badge visible — on
+the dashboard's headline feature, in the theme the owner uses.
+
+`ThemeBrushResolver` exists precisely to stop this. It resolves the Fluent neutral TEXT brushes from the
+element's own `ActualTheme`, because `Application.Current.Resources` returns the app-default theme instead.
+Its docstring then exempted control fills — "where theme-invariance makes it safe". That was wrong.
+`ControlSolidFillColorDefault` is `#FFFFFF` on light and a dark grey on dark. `BuildInsightStrip` paired it
+with `TextFillColorPrimaryBrush`, which *was* resolved correctly, so in dark theme the text came back white
+and the background came back white. The `Card*` helpers were added when the same thing hit the Needs-reply
+rows; the control fills were missed. They now route through the same themed surfaces, which fixes all four
+call sites rather than the one that was noticed.
+
+**Panels could not be told apart, which is a separate defect and the one the owner actually reported.** Every
+separation mechanism measured far below the 3:1 that WCAG 1.4.11 asks of a boundary:
+
+    surface fill vs sunken              dark 1.048   light 1.112
+    UmHairlineBrush                     dark 1.22    light 1.24
+    WinUI CardStrokeColorDefault (19x)  dark 1.15    light 1.14
+    shadow                              none         none
+
+Light gets away with less: a white card on a grey canvas is a familiar figure-ground cue and the eye
+discriminates lightness far better in bright ranges. A dark theme has neither advantage and cannot cast a
+shadow — there is nothing darker than near-black to cast it — which is why dark systems raise a surface by
+lightening it. This app did not, so every panel sat at the same apparent depth.
+
+  - dark `UmSurfaceColor` `#17191D` -> `#20242B` (vs canvas 1.09 -> 1.23)
+  - dark hairline `#262A31` -> `#464D5A` (1.22 -> 1.83), strong `#343943` -> `#515967` (2.21)
+  - light hairline `#E4E7EC` -> `#C4CBD4` (1.24 -> 1.64), strong `#D3D8E0` -> `#A6AFBC` (2.22)
+  - 19 card edges migrated off `CardStrokeColorDefaultBrush` (1.15:1, the weakest edge available and the
+    most used) onto `UmHairlineBrush`, including CommandCenterPanel, KpiStatCard, ActivityPatternsPanel and
+    NotificationFeedPanel — the panels in question. Strengthening the token alone would have reached none
+    of them.
+
+Every dark status colour still clears AA on the lighter surface; worst is Muted at 5.23:1. The bar for a
+card edge is pinned at 1.5 rather than 3.0 deliberately — 3:1 on every card edge is a wireframe, not a
+dashboard, and the fill difference carries part of the load.
+
+Verified on screen: fresh dark launch, all three insight strips readable, card edges visible.
+
+Tests 1878 -> 1881.
+
+
+## v4.99.60
+
+**The contrast check measured surfaces the app does not ship.** `WcagContrast` held every status colour
+against `#2D2D30` and `#1E1E1E` — WinUI defaults the app replaced with its own tokens long ago. It ships
+`#17191D` / `#121418` / `#0E0F12` on dark, and on light only `#FFFFFF` was ever measured, never the sunken
+`#F1F3F6`. So the suite measured the right foregrounds against backgrounds that are never drawn.
+
+Two real failures were hiding there. `UmStatusMutedColor` (`#6B7684`) measured **4.15:1** and
+`UmStatusDangerColor` (`#DC2626`) **4.34:1** on the light sunken surface — below AA **at full opacity**,
+before any dimming. Both are drawn as text, not only as dots: `ReviewDesk.UrgencyBrush` hands Muted to a
+`TextBlock.Foreground` for an unrated review. Now `#626D7A` (4.74:1) and `#C81E1E` (5.16:1).
+
+The surfaces are now read from `Tokens.xaml` like the colours already were, and every status colour is
+asserted against **all three** surfaces of its own theme rather than one representative. `Composite` /
+`RatioAtOpacity` were added so a dimmed pairing can be measured at all, and a ratchet caps raw `Opacity`
+dimming at its current 88 XAML sites.
+
+**What this did not find, recorded because a lot was written assuming otherwise:** dimming ordinary body
+text is fine. WinUI's primary foreground at 0.65 — 42 of the 88 sites — is 7.95:1 on the dark surface and
+5.10:1 on the light sunken one. No XAML element pairs a status `Foreground` with an `Opacity` at all. The
+0.55 token *is* below AA on light text (3.84:1) and is tracked separately.
+
+Tests 1865 → 1878.
+
+
 ## v4.99.59
 
 **A green local suite was not the gate, and CI said so.** `StartupWarmCount` was written taking the

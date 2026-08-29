@@ -27,10 +27,10 @@
             -->
             <Color x:Key="UmStatusSuccessColor">#15803D</Color>
             <Color x:Key="UmStatusWarningColor">#B45309</Color>
-            <Color x:Key="UmStatusDangerColor">#DC2626</Color>
+            <Color x:Key="UmStatusDangerColor">#C81E1E</Color>
             <SolidColorBrush x:Key="UmStatusSuccessBrush" Color="#15803D" />
             <SolidColorBrush x:Key="UmStatusWarningBrush" Color="#B45309" />
-            <SolidColorBrush x:Key="UmStatusDangerBrush" Color="#DC2626" />
+            <SolidColorBrush x:Key="UmStatusDangerBrush" Color="#C81E1E" />
             <!--
                 Info, neutral and muted joined the themed set when the sidebar's connection dot was found
                 still painting itself from hardcoded ARGB literals (#0063B1 blue, #808080 grey) months after
@@ -39,10 +39,10 @@
             -->
             <Color x:Key="UmStatusInfoColor">#1D4ED8</Color>
             <Color x:Key="UmStatusNeutralColor">#5B6773</Color>
-            <Color x:Key="UmStatusMutedColor">#6B7684</Color>
+            <Color x:Key="UmStatusMutedColor">#626D7A</Color>
             <SolidColorBrush x:Key="UmStatusInfoBrush" Color="#1D4ED8" />
             <SolidColorBrush x:Key="UmStatusNeutralBrush" Color="#5B6773" />
-            <SolidColorBrush x:Key="UmStatusMutedBrush" Color="#6B7684" />
+            <SolidColorBrush x:Key="UmStatusMutedBrush" Color="#626D7A" />
 
             <!--
                 SURFACE SYSTEM, light theme.
@@ -62,15 +62,26 @@
             <Color x:Key="UmCanvasColor">#F6F7F9</Color>
             <Color x:Key="UmSurfaceColor">#FFFFFF</Color>
             <Color x:Key="UmSurfaceSunkenColor">#F1F3F6</Color>
-            <Color x:Key="UmHairlineColor">#E4E7EC</Color>
-            <Color x:Key="UmHairlineStrongColor">#D3D8E0</Color>
+            <Color x:Key="UmHairlineColor">#C4CBD4</Color>
+            <Color x:Key="UmHairlineStrongColor">#A6AFBC</Color>
+            <!--
+                 Tertiary TEXT. Exists because the app had NO foreground token of any kind, which is why
+                 88 sites reached for Opacity to make text quieter — there was nothing else to reach for.
+                 Dimming ordinary body text is mostly fine (0.65 is 7.95:1 on the dark surface, 5.10:1 on
+                 the light sunken one), but 0.55 measures 3.84:1 in light, BELOW AA, and no contrast test
+                 can see an Opacity because it is applied at the element. These values pass AA on the worst
+                 surface of their own theme: light #5B6773 is 5.20:1 on the sunken surface, dark #8A97A6 is
+                 5.92:1 on the raised one.
+            -->
+            <Color x:Key="UmTextTertiaryColor">#5B6773</Color>
             <!-- Tint of the brand blue, for selected rows and the AI strip. -->
             <Color x:Key="UmAccentWashColor">#EAF2FA</Color>
             <SolidColorBrush x:Key="UmCanvasBrush" Color="#F6F7F9" />
             <SolidColorBrush x:Key="UmSurfaceBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="UmSurfaceSunkenBrush" Color="#F1F3F6" />
-            <SolidColorBrush x:Key="UmHairlineBrush" Color="#E4E7EC" />
-            <SolidColorBrush x:Key="UmHairlineStrongBrush" Color="#D3D8E0" />
+            <SolidColorBrush x:Key="UmHairlineBrush" Color="#C4CBD4" />
+            <SolidColorBrush x:Key="UmHairlineStrongBrush" Color="#A6AFBC" />
+            <SolidColorBrush x:Key="UmTextTertiaryBrush" Color="#5B6773" />
             <SolidColorBrush x:Key="UmAccentWashBrush" Color="#EAF2FA" />
 
             <!-- Status washes: chip and pill fills. Deliberately pale so the chip's TEXT carries the
@@ -123,16 +134,18 @@
                  Not a naive inversion — the steps are closer together than on light, because on a dark
                  ground a large luminance jump between canvas and card reads as a glow rather than depth. -->
             <Color x:Key="UmCanvasColor">#0E0F12</Color>
-            <Color x:Key="UmSurfaceColor">#17191D</Color>
+            <Color x:Key="UmSurfaceColor">#20242B</Color>
             <Color x:Key="UmSurfaceSunkenColor">#121418</Color>
-            <Color x:Key="UmHairlineColor">#262A31</Color>
-            <Color x:Key="UmHairlineStrongColor">#343943</Color>
+            <Color x:Key="UmHairlineColor">#464D5A</Color>
+            <Color x:Key="UmHairlineStrongColor">#515967</Color>
+            <Color x:Key="UmTextTertiaryColor">#8A97A6</Color>
             <Color x:Key="UmAccentWashColor">#132434</Color>
             <SolidColorBrush x:Key="UmCanvasBrush" Color="#0E0F12" />
-            <SolidColorBrush x:Key="UmSurfaceBrush" Color="#17191D" />
+            <SolidColorBrush x:Key="UmSurfaceBrush" Color="#20242B" />
             <SolidColorBrush x:Key="UmSurfaceSunkenBrush" Color="#121418" />
-            <SolidColorBrush x:Key="UmHairlineBrush" Color="#262A31" />
-            <SolidColorBrush x:Key="UmHairlineStrongBrush" Color="#343943" />
+            <SolidColorBrush x:Key="UmHairlineBrush" Color="#464D5A" />
+            <SolidColorBrush x:Key="UmHairlineStrongBrush" Color="#515967" />
+            <SolidColorBrush x:Key="UmTextTertiaryBrush" Color="#8A97A6" />
             <SolidColorBrush x:Key="UmAccentWashBrush" Color="#132434" />
 
             <!-- Status washes, dark. Dim rather than pale, so the bright semantic text still clears AA. -->

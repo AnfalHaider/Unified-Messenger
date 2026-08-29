@@ -33,6 +33,7 @@ public sealed class KpiStatCard : ContentControl
 
     private readonly FontIcon _icon = new() { FontSize = UmScale.Icon.Md };
     private readonly Border _iconChip;
+    private readonly Border _card;
     private readonly TextBlock _label = new() { Style = null, FontSize = UmScale.Icon.Sm, Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _value = new();
     private readonly DeltaBadge _delta = new();
@@ -52,7 +53,6 @@ public sealed class KpiStatCard : ContentControl
             Width = 30,
             Height = 30,
             CornerRadius = TryCorner("UmCornerRadiusSmValue", new CornerRadius(6)),
-            Background = ResolveBrush("SystemFillColorAttentionBackgroundBrush"),
             Child = _icon,
             HorizontalAlignment = HorizontalAlignment.Left
         };
@@ -72,18 +72,36 @@ public sealed class KpiStatCard : ContentControl
         body.Children.Add(_delta);
         body.Children.Add(_spark);
 
-        var card = new Border
+        _card = new Border
         {
             Padding = new Thickness(16),
             CornerRadius = TryCorner("UmCornerRadiusMdValue", new CornerRadius(8)),
-            Background = ResolveBrush("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = ResolveBrush("CardStrokeColorDefaultBrush"),
             BorderThickness = new Thickness(1),
             Child = body
         };
 
-        Content = card;
+        Content = _card;
+
+        // Brushes are applied here AND on ActualThemeChanged/Loaded, never once in the constructor.
+        // A control being constructed is not yet in the visual tree, so its ActualTheme is still Default
+        // and the theme cannot be known — and this app applies its theme on the window root rather than at
+        // application level, so Application.Current.RequestedTheme reads Light even in dark mode. Resolving
+        // once at construction therefore baked LIGHT surfaces into these four tiles permanently: a pale
+        // grey card carrying white text, on the Analytics page's headline metrics. Every other imperative
+        // control escaped this only because it rebuilds its content after being parented; this one builds
+        // once and afterwards only updates text.
+        ApplyThemeBrushes();
+        ActualThemeChanged += (_, _) => ApplyThemeBrushes();
+        Loaded += (_, _) => ApplyThemeBrushes();
         Apply();
+    }
+
+    private void ApplyThemeBrushes()
+    {
+        _card.Background = ResolveBrush("CardBackgroundFillColorDefaultBrush");
+        _card.BorderBrush = ResolveBrush("UmHairlineBrush");
+        _iconChip.Background = ResolveBrush("SystemFillColorAttentionBackgroundBrush");
+        _icon.Foreground = AccentBrush ?? ResolveBrush("SystemFillColorAttentionBrush");
     }
 
     public string Label { get => (string)GetValue(LabelProperty); set => SetValue(LabelProperty, value); }
@@ -100,7 +118,9 @@ public sealed class KpiStatCard : ContentControl
         _label.Text = Label;
         _value.Text = Value;
         _icon.Glyph = IconGlyph;
-        _icon.Foreground = AccentBrush ?? ResolveBrush("SystemFillColorAttentionBrush");
+        // The icon foreground depends on AccentBrush, which this can change, so re-run the themed brushes
+        // rather than duplicating the fallback here — the palette ratchet counts that duplicate.
+        ApplyThemeBrushes();
         _delta.Delta = Delta;
         _spark.Values = Trend;
 
@@ -113,8 +133,9 @@ public sealed class KpiStatCard : ContentControl
     private static CornerRadius TryCorner(string key, CornerRadius fallback) =>
         Application.Current.Resources.TryGetValue(key, out var v) && v is CornerRadius c ? c : fallback;
 
-    private static Brush ResolveBrush(string key) =>
-        Application.Current.Resources.TryGetValue(key, out var v) && v is Brush b
-            ? b
-            : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+    // Was a private static lookup straight into Application.Current.Resources, which resolves the
+    // APP-default theme rather than this element's — so in dark theme these four tiles drew
+    // CardBackgroundFillColorDefault's LIGHT value: a pale grey card with white text on it, and a
+    // label at 0.7 opacity that was effectively invisible. Observed on the Analytics page.
+    private Brush ResolveBrush(string key) => Services.ThemeBrushResolver.Resolve(this, key);
 }

@@ -42,7 +42,7 @@
                             FontWeight="SemiBold"
                             TextTrimming="CharacterEllipsis"
                             Text="{Binding GroupTitle}" />
-                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource UmSectionLabelTextStyle}" Opacity="0.55"
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource UmSectionLabelTextStyle}" Foreground="{ThemeResource UmTextTertiaryBrush}"
                             Text="{Binding GroupUnreadLabel}" />
                     </Grid>
                 </DataTemplate>
@@ -52,7 +52,7 @@
                     <Grid
                         Margin="0,0,0,8"
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderBrush="{ThemeResource UmHairlineBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
                         Opacity="{Binding CardOpacity}">

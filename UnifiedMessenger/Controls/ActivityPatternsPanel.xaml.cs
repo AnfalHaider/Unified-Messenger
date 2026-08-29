@@ -64,10 +64,23 @@ public sealed partial class ActivityPatternsPanel : UserControl
         _populatingAccounts = false;
     }
 
+    /// <summary>
+    /// Branch this panel is scoped to, or null for all. Set by the host page before <see cref="Render"/>.
+    /// </summary>
+    /// <remarks>
+    /// This panel resolves its own accounts from the registry and has its own account selector, so without
+    /// this it would keep showing the whole business underneath a page that had been filtered to one branch
+    /// — two figures for the same thing in one viewport, which is the defect class this audit spent four
+    /// increments removing. The panel's own selector still narrows further within the branch.
+    /// </remarks>
+    public string? BranchScope { get; set; }
+
     private IEnumerable<MessengerInstance> ProfessionalInstances() =>
-        _services?.Registry.Instances
-            .Where(i => i.IsProfessional && PlatformModuleSettingsHelper.IsPlatformModuleEnabled(i.Platform))
-        ?? [];
+        BranchWorkspaceHelper.FilterByBranchKey(
+            _services?.Registry.Instances
+                .Where(i => i.IsProfessional && PlatformModuleSettingsHelper.IsPlatformModuleEnabled(i.Platform))
+            ?? [],
+            BranchScope);
 
     private bool _heatmapMode;
 

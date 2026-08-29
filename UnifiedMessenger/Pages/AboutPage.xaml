@@ -26,7 +26,7 @@
             <Border
                 Padding="{StaticResource UmPaddingXxl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderBrush="{ThemeResource UmHairlineBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel HorizontalAlignment="Center" Spacing="14">
@@ -80,7 +80,7 @@
             <Border
                 Padding="{StaticResource UmPaddingXl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderBrush="{ThemeResource UmHairlineBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel Spacing="10">
@@ -96,47 +96,67 @@
             <Border
                 Padding="{StaticResource UmPaddingXl}"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderBrush="{ThemeResource UmHairlineBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
                 <StackPanel Spacing="14">
                     <TextBlock FontSize="{StaticResource UmFontSizeSubtitle}" FontWeight="SemiBold" Text="Key features" />
 
-                    <StackPanel Orientation="Horizontal" Spacing="12">
+                    <!-- Grid, not a horizontal StackPanel: that measures its children with infinite width,
+                         so these sentences could never wrap and ran off the card instead. -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <FontIcon
+                            Grid.Column="0"
                             Glyph="&#xE73E;"
                             FontSize="{StaticResource UmIconSizeMd}"
                             Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock
+                            Grid.Column="1"
                             Opacity="0.85"
                             Text="Multi-profile isolation — each account is its own logged-in WhatsApp session in a shared, optimized WebView2 environment."
                             TextWrapping="WrapWholeWords" />
-                    </StackPanel>
+                    </Grid>
 
-                    <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <FontIcon
+                            Grid.Column="0"
                             Glyph="&#xE73E;"
                             FontSize="{StaticResource UmIconSizeMd}"
                             Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock
+                            Grid.Column="1"
                             Opacity="0.85"
                             Text="Unified notification feed that navigates straight to the right account and chat."
                             TextWrapping="WrapWholeWords" />
-                    </StackPanel>
+                    </Grid>
 
-                    <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <FontIcon
+                            Grid.Column="0"
                             Glyph="&#xE73E;"
                             FontSize="{StaticResource UmIconSizeMd}"
                             Foreground="{ThemeResource SystemFillColorSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock
+                            Grid.Column="1"
                             Opacity="0.85"
                             Text="Needs-reply oversight, KPI dashboard, and date-filtered analytics — no cloud LLM dependency."
                             TextWrapping="WrapWholeWords" />
-                    </StackPanel>
+                    </Grid>
                 </StackPanel>
             </Border>
         </StackPanel>
