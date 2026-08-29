@@ -409,3 +409,82 @@ capable of posting public replies while deliberately never using it. That is wor
 than discovering later, and Phase 3 should pin "the app issues no write to Google" with a test, the way
 `UserFacingErrorTests` and `AccountVocabularyTests` pin their rules, rather than relying on nobody adding
 the call.
+
+---
+
+## 11 · Re-research — 2026-08-29, second pass
+
+Two things changed after the owner ruled out the Meta API in favour of a standalone Instagram route. One of
+them **corrects a claim in §5.1 that this document got wrong.**
+
+### 11.1 · Correction — `business.manage` is probably **not** a sensitive scope
+
+§5.1 states that `business.manage` is sensitive, and builds the entire "IF" on it: sensitive-scope
+verification, or a refresh token that expires every 7 days. **That was asserted, not checked, and the
+evidence now points the other way.**
+
+Google's own OAuth scopes page lists the row as:
+
+> `https://www.googleapis.com/auth/business.manage` | Manage your Business Profile on Google
+
+with **no sensitive marker**, and the same page says: *"Sensitive scopes require review by Google and have a
+`sensitive` indicator on the Google Cloud Console's OAuth consent screen configuration page."* Google's
+verification help adds: *"if your app utilizes only non-sensitive scopes, it is not mandatory for your app
+to complete the app verification process."*
+
+**If that holds, the entire P2 prerequisite disappears** — no public homepage requirement, no privacy policy
+hosted on the business domain, no Search Console verification, no demo video, no 3–5 day review. Publish the
+consent screen to Production and the refresh token is long-lived. The gmail.com answer would then cost
+almost nothing, rather than the multi-day task §5.1 described.
+
+**Status: LIKELY, and the artifact that settles it is two minutes of the owner's time.** Google states the
+Cloud Console is authoritative — add the scope to the consent screen and read the category badge it shows.
+Until someone looks, the roadmap plans for both and leads with the cheap branch.
+
+### 11.2 · Standalone Instagram exists, and it is a better route than the one §5.5 proposed
+
+The owner ruled out "the Meta API" and asked for standalone Instagram. There is a real, official setup for
+exactly this: **Instagram API with Instagram Login**.
+
+| | Meta Conversations API via a Page (§5.5, superseded) | **Instagram API with Instagram Login** |
+|---|---|---|
+| Facebook Page required | Yes | **No** — *"This API setup does not require a Facebook Page to be linked to the Instagram professional account."* CONFIRMED |
+| Host | `graph.facebook.com` | `graph.instagram.com` |
+| Endpoints | `/PAGE-ID/conversations`, `/CONVERSATION-ID` | `/me/conversations`, `/<CONVERSATION_ID>` — GET-pollable, same shape |
+| Permission | `instagram_basic` + `instagram_manage_messages` + `pages_manage_metadata` | **`instagram_business_manage_messages`** (with `instagram_business_basic`) |
+| Covers Messenger too | Yes | **No** |
+
+**What "standalone" does and does not mean — stated plainly so it is not over-read.** It removes the
+Facebook Page, the Page linkage, the Page permissions and the Meta Business Suite from the picture. It does
+**not** make the route non-Meta: `graph.instagram.com` is Meta infrastructure and the app is still registered
+on `developers.facebook.com`. **There is no non-Meta route to Instagram DMs.** The only alternatives are
+unofficial libraries, which are banned for ban risk and which the owner reinforced on 2026-08-29. If
+"standalone" was meant as "nothing to do with Meta at all", the honest answer is that Instagram cannot be
+done at all, and the channel should be dropped rather than faked.
+
+**Messenger falls out of scope as a consequence.** Facebook Messenger is a Facebook Page product; its
+conversations are Page-owned and there is no Instagram-Login-style standalone route to them. Keeping
+Messenger means keeping the Page-based setup the owner just declined. The owner listed Messenger as a
+channel customers use, so **this is a real loss and it is theirs to accept or reverse**, not mine to resolve.
+
+### 11.3 · Three operational facts the first pass missed
+
+All CONFIRMED or LIKELY from Meta's own documentation, and all three change the design rather than just the
+estimate:
+
+1. **Message history is capped at 20 per conversation.** *"you can only get details about the 20 most recent
+   messages in the conversation. If you query a message that is older than the last 20, you will see an error
+   that the message has been deleted."* Harmless for *who is waiting* (that needs the last message) and
+   harmless for forward-tracked FRT (`ResponseTimeTracker` already measures forward from a watch start).
+   **Fatal for historical backfill** — there is no Instagram equivalent of the WhatsApp history import, and
+   the UI must not imply one. Inactive Request-folder threads older than 30 days are also absent.
+2. **The access token expires in 60 days and must be refreshed while alive.** A long-lived token can be
+   refreshed once it is 24 hours old and before it expires; *"tokens not refreshed within 60 days will expire
+   and can no longer be refreshed."* For a desktop app this is a real failure mode: **leave the app closed
+   for 60 days and the Instagram connection dies permanently and needs manual re-authorisation.** Google's
+   refresh token has no such rule. This needs a refresh on startup and an honest disconnected state, not a
+   silent zero.
+3. **Rate limit is ~200 calls per user per hour** (Business Use Case). Polling the conversation list every
+   minute is 60 calls/hour before a single message read. **Fetching messages for every thread on every poll
+   would breach it.** The design must use the conversation list's `updated_time` to fetch messages only for
+   threads that actually changed — which is also just less work.

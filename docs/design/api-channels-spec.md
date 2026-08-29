@@ -3,8 +3,24 @@
 **As of:** 2026-08-29 · **Baseline:** v4.99.72 · **Phase 2 of 3.** No production code.
 
 Design follow-on from [`free-api-matrix.md`](../free-api-matrix.md). Scope fixed by §10 of that document:
-**read-only oversight**, via the **Google Business Profile API** and the **Meta Conversations API** for
+**read-only oversight**, via the **Google Business Profile API** and a Meta conversations read for
 **Instagram and Messenger**. Telegram and Discord are out.
+
+> **⚠ Superseded in two places on 2026-08-29, after the owner ruled out the Page-based Meta API.** See
+> [`free-api-matrix.md` §11](../free-api-matrix.md#11--re-research--2026-08-29-second-pass) and
+> [`api-channels-roadmap.md`](../api-channels-roadmap.md), which are authoritative where they disagree
+> with this file:
+>
+> 1. **Instagram is now the standalone Instagram-Login route** — `graph.instagram.com/me/conversations`,
+>    **no Facebook Page**. The endpoint shape, the GET-polling property and every design conclusion below
+>    survive unchanged; only the host, the permission name and the setup differ.
+> 2. **Messenger is out.** It is a Facebook Page product with no standalone route, so every reference to it
+>    below is historical. The merge-vs-separate argument in §3 is unaffected — it argues about channels in
+>    general, and still applies with two channels instead of three.
+>
+> Three constraints found on re-research also bear on §3 and §4: Instagram returns only the **20 most recent
+> messages** per thread (so there is no history import), its token **dies at 60 days** if the app is not
+> opened, and it allows roughly **200 calls per hour**.
 
 This document answers one question per surface: *what changes on screen, and what must the screen now say
 that it does not say today.* It is written against the tree, with `path:line` for every claim about current
