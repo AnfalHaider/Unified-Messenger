@@ -5,6 +5,38 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.73
+
+> **What you will notice:** Analytics and the business report now say **which accounts their figures are
+> actually about**.
+>
+> Every number on the Analytics page comes from WhatsApp. If you have Google Business accounts connected —
+> and you have three — the page drew its charts from five of your eight accounts while the donut underneath
+> said "share of message volume across your accounts". Nothing on screen said otherwise. The page now
+> carries one line under the title: *"Covers 5 of 8 accounts — 3 Google Business not measured here."* It is
+> worked out from the accounts in front of it, so it stays true as that changes.
+>
+> The same sentence now goes into the business report, under the heading, so a report you save or send
+> still says what it covers once it is away from the screen that explained it. The per-account table gained
+> a **Channel** column — a dash in the reply-time column now reads as *this channel is not measured*
+> rather than as something broken.
+
+### Fixed
+
+- Analytics claimed a scope it did not have. The figures cover WhatsApp accounts only; the page now says so.
+- The business report and its Markdown export carried no scope statement at all.
+- The report's per-account table gave no way to tell a not-measurable account from a broken one.
+
+### Internal
+
+- One `ChannelScope` helper feeds both the screen and the export, so the two cannot drift apart — the
+  failure mode behind two different figures both labelled "SLA met" on one page.
+- `PlatformDescriptionTests` enforced only one direction: it failed when an unmeasured channel forgot to
+  say so, but nothing failed when a measured channel kept claiming it produced no metrics. Both directions
+  are now pinned.
+- Suite 1905 -> 1916.
+
+
 ## v4.99.72
 
 > **This release closes a full audit — 13 increments since v4.99.59.** The headline for anyone updating:

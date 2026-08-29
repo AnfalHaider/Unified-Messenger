@@ -74,7 +74,8 @@ public static class DashboardReportHelper
                 messages,
                 frt.MedianMinutes,
                 frt.SampleCount,
-                awaiting));
+                awaiting,
+                ChannelScope.ChannelName(instance)));
         }
 
         return new ReportInputs(
@@ -102,6 +103,9 @@ public static class DashboardReportHelper
             NewCustomersThisWeek: contactInsight.NewCount,
             ReturningCustomersThisWeek: contactInsight.ReturningCount,
             HasCustomerHistory: contactInsight.HasEnoughHistory,
-            PeriodNoun: noun);
+            PeriodNoun: noun,
+            // Same helper the Analytics page renders, deliberately: two surfaces computing "which accounts
+            // is this about" separately is how they start disagreeing.
+            ChannelScopeLine: ChannelScope.Describe(instances));
     }
 }

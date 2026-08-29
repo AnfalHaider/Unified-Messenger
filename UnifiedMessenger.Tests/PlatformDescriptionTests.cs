@@ -71,6 +71,29 @@ public class PlatformDescriptionTests
     }
 
     [Fact]
+    public void MeasuredChannelsDoNotClaimToBeUnmeasured()
+    {
+        // The guard above enforces one direction only: an unmeasured channel must say so. Nothing failed
+        // when a channel that HAD started producing metrics carried on claiming it produced none — a
+        // customer-visible false statement in the picker, with no test able to see it. The two flags and
+        // the sentence must move together, so assert both directions rather than trusting whoever flips a
+        // capability to remember the copy.
+        var measured = PlatformDefinition.All
+            .Where(p => PlatformModuleSettingsHelper.ContributesConversationMetrics(p.Id))
+            .ToList();
+
+        Assert.NotEmpty(measured); // guard: if this ever empties, the test has stopped testing anything
+
+        foreach (var platform in measured)
+        {
+            Assert.False(
+                platform.Description.Contains("No oversight metrics", StringComparison.OrdinalIgnoreCase),
+                $"'{platform.Id}' produces conversation metrics but its description still says it does not: "
+                + $"\"{platform.Description}\"");
+        }
+    }
+
+    [Fact]
     public void NoDescriptionPromisesFutureWork()
     {
         // "planned", "coming soon" and friends are roadmap language. A paying customer reading the picker

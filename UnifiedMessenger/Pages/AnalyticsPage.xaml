@@ -53,6 +53,17 @@
                         FontSize="{StaticResource UmFontSizeCaption}"
                         Foreground="{ThemeResource TextFillColorTertiaryBrush}"
                         TextWrapping="WrapWholeWords" />
+                    <!--
+                        Which accounts these figures are actually about. Every number below comes from the
+                        WhatsApp pipeline, so an owner with Google Business accounts connected was reading
+                        a page built from a subset of the accounts it claimed to cover, with nothing saying
+                        so. Derived from the accounts in scope — never a hardcoded channel name.
+                    -->
+                    <TextBlock
+                        x:Name="ChannelScopeText"
+                        FontSize="{StaticResource UmFontSizeCaption}"
+                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                        TextWrapping="WrapWholeWords" />
                 </StackPanel>
                 <!--
                     Branch and range share this cell. Analytics gets the same filter as Reports on purpose:
@@ -177,7 +188,7 @@
                             <TextBlock
                                 FontSize="{StaticResource UmFontSizeCaption}"
                                 Opacity="0.65"
-                                Text="Share of message volume across your accounts."
+                                Text="Share of message volume by account."
                                 TextWrapping="WrapWholeWords" />
                         </StackPanel>
                         <charts:DonutChartView x:Name="ShareChart" MinHeight="180" />

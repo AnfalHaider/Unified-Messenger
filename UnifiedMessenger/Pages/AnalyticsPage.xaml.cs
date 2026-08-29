@@ -151,6 +151,14 @@ public sealed partial class AnalyticsPage : Page
 
         // Stamped on every refresh, and flagged once it is old enough that the poll has been failing
         // rather than merely lagging.
+        // Which of these accounts the figures below are actually about. Same helper the business report
+        // uses, so the screen and an exported .md cannot disagree about the same set.
+        var scopeLine = ChannelScope.Describe(instances);
+        ChannelScopeText.Text = scopeLine;
+        ChannelScopeText.Visibility = string.IsNullOrEmpty(scopeLine)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
         var freshness = DataFreshness.Current();
         FreshnessText.Text = freshness.Text;
         FreshnessText.Foreground = freshness.IsStale

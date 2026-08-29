@@ -20,7 +20,10 @@ public sealed record AccountReportLine(
     int Messages,
     double MedianFrtMinutes,
     int FrtSamples,
-    int AwaitingNow);
+    int AwaitingNow,
+    // The channel this account is on. Without it, a "—" in the reply-time column reads as broken rather
+    // than as not-measurable, which is a different thing and the only one of the two worth acting on.
+    string Channel = "");
 
 /// <summary>
 /// All the numbers a <see cref="BusinessReport"/> needs, gathered from the analytics / response / oversight
@@ -46,7 +49,11 @@ public sealed record ReportInputs(
     int ReturningCustomersThisWeek = 0,
     bool HasCustomerHistory = false,
     // The period this report covers, as a noun for the copy ("week", "month", "quarter"). Default "week".
-    string PeriodNoun = "week");
+    string PeriodNoun = "week",
+    // One sentence naming which accounts these figures cover — see ChannelScope. A saved .md outlives the
+    // screen that explained it, so an exported document that does not state its own scope becomes a wrong
+    // document the moment it is forwarded to anyone.
+    string ChannelScopeLine = "");
 
 /// <summary>The built report: ranked insights, a copy-ready plain-language summary, and a markdown document.</summary>
 public sealed record BusinessReportResult(
@@ -261,6 +268,12 @@ public static class BusinessReport
         var noun = string.IsNullOrWhiteSpace(input.PeriodNoun) ? "week" : input.PeriodNoun;
         var sb = new StringBuilder();
         sb.Append("# Business report — ").AppendLine(input.PeriodLabel);
+        if (!string.IsNullOrWhiteSpace(input.ChannelScopeLine))
+        {
+            sb.AppendLine();
+            sb.Append('_').Append(input.ChannelScopeLine.Trim()).AppendLine("_");
+        }
+
         sb.AppendLine();
         sb.AppendLine("## At a glance");
         sb.Append("- Customer messages this ").Append(noun).Append(": **").Append(input.MessagesThisWeek).Append("**");
@@ -313,12 +326,14 @@ public static class BusinessReport
             sb.AppendLine();
             sb.AppendLine("## By account");
             sb.AppendLine();
-            sb.AppendLine("| Account | Messages | Median reply | Waiting now |");
-            sb.AppendLine("|---|---:|---:|---:|");
+            sb.AppendLine("| Account | Channel | Messages | Median reply | Waiting now |");
+            sb.AppendLine("|---|---|---:|---:|---:|");
             foreach (var a in active.OrderByDescending(a => a.Messages))
             {
                 var frt = a.FrtSamples > 0 ? FormatMinutes(a.MedianFrtMinutes) : "—";
-                sb.Append("| ").Append(a.DisplayName).Append(" | ").Append(a.Messages)
+                var channel = string.IsNullOrWhiteSpace(a.Channel) ? "—" : a.Channel;
+                sb.Append("| ").Append(a.DisplayName).Append(" | ").Append(channel)
+                    .Append(" | ").Append(a.Messages)
                     .Append(" | ").Append(frt).Append(" | ").Append(a.AwaitingNow).AppendLine(" |");
             }
         }
