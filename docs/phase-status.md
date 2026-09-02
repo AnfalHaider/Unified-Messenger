@@ -4,6 +4,26 @@
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
+> **Session 10 (2026-09-02): scraper foundation, Phase 1 — page inventory.**
+> [docs/scraper-inventory/](scraper-inventory/) — per-channel maps of every view, its DOM anchors ranked
+> by stability, and what visiting it does to the customer. Read live through the app's own WebView2 over
+> CDP; shapes only, no customer content. Three of five channels done:
+> - **Messenger — the headline.** `messenger.com` carries Meta's *LightSpeed* local relational database
+>   (`LSDatabaseSingleton`, 358 tables), readable from page JS **with no conversation opened**, exposing
+>   `unreadMessageCount`, `snippet`, `snippetSenderContactId`, `lastActivityTimestampMs`,
+>   `lastReadWatermarkTimestampMs` and `folderName`. `RequiresThreadOpenToRead` is too strong as written:
+>   it should be re-scoped to prohibit **thread-view navigation**, not per-conversation reads. Also
+>   CONFIRMED: `messenger.com` redirects its own root into the most recent thread, so every app start
+>   lands inside a real conversation today.
+> - **WhatsApp** — store bridge measured healthy live (`strategy: known-name`, both collections resolved).
+>   Rich `data-testid` vocabulary catalogued for the Phase 2 manifest. `[data-id]` count is **zero** in the
+>   current build — the shipped code already knows this; the AGENTS.md gotcha line does not.
+> - **Google Business** — the Material-icon star trap re-confirmed live (one codepoint `U+E838`, rating
+>   carried in colour); `data-review-id` is the one stable anchor; the review-count layout was found to
+>   vary **over time**, not just per profile.
+> - **Meta Business Suite · Instagram** — ⛔ BLOCKED, no live session. Nothing guessed.
+> - ☐ §4.3.2 read-receipt experiment NOT RUN — needs a second device; protocol written.
+
 > **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
 > Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.
 > None can serve as a foundation — they are Node gateways over banned protocol libraries or redundant
