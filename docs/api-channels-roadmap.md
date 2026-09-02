@@ -1,5 +1,27 @@
 # API-backed channels — implementation roadmap
 
+> # ⛔ SUPERSEDED — 2026-08-29, by the decision to sell this product
+>
+> **Do not build anything in this file.** The owner confirmed Unified Messenger is intended for sale to
+> other businesses, and that changes the verdict this document reaches. Every API route here assumes a
+> single owner connecting their own account. Sold to third parties, each route needs mandatory OAuth
+> verification, mandatory Meta App Review and Business Verification, a hosted privacy policy, a per-app
+> quota shared across every customer, and — decisively — **it creates a single point of failure the vendor
+> owns: one suspended app breaks every customer at once.** The scraping architecture has none of those
+> properties, which is why it won.
+>
+> **The direction is now: scraping only, for every channel, with a unified read-only UI.**
+> See `docs/scraper-inventory-prompt.md` (gitignored) and whatever it produces.
+>
+> **What is still worth reading here**, because it was measured and remains true:
+> WhatsApp Cloud API requires deleting the number from the WhatsApp Business app (§5.3 of the matrix) —
+> that kill stands on its own merits · the Google Q&A API was discontinued 2025-11-03 · a live NuGet
+> package exists for that dead API · there is no .NET client for the Google reviews endpoint · Google
+> Business Messages is permanently dead · `RequiresThreadOpenToRead` is a fact about Meta's *web client*,
+> and the read-receipt question it raises is now **more** relevant, not less, because scraping is the only
+> route left.
+
+
 **As of:** 2026-08-29 (2nd revision) · **Head:** `89bd2ab`, **v4.99.73** · **Suite:** 1916 pass / 0 fail /
 24 s · **App builds:** 0 warnings · **Branch:** `feat/free-api-research`, 5 commits, **not pushed**
 
