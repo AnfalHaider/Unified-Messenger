@@ -16,14 +16,12 @@ namespace UnifiedMessenger.Tests;
 /// </summary>
 public class PlatformDescriptionTests
 {
-    private static AppSettings Settings() => new();
-
     [Fact]
     public void EverySelectablePlatformHasADescription()
     {
         // A platform added to the picker without a description would render a blank capability line —
         // exactly the silent gap this finding was about.
-        var missing = PlatformModuleSettingsHelper.GetSelectablePlatforms(Settings())
+        var missing = PlatformModuleSettingsHelper.GetSelectablePlatforms()
             .Where(p => string.IsNullOrWhiteSpace(p.Description))
             .Select(p => p.Id)
             .ToList();
@@ -36,8 +34,9 @@ public class PlatformDescriptionTests
     [Fact]
     public void EveryRegisteredPlatformHasADescription()
     {
-        // Hidden-from-picker platforms still resolve for existing accounts and may be surfaced elsewhere,
-        // so they are held to the same bar.
+        // Every registered platform is now offered in the picker, so this and the test above cover the same
+        // set. Kept separate deliberately: All is the registry and the picker is a product decision, and if
+        // they ever diverge again this is the one that still holds the registry to the bar.
         var missing = PlatformDefinition.All
             .Where(p => string.IsNullOrWhiteSpace(p.Description))
             .Select(p => p.Id)

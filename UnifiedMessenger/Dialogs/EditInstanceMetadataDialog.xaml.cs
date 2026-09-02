@@ -31,8 +31,7 @@ public sealed partial class EditInstanceMetadataDialog : ContentDialog
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        PlatformBox.ItemsSource = PlatformModuleSettingsHelper.GetSelectablePlatforms(
-            AppSettingsService.Instance.Settings);
+        PlatformBox.ItemsSource = PlatformModuleSettingsHelper.GetSelectablePlatforms();
         PlatformBox.DisplayMemberPath = nameof(PlatformDefinition.DisplayName);
 
         DisplayNameBox.Text = _initialState.DisplayName;

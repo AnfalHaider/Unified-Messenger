@@ -119,9 +119,9 @@ public sealed class PlatformDefinition
             // reads unread/awaiting from the web DOM (like the WhatsApp one) is future per-channel work.
             Id = "telegram",
             DisplayName = "Telegram",
-            // Hidden from the picker today (HiddenFromPicker), but existing accounts still resolve through
-            // here and the description is held to the same bar as every other channel: say what it does
-            // now, not what it might do later.
+            // Offered in the picker like every other channel. The description is held to the same bar:
+            // say what it does now, not what it might do later. PlatformDescriptionTests enforces both
+            // directions, which is what makes offering an unmeasured channel honest rather than misleading.
             Description = "Opens in its own tab. No oversight metrics — this channel is not measured.",
             DefaultUrl = "https://web.telegram.org/",
             IconGlyph = "\uE8BD", // TODO: Replace with brand-specific glyph or image asset when Phase 5 is implemented.

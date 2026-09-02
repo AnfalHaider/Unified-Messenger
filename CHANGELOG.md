@@ -5,6 +5,38 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.74
+
+> **What you will notice:** the **Add account** picker now offers **every channel** — Telegram, Instagram
+> and Meta Business Suite have been added to WhatsApp, WhatsApp Business, Google Business, Messenger,
+> Discord and Custom URL.
+>
+> Three channels were being withheld because they have no scraper yet, so they produce no oversight
+> metrics. That made sense when this was one owner's personal tool and that owner did not use them. It is
+> the wrong call for software other businesses run: an embed-only tab is still a real feature — one window
+> instead of five — and hiding a channel decides on your behalf that something you use is not worth showing
+> you.
+>
+> Nothing about this makes the picker less honest. Every entry has always stated what it does, and the
+> unmeasured ones say **"No oversight metrics"** in the line under the platform name. That is the control,
+> and it is enforced by tests in both directions.
+
+### Changed
+
+- The Add-account and Edit-account pickers list all nine registered platforms instead of six.
+
+### Internal
+
+- `HiddenFromPicker` and its filter are deleted rather than emptied. `GetSelectablePlatforms` also drops
+  the `AppSettings` parameter it never read — its own note said to remove it the next time the method
+  changed, and this was that time.
+- The picker test now derives its expectation from `PlatformDefinition.All`, so a newly registered platform
+  is offered without anyone remembering the test exists, and names all nine explicitly so "every platform"
+  cannot quietly become true by the registry shrinking.
+- New `EverySelectablePlatformCanBeOpened`: an offered platform must carry a start URL, or the account
+  would open blank. Custom URL is the deliberate exception.
+- Suite 1916 -> 1917.
+
 ## v4.99.73
 
 > **What you will notice:** Analytics and the business report now say **which accounts their figures are

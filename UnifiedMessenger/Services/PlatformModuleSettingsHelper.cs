@@ -47,23 +47,30 @@ public static class PlatformModuleSettingsHelper
     public static IEnumerable<MessengerInstance> FilterSidebarVisibleInstances(IEnumerable<MessengerInstance> instances) =>
         instances.Where(instance => IsSidebarVisible(instance.Platform));
 
-    // Platforms hidden from the "Add account" picker for now (no scraper, and Meta actively fights automation).
-    // They stay in PlatformDefinition.All so existing accounts still resolve and the nav-guard allowlist keeps
-    // their hosts — they're just not offered as new-account choices.
-    private static readonly HashSet<string> HiddenFromPicker =
-        new(StringComparer.OrdinalIgnoreCase) { "telegram", "metabusinesssuite", "instagram" };
-
     /// <summary>
-    /// The platforms offered in the Add-account picker.
+    /// The platforms offered in the Add-account picker — <b>every registered platform</b>.
     /// </summary>
     /// <remarks>
-    /// <paramref name="settings"/> is not read. It is kept because the hidden set was once expected to be
-    /// user-configurable and the call sites already pass one; dropping it is a signature change across the
-    /// two dialogs and their tests for no behaviour. If it is still unused when something else here
-    /// changes, remove it then.
+    /// <para>
+    /// Telegram, Meta Business Suite and Instagram used to be withheld here on the grounds that they had no
+    /// scraper yet. That made sense for a personal tool with one owner who did not use them. It is wrong for
+    /// software sold to businesses whose channel mix nobody here can predict: an embed-only tab is still a
+    /// real feature — one window instead of five — and withholding it decides on the customer's behalf that
+    /// a channel they use is not worth showing them.
+    /// </para>
+    /// <para>
+    /// The honesty guarantee does not depend on hiding anything, and never did: every entry renders its
+    /// <see cref="PlatformDefinition.Description"/> in the picker, and <c>PlatformDescriptionTests</c>
+    /// enforces both directions — an unmeasured channel must say "No oversight metrics", and a measured one
+    /// must not claim it is unmeasured. A customer reading this list is told exactly what each channel does
+    /// today. That is the control; an allowlist was never doing that job.
+    /// </para>
+    /// <para>
+    /// The <c>settings</c> parameter that used to sit here is gone. Its own note said to remove it the next
+    /// time this method changed, and this is that time.
+    /// </para>
     /// </remarks>
-    public static IReadOnlyList<PlatformDefinition> GetSelectablePlatforms(AppSettings settings) =>
-        PlatformDefinition.All.Where(p => !HiddenFromPicker.Contains(p.Id)).ToList();
+    public static IReadOnlyList<PlatformDefinition> GetSelectablePlatforms() => PlatformDefinition.All;
 
     // NormalizePlatformModules was deleted here: it took AppSettings, null-checked it, and did nothing
     // else, with no caller anywhere. A method named "normalize" that normalizes nothing is worse than dead

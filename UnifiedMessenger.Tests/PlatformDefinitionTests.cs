@@ -121,21 +121,52 @@ public class PlatformDefinitionTests
     }
 
     [Fact]
-    public void GetSelectablePlatforms_HidesTelegramMetaSuiteInstagram_KeepsTheRest()
+    public void GetSelectablePlatforms_OffersEveryRegisteredPlatform()
     {
+        // Telegram, Meta Business Suite and Instagram were withheld from the picker because they had no
+        // scraper. That reasoning belonged to a personal tool for one owner who did not use them; for
+        // software sold to businesses whose channel mix nobody here can predict, withholding a channel
+        // decides on the customer's behalf that it is not worth showing them. An embed-only tab is a real
+        // feature — one window instead of five.
+        //
+        // Derived from PlatformDefinition.All rather than a literal list, so a platform added to the
+        // registry is offered without anyone having to remember this test exists.
         var ids = UnifiedMessenger.Services.PlatformModuleSettingsHelper
-            .GetSelectablePlatforms(new AppSettings())
+            .GetSelectablePlatforms()
             .Select(p => p.Id)
             .ToList();
 
-        Assert.DoesNotContain("telegram", ids);
-        Assert.DoesNotContain("metabusinesssuite", ids);
-        Assert.DoesNotContain("instagram", ids);
-        Assert.Contains("whatsapp", ids);
-        Assert.Contains("googlebusiness", ids);
-        Assert.Contains("messenger", ids);
-        Assert.Contains("discord", ids);
-        Assert.Contains("generic", ids);
+        Assert.Equal(PlatformDefinition.All.Select(p => p.Id).ToList(), ids);
+
+        // Named explicitly as well, because "every platform" silently becomes true if All ever shrinks.
+        foreach (var id in new[]
+                 {
+                     "whatsapp", "whatsappbusiness", "googlebusiness", "telegram", "messenger",
+                     "discord", "metabusinesssuite", "instagram", "generic"
+                 })
+        {
+            Assert.Contains(id, ids);
+        }
+    }
+
+    [Fact]
+    public void EverySelectablePlatformCanBeOpened()
+    {
+        // The picker now offers channels with no adapter, which is fine — but an entry the user can pick
+        // and then cannot open would not be. Everything except the deliberate Custom-URL case must carry a
+        // start URL, and that URL is also what feeds the navigation guard's allowlist.
+        foreach (var platform in UnifiedMessenger.Services.PlatformModuleSettingsHelper.GetSelectablePlatforms())
+        {
+            if (string.Equals(platform.Id, "generic", StringComparison.OrdinalIgnoreCase))
+            {
+                Assert.True(platform.AllowsCustomUrl, "generic must accept a user-supplied URL");
+                continue;
+            }
+
+            Assert.False(
+                string.IsNullOrWhiteSpace(platform.DefaultUrl),
+                $"'{platform.Id}' is offered in the picker but has no start URL, so the account would open blank.");
+        }
     }
 
     [Theory]
