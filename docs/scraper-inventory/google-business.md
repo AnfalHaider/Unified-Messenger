@@ -90,11 +90,40 @@ anchored on the rating so it cannot match `(closes 9 PM)` in the opening hours a
 | **Review pagination** | Within the manager | `navigate_before` / `navigate_next` buttons — **SEMI** (icon-ligature text) | — | None | The next page of reviews | Manager loaded | **Paged, not infinite scroll** — `hasLoadMore` false, `scrollHeight` 39. This is why walking every page over-counted by two to three times; the current 50-at-a-time read is the honest compromise and the UI says so. |
 | **Search merchant view** | **Yes** — `google.com/search?q=…&stick=…` | business.google.com's own redirect | `[aria-label*="Rated"]` — **SEMI** | Navigates the WebView away from the manager | **Profile rating** and **lifetime review total** | Logged in | Throttled to `RatingRefreshInterval` (6h) — each scrape costs a visible round-trip. `ScrapeRatingAsync` must not run on the account currently on screen unless the user asked. |
 | **Merchant-view actions** | — | — | Link/button text: `Add photos`, `Get more reviews`, `<N> Google reviews`, `Add a photo` — **SEMI** | Navigation only | The `<N> Google reviews` link text is a **second, independent** source for the lifetime total | Logged in | Worth adding as a fallback candidate in the manifest — it is a link label, not run-together `innerText`, so it does not need the anchoring workaround. |
-| **Q&A** | UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN | Unanswered questions | Logged in | **Not inventoried.** The channel is described as "reviews + Q&A" but only reviews were mapped this pass. Artifact that would settle it: the Q&A surface's URL and DOM in the manager. |
+| **Q&A** | **No — it is not there** | — | — | — | **None** | — | **CONFIRMED absent (A1).** See below. |
 | **Reply composer** | — | Per review in the manager | Not mapped | Would post publicly | — | — | **Out of scope under D1.** The app never sends. Reply drafting stays on-device; publishing is the owner's action in Google's own UI. |
 | **Empty / no-reviews / logged-out** | — | — | UNKNOWN | — | — | — | Not observed. Same requirement as every channel: a logged-out state must not read as "zero unanswered reviews". |
 
 ---
+
+## There is no Q&A surface on either page the app uses — CONFIRMED negative (A1)
+
+The channel is described throughout the product as "reviews **and Q&A**". Measured 2026-09-02:
+
+**On `business.google.com/reviews`** the entire navigation is `Businesses · Reviews · Linked accounts ·
+Settings · Support`, and the only in-app hrefs are `/reviews`, `/?tab=LL`, a sign-out link and a support
+article. The word "question" does not appear anywhere in the page text.
+
+**On the Search merchant view** (all three profiles) there is no Q&A affordance either: no matching
+control, and no occurrence of "Questions and answers", "Ask a question", or "See all questions". Those
+pages are ordinary search-results pages (`All / Images / Videos / Forums / News`) carrying a merchant
+panel — not a management console with a Q&A tab.
+
+**So Q&A is not reachable from either surface the app embeds.** It remains **UNKNOWN** whether a Google
+Maps merchant surface exposes it — Q&A is a Maps/Search consumer feature, and Google moved
+single-location management into Search and Maps — but nothing the app can reach today shows it.
+
+### Consequence: one product string overstates what ships
+
+`PlatformDefinition` gives `googlebusiness` the description
+*"Reviews and Q&A — rating, unanswered reviews, reply rate. No message channel."*
+
+`PlatformDescriptionTests` exists specifically to hold these strings to what the channel does **today**,
+and this one names a surface that is not reachable and produces no metric. It is shown to a paying
+customer in the Add-account picker.
+
+**Not changed here** — A1 is docs-only, and the right fix is a judgement call between dropping "and Q&A"
+and first checking the Maps surface. Flagged for the owner.
 
 ## What is still not obtainable
 

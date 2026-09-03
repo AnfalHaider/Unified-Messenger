@@ -19,7 +19,7 @@ oversight engine needs:
 | LS `threads` column | What it gives the product |
 |---|---|
 | `threadKey` | Stable conversation identity (matches the `/t/<id>/` URL segment) |
-| `unreadMessageCount` | **The awaiting-reply signal** |
+| `unreadMessageCount` | The awaiting-reply signal — *readable, but never yet observed non-zero; see below* |
 | `snippet` | **Last-message preview text** |
 | `snippetSenderContactId` | **Direction** — whether the last message was ours or theirs |
 | `lastActivityTimestampMs` | **Last-activity timestamp** |
@@ -48,6 +48,61 @@ store instead of its DOM.
 remains correct and should stay. What is now measurably wrong is the *inference drawn from it* — that
 per-conversation detail is therefore unreachable. Detail does not require the thread view. The
 prohibition should be re-scoped from "no per-conversation reads" to "no thread-view navigation".
+
+### Every numeric column is a 64-bit `[hi, lo]` pair — CONFIRMED 2026-09-02 (A1)
+
+This is the single most important implementation fact on this channel, and it is a booby trap.
+
+`threadKey`, `threadType`, `mailboxType`, `unreadMessageCount` and `lastActivityTimestampMs` are **all
+`array[2]`** — a 64-bit integer split into high and low words. They are not scalars.
+
+```js
+row.unreadMessageCount            // [0, 0]  - a zero unread count
+Number(row.unreadMessageCount)    // NaN
+if (row.unreadMessageCount) …     // TRUE - a non-empty array is truthy
+```
+
+**The naive unread check reports every thread as unread**, and the naive timestamp read yields `NaN`.
+Reassemble as `hi * 2**32 + lo` before using any of them. The same applies to the "is this column
+populated?" question: a truthiness test on an array column measures *column existence*, not *value
+presence* — the first pass of this inventory made exactly that mistake and over-reported population.
+
+### `folderName` does not separate the folders — CONFIRMED negative (A1)
+
+The hope was that Requests / Spam / Archived could be read off `folderName` with no navigation. Measured
+across every row in the store: **`folderName` is `"inbox"` on 100% of them.** The column exists and is
+populated, and carries exactly one value.
+
+So either those folders are not synced into the local store until visited, or they are distinguished by
+something else. **UNKNOWN** — and it means the folder split is not free. Do not design around it.
+
+### Two populations live in `threads`, and only one is conversations — CONFIRMED (A1)
+
+| `mailboxType` | `threadType` | Rows | `snippet` | `unreadMessageCount` | `memberCount` |
+|---|---|---|---|---|---|
+| `[0, 0]` | `[0, 1]` | 14 | 13 | 13 | 13 | 
+| `[0, 0]` | `[0, 2]` | 1 | 1 | 1 | 1 |
+| `[0, 4096]` | `[0, 15]` | 15 | **0** | **0** | **0** |
+
+Roughly half the table is a second population carrying none of the fields that make a thread a
+conversation. **An adapter that counts rows counts double.** Filter on `mailboxType`, and treat
+`threadType` `[0,1]` as 1:1 and `[0,2]` as a group.
+
+What `mailboxType [0, 4096]` actually is: **UNKNOWN.** Worth settling once an Instagram account exists —
+if LightSpeed is a shared Meta schema, a second mailbox is exactly where a second product's threads
+would live, and that would be a significant finding in its own right.
+
+### The unread signal itself is not yet verified — corrects the table above
+
+Every `unreadMessageCount` observed was `[0, 0]` or absent: the account had no unread threads at
+observation time. So "`unreadMessageCount` is the awaiting-reply signal" is **LIKELY, not CONFIRMED** —
+the column is real, readable and correctly typed, but it has never been seen holding a non-zero value
+here. Confirm it opportunistically when an unread thread exists; do not ship a metric on it before then.
+
+### The store is live and moves between reads
+
+Two full enumerations seconds apart returned 29 and 30 rows. Any adapter needs a consistent snapshot —
+`db.runInTransaction` exists on the database handle for exactly this.
 
 ### Sync completeness caveat
 

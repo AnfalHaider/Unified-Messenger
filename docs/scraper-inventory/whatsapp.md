@@ -20,10 +20,34 @@ and **which documented facts have gone stale**.
 **CONFIRMED** — the good path (`whatsapp-store-bridge.js`) is live and resolving both collections. The
 app is *not* silently running on the IndexedDB fallback on this machine today.
 
-One oddity worth a second look when the manifest lands: `moduleCount` is `0` while `moduleTotal` is
-18,009 and both collections resolved. Either the field means something other than "modules matched", or
-it is miscounted. It is the field a health surface would naturally show, so it should not be ambiguous.
-**UNKNOWN** — settle it by reading the probe's own implementation.
+### The `moduleCount` oddity — settled (A1), and it is worse than "always zero"
+
+First reading gave `moduleCount: 0`; a second account gave `moduleCount: 32, moduleTotal: 16892` — both
+with `strategy: "known-name"`. So it is not simply unset on the fast path. Traced through the source:
+
+- `diag.moduleCount` is assigned in **exactly one place** — inside the fallback-strategy loop
+  (`whatsapp-store-bridge.js:398`), after `discoverByKnownName()` has already failed.
+- `discoverByKnownName()` sets `moduleTotal` but never `moduleCount`.
+- `diag` is **never reset between discovery attempts**, and `discover()` returns early when
+  `store.chat` is already set.
+
+**Therefore `moduleCount` reports how many modules a *previous, failed* discovery attempt scanned.** With
+`strategy: "known-name"` it means either "the fast path hit first time" (`0`) or "an earlier attempt
+scanned 32 modules and failed, and a later known-name attempt then succeeded" (`32`). It is not a
+property of the strategy that actually worked.
+
+That makes it actively misleading on a health surface — a reader sees "0 modules" and infers failure when
+it is the *best* outcome. **A4 must not render it raw.** Either reset `diag` per attempt, or label it
+"modules scanned by the last fallback attempt", or drop it from the surface.
+
+**Second defect, same function:** the probe's returned object literal contains `contact:
+diag.contactCollection` **twice** (`:836` and `:837`). A duplicate key — the second silently wins. It is
+harmless today because both write the same value, but a field the author intended to expose was lost to
+it, and nothing flags a duplicate key in plain JS.
+
+**Not a defect:** `__umStoreBridgeProbe` has no C# caller. That is correct and intended — it is the
+DevTools entry point AGENTS.md documents. The Settings → Data health line is fed separately, by
+`StoreBridgeHealth.Record` from the scan path.
 
 Injected surface confirmed present: `__umFocusConversation`, `__umStartPreviewHarvest`,
 `__umStoreBridgeProbe`, `__umTruncate`. `__umHarvestedPreviews` is `undefined` until a harvest runs —
@@ -81,12 +105,41 @@ Row classes are **FRAGILE-hashed** throughout. Never depend on one.
 Unread signal: `[aria-label]` reading `"N unread message(s)"` — **SEMI** (localised, but semantic and
 far better than Messenger's font-weight-only signal).
 
-### `last-msg-status` is worth a look
+### `last-msg-status` — settled (A1, 2026-09-02). Ack is earnable, and the naive read is 100% wrong.
 
 `PlatformCapabilities.CanReadAck` is declared false with the reason "those are still only DOM tick
-glyphs". That is accurate, but `data-testid="last-msg-status"` is a **stable** anchor for exactly that
-glyph. Ack may be cheaper to earn than the comment implies. **UNKNOWN** — settle it by reading what the
-element actually carries per state (delivered / read / pending), which needs a row in each state.
+glyphs". Measured live, the anchor is stable and the capability is earnable — **but the state is carried
+in the glyph's COLOUR, exactly like the Google star rating.**
+
+Inside `[data-testid="last-msg-status"]` sits an inline `<svg>` with a `<title>` and a `<path>`:
+
+| Reading | Delivered | Read |
+|---|---|---|
+| `svg > title` text | `wds-ic-read` | `wds-ic-read` |
+| `getComputedStyle(path).fill` | `rgba(0, 0, 0, 0.6)` | `rgb(0, 123, 252)` |
+
+**The title is identical for both states.** An implementation that reads the icon name — the obvious
+one — reports "read" for every outbound message. That is the same failure that labelled five unanswered
+one-star Google reviews "Positive" for the life of that feature, in a second place, on a different
+client, found by looking rather than by assuming.
+
+Two further traps in the same element:
+
+- **It hosts non-ack icons.** One row carried `ic-keyboard-voice-filled` (a voice-note marker) under the
+  same testid. Filter on `title === 'wds-ic-read'` before reading a fill.
+- **`data-icon` is not on it.** `#pane-side [data-icon]` returned **zero** elements at the time of
+  measurement, even though `data-icon` appears in the pane's overall attribute set (it is on chrome icons
+  elsewhere, intermittently). Do not anchor the ack on `data-icon`.
+
+**Not observed: the single-tick "sent / pending" state.** Only delivered and read were present.
+**UNKNOWN** whether it is a third fill, a different title, or an absent element. Settle it with a message
+in flight before flipping `CanReadAck`.
+
+### `last-msg-status` presence is itself a direction signal
+
+It appeared on **12 of 66** rows — only those whose last message is outbound. So its mere presence
+answers "did we speak last?" without reading any text, which is the awaiting-reply question. Cheaper and
+more robust than parsing the preview, and it works on the DOM path where the store bridge is unavailable.
 
 ---
 
@@ -100,9 +153,38 @@ element actually carries per state (delivered / read / pending), which needs a r
 | **Search results** | No | `[data-testid="chat-list-search-container"]` — **STABLE** | Typing a query | None to the customer | Used by the focus helper's fallback path | Logged in | The focus helper searches by **phone digits, never a bare `@lid`** — an `@lid` matched unrelated message text and opened the wrong chat. Preserve that rule in the manifest. |
 | **List filters** | No | `[data-testid="filter-button"]` pills — **STABLE** | Filtering | Unread / groups subsets without opening anything | Logged in | Pill testids carry an index (`..._item_9/10/11`) — **POSITIONAL**, read the label, not the number. |
 | **Status / Channels / Communities / Calls** | No | `[aria-label]` on the primary navbar — **SEMI** | Not opened | None for this product | Logged in | Inventory only — no oversight value. Do not map. |
-| **Logged-out / phone-not-connected** | — | — | UNKNOWN | — | — | — | **The important gap.** `OversightEntityHealth` already separates `IsStale` from `ReadFailed`, and this is the state that must drive `ReadFailed`. Artifact that would settle it: a DOM dump of the disconnected client. |
+| **Cold sync (post-launch)** | — | Any app start | Shell testids (`wa-web-main-screen`, `chatlist-header`, `chat-list-search-container`) are present **while `chat-list` and `cell-frame-container` are not** | None | **None — and that is the danger** | Logged in, just launched | **CONFIRMED (A1).** See below. |
+| **Logged-out / phone-not-connected** | — | — | UNKNOWN | — | — | — | **The important gap.** `OversightEntityHealth` already separates `IsStale` from `ReadFailed`, and this is the state that must drive `ReadFailed`. Artifact that would settle it: a DOM dump of the disconnected client. Owner task B5. |
 
 ---
+
+## The chat list is transient after a cold launch — CONFIRMED (A1)
+
+Across one app start, `#pane-side [role="row"]` was measured at **64, then 0, then 66**, over roughly
+three minutes — with `document.readyState === "complete"` throughout, and the shell's own testids
+(`wa-web-main-screen`, `chatlist-header`, `chatlist-panel-archived-button`) present the whole time. One
+probe listed `chat-list` and `cell-frame-container` among the rendered testids; the next, seconds later,
+found zero of both.
+
+So during a cold sync WhatsApp Web presents a **fully-loaded document with an empty chat list**, and it
+is not distinguishable from a genuinely empty account by any of `readyState`, the shell anchors, or the
+row count.
+
+**A scan in that window sees zero conversations.** Zero must never be read as "no conversations" — this
+is precisely the `IsStale` vs `ReadFailed` distinction `OversightEntityHealth` already draws and which
+its own comment warns never to infer from a zero count. The manifest's health reporting (A4) needs a
+positive readiness anchor before it trusts a count: the presence of `[data-testid="chat-list"]` **with at
+least one `cell-frame-container`**, not `readyState` and not the shell.
+
+This also explains why `InstanceSessionManager.WarmBackgroundSessionsAsync` matters more than it looks:
+an account scanned too soon after warm reports nothing, truthfully and uselessly.
+
+## Archived — confirmed reachable, not yet mapped
+
+`[data-testid="chatlist-panel-archived-button"]` is present with `aria-label="Archived "` (trailing
+space in the live client — do not trim-match it exactly). It renders `ic-archive` plus the word
+"Archived". **STABLE.** The panel behind it was not opened this pass; the entry point is confirmed, the
+contents are not.
 
 ## `wa.me` / `send?phone=` — experiment §4.3.5
 

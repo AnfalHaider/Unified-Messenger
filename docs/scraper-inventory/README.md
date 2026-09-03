@@ -15,7 +15,7 @@ mapping (Phase 3) and the unified inbox (Phase 4).
 |---|---|---|
 | [messenger.md](messenger.md) | Facebook Messenger (`messenger.com`) | ✅ Inventoried — **and it overturns a core assumption** |
 | [whatsapp.md](whatsapp.md) | WhatsApp / WhatsApp Business (`web.whatsapp.com`) | ✅ Inventoried |
-| [google-business.md](google-business.md) | Google Business (reviews + Q&A) | ✅ Inventoried |
+| [google-business.md](google-business.md) | Google Business (reviews only — **Q&A is not reachable**) | ✅ Inventoried |
 | [meta-business-suite.md](meta-business-suite.md) | Meta Business Suite (`business.facebook.com`) | ⛔ BLOCKED — no live session |
 | [instagram.md](instagram.md) | Instagram (`instagram.com`) | ⛔ BLOCKED — no live session |
 | [experiment-read-receipts.md](experiment-read-receipts.md) | §4.3.2 protocol — needs a second device | ☐ NOT RUN |
@@ -39,6 +39,19 @@ start "" "%LOCALAPPDATA%\Programs\UnifiedMessenger\UnifiedMessenger.exe"
 
 Kill the app first — the single-instance mutex silently swallows the launch and leaves a port-less
 instance. Relaunch without the variable when done.
+
+Two passes so far, both on 2026-09-02: the **first** established the three channels; **A1** (increment
+108) closed the gaps it left. A1 corrected two claims the first pass got wrong — see *Corrections* below.
+
+### Corrections made by a later pass
+
+Kept visible rather than edited away, because a reader who acted on the first version needs to know.
+
+| First pass said | A1 found | Where |
+|---|---|---|
+| Messenger LS columns were reported as populated on N rows | Those columns are **`[hi, lo]` arrays**, and an array is always truthy — the population counts measured *column existence*, not value presence | [messenger.md](messenger.md) |
+| `unreadMessageCount` presented as the confirmed awaiting signal | Readable and correctly typed, but **never observed non-zero** — LIKELY, not CONFIRMED | [messenger.md](messenger.md) |
+| `moduleCount: 0` looked like it might be a miscount | It is **stale state from a previous failed discovery**, never reset — misleading rather than wrong | [whatsapp.md](whatsapp.md) |
 
 ### Read scope actually exercised
 
