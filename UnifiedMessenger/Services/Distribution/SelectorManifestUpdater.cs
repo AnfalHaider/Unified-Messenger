@@ -139,7 +139,7 @@ public static class SelectorManifestUpdater
             return false;
         }
 
-        if (parsed.ObservedAgainst.Length > MaxTextFieldLength || parsed.Notes.Length > MaxTextFieldLength)
+        if (parsed.ObservedAgainst.Length > MaxTextFieldLength)
         {
             reason = "a text field is over length";
             return false;

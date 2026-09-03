@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using UnifiedMessenger.Services;
+using UnifiedMessenger.Services.Adapters;
 
 namespace UnifiedMessenger.Tests;
 
@@ -30,27 +31,50 @@ public class GoogleProfileTotalParsingTests
     /// </summary>
     private static IReadOnlyList<Regex> ShippedPatterns()
     {
-        var field = typeof(GoogleReviewSnapshotService)
-            .GetField("RatingKickoff", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.FlattenHierarchy);
-        Assert.NotNull(field);
+        // The patterns moved out of the kickoff script and into the selector manifest at A6, because they
+        // are the most volatile knowledge on this channel — the same profile that once rendered the
+        // bracketed layout had switched to the labelled one within days — and a manifest can be fixed
+        // without shipping a binary. This still reads the SHIPPED source of truth rather than restating
+        // the patterns; only its address changed.
+        var manifest = SelectorManifestLoader.ForPlatform("googlebusiness");
+        Assert.NotNull(manifest);
 
-        var script = field!.GetRawConstantValue() as string;
-        Assert.False(string.IsNullOrWhiteSpace(script), "RatingKickoff is not a string const any more.");
+        var paired = manifest!.Anchors["reviewTotalPaired"];
+        var unpaired = manifest.Anchors["reviewTotalUnpaired"];
 
-        // Each attempt in the script reads `var c<n>=/…/<flags>.exec(t)`. None of the three patterns contains
-        // an unescaped '/', so a non-greedy match to the closing delimiter is unambiguous here.
-        var found = Regex.Matches(script!, @"var c\d*=/(?<pat>.+?)/(?<flags>[a-z]*)\.exec\(t\)")
-            .Select(m => new Regex(
-                m.Groups["pat"].Value,
-                m.Groups["flags"].Value.Contains('i') ? RegexOptions.IgnoreCase : RegexOptions.None))
+        Assert.True(paired.IsRegex, "reviewTotalPaired must declare kind: regex.");
+        Assert.True(unpaired.IsRegex, "reviewTotalUnpaired must declare kind: regex.");
+
+        // Order matters and mirrors the script: every paired pattern (rating + total) is tried before the
+        // unpaired one, because a total is only trustworthy when its own rating sits beside it.
+        var found = paired.Candidates
+            .Concat(unpaired.Candidates)
+            .Select(p => new Regex(p, RegexOptions.IgnoreCase))
             .ToList();
 
         Assert.True(
             found.Count >= 3,
-            $"Expected at least 3 total-parsing patterns in RatingKickoff, found {found.Count}. " +
-            "If the script was restructured, update this extraction rather than deleting the test.");
+            $"Expected at least 3 total-parsing patterns in the googlebusiness manifest, found {found.Count}. "
+            + "If the anchors were restructured, update this extraction rather than deleting the test.");
 
         return found;
+    }
+
+    [Fact]
+    public void TheScriptStillCarriesTheseAsBuiltInFallbacks()
+    {
+        // The manifest is the source of truth, but the script must keep its own copy: a Google page gets no
+        // adapter-core, so if the manifest fails to load there is nothing else to fall back to. This is the
+        // same "manifest first, built-in second" contract as WhatsApp — asserted, because losing it would
+        // be invisible until the day a manifest went missing.
+        var field = typeof(GoogleReviewSnapshotService)
+            .GetField("RatingKickoff", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.FlattenHierarchy);
+        var script = field?.GetRawConstantValue() as string;
+
+        Assert.False(string.IsNullOrWhiteSpace(script), "RatingKickoff is not a string const any more.");
+        Assert.Contains("reviewTotalPaired", script!, StringComparison.Ordinal);
+        Assert.Contains("reviewTotalUnpaired", script!, StringComparison.Ordinal);
+        Assert.Contains("Google\\\\s+reviews", script!, StringComparison.Ordinal);
     }
 
     /// <summary>Runs the shipped chain the way the script does: first match wins.</summary>

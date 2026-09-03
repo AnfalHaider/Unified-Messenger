@@ -236,9 +236,10 @@ public class SelectorManifestTests
     [Fact]
     public void PlatformsWithoutAManifestReturnNullRatherThanThrowing()
     {
-        // Not yet migrated. The injection then emits nothing and every JS call site uses its built-in.
+        // Not migrated, and not going to be: Discord is an embed-only tab with no scraper to configure.
+        // (googlebusiness was on this list until A6 gave it a manifest — see GoogleSelectorManifestTests.)
         Assert.Null(SelectorManifestLoader.ForPlatform("discord"));
-        Assert.Null(SelectorManifestLoader.ForPlatform("googlebusiness"));
+        Assert.Null(SelectorManifestLoader.ForPlatform("telegram"));
     }
 
     [Fact]

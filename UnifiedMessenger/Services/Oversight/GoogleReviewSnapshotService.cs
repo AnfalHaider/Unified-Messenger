@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.UI.Dispatching;
 using UnifiedMessenger.Models;
+using UnifiedMessenger.Services.Adapters;
 
 namespace UnifiedMessenger.Services;
 
@@ -53,7 +54,33 @@ public sealed class GoogleReviewSnapshotService
 
     // Page helpers shared by the counting scrape and the focus click-through. Re-installed on every call —
     // idempotent, and the page may have reloaded since the last one.
+    /// <summary>
+    /// Manifest lookup, shared by every Google script.
+    /// </summary>
+    /// <remarks>
+    /// Its own const rather than part of <see cref="PageHelpers"/> because <see cref="RatingKickoff"/> does
+    /// <b>not</b> include PageHelpers — it is a separate, lighter script on a different page. Defining these
+    /// only there left <c>__umGRRx</c> undefined on the rating path, which threw inside the script's own
+    /// try/catch and reported <c>state:'error'</c> with no clue why. It looked fine in a probe because the
+    /// reviews script had already run on that tab and defined them, so the failure depended on which script
+    /// happened to run first.
+    /// <para>Google pages get no adapter-core (googlebusiness routes to <c>NullPlatformAdapter</c>), so
+    /// <c>window.__umPick</c> does not exist here. <c>window.__umSelectors</c> is injected ahead of these
+    /// scripts by the caller, and this is the same "manifest first, built-in second" contract in the two
+    /// lines it takes to state without a shared runtime.</para>
+    /// </remarks>
+    private const string SelectorHelpers =
+        "window.__umGRSel=function(name,builtins){try{" +
+        "var s=window.__umSelectors,a=s&&s.anchors&&s.anchors[name];" +
+        "return (a&&a.candidates&&a.candidates.length)?a.candidates:builtins;}catch(e){return builtins;}};" +
+        // Compiles a manifest anchor's candidates to RegExp, skipping any that will not compile — a bad
+        // pattern shipped as data must cost that one pattern, never the whole read.
+        "window.__umGRRx=function(name,builtins){var out=[],src=window.__umGRSel(name,builtins);" +
+        "for(var i=0;i<src.length;i++){try{out.push(new RegExp(src[i],'i'));}catch(e){}}" +
+        "return out.length?out:builtins.map(function(p){return new RegExp(p,'i');});};";
+
     private const string PageHelpers =
+        SelectorHelpers +
         // Bump "Rows per page" to its max once, so the counts cover more than the default 10. Returns true if
         // it just kicked one off (the caller should wait and re-poll).
         // ponytail: synthetic .click() drives Google's jsaction listbox (opener jsname=LgbsSe, options carry
@@ -65,9 +92,13 @@ public sealed class GoogleReviewSnapshotService
         // default of 10 rows. Observed live: Google Men DHA-2 reported 10 reviews pass after pass while its
         // siblings reported 50, which looked like a smaller profile and was actually this.
         "window.__umGRBumpRows=function(){if(window.__umGRrowsDone)return false;try{" +
-        "var rb=document.querySelector('[aria-label=\"Number of rows per page\"]');if(!rb)return false;" +
+        "var rbSel=window.__umGRSel('rowsPerPageControl',['[aria-label=\"Number of rows per page\"]']);" +
+        "var rb=null;for(var rbI=0;rbI<rbSel.length&&!rb;rbI++){try{rb=document.querySelector(rbSel[rbI]);}catch(e){}}" +
+        "if(!rb)return false;" +
         "window.__umGRrowsDone=1;" +
-        "var op=rb.querySelector('[jsname=\"LgbsSe\"]');if(op)op.click();" +
+        "var opSel=window.__umGRSel('rowsPerPageOption',['[jsname=\"LgbsSe\"]','[data-value]']);" +
+        "var op=null;for(var opI=0;opI<opSel.length&&!op;opI++){try{op=rb.querySelector(opSel[opI]);}catch(e){}}" +
+        "if(op)op.click();" +
         "setTimeout(function(){try{var o=[].slice.call(rb.querySelectorAll('[data-value]'));" +
         "var m=o.reduce(function(a,c){return (+(c.getAttribute('data-value')||0))>(+(a.getAttribute('data-value')||0))?c:a;},o[0]);" +
         "if(m)m.click();}catch(e){}},250);return true;}catch(e){return false;}};" +
@@ -230,11 +261,15 @@ public sealed class GoogleReviewSnapshotService
     // business.google.com/ (root) redirects a single-location profile to that view, so we use Google's own
     // redirect instead of guessing a search URL. Navigation is allowed on the first attempt only.
     private const string RatingKickoff =
-        "(function(){try{" +
+        // SelectorHelpers, not PageHelpers: this runs on the Search merchant view and needs only the
+        // manifest lookup — but it does need that. See the note on SelectorHelpers for what happened when
+        // it did not have it.
+        "(function(){try{" + SelectorHelpers +
         // The aria-label rating is a FALLBACK, not the primary source — see the precedence note below.
+        "var arRx=window.__umGRRx('ratingAriaLabel',['Rated\\\\s+([0-5][.,]\\\\d)\\\\s+out\\\\s+of\\\\s+5']);" +
         "var a=[].slice.call(document.querySelectorAll('[aria-label]'));var ar=null;" +
-        "for(var i=0;i<a.length;i++){var m=/Rated\\s+([0-5][.,]\\d)\\s+out\\s+of\\s+5/i.exec(a[i].getAttribute('aria-label')||'');" +
-        "if(m){ar=m[1].replace(',','.');break;}}" +
+        "for(var i=0;i<a.length&&!ar;i++){var lab=a[i].getAttribute('aria-label')||'';" +
+        "for(var q=0;q<arRx.length;q++){var m=arRx[q].exec(lab);if(m){ar=m[1].replace(',','.');break;}}}" +
         "var t=(document.body&&document.body.innerText)||'';" +
         "var paired=null;" +
         // innerText renders the rating and count RUN TOGETHER ("4.6239 Google reviews"), so a bare ([\d,]+)
@@ -246,19 +281,26 @@ public sealed class GoogleReviewSnapshotService
         // which cost the paired rating and fell back to the aria-label; live, that reported 3.0 for a 4.7
         // profile. Widening is safe: the run is [^\d], so it can never step over another number to pair up
         // two figures that don't belong together.
-        "var c=/([0-5][.,]\\d)[^\\d]{0,12}([\\d,]+)\\s+Google\\s+reviews/i.exec(t);" +
-        "var tot=null;if(c){tot=c[2].replace(/,/g,'');paired=c[1].replace(',','.');}" +
+        // PAIRED patterns: two capture groups, rating then total, tried in order. Both the labelled layout
+        // and the bracketed one live here now — see the manifest's own notes for why neither can be called
+        // "the layout for profile X".
+        "var pairRx=window.__umGRRx('reviewTotalPaired'," +
+        "['([0-5][.,]\\\\d)[^\\\\d]{0,12}([\\\\d,]+)\\\\s+Google\\\\s+reviews'," +
+        "'([0-5][.,]\\\\d)[^\\\\d(]{0,12}\\\\((\\\\d[\\\\d,]*)\\\\)']);" +
+        "var tot=null;" +
+        "for(var p=0;p<pairRx.length&&!tot;p++){var c=pairRx[p].exec(t);" +
+        "if(c){tot=c[2].replace(/,/g,'');paired=c[1].replace(',','.');}}" +
         // PARENTHESISED LAYOUT — "4.6 ★ (991) · Beauty salon". Google renders some profiles this way, with the
         // count in brackets and the words "Google reviews" appearing NOWHERE on the page, so every pattern
         // above misses it and the profile reports no lifetime total at all. Found from the owner's own
         // screenshots of their three locations: two render this way and only the third was parsing, which is
         // why the coverage line could never say "of 991" for them. Anchored on the rating for the same reason
         // as above — a bare \((\d+)\) would match any other bracketed number on the page.
-        "if(!tot){var c3=/([0-5][.,]\\d)[^\\d(]{0,12}\\((\\d[\\d,]*)\\)/.exec(t);" +
-        "if(c3){tot=c3[2].replace(/,/g,'');paired=c3[1].replace(',','.');}}" +
-        // Fallback for a layout with no rating next to the count: require a non-digit/dot before it so we
-        // still can't slice a number out of the middle of another one.
-        "if(!tot){var c2=/(?:^|[^\\d.,])([\\d,]{1,7})\\s+Google\\s+reviews/i.exec(t);tot=c2?c2[1].replace(/,/g,''):null;}" +
+        // UNPAIRED: one capture group, the total alone, for a layout with no rating beside the count.
+        // Requires a non-digit/dot before it so we still cannot slice a number out of the middle of another.
+        "if(!tot){var soloRx=window.__umGRRx('reviewTotalUnpaired'," +
+        "['(?:^|[^\\\\d.,])([\\\\d,]{1,7})\\\\s+Google\\\\s+reviews']);" +
+        "for(var u=0;u<soloRx.length&&!tot;u++){var c2=soloRx[u].exec(t);if(c2){tot=c2[1].replace(/,/g,'');}}}" +
         // PRECEDENCE: the rating that sits NEXT TO the review count wins over the aria-label.
         // The aria-label search takes the first "Rated X out of 5" anywhere in the document, and the merchant
         // view carries several — individual reviews have their own star labels, and a related-businesses
@@ -678,7 +720,7 @@ public sealed class GoogleReviewSnapshotService
         while (DateTimeOffset.UtcNow < deadline)
         {
             // Only the first attempt may navigate; later ones just poll the redirected page.
-            var kickoff = $"window.__umGRateAllowNav={(first ? "true" : "false")};" + RatingKickoff;
+            var kickoff = SelectorManifestLoader.BuildInjectionScript("googlebusiness") + $"window.__umGRateAllowNav={(first ? "true" : "false")};" + RatingKickoff;
             first = false;
             try
             {
@@ -1071,7 +1113,7 @@ public sealed class GoogleReviewSnapshotService
 
         try
         {
-        var kickoff = $"window.__umGRAllowNav={(mayNavigate ? "true" : "false")};" + KickoffScript;
+        var kickoff = SelectorManifestLoader.BuildInjectionScript("googlebusiness") + $"window.__umGRAllowNav={(mayNavigate ? "true" : "false")};" + KickoffScript;
         var connection = InstanceConnection.Current;
 
         // FAST FAIL ON A SESSION THAT ISN'T RUNNING SCRIPTS.

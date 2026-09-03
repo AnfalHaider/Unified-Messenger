@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "platform": "googlebusiness",
+  "observedAgainst": "business.google.com/reviews and the Search merchant view, 2026-09-02, WebView2 Edge 152.0.4191.53",
+  "notes": "Google's volatile knowledge is not selectors - it is the TEXT PATTERNS that pull a lifetime review total out of the page. Measured 2026-09-02: the same profile that AGENTS.md recorded rendering the bracketed layout ('4.6 (991)') had switched to the labelled one ('994 Google reviews'), so the layout varies per profile AND over time, and neither can be described as 'the layout for profile X'. That is precisely what needs fixing as data rather than as a binary. Every pattern is anchored on the RATING because innerText renders the two run together ('4.6239 Google reviews'), and a bare ([0-9,]+) yields 6239. Patterns are matched case-insensitively.",
+
+  "anchors": {
+    "ratingAriaLabel": {
+      "kind": "regex",
+      "candidates": [
+        "Rated\\s+([0-5][.,]\\d)\\s+out\\s+of\\s+5"
+      ],
+      "notes": "One group: the rating. A FALLBACK only - the merchant view carries several of these (each review has its own, and a related-businesses panel lists other branches), so measured live it was wrong on two of the owner's three profiles. The paired patterns below win."
+    },
+
+    "reviewTotalPaired": {
+      "kind": "regex",
+      "candidates": [
+        "([0-5][.,]\\d)[^\\d]{0,12}([\\d,]+)\\s+Google\\s+reviews",
+        "([0-5][.,]\\d)[^\\d(]{0,12}\\((\\d[\\d,]*)\\)"
+      ],
+      "notes": "TWO groups: rating, then total. Candidate 0 is the labelled layout; candidate 1 the bracketed one, where the words 'Google reviews' appear nowhere on the page. The {0,12} run is 12 rather than 6 because some profiles render five star glyphs between the numbers; the run is [^\\d] so it can never step over another number and pair two figures that do not belong together."
+    },
+
+    "reviewTotalUnpaired": {
+      "kind": "regex",
+      "candidates": [
+        "(?:^|[^\\d.,])([\\d,]{1,7})\\s+Google\\s+reviews"
+      ],
+      "notes": "ONE group: the total. For a layout with no rating beside the count. Requires a non-digit before it so it still cannot slice a number out of the middle of another."
+    },
+
+    "rowsPerPageControl": {
+      "candidates": [
+        "[aria-label=\"Number of rows per page\"]"
+      ],
+      "optional": true,
+      "notes": "English-only, and knowingly so: a Google rendered in another language will not match, the page stays at its default rows-per-page, and the count is read from fewer pages. Degrades, does not break. Being in the manifest is what makes a localised fix shippable as data."
+    },
+
+    "rowsPerPageOption": {
+      "candidates": [
+        "[jsname=\"LgbsSe\"]",
+        "[data-value]"
+      ],
+      "optional": true,
+      "notes": "FRAGILE. jsname is a Google build artifact, not a contract; [data-value] is the structural fallback."
+    },
+
+    "reviewCard": {
+      "candidates": [
+        "[data-review-id]"
+      ],
+      "optional": true,
+      "notes": "The one genuinely stable anchor on the reviews manager, and the natural key for a per-review deep link. Declared from the inventory; no reader yet."
+    }
+  }
+}

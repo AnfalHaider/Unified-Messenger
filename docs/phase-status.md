@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-09-03 · **Baseline:** v4.99.78 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-09-03 · **Baseline:** v4.99.79 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
@@ -80,6 +80,23 @@
 > - **No new trust**: the same release serves the installer, so anyone who could publish a hostile manifest
 >   could publish a hostile executable — strictly worse. And it rides `EnableAutoUpdate`, so an owner who
 >   turned updates off gets no new outbound request.
+>
+> **A6 · Increment 113 (v4.99.79): Google on the manifest — the schema generalises.** The second consumer,
+> and the one that could have shown the schema was WhatsApp-shaped. Two things it did not have:
+> - **Google's pages get no adapter-core**, so `__umPick` does not exist there. The manifest reaches them
+>   as `window.__umSelectors` ahead of the kickoff scripts, read by a two-line `__umGRSel` — same
+>   "manifest first, built-in second" contract, no shared runtime required.
+> - **Google's volatile knowledge is not selectors, it is regexes.** The review-total patterns are what
+>   change (A1 measured a profile switching layout within days), so the schema gained `kind: "regex"`.
+>   `reviewTotalPaired` (2 candidates, rating+total) and `reviewTotalUnpaired` (1 candidate, total only)
+>   keep the differing capture shapes honest rather than flattening them into one list.
+> **One planned item was deliberately not done:** the roadmap said to carry the star-rating colours as
+> data. Reading the shipped code showed the star reader compares each glyph to the **first star's own
+> colour** rather than to a known gold — self-calibrating, so a Google restyle changes nothing. Moving
+> those into the manifest would have swapped a mechanism that cannot go stale for two hard-coded values
+> that can. A test records why not.
+> Also: `notes` prose is no longer modelled, so several hundred characters of explanation stop being
+> serialized into every page on every load.
 
 > **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
 > Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.

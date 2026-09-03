@@ -69,6 +69,24 @@ public sealed record SelectorAnchor
     /// </remarks>
     [JsonPropertyName("optional")]
     public bool Optional { get; init; }
+
+    /// <summary>
+    /// What the candidates <i>are</i>: <c>"css"</c> (the default) or <c>"regex"</c>.
+    /// </summary>
+    /// <remarks>
+    /// Added when Google Business became the schema's second consumer, and it is the field that proves the
+    /// schema generalises. WhatsApp's anchors are all CSS, so nothing forced the distinction; Google's most
+    /// volatile knowledge is not a selector at all but the set of <b>text patterns</b> that pull a lifetime
+    /// review total out of the page, in a layout Google varies per profile <i>and over time</i>. Those are
+    /// exactly what most needs to be fixable as data — and a validator that assumed CSS would have quietly
+    /// mangled them.
+    /// </remarks>
+    [JsonPropertyName("kind")]
+    public string? Kind { get; init; }
+
+    /// <summary>True when these candidates are regular expressions rather than CSS selectors.</summary>
+    [JsonIgnore]
+    public bool IsRegex => string.Equals(Kind, "regex", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -111,8 +129,11 @@ public sealed record SelectorManifest
     [JsonPropertyName("observedAgainst")]
     public string ObservedAgainst { get; init; } = string.Empty;
 
-    [JsonPropertyName("notes")]
-    public string Notes { get; init; } = string.Empty;
+    // A manifest carries `notes` prose at the root and on each anchor, and it is deliberately NOT modelled
+    // here. The whole manifest is serialized into every page on every load; the notes are for whoever edits
+    // the file next, and injecting several hundred characters of explanation into the owner's live WhatsApp
+    // session on every navigation buys nothing. Unmodelled JSON is ignored on deserialize, so the prose
+    // stays where it is useful and never reaches the browser.
 
     [JsonPropertyName("anchors")]
     public IReadOnlyDictionary<string, SelectorAnchor> Anchors { get; init; } =

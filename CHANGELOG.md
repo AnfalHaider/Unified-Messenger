@@ -5,6 +5,36 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.79
+
+> **What you will notice:** nothing changes on screen. Google Business now works the same way WhatsApp
+> does — if Google changes how it shows your review count, the fix can reach you as a small update rather
+> than a new version of the app.
+
+**Google Business on the selector manifest (Phase 2, A6 · Increment 113).**
+
+The second channel, and the one that could have shown the design was WhatsApp-shaped. It had two things
+WhatsApp did not:
+
+- **Google's pages carry none of the app's own code**, so the helper WhatsApp uses to find things does not
+  exist there. The settings reach a Google page ahead of its scripts instead, read by a two-line helper —
+  the same "settings first, built-in second" arrangement without needing a shared runtime.
+- **Google's fragile knowledge is not element locations at all**, it is the *text patterns* that pull a
+  lifetime review count off the page. Those are what actually change: the same profile that showed
+  `4.6 (991)` last week now shows `994 Google reviews`. Both layouts are carried, ordered, and are now
+  fixable as data.
+
+**One planned change was deliberately dropped.** The plan said to move the star-rating colours into the
+settings file. Reading the shipped code showed it already compares each star to the *first* star's own
+colour rather than to a fixed gold — so it survives a Google restyle on its own. Moving those colours into
+a file would have swapped something that cannot go stale for two fixed values that can. A test records why
+not, so nobody re-adds it.
+
+Verified against all three live profiles: 4.6/994, 4.7/434, 4.6/249, parsed entirely from the settings
+file.
+
+2022 tests green.
+
 ## v4.99.78
 
 > **What you will notice:** nothing today, and that is the point. If WhatsApp changes its website, the fix
