@@ -179,12 +179,24 @@ least one `cell-frame-container`**, not `readyState` and not the shell.
 This also explains why `InstanceSessionManager.WarmBackgroundSessionsAsync` matters more than it looks:
 an account scanned too soon after warm reports nothing, truthfully and uselessly.
 
-## Archived — confirmed reachable, not yet mapped
+## Archived — mapped (A7, 2026-09-03)
 
-`[data-testid="chatlist-panel-archived-button"]` is present with `aria-label="Archived "` (trailing
-space in the live client — do not trim-match it exactly). It renders `ic-archive` plus the word
-"Archived". **STABLE.** The panel behind it was not opened this pass; the entry point is confirmed, the
-contents are not.
+`[data-testid="chatlist-panel-archived-button"]` opens it; `aria-label="Archived "` carries a trailing
+space in the live client, so do not trim-match it exactly. **STABLE.**
+
+**The panel is `[data-testid="archived-chatlist"]`** — its own container, and the only reliable proof the
+view is on screen. Measured by opening it on a live account and reading the result, which contradicted
+both obvious alternatives:
+
+| Signal | Before opening | After opening | Usable? |
+|---|---|---|---|
+| `#pane-side [role="row"]` count | 64 | **64** | **No.** The main list stays underneath; the count does not move. |
+| `[aria-label="Back"]` | 0 | 1 | **No.** Generic chrome that other views also show. |
+| `[data-testid="archived-chatlist"]` | absent | **present** | **Yes.** |
+
+Closing it again is `[aria-label="Back"]`, verified by the panel anchor's absence. **Read-only**: it opens
+a list, not a conversation, so nothing is marked read — which is why it is the one navigation that does
+not require explicit user intent.
 
 ## `wa.me` / `send?phone=` — experiment §4.3.5
 

@@ -86,8 +86,28 @@ public static class ConversationFocusHelper
 
             if (ParseScriptBoolean(raw))
             {
-                await DrainTraceAsync(sessionManager, instance, want, attempt, true).ConfigureAwait(false);
-                return true;
+                // The click reported success — now find out whether anything actually opened. This used to
+                // return here, trusting the navigator's own answer, with the readback happening afterwards
+                // purely to write a log line nobody was reading. But the click paths report true whether or
+                // not the chat opened: they find a matching row, call .click(), and say yes. If WhatsApp's
+                // row handler ever wants pointerdown instead, that click does nothing and still reports a
+                // clean success — and the caller scrolls the owner to a conversation that is not on screen.
+                await Task.Delay(OpenChatSettleDelay, cancellationToken).ConfigureAwait(false);
+                var arrived = await ReadArrivedAsync(sessionManager, instance).ConfigureAwait(false);
+
+                // Null means the readback itself could not be evaluated (page mid-navigation, script error).
+                // That is not evidence of failure, so fall back to the old behaviour rather than inventing
+                // one — a readback that cannot run must not be able to fail an operation that worked.
+                if (arrived != false)
+                {
+                    await DrainTraceAsync(sessionManager, instance, want, attempt, true, arrived).ConfigureAwait(false);
+                    return true;
+                }
+
+                // Clicked, claimed success, nothing opened. Keep trying within the stated budget.
+                AppLogger.LogWarning(
+                    "Navigate",
+                    $"{instance.DisplayName}: focus reported success but no conversation is open (attempt {attempt + 1}/{MaxAttempts}).");
             }
 
             if (attempt < MaxAttempts - 1)
@@ -96,8 +116,40 @@ public static class ConversationFocusHelper
             }
         }
 
-        await DrainTraceAsync(sessionManager, instance, want, MaxAttempts, false).ConfigureAwait(false);
+        await DrainTraceAsync(sessionManager, instance, want, MaxAttempts, false, null).ConfigureAwait(false);
         return false;
+    }
+
+    /// <summary>
+    /// The independent proof that a conversation is on screen, from the declared readback anchors of the
+    /// <c>focus-conversation</c> operation. Null when the readback could not be evaluated at all.
+    /// </summary>
+    private static async Task<bool?> ReadArrivedAsync(
+        IInstanceSessionManager sessionManager,
+        MessengerInstance instance)
+    {
+        try
+        {
+            var script = NavigationOperations.BuildReadbackScript(
+                NavigationOperations.Require(NavigationOperations.FocusConversation));
+
+            var raw = await sessionManager
+                .TryExecuteScriptOnInstanceAsync(instance.Id, script)
+                .ConfigureAwait(false);
+
+            var text = raw?.Trim().Trim('"');
+            return text switch
+            {
+                "true" => true,
+                "false" => false,
+                _ => null
+            };
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogWarning("Navigate", $"Focus readback failed for {instance.Id}: {ex.Message}");
+            return null;
+        }
     }
 
     // Writes the page-side breadcrumb trail to app.log. Two things make the obvious signals untrustworthy, so
@@ -112,7 +164,8 @@ public static class ConversationFocusHelper
         MessengerInstance instance,
         string want,
         int attempts,
-        bool focused)
+        bool focused,
+        bool? arrived)
     {
         try
         {
@@ -120,20 +173,21 @@ public static class ConversationFocusHelper
                 .TryExecuteScriptOnInstanceAsync(instance.Id, "JSON.stringify(window.__umFocusTrace||[])")
                 .ConfigureAwait(false);
 
-            // Nothing in the click paths verifies that clicking a row actually OPENED the chat — they click
-            // and report true. If WhatsApp's row handler wants pointerdown/mousedown rather than click, then
-            // .click() does nothing and still logs a clean success. So read back the conversation actually on
-            // screen: that is the only thing that distinguishes "focused" from "claims to have focused".
-            await Task.Delay(OpenChatSettleDelay).ConfigureAwait(false);
+            // The header is read for the TRACE — to compare what was reached against what was wanted, since
+            // a wrong-but-plausible row match reads identically to a correct one. Whether anything opened at
+            // all is decided before this, by ReadArrivedAsync, and that decision gates the return value.
             var header = await sessionManager
                 .TryExecuteScriptOnInstanceAsync(instance.Id, OpenChatHeaderScript)
                 .ConfigureAwait(false);
 
             var trace = string.IsNullOrWhiteSpace(raw) ? "<none>" : raw.Trim();
             var opened = string.IsNullOrWhiteSpace(header) ? "<null>" : header.Trim();
+            var budget = NavigationOperations.Require(NavigationOperations.FocusConversation).Budget;
+            var arrivedText = arrived switch { true => "yes", false => "no", _ => "unknown" };
             AppLogger.LogInfo(
                 "focus",
-                $"{instance.DisplayName}: want={want} focused={focused} attempts={attempts} opened={opened} trace={trace}");
+                $"{instance.DisplayName}: want={want} focused={focused} arrived={arrivedText} "
+                + $"attempts={attempts}/{MaxAttempts} budget={budget.TotalSeconds:0.#}s opened={opened} trace={trace}");
         }
         catch (Exception ex)
         {

@@ -5,7 +5,7 @@
 #define MyAppExeName "UnifiedMessenger.exe"
 #define MyAppPublisher "AnfalHaider"
 #define MyAppURL "https://github.com/AnfalHaider/Unified-Messenger"
-#define MyAppVersion "4.99.79"
+#define MyAppVersion "4.99.80"
 #define MyAppMutex "UnifiedMessenger_AppMutex"
 
 ; Shell identity for toasts and taskbar grouping. MUST match AppNotificationService.Aumid in C#.

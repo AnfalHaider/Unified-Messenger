@@ -5,6 +5,34 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.80
+
+> **What you will notice:** when you click a waiting customer from the dashboard and the app says it took
+> you there, it now checks that it actually did. Before, it reported success as soon as it had clicked —
+> whether or not the conversation opened.
+
+**Navigation that proves it arrived (Phase 3, A7 · Increment 114).**
+
+Every navigation the app performs is now declared in one place, with three things stated rather than
+assumed: what proves it got there, whether it changes anything the customer can see, and how long it is
+allowed to keep trying.
+
+- **The check now decides.** Opening a conversation was already being verified — but *after* the answer
+  had been given, purely to write a log line. The click path reports success whether or not the chat
+  opened: it finds a matching row, clicks it, and says yes. If WhatsApp ever changes how its rows respond,
+  that click does nothing and still reports success, and you get scrolled to a conversation that is not
+  on screen. The message box, which exists only while a chat is open, now has to be there before the app
+  will claim it worked.
+- **Opening a conversation is treated as something you asked for**, never something a background check
+  does on its own — because opening one marks it read, and on some channels tells the customer you looked.
+- **Archived conversations** are now a first-class named view with the same verification.
+
+**The archived check was measured, not assumed, and the obvious answers were both wrong.** The chat count
+does not change when the panel opens (the main list stays underneath it), and the Back button that
+appears is generic. Neither would have worked. The panel has its own marker, and that is what is used.
+
+2036 tests green.
+
 ## v4.99.79
 
 > **What you will notice:** nothing changes on screen. Google Business now works the same way WhatsApp

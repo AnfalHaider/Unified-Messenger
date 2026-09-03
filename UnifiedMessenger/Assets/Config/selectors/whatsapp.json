@@ -43,6 +43,19 @@
         "[data-testid=\"chatlist-panel-archived-button\"]"
       ]
     },
+    "archivedPanel": {
+      "candidates": [
+        "[data-testid=\"archived-chatlist\"]"
+      ],
+      "optional": true
+    },
+    "backButton": {
+      "candidates": [
+        "[aria-label=\"Back\"]",
+        "[data-icon=\"back\"]"
+      ],
+      "optional": true
+    },
     "searchContainer": {
       "candidates": [
         "[data-testid=\"chat-list-search-container\"]"

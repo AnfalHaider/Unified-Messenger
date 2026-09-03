@@ -143,7 +143,19 @@ public class SelectorManifestTests
             ?.GetRawConstantValue() ?? string.Empty;
         Assert.NotEqual(string.Empty, readbackScript);
 
-        var source = ScriptText("whatsapp-adapter.js") + "\n" + ScriptText("adapter-core.js") + "\n" + readbackScript;
+        // The C# navigators are consumers too, and their scripts are private consts — read them the same
+        // way. Anchors named by a NavigationOperation's readback count as used as well: that is a real
+        // consumer even though the anchor name never appears in any script text.
+        var navigatorScripts = new[] { "OpenScript", "CloseScript" }
+            .Select(f => (string?)typeof(ArchivedPanelNavigator)
+                .GetField(f, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+                ?.GetRawConstantValue() ?? string.Empty);
+
+        var readbackAnchors = NavigationOperations.All.SelectMany(o => o.ReadbackAnchors);
+
+        var source = ScriptText("whatsapp-adapter.js") + "\n" + ScriptText("adapter-core.js") + "\n"
+                     + readbackScript + "\n" + string.Join("\n", navigatorScripts) + "\n"
+                     + string.Join("\n", readbackAnchors.Select(a => $"'{a}'"));
 
         var manifest = WhatsApp();
         var ready = manifest.ReadyWhen?.All ?? [];

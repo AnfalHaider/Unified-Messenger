@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-09-03 · **Baseline:** v4.99.79 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-09-03 · **Baseline:** v4.99.80 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
@@ -97,6 +97,23 @@
 > that can. A test records why not.
 > Also: `notes` prose is no longer modelled, so several hundred characters of explanation stop being
 > serialized into every page on every load.
+>
+> **A7 · Increment 114 (v4.99.80): Phase 3 — navigation that proves it arrived.** `NavigationOperations`
+> declares all four navigations with readback anchors, retry budgets and side-effect flags.
+> - **The correctness win: the focus readback now decides rather than narrates.** It was already being
+>   read — but *after* the return, purely for the log, while the method returned the navigator's own
+>   `true`. The click paths report success whether or not the chat opened, so that bool could be a lie.
+>   The composer check gates it now, and a readback that cannot be evaluated is treated as "no evidence"
+>   rather than failure, so a mid-navigation page cannot fail an operation that worked.
+> - **`show-archived` is new, and its readback was measured rather than guessed** — which changed the
+>   answer. The row count does **not** move when the panel opens (the main list stays underneath) and the
+>   Back button is generic chrome; the anchor is the panel's own `[data-testid="archived-chatlist"]`.
+>   Fills the A1 gap that recorded the entry point but not the contents.
+> - **The side-effect gate exists before Meta can violate it**: opening a conversation requires the caller
+>   to state a person asked, the same way `RequiresThreadOpenToRead` was declared before Meta had a
+>   scraper. Opening the archived *list* is read-only and correctly does not require it.
+> - Google's two URL navigations are registered as in-page implementations, with a test pinning the
+>   any-`google.com`-host guard that manual Re-sync depends on.
 
 > **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
 > Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.
