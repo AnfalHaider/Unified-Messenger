@@ -248,7 +248,11 @@ public static class OversightSnapshotReader
             var count = await InstanceConnection.Current
                 .ExecuteScriptAsync(
                     instance.Id,
-                    "(document.querySelectorAll('#pane-side [role=\"row\"], #side [role=\"row\"], [data-testid=\"chat-list\"] [role=\"row\"]').length || 0).toString()")
+                    // Manifest-driven when adapter-core is present; the literal is the fallback for the
+                    // window right after a reload where it is not.
+                    "(function(){var s='#pane-side [role=\"row\"], #side [role=\"row\"], [data-testid=\"chat-list\"] [role=\"row\"]';" +
+                    "var n=window.__umPick?window.__umPick('chatRow',s):document.querySelectorAll(s);" +
+                    "return ((n&&n.length)||0).toString();})()")
                 .ConfigureAwait(false);
 
             var raw = count?.Trim('"');

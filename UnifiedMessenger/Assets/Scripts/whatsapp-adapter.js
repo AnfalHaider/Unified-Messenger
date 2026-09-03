@@ -262,7 +262,8 @@
       return null;
     }
 
-    var rows = document.querySelectorAll(
+    var rows = window.__umPick(
+      'chatRow',
       '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
     );
 
@@ -302,7 +303,8 @@
       }
     }
 
-    row.querySelectorAll(
+    window.__umPickIn(row,
+      'rowLabelNodes',
       'span[aria-label], span[data-testid="label"], div[title], span[title]'
     ).forEach(function (node) {
       var label = normalizeText(node.getAttribute('aria-label') || node.getAttribute('title') || '');
@@ -317,7 +319,7 @@
       pushUniqueLabel(labels, label);
     });
 
-    row.querySelectorAll('span[dir="auto"]').forEach(function (span) {
+    window.__umPickIn(row, 'rowAutoSpans', 'span[dir="auto"]').forEach(function (span) {
       var text = normalizeText(span.textContent || '');
       if (!text || text === chatTitle || text.length > 32) {
         return;
@@ -336,22 +338,13 @@
   }
 
   function extractChatHeader() {
-    var titleNode = queryFirst([
-      'header [data-testid="conversation-info-header-chat-title"]',
-      'span[data-testid="conversation-info-header-chat-title"]',
-      '#main header span[title]',
-      'header[data-testid="conversation-header"] span[title]'
-    ]);
+    var titleNode = window.__umPick1('conversationTitle', 'header [data-testid="conversation-info-header-chat-title"]');
 
     var title = titleNode
       ? normalizeText(titleNode.getAttribute('title') || titleNode.textContent || '')
       : '';
 
-    var subtitleNode = queryFirst([
-      'header [data-testid="conversation-info-header-chat-subtitle"]',
-      'header span[data-testid="conversation-info-header-chat-subtitle"]',
-      '#main header span[dir="auto"]:not([title])'
-    ]);
+    var subtitleNode = window.__umPick1('conversationSubtitle', 'header [data-testid="conversation-info-header-chat-subtitle"]');
 
     var subtitle = subtitleNode ? normalizeText(subtitleNode.textContent || '') : '';
 
@@ -363,10 +356,7 @@
     var phoneMatch = subtitle.match(/\+?\d[\d\s\-()]{7,}/);
     var contactPhoneNumber = phoneMatch ? phoneMatch[0].replace(/\s+/g, '') : '';
 
-    var profilePhoneNode = queryFirst([
-      'header a[href^="tel:"]',
-      'header [data-testid="phone-number"]'
-    ]);
+    var profilePhoneNode = window.__umPick1('conversationProfilePhone', 'header a[href^="tel:"]');
     var profilePhoneNumber = '';
     if (profilePhoneNode) {
       var href = profilePhoneNode.getAttribute('href') || '';
@@ -389,11 +379,11 @@
       return 'text';
     }
 
-    if (container.querySelector('[data-testid="audio-play"], [data-icon="audio"], [data-icon="ptt"]')) {
+    if (window.__umPickIn1(container, 'messageAudio', '[data-testid="audio-play"], [data-icon="audio"], [data-icon="ptt"]')) {
       return 'audio';
     }
 
-    if (container.querySelector('[data-testid="image-thumb"], img[src*="blob:"], [data-testid="media-url-provider"] img')) {
+    if (window.__umPickIn1(container, 'messageImage', '[data-testid="image-thumb"], img[src*="blob:"], [data-testid="media-url-provider"] img')) {
       return 'image';
     }
 
@@ -422,7 +412,7 @@
       }
     }
 
-    var timeNode = container.querySelector('span[data-testid="msg-meta"] span, span[dir="auto"][title]');
+    var timeNode = window.__umPickIn1(container, 'messageTime', 'span[data-testid="msg-meta"] span, span[dir="auto"][title]');
     if (timeNode) {
       var title = timeNode.getAttribute('title') || timeNode.textContent || '';
       var titleParsed = Date.parse(title);
@@ -436,7 +426,7 @@
 
   function isOutgoingContainer(node) {
     return node.classList.contains('message-out') ||
-      !!node.querySelector('.message-out') ||
+      !!window.__umPickIn1(node, 'messageOutgoingMarker', '.message-out') ||
       !!node.closest('.message-out');
   }
 
@@ -451,7 +441,7 @@
       return null;
     }
 
-    var containers = document.querySelectorAll('div[data-testid="msg-container"]');
+    var containers = window.__umPick('messageContainer', 'div[data-testid="msg-container"]');
     var lastReceivedAtUtc = null;
     var lastSentAtUtc = null;
     var lastReceivedKind = 'text';
@@ -472,7 +462,7 @@
       } else if (!lastReceivedAtUtc) {
         lastReceivedAtUtc = timestamp;
         lastReceivedKind = kind;
-        var previewNode = node.querySelector('span.selectable-text, span.copyable-text');
+        var previewNode = window.__umPickIn1(node, 'messageText', 'span.selectable-text, span.copyable-text');
         activePreview = previewNode ? normalizeText(previewNode.textContent || '') : '';
       }
     }
@@ -540,11 +530,11 @@
     }
 
     var statusRoot = container.querySelector
-      ? (container.querySelector('[data-testid="msg-meta"]') || container)
+      ? (window.__umPickIn1(container, 'messageMeta', '[data-testid="msg-meta"]') || container)
       : container;
 
     var icon = statusRoot.querySelector
-      ? statusRoot.querySelector('span[data-icon], span[data-testid*="status"]')
+      ? window.__umPickIn1(statusRoot, 'messageStatusGlyph', 'span[data-icon], span[data-testid*="status"]')
       : null;
 
     var dataIcon = icon ? (icon.getAttribute('data-icon') || '') : '';
@@ -592,7 +582,7 @@
 
   function findNewestOutgoingContainer(root) {
     var scope = root || document;
-    var containers = scope.querySelectorAll('div[data-testid="msg-container"]');
+    var containers = window.__umPickIn(scope, 'messageContainer', 'div[data-testid="msg-container"]');
     if (!containers.length) {
       return null;
     }
@@ -607,8 +597,7 @@
   }
 
   function publishOutgoingStatusFromDom() {
-    var mainRoot = document.querySelector('#main') ||
-      document.querySelector('[data-testid="conversation-panel-messages"]');
+    var mainRoot = window.__umPick1('conversationRoot', '#main');
     var newest = findNewestOutgoingContainer(mainRoot);
     if (!newest) {
       return;
@@ -621,7 +610,7 @@
     }
 
     var deliveryStatus = detectOutgoingDeliveryStatus(newest);
-    var previewNode = newest.querySelector('span.selectable-text, span.copyable-text');
+    var previewNode = window.__umPickIn1(newest, 'messageText', 'span.selectable-text, span.copyable-text');
     var preview = previewNode ? normalizeText(previewNode.textContent || '') : '';
     var signature = conversationKey + '|' + deliveryStatus + '|' + preview.slice(0, 40);
     if (signature === lastOutgoingStatusKey) {
@@ -702,14 +691,16 @@
   };
 
   function getChatRowTitle(row) {
-    var titleNode = row.querySelector(
+    var titleNode = window.__umPickIn1(row,
+      'rowTitleDir',
       'span[dir="auto"][title], span[title][dir="auto"], div[role="gridcell"] span[dir="auto"]'
     );
     return titleNode ? normalizeText(titleNode.textContent || titleNode.getAttribute('title') || '') : '';
   }
 
   function getChatRowRelativeTime(row) {
-    var timeNode = row.querySelector(
+    var timeNode = window.__umPickIn1(row,
+      'rowTime',
       'div[data-testid="cell-frame-secondary"] span, span[data-testid="msg-time"], aside span[dir="auto"]'
     );
     return timeNode ? normalizeText(timeNode.textContent || '') : '';
@@ -725,7 +716,7 @@
       return rowId;
     }
 
-    var child = row.querySelector('[data-id]');
+    var child = window.__umPickIn1(row, 'rowConversationId', '[data-id]');
     if (child) {
       var childId = child.getAttribute('data-id') || '';
       if (childId.indexOf('@') >= 0) {
@@ -737,7 +728,8 @@
   }
 
   window.__umCollectSidebarSnapshot = function () {
-    var rows = document.querySelectorAll(
+    var rows = window.__umPick(
+      'chatRow',
       '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
     );
     var payloadRows = [];
@@ -760,7 +752,8 @@
       var phoneMatch = (title || '').match(/^\+?\d[\d\s\-().]{6,14}$/);
       var contactPhoneNumber = phoneMatch ? title.replace(/[\s\-().]/g, '') : '';
 
-      var previewNode = row.querySelector(
+      var previewNode = window.__umPickIn1(row,
+        'rowPreviewText',
         'span[data-testid="last-msg-text"], span[data-testid="last-msg-status"], div[data-testid="cell-frame-secondary"] span'
       );
       payloadRows.push({
@@ -1025,7 +1018,8 @@
   // True when the chat's LAST message is outgoing (we replied): WhatsApp renders a delivery/read tick
   // icon in the row's last-message line for outgoing messages. Absent for an incoming last message.
   function umRowLastFromMe(row) {
-    var iconEl = row.querySelector(
+    var iconEl = window.__umPickIn1(row,
+      'rowStatusIcon',
       'span[data-testid="last-msg-status"] [data-icon], [data-icon^="msg-"], [data-icon^="status-"]'
     );
     if (iconEl) {
@@ -1042,20 +1036,21 @@
   function umBuildDomChatHints() {
     var byId = Object.create(null);
     var byTitle = Object.create(null);
-    var rows = document.querySelectorAll(
+    var rows = window.__umPick(
+      'chatRow',
       '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
     );
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i];
-      var idEl = row.querySelector('[data-id]');
+      var idEl = window.__umPickIn1(row, 'rowConversationId', '[data-id]');
       var did = (idEl && idEl.getAttribute('data-id')) ||
         (row.getAttribute && row.getAttribute('data-id')) || '';
 
       // Title: the contact name, or the phone number for unsaved contacts.
-      var titleEl = row.querySelector('div[data-testid="cell-frame-primary"] span[title], span[title]');
+      var titleEl = window.__umPickIn1(row, 'rowPrimaryTitle', 'div[data-testid="cell-frame-primary"] span[title], span[title]');
       var title = titleEl ? normalizeText(titleEl.getAttribute('title') || titleEl.textContent || '') : '';
       if (!title) {
-        var primary = row.querySelector('div[data-testid="cell-frame-primary"]');
+        var primary = window.__umPickIn1(row, 'rowPrimary', 'div[data-testid="cell-frame-primary"]');
         if (primary) {
           title = normalizeText((primary.textContent || '').split('\n')[0]);
         }
@@ -1063,8 +1058,9 @@
 
       // Preview: the message text only — target the text span and strip icon-token noise
       // (e.g. "ic-imagePhoto", "wds-ic-readYou", "ic-push-pin") that leaks from icon elements.
-      var sec = row.querySelector('div[data-testid="cell-frame-secondary"]') || row;
-      var textEl = sec.querySelector(
+      var sec = window.__umPickIn1(row, 'rowSecondary', 'div[data-testid="cell-frame-secondary"]') || row;
+      var textEl = window.__umPickIn1(sec,
+        'rowSecondaryText',
         'span[data-testid="last-msg-text"], span[dir="ltr"], span[dir="auto"]'
       );
       var preview = textEl ? normalizeText(textEl.textContent || '') : '';
@@ -1075,7 +1071,7 @@
       preview = preview ? window.__umTruncate(preview, 90) : '';
 
       // data-icon="recalled" marks a deleted-for-everyone last message ("This message was deleted").
-      var hint = { title: title, preview: preview, lastFromMe: umRowLastFromMe(row), recalled: !!row.querySelector('[data-icon="recalled"]'), present: true };
+      var hint = { title: title, preview: preview, lastFromMe: umRowLastFromMe(row), recalled: !!window.__umPickIn1(row, 'rowRecalled', '[data-icon="recalled"]'), present: true };
       var key = umDigits(did);
       if (key) {
         byId[key] = hint;
@@ -1092,7 +1088,8 @@
   // store) keyed by the chat's phone digits, and the IndexedDB scan joins by the resolved contact phone.
   function umReadSidebarPreviewsInto(map) {
     try {
-      var rows = document.querySelectorAll(
+      var rows = window.__umPick(
+        'chatRow',
         '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
       );
       for (var i = 0; i < rows.length; i++) {
@@ -1100,7 +1097,7 @@
 
         // Each sidebar row exposes two span[title] elements: [0] = the contact name (or phone number for
         // unsaved contacts), [1] = the full last-message text. (Verified live — rows carry no data-id.)
-        var titleSpans = row.querySelectorAll('span[title]');
+        var titleSpans = window.__umPickIn(row, 'rowTitle', 'span[title]');
         var title = titleSpans[0] ? normalizeText(titleSpans[0].getAttribute('title') || titleSpans[0].textContent || '') : '';
         var preview = titleSpans[1] ? normalizeText(titleSpans[1].getAttribute('title') || titleSpans[1].textContent || '') : '';
         preview = preview.replace(/\b(?:wds-)?ic-[\w-]+/g, '').replace(/\s{2,}/g, ' ').trim();
@@ -1109,7 +1106,7 @@
 
         if (!title && !preview) { continue; }
 
-        var entry = { preview: preview, title: title, recalled: !!row.querySelector('[data-icon="recalled"]') };
+        var entry = { preview: preview, title: title, recalled: !!window.__umPickIn1(row, 'rowRecalled', '[data-icon="recalled"]') };
 
         // Key by the title's phone digits (unsaved contacts show their number as the title); the scan joins
         // by the resolved contact phone. Rows carry no data-id, so this is the primary key.
@@ -1118,7 +1115,7 @@
           map[titleDigits] = entry;
         }
         // Fallback: a data-id if one is ever present.
-        var idEl = row.querySelector('[data-id]');
+        var idEl = window.__umPickIn1(row, 'rowConversationId', '[data-id]');
         var keyById = umDigits((idEl && idEl.getAttribute('data-id')) || '');
         if (keyById && (!map[keyById] || (!map[keyById].preview && preview))) {
           map[keyById] = entry;
@@ -1476,11 +1473,11 @@
 
   function collectVisibleHistoryMessages(conversationKey, customerName) {
     var messages = [];
-    var containers = document.querySelectorAll('div[data-testid="msg-container"]');
+    var containers = window.__umPick('messageContainer', 'div[data-testid="msg-container"]');
     for (var i = 0; i < containers.length; i++) {
       var node = containers[i];
       var isOutgoing = isOutgoingContainer(node);
-      var previewNode = node.querySelector('span.selectable-text, span.copyable-text');
+      var previewNode = window.__umPickIn1(node, 'messageText', 'span.selectable-text, span.copyable-text');
       var body = previewNode ? normalizeText(previewNode.textContent || '') : '';
       if (!body) {
         continue;
@@ -1506,7 +1503,7 @@
     }
 
     var conversationKey = resolveActiveConversationKey(header) || header.title;
-    var panel = document.querySelector('#main [data-testid="conversation-panel-messages"], #main');
+    var panel = window.__umPick1('conversationPanel', '#main [data-testid="conversation-panel-messages"], #main');
     var iterations = 0;
 
     while (panel && iterations < maxIterations) {
@@ -1533,7 +1530,8 @@
 
   window.__umRunDeepBackfillWalk = function (maxChats) {
     maxChats = Math.min(maxChats || 3, 3);
-    var rows = document.querySelectorAll(
+    var rows = window.__umPick(
+      'chatRow',
       '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
     );
     var collected = [];
@@ -1648,19 +1646,19 @@
       return '';
     }
 
-    var subtitle = row.querySelector(
-      'span[data-testid="last-msg-text"], ' +
-        'span[data-testid="last-msg-status"], ' +
-        'div[data-testid="cell-frame-secondary"] span, ' +
-        'span[dir="ltr"]:last-of-type, ' +
-        'span[dir="auto"]:last-of-type, ' +
-        'div._ak8k span'
+    var subtitle = window.__umPickIn1(
+      row,
+      'rowSubtitle',
+      'span[data-testid="last-msg-text"], span[data-testid="last-msg-status"], ' +
+        'div[data-testid="cell-frame-secondary"] span, span[dir="ltr"]:last-of-type, ' +
+        'span[dir="auto"]:last-of-type'
     );
     if (subtitle && subtitle.textContent) {
       return subtitle.textContent.trim();
     }
 
-    var secondaryCells = row.querySelectorAll(
+    var secondaryCells = window.__umPickIn(row,
+      'rowSecondaryCells',
       '[data-testid="cell-frame-secondary"] span, [role="gridcell"] span'
     );
     for (var j = secondaryCells.length - 1; j >= 0; j--) {
@@ -1803,14 +1801,14 @@
 
   function countFromDomBadges() {
     var total = 0;
-    var selectors = [
-      'span[data-testid="icon-unread"]',
-      'span[data-testid="unread-count"]',
-      'span[aria-label*="unread"]'
-    ];
-
-    selectors.forEach(function (selector) {
-      document.querySelectorAll(selector).forEach(function (badge) {
+    // match:"union" in the manifest - this sums across ALL badge markups, and first-match
+    // semantics would undercount unread chats instead of failing visibly.
+    Array.prototype.forEach.call(
+      window.__umPick(
+        'unreadBadges',
+        'span[data-testid="icon-unread"], span[data-testid="unread-count"], span[aria-label*="unread"]'
+      ),
+      function (badge) {
         if (window.__umIsDomBadgeMuted && window.__umIsDomBadgeMuted(badge)) {
           return;
         }
@@ -1820,13 +1818,13 @@
           ? window.__umSafeParseInt(label)
           : window.__umSafeParseInt(badge.textContent);
       });
-    });
 
     if (total > 0) {
       return total;
     }
 
-    var chatRows = document.querySelectorAll(
+    var chatRows = window.__umPick(
+      'chatRow',
       '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
     );
     chatRows.forEach(function (row) {
@@ -1834,7 +1832,7 @@
         return;
       }
 
-      var badgeSpan = row.querySelector('span[aria-label*="unread"], span[data-testid="icon-unread"]');
+      var badgeSpan = window.__umPickIn1(row, 'rowUnreadBadge', 'span[aria-label*="unread"], span[data-testid="icon-unread"]');
       if (!badgeSpan) {
         return;
       }
@@ -1897,11 +1895,9 @@
   window.__unifiedMessengerPublishBadge = publishBadgeCountImmediate;
 
   function attachSidebarObserver() {
-    var sidebarRoots = [
-      document.querySelector('#pane-side'),
-      document.querySelector('#side'),
-      document.querySelector('[data-testid="chat-list"]')
-    ].filter(Boolean);
+    var sidebarRoots = Array.prototype.slice.call(
+      window.__umPick('chatListRoots', '#pane-side, #side, [data-testid="chat-list"]')
+    );
 
     if (!sidebarRoots.length) {
       return;
@@ -1927,8 +1923,7 @@
   }
 
   function attachMainObserver() {
-    var mainRoot = document.querySelector('#main') ||
-      document.querySelector('[data-testid="conversation-panel-messages"]');
+    var mainRoot = window.__umPick1('conversationRoot', '#main');
     if (!mainRoot) {
       return;
     }
@@ -2222,9 +2217,7 @@
     }
 
     count = Math.max(1, Math.min(parseInt(count, 10) || 5000, 10000));
-    var root = document.querySelector('#main') ||
-      document.querySelector('[data-testid="conversation-panel-messages"]') ||
-      document.body;
+    var root = window.__umPick1('conversationRoot', '#main') || document.body;
     if (!root) {
       return { ok: false, reason: 'no-root' };
     }

@@ -43,6 +43,18 @@ public sealed record SelectorAnchor
     /// <summary>State name to the values that mean it, e.g. <c>read</c> to the blue fill.</summary>
     [JsonPropertyName("states")]
     public IReadOnlyDictionary<string, IReadOnlyList<string>>? States { get; init; }
+
+    /// <summary>
+    /// <c>"first"</c> (default) stops at the first candidate that matches. <c>"union"</c> collects across
+    /// every candidate.
+    /// </summary>
+    /// <remarks>
+    /// Union is not a convenience. The unread-badge count sums three different badge markups, and
+    /// first-match there would not fail visibly — it would silently undercount unread chats, which is the
+    /// single metric this product exists to report.
+    /// </remarks>
+    [JsonPropertyName("match")]
+    public string? Match { get; init; }
 }
 
 /// <summary>

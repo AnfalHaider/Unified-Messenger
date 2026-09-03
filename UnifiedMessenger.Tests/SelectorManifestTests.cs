@@ -47,13 +47,24 @@ public class SelectorManifestTests
     [Fact]
     public void NoCandidateDependsOnAHashedClassName()
     {
-        // WhatsApp Web's row classes are hashed build artifacts. A manifest that anchors on one looks
-        // fine on the day it is written and breaks silently at the next deploy.
+        // WhatsApp Web's row classes are hashed build artifacts and anchoring on one looks fine the day it
+        // is written, then breaks silently at the next deploy. Its *semantic* classes are plain words
+        // (`message-out`, `selectable-text`, `title`) and are legitimate anchors the shipped scraper has
+        // read for the life of the feature — so "has no hyphen" is the wrong rule; it fails `.title`.
+        //
+        // What actually separates the two is shape: every hash observed here either starts with an
+        // underscore (`_ak8k`) or carries digits among the letters (`x1n2onr6`). Words do neither.
+        var hashedClass = new System.Text.RegularExpressions.Regex(@"\.(_[A-Za-z0-9_]+|[A-Za-z]*[0-9][A-Za-z0-9]*)\b");
+
         foreach (var (name, anchor) in WhatsApp().Anchors)
         {
-            Assert.All(
-                anchor.Candidates,
-                c => Assert.False(c.Contains('.') && !c.Contains('['), $"Anchor '{name}' looks class-anchored: {c}"));
+            foreach (var candidate in anchor.Candidates)
+            {
+                var match = hashedClass.Match(candidate);
+                Assert.False(
+                    match.Success,
+                    $"Anchor '{name}' depends on '{match.Value}', which has the shape of a hashed build artifact: {candidate}");
+            }
         }
     }
 
@@ -92,6 +103,93 @@ public class SelectorManifestTests
         Assert.NotNull(ack.States);
         Assert.Contains("rgb(0, 123, 252)", ack.States!["read"]);
         Assert.Contains("rgba(0, 0, 0, 0.6)", ack.States["delivered"]);
+    }
+
+    // ---- A3 migration guards ----------------------------------------------------------------------
+
+    private static string ScriptText(string file) =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Assets", "Scripts", file));
+
+    [Fact]
+    public void EveryAnchorNameUsedByTheScriptsExistsInTheManifest()
+    {
+        // The failure this migration could introduce and nothing else would catch: a typo'd anchor name.
+        // __umPick falls back to the built-in selector, so a misspelling still WORKS — it just silently
+        // stops being manifest-driven, and the whole point of the increment quietly evaporates.
+        var source = ScriptText("whatsapp-adapter.js") + "\n" + ScriptText("adapter-core.js");
+        var referenced = System.Text.RegularExpressions.Regex
+            .Matches(source, @"(?:__umPick1?|__umPickIn1?|umCandidates)\(\s*(?:[A-Za-z0-9_\[\]().]+,\s*)?'([a-zA-Z][A-Za-z0-9]*)'")
+            .Select(m => m.Groups[1].Value)
+            .Distinct()
+            .ToList();
+
+        Assert.NotEmpty(referenced);
+
+        var anchors = WhatsApp().Anchors;
+        var missing = referenced.Where(r => !anchors.ContainsKey(r)).ToList();
+        Assert.True(missing.Count == 0, "Scripts reference anchors absent from the manifest: " + string.Join(", ", missing));
+    }
+
+    [Fact]
+    public void EveryManifestAnchorIsEitherUsedOrDeclaredReady()
+    {
+        // Dead config is worse than no config: it reads as coverage the scraper does not actually have.
+        // An anchor earns its place by being called, or by gating readiness.
+        // The readback script is a private const in the app assembly. Read it by reflection rather than
+        // from a source path: the path arithmetic from the test output directory is fragile, and it broke
+        // the first time this test ran.
+        var readbackScript = (string?)typeof(ConversationFocusHelper)
+            .GetField("OpenChatHeaderScript", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            ?.GetRawConstantValue() ?? string.Empty;
+        Assert.NotEqual(string.Empty, readbackScript);
+
+        var source = ScriptText("whatsapp-adapter.js") + "\n" + ScriptText("adapter-core.js") + "\n" + readbackScript;
+
+        var manifest = WhatsApp();
+        var ready = manifest.ReadyWhen?.All ?? [];
+
+        // Anchors measured and recorded for a reader that does not exist yet. Each must name its increment,
+        // so this list can only shrink deliberately.
+        string[] declaredForLater =
+        [
+            "ackGlyph",            // A9-era: CanReadAck is still false, no reader may exist before it flips
+            "rowPreview",          // A7 navigation readback
+            "rowMeta",             // A7 navigation readback
+            "archivedButton",      // A7: "show archived" is a named operation, not yet built
+            "searchContainer"      // A7: search-driven navigation
+        ];
+
+        var unused = manifest.Anchors.Keys
+            .Where(k => !ready.Contains(k) && !declaredForLater.Contains(k) && !source.Contains($"'{k}'"))
+            .ToList();
+
+        Assert.True(unused.Count == 0, "Manifest anchors with no consumer: " + string.Join(", ", unused));
+    }
+
+    [Fact]
+    public void MigratedCallSitesStillPassTheirBuiltInSelector()
+    {
+        // __umPick(name) with no second argument cannot fall back, so a manifest that fails to load would
+        // leave that call site blind. Every migrated site must keep the selector it used to hardcode.
+        var source = ScriptText("whatsapp-adapter.js") + "\n" + ScriptText("adapter-core.js");
+        var oneArg = System.Text.RegularExpressions.Regex
+            .Matches(source, @"window\.__umPick1?\(\s*'([a-zA-Z][A-Za-z0-9]*)'\s*\)")
+            .Select(m => m.Groups[1].Value)
+            .Where(n => n != "required")   // __umSelectorsReady probes readiness anchors by name, no DOM fallback wanted
+            .ToList();
+
+        Assert.True(oneArg.Count == 0, "These call sites have no built-in fallback: " + string.Join(", ", oneArg));
+    }
+
+    [Fact]
+    public void TheUnreadBadgeAnchorKeepsUnionSemantics()
+    {
+        // countFromDomBadges SUMS across three badge markups. First-match semantics here would not fail
+        // visibly — it would silently undercount unread chats, which is the metric the product exists for.
+        var badges = WhatsApp().Anchors["unreadBadges"];
+
+        Assert.Equal("union", badges.Match);
+        Assert.Equal(3, badges.Candidates.Count);
     }
 
     [Fact]

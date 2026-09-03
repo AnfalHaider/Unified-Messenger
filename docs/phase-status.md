@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-09-02 · **Baseline:** v4.99.75 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-09-02 · **Baseline:** v4.99.76 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
@@ -33,6 +33,19 @@
 > **positive readiness** anchors, because WhatsApp Web serves a fully-loaded document with an empty chat
 > list during a cold sync. One call site migrated as proof; the rest follows in A3.
 > Sequencing: [scraper-foundation-roadmap.md](scraper-foundation-roadmap.md).
+>
+> **A3 · Increment 110 (v4.99.76): WhatsApp migrated onto the manifest — 57 call sites, 50 anchors.**
+> The schema held: one field added (`match: "union"`, for the unread-badge sum, where first-match would
+> silently undercount rather than fail visibly) and one helper shape (`umCandidates`, for sites that
+> iterate their own selector list). `whatsapp-store-bridge.js` needed nothing — it has zero DOM selectors.
+> Verified live against three real accounts: 64 conversations, 100% title/preview/key/timestamp coverage,
+> every anchor matching its first candidate, no call site falling back to its built-in.
+> **`InjectedScriptSyntaxTests` was added after a real escape:** the migration left an unbalanced brace in
+> `whatsapp-adapter.js`, the whole file threw on load, every WhatsApp global vanished — and 1940 tests
+> stayed green, because every other JS test asserts on script *text*, which a broken file passes. `node
+> --check` now runs over all five injected scripts.
+> **Surfaced, not fixed (A4 owns it):** `attachSidebarObserver` can run during the cold-sync window when
+> `#pane-side` is absent, and then never attaches. Pre-existing — the manifest only made it visible.
 
 > **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
 > Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.

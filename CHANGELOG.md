@@ -5,6 +5,41 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.76
+
+> **What you will notice:** still nothing directly — but the app's entire knowledge of *where things are
+> on WhatsApp's page* now lives in a data file instead of being scattered through its program code. When
+> WhatsApp next changes its website, that becomes a small fix rather than a new release for everyone.
+
+**WhatsApp migrated onto the selector manifest (Phase 2, A3 · Increment 110).**
+
+57 selector call sites across `whatsapp-adapter.js`, `adapter-core.js`, `ConversationFocusHelper.cs` and
+`OversightSnapshotReader.cs` now resolve through the manifest. 50 named anchors.
+
+- **Behaviour-identical by construction.** Where a call site used a comma-joined selector, that exact
+  string is the manifest's *first* candidate. A comma-joined `querySelector` returns the first match in
+  **document** order, which is not the same node as first-candidate-in-list order — so keeping it verbatim
+  is what stops the migration quietly changing which element a preview is read from.
+- **Union semantics preserved where they matter.** The unread-badge count sums across three different
+  badge markups. First-match there would not fail visibly; it would silently undercount unread chats,
+  which is the metric the product exists to report. The manifest marks that anchor `match: "union"`.
+- **One selector deliberately dropped:** `div._ak8k span`, the sixth and last fallback in the row-subtitle
+  list, anchored on a hashed build-artifact class from a WhatsApp build that no longer exists. It was
+  unreachable behind five stable candidates. Pulling it out of a concatenated string is exactly what the
+  manifest is for.
+
+**A syntax check on every injected script**, after a real escape: the migration left an unbalanced brace
+in `whatsapp-adapter.js`, so the whole 76 KB file threw on load and every WhatsApp global vanished — with
+the full suite green, published and installed. It went green because every other JS test here asserts on
+the script's *text*, which a broken file passes just as happily as a working one. `node --check` now runs
+over all five scripts as part of the suite, and the guard was verified by deliberately breaking a file.
+
+**Verified live** in the published binary against three real accounts: 64 conversations, 100% title,
+preview, key and timestamp coverage, every anchor matching its **first** candidate, and no call site
+falling back to its built-in selector.
+
+1946 tests green.
+
 ## v4.99.75
 
 > **What you will notice:** nothing yet. This is groundwork for something you will notice a lot the first

@@ -15,39 +15,70 @@
   // an unmigrated platform, or a manifest that failed to parse. __umPick must work in that case, which
   // is why every call site passes the selector it used to hardcode as the last-resort fallback. The
   // manifest can therefore only ever CHANGE which selector is used, never remove the ability to look.
-  window.__umSelectorDiag = { picks: Object.create(null), misses: [], builtinUsed: [] };
+  window.__umSelectorDiag = { picks: Object.create(null), misses: [], builtinUsed: [], hits: [] };
 
   function umAnchor(name) {
     var s = window.__umSelectors;
     return (s && s.anchors && s.anchors[name]) || null;
   }
 
-  // Returns a NodeList/array for the named anchor, trying manifest candidates best-first.
-  // Records which candidate index matched: index 0 is healthy, a rising index is the earliest warning
-  // that the client is being redesigned, and 'builtin' means the manifest is stale and needs a bump.
-  window.__umPick = function (name, builtinSelector) {
+  function umNote(name, index, selector, count) {
+    window.__umSelectorDiag.picks[name] = { index: index, selector: selector, count: count };
+    if (window.__umSelectorDiag.hits.indexOf(name) < 0) {
+      window.__umSelectorDiag.hits.push(name);
+    }
+    if (index === 'builtin' && window.__umSelectorDiag.builtinUsed.indexOf(name) < 0) {
+      window.__umSelectorDiag.builtinUsed.push(name);
+    }
+  }
+
+  // Resolves a named anchor within `root` (document when null), trying manifest candidates best-first,
+  // and records WHICH candidate index matched. Index 0 is healthy; a rising index is the earliest
+  // warning that the client is being redesigned; 'builtin' means the manifest is stale and needs a bump.
+  //
+  // match:"union" collects across EVERY candidate instead of stopping at the first that matches. That is
+  // not a nicety: the unread-badge count sums three different badge markups, and first-match semantics
+  // there would silently undercount unread chats rather than fail visibly.
+  function umResolve(root, name, builtinSelector) {
     var anchor = umAnchor(name);
     var candidates = (anchor && anchor.candidates) || [];
-    for (var i = 0; i < candidates.length; i++) {
-      try {
-        var nodes = document.querySelectorAll(candidates[i]);
-        if (nodes.length) {
-          window.__umSelectorDiag.picks[name] = { index: i, selector: candidates[i], count: nodes.length };
-          return nodes;
+    var scope = root || document;
+
+    if (anchor && anchor.match === 'union') {
+      var merged = [];
+      for (var u = 0; u < candidates.length; u++) {
+        try {
+          var found = scope.querySelectorAll(candidates[u]);
+          for (var f = 0; f < found.length; f++) {
+            if (merged.indexOf(found[f]) < 0) {
+              merged.push(found[f]);
+            }
+          }
+        } catch (badUnionSelector) { /* skip this candidate */ }
+      }
+      if (merged.length) {
+        umNote(name, 'union', candidates.join(' | '), merged.length);
+        return merged;
+      }
+    } else {
+      for (var i = 0; i < candidates.length; i++) {
+        try {
+          var nodes = scope.querySelectorAll(candidates[i]);
+          if (nodes.length) {
+            umNote(name, i, candidates[i], nodes.length);
+            return nodes;
+          }
+        } catch (badSelector) {
+          // A malformed selector in a manifest must not take the scraper down with it.
         }
-      } catch (badSelector) {
-        // A malformed selector in a manifest must not take the scraper down with it.
       }
     }
 
     if (builtinSelector) {
       try {
-        var fallback = document.querySelectorAll(builtinSelector);
+        var fallback = scope.querySelectorAll(builtinSelector);
         if (fallback.length) {
-          window.__umSelectorDiag.picks[name] = { index: 'builtin', selector: builtinSelector, count: fallback.length };
-          if (window.__umSelectorDiag.builtinUsed.indexOf(name) < 0) {
-            window.__umSelectorDiag.builtinUsed.push(name);
-          }
+          umNote(name, 'builtin', builtinSelector, fallback.length);
           return fallback;
         }
       } catch (badBuiltin) { /* nothing left to try */ }
@@ -57,7 +88,34 @@
       window.__umSelectorDiag.misses.push(name);
     }
     return [];
+  }
+
+  window.__umPick = function (name, builtinSelector) { return umResolve(null, name, builtinSelector); };
+  window.__umPickIn = function (root, name, builtinSelector) {
+    return root ? umResolve(root, name, builtinSelector) : [];
   };
+  // Single-node forms, for the many call sites that were `querySelector`. NOTE: where a call site was a
+  // comma-joined list, its FIRST manifest candidate is that exact same string. A comma-joined
+  // querySelector returns the first match in DOCUMENT order, which is not the same node as
+  // first-candidate-in-list order, and quietly changing which node a preview is read from is exactly the
+  // kind of silent behaviour change this migration must not make.
+  window.__umPick1 = function (name, builtinSelector) {
+    return umResolve(null, name, builtinSelector)[0] || null;
+  };
+  window.__umPickIn1 = function (root, name, builtinSelector) {
+    return root ? (umResolve(root, name, builtinSelector)[0] || null) : null;
+  };
+
+  // For the call sites that already iterated their own ordered selector array and cannot use __umPick
+  // (they interleave other work per candidate, or hand the list to a caller-supplied option). Returns
+  // the manifest's candidate list, or the built-in array unchanged when there is no manifest entry.
+  // These do NOT record a hit index — they never had one to record — but they are still manifest-driven,
+  // which is what lets a client redesign be fixed as data.
+  function umCandidates(name, builtins) {
+    var anchor = umAnchor(name);
+    return (anchor && anchor.candidates && anchor.candidates.length) ? anchor.candidates.slice() : builtins;
+  }
+  window.__umCandidates = umCandidates;
 
   // Positive readiness: are the anchors that must exist before a count is trustworthy actually present?
   // WhatsApp Web serves a fully-loaded document with an EMPTY chat list during a cold sync, so "zero
@@ -79,13 +137,25 @@
   };
 
   window.__umSelectorReport = function () {
+    var diag = window.__umSelectorDiag;
+    // A row-scoped anchor legitimately misses on most rows — not every chat has a recalled icon or an
+    // unread badge — so a raw miss list is mostly false positives and would make a health surface cry
+    // wolf. What actually matters is an anchor that has NEVER resolved anywhere.
+    var neverMatched = [];
+    for (var i = 0; i < diag.misses.length; i++) {
+      if (diag.hits.indexOf(diag.misses[i]) < 0) {
+        neverMatched.push(diag.misses[i]);
+      }
+    }
+
     return JSON.stringify({
       hasManifest: !!window.__umSelectors,
       observedAgainst: (window.__umSelectors && window.__umSelectors.observedAgainst) || null,
       ready: window.__umSelectorsReady(),
-      picks: window.__umSelectorDiag.picks,
-      builtinUsed: window.__umSelectorDiag.builtinUsed,
-      misses: window.__umSelectorDiag.misses
+      picks: diag.picks,
+      builtinUsed: diag.builtinUsed,
+      neverMatched: neverMatched,
+      missedAtLeastOnce: diag.misses
     });
   };
 
@@ -139,7 +209,8 @@
    * Shared by whatsapp-adapter, conversation-context-scraper, and whatsapp-voice-monitor.
    */
   window.__umResolveActiveChatJid = function () {
-    var rows = document.querySelectorAll(
+    var rows = window.__umPick(
+      'selectedChatRow',
       '#pane-side [role="row"][aria-selected="true"], #side [role="row"][aria-selected="true"]'
     );
     for (var i = 0; i < rows.length; i++) {
@@ -149,11 +220,11 @@
       }
     }
 
-    var headerSelectors = [
+    var headerSelectors = umCandidates('conversationHeader', [
       'header [data-testid="conversation-info-header"]',
       '#main header',
       'header[data-testid="conversation-header"]'
-    ];
+    ]);
 
     for (var s = 0; s < headerSelectors.length; s++) {
       var headerNode = document.querySelector(headerSelectors[s]);
@@ -321,7 +392,7 @@
 
   function umTitleOf(row) {
     try {
-      var el = row.querySelector('span[title]');
+      var el = window.__umPickIn1(row, 'rowTitle', 'span[title]');
       return el ? window.__umCollapseWhitespace(el.getAttribute('title') || el.textContent || '') : '';
     } catch (err) { return '?'; }
   }
@@ -359,7 +430,7 @@
       // A rendered row identifies OUR chat only if its visible title matches by phone digits or by real name.
       // This is the guard that stops us ever clicking the wrong chat (e.g. a search hit on message text).
       function umRowIsTarget(row) {
-        var el = row.querySelector('span[title]');
+        var el = window.__umPickIn1(row, 'rowTitle', 'span[title]');
         var raw = el ? (el.getAttribute('title') || el.textContent || '') : '';
         var lc = window.__umCollapseWhitespace(raw).toLowerCase();
         if (!lc) { return null; }
@@ -402,7 +473,8 @@
         return false;
       }
 
-      var search = document.querySelector(
+      var search = window.__umPick1(
+        'searchInput',
         'input[aria-label="Search or start a new chat"], #side input[role="textbox"], #side input[type="text"]'
       );
       if (search) {
@@ -417,7 +489,7 @@
         }
         // Filter is applied. Results render asynchronously, so early retries may see zero rows — that's fine,
         // we keep the filter and try again next tick (no clearing).
-        var results = document.querySelectorAll('#pane-side [role="row"], #side [role="row"]');
+        var results = window.__umPick('searchResultRow', '#pane-side [role="row"], #side [role="row"]');
         // Prefer an explicitly verified row (matches our number, or our name).
         for (var i = 0; i < results.length; i++) {
           var vhit = umRowIsTarget(results[i]);
@@ -441,7 +513,7 @@
             rows: results.length,
             term: term
           });
-          umRealClick(results[0].querySelector('span[title]') || results[0]);
+          umRealClick(window.__umPickIn1(results[0], 'rowTitle', 'span[title]') || results[0]);
           return true;
         }
         umTrace('no-results-yet', { term: term });
@@ -782,25 +854,25 @@
     window.__umOutgoingDomMonitorInstalled = true;
 
     var opts = options || {};
-    var outgoingSelectors = (opts.outgoingMessageSelectors || []).concat([
+    var outgoingSelectors = (opts.outgoingMessageSelectors || []).concat(umCandidates('messageOutgoing', [
       'div.message-out',
       '[class*="message-out"]',
       '[data-testid*="outgoing"]',
       '[data-testid*="message-out"]'
-    ]);
-    var panelSelectors = (opts.conversationPanelSelectors || []).concat([
+    ]));
+    var panelSelectors = (opts.conversationPanelSelectors || []).concat(umCandidates('conversationPanelScan', [
       '[data-testid="conversation-panel-messages"]',
       '[role="main"]',
       'main'
-    ]);
-    var chatHintSelectors = opts.chatHintSelectors || [
+    ]));
+    var chatHintSelectors = opts.chatHintSelectors || umCandidates('conversationTitleHint', [
       'header [data-testid="conversation-info-header-chat-title"]',
       'header span[title]',
       'header h1',
       'header h2',
       '[aria-label*="Conversation" i]',
       '[role="heading"]'
-    ];
+    ]);
     var lastOutgoingSignature = '';
     var domDebounceTimer = null;
 
@@ -962,14 +1034,14 @@
 
     var composeSelectors = (opts.composeSelectors || []).concat(defaultComposeSelectors);
     var sendSelectors = (opts.sendSelectors || []).concat(defaultSendSelectors);
-    var chatHintSelectors = opts.chatHintSelectors || [
+    var chatHintSelectors = opts.chatHintSelectors || umCandidates('conversationTitleHintGeneric', [
       'header [data-testid="conversation-info-header-chat-title"]',
       'header span[title]',
       '.chat-header .title',
       '.chat-info .peer-title',
       'header h1',
       'header h2'
-    ];
+    ]);
 
     function matchesSelector(element, selectors) {
       if (!element || !element.closest) {

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "platform": "whatsapp",
   "observedAgainst": "web.whatsapp.com, 2026-09-02, module registry ~18000, WebView2 Edge 152.0.4191.53",
-  "notes": "Anchors ranked and measured in docs/scraper-inventory/whatsapp.md. Candidates are ordered best-first; the runtime records which index matched, and a rising index is the earliest warning of a client redesign. Row classes are hashed and are deliberately absent from every candidate list.",
+  "notes": "Anchors ranked and measured in docs/scraper-inventory/whatsapp.md. Candidates are ordered best-first; the runtime records which index matched, and a rising index is the earliest warning of a client redesign. Row classes are hashed and are deliberately absent from every candidate list. Where a call site used a comma-joined selector, candidate 0 is that exact same string: a comma-joined querySelector returns the first match in DOCUMENT order, which is not the same node as first-candidate-in-list order, so keeping it verbatim is what makes the migration behaviour-identical. One selector was dropped rather than carried over: 'div._ak8k span', the sixth and last fallback of the row-subtitle list, which anchored on a hashed build-artifact class from a WhatsApp build that no longer exists. It was unreachable behind five stable candidates and could only ever have produced a wrong match. Pulling it out of a concatenated string is exactly the kind of thing this manifest exists to make visible.",
 
   "anchors": {
     "chatList": {
@@ -71,6 +71,249 @@
         "read": [ "rgb(0, 123, 252)" ],
         "delivered": [ "rgba(0, 0, 0, 0.6)" ]
       }
+    },
+
+    "conversationHeaderReadback": {
+      "candidates": [
+        "#main header span[title]",
+        "#main header [data-testid=\"conversation-info-header\"] span",
+        "#main header span[dir=\"auto\"]",
+        "[data-testid=\"conversation-header\"] span[title]"
+      ]
+    },
+    "rowLabelNodes": {
+      "candidates": [
+        "span[aria-label], span[data-testid=\"label\"], div[title], span[title]"
+      ]
+    },
+    "rowTitleDir": {
+      "candidates": [
+        "span[dir=\"auto\"][title], span[title][dir=\"auto\"], div[role=\"gridcell\"] span[dir=\"auto\"]",
+        "span[dir=\"auto\"][title]",
+        "span[title]"
+      ]
+    },
+    "rowTime": {
+      "candidates": [
+        "div[data-testid=\"cell-frame-secondary\"] span, span[data-testid=\"msg-time\"], aside span[dir=\"auto\"]",
+        "[data-testid=\"cell-frame-secondary\"] span"
+      ]
+    },
+    "rowPreviewText": {
+      "candidates": [
+        "span[data-testid=\"last-msg-text\"], span[data-testid=\"last-msg-status\"], div[data-testid=\"cell-frame-secondary\"] span",
+        "span[data-testid=\"last-msg-text\"]",
+        "[data-testid=\"cell-frame-secondary\"] span"
+      ]
+    },
+    "rowSecondaryText": {
+      "candidates": [
+        "span[data-testid=\"last-msg-text\"], span[dir=\"ltr\"], span[dir=\"auto\"]",
+        "span[data-testid=\"last-msg-text\"]"
+      ]
+    },
+    "rowSecondaryCells": {
+      "candidates": [
+        "[data-testid=\"cell-frame-secondary\"] span, [role=\"gridcell\"] span"
+      ]
+    },
+    "rowPrimary": {
+      "candidates": [
+        "div[data-testid=\"cell-frame-primary\"]"
+      ]
+    },
+    "rowPrimaryTitle": {
+      "candidates": [
+        "div[data-testid=\"cell-frame-primary\"] span[title], span[title]",
+        "[data-testid=\"cell-frame-title\"] span[title]"
+      ]
+    },
+    "rowSecondary": {
+      "candidates": [
+        "div[data-testid=\"cell-frame-secondary\"]"
+      ]
+    },
+    "rowAutoSpans": {
+      "candidates": [
+        "span[dir=\"auto\"]"
+      ]
+    },
+    "rowStatusIcon": {
+      "candidates": [
+        "span[data-testid=\"last-msg-status\"] [data-icon], [data-icon^=\"msg-\"], [data-icon^=\"status-\"]"
+      ]
+    },
+    "rowRecalled": {
+      "candidates": [
+        "[data-icon=\"recalled\"]"
+      ]
+    },
+    "rowUnreadBadge": {
+      "candidates": [
+        "span[aria-label*=\"unread\"], span[data-testid=\"icon-unread\"]"
+      ]
+    },
+    "unreadBadges": {
+      "match": "union",
+      "candidates": [
+        "span[data-testid=\"icon-unread\"]",
+        "span[data-testid=\"unread-count\"]",
+        "span[aria-label*=\"unread\"]"
+      ]
+    },
+    "rowConversationId": {
+      "candidates": [
+        "[data-id]"
+      ]
+    },
+
+    "conversationPanel": {
+      "candidates": [
+        "#main [data-testid=\"conversation-panel-messages\"], #main",
+        "[data-testid=\"conversation-panel-messages\"]",
+        "[role=\"main\"]",
+        "main"
+      ]
+    },
+    "conversationHeader": {
+      "candidates": [
+        "header [data-testid=\"conversation-info-header\"]",
+        "#main header",
+        "header[data-testid=\"conversation-header\"]"
+      ]
+    },
+    "conversationTitleHint": {
+      "candidates": [
+        "header [data-testid=\"conversation-info-header-chat-title\"]",
+        "header span[title]",
+        "header h1",
+        "header h2",
+        "[aria-label*=\"Conversation\" i]",
+        "[role=\"heading\"]"
+      ]
+    },
+    "messageContainer": {
+      "candidates": [
+        "div[data-testid=\"msg-container\"]"
+      ]
+    },
+    "messageText": {
+      "candidates": [
+        "span.selectable-text, span.copyable-text"
+      ]
+    },
+    "messageTime": {
+      "candidates": [
+        "span[data-testid=\"msg-meta\"] span, span[dir=\"auto\"][title]"
+      ]
+    },
+    "messageMeta": {
+      "candidates": [
+        "[data-testid=\"msg-meta\"]"
+      ]
+    },
+    "messageStatusGlyph": {
+      "candidates": [
+        "span[data-icon], span[data-testid*=\"status\"]"
+      ]
+    },
+    "messageOutgoing": {
+      "candidates": [
+        "div.message-out",
+        "[class*=\"message-out\"]",
+        "[data-testid*=\"outgoing\"]",
+        "[data-testid*=\"message-out\"]"
+      ]
+    },
+    "messageOutgoingMarker": {
+      "candidates": [
+        ".message-out"
+      ]
+    },
+    "messageAudio": {
+      "candidates": [
+        "[data-testid=\"audio-play\"], [data-icon=\"audio\"], [data-icon=\"ptt\"]"
+      ]
+    },
+    "messageImage": {
+      "candidates": [
+        "[data-testid=\"image-thumb\"], img[src*=\"blob:\"], [data-testid=\"media-url-provider\"] img"
+      ]
+    },
+
+    "chatListRoots": {
+      "match": "union",
+      "candidates": [
+        "#pane-side",
+        "#side",
+        "[data-testid=\"chat-list\"]"
+      ]
+    },
+    "selectedChatRow": {
+      "candidates": [
+        "#pane-side [role=\"row\"][aria-selected=\"true\"], #side [role=\"row\"][aria-selected=\"true\"]"
+      ]
+    },
+    "searchInput": {
+      "candidates": [
+        "input[aria-label=\"Search or start a new chat\"], #side input[role=\"textbox\"], #side input[type=\"text\"]",
+        "#side input[role=\"textbox\"]"
+      ]
+    },
+    "searchResultRow": {
+      "candidates": [
+        "#pane-side [role=\"row\"], #side [role=\"row\"]"
+      ]
+    },
+    "rowSubtitle": {
+      "candidates": [
+        "span[data-testid=\"last-msg-text\"], span[data-testid=\"last-msg-status\"], div[data-testid=\"cell-frame-secondary\"] span, span[dir=\"ltr\"]:last-of-type, span[dir=\"auto\"]:last-of-type",
+        "div[data-testid=\"cell-frame-secondary\"] span"
+      ]
+    },
+    "conversationRoot": {
+      "candidates": [
+        "#main",
+        "[data-testid=\"conversation-panel-messages\"]"
+      ]
+    },
+    "conversationTitle": {
+      "candidates": [
+        "header [data-testid=\"conversation-info-header-chat-title\"]",
+        "span[data-testid=\"conversation-info-header-chat-title\"]",
+        "#main header span[title]",
+        "header[data-testid=\"conversation-header\"] span[title]"
+      ]
+    },
+    "conversationSubtitle": {
+      "candidates": [
+        "header [data-testid=\"conversation-info-header-chat-subtitle\"]",
+        "header span[data-testid=\"conversation-info-header-chat-subtitle\"]",
+        "#main header span[dir=\"auto\"]:not([title])"
+      ]
+    },
+    "conversationProfilePhone": {
+      "candidates": [
+        "header a[href^=\"tel:\"]",
+        "header [data-testid=\"phone-number\"]"
+      ]
+    },
+    "conversationPanelScan": {
+      "candidates": [
+        "[data-testid=\"conversation-panel-messages\"]",
+        "[role=\"main\"]",
+        "main"
+      ]
+    },
+    "conversationTitleHintGeneric": {
+      "candidates": [
+        "header [data-testid=\"conversation-info-header-chat-title\"]",
+        "header span[title]",
+        ".chat-header .title",
+        ".chat-info .peer-title",
+        "header h1",
+        "header h2"
+      ]
     }
   },
 

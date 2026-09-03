@@ -19,15 +19,22 @@ public static class ConversationFocusHelper
     // shifts between builds, and it also reports the composer box — which only exists while a chat is open, so
     // "no chat opened" stays distinguishable from "my header selector is wrong". Without that second signal a
     // stale selector would look exactly like the no-op click it is meant to detect.
+    // The header list, the open-chat pane and the composer all come from the selector manifest when one is
+    // loaded (window.__umCandidates / __umPick1, defined by adapter-core.js), and fall back to the literals
+    // below when it is not. The fallbacks are not decoration: this script also runs immediately after a
+    // WebView reload, before the adapter chain has re-injected, and a readback that threw there would report
+    // "chat did not open" for a chat that opened perfectly well.
     private const string OpenChatHeaderScript =
         "(function(){try{" +
-        "var sels=['#main header span[title]','#main header [data-testid=\"conversation-info-header\"] span'," +
+        "var dsels=['#main header span[title]','#main header [data-testid=\"conversation-info-header\"] span'," +
         "'#main header span[dir=\"auto\"]','[data-testid=\"conversation-header\"] span[title]'];" +
+        "var sels=window.__umCandidates?window.__umCandidates('conversationHeaderReadback',dsels):dsels;" +
         "var hdr='',hit=-1;" +
         "for(var i=0;i<sels.length;i++){var e=document.querySelector(sels[i]);" +
         "if(e){var t=(e.getAttribute('title')||e.textContent||'').trim();if(t){hdr=t;hit=i;break;}}}" +
-        "var main=!!document.querySelector('#main');" +
-        "var composer=!!document.querySelector('#main [contenteditable=\"true\"],footer [contenteditable=\"true\"]');" +
+        "var main=window.__umPick1?!!window.__umPick1('openChatPane','#main'):!!document.querySelector('#main');" +
+        "var csel='#main [contenteditable=\"true\"],footer [contenteditable=\"true\"]';" +
+        "var composer=window.__umPick1?!!window.__umPick1('composer',csel):!!document.querySelector(csel);" +
         "return JSON.stringify({header:hdr,sel:hit,main:main,composer:composer});" +
         "}catch(e){return '<err>';}})()";
 
