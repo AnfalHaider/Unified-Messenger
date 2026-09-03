@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "platform": "whatsapp",
+  "observedAgainst": "web.whatsapp.com, 2026-09-02, module registry ~18000, WebView2 Edge 152.0.4191.53",
+  "notes": "Anchors ranked and measured in docs/scraper-inventory/whatsapp.md. Candidates are ordered best-first; the runtime records which index matched, and a rising index is the earliest warning of a client redesign. Row classes are hashed and are deliberately absent from every candidate list.",
+
+  "anchors": {
+    "chatList": {
+      "candidates": [
+        "[data-testid=\"chat-list\"]",
+        "#pane-side"
+      ]
+    },
+    "chatRow": {
+      "candidates": [
+        "#pane-side [role=\"row\"]",
+        "[data-testid=\"chat-list\"] [role=\"row\"]",
+        "#side [role=\"row\"]"
+      ]
+    },
+    "rowCell": {
+      "candidates": [
+        "[data-testid=\"cell-frame-container\"]"
+      ]
+    },
+    "rowTitle": {
+      "candidates": [
+        "[data-testid=\"cell-frame-title\"] span[title]",
+        "span[title]"
+      ]
+    },
+    "rowPreview": {
+      "candidates": [
+        "[data-testid=\"cell-frame-primary-detail\"]"
+      ]
+    },
+    "rowMeta": {
+      "candidates": [
+        "[data-testid=\"cell-frame-secondary\"]"
+      ]
+    },
+    "archivedButton": {
+      "candidates": [
+        "[data-testid=\"chatlist-panel-archived-button\"]"
+      ]
+    },
+    "searchContainer": {
+      "candidates": [
+        "[data-testid=\"chat-list-search-container\"]"
+      ]
+    },
+    "openChatPane": {
+      "candidates": [
+        "#main"
+      ]
+    },
+    "composer": {
+      "candidates": [
+        "#main [contenteditable=\"true\"][role=\"textbox\"]",
+        "[contenteditable=\"true\"][role=\"textbox\"]"
+      ]
+    },
+
+    "ackGlyph": {
+      "candidates": [
+        "[data-testid=\"last-msg-status\"] svg"
+      ],
+      "read": "fill",
+      "requireTitle": "wds-ic-read",
+      "states": {
+        "read": [ "rgb(0, 123, 252)" ],
+        "delivered": [ "rgba(0, 0, 0, 0.6)" ]
+      }
+    }
+  },
+
+  "readyWhen": {
+    "all": [ "chatList", "rowCell" ]
+  }
+}

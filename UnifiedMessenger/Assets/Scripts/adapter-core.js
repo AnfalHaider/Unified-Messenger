@@ -10,6 +10,85 @@
   window.__umIncludeMutedBadges = !!(window.__umConfig && window.__umConfig.includeMutedBadges);
   window.__umRuntimeDisposables = [];
 
+  // --- Selector manifest -------------------------------------------------------------------------
+  // window.__umSelectors is injected by SelectorManifestLoader before this script. It may be absent:
+  // an unmigrated platform, or a manifest that failed to parse. __umPick must work in that case, which
+  // is why every call site passes the selector it used to hardcode as the last-resort fallback. The
+  // manifest can therefore only ever CHANGE which selector is used, never remove the ability to look.
+  window.__umSelectorDiag = { picks: Object.create(null), misses: [], builtinUsed: [] };
+
+  function umAnchor(name) {
+    var s = window.__umSelectors;
+    return (s && s.anchors && s.anchors[name]) || null;
+  }
+
+  // Returns a NodeList/array for the named anchor, trying manifest candidates best-first.
+  // Records which candidate index matched: index 0 is healthy, a rising index is the earliest warning
+  // that the client is being redesigned, and 'builtin' means the manifest is stale and needs a bump.
+  window.__umPick = function (name, builtinSelector) {
+    var anchor = umAnchor(name);
+    var candidates = (anchor && anchor.candidates) || [];
+    for (var i = 0; i < candidates.length; i++) {
+      try {
+        var nodes = document.querySelectorAll(candidates[i]);
+        if (nodes.length) {
+          window.__umSelectorDiag.picks[name] = { index: i, selector: candidates[i], count: nodes.length };
+          return nodes;
+        }
+      } catch (badSelector) {
+        // A malformed selector in a manifest must not take the scraper down with it.
+      }
+    }
+
+    if (builtinSelector) {
+      try {
+        var fallback = document.querySelectorAll(builtinSelector);
+        if (fallback.length) {
+          window.__umSelectorDiag.picks[name] = { index: 'builtin', selector: builtinSelector, count: fallback.length };
+          if (window.__umSelectorDiag.builtinUsed.indexOf(name) < 0) {
+            window.__umSelectorDiag.builtinUsed.push(name);
+          }
+          return fallback;
+        }
+      } catch (badBuiltin) { /* nothing left to try */ }
+    }
+
+    if (window.__umSelectorDiag.misses.indexOf(name) < 0) {
+      window.__umSelectorDiag.misses.push(name);
+    }
+    return [];
+  };
+
+  // Positive readiness: are the anchors that must exist before a count is trustworthy actually present?
+  // WhatsApp Web serves a fully-loaded document with an EMPTY chat list during a cold sync, so "zero
+  // rows" and "not ready yet" are indistinguishable without this. Absent manifest => null, meaning
+  // "unknown", which a caller must not read as either ready or broken.
+  window.__umSelectorsReady = function () {
+    var s = window.__umSelectors;
+    var required = s && s.readyWhen && s.readyWhen.all;
+    if (!required || !required.length) {
+      return null;
+    }
+
+    for (var i = 0; i < required.length; i++) {
+      if (!window.__umPick(required[i]).length) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  window.__umSelectorReport = function () {
+    return JSON.stringify({
+      hasManifest: !!window.__umSelectors,
+      observedAgainst: (window.__umSelectors && window.__umSelectors.observedAgainst) || null,
+      ready: window.__umSelectorsReady(),
+      picks: window.__umSelectorDiag.picks,
+      builtinUsed: window.__umSelectorDiag.builtinUsed,
+      misses: window.__umSelectorDiag.misses
+    });
+  };
+
   var previewPruneCounter = 0;
   var previewMaxEntries = 200;
   var previewMaxAgeMs = 600000;
@@ -296,7 +375,11 @@
       }
 
       // 1) Already-rendered row (saved contacts on screen, or a chat whose number is visible).
-      var rows = document.querySelectorAll(
+      //    First manifest-driven call site. The comma-joined list below is kept as the built-in
+      //    fallback, and is exactly what this used to be: note that a comma-joined selector matches
+      //    but can never say WHICH member matched, which is the signal the manifest exists to record.
+      var rows = window.__umPick(
+        'chatRow',
         '#pane-side [role="row"], #side [role="row"], [data-testid="chat-list"] [role="row"]'
       );
       for (var r = 0; r < rows.length; r++) {

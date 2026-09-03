@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-08-28 · **Baseline:** v4.99.72 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-09-02 · **Baseline:** v4.99.75 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
@@ -23,6 +23,16 @@
 >   vary **over time**, not just per profile.
 > - **Meta Business Suite · Instagram** — ⛔ BLOCKED, no live session. Nothing guessed.
 > - ☐ §4.3.2 read-receipt experiment NOT RUN — needs a second device; protocol written.
+>
+> **Phase 2 started (v4.99.75, A2 · Increment 109): selector manifest schema + loader.**
+> `Assets/Config/selectors/whatsapp.json` — every anchor as **ordered fallback candidates**, with the
+> runtime recording *which index matched* (a rising index is the earliest warning of a client redesign;
+> the comma-joined selector lists it replaces could never say which member matched). Load order is
+> user-data override → compiled-in embedded default → the selector hardcoded at the JS call site, so a
+> bad override is ignored with a warning and can never produce a dead scraper. The manifest also declares
+> **positive readiness** anchors, because WhatsApp Web serves a fully-loaded document with an empty chat
+> list during a cold sync. One call site migrated as proof; the rest follows in A3.
+> Sequencing: [scraper-foundation-roadmap.md](scraper-foundation-roadmap.md).
 
 > **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
 > Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.

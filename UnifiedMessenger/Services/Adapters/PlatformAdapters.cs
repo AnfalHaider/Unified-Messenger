@@ -70,6 +70,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         }
 
         var configScript = BuildConfigScript(instance);
+        var selectorScript = SelectorManifestLoader.BuildInjectionScript(instance.Platform);
         var coreScript = await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false);
         var handshakeScript = await LoadScriptTemplateAsync("connection-handshake.js", cancellationToken).ConfigureAwait(false);
         var adapterScript = await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false);
@@ -83,6 +84,13 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         {
             coreWebView.Settings.IsWebMessageEnabled = true;
             await AddDocumentCreatedScriptAsync(coreWebView, configScript, cancellationToken).ConfigureAwait(true);
+            // Before adapter-core, which defines __umPick over it. Empty when this platform has no
+            // manifest yet — every call site then falls back to its compiled-in selector.
+            if (selectorScript.Length > 0)
+            {
+                await AddDocumentCreatedScriptAsync(coreWebView, selectorScript, cancellationToken).ConfigureAwait(true);
+            }
+
             await AddDocumentCreatedScriptAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, handshakeScript, cancellationToken).ConfigureAwait(true);
             await AddDocumentCreatedScriptAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
@@ -109,6 +117,7 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
         try
         {
             var configScript = BuildConfigScript(instance);
+            var selectorScript = SelectorManifestLoader.BuildInjectionScript(instance.Platform);
             var coreScript = await LoadScriptTemplateAsync("adapter-core.js", cancellationToken).ConfigureAwait(false);
             var adapterScript = await LoadScriptTemplateAsync(ScriptFileName, cancellationToken).ConfigureAwait(false);
             var additionalScripts = new List<string>();
@@ -127,6 +136,11 @@ public abstract class BasePlatformAdapter : IPlatformAdapter
                         cancellationToken)
                     .ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, configScript, cancellationToken).ConfigureAwait(true);
+                if (selectorScript.Length > 0)
+                {
+                    await ExecuteScriptSafeAsync(coreWebView, selectorScript, cancellationToken).ConfigureAwait(true);
+                }
+
                 await ExecuteScriptSafeAsync(coreWebView, coreScript, cancellationToken).ConfigureAwait(true);
                 await ExecuteScriptSafeAsync(coreWebView, adapterScript, cancellationToken).ConfigureAwait(true);
 

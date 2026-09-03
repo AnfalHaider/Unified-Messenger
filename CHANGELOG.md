@@ -5,6 +5,42 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.75
+
+> **What you will notice:** nothing yet. This is groundwork for something you will notice a lot the first
+> time WhatsApp changes its website: today that silently breaks the reading of your chats until a new
+> version of the app is installed. This release moves the app's knowledge of *where things are on the page*
+> out of the program and into a data file that can be updated on its own.
+
+**Selector manifest — schema and loader (Phase 2, A2 · Increment 109).**
+
+The scrapers' knowledge of a client's page structure moves out of hardcoded JavaScript and into a
+versioned manifest at `Assets/Config/selectors/<platform>.json`. WhatsApp's is the first, built from the
+live measurements in `docs/scraper-inventory/whatsapp.md`.
+
+- **Ordered fallbacks, and the runtime records which one hit.** Each anchor is a list of selectors tried
+  best-first. Index 0 is healthy; a rising index is the earliest possible warning that a client redesign
+  is coming, and it arrives before anything breaks. The comma-joined selector lists the scrapers used
+  before match, but can never say *which* member matched — that signal is the point of the change.
+- **The load degrades, but never dies.** Order is: an updatable override in user data, then the
+  compiled-in default embedded in the binary, then the selector hardcoded at the JS call site. An override
+  that is malformed, aimed at another platform, written for a schema this build does not know, or that
+  contains an anchor with no candidates is **ignored with a logged warning** — never thrown. A file that
+  arrives from outside the build must not be able to stop the scraper.
+- **The default is an embedded resource, not a file on disk**, so it survives a partial install, a locked
+  file and a corrupted copy.
+- **Positive readiness.** The manifest declares which anchors must all resolve before a count is
+  trustworthy. WhatsApp Web serves a fully-loaded document with an *empty* chat list during a cold sync —
+  measured at 64 rows, then 0, then 66, with `readyState: "complete"` throughout — so "zero chats" and
+  "not ready yet" are otherwise indistinguishable.
+- **The delivered-vs-read tick is pinned as a colour, not a name.** Both states are titled
+  `wds-ic-read`; only the computed fill differs. A test fails the build if that anchor is ever
+  "simplified" into reading the icon name — the same defect that once labelled five unanswered one-star
+  Google reviews "Positive".
+
+One call site is migrated as proof the path works end to end; the rest of the WhatsApp scraper follows in
+the next increment. 19 new tests, 1936 green.
+
 ## v4.99.74
 
 > **What you will notice:** the **Add account** picker now offers **every channel** — Telegram, Instagram

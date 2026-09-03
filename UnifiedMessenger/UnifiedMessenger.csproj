@@ -26,9 +26,9 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 
     <!-- Versioning (keep in sync with app.manifest assemblyIdentity and installer.iss). -->
-    <Version>4.99.74</Version>
-    <AssemblyVersion>4.99.74.0</AssemblyVersion>
-    <FileVersion>4.99.74.0</FileVersion>
+    <Version>4.99.75</Version>
+    <AssemblyVersion>4.99.75.0</AssemblyVersion>
+    <FileVersion>4.99.75.0</FileVersion>
     <ApplicationDisplayVersion>4.63.0</ApplicationDisplayVersion>
     <NoWarn>$(NoWarn);CS9057</NoWarn>
 
@@ -77,6 +77,10 @@
     <Content Include="Assets\Branding\wordmark-inline-light.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Selector manifests are EMBEDDED, not Content: this is the compiled-in default the loader falls
+         back to, so it must survive a partial install, a file lock and a corrupted disk copy. The
+         updatable copy lives in user data and is written by the update channel, never here. -->
+    <EmbeddedResource Include="Assets\Config\selectors\*.json" />
     <Content Include="Assets\Config\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
