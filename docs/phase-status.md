@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-09-02 · **Baseline:** v4.99.77 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-09-03 · **Baseline:** v4.99.78 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
@@ -62,6 +62,24 @@
 > - **A degraded read is not a failed read.** The line says "Still reading correctly" — a fallback selector
 >   is a warning about the future, not a claim that today's numbers are wrong.
 > Also fixes the A3 leftover: `attachSidebarObserver` now retries until the chat list exists.
+>
+> **A5 · Increment 112 (v4.99.78): a selector fix ships without a new binary.** A
+> `selectors-<platform>.json` release asset is discovered in the pass that already finds the installer
+> (so no extra request), fetched with one GET, validated, and written to the user-data override path A2
+> reads. **Applied before the version comparison** — the whole point is that a WhatsApp redesign becomes a
+> data update for people already on the current version.
+> The trust boundary is the substance of this increment:
+> - **A host allowlist, not just HTTPS.** The installer path checks only the scheme; this deliberately does
+>   not inherit that gap, and a test asserts the difference so it cannot be "simplified" back.
+> - **Validated before it touches disk**, by the same parse the loader uses, plus shape caps and a refusal
+>   of any candidate containing markup, `javascript:` or `expression(`.
+> - **256 KB read cap enforced against the stream**, not merely `Content-Length` — a server that lies about
+>   its length does not get to decide how much is read.
+> - **Nothing goes out**: one GET, no body, no query, no header built from anything the app has read.
+>   [egress-inventory.md](egress-inventory.md) row 4 records it.
+> - **No new trust**: the same release serves the installer, so anyone who could publish a hostile manifest
+>   could publish a hostile executable — strictly worse. And it rides `EnableAutoUpdate`, so an owner who
+>   turned updates off gets no new outbound request.
 
 > **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
 > Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.

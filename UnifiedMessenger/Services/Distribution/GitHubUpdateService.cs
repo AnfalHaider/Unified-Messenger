@@ -131,6 +131,16 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
                     ErrorMessage: DescribeUnavailableReleaseSource(owner, repo));
             }
 
+            // Before the version comparison on purpose. A selector fix is worth nothing if it only lands
+            // alongside a new binary — the entire point is that a WhatsApp redesign becomes a data update
+            // for people who are already on the current version.
+            if (release.SelectorManifestAssets is { Count: > 0 } manifestAssets)
+            {
+                await SelectorManifestUpdater
+                    .TryApplyAsync(manifestAssets, DownloadManifestAssetAsync, timeoutCts.Token)
+                    .ConfigureAwait(false);
+            }
+
             if (!TryParseReleaseVersion(release.TagName, out var latestVersion))
             {
                 return new UpdateCheckResult(
@@ -311,6 +321,7 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
 
         string? downloadUrl = null;
         string? shaSidecarUrl = null;
+        var manifestAssets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         if (root.TryGetProperty("assets", out var assetsElement) &&
             assetsElement.ValueKind == JsonValueKind.Array)
@@ -339,11 +350,59 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
                     asset.TryGetProperty("browser_download_url", out var shaUrlElement))
                 {
                     shaSidecarUrl = shaUrlElement.GetString();
+                    continue;
+                }
+
+                if (SelectorManifestUpdater.PlatformFromAssetName(assetName) is not null &&
+                    asset.TryGetProperty("browser_download_url", out var manifestUrlElement) &&
+                    manifestUrlElement.GetString() is { Length: > 0 } manifestUrl)
+                {
+                    manifestAssets[assetName] = manifestUrl;
                 }
             }
         }
 
-        return new GitHubReleaseInfo(tagName.Trim(), downloadUrl, shaSidecarUrl);
+        return new GitHubReleaseInfo(tagName.Trim(), downloadUrl, shaSidecarUrl, manifestAssets);
+    }
+
+    /// <summary>
+    /// Downloads a selector manifest asset. Same client, same constant User-Agent, no query and no body —
+    /// and a hard read cap, because a validator cannot protect memory it has already been handed.
+    /// </summary>
+    internal static async Task<string?> DownloadManifestAssetAsync(string url, CancellationToken cancellationToken)
+    {
+        using var response = await HttpClient
+            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        if (response.Content.Headers.ContentLength > SelectorManifestUpdater.MaxManifestBytes)
+        {
+            return null;
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var buffer = new byte[SelectorManifestUpdater.MaxManifestBytes + 1];
+        var read = 0;
+        while (read < buffer.Length)
+        {
+            var n = await stream.ReadAsync(buffer.AsMemory(read), cancellationToken).ConfigureAwait(false);
+            if (n == 0)
+            {
+                break;
+            }
+
+            read += n;
+        }
+
+        // A server that ignores or lies about Content-Length does not get to decide how much we read.
+        return read > SelectorManifestUpdater.MaxManifestBytes
+            ? null
+            : System.Text.Encoding.UTF8.GetString(buffer, 0, read);
     }
 
     internal static async Task<string?> TryFetchSha256SidecarAsync(
@@ -432,7 +491,10 @@ public sealed class GitHubUpdateService : IGitHubUpdateService
     internal sealed record GitHubReleaseInfo(
         string TagName,
         string? DownloadUrl,
-        string? Sha256SidecarUrl = null);
+        string? Sha256SidecarUrl = null,
+        // Asset name -> download URL for every `selectors-<platform>.json` on the release. Discovered in
+        // the same pass that finds the installer, so finding them costs no extra request.
+        IReadOnlyDictionary<string, string>? SelectorManifestAssets = null);
 
     private async Task ApplyUpdateAsync(
         string downloadUrl,

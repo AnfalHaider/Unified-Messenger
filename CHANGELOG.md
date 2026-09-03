@@ -5,6 +5,40 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.78
+
+> **What you will notice:** nothing today, and that is the point. If WhatsApp changes its website, the fix
+> can now reach you as a small update the app picks up on its own — without you installing a new version
+> and without waiting for one to be built.
+
+**A selector fix ships without a new binary (Phase 2, A5 · Increment 112).**
+
+The app already checks GitHub for new releases. It now also looks for a small `selectors-<platform>.json`
+file on that same release, and installs it if it passes every check. It is found during the check that was
+already happening, so it costs no extra request, and it is applied **before** the version comparison —
+otherwise a selector fix could only arrive alongside a new version, which would defeat the whole purpose.
+
+Because this lets a file from outside the build change what the scrapers read, the guards are the
+substance of the release:
+
+- **A host allowlist, not just HTTPS.** The installer download only checks that a URL uses HTTPS. That is
+  looser than it should be, and this new path deliberately does not copy it — a test asserts the
+  difference so it cannot quietly be levelled down.
+- **Validated before it touches the disk**, by the same parser the app uses at startup, plus size and
+  shape limits and an outright refusal of anything containing markup or a `javascript:` scheme. A
+  half-finished download or a file meant for another channel never gets written.
+- **A hard read limit enforced on the download itself**, not just on what the server claims the size is.
+- **Nothing is sent.** One plain request, no data attached — no account names, no counts, nothing derived
+  from your conversations. Documented in `docs/egress-inventory.md`.
+- **No new trust.** The same release already provides the installer, so anyone able to publish a bad
+  settings file there could publish a bad program instead, which is worse. And it only runs if you have
+  automatic updates on.
+
+Even in the worst case, a bad file cannot stop the app reading: it falls back to the settings built into
+the program, and then to the ones written into the code itself.
+
+2009 tests green.
+
 ## v4.99.77
 
 > **What you will notice:** a new line in **Settings → Data**, under the WhatsApp reader, telling you
