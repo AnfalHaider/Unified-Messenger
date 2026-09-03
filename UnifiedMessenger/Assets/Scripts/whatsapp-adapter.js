@@ -1894,14 +1894,27 @@
 
   window.__unifiedMessengerPublishBadge = publishBadgeCountImmediate;
 
+  var sidebarAttachRetries = 0;
+
   function attachSidebarObserver() {
     var sidebarRoots = Array.prototype.slice.call(
       window.__umPick('chatListRoots', '#pane-side, #side, [data-testid="chat-list"]')
     );
 
     if (!sidebarRoots.length) {
+      // Measured 2026-09-02: WhatsApp Web serves a fully-loaded document with NO chat list for a stretch
+      // after a cold start — #pane-side genuinely does not exist, then reappears. This function used to
+      // give up permanently when it happened to run in that window, and the badge then never updated
+      // again for the life of the session. Retry until the list exists, with a bounded budget so a
+      // genuinely logged-out page does not spin forever. (~2 minutes at 2s.)
+      if (sidebarAttachRetries < 60) {
+        sidebarAttachRetries += 1;
+        setTimeout(attachSidebarObserver, 2000);
+      }
       return;
     }
+
+    sidebarAttachRetries = 0;
 
     if (!sidebarDomObserver) {
       sidebarDomObserver = new MutationObserver(function () {

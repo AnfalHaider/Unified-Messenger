@@ -55,6 +55,20 @@ public sealed record SelectorAnchor
     /// </remarks>
     [JsonPropertyName("match")]
     public string? Match { get; init; }
+
+    /// <summary>
+    /// True when this anchor legitimately may never match on a healthy account, so a miss is not evidence
+    /// of breakage and must not escalate to a "broken" warning.
+    /// </summary>
+    /// <remarks>
+    /// Two classes qualify. <b>Conversation-scoped</b> anchors exist only while a chat is open — and under
+    /// the read-only rule the app must not open one to find out, so on a healthy install they never match
+    /// at all. <b>Dormant fallbacks</b> such as WhatsApp's <c>[data-id]</c>, measured absent from the
+    /// entire document and kept only in case it returns. Escalating either would fire a false alarm on
+    /// every install, and a false alarm here trains the owner to ignore the one warning that matters.
+    /// </remarks>
+    [JsonPropertyName("optional")]
+    public bool Optional { get; init; }
 }
 
 /// <summary>

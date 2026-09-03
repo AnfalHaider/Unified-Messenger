@@ -141,10 +141,25 @@
     // A row-scoped anchor legitimately misses on most rows — not every chat has a recalled icon or an
     // unread badge — so a raw miss list is mostly false positives and would make a health surface cry
     // wolf. What actually matters is an anchor that has NEVER resolved anywhere.
+    //
+    // Optional anchors are excluded from that. Two whole classes of anchor legitimately never match on a
+    // healthy account: the conversation-scoped ones (nothing is open — and under the read-only rule the
+    // app must not open anything to find out), and deliberately dormant fallbacks such as the WhatsApp
+    // `[data-id]` attribute, which was measured absent from the entire document and is kept only in case
+    // it returns. Escalating either to "broken" would fire a false alarm on every healthy install, and a
+    // false alarm here trains the owner to ignore the one warning that matters.
     var neverMatched = [];
+    var neverMatchedOptional = [];
     for (var i = 0; i < diag.misses.length; i++) {
-      if (diag.hits.indexOf(diag.misses[i]) < 0) {
-        neverMatched.push(diag.misses[i]);
+      var name = diag.misses[i];
+      if (diag.hits.indexOf(name) >= 0) {
+        continue;
+      }
+      var anchor = umAnchor(name);
+      if (anchor && anchor.optional) {
+        neverMatchedOptional.push(name);
+      } else {
+        neverMatched.push(name);
       }
     }
 
@@ -155,6 +170,7 @@
       picks: diag.picks,
       builtinUsed: diag.builtinUsed,
       neverMatched: neverMatched,
+      neverMatchedOptional: neverMatchedOptional,
       missedAtLeastOnce: diag.misses
     });
   };

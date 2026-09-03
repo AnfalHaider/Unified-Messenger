@@ -616,6 +616,19 @@
                             FontSize="{StaticResource UmFontSizeBody}"
                             Opacity="0.8"
                             TextWrapping="WrapWholeWords" />
+                        <!-- Whether the scraper can still find the parts of WhatsApp's page it reads.
+                             Separate line from the one above on purpose: that reports WHICH reader is
+                             live, this reports whether the page still looks the way the app expects. -->
+                        <TextBlock
+                            FontSize="{StaticResource UmFontSizeBody}"
+                            Foreground="{ThemeResource UmTextTertiaryBrush}"
+                            Text="Reading WhatsApp's page"
+                            TextWrapping="WrapWholeWords" />
+                        <TextBlock
+                            x:Name="SelectorHealthText"
+                            FontSize="{StaticResource UmFontSizeBody}"
+                            Foreground="{ThemeResource UmTextTertiaryBrush}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                     </shared:SurfaceCard.CardBody>
                 </shared:SurfaceCard>

@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-09-02 · **Baseline:** v4.99.76 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-09-02 · **Baseline:** v4.99.77 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
@@ -46,6 +46,22 @@
 > --check` now runs over all five injected scripts.
 > **Surfaced, not fixed (A4 owns it):** `attachSidebarObserver` can run during the cold-sync window when
 > `#pane-side` is absent, and then never attaches. Pre-existing — the manifest only made it visible.
+>
+> **A4 · Increment 111 (v4.99.77): the scraper says when it breaks.** `SelectorHealth` records each scan's
+> report and escalates *working → degraded → broken*; a second Settings → Data line shows it in plain
+> language. Nothing leaves the machine — owner's screen and `app.log` only.
+> Three findings shaped the design, and each would have made this cry wolf:
+> - **The readiness gate cannot be used to suppress misses.** The readiness anchors *are* `chatList` and
+>   `rowCell`, so a break in those makes the page report "not ready" too — gating on it would mean the one
+>   failure that matters most could never escalate. Time is the only honest discriminator, so the
+>   threshold is **10 consecutive misses** (~4–15 min at the 25s/90s cadence), past any cold sync.
+> - **Two whole classes of anchor legitimately never match** on a healthy account: conversation-scoped
+>   ones (nothing is open, and the read-only rule forbids opening one to check) and dormant fallbacks like
+>   `[data-id]`. 28 of 50 anchors are now marked `optional` and never escalate; the 22 that do are exactly
+>   the ones whose breakage means the chat list cannot be read.
+> - **A degraded read is not a failed read.** The line says "Still reading correctly" — a fallback selector
+>   is a warning about the future, not a claim that today's numbers are wrong.
+> Also fixes the A3 leftover: `attachSidebarObserver` now retries until the chat list exists.
 
 > **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
 > Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.

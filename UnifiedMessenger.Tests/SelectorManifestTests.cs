@@ -193,6 +193,40 @@ public class SelectorManifestTests
     }
 
     [Fact]
+    public void AnchorsThatCannotMatchOnAHealthyAccountAreMarkedOptional()
+    {
+        // Every one of these was observed in `neverMatched` on a live, perfectly healthy account: the
+        // conversation-scoped ones because no chat was open (and the read-only rule forbids opening one to
+        // check), and `rowConversationId` because `[data-id]` is absent from the entire current document.
+        // Unmarked, each would escalate to "broken" on every install after three scans.
+        string[] mustBeOptional =
+        [
+            "conversationRoot", "conversationTitle", "conversationSubtitle", "conversationProfilePhone",
+            "messageContainer", "rowConversationId", "selectedChatRow", "openChatPane", "composer"
+        ];
+
+        var anchors = WhatsApp().Anchors;
+        foreach (var name in mustBeOptional)
+        {
+            Assert.True(anchors.ContainsKey(name), $"'{name}' is missing from the manifest.");
+            Assert.True(anchors[name].Optional, $"'{name}' would raise a false 'broken' alarm on a healthy account.");
+        }
+    }
+
+    [Fact]
+    public void TheAnchorsThatDoEscalateAreTheOnesThatMeanTheChatListIsUnreadable()
+    {
+        // The complement of the rule above, asserted directly: if this set ever empties, the health
+        // surface can no longer report breakage at all and would sit permanently green.
+        var escalating = WhatsApp().Anchors.Where(a => !a.Value.Optional).Select(a => a.Key).ToList();
+
+        Assert.Contains("chatRow", escalating);
+        Assert.Contains("chatList", escalating);
+        Assert.Contains("rowTitle", escalating);
+        Assert.True(escalating.Count >= 10, $"Only {escalating.Count} anchors can report breakage.");
+    }
+
+    [Fact]
     public void WhatsAppBusinessSharesTheWhatsAppManifest()
     {
         Assert.Equal("whatsapp", SelectorManifestLoader.ManifestIdFor("whatsappbusiness"));

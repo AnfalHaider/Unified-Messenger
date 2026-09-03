@@ -39,6 +39,10 @@ public sealed partial class SettingsPage
         StoreBridgeHealthText.Text = UseStoreBridgeToggle.IsOn
             ? StoreBridgeHealth.Describe()
             : "Turned off — using the saved-copy reader, so previews are limited to the chats WhatsApp has on screen.";
+
+        // Independent of the toggle above: whichever reader is live, the app still has to find things on
+        // WhatsApp's page, and this is the only place a customer can see that it still can.
+        SelectorHealthText.Text = SelectorHealth.Describe();
     }
 
     private async void ClearAnalyticsButton_Click(object sender, RoutedEventArgs e)

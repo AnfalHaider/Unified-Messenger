@@ -90,7 +90,39 @@ public static class OversightSnapshotReader
         }
         finally
         {
+            // In the finally so it covers every exit: bridge success, scan success, scan failure, and the
+            // page-not-ready case alike. The page accumulates its selector picks across the whole refresh,
+            // so one read here describes all of them, and it costs a single round trip per scan.
+            await CaptureSelectorHealthAsync(instance).ConfigureAwait(false);
             gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Reads the page's selector report and records it. Never throws into a scan: the health of the
+    /// diagnostics must not be able to break the thing they are diagnosing.
+    /// </summary>
+    private static async Task CaptureSelectorHealthAsync(MessengerInstance instance)
+    {
+        try
+        {
+            var raw = await InstanceConnection.Current
+                .ExecuteScriptAsync(instance.Id, SelectorHealth.ReportScript)
+                .ConfigureAwait(false);
+
+            // Null when the adapter has not loaded yet — a page mid-boot has no report and no problem.
+            var entry = SelectorHealth.ParseReport(raw, DateTimeOffset.UtcNow);
+            if (entry is not null)
+            {
+                SelectorHealth.Record(instance.Id, entry.Value);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.LogWarningThrottled(
+                "Selectors",
+                $"Could not read the selector report for {instance.Id}: {ex.Message}",
+                $"selector-report-{instance.Id}");
         }
     }
 

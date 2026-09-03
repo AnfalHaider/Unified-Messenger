@@ -5,6 +5,42 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.77
+
+> **What you will notice:** a new line in **Settings → Data**, under the WhatsApp reader, telling you
+> whether the app can still find what it needs on WhatsApp's page. Most of the time it will say everything
+> was found on the first try. If WhatsApp changes its site, this is where you will see it — before the
+> numbers go wrong, not after.
+
+**The scraper now says when it breaks (Phase 2, A4 · Increment 111).**
+
+The failure this is designed against: WhatsApp ships a markup change, every customer breaks the same day,
+and the vendor finds out from support tickets. Each scan now reports which page elements it found and how
+far down its fallback list it had to go, and that escalates through three states —
+**working** → **degraded** → **broken**.
+
+Three findings shaped it, and each would otherwise have made the warning cry wolf:
+
+- **Readiness cannot be used to suppress a miss.** The readiness elements *are* the chat list, so a break
+  in those makes the page report "not ready" as well. Gating on it would mean the single most important
+  failure could never be reported. The only honest discriminator is time, so an element must go unfound
+  for **10 consecutive checks** — roughly 4 to 15 minutes, well past the cold-start window where a healthy
+  account genuinely shows an empty chat list.
+- **Two whole classes of element legitimately never match.** Anything inside a conversation (nothing is
+  open, and the app must not open one to check) and deliberately dormant fallbacks. 28 of 50 are now
+  marked optional and never escalate; the 22 that remain are exactly those whose absence means the chat
+  list cannot be read.
+- **Degraded is not failed.** The line says "Still reading correctly" — a fallback is a warning about the
+  future, not a claim that today's numbers are wrong.
+
+Nothing leaves the machine: this goes to your screen and `app.log`, never to us.
+
+**Also fixed:** the chat-list watcher could give up permanently if it started during the window where
+WhatsApp shows a loaded page with no chats yet — after which unread badges stopped updating for the rest
+of the session. It now waits for the list to appear.
+
+1970 tests green.
+
 ## v4.99.76
 
 > **What you will notice:** still nothing directly — but the app's entire knowledge of *where things are
