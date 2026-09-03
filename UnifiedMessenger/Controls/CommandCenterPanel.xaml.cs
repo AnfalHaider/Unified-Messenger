@@ -857,6 +857,17 @@ public sealed partial class CommandCenterPanel : UserControl
         // label does not say how much it will show is a guess the owner has to make by clicking.
         CardsHost.Children.Add(BuildQueueFilters(everything, instances));
 
+        // What this list CANNOT show. Built from every connected account, not the filtered set: a Messenger
+        // account's waiting customers are missing from this queue whatever filter is applied, and until now
+        // nothing said so. Silent about channels that carry no conversations at all — a Google Business
+        // account is not a gap in a conversation queue, and saying it is trains the owner to dismiss the
+        // line that matters.
+        var coverage = ChannelCoverage.DescribeGaps(instances);
+        if (coverage.Length > 0)
+        {
+            CardsHost.Children.Add(BuildCoverageNotice(coverage));
+        }
+
         var rows = everything
             .Where(r => MatchesAgeFilter(r.Chat.LastActivityUtc))
             .Where(r => _facetFilter is null || QueueFacets.Resolve(r.Chat) == _facetFilter)
@@ -1223,6 +1234,58 @@ public sealed partial class CommandCenterPanel : UserControl
     ];
 
     /// <summary>A "Showing: &lt;account&gt; ✕" chip above the scoped Needs-reply list; click clears the scope.</summary>
+    /// <summary>
+    /// The line that says which channels this queue cannot show waiting customers for.
+    /// </summary>
+    /// <remarks>
+    /// A Grid with Auto + * columns, not a horizontal StackPanel: a StackPanel measures its children with
+    /// infinite available width, so TextWrapping can never take effect and the sentence is clipped
+    /// mid-word by the parent. That cut the AI shift briefing, the Activity insights and the About page's
+    /// feature list before anyone noticed.
+    /// </remarks>
+    private FrameworkElement BuildCoverageNotice(string text)
+    {
+        var grid = new Grid { ColumnSpacing = 8 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        // "" (Info), written as an escape. Eight FontIcons in this app were written with the glyph
+        // inline and reached the repo EMPTY — a zero-length Glyph draws nothing while the control stays
+        // present, laid out and focusable, so it is invisible to a reader, to the suite and on screen alike.
+        var icon = new FontIcon
+        {
+            Glyph = "\uE946",
+            FontSize = UmScale.Icon.Sm,
+            Foreground = Brush("TextFillColorSecondaryBrush"),
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 1, 0, 0)
+        };
+
+        var label = new TextBlock
+        {
+            Text = text,
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("TextFillColorSecondaryBrush"),
+            TextWrapping = TextWrapping.WrapWholeWords
+        };
+
+        Grid.SetColumn(icon, 0);
+        Grid.SetColumn(label, 1);
+        grid.Children.Add(icon);
+        grid.Children.Add(label);
+
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(grid, text);
+
+        return new Border
+        {
+            Background = Brush("CardBackgroundFillColorSecondaryBrush"),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = grid
+        };
+    }
+
     private FrameworkElement BuildScopeChip(string label)
     {
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };

@@ -5,6 +5,34 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.81
+
+> **What you will notice:** if you have a Messenger or Instagram account connected, the "needs a reply"
+> list now tells you it cannot show waiting customers from those channels. Before, they were simply
+> missing and nothing said so.
+
+**Per-channel honesty in the needs-a-reply queue (Phase 4, A8 · Increment 115).**
+
+The queue already gathers waiting customers across every account — that part was built long ago. What it
+never did was admit what it leaves out. It is built from the WhatsApp reader, so an owner with a Messenger
+account connected has been reading a cross-account list of who is waiting that silently omits an entire
+channel their customers message them on.
+
+It now says so, in one line, and only when there is something to say:
+
+> *1 Messenger account not shown here — nothing reads that channel yet.*
+
+**Google Business is deliberately not mentioned.** It has no conversations to miss — Google shut its
+message channel down in 2024 — so listing it as a gap would be true-sounding and wrong, and would train
+you to ignore the line on the days it matters.
+
+Three situations that used to look identical are now distinguished: a channel shown in full, a channel
+that could be counted but not listed, and a channel nothing reads yet. The middle one has been documented
+in the code since it was written and never had anywhere to appear; it does now, waiting for the first
+channel that reaches it.
+
+2048 tests green.
+
 ## v4.99.80
 
 > **What you will notice:** when you click a waiting customer from the dashboard and the app says it took

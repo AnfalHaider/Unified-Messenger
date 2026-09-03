@@ -1,6 +1,6 @@
 # Build status — Phases 1–5 (done / left)
 
-**Date:** 2026-09-03 · **Baseline:** v4.99.80 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
+**Date:** 2026-09-03 · **Baseline:** v4.99.81 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)
 
@@ -114,6 +114,23 @@
 >   scraper. Opening the archived *list* is read-only and correctly does not require it.
 > - Google's two URL navigations are registered as in-page implementations, with a test pinning the
 >   any-`google.com`-host guard that manual Re-sync depends on.
+>
+> **A8 · Increment 115 (v4.99.81): Phase 4 — per-channel honesty in the queue.** Deliberately smaller than
+> planned. Reading the code first showed the cross-account unified queue **already exists**
+> (`CommandCenterPanel.BuildNeedsReplyList`: every account, facet/age/location filters,
+> `AwaitingChatActions` per row, click-through that focuses the real client). Building a second one would
+> have been the duplication the roadmap itself warned against.
+> What was actually missing: the queue is built from the WhatsApp pipeline, so a **Messenger account's
+> waiting customers are absent from it and nothing said so** — the same one-noun-two-populations defect
+> the v4.99.46–48 audits fixed three times, and worse here because the missing thing is a waiting customer.
+> `ChannelCoverage` sorts every channel into four levels and renders one line naming the gaps. It is
+> silent about channels that carry no conversations at all: a Google Business account is not missing from
+> a conversation queue, and calling it a gap would train the owner to dismiss the line that matters.
+> That line is also the first consumer `PlatformCapabilities.IsAggregateOnly` has ever had — its
+> `CountsOnly` branch is reachable and tested, and no shipped platform hits it yet (a test records that,
+> so the day an adapter flips `CanReadUnread` someone has to look at the rendering path).
+> **Not built:** a separate inbox page. There is nothing for it to show that the existing queue does not,
+> until a Meta adapter lands in A9.
 
 > **Session 9 update (v4.88.0 → v4.92.0): API-modernization stream.**
 > Researched OpenWA, Evolution API, WAHA, whatsapp-web.js/wa-automate, wppconnect/wa-js and Ferdium.
