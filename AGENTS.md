@@ -204,11 +204,15 @@ done
 - **`PlatformDefinition.All`** — registry of **nine** registered platforms: `whatsapp`, `whatsappbusiness`,
   `googlebusiness`, `telegram`, `messenger`, `discord`, `metabusinesssuite`, `instagram`, `generic`.
   Add new platforms here.
-- **Registered ≠ offered.** `PlatformModuleSettingsHelper.HiddenFromPicker` hides `telegram`,
-  `metabusinesssuite`, and `instagram` from "Add account"; they stay in `All` so existing accounts still
-  resolve and the nav-guard allowlist keeps their hosts. The picker therefore offers six:
-  whatsapp, whatsappbusiness, googlebusiness, messenger, discord, generic. Check `HiddenFromPicker`
-  before concluding a channel is user-reachable.
+- **Registered = offered.** `PlatformModuleSettingsHelper.GetSelectablePlatforms()` is
+  `=> PlatformDefinition.All`, so the "Add account" picker offers all **nine**. There is no hidden set
+  and no filter to check. *(This bullet previously described a `HiddenFromPicker` gate hiding `telegram`,
+  `metabusinesssuite` and `instagram`, and said the picker offered six. That symbol was deleted in
+  v4.99.74 — "offer every channel in the Add-account picker" — and the advice to check it sent a reader
+  looking for a member that does not exist. Verified against the tree 2026-09-02.)*
+  What makes offering an unmeasured channel honest is `PlatformDefinition.Description`, not a filter:
+  every unmeasured channel's description must say "No oversight metrics", and `PlatformDescriptionTests`
+  fails the build on roadmap words.
 - **Only whatsapp/whatsappbusiness produce conversation metrics.** `googlebusiness` contributes *review*
   metrics on a separate surface (`GoogleReviewSnapshotService`). `messenger`, `discord`, and `generic` are
   embed-only and produce nothing — that is intended, not a bug.
@@ -221,7 +225,7 @@ done
 - **`AddInstanceDialogHelper`** — drives the "Add account" dialog; reads `PlatformDefinition.All`.
 
 ### Oversight engine (L0 command center)
-- **`OversightChatSnapshotService`** — reads WhatsApp Web's local `model-storage` IndexedDB `chat` store via `ExecuteScriptAsync`. Returns `ChatEntry` list. **Gotchas:** `ExecuteScriptAsync` doesn't await JS promises — use start/poll pattern. Long `message`-store cursors hang; use bounded `chat` `getAll`. Focus by sidebar `data-id` JID not title text.
+- **`OversightChatSnapshotService`** — reads WhatsApp Web's local `model-storage` IndexedDB `chat` store via `ExecuteScriptAsync`. Returns `ChatEntry` list. **Gotchas:** `ExecuteScriptAsync` doesn't await JS promises — use start/poll pattern. Long `message`-store cursors hang; use bounded `chat` `getAll`. **Focus by the sidebar row's `span[title]` text** — phone digits, or a real contact name (see P2-A below). *(This said "Focus by sidebar `data-id` JID not title text", which was the exact opposite of what the code does and of what the P2-A section thirty lines below already recorded. Measured live 2026-09-02: `document.querySelectorAll('[data-id]').length === 0` — the attribute is absent from the entire document.)*
 - **`OversightService`** — wires `OversightRollupBuilder` to live instances; builds `OversightEntityHealth` snapshots.
 - **`OversightEntityHealth`** — per-account/location health: `OnTimePercent`, `AwaitingCount`, `MeasuredCount`, `HasChatData`, `IsStale`, `TrendCounts`, `DisplayName`, `Key`, `MemberInstanceIds`.
 - **`OversightRollupBuilder`** — pure rollup logic; produces worst-first sorted health entries.
@@ -241,7 +245,8 @@ These were confirmed by reading the live WhatsApp Web IndexedDB via F12 DevTools
 - **WhatsApp Web stores unsaved contacts under `@lid` privacy JIDs**, not phone numbers. The `chat` store's conversation key is the `@lid` for these.
 - **`@lid` → phone lives in the `contact` store.** Each record is keyed by its `id` (which *is* the `@lid` for unsaved contacts) and carries `phoneNumber` as a `@c.us` JID, e.g. `{ id: "…@lid", phoneNumber: "923105325598@c.us", pushname: "…" }`. The dedicated `lid-pn-mapping` store exists but is **empty** — ignore it. `whatsapp-adapter.js` `buildLidPhoneMap` builds `contact.id → digits(contact.phoneNumber)`; the scan sets `contactPhone = lidPhoneMap[jid] || umExtractDigits(jid)`.
 - **Message bodies are ENCRYPTED at rest** in the `message` store's `msgRowOpaqueData` blob (`iv`/`_keyId`/`_scheme`). The `chat` store has no body. So **no readable preview exists in IndexedDB**; decryption is out of scope. The only plaintext preview source is the **live sidebar DOM**.
-- **Sidebar row DOM:** each `[role="row"]` exposes two `span[title]` — `[0]` = name/phone, `[1]` = last-message text — and carries **no `data-id`**. `window.__umStartPreviewHarvest()` does a **synchronous** single pass over the ~60 rendered rows (background webviews throttle `setTimeout` to ~1/sec, so scrolling never finishes), keying previews by the title's phone digits into `window.__umHarvestedPreviews`; the scan joins by resolved phone.
+- **Sidebar row DOM:** each `[role="row"]` exposes two `span[title]` — `[0]` = name/phone, `[1]` = last-message text — and carries **no `data-id`**. Re-measured 2026-09-02: `[data-id]` occurs **zero** times in the whole document, and the complete attribute set under `#pane-side` is `alt`, `aria-colindex`, `aria-disabled`, `aria-hidden`, `aria-label`, `aria-rowcount`, `aria-selected`, `class`, `data-icon`, `data-tab`, `data-testid`, `dir`, `draggable`, `id`, `role`, `src`, `style`, `tabindex`, `title`, `type` plus SVG geometry. So the `data-id` reads still present in `adapter-core.js`, `whatsapp-adapter.js` and `thread-status-auditor.js` are a **dormant fallback**, not the primary key: identity comes from `span[title]` text. `window.__umStartPreviewHarvest()` does a **synchronous** single pass over the ~60 rendered rows (background webviews throttle `setTimeout` to ~1/sec, so scrolling never finishes), keying previews by the title's phone digits into `window.__umHarvestedPreviews`; the scan joins by resolved phone.
+- **Row classes are hashed, but WhatsApp ships a stable `data-testid` vocabulary — prefer it.** Catalogued live 2026-09-02: `chat-list` (list container) · `cell-frame-container` (one row) · `cell-frame-title` (name/phone) · `cell-frame-primary-detail` (preview) · `cell-frame-secondary` (timestamp/meta) · `last-msg-status` (the outbound ack tick) · `chat-msg-symbol` · `chatlist-panel-archived-button` · `chat-list-search-container` · `filter-button`. Stable ids: `#pane-side`, `#app`, and `#main` which **exists only while a chat is open** — that is the independent readback `ConversationFocusHelper` relies on. **`list-item-<N>` is positional** — it carries a row index and breaks on reorder; never key on it. This is the anchor set the Phase 2 selector manifest is built on ([docs/scraper-inventory/whatsapp.md](docs/scraper-inventory/whatsapp.md)).
 - **Two C# parse paths build `ChatEntry` from the scan JSON — keep both in sync:** `WhatsAppBackfillProvider.ProcessIndexedDbConversationsAsync` and `OversightSnapshotReader.ParseChatEntries`. Both must read `contactPhone`. `OversightThreadEnricher.Enrich` prefers `chat.ContactPhone` → `+<digits>`. Tests: `OversightThreadEnricherTests` (7, green).
 - **`CommandCenterPanel.RunResyncAsync` reloads each account's WebView before probing** so freshly-installed scraper JS takes effect (the adapter script is injected only on document creation). `HarvestPreviewsAsync` waits ~25s for the chat list to re-render before harvesting. Preview harvest runs on the manual Re-sync path only — never the background `OversightAlertMonitor` (so it never scrolls the visible list passively).
 - Known limits (accepted): previews only for chats among the ~60 rendered rows (awaiting chats are near the top) and only when the last message has text. Re-sync is slower because it reloads each account first.
