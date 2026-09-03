@@ -7,6 +7,8 @@ oversight data it can honestly yield.
 This is Phase 1 of the scraper-foundation work. It gates the selector manifest (Phase 2), navigation
 mapping (Phase 3) and the unified inbox (Phase 4).
 
+**Sequencing for all four phases: [../scraper-foundation-roadmap.md](../scraper-foundation-roadmap.md).**
+
 ## Files
 
 | File | Channel | State |
