@@ -1,83 +1,94 @@
 # Instagram (`instagram.com`) — scraper inventory
 
-## ⛔ BLOCKED — no live session
+**Observed:** 2026-09-04 · two live logged-in business accounts, in the app's own WebView2 via CDP.
+**Build:** 9,621 JS modules · LightSpeed schema **358 tables** (identical count to `messenger.com`).
 
-**As of 2026-09-02 there is no Instagram account configured in the app**, so nothing in this file could
-be observed. Nothing below is guessed.
-
-### What unblocks it
-
-The owner adds an **Instagram** account and logs in themselves. Nothing is in the way: the channel is
-registered (`PlatformDefinition.All`, id `instagram`, default URL `https://www.instagram.com/`) and
-**is offered in the Add-account picker** — `GetSelectablePlatforms()` returns `PlatformDefinition.All`
-unfiltered as of v4.99.74. (The old `HiddenFromPicker` gate AGENTS.md still describes no longer exists
-in the tree; verified 2026-09-02.)
+Unblocked when the owner signed in. This file previously read ⛔ BLOCKED.
 
 ---
 
-## The one experiment that matters here, and why it is now the priority
+## The headline: the store is there, and it is empty
 
-§4.3.4 — **is there a passive read path in the consumer client?** Do unread counts, thread lists and
-previews appear in the DOM, an in-memory store, or a local database without opening a thread?
+**CONFIRMED — Instagram carries the same LightSpeed store as Messenger.** `require('LSDatabaseSingleton')`
+resolves, and it exposes the same 358 tables including `threads`, `messages`, `contacts` and
+`participants`. The §4.3.4 prediction in the previous version of this file was right.
 
-When the brief was written this was the fallback question, worth asking only in case a customer had no
-Business Portfolio. **The Messenger inventory promoted it to the main event.**
+**CONFIRMED — and on the feed page it holds nothing.** Measured on a signed-in account with six unread
+DMs:
 
-`messenger.com` was found to carry Meta's *LightSpeed* store — a 358-table local relational database
-reachable from page JavaScript via `require('LSDatabaseSingleton')`, with a `threads` table exposing
-`unreadMessageCount`, `snippet`, `snippetSenderContactId`, `lastActivityTimestampMs`,
-`lastReadWatermarkTimestampMs` and `folderName`, all readable with **no conversation opened**. Full
-detail in [messenger.md](messenger.md).
+| Table | Rows |
+|---|---|
+| `threads` | **0** |
+| `messages` | **0** |
+| `contacts` | **0** |
+| `participants` | **0** |
+| `_user_info` | 1 |
 
-Instagram DMs are the same product family, served by the same module system. **LIKELY** — not confirmed —
-that `instagram.com` carries an equivalent store. If it does:
+That single difference is the whole story of this channel, and it is a difference of *product*, not of
+technology. `messenger.com` **is** an inbox, so its store is populated the moment the page loads.
+`instagram.com` is a feed; Direct is a separate route, and the store fills only when that route is
+opened. So the passive read that makes Messenger rich yields nothing at all here.
 
-- Instagram goes from honestly counts-only to full oversight, passively, with no API, no approval and no
-  ban risk.
-- The main argument for routing Instagram through Meta Business Suite ("one DOM instead of two")
-  largely disappears.
-- `MetaAggregateOnly` needs the same re-scoping Messenger needs: a prohibition on **thread-view
-  navigation**, not on per-conversation reads.
+### Corroboration
 
-### The probe that settles it, verbatim
-
-Run in the logged-in Instagram client, opening nothing:
-
-```js
-// 1. is the module system the same?
-typeof require === 'function' && typeof require('__debug') === 'object'
-
-// 2. is there a LightSpeed store?
-const m = require('LSDatabaseSingleton');
-const p = m.getLSDatabaseSingletonPromiseOrValue();
-const db = (p && p.then) ? await p : p;
-Object.keys(db.tables).length            // messenger.com: 358
-
-// 3. what does the threads table carry?
-const it = db.tables.threads.entries();  // NOTE: a manual iterator - .next() only.
-const r = it.next();                     // Array.from / for..of both silently yield nothing.
-Object.keys(Array.isArray(r.value) ? r.value[1] : r.value)
-```
-
-Also check `indexedDB.databases()` for an `*_web_v1_<uid>`-shaped database, and the aggregate unread
-counter in `[aria-label]`, which on Messenger reads `"Chats · N unread"` and needs no store at all.
-
-**Report column names and counts only. Never row content** — this is a real business's customer data.
+The architecture is Meta's own, and documented. Project LightSpeed rebuilt Messenger around **MSYS**, a C
+library wrapping SQLite with stored procedures, modelling the app "relationally across hundreds of
+tables" with core tables **threads, messages, attachments and contacts** — which is precisely the schema
+observed live in both clients. It is a deliberate cross-app messaging platform shared between Messenger
+and Instagram, not an implementation accident, which is the strongest available reason to expect it to
+stay put.
 
 ---
 
-## Known before this phase, and still true
+## What CAN be read passively: the unread count, from the tab title
 
-- `instagram.com/direct/t/<thread_id>` exists as a URL shape. **UNKNOWN** whether it opens an existing
-  thread in an authenticated session, and **UNKNOWN** what it costs — that is a thread-view navigation,
-  so under the current prohibition it is a hand-off target only, never a scan path.
-- Meta redesigns Instagram frequently. Whatever anchors this inventory eventually records will need the
-  ordered-fallback treatment more than any other channel.
+**CONFIRMED.** `document.title` is `"(6) Instagram"` on an account with six unread threads. A count, on
+the feed, with no navigation, no thread opened and no receipt.
+
+That is the entire honest yield for Instagram today, and it is exactly the shape
+`PlatformCapabilities.IsAggregateOnly` was written for: *"callers should render a count and explicitly
+say detail is unavailable, rather than showing an empty list."* Instagram is the **first platform that
+would actually reach that branch** — built in A8, tested, and until now reachable by no shipped channel.
+
+Corroborating module names present in the bundle, none of them yet read:
+`useIGDSystemFolderUnreadThreadCountQuery` · `XFBIGDirectViewerThreadIsUnreadResolver` ·
+`useIGDChatTabsGetUnreadThreads.react` · `MWPIsThreadUnread`.
 
 ---
 
-## To inventory when the session lands
+## The open question, and why it was not answered
 
-Full §4.2 schema. At minimum: DM list · DM thread · requests folder · unread badge · profile · notifications ·
-empty / loading / logged-out states · and the side effect of each, observed **from a second device**, not
-reasoned about.
+Per-thread detail needs `instagram.com/direct/inbox/` opened so the store populates. **Not attempted**,
+deliberately: `messenger.com` was measured redirecting its own root *into a conversation*, and until the
+read-receipt experiment ([experiment-read-receipts.md](experiment-read-receipts.md)) says what opening a
+Meta thread costs, navigating a Direct route on the owner's real business account risks firing a "Seen"
+that cannot be withdrawn.
+
+**The precise question for that session:** does `/direct/inbox/` show the thread list *without* opening a
+conversation — and does landing there populate `threads` with unread counts, snippets and timestamps?
+If yes, Instagram becomes as rich as Messenger for the price of one navigation to a list view. If it
+auto-opens a thread the way `messenger.com` does, Instagram stays counts-only on the passive route.
+
+---
+
+## View inventory
+
+| View | URL-addressable? | DOM anchors | Side effects | Oversight data | Notes |
+|---|---|---|---|---|---|
+| **Feed (start URL)** | Yes — `instagram.com/` | — | None observed | **Unread thread count, from `document.title`** | The only view the app loads today, and the only passive yield. |
+| **Direct inbox** | Yes — `/direct/inbox/` | UNKNOWN | **UNKNOWN — the blocking question above** | Would populate the LightSpeed `threads` table | Not visited. |
+| **Direct thread** | Yes — `/direct/t/<id>/` | UNKNOWN | **Marks read; LIKELY fires a receipt** | Full transcript | Hand-off target only, never a scan path. |
+| **Logged out** | — | `input[name="username"]`, `input[name="password"]` | — | — | Present and reliable — see the handshake section below. |
+
+---
+
+## Consequences for the product
+
+1. **Instagram is honestly counts-only**, and that is a finding, not a shortfall. It gives
+   `IsAggregateOnly` its first real consumer.
+2. **`CanReadUnread` may be flipped for Instagram once an adapter reads the title badge** — and nothing
+   else. `CanReadPreview`, `CanReadTimestamps` and `SupportsFrt` stay false until the Direct-inbox
+   question is settled.
+3. **The sign-in gate matters more here than anywhere else.** A logged-out Instagram tab has no title
+   badge, so a scraper that does not check sign-in state would read "0 unread" and report a quiet
+   account. See `connection-handshake.js` — its Instagram profile did not exist until this pass.

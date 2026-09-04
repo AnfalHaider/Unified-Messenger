@@ -110,6 +110,52 @@ is uncertified beyond the collision fixed above; ARM64 has never been installed;
 unverified; `ui-smoke` is intermittent on CI and needs repo admin to read the job log. The first two are
 now **B6**.
 
+### Instagram signed in (2026-09-04) — what it changed, and what it did not
+
+Two Instagram accounts were added and signed in, which unblocked
+[instagram.md](scraper-inventory/instagram.md). Three findings, in descending order of consequence.
+
+**1 · Instagram carries the same LightSpeed store as Messenger — and on the feed it is empty.**
+`require('LSDatabaseSingleton')` resolves with the identical 358 tables. But measured on a signed-in
+account with six unread DMs: `threads` **0**, `messages` **0**, `contacts` **0**. The difference is
+product, not technology — `messenger.com` *is* an inbox so its store is populated on load, whereas
+`instagram.com` is a feed and Direct is a separate route. The passive read that makes Messenger rich
+yields nothing here.
+
+Corroborated independently: Meta's own Project LightSpeed / MSYS writing describes the cross-app
+messaging platform as modelling the app "relationally across hundreds of tables" with core **threads,
+messages, attachments, contacts** — exactly the schema found live in both clients. Shared by design, not
+by accident, which is the best available reason to expect it to hold.
+
+**2 · What Instagram *can* give passively is a count, from the tab title.** `document.title` reads
+`"(6) Instagram"`. No navigation, no thread opened, no receipt. That makes Instagram the **first platform
+that would actually reach `PlatformCapabilities.IsAggregateOnly`** — the rendering path built in A8 and
+until now reachable by nothing shipped.
+
+**3 · Sign-in detection is broken, on every channel.** Two defects in `connection-handshake.js`:
+
+- `evaluateConnection` tests `loggedIn` **before** `loggedOut`, and WhatsApp's profile carries
+  `urlLoggedIn: ['web.whatsapp.com']` — so an account sitting on the **QR sign-in screen** reports
+  `Connected · "Signed in"`. The QR check below it is never reached.
+- Only two profiles exist, `whatsapp` and `generic`. Instagram, Messenger and Google Business all fall to
+  `generic`, whose logged-in test is `main, [role="main"], nav, header` — markup present on most login
+  pages too.
+
+And nothing meaningful gates on the result: `OversightAlertMonitor` checks `Connected` but
+`OversightSnapshotReader.RefreshAsync` — the actual scan, and the manual Re-sync path — does not, and the
+command centre does not either. Its header currently reads "8 professional accounts **connected**" for a
+set that includes accounts nothing has ever signed into.
+
+**Consequence for a logged-out account: the scraper runs, finds nothing, and reports a quiet account.**
+That is the failure mode `AccountReadHealth` exists to prevent, arriving through a door it does not watch.
+
+### A12 · Sign in before you scrape (no owner needed)
+
+| # | What lands | Gated on |
+|---|---|---|
+| **A12** | Fix `evaluateConnection` to test logged-out first. Real profiles for `instagram`, `messenger`, `googlebusiness`. Gate `OversightSnapshotReader` on the resolved state, not just the alert monitor. Command centre renders three tiers — **measured in full · counts only · not signed in** — and shows no figures at all for an account nothing is signed into, rather than stale ones. Header stops claiming "connected". | — |
+| **A13** | **Instagram counts-only adapter.** Read the title badge, flip `CanReadUnread` for `instagram` and nothing else, and let `IsAggregateOnly` render its first real channel. Depends on A12, because a logged-out tab has no badge and would read as zero. | A12 |
+
 ## Track B — needs the owner
 
 One sitting, roughly 50–60 minutes. Every item below is something no amount of agent work can reach.
@@ -120,6 +166,7 @@ the largest untested area in the product, and it is the only way tab order can b
 | # | What is needed | Time | What it unblocks |
 |---|---|---|---|
 | **B1** | **Add a Meta Business Suite account and an Instagram account, and log into each.** Both are already offered in the Add-account picker. Credentials are never entered by the agent. | ~5 min | §4.3 experiments 1, 3 and 4; the two BLOCKED inventory files. Experiment 3 — reading Meta's own response rate and response time off Insights — is a responsiveness figure the product cannot produce by any other means. |
+| **B2a** | **Does `instagram.com/direct/inbox/` open a thread?** One navigation to the DM *list*, watched from a second device. New, and now the gate on Instagram being anything more than a number. | ~10 min | If the inbox list populates `threads` without auto-opening a conversation, Instagram becomes as rich as Messenger for the price of one navigation to a list view. If it auto-opens the way `messenger.com` does, Instagram is honestly counts-only forever on the passive route. Not attempted unilaterally: a "Seen" on a real customer cannot be withdrawn. |
 | **B2** | **The read-receipt experiment.** Second device, a test thread from a personal account, both runs. Protocol: [experiment-read-receipts.md](scraper-inventory/experiment-read-receipts.md). | ~20 min | The assumption the entire Meta design rests on. Run A licenses the Messenger store bridge; Run B decides whether *focus thread* is a read-only operation. |
 | **B3** | **`send?phone=` against a number you control.** Does `web.whatsapp.com/send?phone=<digits>` open an existing conversation without creating a draft, marking anything read, or touching recents? | ~5 min | Replaces the most fragile navigation in the product — ~120 lines of defensive row-clicking — with a URL. Would materially simplify A7. |
 | **B4** | **Four decisions**, once B1–B3 have produced evidence: the §3.6 architectural fork (Business Suite as *source* / *contributor* / *own channel*); the `messenger.com` start-URL redirect fix; whether Meta channels enter the unified inbox at all; and whether to re-scope `RequiresThreadOpenToRead`. | — | A9–A11 below. |
