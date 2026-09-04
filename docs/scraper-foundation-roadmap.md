@@ -72,9 +72,50 @@ It is thin on Meta, and it says so on screen rather than rendering an empty list
 
 ---
 
+### Hardening · Increments 117–118 (v4.99.83–84) — the backlog rechecked against the running app
+
+Asked to clear the pending backlog before A9. Several entries were stale; two listed items closed; two
+defects nobody had listed were found by looking at the screen.
+
+**Closed from the backlog**
+
+- **§0.1a, the one open UI item — two status palettes.** 59 foreground references migrated to the audited
+  `UmStatus*` tokens; the ratchet drops 69 → 10. The deferral reasoned that migrating blind risks contrast
+  regressions; that is backwards for foregrounds, because `StatusContrastTests` already measures every
+  `UmStatus*` colour against LightCard, DarkCard and DarkChrome at 4.5:1 — so the migration moved
+  references **into** the measured set. Safe mechanically because no non-Background system brush was ever
+  used as a background, verified before the replace. Confirmed on screen in both themes.
+  The ten survivors are `*BackgroundBrush` washes and stay: they sit *behind* text, and there is no
+  `UmStatusInfoWash` to move the Attention one onto.
+- **U9, tab order — a real collision, fixed.** `TabIndex` is scoped to the window, not the control tree it
+  is written in. The sidebar numbers rows 1, 2, 3 … and a real rail carries eleven, while Settings
+  declared 10 and 20 and the personal panel 15 and 20 — so sidebar row ten and the Settings nav both
+  claimed 10. Observed live: tabbing off Dashboard landed on Reports. Three bands now (rail 1–89, footer
+  90–99, content 200+), with tests that fail on an overlap.
+- **F-OFFLINE-07 was stale.** `NavigationRetryScheduler` ships and was watched working live.
+
+**Found by looking, not listed**
+
+- The hero cited an age from a population it excludes — "45 customers are waiting · oldest 49d", where the
+  49-day wait is in the backlog and therefore not one of the 45. Now says "oldest in the backlog".
+- Analytics showed one fact under two headline tiles: "Replies (15m)" is fixed at 15 minutes and "SLA Met"
+  uses the configured target, **which defaults to 15**. Both read 33% with nothing to say why. The SLA
+  tile now names its threshold.
+- Six defects in this stream's own work, including **the A8 coverage notice never rendering at all** — it
+  read a list its own targets had already been filtered out of. Fully unit-tested, green, published,
+  installed, and drawing nothing. See Increment 116 above.
+
+**Still open, and none of it is code I can write.** No screen reader has ever been run; the full tab order
+is uncertified beyond the collision fixed above; ARM64 has never been installed; uninstall data-erasure is
+unverified; `ui-smoke` is intermittent on CI and needs repo admin to read the job log. The first two are
+now **B6**.
+
 ## Track B — needs the owner
 
-One sitting, roughly 30–40 minutes. Every item below is something no amount of agent work can reach.
+One sitting, roughly 50–60 minutes. Every item below is something no amount of agent work can reach.
+
+**B6 is the one to do first if you only do one.** It needs no second device and no new logins, it closes
+the largest untested area in the product, and it is the only way tab order can be certified at all.
 
 | # | What is needed | Time | What it unblocks |
 |---|---|---|---|
@@ -83,6 +124,7 @@ One sitting, roughly 30–40 minutes. Every item below is something no amount of
 | **B3** | **`send?phone=` against a number you control.** Does `web.whatsapp.com/send?phone=<digits>` open an existing conversation without creating a draft, marking anything read, or touching recents? | ~5 min | Replaces the most fragile navigation in the product — ~120 lines of defensive row-clicking — with a URL. Would materially simplify A7. |
 | **B4** | **Four decisions**, once B1–B3 have produced evidence: the §3.6 architectural fork (Business Suite as *source* / *contributor* / *own channel*); the `messenger.com` start-URL redirect fix; whether Meta channels enter the unified inbox at all; and whether to re-scope `RequiresThreadOpenToRead`. | — | A9–A11 below. |
 | **B5** | *Optional, disruptive.* **Logged-out / disconnected state captures.** One account signed out on each channel, briefly. | ~10 min | The one Phase 1 gap that cannot be filled passively. A logged-out client must not read as "zero unread" — that is how an app reports a quiet day during a session expiry. |
+| **B6** | **The accessibility listening session.** Narrator on, four short passes. Script: [accessibility-listening-session.md](accessibility-listening-session.md). | ~20 min | **Two gaps in one pass.** Everything in the accessibility work is right by construction and by test and nobody has ever *listened* to it — the single largest untested area. It also settles tab order, which cannot be certified from outside: focus rings are one or two pixels and do not survive screenshot scaling, whereas Narrator *announces* each focused control. Independent of B1–B5; can be done first. |
 
 ---
 
