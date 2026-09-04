@@ -28,9 +28,30 @@ Unblocked when the owner signed in. This file previously read ⛔ BLOCKED.
 |---|---|---|
 | `XFBIGDirectViewerThread` | **15** | One DM thread each. The payload below. |
 | `SlideThread` | 15 | Thin wrapper; `as_ig_direct_thread` points at the above. |
-| `SlideMailboxThreadsByFolderEdge` | 60 | Edges across 3 folder connections. |
-| `SlideMailboxThreadsByFolderConnection` | 3 | The three folders — matching the client's **Primary / General / Requests** tabs. |
-| `XFBSlideReadReceipt` | 24 | Per-participant read watermarks. |
+| `SlideMailboxThreadsByFolderEdge` | 60 | Edges. See the folder correction below — not 60 distinct threads. |
+| `SlideMailboxThreadsByFolderConnection` | 3 | ⚠️ **Three Relay aliases of ONE folder, not three folders.** See below. |
+| `XFBSlideReadReceipt` | 24–27 | Per-participant read watermarks. |
+| `XDTNotificationBadgeCount` | 1 | **Activity breakdown — comments / likes / relationships.** See its own section. |
+
+### Folder correction — measured 2026-09-04, second pass
+
+An earlier draft of this file read the three `…Connection` records as *"the three folders, matching the
+client's Primary / General / Requests tabs"*. **That was inferred from the record count and it is wrong.**
+Dereferencing the connection keys shows all three carry the same argument:
+
+```
+threads_by_folder(first:15,folder:"INBOX")
+__IGDThreadListOffMsys_SlideMailbox__threads_by_folder_connection(folder:"INBOX")
+__IGDChatTabsPOGsOffMsys__threads_by_folder_connection(folder:"INBOX")
+```
+
+Three Relay aliases over **one** folder — `INBOX`, i.e. Primary. So the 60 edges are the same 15 threads
+counted four times over, and **General and Requests are not fetched on the feed at all**. The client's
+"Requests (2)" tab is not visible passively. Any figure the product prints must say Primary only.
+
+Both connections also report `has_next_page: true` with an `end_cursor`, so the backlog beyond 15 exists
+and is paginable — but following that cursor means issuing our own query, which is a different act from
+reading one the client already made. Not proposed here.
 
 Instagram prefetches the mailbox on the feed to draw the Messages badge. That prefetch is the whole
 opportunity: it is the client's own request, already made, for its own reasons.
@@ -74,6 +95,38 @@ own top-of-list ordering.
 
 ---
 
+## The second surface: the activity badge, broken down
+
+**CONFIRMED, both accounts.** `XDTNotificationBadgeCount` — fetched on the feed by
+`xdt_notification_badge(device_id:…)` — carries a **structured breakdown**, not just a total:
+
+| Field | Account A | Account B | What it is |
+|---|---|---|---|
+| `total_count` | 12 | 23 | Sum of the below. |
+| `activity_badge_counts.comments` | **4** | **5** | **Comments on the business's own posts.** |
+| `activity_badge_counts.likes` | 5 | 9 | Likes. Vanity, not oversight. |
+| `activity_badge_counts.relationships` | 1 | 8 | Follows / follow requests. |
+| `activity_badge_counts.usertags` | null | null | Not populated on either. |
+
+**`comments` is the find.** For a business, an unanswered comment under a post is a customer waiting in
+public — arguably more urgent than a DM, because everyone can see it go unanswered. Nothing in the
+product has ever surfaced it, and it costs one field read on a page already loaded.
+
+Two honest limits, both of which must be printed next to the number:
+
+- It is a **count only**. Who commented, on which post, and what they said are not in this record — the
+  feed does not fetch them. This is the one place `PlatformCapabilities.IsAggregateOnly` genuinely fits.
+- It is **unseen-activity, not unanswered**. It clears when the owner opens the notifications panel,
+  whether or not they replied. So it under-reports after a glance, and it must never be phrased as
+  "4 comments need a reply" — "4 new comments" is what the data supports.
+
+Also present and worth noting for later: `XDTUserDict` carries `full_name`, `is_verified` and
+`friendship_status`; `XDTRelationshipInfoDict` carries `incoming_request` / `outgoing_request`. And the
+mailbox arrives via `get_slide_mailbox_for_iris_subscription` — Meta's realtime sync — which suggests the
+thread list stays current without the app polling for it. Worth confirming before relying on it.
+
+---
+
 ## What is NOT there, and what it costs
 
 **CONFIRMED — there is no message preview text anywhere in the feed's Relay store.** A sweep of every
@@ -84,9 +137,10 @@ carries thread metadata only.
 So Instagram's passive ceiling is **name · handle · age · unread**, per thread — WhatsApp parity minus the
 preview. Two further limits, both to be stated on screen rather than papered over:
 
-1. **Top 15 threads only.** The connection is fetched `first:15`. A backlog deeper than 15 conversations
-   is not visible passively. (WhatsApp, by contrast, renders ~60 rows.) Paging the connection would mean
-   issuing our own query — a different act from reading one the client already made, and not proposed here.
+1. **Top 15 threads of Primary only.** The connection is fetched `first:15, folder:"INBOX"`, and
+   `has_next_page` is `true` — so the app can see that more exist but not what they are. General and
+   Requests are not fetched at all. (WhatsApp, by contrast, renders ~60 rows across everything.) The
+   figure must therefore be labelled *Primary, top 15*, never presented as the account's whole backlog.
 2. **Unread is a lower bound on "awaiting reply", not a synonym.** Unread means the owner has not opened
    it. A thread they opened and did not answer is still awaiting, and reads as read. WhatsApp computes
    awaiting from who sent last; Instagram's resolver cannot. So the honest phrasing is **"at least N
@@ -98,7 +152,7 @@ preview. Two further limits, both to be stated on screen rather than papered ove
 
 | View | URL-addressable? | Side effects | Oversight data | Notes |
 |---|---|---|---|---|
-| **Feed (start URL)** | Yes — `instagram.com/` | None observed | **Per-thread name, handle, age, unread — top 15 · plus the aggregate badge** | The only view the app loads, and it is enough for the queue. |
+| **Feed (start URL)** | Yes — `instagram.com/` | None observed | **Per-thread name, handle, age, unread — Primary, top 15 · plus new-comment / like / follow counts** | The only view the app loads, and it carries both surfaces. |
 | **Direct inbox** | Yes — `/direct/inbox/` | UNKNOWN — B2a | Would add **preview text** and threads beyond 15 | Not visited. Now a *preview-only* question, no longer the gate on the channel. |
 | **Direct thread** | Yes — `/direct/t/<id>/` | **Marks read; LIKELY fires a receipt** | Full transcript | Hand-off target only, never a scan path. |
 | **Logged out** | — | — | — | `input[name="username"]` / `[name="password"]`. Reliable; see A12. |
@@ -107,10 +161,12 @@ preview. Two further limits, both to be stated on screen rather than papered ove
 
 ## Consequences for the product
 
-1. **Instagram is a measured channel, not an aggregate one.** It feeds the needs-a-reply queue with real
-   rows: who, which account, how long. `CanReadUnread` and `CanReadTimestamps` both go true.
-   `CanReadPreview` stays false — and `IsAggregateOnly` stays without a consumer, which is the correct
-   outcome, not a disappointment.
+1. **Instagram is a measured channel, not an aggregate one — and it has two surfaces, not one.** DMs feed
+   the needs-a-reply queue with real rows (who, which account, how long): `CanReadUnread` and
+   `CanReadTimestamps` go true, `CanReadPreview` stays false. The **activity badge** is the separate,
+   genuinely aggregate surface — new comments, likes and follows as counts — and it is the first real
+   consumer `PlatformCapabilities.IsAggregateOnly` has ever had. Neither surface should be folded into
+   the other: one is a queue of named people, the other is a number that clears on a glance.
 2. **`SelectorManifest` does not fit this channel, and should not be forced to.** There are no DOM
    selectors here — the read is `PolarisRelayEnvironment` → record types → field names. The ordered-
    candidate idea still applies (the environment module name and the resolver key are both fallback-
