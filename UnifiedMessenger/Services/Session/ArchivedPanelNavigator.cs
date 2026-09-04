@@ -67,14 +67,26 @@ public static class ArchivedPanelNavigator
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            await sessionManager.TryExecuteScriptOnInstanceAsync(instance.Id, clickScript).ConfigureAwait(false);
-            await Task.Delay(operation.RetryDelayMs, cancellationToken).ConfigureAwait(false);
-
+            // Read BEFORE clicking. Both controls are toggles onto the same view, so a first click that
+            // worked but rendered slowly would otherwise be followed by a second click that undoes it —
+            // and the retry loop would then flip the panel open and shut until the budget ran out. Checking
+            // first also makes the operation idempotent: asking for a view you are already on is a no-op.
             var raw = await sessionManager
                 .TryExecuteScriptOnInstanceAsync(instance.Id, readback)
                 .ConfigureAwait(false);
 
             var panelPresent = string.Equals(raw?.Trim().Trim('"'), "true", StringComparison.Ordinal);
+            if (panelPresent != expectPanel)
+            {
+                await sessionManager.TryExecuteScriptOnInstanceAsync(instance.Id, clickScript).ConfigureAwait(false);
+                await Task.Delay(operation.RetryDelayMs, cancellationToken).ConfigureAwait(false);
+
+                raw = await sessionManager
+                    .TryExecuteScriptOnInstanceAsync(instance.Id, readback)
+                    .ConfigureAwait(false);
+                panelPresent = string.Equals(raw?.Trim().Trim('"'), "true", StringComparison.Ordinal);
+            }
+
             if (panelPresent == expectPanel)
             {
                 AppLogger.LogInfo(

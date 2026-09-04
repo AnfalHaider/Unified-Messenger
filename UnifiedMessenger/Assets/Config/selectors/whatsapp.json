@@ -70,7 +70,8 @@
     "composer": {
       "candidates": [
         "#main [contenteditable=\"true\"][role=\"textbox\"]",
-        "[contenteditable=\"true\"][role=\"textbox\"]"
+        "#main [contenteditable=\"true\"]",
+        "footer [contenteditable=\"true\"]"
       ],
       "optional": true
     },

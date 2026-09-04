@@ -147,6 +147,36 @@ public class NavigationOperationTests
     }
 
     [Fact]
+    public void TheComposerReadbackIsNoNarrowerThanTheSelectorItReplaced()
+    {
+        // The readback now GATES focus, so narrowing it is not a tidy-up — it is a way to report failure on
+        // a conversation that opened perfectly well, sixteen times per click. ConversationFocusHelper's
+        // script has always accepted a footer composer and has never required role="textbox"; the fallback
+        // here must keep both, or a WhatsApp build that moves the composer breaks clicking a customer.
+        var script = NavigationOperations.BuildReadbackScript(
+            NavigationOperations.Require(NavigationOperations.FocusConversation));
+
+        Assert.Contains("footer [contenteditable=\\\"true\\\"]".Replace("\\\"", "\""), script, StringComparison.Ordinal);
+        Assert.DoesNotContain("[contenteditable=\"true\"][role=\"textbox\"]'", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoComposerCandidateMatchesOutsideAnOpenConversation()
+    {
+        // WhatsApp's sidebar search box is also contenteditable with role="textbox". An unscoped candidate
+        // would therefore match with NO chat open, and the readback would call that arrival. It is only the
+        // openChatPane conjunction that saves it today — which is one guard too few for a signal this load-
+        // bearing, so every candidate is scoped to the conversation pane or the footer in its own right.
+        var composer = SelectorManifestLoader.ForPlatform("whatsapp")!.Anchors["composer"];
+
+        Assert.All(
+            composer.Candidates,
+            c => Assert.True(
+                c.StartsWith("#main", StringComparison.Ordinal) || c.StartsWith("footer", StringComparison.Ordinal),
+                $"Composer candidate is not scoped to an open conversation: {c}"));
+    }
+
+    [Fact]
     public void TheReadbackFallsBackWhenNoManifestIsLoaded()
     {
         // This is the "the manifest failed" path, so it cannot itself depend on the manifest.

@@ -174,6 +174,35 @@ public class SelectorHealthTests
     }
 
     [Fact]
+    public void OneLoadingAccountDoesNotHideThatTheOthersAreFine()
+    {
+        // Observed live: three accounts, one reloading, and the line said only "Waiting for WhatsApp to
+        // finish loading its chat list" — hiding that the other two were healthy. On a machine with
+        // several accounts there is nearly always one mid-load, so the blanket was close to permanent.
+        SelectorHealth.Reset();
+        SelectorHealth.Record("a", SelectorHealth.ParseReport(Report(), DateTimeOffset.UtcNow)!.Value);
+        SelectorHealth.Record("b", SelectorHealth.ParseReport(Report(), DateTimeOffset.UtcNow)!.Value);
+        SelectorHealth.Record("c", SelectorHealth.ParseReport(Report(picks: "", ready: "false"), DateTimeOffset.UtcNow)!.Value);
+
+        var text = SelectorHealth.Describe();
+
+        Assert.Contains("2 of 3", text, StringComparison.Ordinal);
+        Assert.Contains("1 still loading", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ADegradedAccountIsNotHiddenByALoadingOne()
+    {
+        // The reason degradation is checked BEFORE loading state. A real warning about account A must not
+        // be suppressed indefinitely because account B happens to be waking up.
+        SelectorHealth.Reset();
+        SelectorHealth.Record("a", SelectorHealth.ParseReport(Report(builtinUsed: "\"chatRow\""), DateTimeOffset.UtcNow)!.Value);
+        SelectorHealth.Record("b", SelectorHealth.ParseReport(Report(picks: "", ready: "false"), DateTimeOffset.UtcNow)!.Value);
+
+        Assert.Contains("Degraded", SelectorHealth.Describe(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void APersistentlyMissingAnchorStillEscalatesEvenWhileNotReady()
     {
         // The trap in the line above: the readiness anchors ARE chatList and rowCell, so a break in those

@@ -90,11 +90,16 @@ public static class OversightSnapshotReader
         }
         finally
         {
+            // Gate FIRST, diagnostics after. ExecuteScriptAsync has no timeout of its own, so a hung page
+            // never completes — and capturing before the release would let a *diagnostic* read hold this
+            // account's refresh gate shut for the life of the process, which is precisely the thing
+            // CaptureSelectorHealthAsync's own comment promises it cannot do.
+            gate.Release();
+
             // In the finally so it covers every exit: bridge success, scan success, scan failure, and the
             // page-not-ready case alike. The page accumulates its selector picks across the whole refresh,
             // so one read here describes all of them, and it costs a single round trip per scan.
             await CaptureSelectorHealthAsync(instance).ConfigureAwait(false);
-            gate.Release();
         }
     }
 
@@ -106,8 +111,11 @@ public static class OversightSnapshotReader
     {
         try
         {
+            // Bounded as well as un-gated: a page that never answers must cost a skipped health reading,
+            // not a task that lives forever.
             var raw = await InstanceConnection.Current
                 .ExecuteScriptAsync(instance.Id, SelectorHealth.ReportScript)
+                .WaitAsync(TimeSpan.FromSeconds(10))
                 .ConfigureAwait(false);
 
             // Null when the adapter has not loaded yet — a page mid-boot has no report and no problem.

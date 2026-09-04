@@ -120,6 +120,37 @@ public class ChannelCoverageTests
     }
 
     [Fact]
+    public void TheQueueDoesNotComputeCoverageFromItsAlreadyFilteredList()
+    {
+        // A source guard, because this is the bug that actually shipped. BuildNeedsReplyList receives an
+        // `instances` list that the caller has ALREADY filtered by ContributesConversationMetrics — so every
+        // channel this notice exists to name has been removed from it before the method starts. Passing it
+        // to DescribeGaps produced a feature that was fully unit-tested, green, published, installed, and
+        // rendered absolutely nothing. Nothing else catches that: the unit tests below feed DescribeGaps
+        // synthetic lists directly, which proves the function and says nothing about the wiring.
+        var source = File.ReadAllText(Path.Combine(
+            RepoRoot(), "UnifiedMessenger", "Controls", "CommandCenterPanel.xaml.cs"));
+
+        Assert.DoesNotContain("ChannelCoverage.DescribeGaps(instances)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChannelCoverage.DescribeGaps(scoped)", source, StringComparison.Ordinal);
+        Assert.Contains("ChannelCoverage.DescribeGaps(connected)", source, StringComparison.Ordinal);
+    }
+
+    private static string RepoRoot()
+    {
+        // Walk up from the test output directory to the folder holding the solution, rather than counting
+        // "..\" segments — that arithmetic broke the first time it was written in this suite.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "UnifiedMessenger.sln")))
+        {
+            dir = dir.Parent;
+        }
+
+        Assert.NotNull(dir);
+        return dir!.FullName;
+    }
+
+    [Fact]
     public void TheNoticeNeverBlamesTheOwner()
     {
         // The gap is ours — nothing has been built to read those channels yet. Wording that implies the

@@ -142,7 +142,12 @@ public static class NavigationOperations
     private static string JsFallbackFor(string anchor) => anchor switch
     {
         "openChatPane" => "'#main'",
-        "composer" => "'#main [contenteditable=\"true\"][role=\"textbox\"]'",
+        // Deliberately the BROAD form, matching what ConversationFocusHelper's readback script has always
+        // used. A narrower `#main [contenteditable][role="textbox"]` would mean a WhatsApp build whose
+        // composer lacks role="textbox", or puts it in the footer, fails this readback — and because the
+        // readback now GATES focus, that would report failure on a conversation that opened perfectly well,
+        // sixteen times per click. When the readback decides, narrowing it is not a tidy-up.
+        "composer" => "'#main [contenteditable=\"true\"],footer [contenteditable=\"true\"]'",
         "archivedPanel" => "'[data-testid=\"archived-chatlist\"]'",
         _ => "'#pane-side'"
     };

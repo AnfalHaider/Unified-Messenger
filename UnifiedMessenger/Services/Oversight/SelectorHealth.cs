@@ -130,14 +130,10 @@ public static class SelectorHealth
                 : $"Broken — {broken.Count} page elements have not been found for {scans} checks in a row. Reading may be incomplete.";
         }
 
-        // Not ready, but not yet long enough to be breakage. Saying "healthy" here would be a claim we
-        // cannot support, and saying "broken" would be a false alarm on every launch — so say what is
-        // actually true, which is that the page has not finished loading its list.
-        if (Entries.Values.Any(e => e.Ready == false))
-        {
-            return "Waiting for WhatsApp to finish loading its chat list.";
-        }
-
+        // Degradation is checked BEFORE loading state, deliberately. These are warnings about a specific
+        // account, and one account still waking up must not hide them: on a machine with several accounts
+        // there is nearly always one mid-load, so putting "waiting" first would suppress a real warning
+        // indefinitely. Observed live — two healthy accounts and one reloading reported only "waiting".
         var onBuiltin = Entries.Values.SelectMany(e => e.BuiltinUsed).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         if (onBuiltin.Count > 0)
         {
@@ -150,7 +146,20 @@ public static class SelectorHealth
             return $"Degraded — {degraded.Count} element{(degraded.Count == 1 ? "" : "s")} matched on a backup setting. Still reading correctly; WhatsApp has changed something.";
         }
 
+        // Not ready, but not yet long enough to be breakage. "Healthy" would be a claim we cannot support
+        // and "broken" would be a false alarm on every launch, so say what is true — and say it per
+        // account, because a blanket sentence hides that the others are fine.
+        var loading = Entries.Values.Count(e => e.Ready == false);
         var withManifest = Entries.Values.Count(e => e.HasManifest);
+
+        if (loading > 0)
+        {
+            var settled = AttemptedCount - loading;
+            return settled == 0
+                ? $"Waiting for WhatsApp to finish loading {(loading == 1 ? "its chat list" : "their chat lists")}."
+                : $"Every element found on the first try for {settled} of {AttemptedCount} accounts; {loading} still loading.";
+        }
+
         return withManifest == 0
             ? "No page-element settings loaded — using the versions built into the app."
             : $"Healthy on {withManifest} of {AttemptedCount} account{(AttemptedCount == 1 ? "" : "s")} — every element found on the first try.";

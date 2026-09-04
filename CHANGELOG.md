@@ -5,6 +5,35 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.82
+
+> **What you will notice:** the "1 Messenger account not shown here" line added in the last release now
+> actually appears. It did not before.
+
+**Six fixes found by checking the last eight releases against the running app (Increment 116).**
+
+The first one is the reason the rest were looked for.
+
+- **The channel-coverage notice never rendered.** It was computed from a list of accounts the caller had
+  already filtered down to the ones the queue *can* show — so every channel it exists to name had been
+  removed before it ran. It was fully unit-tested, green, published and installed, and drew nothing.
+  Caught by opening the app and looking. A source guard now fails the build if that wiring returns.
+- **A diagnostic read could freeze an account's syncing, permanently.** The new scraper-health check ran
+  while still holding that account's refresh lock, and script execution has no time limit — so a page
+  that stopped responding would have stopped that account syncing for as long as the app stayed open.
+  The lock is now released first, and the check gives up after ten seconds.
+- **Clicking a waiting customer could report failure on a conversation that opened fine.** The new
+  arrival check looked for a narrower message box than the one the app has always looked for. Restored.
+- **…and could have reported success when nothing opened**, because one of the things it accepted as a
+  message box also matches the sidebar search field. Now every candidate is anchored inside an open
+  conversation.
+- **Opening archived conversations could flip the panel open and shut.** It clicked before checking, so a
+  slow first open was undone by the retry. It now looks before it clicks.
+- **One account still loading hid the status of all the others.** With several accounts there is nearly
+  always one waking up, so a genuine warning on another could have stayed hidden indefinitely.
+
+2053 tests green.
+
 ## v4.99.81
 
 > **What you will notice:** if you have a Messenger or Instagram account connected, the "needs a reply"

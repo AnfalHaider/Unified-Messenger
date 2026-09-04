@@ -44,6 +44,28 @@ No channel gets a manifest before its own inventory lands.
 | ~~**A7**~~ | ~~114~~ | ✅ **Done, v4.99.80.** `NavigationOperations` declares all four navigations with their readback anchors, retry budgets and side-effect flags. **The correctness win: the focus readback now decides, it does not narrate.** It was already being read — but *after* the return, purely for the log, while the method returned the navigator's own `true`. The click paths report success whether or not the chat opened, so that bool could be a lie; the composer check now gates it, with an un-evaluable readback treated as "no evidence" rather than failure. `show-archived` is new and built to the pattern: its readback was **measured, not guessed**, which changed the answer — the row count does not move when the panel opens and the Back button is generic chrome, so the anchor is the panel's own `[data-testid="archived-chatlist"]`. Google's two URL navigations are registered as in-page implementations with a test pinning the any-google.com-host guard. | — |
 | ~~**A8**~~ | ~~115~~ | ✅ **Done, v4.99.81 — and it is smaller than this row assumed, on purpose.** Reading the code first showed the cross-account unified queue **already exists**: `CommandCenterPanel.BuildNeedsReplyList` gathers waiting customers across every account with facet, age and location filters, `AwaitingChatActions` on each row, and click-through that focuses the real client. Building a second one would have been exactly the duplication this row warned against. What was genuinely missing was **honesty about the channels it cannot show** — a Messenger account's waiting customers are absent from that queue and nothing said so. `ChannelCoverage` classifies every channel into four levels and renders one line naming the gaps, silent about channels that carry no conversations at all. That line is also the first consumer `PlatformCapabilities.IsAggregateOnly` has ever had. **Not built:** a separate inbox page — there is nothing for it to show that the existing queue does not, until a Meta adapter lands in A9. | — |
 
+### A-recheck · Increment 116 (v4.99.82) — six fixes, one of them the reason for the rest
+
+Everything above was rechecked against the **running app**, not just the suite. The first finding is why
+the others were looked for:
+
+**The A8 coverage notice never rendered.** It read the `instances` parameter, which the caller had already
+filtered by `ContributesConversationMetrics` — stripping out every channel the notice exists to name. It
+was unit-tested, green, published, installed, and drew nothing. The unit tests passed because they fed
+`DescribeGaps` synthetic lists directly: they proved the function and said nothing about the wiring. Only
+opening the app found it. A source guard now fails the build if that wiring returns.
+
+That is the lesson worth keeping from this whole stream: **the suite proves functions, the app proves
+features.** Three of the eight increments claimed "verified live" and were; A8 claimed it and had not been.
+
+The other five, all confirmed and fixed: a diagnostic read holding an account's refresh gate with no
+timeout (could stop that account syncing for the process lifetime); the focus arrival check narrowed
+below the selector it replaced (would report failure on a conversation that opened); an unscoped composer
+candidate that also matches the sidebar search box (would report arrival with nothing open — only the
+`#main` conjunction was saving it); the archived navigator clicking before reading (a slow open gets
+undone by its own retry); and one loading account masking both the healthy summary and any real
+degradation warning on every other account.
+
 **If Track B never happens, Track A still ships a real product**: a manifest-driven, self-diagnosing
 scraper stack, mapped navigation, and a unified inbox that is genuinely rich for WhatsApp and Google.
 It is thin on Meta, and it says so on screen rather than rendering an empty list.

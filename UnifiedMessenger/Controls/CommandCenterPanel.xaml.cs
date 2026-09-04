@@ -857,12 +857,18 @@ public sealed partial class CommandCenterPanel : UserControl
         // label does not say how much it will show is a guess the owner has to make by clicking.
         CardsHost.Children.Add(BuildQueueFilters(everything, instances));
 
-        // What this list CANNOT show. Built from every connected account, not the filtered set: a Messenger
-        // account's waiting customers are missing from this queue whatever filter is applied, and until now
-        // nothing said so. Silent about channels that carry no conversations at all — a Google Business
-        // account is not a gap in a conversation queue, and saying it is trains the owner to dismiss the
-        // line that matters.
-        var coverage = ChannelCoverage.DescribeGaps(instances);
+        // What this list CANNOT show.
+        //
+        // Deliberately NOT the `instances` parameter. That list was already filtered by
+        // ContributesConversationMetrics before this method was called, so every channel this notice exists
+        // to name has been removed from it — passing it here produced a feature that was fully unit-tested,
+        // shipped, and rendered nothing at all. The set has to come from the registry, filtered only by the
+        // scope the dashboard is showing.
+        //
+        // Silent about channels that carry no conversations — a Google Business account is not a gap in a
+        // conversation queue, and saying it is trains the owner to dismiss the line that matters.
+        var connected = _services.Registry.Instances.Where(i => i.IsProfessional).ToList();
+        var coverage = ChannelCoverage.DescribeGaps(connected);
         if (coverage.Length > 0)
         {
             CardsHost.Children.Add(BuildCoverageNotice(coverage));
