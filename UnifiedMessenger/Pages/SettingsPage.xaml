@@ -629,6 +629,15 @@
                             FontSize="{StaticResource UmFontSizeBody}"
                             Foreground="{ThemeResource UmTextTertiaryBrush}"
                             TextWrapping="WrapWholeWords" />
+                        <!-- Sign-in state (A12). The two lines above answer "can the reader still find
+                             things on the page"; neither can answer "is anyone signed into that page".
+                             A signed-out account reports perfect selector health, because there is no
+                             fault to report - it simply is not being read. -->
+                        <TextBlock
+                            x:Name="SignInHealthText"
+                            FontSize="{StaticResource UmFontSizeBody}"
+                            Foreground="{ThemeResource UmTextTertiaryBrush}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                     </shared:SurfaceCard.CardBody>
                 </shared:SurfaceCard>

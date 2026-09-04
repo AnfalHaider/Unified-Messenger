@@ -121,6 +121,59 @@ public static class ChannelCoverage
         return string.Join(" ", parts);
     }
 
+    /// <summary>
+    /// The two-or-three-word label for a card chip, so an account states its own coverage where its
+    /// figures are, rather than only in a notice further down the page.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Vocabulary lives here and not in the panel because the same words have to appear on the card, in
+    /// the queue's branch header and in the leaderboard. Three surfaces inventing three phrasings for one
+    /// idea is how "not shown", "unavailable" and "no data" ended up meaning the same thing in different
+    /// places, each reading as a different problem.
+    /// </para>
+    /// <para>
+    /// Only meaningful for a single account. A location rolling up WhatsApp, Instagram and Google has no
+    /// one coverage level, and stamping any of these on it would be false — callers must render this for
+    /// <see cref="OversightEntityKind.Instance"/> only.
+    /// </para>
+    /// </remarks>
+    public static string ChipLabel(ChannelCoverageLevel level) => level switch
+    {
+        ChannelCoverageLevel.FullDetail => "Measured in full",
+        ChannelCoverageLevel.CountsOnly => "Counts only",
+        ChannelCoverageLevel.NotMeasured => "Not measured",
+        ChannelCoverageLevel.NotAConversationChannel => "Reviews only",
+        _ => string.Empty
+    };
+
+    /// <summary>
+    /// The sentence behind <see cref="ChipLabel"/> — what the chip means, in the owner's terms.
+    /// </summary>
+    public static string ChipTooltip(ChannelCoverageLevel level) => level switch
+    {
+        ChannelCoverageLevel.FullDetail =>
+            "Every waiting conversation on this account appears in the queue, with who is waiting and what they said.",
+        ChannelCoverageLevel.CountsOnly =>
+            "This account can be counted but not listed. Open it to see who is waiting and what they said.",
+        ChannelCoverageLevel.NotMeasured =>
+            "Nothing reads this channel yet, so it contributes no figures here.",
+        ChannelCoverageLevel.NotAConversationChannel =>
+            "Not a conversation channel. Reviews and questions only — Google shut its message channel down in 2024.",
+        _ => string.Empty
+    };
+
+    /// <summary>
+    /// True when the chip is worth drawing at all.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ChannelCoverageLevel.FullDetail"/> is the norm on this dashboard, and a chip on every
+    /// card is decoration rather than signal — the same reasoning that keeps the session-state chip off a
+    /// healthy account. The chip appears where something is genuinely missing.
+    /// </remarks>
+    public static bool ShouldShowChip(ChannelCoverageLevel level) =>
+        level is not ChannelCoverageLevel.FullDetail;
+
     private static string Describe(int count, string channel) =>
         count == 1 ? $"1 {channel} account" : $"{count} {channel} accounts";
 

@@ -5,6 +5,38 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.86
+
+> **What you will notice:** an account that cannot show you everything now says so on the account itself,
+> not only in a notice further down the page.
+
+**The visual pass on the shell (Increment 120).**
+
+The coverage classification shipped in v4.99.81 and only ever appeared as one sentence under the queue.
+An owner reading a card had no way to tell "6 waiting, and that is all of them" from "6 waiting, of an
+unknown total" — the two look identical, and only one is safe to act on.
+
+- **A coverage chip on the account card**, beside the name: *Counts only*, *Not measured*, *Reviews only*.
+  It appears only where something is genuinely missing — a badge on every card is decoration, and the eye
+  stops reading one that is always there.
+- **Never on a location card.** A location rolling up WhatsApp, Instagram and Google has no single
+  coverage level, and stamping one on it would describe some of its accounts and misdescribe the rest.
+  Location-level gaps stay with the notice, which can say "and 2 others" honestly.
+- **The queue's branch header carries the same words**, so a branch whose rows are incomplete says so
+  where its rows are.
+- **The vocabulary lives in one place** (`ChannelCoverage`), because the card, the branch header and the
+  leaderboard all need it. Three surfaces inventing three phrasings is how "not shown", "unavailable" and
+  "no data" came to mean one thing in different places, each reading as a different problem.
+- **A sign-in line in Settings → Data and privacy.** The two health lines there answer "can the reader
+  still find things on the page"; neither can answer "is anyone signed into that page". A signed-out
+  account reports *perfect* selector health, because nothing is failing — it simply is not being read.
+
+The status-palette ratchet caught the first version of the chip reaching for a Windows system fill brush
+and sent it to the app's own audited tokens instead. It then caught the *comment* explaining that, since
+it counts raw text occurrences — recorded in the code so the next person does not rediscover it.
+
+2086 tests green.
+
 ## v4.99.85
 
 > **What you will notice:** an account you are not signed into no longer shows figures. It used to show

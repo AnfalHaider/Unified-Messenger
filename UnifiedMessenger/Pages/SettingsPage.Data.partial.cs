@@ -43,6 +43,13 @@ public sealed partial class SettingsPage
         // Independent of the toggle above: whichever reader is live, the app still has to find things on
         // WhatsApp's page, and this is the only place a customer can see that it still can.
         SelectorHealthText.Text = SelectorHealth.Describe();
+
+        // And independent of BOTH: a signed-out account reports perfect selector health, because nothing
+        // is failing — it is simply not being read. Neither line above can say that, so an account whose
+        // session expired looks healthy on this screen while contributing nothing to any figure.
+        SignInHealthText.Text =
+            SignInGate.DescribeSignedOut(_services.Registry.Instances)
+            ?? "Every account is signed in.";
     }
 
     private async void ClearAnalyticsButton_Click(object sender, RoutedEventArgs e)

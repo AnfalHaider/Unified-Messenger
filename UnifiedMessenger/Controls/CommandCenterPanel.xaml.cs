@@ -1148,6 +1148,25 @@ public sealed partial class CommandCenterPanel : UserControl
             Opacity = 0.7,
             VerticalAlignment = VerticalAlignment.Center
         });
+
+        // A branch whose rows are incomplete says so on the branch, not only in the notice at the top of
+        // the queue. The count above is the honest number for what this channel can see; without this the
+        // reader has no way to tell "6 waiting, and that is all of them" from "6 waiting, of an unknown
+        // total". A fully-measured channel adds nothing here, because every row is present.
+        var coverage = ChannelCoverage.For(instance);
+        if (ChannelCoverage.ShouldShowChip(coverage))
+        {
+            var limitText = new TextBlock
+            {
+                Text = $"· {ChannelCoverage.ChipLabel(coverage).ToLowerInvariant()}",
+                FontSize = UmScale.Text.Caption,
+                Opacity = 0.7,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTipService.SetToolTip(limitText, ChannelCoverage.ChipTooltip(coverage));
+            header.Children.Add(limitText);
+        }
+
         return header;
     }
 
@@ -1899,6 +1918,82 @@ public sealed partial class CommandCenterPanel : UserControl
         ToolTipService.SetToolTip(chip, description);
         // Colour alone can't carry this (WCAG 1.4.1) — the text label does, and screen readers get the
         // full explanation rather than just the one-word chip.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(chip, $"{label}. {description}");
+
+        return chip;
+    }
+
+    /// <summary>
+    /// The coverage chip: what this account's figures do and do not include, stated on the card itself.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null for a location, and that is a correctness rule rather than a layout preference. A location
+    /// rolling up WhatsApp, Instagram and Google has no single coverage level; stamping one on it would
+    /// describe some of its accounts and misdescribe the rest. Gaps at location level are named by
+    /// <see cref="ChannelCoverage.DescribeGaps"/>, which can say "and 2 others" honestly.
+    /// </para>
+    /// <para>
+    /// Null for a fully-measured account too — a chip on every card is decoration, and the eye stops
+    /// reading a badge that is always there. It appears where something is genuinely missing.
+    /// </para>
+    /// </remarks>
+    private FrameworkElement? BuildCoverageChip(OversightEntityHealth entity)
+    {
+        if (entity.Kind != OversightEntityKind.Instance)
+        {
+            return null;
+        }
+
+        var instanceId = entity.MemberInstanceIds.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(instanceId))
+        {
+            return null;
+        }
+
+        var instance = _services?.Registry.Instances
+            .FirstOrDefault(i => string.Equals(i.Id, instanceId, StringComparison.OrdinalIgnoreCase));
+        if (instance is null)
+        {
+            return null;
+        }
+
+        var level = ChannelCoverage.For(instance);
+        if (!ChannelCoverage.ShouldShowChip(level))
+        {
+            return null;
+        }
+
+        var label = ChannelCoverage.ChipLabel(level);
+        var description = ChannelCoverage.ChipTooltip(level);
+
+        // The app's own audited palette, not the Windows system fill brushes — those take their colour
+        // from the OS and are unmeasured for contrast, which is why StatusContrastTests ratchets their
+        // count downward. (That test counts raw text occurrences, so naming the prefix here would itself
+        // fail the build — which is how this comment came to be worded the long way round.)
+        // This chip is quieter than the session-state one by design: coverage is a standing fact about
+        // the channel, not something that went wrong today, so it takes the sunken surface rather than a
+        // status wash.
+        var chip = new Border
+        {
+            Background = Brush("UmSurfaceSunkenBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(6, 1, 6, 1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = label,
+                FontSize = UmScale.Text.Caption,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brush(UmSemanticBrushes.StatusMutedBrushKey)
+            }
+        };
+
+        ToolTipService.SetToolTip(chip, description);
+        // Same rule as the session chip: colour cannot carry meaning on its own (WCAG 1.4.1), so the text
+        // label does, and a screen reader gets the sentence rather than the two-word badge.
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(chip, $"{label}. {description}");
 
         return chip;
@@ -2965,6 +3060,14 @@ public sealed partial class CommandCenterPanel : UserControl
         if (BuildSessionStateChip(entity) is { } sessionChip)
         {
             nameLine.Children.Add(sessionChip);
+        }
+
+        // Coverage sits after session state deliberately. Session state is transient and urgent ("Scan QR",
+        // "Failed"); coverage is a standing property of the channel. Reading order should put the thing
+        // that changed today before the thing that has always been true.
+        if (BuildCoverageChip(entity) is { } coverageChip)
+        {
+            nameLine.Children.Add(coverageChip);
         }
 
         nameColumn.Children.Add(nameLine);
