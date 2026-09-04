@@ -198,9 +198,9 @@ public sealed partial class ActivityPatternsPanel : UserControl
         var multiSeries = breakdown.Series.Count > 1;
         var seriesColors = ChartPalette.ResolveSeriesColors(breakdown.Series);
         var labelBrush = Brush("TextFillColorTertiaryBrush");
-        var peakLabelBrush = Brush("SystemFillColorCautionBrush");
+        var peakLabelBrush = Brush("UmStatusWarningBrush");
         var singleFill = Brush("AccentFillColorDefaultBrush");
-        var peakFill = Brush("SystemFillColorCautionBrush");
+        var peakFill = Brush("UmStatusWarningBrush");
         var max = Math.Max(1, breakdown.Totals.Max());
 
         for (var i = 0; i < count; i++)

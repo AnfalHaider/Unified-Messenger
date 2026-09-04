@@ -101,7 +101,7 @@ public sealed class KpiStatCard : ContentControl
         _card.Background = ResolveBrush("CardBackgroundFillColorDefaultBrush");
         _card.BorderBrush = ResolveBrush("UmHairlineBrush");
         _iconChip.Background = ResolveBrush("SystemFillColorAttentionBackgroundBrush");
-        _icon.Foreground = AccentBrush ?? ResolveBrush("SystemFillColorAttentionBrush");
+        _icon.Foreground = AccentBrush ?? ResolveBrush("UmStatusInfoBrush");
     }
 
     public string Label { get => (string)GetValue(LabelProperty); set => SetValue(LabelProperty, value); }

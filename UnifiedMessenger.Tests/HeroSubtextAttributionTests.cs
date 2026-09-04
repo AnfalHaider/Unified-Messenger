@@ -101,4 +101,37 @@ public class HeroSubtextAttributionTests
         Assert.Contains("oldest 75d · furthest behind: Busy Account", text, StringComparison.Ordinal);
         Assert.DoesNotContain("oldest 75d (", text, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void AnOldestWaitFromTheBacklogSaysSo()
+    {
+        // Observed live: "35 customers are waiting for a reply · oldest 26d". The hero counts the LIVE
+        // queue and excludes the backlog by design, but the oldest wait is searched across everything
+        // awaiting — so on any account with a backlog the age comes from a population the number does not
+        // include. Joined by " · " it reads as one sentence, and the 26-day customer is taken for one of
+        // the 35. Same shape as the 75d-at-the-wrong-account bug above, one level up: an unlabelled
+        // duration read as belonging to the figure beside it.
+        var text = CommandCenterPanel.ComposeHeroSubtext(
+            oldestAccountName: "Busy Account",
+            oldestMinutes: SeventyFiveDays,
+            worstAccountName: "Busy Account",
+            oldestIsBacklog: true);
+
+        Assert.Contains("oldest in the backlog 75d", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnOldestWaitInsideTheLiveQueueIsNotLabelledAsBacklog()
+    {
+        // The qualifier must appear only when it is true, or it becomes noise on every screen and stops
+        // being read on the screens where it matters.
+        var text = CommandCenterPanel.ComposeHeroSubtext(
+            oldestAccountName: "Busy Account",
+            oldestMinutes: 90,
+            worstAccountName: "Busy Account",
+            oldestIsBacklog: false);
+
+        Assert.Contains("oldest 1.5h", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("backlog", text, StringComparison.OrdinalIgnoreCase);
+    }
 }

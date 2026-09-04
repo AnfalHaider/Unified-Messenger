@@ -154,7 +154,7 @@
                                 BorderThickness="1"
                                 CornerRadius="8">
                                 <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-                                    <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE72E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                                    <FontIcon FontSize="{StaticResource UmIconSizeSm}" Glyph="&#xE72E;" Foreground="{ThemeResource UmStatusSuccessBrush}" />
                                     <TextBlock x:Name="NavAddressText" VerticalAlignment="Center" FontSize="{StaticResource UmFontSizeBody}" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBox
                                         x:Name="NavAddressBox"

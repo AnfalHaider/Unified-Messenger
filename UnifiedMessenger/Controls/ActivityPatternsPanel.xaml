@@ -86,7 +86,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <FontIcon Grid.Column="0" FontSize="{StaticResource UmIconSizeMd}" Foreground="{ThemeResource SystemFillColorCautionBrush}" Glyph="&#xEA80;" VerticalAlignment="Center" />
+                        <FontIcon Grid.Column="0" FontSize="{StaticResource UmIconSizeMd}" Foreground="{ThemeResource UmStatusWarningBrush}" Glyph="&#xEA80;" VerticalAlignment="Center" />
                         <TextBlock Grid.Column="1" x:Name="InsightText" FontSize="{StaticResource UmFontSizeBodyStrong}" VerticalAlignment="Center" TextWrapping="WrapWholeWords" />
                     </Grid>
                 </Border>

@@ -128,7 +128,7 @@ public sealed class WeeklyReportDialog : ContentDialog
 
         if (!string.IsNullOrWhiteSpace(aiSummary))
         {
-            var badge = new TextBlock { Text = "✦ AI", FontSize = UmScale.Text.Caption, FontWeight = FontWeights.SemiBold, Foreground = Res("SystemFillColorAttentionBrush"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0) };
+            var badge = new TextBlock { Text = "✦ AI", FontSize = UmScale.Text.Caption, FontWeight = FontWeights.SemiBold, Foreground = Res("UmStatusInfoBrush"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 0, 0) };
             Grid.SetColumn(badge, 0);
             headlineRow.Children.Add(badge);
         }
@@ -173,9 +173,9 @@ public sealed class WeeklyReportDialog : ContentDialog
     {
         var (glyph, brushKey) = insight.Severity switch
         {
-            InsightSeverity.Warn => ("", "SystemFillColorCautionBrush"),
-            InsightSeverity.Good => ("", "SystemFillColorSuccessBrush"),
-            _ => ("", "SystemFillColorAttentionBrush"),
+            InsightSeverity.Warn => ("", "UmStatusWarningBrush"),
+            InsightSeverity.Good => ("", "UmStatusSuccessBrush"),
+            _ => ("", "UmStatusInfoBrush"),
         };
 
         var grid = new Grid { ColumnSpacing = 10 };

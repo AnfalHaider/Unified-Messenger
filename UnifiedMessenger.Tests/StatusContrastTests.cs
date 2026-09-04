@@ -245,9 +245,21 @@ public class StatusContrastTests
                         && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Sum(path => File.ReadAllText(path).Split("SystemFillColor").Length - 1);
 
-        // Measured at 69 after the sidebar selection fix. Lower this as sites migrate; never raise it.
+        // Was 69. Now 10, and every survivor is a *BackgroundBrush.
+        //
+        // The 59 FOREGROUND references migrated to the audited UmStatus* tokens, which is strictly safer
+        // rather than riskier: those tokens are the ones this very file measures against LightCard,
+        // DarkCard and DarkChrome at the 4.5:1 bar, so the migration moved colour references INTO the
+        // measured set. It was safe to do mechanically because no non-Background system brush was ever
+        // used as a background — checked before the replace, so a saturated text colour could not become
+        // a solid block behind text.
+        //
+        // The background washes deliberately stay. They are the surface BEHIND text, so the applicable
+        // measurement is of whatever is drawn on them rather than of the wash itself, and there is no
+        // UmStatusInfoWash to move SystemFillColorAttentionBackgroundBrush onto. Migrating those is its
+        // own piece of work with its own pass.
         Assert.True(
-            references <= 69,
+            references <= 10,
             $"SystemFillColor* references rose to {references}. The app has its own audited status palette "
             + "(UmSemanticBrushes) — use it, or lower this ceiling deliberately.");
     }

@@ -59,7 +59,22 @@ command that re-derives each row, and an explicit list of what it does *not* dem
 | **U9** | Focus order outside the dashboard | ◑ **partly.** `FocusTrapHelper` no longer orders dialog tab stops by `GetHashCode()`, and the sidebar's tab indices were realigned with their constants. **Nobody has tabbed through the pages and dialogs by hand.** |
 | **U10** | "Instance" in accessible names | ✅ done (v4.99.47), pinned by `AccountVocabularyTests` |
 
-### 0.1a · The one open UI item
+### 0.1a · ~~The one open UI item~~ — closed (v4.99.83)
+
+**59 foreground references migrated; the ratchet is 69 → 10.** The deferral below reasoned that moving
+colour references blind risks contrast regressions. That is backwards for foregrounds, and checking
+showed why: `StatusContrastTests` already measures every `UmStatus*` colour against `LightCard`,
+`DarkCard` and `DarkChrome` at 4.5:1, so the migration moved references **into** the measured set.
+It was safe mechanically because **no non-Background system brush was ever used as a background** —
+verified before the replace, so a saturated text colour could not become a solid block behind text.
+Confirmed on screen in both themes afterwards.
+
+The ten survivors are all `*BackgroundBrush` washes and stay: they sit *behind* text, so the measurement
+that matters is of what is drawn on them, and there is no `UmStatusInfoWash` to move
+`SystemFillColorAttentionBackgroundBrush` onto. Its own piece of work.
+
+<details><summary>The original entry, kept because its reasoning is the part worth remembering</summary>
+
 
 **Two status palettes still ship** — the app's audited `UmStatus*` tokens and Windows' `SystemFillColor*`
 ones. Two greens, two ambers, two reds, occasionally on one screen. 69 references remain.
@@ -71,6 +86,8 @@ collision is fixed — the sidebar's selection bar was painted with the *success
 "healthy" were the same colour on a rail whose entire job is showing trouble.
 `StatusContrastTests.TheSystemPaletteDoesNotSpreadFurther` pins the count so it cannot grow; shrinking it is
 deliberate work with its own contrast pass.
+
+</details>
 
 ## 0.2 · Data accuracy
 
@@ -113,7 +130,7 @@ can compute something correct, do not route it through a model afterwards.**
 | ID | What | Status |
 |---|---|---|
 | **F-SNAP-02** | A degraded read (bridge failed, IndexedDB succeeded) visible only in `app.log` | ✅ closed (v4.99.51). The account card carries a "reduced detail — fallback reader" line whose tooltip names the figure to distrust. |
-| **F-OFFLINE-07** | An aborted navigation puts an account into `Error` with no retry scheduled | ☐ open, unchanged — still deliberate, because it changes *when* accounts enter the error state |
+| **F-OFFLINE-07** | An aborted navigation puts an account into `Error` with no retry scheduled | ✅ **closed — this entry was stale.** `NavigationRetryScheduler` ships, and it was watched working live 2026-09-04: `'…' could not load (ConnectionAborted); retrying in 30s`. Re-verify before reopening. |
 | **F-OFFLINE-08** | The dashboard tells an offline owner to "click Re-sync", which cannot work until the connection returns | ✅ closed (v4.99.51). `OfflineState` lifts the join `ScanBlockedMessage` was already making for the log, so the screen and `app.log` cannot disagree about whether the machine is online. All four sites plus both Activity-patterns empty states. **Not seen rendered** — screen access was requested during that work and declined. |
 | **F-ORCH-06** | "Instance" as an accessible name | ✅ closed (v4.99.47) |
 | **F-METRICS-11** | End-of-day projection skew | WONTFIX by decision — bound measured under 2% |

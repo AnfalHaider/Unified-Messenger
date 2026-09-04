@@ -69,8 +69,8 @@ public sealed class AccountDetailDialog : ContentDialog
         }
 
         AddTile(0, 0, "Caught up", active > 0 ? $"{caughtPct}%" : "—", StatusKey(caughtPct));
-        AddTile(1, 0, "Awaiting", awaiting.Count.ToString(), awaiting.Count > 0 ? "SystemFillColorCriticalBrush" : "SystemFillColorSuccessBrush");
-        AddTile(2, 0, "Answered today", response.AnsweredToday.ToString(), "SystemFillColorSuccessBrush");
+        AddTile(1, 0, "Awaiting", awaiting.Count.ToString(), awaiting.Count > 0 ? "UmStatusDangerBrush" : "UmStatusSuccessBrush");
+        AddTile(2, 0, "Answered today", response.AnsweredToday.ToString(), "UmStatusSuccessBrush");
         AddTile(0, 1, "Reply time", response.HasData ? BusinessReport.FormatMinutes(response.MedianMinutes) : "—", "TextFillColorPrimaryBrush");
         AddTile(1, 1, "SLA met", response.HasData ? $"{response.SlaCompliancePercent}%" : "—", StatusKey(response.SlaCompliancePercent));
         AddTile(2, 1, "Replies", response.SampleCount.ToString(), "TextFillColorSecondaryBrush");
@@ -176,7 +176,7 @@ public sealed class AccountDetailDialog : ContentDialog
     }
 
     private static string StatusKey(int percent) =>
-        percent >= 90 ? "SystemFillColorSuccessBrush" : percent >= 70 ? "SystemFillColorCautionBrush" : "SystemFillColorCriticalBrush";
+        percent >= 90 ? "UmStatusSuccessBrush" : percent >= 70 ? "UmStatusWarningBrush" : "UmStatusDangerBrush";
 
     // Both went straight to Application.Current.Resources, which resolves the APP-default theme and not
     // this dialog's — the systemic cause of the white-in-dark surfaces across this app.

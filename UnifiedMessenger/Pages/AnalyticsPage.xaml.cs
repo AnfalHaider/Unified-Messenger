@@ -172,6 +172,14 @@ public sealed partial class AnalyticsPage : Page
         BindKpi(RepliesKpi, view.Replies15);
         BindKpi(SlaKpi, view.SlaMet);
 
+        // Name the SLA tile's own threshold. "Replies (15m)" is a fixed 15-minute figure; "SLA Met" uses
+        // whatever target the owner set — which DEFAULTS TO 15, so out of the box these two tiles show the
+        // same percentage under different words, side by side, with nothing to say why. Observed live: both
+        // read 33%. Worse, an owner who later changes their target sees them silently diverge with no
+        // explanation on screen. Putting the minutes in the label makes the sameness legible when they
+        // agree and the difference legible when they do not.
+        SlaKpi.Label = $"SLA Met ({AppSettingsService.Instance.Settings.SlaThresholdMinutes}m)";
+
         MessagesChart.SetBars(view.MessagesByDay, MessagesColor, "No messages in this period");
         ResponseChart.SetSeries(view.ResponseDaily, view.ResponseLabels, ResponseColor,
             formatY: BusinessReport.FormatMinutes, emptyHint: "No replies tracked yet");

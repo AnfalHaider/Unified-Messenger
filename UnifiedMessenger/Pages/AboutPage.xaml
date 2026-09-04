@@ -113,7 +113,7 @@
                             Grid.Column="0"
                             Glyph="&#xE73E;"
                             FontSize="{StaticResource UmIconSizeMd}"
-                            Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                            Foreground="{ThemeResource UmStatusSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock
                             Grid.Column="1"
@@ -131,7 +131,7 @@
                             Grid.Column="0"
                             Glyph="&#xE73E;"
                             FontSize="{StaticResource UmIconSizeMd}"
-                            Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                            Foreground="{ThemeResource UmStatusSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock
                             Grid.Column="1"
@@ -149,7 +149,7 @@
                             Grid.Column="0"
                             Glyph="&#xE73E;"
                             FontSize="{StaticResource UmIconSizeMd}"
-                            Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                            Foreground="{ThemeResource UmStatusSuccessBrush}"
                             VerticalAlignment="Top" />
                         <TextBlock
                             Grid.Column="1"

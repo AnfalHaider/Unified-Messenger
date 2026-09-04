@@ -22,9 +22,9 @@
             HorizontalAlignment="Left"
             Click="PermanentDeleteButton_Click"
             Content="Permanent delete…"
-            Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+            Foreground="{ThemeResource UmStatusDangerBrush}" />
         <TextBlock
-            Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+            Foreground="{ThemeResource UmStatusDangerBrush}"
             Text="Permanent delete wipes all cookies, cache, and profile data from disk. This cannot be undone."
             TextWrapping="WrapWholeWords" />
     </StackPanel>

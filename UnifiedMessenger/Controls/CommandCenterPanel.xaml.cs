@@ -726,7 +726,7 @@ public sealed partial class CommandCenterPanel : UserControl
     private FrameworkElement BuildAwaitingPanel(OversightEntityHealth entity)
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
-        var danger = Brush("SystemFillColorCriticalBrush");
+        var danger = Brush("UmStatusDangerBrush");
         var (windowStart, windowEnd) = WindowRange();
 
         var items = entity.MemberInstanceIds
@@ -827,7 +827,7 @@ public sealed partial class CommandCenterPanel : UserControl
     private void BuildNeedsReplyList(IReadOnlyList<MessengerInstance> instances)
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
-        var danger = Brush("SystemFillColorCriticalBrush");
+        var danger = Brush("UmStatusDangerBrush");
 
         // Scope to one account/location when a card's awaiting pill was clicked.
         var scoped = instances;
@@ -1221,10 +1221,10 @@ public sealed partial class CommandCenterPanel : UserControl
     /// <summary>Bands for a live queue, where minutes matter.</summary>
     private static readonly AgingBand[] HourScaleBands =
     [
-        new(TimeSpan.FromMinutes(15), "<15m", "SystemFillColorSuccessBrush", "Just arrived — under 15 minutes."),
-        new(TimeSpan.FromHours(1), "15m–1h", "SystemFillColorAttentionBrush", "Waiting 15 minutes to 1 hour."),
-        new(TimeSpan.FromHours(4), "1–4h", "SystemFillColorCautionBrush", "Waiting 1 to 4 hours."),
-        new(null, ">4h", "SystemFillColorCriticalBrush", "Waiting more than 4 hours — reply to these first.")
+        new(TimeSpan.FromMinutes(15), "<15m", "UmStatusSuccessBrush", "Just arrived — under 15 minutes."),
+        new(TimeSpan.FromHours(1), "15m–1h", "UmStatusInfoBrush", "Waiting 15 minutes to 1 hour."),
+        new(TimeSpan.FromHours(4), "1–4h", "UmStatusWarningBrush", "Waiting 1 to 4 hours."),
+        new(null, ">4h", "UmStatusDangerBrush", "Waiting more than 4 hours — reply to these first.")
     ];
 
     /// <summary>
@@ -1233,10 +1233,10 @@ public sealed partial class CommandCenterPanel : UserControl
     /// </summary>
     private static readonly AgingBand[] DayScaleBands =
     [
-        new(TimeSpan.FromHours(24), "today", "SystemFillColorSuccessBrush", "Arrived in the last 24 hours."),
-        new(TimeSpan.FromDays(7), "1–7d", "SystemFillColorAttentionBrush", "Waiting between a day and a week."),
-        new(TimeSpan.FromDays(30), "1–4w", "SystemFillColorCautionBrush", "Waiting between a week and a month."),
-        new(null, ">1 month", "SystemFillColorCriticalBrush", "Waiting more than a month — these are the ones costing you customers.")
+        new(TimeSpan.FromHours(24), "today", "UmStatusSuccessBrush", "Arrived in the last 24 hours."),
+        new(TimeSpan.FromDays(7), "1–7d", "UmStatusInfoBrush", "Waiting between a day and a week."),
+        new(TimeSpan.FromDays(30), "1–4w", "UmStatusWarningBrush", "Waiting between a week and a month."),
+        new(null, ">1 month", "UmStatusDangerBrush", "Waiting more than a month — these are the ones costing you customers.")
     ];
 
     /// <summary>A "Showing: &lt;account&gt; ✕" chip above the scoped Needs-reply list; click clears the scope.</summary>
@@ -1869,9 +1869,9 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var (background, foreground) = state switch
         {
-            SessionState.Failed => ("SystemFillColorCriticalBackgroundBrush", "SystemFillColorCriticalBrush"),
-            SessionState.ScanQr => ("SystemFillColorCautionBackgroundBrush", "SystemFillColorCautionBrush"),
-            SessionState.Degraded => ("SystemFillColorCautionBackgroundBrush", "SystemFillColorCautionBrush"),
+            SessionState.Failed => ("SystemFillColorCriticalBackgroundBrush", "UmStatusDangerBrush"),
+            SessionState.ScanQr => ("SystemFillColorCautionBackgroundBrush", "UmStatusWarningBrush"),
+            SessionState.Degraded => ("SystemFillColorCautionBackgroundBrush", "UmStatusWarningBrush"),
             _ => ("SystemFillColorNeutralBackgroundBrush", "TextFillColorSecondaryBrush")
         };
 
@@ -1984,9 +1984,9 @@ public sealed partial class CommandCenterPanel : UserControl
     /// <summary>Status colour bands shared by the % hero, KPI tiles, and card accent stripe.</summary>
     private Brush StatusBrushForPercent(int onTimePercent) => onTimePercent switch
     {
-        >= 90 => Brush("SystemFillColorSuccessBrush"),
-        >= 70 => Brush("SystemFillColorCautionBrush"),
-        _ => Brush("SystemFillColorCriticalBrush"),
+        >= 90 => Brush("UmStatusSuccessBrush"),
+        >= 70 => Brush("UmStatusWarningBrush"),
+        _ => Brush("UmStatusDangerBrush"),
     };
 
     /// <summary>
@@ -2110,9 +2110,9 @@ public sealed partial class CommandCenterPanel : UserControl
         DateTimeOffset? rangeEnd)
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
-        var success = Brush("SystemFillColorSuccessBrush");
+        var success = Brush("UmStatusSuccessBrush");
         var primary = Brush("TextFillColorPrimaryBrush");
-        var caution = Brush("SystemFillColorCautionBrush");
+        var caution = Brush("UmStatusWarningBrush");
         var tiles = new List<KpiTileViewModel>(6);
 
         // Caught-up %: measured-count-weighted average across accounts that actually have live data.
@@ -2322,10 +2322,10 @@ public sealed partial class CommandCenterPanel : UserControl
         // "Nothing waiting but incomplete" gets caution rather than success or danger: there is no known
         // backlog, but the tick would be a lie.
         var accent = caughtUp
-            ? Brush("SystemFillColorSuccessBrush")
+            ? Brush("UmStatusSuccessBrush")
             : claim.NothingWaitingButIncomplete
-                ? Brush("SystemFillColorCautionBrush")
-                : Brush("SystemFillColorCriticalBrush");
+                ? Brush("UmStatusWarningBrush")
+                : Brush("UmStatusDangerBrush");
         // NOTE: neutral text (primary/secondary) must NOT be fetched via Brush() — that resolves the app's
         // default (dark) theme, so it renders near-white and vanishes on the light hero. Let the primary text
         // INHERIT the element-themed default foreground, and dim the secondary line with Opacity instead.
@@ -2511,10 +2511,22 @@ public sealed partial class CommandCenterPanel : UserControl
             ? worst.DisplayName
             : null;
 
+        // Is the oldest wait one of the customers the hero is actually counting? The hero deliberately
+        // shows the LIVE queue (NeedsReply) and not the whole open population — see RenderHero's call site
+        // — but the oldest wait is searched across everything awaiting, so on any account with a backlog
+        // the two come from different populations. Observed live: "35 customers are waiting for a reply ·
+        // oldest 26d", where the 26-day customer is in the backlog and is therefore NOT one of the 35.
+        // Joined by " · " that reads as one sentence, so the age is taken for the oldest of the headline
+        // count. Same defect as the 75d-attributed-to-the-wrong-account bug this method already fixed,
+        // one level up: an unlabelled duration read as belonging to the number beside it.
+        var backlogAfter = TimeSpan.FromDays(Math.Max(1, AppSettingsService.Instance.Settings.AwaitingBacklogAfterDays));
+        var oldestIsBacklog = oldestWait is { } o && o.Minutes >= backlogAfter.TotalMinutes;
+
         return ComposeHeroSubtext(
             oldestWait?.Name,
             oldestWait?.Minutes,
-            worstName);
+            worstName,
+            oldestIsBacklog);
     }
 
     /// <summary>
@@ -2530,7 +2542,8 @@ public sealed partial class CommandCenterPanel : UserControl
     internal static string ComposeHeroSubtext(
         string? oldestAccountName,
         double? oldestMinutes,
-        string? worstAccountName)
+        string? worstAccountName,
+        bool oldestIsBacklog = false)
     {
         var parts = new List<string>(3);
 
@@ -2541,9 +2554,15 @@ public sealed partial class CommandCenterPanel : UserControl
             var attributed = !string.IsNullOrWhiteSpace(oldestAccountName)
                              && !string.Equals(oldestAccountName, worstAccountName, StringComparison.Ordinal);
 
+            // Say WHERE the oldest wait lives when it is not among the customers the headline counts.
+            // Dropping it instead would be worse: the oldest wait is the fact most worth surfacing, and
+            // hiding it behind a smaller live-queue number is exactly the backlog-behind-a-reassuring-
+            // figure defect the split was introduced to prevent.
+            var label = oldestIsBacklog ? "oldest in the backlog" : "oldest";
+
             parts.Add(attributed
-                ? $"oldest {FormatMinutes(minutes)} ({oldestAccountName})"
-                : $"oldest {FormatMinutes(minutes)}");
+                ? $"{label} {FormatMinutes(minutes)} ({oldestAccountName})"
+                : $"{label} {FormatMinutes(minutes)}");
         }
 
         if (!string.IsNullOrWhiteSpace(worstAccountName))
@@ -2581,9 +2600,9 @@ public sealed partial class CommandCenterPanel : UserControl
     }
 
     private Brush ResponseBrush(double medianMinutes, int slaThreshold) =>
-        medianMinutes <= slaThreshold ? Brush("SystemFillColorSuccessBrush")
-        : medianMinutes <= slaThreshold * 2 ? Brush("SystemFillColorCautionBrush")
-        : Brush("SystemFillColorCriticalBrush");
+        medianMinutes <= slaThreshold ? Brush("UmStatusSuccessBrush")
+        : medianMinutes <= slaThreshold * 2 ? Brush("UmStatusWarningBrush")
+        : Brush("UmStatusDangerBrush");
 
     /// <summary>Routes a KPI tile tap to the matching drill-down (mode switch, account jump, or activity graph).</summary>
     // Click, not Tapped: the tiles are Buttons now so keyboard activation reaches the same handler. Tapped
@@ -2806,7 +2825,7 @@ public sealed partial class CommandCenterPanel : UserControl
         // A consistent dark strip looks more premium than alternating amber/red backgrounds.
         var bg = Brush("ControlSolidFillColorDefaultBrush");
         var fg = Brush("TextFillColorPrimaryBrush");
-        var badge = Brush("SystemFillColorCautionBrush");
+        var badge = Brush("UmStatusWarningBrush");
 
         // A GRID, not a horizontal StackPanel. A horizontal StackPanel measures its children with INFINITE
         // available width, so a TextBlock inside one can never wrap however its TextWrapping is set — it
@@ -2862,7 +2881,7 @@ public sealed partial class CommandCenterPanel : UserControl
     private StackPanel BuildRowContent(OversightEntityHealth entity)
     {
         var secondary = Brush("TextFillColorSecondaryBrush");
-        var danger = Brush("SystemFillColorCriticalBrush");
+        var danger = Brush("UmStatusDangerBrush");
         var hasLiveData = entity.MeasuredCount > 0;
         var statusBrush = !hasLiveData ? secondary : StatusBrushForPercent(entity.OnTimePercent);
 
@@ -3222,8 +3241,8 @@ public sealed partial class CommandCenterPanel : UserControl
         // counted from the same awaiting snapshot as the pill, so the numbers always agree.
         if (hasLiveData)
         {
-            var caution = Brush("SystemFillColorCautionBrush");
-            var success = Brush("SystemFillColorSuccessBrush");
+            var caution = Brush("UmStatusWarningBrush");
+            var success = Brush("UmStatusSuccessBrush");
             var memberInstances = _services?.Registry.Instances
                 .Where(i => entity.MemberInstanceIds.Contains(i.Id, StringComparer.OrdinalIgnoreCase))
                 .ToList() ?? [];

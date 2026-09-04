@@ -41,7 +41,7 @@
 
         <TextBlock
             x:Name="ValidationMessage"
-            Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+            Foreground="{ThemeResource UmStatusDangerBrush}"
             TextWrapping="WrapWholeWords"
             Visibility="Collapsed" />
     </StackPanel>
