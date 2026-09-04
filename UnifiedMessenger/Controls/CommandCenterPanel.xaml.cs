@@ -303,7 +303,11 @@ public sealed partial class CommandCenterPanel : UserControl
                 // ReadFailed changes the card's text and colour without changing any count, so it must be
                 // in the signature or the transition into (and out of) "can't read this account" would be
                 // suppressed as a no-op redraw.
-                .Append(',').Append(e.ReadFailed ? 1 : 0).Append(';');
+                .Append(',').Append(e.ReadFailed ? 1 : 0)
+                // Same reasoning as ReadFailed. Signing out replaces the whole card body with an empty
+                // state, and signing back in restores it — both without moving a single count, so without
+                // this the card would keep showing figures for an account that has stopped being read.
+                .Append(',').Append(e.IsSignedOut ? 1 : 0).Append(';');
         }
 
         return sb.ToString();
@@ -2461,9 +2465,23 @@ public sealed partial class CommandCenterPanel : UserControl
             // "No customers are waiting" is only true when nothing predates the window either. With
             // "Today" selected and a week-old thread still unanswered, the unqualified line was false in
             // exactly the way that costs a customer.
-            return claim.CaughtUpButCarryingBacklog
+            var claimText = claim.CaughtUpButCarryingBacklog
                 ? $"{CaughtUpClaim.CarriedBacklogClause(claim)} · {overallPct}% caught up overall."
                 : $"No customers are waiting on a reply · {overallPct}% caught up overall.";
+
+            // ...and it is only true of the accounts the app can actually read. An all-clear is the most
+            // consequential sentence on this screen — it is the one the owner acts on by closing the app —
+            // so a signed-out account has to qualify it. Appended rather than substituted, because the
+            // claim about the readable accounts is still correct and still worth stating.
+            var signedOutCount = SignInGate.CountSignedOut(instances);
+            if (signedOutCount > 0)
+            {
+                claimText += signedOutCount == 1
+                    ? " 1 signed-out account is not included."
+                    : $" {signedOutCount} signed-out accounts are not included.";
+            }
+
+            return claimText;
         }
 
         if (claim.NothingWaitingButIncomplete)
@@ -3128,6 +3146,47 @@ public sealed partial class CommandCenterPanel : UserControl
         topRow.Children.Add(nameColumn);
         topRow.Children.Add(trailingCell);
         card.Children.Add(topRow);
+
+        // ── Signed out: no figures at all (A12) ───────────────────────────────────────────────
+        //
+        // Returns before every metric below, which is the whole point. The alternative — rendering the
+        // usual card with zeroes, or with the last numbers read before the session expired — states in
+        // the product's own voice that nobody is waiting on a channel it currently cannot see. An empty
+        // state that says why is worth more than a figure that is wrong, and a stale figure is worse
+        // than either because it still looks like a measurement.
+        //
+        // Applies in compact density too: compact makes cards smaller, it does not make them less
+        // truthful.
+        if (entity.IsSignedOut)
+        {
+            var signedOutLine = new TextBlock
+            {
+                Text = "Nothing has been read from this account, so no figures are shown. Sign in inside the app and the next read will pick it up.",
+                FontSize = UmScale.Text.Body,
+                Foreground = secondary,
+                TextWrapping = TextWrapping.Wrap
+            };
+            card.Children.Add(signedOutLine);
+
+            var firstInstanceId = entity.MemberInstanceIds.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(firstInstanceId))
+            {
+                var openButton = new Button
+                {
+                    Content = new TextBlock { Text = $"Open {entity.DisplayName}", FontSize = UmScale.Text.Body },
+                    Padding = _compact ? new Thickness(8, 4, 8, 4) : new Thickness(10, 6, 10, 6),
+                    HorizontalAlignment = HorizontalAlignment.Left
+                };
+                Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+                    openButton,
+                    $"Open {entity.DisplayName} to sign in");
+                var capturedSignedOutId = firstInstanceId!;
+                openButton.Click += (_, _) => _services?.Navigation.OpenInstance(capturedSignedOutId, null, null);
+                card.Children.Add(openButton);
+            }
+
+            return card;
+        }
 
         if (_compact)
         {

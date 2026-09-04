@@ -79,6 +79,10 @@ public sealed class OversightService
             // Recorded read outcomes only. An account never read yet reports false, so the warning cannot
             // fire on every launch before the first scan lands.
             readFailed: AccountReadHealth.LastReadFailed,
+            // Sign-in state, kept separate from `isStale` above. Not-connected already sets stale, which
+            // covers "these numbers are old"; this one answers "there are no numbers", and the card must
+            // render nothing rather than zeroes. See OversightEntityHealth.IsSignedOut.
+            isSignedOut: SignInGate.IsSignedOut,
             nowUtc: null,
             locationForInstance: instanceId =>
                 locationByInstance.TryGetValue(instanceId, out var location) ? location : string.Empty,

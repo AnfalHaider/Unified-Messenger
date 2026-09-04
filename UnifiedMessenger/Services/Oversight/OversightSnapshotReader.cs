@@ -42,6 +42,20 @@ public static class OversightSnapshotReader
             return null;
         }
 
+        // Sign-in gate (A12). Scanning a client that is showing its login screen is not merely wasted
+        // work — it produces a successful read of zero conversations, which every consumer downstream
+        // reads as "this account is caught up". The scan never failed, so AccountReadHealth never warned,
+        // and the account sat on the dashboard looking quiet.
+        //
+        // Returns null WITHOUT recording a read failure, for the same reason the platform gate above
+        // does: a signed-out account is not a broken one. Recording a failure would tell the owner to
+        // click Re-sync, which cannot fix a missing session. The signed-out state is surfaced on its own
+        // terms by SignInGate, on the card and in the rail.
+        if (!SignInGate.MayScan(instance.Id))
+        {
+            return null;
+        }
+
         var gate = Gates.GetOrAdd(instance.Id, _ => new SemaphoreSlim(1, 1));
         await gate.WaitAsync().ConfigureAwait(false);
         try

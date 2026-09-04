@@ -85,6 +85,28 @@ public sealed class OversightEntityHealth
     public bool IsStale { get; init; }
 
     /// <summary>
+    /// True when every member account of this entity is showing a sign-in screen, so nothing has been
+    /// read and no figure on it is a measurement.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately separate from <see cref="IsStale"/>, which it would otherwise be folded into —
+    /// not-connected already sets stale. The two demand opposite treatments. Stale means the app has real
+    /// numbers that are getting old, so it shows them and says when they were read. Signed out means the
+    /// app has nothing, so it must show <b>no figures at all</b>: a zero is a measurement, and rendering
+    /// one here would state, in the product's own voice, that nobody is waiting on a channel it cannot
+    /// see. That is the failure <see cref="UnifiedMessenger.Services.SignInGate"/> exists to prevent, and
+    /// collapsing this flag back into <see cref="IsStale"/> reintroduces it.
+    /// </para>
+    /// <para>
+    /// Requires <i>every</i> member to be signed out, because a location rolling up three accounts of
+    /// which one still reads has genuine data — it is partial, not absent, and partial coverage is
+    /// reported by <see cref="UnifiedMessenger.Services.ChannelCoverage"/> instead.
+    /// </para>
+    /// </remarks>
+    public bool IsSignedOut { get; init; }
+
+    /// <summary>
     /// True when the most recent read of at least one member account failed outright, so this entity's
     /// numbers are missing data rather than reporting a quiet period.
     /// </summary>

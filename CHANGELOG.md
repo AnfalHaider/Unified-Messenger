@@ -5,6 +5,45 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.85
+
+> **What you will notice:** an account you are not signed into no longer shows figures. It used to show
+> zeroes, which looked exactly like a quiet account.
+
+**The sign-in gate (Phase 4 — A12) (Increment 119).**
+
+Sign-in state was already tracked and almost nothing consulted it. The background alert monitor skipped
+accounts that were not connected; `OversightSnapshotReader` — the actual scan, and the path manual
+Re-sync takes — did not check at all. So a signed-out account was scraped, found nothing, and reported
+as caught up. That is the same false calm `AccountReadHealth` exists to prevent, arriving through a door
+it does not watch: the read *succeeded*, so nothing warned.
+
+- **Sign-in detection was inverted.** `evaluateConnection` tested "signed in?" before "signed out?", and
+  WhatsApp's profile counted being on `web.whatsapp.com` as proof of a session — so an account parked on
+  the QR screen reported **"Connected · Signed in"**, and the QR check below it never ran. Logged-out is
+  now evaluated first, because the two states are not symmetric: sign-in markup is specific (a QR canvas,
+  a password field) while signed-in markup is generic, and a login page carries plenty of it.
+- **No platform treats its own host as proof of a session.** A URL says which client is loaded, never
+  whether anyone is signed into it. The one exception points the safe way: Google redirects an
+  unauthenticated session to `accounts.google.com`, so landing there is a positive logged-*out* signal.
+- **Real profiles for Instagram, Messenger and Google Business.** All three previously fell through to
+  `generic`, whose logged-in test is `main, nav, header` — markup most login pages also carry. WhatsApp
+  Business now shares WhatsApp's anchors outright rather than falling through.
+- **`SignInGate`** is the single answer to "may this account be scraped?" and "may its figures be shown?".
+  Both questions live on one type so they cannot silently diverge — gating the scan but not the display
+  would leave the last figures read before the session expired on screen, ageing silently, which is worse
+  than showing nothing because a stale figure still reads as a measurement.
+- **The card shows no figures at all** for a signed-out account — not zeroes, not stale numbers — with a
+  sentence saying why and a button that opens the client. `OversightEntityHealth.IsSignedOut` is kept
+  separate from `IsStale` (which not-connected already sets) because the two demand opposite treatments:
+  stale means "these numbers are old", signed out means "there are no numbers".
+- **The all-clear is qualified.** "No customers are waiting" now adds "1 signed-out account is not
+  included" when applicable. It is the sentence the owner acts on by closing the app.
+
+Two existing tests pinned the defect rather than the behaviour — one required `web.whatsapp.com` to
+appear in the script, the other asserted the Google profile was *absent*. Both are inverted, with the
+reasoning kept so neither is restored by someone reading the old test as intent. 2077 tests green.
+
 ## v4.99.82
 
 > **What you will notice:** the "1 Messenger account not shown here" line added in the last release now

@@ -31,6 +31,7 @@ public static class OversightRollupBuilder
         Func<string?, double> slaThresholdMinutes,
         Func<string, bool>? isStale = null,
         Func<string, bool>? readFailed = null,
+        Func<string, bool>? isSignedOut = null,
         DateTimeOffset? nowUtc = null,
         Func<string, string>? locationForInstance = null,
         DateTimeOffset? windowStartUtc = null,
@@ -183,6 +184,15 @@ public static class OversightRollupBuilder
                 && instanceIds.Count > 0
                 && instanceIds.Any(id => readFailed(id));
 
+            // ALL members, not ANY — the opposite of `couldNotRead` directly above, and deliberately so.
+            // Suppressing every figure is the right response only when there is nothing behind them. A
+            // location with one signed-out account among three still has real numbers from the other two,
+            // and blanking that card would hide more than it protects; ChannelCoverage names the gap
+            // instead.
+            var signedOut = isSignedOut is not null
+                && instanceIds.Count > 0
+                && instanceIds.All(id => isSignedOut(id));
+
             var displayName = grouping == OversightGrouping.ByLocation
                 ? group.Key
                 : nameByInstance.TryGetValue(group.Key, out var name) && !string.IsNullOrWhiteSpace(name)
@@ -206,6 +216,7 @@ public static class OversightRollupBuilder
                 DroppedCount = open.Count(t => t.IsRevenueLeakageRisk),
                 SlaBreachedCount = slaBreachedCount,
                 IsStale = stale,
+                IsSignedOut = signedOut,
                 ReadFailed = couldNotRead,
                 LastActivityUtc = list.Count > 0 ? list.Max(t => t.LastMessageTime) : null,
                 MemberInstanceIds = instanceIds,
