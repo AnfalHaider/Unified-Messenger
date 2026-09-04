@@ -40,10 +40,25 @@ public sealed partial class PersonalOverviewPanel : UserControl
 
     public PersonalOverviewViewModel ViewModel => _viewModel;
 
-    public void ApplyAccessibilityTabOrder() =>
+    /// <summary>
+    /// Puts both of this panel's tab stops in the page-content band.
+    /// </summary>
+    /// <remarks>
+    /// The edit button carried a literal <c>TabIndex="15"</c> and the search box <c>"20"</c> in XAML —
+    /// numbers chosen for this panel alone, in a namespace shared with the sidebar, which numbers its rows
+    /// from 1 upward. With eleven rows on the rail, row fifteen and row twenty claimed the same indices.
+    /// Applying both from the constants keeps them in one band and stops the literals drifting again.
+    /// </remarks>
+    public void ApplyAccessibilityTabOrder()
+    {
+        AccessibilityTabOrderHelper.ApplyTabIndex(
+            PersonalLayoutEditButton,
+            AccessibilityTabOrderHelper.PersonalOverviewList);
+
         AccessibilityTabOrderHelper.ApplyTabIndex(
             GlobalSearchBox,
             AccessibilityTabOrderHelper.PersonalSearchBox);
+    }
 
     public void ToggleLayoutEditMode() => SetPersonalLayoutEditMode(!_isLayoutEditMode);
 

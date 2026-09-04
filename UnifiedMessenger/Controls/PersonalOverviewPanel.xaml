@@ -28,7 +28,6 @@
                     x:Name="PersonalLayoutEditButton"
                     AutomationProperties.AutomationId="PersonalLayoutEditToggle"
                     AutomationProperties.Name="Customize personal layout"
-                    TabIndex="15"
                     Click="PersonalLayoutEditButton_Click"
                     Content="Customize layout"
                     Style="{StaticResource SubtleButtonStyle}" />
@@ -70,7 +69,6 @@
                 AutomationProperties.Name="Search personal accounts"
                 PlaceholderText="Search personal accounts, senders, or messages…"
                 QueryIcon="Find"
-                TabIndex="20"
                 QuerySubmitted="GlobalSearchBox_QuerySubmitted"
                 SuggestionChosen="GlobalSearchBox_SuggestionChosen"
                 TextChanged="GlobalSearchBox_TextChanged" />
