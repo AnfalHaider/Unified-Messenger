@@ -90,6 +90,12 @@
             <SolidColorBrush x:Key="UmStatusSuccessWashBrush" Color="#E9F6ED" />
             <SolidColorBrush x:Key="UmStatusWarningWashBrush" Color="#FDF3E7" />
             <SolidColorBrush x:Key="UmStatusDangerWashBrush" Color="#FBEBEB" />
+            <!-- Info and neutral washes complete the set (Increment 121). Their absence was the stated
+                 reason the Windows system fill brushes survived the v4.99.36 palette migration: there was
+                 nowhere audited to move an attention or neutral background onto, so ten references kept
+                 taking their colour from the OS, unmeasured. -->
+            <SolidColorBrush x:Key="UmStatusInfoWashBrush" Color="#E8EEFC" />
+            <SolidColorBrush x:Key="UmStatusNeutralWashBrush" Color="#EDEFF3" />
 
             <!-- The accent pinning lives in App.xaml's own theme dictionaries; see the note there. -->
         </ResourceDictionary>
@@ -152,6 +158,8 @@
             <SolidColorBrush x:Key="UmStatusSuccessWashBrush" Color="#12231A" />
             <SolidColorBrush x:Key="UmStatusWarningWashBrush" Color="#251C0E" />
             <SolidColorBrush x:Key="UmStatusDangerWashBrush" Color="#2A1516" />
+            <SolidColorBrush x:Key="UmStatusInfoWashBrush" Color="#101E2E" />
+            <SolidColorBrush x:Key="UmStatusNeutralWashBrush" Color="#1A1E24" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

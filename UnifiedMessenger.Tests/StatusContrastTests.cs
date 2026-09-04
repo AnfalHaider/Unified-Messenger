@@ -245,7 +245,24 @@ public class StatusContrastTests
                         && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Sum(path => File.ReadAllText(path).Split("SystemFillColor").Length - 1);
 
-        // Was 69. Now 10, and every survivor is a *BackgroundBrush.
+        // Was 69, then 10, now zero (Increment 121).
+        //
+        // The ten survivors were all background washes, and they survived for a stated reason: there was
+        // no audited token to move an attention or neutral background onto, so migrating them would have
+        // meant inventing colours at the tail of a long change. Increment 121 added the two missing
+        // washes — UmStatusInfoWash and UmStatusNeutralWash — which turned "use fewer" into "use none",
+        // and the new EachStatusColourIsReadableOnItsOwnWash test measures every status colour against the
+        // wash it is drawn on, in both themes. That is strictly more coverage than the system brushes ever
+        // had: their pairings were measured once by hand in the 2026-08-26 audit and never again.
+        //
+        // A ceiling of zero is a different instrument from a ratchet. It is now a ban, and the next person
+        // to reach for one of these brushes is told to use the palette instead of being allowed a
+        // budgeted exception.
+        //
+        // NOTE for whoever edits this next: the count is of raw text occurrences across every .cs and
+        // .xaml file under the APP directory, so writing the prefix in a COMMENT there fails the build
+        // just as a real usage would. That cost a build during Increment 120. This test file lives
+        // outside the scanned root, which is the only reason it can name the prefix at all.
         //
         // The 59 FOREGROUND references migrated to the audited UmStatus* tokens, which is strictly safer
         // rather than riskier: those tokens are the ones this very file measures against LightCard,
@@ -259,9 +276,10 @@ public class StatusContrastTests
         // UmStatusInfoWash to move SystemFillColorAttentionBackgroundBrush onto. Migrating those is its
         // own piece of work with its own pass.
         Assert.True(
-            references <= 10,
-            $"SystemFillColor* references rose to {references}. The app has its own audited status palette "
-            + "(UmSemanticBrushes) — use it, or lower this ceiling deliberately.");
+            references == 0,
+            $"The Windows system fill palette is back, in {references} place(s). The app has its own "
+            + "audited status palette — the washes are UmStatusSuccessWash / Warning / Danger / Info / "
+            + "Neutral, and every one is contrast-measured in both themes. Use those.");
     }
 
     // ---- Every surface, not a representative one ------------------------------------------------------

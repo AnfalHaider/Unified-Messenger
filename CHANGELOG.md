@@ -5,6 +5,44 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.87
+
+> **What you will notice:** nothing, on purpose. This release changes where the app's colours come from,
+> not what they look like.
+
+**Design-system consolidation (Increment 121).**
+
+Changing how the app looks was taking a search rather than an edit, and the previous increment proved it:
+a new chip reached for a Windows system brush and only a test caught it.
+
+- **The Windows system fill palette is banned, not rationed.** It went 69 → 10 references at v4.99.36 and
+  stuck there for three releases for a stated reason: there was no audited token to move an *attention*
+  or *neutral* background onto. Adding `UmStatusInfoWash` and `UmStatusNeutralWash` removed that reason,
+  the last ten references moved, and the ceiling changed from "10 or fewer" to **zero**.
+- **The washes are contrast-measured for the first time.** They shipped for three releases with no test,
+  on the reasoning that a background is measured by whatever is drawn on it — true, and nothing was
+  measuring that either. Each status colour is now checked against its own wash, in both themes, at the
+  4.5:1 bar. That is the pairing a chip actually renders.
+- **A brush key that does not exist now fails the build.** Keys are raw strings at every call site, and a
+  typo does not throw — the lookup misses and the element silently keeps the wrong theme's colour, visible
+  only to someone running the theme the author was not in. Same class of failure as the private lookups
+  that kept reintroducing white-in-dark surfaces through v4.99.61–63.
+- **A brush defined in one theme only fails the build**, for the same reason.
+- **The private-lookup regression is now guarded.** `Application.Current.Resources` resolves the
+  app-default theme rather than the element's, and this app themes the window root — so it reads Light
+  even in dark mode. `ThemeBrushResolver` is the one way in, and a test says so.
+- **[docs/design/design-system.md](docs/design/design-system.md)** — one page answering "if I want to
+  change how the app looks, what do I edit?", with the component inventory and the guards.
+
+Two corrections recorded there. `KpiStatCard` is **not** an orphan — `AnalyticsPage` instantiates three
+of them. `MessageVolumeLineChart` is: declared, instantiated nowhere, superseded by `AreaLineChartView`.
+Left in place rather than deleted, because removing a control is its own decision.
+
+The numeric scale needed no work — `DesignScaleTests` already parses `Tokens.xaml` and asserts `UmScale`
+matches it, so that half was never at risk.
+
+2096 tests green.
+
 ## v4.99.86
 
 > **What you will notice:** an account that cannot show you everything now says so on the account itself,

@@ -1892,10 +1892,10 @@ public sealed partial class CommandCenterPanel : UserControl
 
         var (background, foreground) = state switch
         {
-            SessionState.Failed => ("SystemFillColorCriticalBackgroundBrush", "UmStatusDangerBrush"),
-            SessionState.ScanQr => ("SystemFillColorCautionBackgroundBrush", "UmStatusWarningBrush"),
-            SessionState.Degraded => ("SystemFillColorCautionBackgroundBrush", "UmStatusWarningBrush"),
-            _ => ("SystemFillColorNeutralBackgroundBrush", "TextFillColorSecondaryBrush")
+            SessionState.Failed => ("UmStatusDangerWashBrush", "UmStatusDangerBrush"),
+            SessionState.ScanQr => ("UmStatusWarningWashBrush", "UmStatusWarningBrush"),
+            SessionState.Degraded => ("UmStatusWarningWashBrush", "UmStatusWarningBrush"),
+            _ => ("UmStatusNeutralWashBrush", "TextFillColorSecondaryBrush")
         };
 
         var label = SessionStateProjection.ToLabel(state);
@@ -3157,7 +3157,7 @@ public sealed partial class CommandCenterPanel : UserControl
             // Clickable: opens the flat Needs-reply list scoped to just this account/location.
             var pill = new Button
             {
-                Background = Brush("SystemFillColorCriticalBackgroundBrush"),
+                Background = Brush("UmStatusDangerWashBrush"),
                 BorderThickness = new Thickness(0),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(9, 3, 9, 3),

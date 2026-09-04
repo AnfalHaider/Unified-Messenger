@@ -342,7 +342,7 @@
         <Border
             x:Name="DigestBanner"
             Grid.Row="4"
-            Background="{ThemeResource SystemFillColorAttentionBackgroundBrush}"
+            Background="{ThemeResource UmStatusInfoWashBrush}"
             CornerRadius="8"
             Padding="12,8"
             Visibility="Collapsed">
@@ -381,7 +381,7 @@
         <Border
             x:Name="AttentionBanner"
             Grid.Row="5"
-            Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+            Background="{ThemeResource UmStatusWarningWashBrush}"
             CornerRadius="8"
             Padding="{StaticResource UmPaddingMd}"
             Visibility="Collapsed">
@@ -435,7 +435,7 @@
         <Border
             x:Name="ReportReminderBanner"
             Grid.Row="6"
-            Background="{ThemeResource SystemFillColorAttentionBackgroundBrush}"
+            Background="{ThemeResource UmStatusInfoWashBrush}"
             CornerRadius="8"
             Padding="12,8"
             Visibility="Collapsed">
@@ -484,7 +484,7 @@
         <Border
             x:Name="TriageToast"
             Grid.Row="7"
-            Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
+            Background="{ThemeResource UmStatusSuccessWashBrush}"
             CornerRadius="8"
             Padding="12,8"
             Margin="0,0,0,4"
