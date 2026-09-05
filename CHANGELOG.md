@@ -5,6 +5,32 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.93
+
+> **What you will notice:** Analytics now says when a signed-out account is missing from its charts, and
+> the leaderboard names the accounts it could not rank instead of leaving them out silently.
+
+**Analytics honesty (mockup §04) (Increment 127).**
+
+First of the systematic pass through the remaining design sections.
+
+- **The scope line knew about unmeasurable channels and not about signed-out accounts.** A WhatsApp
+  account sitting on its QR screen is in the measurable channel set, so it counted as covered while
+  supplying no messages — *"Covers all 8 accounts"* printed over a chart built from seven. It now reads
+  *"Covers 7 of 8 accounts — 1 signed out."* An account that is both unmeasurable and signed out is
+  counted once, under the channel reason, because signing in would not make it measurable.
+- **The leaderboard names what it could not rank**, in three distinct groups, because they need different
+  responses: *signed out* (sign in), *on a channel with no reply times* (nothing to do — Instagram will
+  never rank here), and *without enough measured replies yet* (wait). Collapsing them into "3 accounts not
+  ranked" would be true and useless.
+
+An unranked account was previously invisible, and invisible reads as absent rather than unmeasured — a
+branch missing from a leaderboard looks like a branch that does not exist.
+
+Both fixes land in one place each, so the screen and the exported report cannot drift apart.
+
+2142 tests green.
+
 ## v4.99.92
 
 > **What you will notice:** your Instagram accounts now have cards in the account list, like your WhatsApp

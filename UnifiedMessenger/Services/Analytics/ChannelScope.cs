@@ -42,21 +42,54 @@ public static class ChannelScope
         var excluded = all
             .Where(instance => !PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
             .ToList();
-        var covered = all.Count - excluded.Count;
 
-        if (excluded.Count == 0)
+        // Signed out is a SECOND way to contribute nothing, and this line did not know about it: a
+        // WhatsApp account sitting on its QR screen is in the measurable channel set, so it counted as
+        // covered while supplying no messages at all. "Covers all 8 accounts" over a chart built from
+        // seven is the same one-noun-two-populations defect the excluded clause was written to fix,
+        // reached by the other door.
+        //
+        // An account that is both excluded and signed out is counted once, under excluded: the channel
+        // reason is the more fundamental one, and signing in would not make it measurable.
+        var excludedIds = excluded
+            .Select(instance => instance.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var signedOut = all
+            .Where(instance => !excludedIds.Contains(instance.Id ?? string.Empty) &&
+                               SignInGate.IsSignedOut(instance.Id))
+            .ToList();
+
+        var covered = all.Count - excluded.Count - signedOut.Count;
+
+        if (excluded.Count == 0 && signedOut.Count == 0)
         {
             return covered == 1 ? "Covers your 1 account." : $"Covers all {covered} accounts.";
         }
 
-        var names = excluded
-            .GroupBy(ChannelName, StringComparer.OrdinalIgnoreCase)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(group => $"{group.Count()} {group.Key}")
-            .ToList();
+        var clauses = new List<string>();
 
-        return $"Covers {covered} of {all.Count} accounts — {JoinReadable(names)} not measured here.";
+        if (excluded.Count > 0)
+        {
+            var names = excluded
+                .GroupBy(ChannelName, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(group => group.Count())
+                .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(group => $"{group.Count()} {group.Key}")
+                .ToList();
+
+            clauses.Add($"{JoinReadable(names)} not measured here");
+        }
+
+        if (signedOut.Count > 0)
+        {
+            // Phrased as a state rather than a fault. A session expiring is the platform's decision, and
+            // this is a figure the owner reads before acting, not a telling-off.
+            clauses.Add(signedOut.Count == 1 ? "1 signed out" : $"{signedOut.Count} signed out");
+        }
+
+        return $"Covers {covered} of {all.Count} accounts — {string.Join(", ", clauses)}.";
     }
 
     /// <summary>The channel's product name, for the report's per-account table.</summary>

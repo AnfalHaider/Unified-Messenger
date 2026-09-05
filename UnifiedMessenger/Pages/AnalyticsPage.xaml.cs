@@ -223,6 +223,87 @@ public sealed partial class AnalyticsPage : Page
         {
             TopAccountsHost.Children.Add(BuildLeaderboardRow(performers[i], rank: i + 1));
         }
+
+        // An unranked account is invisible here, and invisible reads as absent rather than as unmeasured.
+        // A branch missing from a leaderboard looks like a branch that does not exist, not one whose
+        // reply times nobody can see — so the ones that could not be ranked are named underneath.
+        if (BuildUnrankedLine(performers) is { Length: > 0 } unranked)
+        {
+            TopAccountsHost.Children.Add(new TextBlock
+            {
+                Text = unranked,
+                FontSize = UmScale.Text.Caption,
+                Foreground = Services.ThemeBrushResolver.Resolve(UmSemanticBrushes.StatusMutedBrushKey),
+                TextWrapping = TextWrapping.WrapWholeWords,
+                Margin = new Thickness(0, UmScale.Space.Md, 0, 0)
+            });
+        }
+    }
+
+    /// <summary>
+    /// Names the accounts this leaderboard could not rank, and why. Empty when every account is ranked.
+    /// </summary>
+    /// <remarks>
+    /// Three distinct reasons, kept distinct because they need different responses from the owner: an
+    /// account nobody is signed into (sign in), a channel that cannot supply reply times at all (nothing
+    /// to do — Instagram will never rank here), and an account that simply has not accumulated enough
+    /// measured replies yet (wait). Collapsing them into "3 accounts not ranked" would be true and
+    /// useless.
+    /// </remarks>
+    private string BuildUnrankedLine(IReadOnlyList<TopPerformer> performers)
+    {
+        var ranked = performers
+            .Select(p => p.DisplayName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var signedOut = 0;
+        var noTiming = 0;
+        var notEnough = 0;
+
+        foreach (var instance in ScopedInstances())
+        {
+            if (ranked.Contains(instance.DisplayName))
+            {
+                continue;
+            }
+
+            if (SignInGate.IsSignedOut(instance.Id))
+            {
+                signedOut++;
+            }
+            else if (!PlatformDefinition.CapabilitiesFor(instance.Platform).SupportsFrt)
+            {
+                noTiming++;
+            }
+            else
+            {
+                notEnough++;
+            }
+        }
+
+        var parts = new List<string>();
+        if (signedOut > 0)
+        {
+            parts.Add(signedOut == 1 ? "1 signed out" : $"{signedOut} signed out");
+        }
+
+        if (noTiming > 0)
+        {
+            parts.Add(noTiming == 1
+                ? "1 on a channel with no reply times"
+                : $"{noTiming} on channels with no reply times");
+        }
+
+        if (notEnough > 0)
+        {
+            parts.Add(notEnough == 1
+                ? "1 without enough measured replies yet"
+                : $"{notEnough} without enough measured replies yet");
+        }
+
+        return parts.Count == 0
+            ? string.Empty
+            : $"Not ranked: {string.Join(", ", parts)}.";
     }
 
     private static FrameworkElement BuildLeaderboardRow(TopPerformer performer, int rank)
