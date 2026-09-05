@@ -5,6 +5,36 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.97
+
+> **What you will notice:** nothing, unless you use a screen reader — in which case the Reviews queue
+> becomes usable for the first time.
+
+**Review rows had no accessible name (Increment 131).**
+
+Found by scanning code-built buttons for missing names *before* asking the owner to sit through a Narrator
+session, rather than spending their time discovering it.
+
+Every review row is a `Button` whose content is a panel, so it carried no name of its own: Narrator
+announced **"button"** for each one, with no way to tell a one-star complaint from a five-star thank-you.
+The identical defect was fixed for the needs-a-reply rows in an earlier release and never applied here.
+
+A row now announces *"1 star from Sana Tariq at Depilex DHA-2, 2 days ago. Waited 40 minutes past my
+appointment. Activate to open and reply."*
+
+**Rating first, deliberately.** It decides whether the row needs opening at all, and it is the one fact
+assistive technology cannot recover on its own — Google carries the rating in the star glyphs' **colour**
+rather than their codepoints, so all five stars are the same character. A reader walking the visual tree
+sees five identical glyphs on a one-star review.
+
+The name also says what activating the row does. A row that names its content but not its action leaves a
+keyboard user guessing whether Enter opens it, dismisses it, or replies.
+
+[docs/accessibility-listening-session.md](docs/accessibility-listening-session.md) is rewritten for this
+build, with a fifth pass covering the six surfaces added since it was last revised.
+
+2181 tests green.
+
 ## v4.99.96
 
 > **What you will notice:** "All caught up" now says when a signed-out account is not included, and the

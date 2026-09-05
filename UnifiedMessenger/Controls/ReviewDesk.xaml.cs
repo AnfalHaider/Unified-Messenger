@@ -971,6 +971,17 @@ public sealed partial class ReviewDesk : UserControl
             Content = layout
         };
 
+        // Each review row is a Button whose Content is a panel, so it carries no accessible name of its
+        // own: a screen-reader user heard "button" for every review, with no way to tell a one-star
+        // complaint from a five-star thank-you. Exactly the defect fixed for the needs-reply rows, in the
+        // surface that was not looked at when that was done — found by scanning for it before asking the
+        // owner to sit through a Narrator session.
+        //
+        // Names the star rating first because that is what decides whether the row needs opening at all,
+        // and the rating is carried in the glyphs' COLOUR rather than their codepoints, so it is invisible
+        // to any assistive technology that reads the visual tree.
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(row, BuildReviewRowName(review));
+
         row.Click += async (_, _) =>
         {
             _selected = position;
@@ -999,6 +1010,31 @@ public sealed partial class ReviewDesk : UserControl
             "Press Enter to open it in Google.");
 
         return row;
+    }
+
+    /// <summary>
+    /// What a screen reader says for one review row.
+    /// </summary>
+    /// <remarks>
+    /// Rating first: it is what decides whether the row needs opening, and it is the one fact no assistive
+    /// technology can recover on its own, because Google carries the rating in the star glyphs' colour
+    /// rather than their codepoints — all five stars are the same character.
+    /// </remarks>
+    internal static string BuildReviewRowName(QueuedReview review)
+    {
+        var reviewer = string.IsNullOrWhiteSpace(review.Reviewer) ? "A reviewer" : review.Reviewer;
+        var stars = review.Stars is >= 1 and <= 5
+            ? $"{review.Stars} star{(review.Stars == 1 ? "" : "s")}"
+            : "No rating";
+
+        var age = ReviewAge.ShortLabel(review.Age);
+        var when = string.IsNullOrWhiteSpace(age) ? string.Empty : $", {age} ago";
+
+        var body = string.IsNullOrWhiteSpace(review.Text)
+            ? "Rating only, no written review."
+            : review.Text;
+
+        return $"{stars} from {reviewer} at {review.AccountName}{when}. {body} Activate to open and reply.";
     }
 
     private Border BuildChip(string text, ReviewUrgency urgency)
