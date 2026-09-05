@@ -1,6 +1,39 @@
 # Accessibility listening session — the script
 
-**For build v4.99.97.** Rewritten after the mockup pass (v4.99.85–96) added six surfaces that had never
+## ✅ Run 2026-09-05, build v4.99.98 — all five passes clean
+
+The owner ran every pass with Narrator. **Nothing wrong was heard in any of them.** This is the first time
+any of the accessibility work in this product has been confirmed by ear rather than by construction and
+test.
+
+| Pass | Surface | Result |
+|---|---|---|
+| 1 | Dashboard tab order | Clean — the v4.99.84 band fix holds |
+| 2 | Needs-a-reply queue | Clean — rows name who and which account |
+| 3 | Open account + read strip | Clean — the strip is reachable and reads as one sentence |
+| 4 | Reviews queue | Clean — **the rows fixed blind in v4.99.97 announce correctly** |
+| 5 | Settings + Add account dialog | Clean — including focus containment and Escape |
+
+> ⚠️ **A retraction.** Earlier versions of this script said, under Pass 4/5: *"Known already: Escape did not
+> close this dialog when I tried it."* **It does.** That claim came from an unreliable observation during a
+> screenshot-driven check and was carried forward as fact through several revisions of this file. It is
+> removed rather than softened — a stale "known issue" sends the next reader hunting for a bug that is not
+> there, and costs more than saying nothing would have.
+
+**What this result does and does not mean.** Five specific failure modes were listened for across five
+surfaces and none occurred. It is not a certificate of accessibility: it says nothing about high contrast,
+magnification, non-Narrator readers, or any surface not walked here. What it does establish is that the
+named surfaces are *usable by ear*, which nothing before this had ever demonstrated.
+
+**Two defects were fixed in the hour before the session**, by scanning rather than by listening — the
+review rows announcing only "button" (v4.99.97) and the hub status line overlapping its own header
+(v4.99.98). Both would have consumed session time; neither needed ears to find. Scan first, then listen.
+
+---
+
+## The script
+
+**For build v4.99.98.** Rewritten after the mockup pass (v4.99.85–96) added six surfaces that had never
 been listened to: the read strip, the coverage chips, the public-activity card, the hub status line, the
 palette subtitles and the signed-out card.
 
@@ -112,8 +145,8 @@ heard. Each should announce its star rating **first**, then who, where, when, an
 
 Then click **Add account**, tab around it, and press `Escape`.
 
-**Known already:** Escape did not close this dialog when I tried it. If that repeats, say so — a dialog a
-keyboard user cannot dismiss is a trap.
+**Confirmed working 2026-09-05:** focus stays inside the dialog and Escape closes it. An earlier version of
+this file claimed Escape did not work; see the retraction at the top.
 
 ---
 
