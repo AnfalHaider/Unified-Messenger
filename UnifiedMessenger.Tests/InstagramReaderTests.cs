@@ -93,6 +93,39 @@ public class InstagramReaderTests
         Assert.Empty(InstagramSnapshotReader.ParseConversations(Parse("{}")));
     }
 
+    [Theory]
+    // The measured case: 15 of 15 threads flagged unread, sixty-five seconds after launch, on an account
+    // whose own tab title read "(2) Instagram". Nothing in the Relay record marked that state — the
+    // may-be-invalid flag was false and no resolver error was set — so the store looked settled while
+    // reporting the opposite of the truth.
+    [InlineData(15, 2, true)]
+    // Equal is fine, and so is fewer: those are ordinary settled reads.
+    [InlineData(2, 2, false)]
+    [InlineData(0, 2, false)]
+    [InlineData(0, 0, false)]
+    // Fewer than the badge is EXPECTED on a busy account, not suspicious: the badge counts every unread
+    // thread while the reader sees the top 15 of Primary. Requiring equality would discard exactly the
+    // accounts that need watching most.
+    [InlineData(15, 20, false)]
+    // A missing badge means Instagram omitted the prefix, which it does when nothing is unread — so
+    // threads flagged unread against no badge is the same contradiction in a quieter form.
+    [InlineData(3, null, true)]
+    [InlineData(0, null, false)]
+    public void AnUnreadCountAboveTheClientsOwnBadgeIsRejected(int awaiting, int? badge, bool expected) =>
+        Assert.Equal(expected, InstagramSnapshotReader.LooksLikeAnUnsyncedRead(awaiting, badge));
+
+    [Fact]
+    public void TheScriptReportsTheClientsOwnBadgeSoTheReadCanBeCrossChecked()
+    {
+        var script = ScriptText();
+
+        // The badge is an independent readback of the same fact the resolver reports. Without it the
+        // reader has nothing to check itself against, and the unsynced window ships thirteen invented
+        // waiting customers into the queue.
+        Assert.Contains("unreadBadge", script, StringComparison.Ordinal);
+        Assert.Contains("document.title", script, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TheScriptReadsTheResolverAndNotTheManualUnreadFlag()
     {

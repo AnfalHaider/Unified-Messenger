@@ -101,6 +101,30 @@ public static class InstagramSnapshotReader
             }
 
             var chats = ParseConversations(root);
+
+            // Cross-check against the client's own badge before writing anything. See
+            // LooksLikeAnUnsyncedRead — this is not defensive padding, it is a measured window in which
+            // the resolver reports every thread unread and says nothing about being unsure.
+            var awaiting = chats.Count(x => x.IsAwaiting);
+            var unreadBadge = root.TryGetProperty("unreadBadge", out var b) && b.ValueKind == JsonValueKind.Number
+                ? b.GetInt32()
+                : (int?)null;
+
+            if (LooksLikeAnUnsyncedRead(awaiting, unreadBadge))
+            {
+                AppLogger.LogWarningThrottled(
+                    $"InstagramScan.{instance.Id}",
+                    $"Discarded an Instagram read: {awaiting} thread(s) looked unread against the client's own badge of {unreadBadge}. "
+                    + "Read state has not synced yet; the next pass will pick it up.",
+                    "instagram-unsynced");
+
+                // Deliberately NOT a read failure. Nothing is broken — the page is still syncing, and
+                // recording a failure would tell the owner to click Re-sync, which would race the same
+                // window again. Returning null leaves the previous snapshot in place, which is correct:
+                // stale-by-one-cycle beats thirteen invented waiting customers.
+                return null;
+            }
+
             var nowUtc = DateTimeOffset.UtcNow;
             OversightChatSnapshotService.Instance.Update(instance.Id, chats, nowUtc);
             AccountReadHealth.RecordSuccess(instance.Id);
@@ -132,6 +156,32 @@ public static class InstagramSnapshotReader
             return null;
         }
     }
+
+    /// <summary>
+    /// True when the unread count cannot be believed, because it exceeds the client's own badge.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Measured, not assumed.</b> Sixty-five seconds after the app warmed an account, the Relay
+    /// resolver reported <c>true</c> for all 15 fetched threads on an account whose tab title read
+    /// <c>(2) Instagram</c>; a later pass on the same account read 2. Nothing in the record marks that
+    /// state — <c>__resolverValueMayBeInvalid</c> is false and <c>__resolverError</c> is unset — so the
+    /// store looks settled while reporting the opposite of the truth.
+    /// </para>
+    /// <para>
+    /// <b>Exceeds, not differs.</b> The badge counts every unread thread; this reader sees the top 15 of
+    /// Primary. An account with 20 unread therefore legitimately reports 15 against a badge of 20, and
+    /// requiring equality would discard every busy account permanently. Only over-reporting invents
+    /// waiting customers, and only over-reporting is rejected.
+    /// </para>
+    /// <para>
+    /// A missing badge is treated as zero rather than as unknown, because Instagram omits the prefix
+    /// exactly when there is nothing unread — so "no badge with threads flagged unread" is the same
+    /// contradiction in a quieter form.
+    /// </para>
+    /// </remarks>
+    public static bool LooksLikeAnUnsyncedRead(int awaitingCount, int? unreadBadge) =>
+        awaitingCount > (unreadBadge ?? 0);
 
     /// <summary>
     /// Turns the adapter's JSON into <see cref="OversightChatSnapshotService.ChatEntry"/> values.

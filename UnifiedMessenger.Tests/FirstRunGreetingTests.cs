@@ -82,6 +82,40 @@ public class FirstRunGreetingTests
     }
 
     [Fact]
+    public void TheGreetingStopsSayingConnectedWhenAnAccountIsSignedOut()
+    {
+        // Found by installing the build and looking at it. The line read "8 professional accounts
+        // connected." on a machine where one of the eight was sitting on a WhatsApp QR screen - the
+        // first sentence on the first screen, asserting the one thing the app had just established was
+        // false. The count was never wrong; the verb was.
+        var subtitle = DashboardPageHelper.BuildWelcomeSubtitle(
+            professionalCount: 8, personalCount: 0, signedOutCount: 1);
+
+        Assert.DoesNotContain("8 professional accounts connected", subtitle, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("7 accounts reading", subtitle, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("1 signed out", subtitle, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TheGreetingIsUnchangedWhenEverythingIsSignedIn()
+    {
+        // Guard against over-correcting: the ordinary case must stay the ordinary sentence.
+        Assert.Equal(
+            DashboardPageHelper.BuildWelcomeSubtitle(8, 3),
+            DashboardPageHelper.BuildWelcomeSubtitle(8, 3, signedOutCount: 0));
+    }
+
+    [Fact]
+    public void TheGreetingSaysNothingIsBeingReadWhenEveryAccountIsSignedOut()
+    {
+        var subtitle = DashboardPageHelper.BuildWelcomeSubtitle(
+            professionalCount: 2, personalCount: 0, signedOutCount: 2);
+
+        Assert.DoesNotContain("connected", subtitle, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("nothing is being read", subtitle, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void RealAccountsAreStillCountedNormally()
     {
         // Guard against over-correcting into "never report counts".

@@ -70,14 +70,47 @@ public static class DashboardPageHelper
             SeededDefaultInstanceId,
             StringComparison.OrdinalIgnoreCase);
 
-    public static string BuildWelcomeSubtitle(int professionalCount, int personalCount) =>
-        (professionalCount, personalCount) switch
+    /// <summary>
+    /// The line under the greeting. Counts accounts, and — since A12 — stops calling them all connected
+    /// when some are not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This read "8 professional accounts connected." on a machine where one of the eight was sitting on a
+    /// WhatsApp QR screen. It is the first sentence on the first screen, and it was asserting the one thing
+    /// the app had just established was false. The count was never wrong — the verb was.
+    /// </para>
+    /// <para>
+    /// Found by installing the build and looking at it, after the increment that added the sign-in gate had
+    /// claimed this line was fixed. It was not: that increment qualified the hero's all-clear and left the
+    /// greeting alone. The suite proves functions; the app proves features.
+    /// </para>
+    /// </remarks>
+    public static string BuildWelcomeSubtitle(int professionalCount, int personalCount, int signedOutCount = 0)
+    {
+        var baseLine = (professionalCount, personalCount) switch
         {
             (0, 0) => "Add an account to start receiving unified notifications.",
             ( > 0, > 0) => $"{professionalCount} professional and {personalCount} personal accounts connected.",
             ( > 0, 0) => $"{professionalCount} professional account{(professionalCount == 1 ? "" : "s")} connected.",
             _ => $"{personalCount} personal account{(personalCount == 1 ? "" : "s")} connected."
         };
+
+        if (signedOutCount <= 0 || professionalCount + personalCount == 0)
+        {
+            return baseLine;
+        }
+
+        // "connected" is replaced rather than appended to. Adding "…, 1 signed out." after a clause that
+        // already said all of them were connected leaves the sentence contradicting itself, which is how
+        // the seeded-default defect read before it was fixed: two figures on one screen disagreeing.
+        var connected = professionalCount + personalCount - signedOutCount;
+        var accountWord = connected == 1 ? "account" : "accounts";
+
+        return connected <= 0
+            ? $"{signedOutCount} account{(signedOutCount == 1 ? " is" : "s are")} signed out — nothing is being read yet."
+            : $"{connected} {accountWord} reading · {signedOutCount} signed out.";
+    }
 
     public static string FormatInboundOnlyResponseRate(int receivedCount, int replyPairCount)
     {

@@ -5,6 +5,43 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.89
+
+> **What you will notice:** the greeting no longer says every account is connected when one is signed out,
+> and Instagram no longer briefly reports everyone as waiting just after the app starts.
+
+**Two defects found by installing v4.99.88 and looking at it (Increment 123).**
+
+Both were invisible to a green suite, and both were in code the previous two increments had claimed to fix.
+
+- **"8 professional accounts connected."** — on a machine where one of the eight was sitting on a WhatsApp
+  QR screen. The first sentence on the first screen, asserting the one thing the app had just established
+  was false. v4.99.85 said it had stopped the header claiming this; it had qualified the hero's all-clear
+  and left the greeting alone. It now reads "7 accounts reading · 1 signed out."
+- **Instagram briefly reported every thread as waiting.** Sixty-five seconds after launch, the Relay
+  resolver returned unread for **all 15** fetched threads on an account whose own tab title read
+  `(2) Instagram`; a later pass on the same account read 2. Read state had not synced, and nothing in the
+  record said so — the may-be-invalid flag was false and no resolver error was set, so the store looked
+  settled while reporting the opposite of the truth. A scan landing in that window would have put thirteen
+  people in the needs-a-reply queue who were not waiting, and fired a threshold toast about them.
+
+The fix is a cross-check against the client's own badge, which is an independent readback of the same
+fact. A read whose unread count **exceeds** the badge is discarded and the previous snapshot left in
+place — stale by one cycle beats thirteen invented waiting customers. Exceeds, not differs: the badge
+counts every unread thread while the reader sees the top 15 of Primary, so a busy account legitimately
+reports 15 against a badge of 20, and requiring equality would discard exactly the accounts that need
+watching most.
+
+Discarding is deliberately **not** recorded as a read failure. Nothing is broken, and telling the owner to
+click Re-sync would only race the same window again.
+
+**What was verified working on the installed build**, against the owner's live accounts: the sign-in gate
+correctly reports a real signed-out WhatsApp account as "Signed out — tap to reconnect", and the Instagram
+adapter reads 15 conversations per account with an unread count matching the client's badge exactly (2 and
+2), agreeing with an independent read of the same store.
+
+2116 tests green.
+
 ## v4.99.88
 
 > **What you will notice:** your Instagram DMs now appear in the needs-a-reply queue — who is waiting and

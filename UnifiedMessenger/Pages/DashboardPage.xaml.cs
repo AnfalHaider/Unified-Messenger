@@ -190,7 +190,10 @@ public sealed partial class DashboardPage : Page
 
         WelcomeSubtitle.Text = DashboardPageHelper.HasOnlySeededDefaultAccount(_registry.Instances)
             ? "Add an account to start receiving unified notifications."
-            : DashboardPageHelper.BuildWelcomeSubtitle(professionalCount, personalCount);
+            : DashboardPageHelper.BuildWelcomeSubtitle(
+                professionalCount,
+                personalCount,
+                SignInGate.CountSignedOut(_registry.Instances));
 
         // The "Personal" top button shows the personal-account count and hides when there are none.
         PersonalButtonLabel.Text = personalCount > 0 ? $"Personal · {personalCount}" : "Personal";

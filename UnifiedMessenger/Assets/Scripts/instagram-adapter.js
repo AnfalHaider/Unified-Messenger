@@ -167,6 +167,26 @@
       }
 
       out.badge = readBadge(source, ids);
+
+      // The client's own unread-thread count, from the tab title: "(6) Instagram". An INDEPENDENT
+      // readback of the same fact the resolver reports, and the reason it is here is a measured defect,
+      // not caution.
+      //
+      // Seconds after the app warms an account, the resolver returns true for EVERY thread - observed
+      // live at 15 of 15 on an account whose badge said 2, sixty-five seconds after launch, settling to
+      // 2 of 15 shortly afterwards. Read state has not synced yet, and nothing in the record says so:
+      // __resolverValueMayBeInvalid is false and __resolverError is unset, so the store looks settled
+      // while reporting the opposite of the truth. A scan landing in that window would put thirteen
+      // people in the owner's needs-a-reply queue who are not waiting, and fire a threshold toast about
+      // them.
+      //
+      // The C# side discards the scan when unread exceeds this. Exceeds, not differs: the badge counts
+      // every unread thread while this reads the top 15 of Primary, so an account with 20 unread
+      // legitimately reports 15 against a badge of 20. Over-reporting is the direction that invents
+      // waiting customers.
+      var titleMatch = String(document.title || '').match(/^\((\d+)\)/);
+      out.unreadBadge = titleMatch ? Number(titleMatch[1]) : 0;
+
       out.diag.stage = out.conversations.length > 0 ? 'done' : 'empty';
       out.diag.count = out.conversations.length;
     } catch (error) {
