@@ -1013,9 +1013,12 @@ public sealed partial class CommandCenterPanel : UserControl
         {
             CardsHost.Children.Add(new TextBlock
             {
-                Text = _needsReplyFilterIds is { Count: > 0 }
-                    ? $"{_needsReplyFilterLabel} is all caught up — no customers waiting."
-                    : "All caught up — no customers are waiting on a reply.",
+                // An all-clear is the sentence the owner acts on by closing the app, so it has to say what
+                // it does not cover. An empty queue over a set that includes an account nothing is reading
+                // is the most consequential false calm in the product — mockup §14.
+                Text = QueueEmptyState.Describe(
+                    _needsReplyFilterIds is { Count: > 0 } ? _needsReplyFilterLabel : null,
+                    SignInGate.CountSignedOut(connected)),
                 Foreground = secondary,
                 TextWrapping = TextWrapping.WrapWholeWords,
                 Margin = new Thickness(2, 6, 2, 0)

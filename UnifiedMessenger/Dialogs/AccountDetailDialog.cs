@@ -29,7 +29,11 @@ public sealed class AccountDetailDialog : ContentDialog
 
         Title = instance.DisplayName;
         CloseButtonText = "Close";
-        PrimaryButtonText = "Open WhatsApp";
+        // Was hard-coded to "Open WhatsApp", which was correct while WhatsApp was the only channel with a
+        // drill-down and became a lie the moment Instagram earned one (A13). A button that names the wrong
+        // application is worse than a generic one, so it names the account's own channel.
+        PrimaryButtonText =
+            $"Open {PlatformDefinition.FindById(instance.Platform)?.DisplayName ?? instance.DisplayName}";
         DefaultButton = ContentDialogButton.Primary;
         PrimaryButtonClick += (_, _) => _services.Navigation.OpenInstance(instance.Id, null, null);
 
@@ -49,6 +53,32 @@ public sealed class AccountDetailDialog : ContentDialog
 
         var body = _root;
         body.Children.Clear();
+
+        // What this account cannot tell us, stated before the figures rather than after them (mockup §10).
+        // A drill-down is where an owner goes to understand a number, so the limits belong above it — a
+        // caveat under a list is read after the reader has already drawn a conclusion from the list.
+        var coverage = ChannelCoverage.For(_instance);
+        if (ChannelCoverage.ShouldShowChip(coverage))
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = ChannelCoverage.ChipTooltip(coverage),
+                FontSize = UmScale.Text.Body,
+                Foreground = ThemeBrushResolver.Resolve(UmSemanticBrushes.StatusMutedBrushKey),
+                TextWrapping = TextWrapping.WrapWholeWords
+            });
+        }
+
+        if (SignInGate.IsSignedOut(_instance.Id))
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = "Nothing has been read from this account, so the figures below are not measurements.",
+                FontSize = UmScale.Text.Body,
+                Foreground = ThemeBrushResolver.Resolve(UmSemanticBrushes.StatusWarningBrushKey),
+                TextWrapping = TextWrapping.WrapWholeWords
+            });
+        }
 
         // Metric tiles.
         var metrics = new Grid { ColumnSpacing = 10, RowSpacing = 10 };

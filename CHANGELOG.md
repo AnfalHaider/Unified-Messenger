@@ -5,6 +5,33 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.96
+
+> **What you will notice:** "All caught up" now says when a signed-out account is not included, and the
+> account drill-down no longer offers to "Open WhatsApp" for an Instagram account.
+
+**The all-clear, and the account drill-down (mockup §14 and §10) (Increment 130).**
+
+Last of the systematic pass.
+
+- **"All caught up" is the most consequential sentence in the product** — it is the one you act on by
+  closing the app and going home. An empty queue over a set that includes an account nothing is reading
+  is the most expensive false calm available, and it read exactly like a genuine all-clear. It now adds
+  *"1 signed-out account is not included — nothing has been read from it."* Appended, not substituted:
+  the claim about the accounts that **are** being read is still true and still worth stating. A true
+  all-clear with nothing signed out stays short and unhedged — an owner who cannot trust the good news
+  stops reading the line at all.
+- **The drill-down's button said "Open WhatsApp" for every account.** Correct while WhatsApp was the only
+  channel with a drill-down; a lie the moment Instagram earned one. It now names the account's own channel.
+- **The drill-down states its limits above the figures, not below them.** A caveat under a list is read
+  after the reader has already drawn a conclusion from it. A signed-out account's dialog now says plainly
+  that the figures below are not measurements.
+
+**§08 personal overview needed no change** — it already consumes connection status, and it is deliberately
+not an oversight surface.
+
+2173 tests green.
+
 ## v4.99.95
 
 > **What you will notice:** the notification hub says when quiet hours are holding your alerts, and
