@@ -224,6 +224,10 @@ public static class OversightRollupBuilder
             });
         }
 
+        AddSnapshotOnlyAccounts(
+            entities, instances, grouping, chatSnapshot, capabilities,
+            locationForInstance, isStale, isSignedOut, readFailed, nameByInstance);
+
         var sorted = entities
             .OrderByDescending(e => e.UrgentCount)
             .ThenBy(e => e.OnTimePercent)
@@ -256,6 +260,160 @@ public static class OversightRollupBuilder
     /// Bucket actionable threads into the last <see cref="TrendDays"/> days by their last-activity day
     /// (oldest → newest). Threads outside the window are ignored; the result is always 7 values.
     /// </summary>
+    /// <summary>
+    /// Emits entities for accounts that produce chat-snapshot data but no <see cref="ThreadData"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The defect this closes.</b> The grouping above is driven entirely by <c>ThreadRegistryService</c>
+    /// rows, which only the WhatsApp ingress pipeline writes. Instagram (A13) reads its own store and
+    /// writes <i>only</i> the chat snapshot, so it produced no group, no entity and therefore no card. Its
+    /// waiting customers still reached the needs-a-reply queue, which reads the snapshot directly — so the
+    /// account was contributing to the queue while being absent from the account list above it. That is
+    /// worse than either failure alone, because the two figures cannot be reconciled by eye and the owner
+    /// has no way to tell which one is wrong.
+    /// </para>
+    /// <para>
+    /// <b>Why a second pass rather than seeding the groups.</b> Injecting synthetic <c>ThreadData</c> would
+    /// put rows into a registry that other surfaces treat as message history, inventing threads that were
+    /// never read. This adds an entity and nothing else.
+    /// </para>
+    /// <para>
+    /// Under location grouping the account joins an existing location when one is already present, rather
+    /// than creating a duplicate row with the same name — a location must appear once.
+    /// </para>
+    /// </remarks>
+    private static void AddSnapshotOnlyAccounts(
+        List<OversightEntityHealth> entities,
+        IReadOnlyList<MessengerInstance> instances,
+        OversightGrouping grouping,
+        Func<string, (int Active, int CaughtUp)?>? chatSnapshot,
+        Func<string, PlatformCapabilities> capabilities,
+        Func<string, string>? locationForInstance,
+        Func<string, bool>? isStale,
+        Func<string, bool>? isSignedOut,
+        Func<string, bool>? readFailed,
+        IReadOnlyDictionary<string, string> nameByInstance)
+    {
+        if (chatSnapshot is null)
+        {
+            return;
+        }
+
+        var covered = entities
+            .SelectMany(e => e.MemberInstanceIds)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var instance in instances)
+        {
+            var id = instance?.Id;
+            if (string.IsNullOrWhiteSpace(id) || covered.Contains(id!))
+            {
+                continue;
+            }
+
+            if (chatSnapshot(id!) is not { } snap)
+            {
+                // No snapshot either. The account genuinely has nothing read, and inventing a zeroed card
+                // for it would be the false calm the sign-in gate exists to prevent.
+                continue;
+            }
+
+            covered.Add(id!);
+
+            var awaiting = Math.Max(0, snap.Active - snap.CaughtUp);
+            var key = grouping == OversightGrouping.ByLocation
+                ? (locationForInstance?.Invoke(id!) ?? string.Empty)
+                : id!;
+
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                key = id!;
+            }
+
+            var existingIndex = grouping == OversightGrouping.ByLocation
+                ? entities.FindIndex(e => string.Equals(e.Key, key, StringComparison.OrdinalIgnoreCase))
+                : -1;
+
+            if (existingIndex >= 0)
+            {
+                var existing = entities[existingIndex];
+                var mergedMeasured = existing.MeasuredCount + snap.Active;
+                var mergedAwaiting = existing.AwaitingCount + awaiting;
+                var mergedCaughtUp = Math.Max(0, mergedMeasured - mergedAwaiting);
+
+                entities[existingIndex] = new OversightEntityHealth
+                {
+                    Key = existing.Key,
+                    DisplayName = existing.DisplayName,
+                    Kind = existing.Kind,
+                    AccountCount = existing.AccountCount + 1,
+                    OpenCount = existing.OpenCount + awaiting,
+                    MeasuredCount = mergedMeasured,
+                    HistoricalOpenCount = existing.HistoricalOpenCount,
+                    AwaitingCount = mergedAwaiting,
+                    HasChatData = true,
+                    OnTimePercent = mergedMeasured > 0
+                        ? MetricMath.HonestPercent(mergedCaughtUp, mergedMeasured)
+                        : 100,
+                    // The joining account keeps the location honest about timing: a location that mixes a
+                    // channel with reply times and one without cannot claim the latter's are measured.
+                    SupportsResponseTiming = existing.SupportsResponseTiming && capabilities(id!).SupportsFrt,
+                    UrgentCount = existing.UrgentCount,
+                    DroppedCount = existing.DroppedCount,
+                    SlaBreachedCount = existing.SlaBreachedCount,
+                    IsStale = existing.IsStale && (isStale?.Invoke(id!) ?? false),
+                    IsSignedOut = existing.IsSignedOut && (isSignedOut?.Invoke(id!) ?? false),
+                    ReadFailed = existing.ReadFailed || (readFailed?.Invoke(id!) ?? false),
+                    LastActivityUtc = existing.LastActivityUtc,
+                    MemberInstanceIds = [.. existing.MemberInstanceIds, id!],
+                    TrendCounts = existing.TrendCounts
+                };
+
+                continue;
+            }
+
+            var displayName = grouping == OversightGrouping.ByLocation
+                ? key
+                : nameByInstance.TryGetValue(id!, out var name) && !string.IsNullOrWhiteSpace(name)
+                    ? name
+                    : instance!.DisplayName;
+
+            entities.Add(new OversightEntityHealth
+            {
+                Key = key,
+                DisplayName = string.IsNullOrWhiteSpace(displayName) ? key : displayName,
+                Kind = grouping == OversightGrouping.ByLocation
+                    ? OversightEntityKind.Location
+                    : OversightEntityKind.Instance,
+                AccountCount = 1,
+                OpenCount = awaiting,
+                MeasuredCount = snap.Active,
+                // Zero, not a thread count: there is no message history behind this account, and a
+                // historical figure it cannot substantiate would be the kind of number this whole stream
+                // exists to stop printing.
+                HistoricalOpenCount = 0,
+                AwaitingCount = awaiting,
+                HasChatData = true,
+                OnTimePercent = snap.Active > 0
+                    ? MetricMath.HonestPercent(snap.CaughtUp, snap.Active)
+                    : 100,
+                SupportsResponseTiming = capabilities(id!).SupportsFrt,
+                UrgentCount = 0,
+                DroppedCount = 0,
+                SlaBreachedCount = 0,
+                IsStale = isStale?.Invoke(id!) ?? false,
+                IsSignedOut = isSignedOut?.Invoke(id!) ?? false,
+                ReadFailed = readFailed?.Invoke(id!) ?? false,
+                LastActivityUtc = null,
+                MemberInstanceIds = [id!],
+                // Empty rather than zeroes. A sparkline of seven zeroes reads as "seven quiet days"; an
+                // empty one renders nothing, which is what "no history was read" should look like.
+                TrendCounts = []
+            });
+        }
+    }
+
     private static IReadOnlyList<int> BuildTrend(IReadOnlyList<ThreadData> list, DateTime today, TimeZoneInfo? zone)
     {
         var buckets = new int[TrendDays];

@@ -5,6 +5,40 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.92
+
+> **What you will notice:** your Instagram accounts now have cards in the account list, like your WhatsApp
+> ones. Their waiting customers were already in the needs-a-reply queue — the accounts themselves were
+> missing from the list above it.
+
+**Instagram accounts appear in the account list (Increment 126).**
+
+Found by installing v4.99.91 and checking the store on disk against what was on screen. The Instagram data
+was there — `15 chats / 15 awaiting` and `15 chats / 4 awaiting` — and reaching the queue, but no card.
+
+The account cards are built from the thread registry, which only the WhatsApp ingress pipeline writes.
+Instagram reads its own store and writes only the chat snapshot, so it produced no group, no entity and
+therefore no card. **An account contributing to the queue while missing from the list above it is worse
+than either failure alone**, because the two figures cannot be reconciled by eye and there is no way to
+tell which one is wrong.
+
+The rollup now emits an entity for any account with chat-snapshot data and no threads. Under location
+grouping it joins the existing location rather than creating a second row with the same name.
+
+Three things it deliberately does not do:
+
+- **No synthetic threads.** Seeding the registry would invent message history that was never read, in a
+  store other surfaces treat as real.
+- **No card for an account with no snapshot either.** Nothing has been read, and a zeroed card would say
+  nobody is waiting on a channel the app cannot see.
+- **No sparkline of zeroes.** Seven zeroes read as seven quiet days; an empty trend renders nothing, which
+  is what "no history was read" should look like.
+
+A location that mixes a channel with reply times and one without stops claiming its response timing is
+measured across everything it now contains.
+
+2136 tests green.
+
 ## v4.99.91
 
 > **What you will notice:** a new card on the dashboard showing comments, likes and follow requests
