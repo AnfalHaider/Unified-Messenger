@@ -5,6 +5,21 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.98
+
+> **What you will notice:** the notification panel's status line no longer collides with its own title.
+
+**One layout defect, found by looking (Increment 132).**
+
+The hub status line added in v4.99.95 was placed in the header row with , which
+laid it *on top of* the header rather than under it — so "1 account is signed out and cannot raise alerts"
+collided with the **Notifications** title. It now has its own grid row.
+
+Visible immediately on the installed build and invisible to all 2181 tests, because nothing measures
+overlap. Found while positioning the window for the accessibility listening session.
+
+2181 tests green.
+
 ## v4.99.97
 
 > **What you will notice:** nothing, unless you use a screen reader — in which case the Reviews queue
