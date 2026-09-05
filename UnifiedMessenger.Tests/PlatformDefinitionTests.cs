@@ -217,7 +217,9 @@ public class PlatformDefinitionTests
     [Theory]
     [InlineData("telegram")]
     [InlineData("messenger")]
-    [InlineData("instagram")]
+    // instagram was listed here until A13 shipped InstagramAdapter. It now declares CanReadUnread,
+    // CanReadTimestamps and CanReadContactIdentity — each backed by a read that exists, which is the
+    // bargain this test enforces. It is not a prohibition on ever measuring a Meta channel.
     [InlineData("discord")]
     [InlineData("metabusinesssuite")]
     [InlineData("generic")]

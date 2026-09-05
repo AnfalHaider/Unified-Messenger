@@ -27,7 +27,12 @@ public class ChannelCoverageTests
         // The defect this closes: Messenger carries customer conversations, the queue is built from the
         // WhatsApp pipeline, so its waiting customers are silently absent. "Not measured" is the truth.
         Assert.Equal(ChannelCoverageLevel.NotMeasured, ChannelCoverage.For("messenger"));
-        Assert.Equal(ChannelCoverageLevel.NotMeasured, ChannelCoverage.For("instagram"));
+
+        // Instagram was asserted alongside Messenger here until A13. It is no longer an honest gap: it
+        // lists every waiting customer by name with an exact timestamp, and is missing only the message
+        // text. Calling that "not measured" would understate it as badly as calling it full detail would
+        // overstate it.
+        Assert.Equal(ChannelCoverageLevel.NoMessageText, ChannelCoverage.For("instagram"));
     }
 
     [Fact]
@@ -94,12 +99,26 @@ public class ChannelCoverageTests
     [Fact]
     public void SeveralChannelsReadAsASentenceNotAList()
     {
+        // Rewritten at A13. This used to pair two Messenger accounts with an Instagram one, both landing in
+        // the "not shown here" clause. Instagram is now measured, and Telegram — the obvious substitute —
+        // is embed-only, so it is correctly silent rather than being named as a gap. Messenger is the only
+        // NotMeasured channel left, which means the interesting sentence is no longer one clause listing
+        // several channels but TWO clauses describing different kinds of gap.
         var text = ChannelCoverage.DescribeGaps(
             [On("whatsapp"), On("messenger", "m"), On("messenger", "m2"), On("instagram", "i2")]);
 
         Assert.Contains("2 Messenger accounts", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not shown here", text, StringComparison.OrdinalIgnoreCase);
+
         Assert.Contains("1 Instagram account", text, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(" and ", text, StringComparison.Ordinal);
+        Assert.Contains("without message text", text, StringComparison.OrdinalIgnoreCase);
+
+        // Order matters: the channel that is absent entirely comes before the one that is merely missing
+        // its message text. Leading with the milder gap pushes the severe one to the end of a sentence
+        // nobody finishes.
+        Assert.True(
+            text.IndexOf("Messenger", StringComparison.Ordinal) < text.IndexOf("Instagram", StringComparison.Ordinal),
+            $"The absent channel should be named before the partially-read one: '{text}'");
     }
 
     [Fact]

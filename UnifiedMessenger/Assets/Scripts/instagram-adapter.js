@@ -1,0 +1,179 @@
+(function () {
+  'use strict';
+
+  // Instagram oversight reader (A13).
+  //
+  // WHY THIS READS RELAY AND NOT LIGHTSPEED. Instagram ships the same LightSpeed/MSYS store as
+  // messenger.com - require('LSDatabaseSingleton') resolves, with the same 358 tables - and on the feed
+  // page it is EMPTY: threads, messages and contacts all zero, measured on a live account with six unread
+  // DMs. The first pass measured that store, found nothing, and concluded the channel was countable only.
+  // That conclusion did not follow. Instagram prefetches the DM mailbox into its RELAY store on the feed,
+  // to draw its own Messages badge, and that prefetch is the whole opportunity: it is the client's own
+  // request, already made, for its own reasons. We read what is already there.
+  //
+  // WHAT IS DELIBERATELY NOT HERE. No navigation, no query, no cursor following. The inbox connection
+  // reports has_next_page = true, so a deeper backlog exists and could be paged - but issuing our own
+  // query is a different act from reading one the client already made, and opening a thread would fire a
+  // read receipt at a real customer. Both stay out. See docs/scraper-inventory/instagram.md.
+
+  if (window.__umInstagramAdapterInstalled) {
+    return;
+  }
+
+  window.__umInstagramAdapterInstalled = true;
+
+  var THREAD_TYPE = 'XFBIGDirectViewerThread';
+  var USER_TYPE = 'XDTUserDict';
+  var BADGE_TYPE = 'XDTNotificationBadgeCount';
+
+  // Ordered candidates, same idea as the selector manifest: the environment module name is the one thing
+  // here that a Meta refactor is most likely to move.
+  var ENVIRONMENT_MODULES = [
+    'PolarisRelayEnvironment',
+    'IGRelayEnvironment',
+    'RelayEnvironment'
+  ];
+
+  function resolveSource() {
+    if (typeof require !== 'function') {
+      return { source: null, stage: 'no-require' };
+    }
+
+    for (var i = 0; i < ENVIRONMENT_MODULES.length; i++) {
+      var name = ENVIRONMENT_MODULES[i];
+      try {
+        var mod = require(name);
+        var env = mod && (mod.default || mod);
+        if (!env || typeof env.getStore !== 'function') {
+          continue;
+        }
+
+        var store = env.getStore();
+        var source = store && typeof store.getSource === 'function' ? store.getSource() : null;
+        if (source && typeof source.getRecordIDs === 'function') {
+          return { source: source, stage: 'done', via: name };
+        }
+      } catch (error) {
+        // Keep trying the next candidate. A module that is absent throws rather than returning null.
+      }
+    }
+
+    return { source: null, stage: 'no-relay-environment' };
+  }
+
+  // Cut without splitting a surrogate pair. A raw slice through an emoji leaves a lone surrogate, and
+  // System.Text.Json then throws on that property - which once dropped a real conversation from every
+  // single scan. Same rule as window.__umTruncate, restated because adapter-core is not injected here.
+  function safeTruncate(value, max) {
+    var text = String(value == null ? '' : value);
+    if (text.length <= max) {
+      return text;
+    }
+
+    var cut = text.slice(0, max);
+    var last = cut.charCodeAt(cut.length - 1);
+    if (last >= 0xd800 && last <= 0xdbff) {
+      cut = cut.slice(0, -1);
+    }
+
+    return cut;
+  }
+
+  function readResolver(source, record, field) {
+    var ref = record && record[field];
+    if (!ref || !ref.__ref) {
+      return null;
+    }
+
+    var resolved = source.get(ref.__ref);
+    return resolved ? resolved.__resolverValue : null;
+  }
+
+  function readUsername(source, record) {
+    var users = record && record.users;
+    var refs = users && users.__refs;
+    if (!refs || !refs.length) {
+      return '';
+    }
+
+    var user = source.get(refs[0]);
+    return user && user.__typename === USER_TYPE && user.username ? String(user.username) : '';
+  }
+
+  function readBadge(source, ids) {
+    var badge = null;
+    for (var i = 0; i < ids.length; i++) {
+      var record = source.get(ids[i]);
+      if (record && record.__typename === BADGE_TYPE) {
+        badge = record;
+        break;
+      }
+    }
+
+    if (!badge) {
+      return null;
+    }
+
+    var counts = badge.activity_badge_counts;
+    var detail = counts && counts.__ref ? source.get(counts.__ref) : null;
+
+    return {
+      total: typeof badge.total_count === 'number' ? badge.total_count : null,
+      comments: detail && typeof detail.comments === 'number' ? detail.comments : null,
+      likes: detail && typeof detail.likes === 'number' ? detail.likes : null,
+      relationships: detail && typeof detail.relationships === 'number' ? detail.relationships : null
+    };
+  }
+
+  window.__umReadInstagramThreads = function () {
+    var out = { diag: { stage: 'starting' }, conversations: [], badge: null };
+
+    try {
+      var resolved = resolveSource();
+      if (!resolved.source) {
+        out.diag.stage = resolved.stage;
+        return JSON.stringify(out);
+      }
+
+      var source = resolved.source;
+      var ids = source.getRecordIDs();
+      out.diag.via = resolved.via;
+      out.diag.records = ids.length;
+
+      for (var i = 0; i < ids.length; i++) {
+        var record = source.get(ids[i]);
+        if (!record || record.__typename !== THREAD_TYPE) {
+          continue;
+        }
+
+        // marked_as_unread is the manual "Mark as unread" flag, NOT the unread state. It read false on
+        // all 15 threads of an account whose own badge said 6, so a reader trusting it reports every
+        // account permanently caught up. The resolver is the real signal.
+        var unread = readResolver(source, record, '$r:client__is_unread') === true;
+        var timestamp = Number(record.last_activity_timestamp_ms);
+
+        out.conversations.push({
+          key: String(record.thread_key || record.id || ''),
+          name: safeTruncate(record.thread_title || '', 120),
+          username: safeTruncate(readUsername(source, record), 60),
+          unread: unread ? 1 : 0,
+          // Unread means the owner has not OPENED it, which is a lower bound on "awaiting a reply": a
+          // thread they read and did not answer is still awaiting and reads as read here. The surface
+          // says "at least N" for exactly this reason.
+          awaiting: unread,
+          lastActivityMs: isFinite(timestamp) ? timestamp : 0,
+          subtype: String(record.thread_subtype || '')
+        });
+      }
+
+      out.badge = readBadge(source, ids);
+      out.diag.stage = out.conversations.length > 0 ? 'done' : 'empty';
+      out.diag.count = out.conversations.length;
+    } catch (error) {
+      out.diag.stage = 'error';
+      out.diag.message = String(error && error.message).slice(0, 120);
+    }
+
+    return JSON.stringify(out);
+  };
+})();

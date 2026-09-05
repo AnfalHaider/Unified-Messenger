@@ -91,6 +91,27 @@ public sealed record PlatformCapabilities
     /// signal, but per-conversation detail is off limits (Meta) or simply not implemented yet. Callers
     /// should render a count and explicitly say detail is unavailable, rather than showing an empty list.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to read <c>RequiresThreadOpenToRead || !CanReadPreview</c>, which conflated two very
+    /// different shortfalls. Instagram (A13) is the case that exposed it: the app can list every waiting
+    /// customer by name with an exact timestamp, and simply cannot show what they said. Under the old
+    /// rule that channel classified as aggregate-only and would have rendered as a bare number, hiding a
+    /// list the app actually has.
+    /// </para>
+    /// <para>
+    /// Aggregate-only means <i>no per-conversation detail at all</i>: the app cannot tell one conversation
+    /// from another. A missing preview is a narrower gap and belongs to <see cref="CanReadPreview"/>, which
+    /// the coverage classifier reports separately.
+    /// </para>
+    /// <para>
+    /// <see cref="RequiresThreadOpenToRead"/> is deliberately <b>not</b> part of this test any more, and
+    /// dropping it costs nothing: a channel that must open a thread to distinguish one conversation from
+    /// another cannot claim <see cref="CanReadContactIdentity"/> either, so it still lands here. Instagram
+    /// keeps that flag set — reading a message body there does still require opening the conversation —
+    /// while listing who is waiting does not, and the two facts no longer have to agree.
+    /// </para>
+    /// </remarks>
     public bool IsAggregateOnly =>
-        ContributesConversationMetrics && (RequiresThreadOpenToRead || !CanReadPreview);
+        ContributesConversationMetrics && !CanReadContactIdentity;
 }

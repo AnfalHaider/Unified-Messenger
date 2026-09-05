@@ -92,6 +92,17 @@ public sealed class OversightAlertMonitor
                 // to its own (slower) cadence, and it runs a separate scan that won't clobber the read below.
                 Backfill.BackfillSyncManager.Instance.SchedulePeriodicAnalyticsRefresh(instance);
 
+                // Instagram reads its own Relay store rather than the WhatsApp IndexedDB pipeline, so it
+                // has its own reader. Routed by platform rather than tried-and-fallen-through, because
+                // running the WhatsApp scan against an Instagram page produces a "scan function is not
+                // injected" warning on every cycle — the exact log noise the Google Business gate above
+                // this method exists to prevent.
+                if (string.Equals(instance.Platform, "instagram", StringComparison.OrdinalIgnoreCase))
+                {
+                    await InstagramSnapshotReader.RefreshAsync(instance).ConfigureAwait(true);
+                    continue;
+                }
+
                 var result = await OversightSnapshotReader.RefreshAsync(instance).ConfigureAwait(true);
                 if (result is null)
                 {

@@ -67,6 +67,42 @@ public sealed class PlatformDefinition
         RequiresThreadOpenToRead = true
     };
 
+    /// <summary>
+    /// Instagram Direct (A13). Reads the client's own already-fetched Relay records on the feed — no
+    /// navigation, no query, no thread opened.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b><see cref="PlatformCapabilities.RequiresThreadOpenToRead"/> stays true, like the rest of Meta.</b>
+    /// A first draft of this set it false, reasoning that the thread list needs no thread opened — which is
+    /// true of the list and false of everything else. Reading a message body on Instagram still means
+    /// opening the conversation and firing a read receipt at a real customer, and the flag exists to
+    /// constrain whoever writes that code next. Weakening a safety flag because one route happens not to
+    /// need it is how the constraint gets lost; the classification was the thing that was wrong, and
+    /// <see cref="PlatformCapabilities.IsAggregateOnly"/> was fixed instead.
+    /// </para>
+    /// <para>
+    /// <b><see cref="PlatformCapabilities.CanReadPreview"/> is false and will stay false on this route.</b>
+    /// The feed's prefetch carries thread metadata only; a sweep for any snippet-shaped field returns
+    /// empty. Message text is fetched by the Direct route the app does not open.
+    /// </para>
+    /// <para>
+    /// <b><see cref="PlatformCapabilities.SupportsFrt"/> is false</b>, so Instagram is excluded from the
+    /// on-time denominator rather than scored as a miss on timing it cannot supply.
+    /// </para>
+    /// </remarks>
+    private static readonly PlatformCapabilities InstagramDirect = new()
+    {
+        IsMessageChannel = true,
+        CanReadUnread = true,
+        CanReadTimestamps = true,
+        CanReadContactIdentity = true,
+        CanReadPreview = false,
+        RequiresThreadOpenToRead = true,
+        SupportsFrt = false,
+        UsesWhatsAppIndexedDbPipeline = false
+    };
+
     public static IReadOnlyList<PlatformDefinition> All { get; } =
     [
         new PlatformDefinition
@@ -173,13 +209,14 @@ public sealed class PlatformDefinition
         },
         new PlatformDefinition
         {
-            // Instagram (Meta), embedded. NullPlatformAdapter — a DM unread/awaiting adapter is future work.
+            // Instagram (Meta). Measured since A13 — see InstagramSnapshotReader for what it can and
+            // cannot read, and why that is a property of the page rather than of the adapter.
             Id = "instagram",
             DisplayName = "Instagram",
-            Description = "Instagram — embedded. No oversight metrics.",
+            Description = "Who is waiting in your DMs and for how long. Message text stays in Instagram.",
             DefaultUrl = "https://www.instagram.com/",
             AccentColor = "#E4405F",
-            Capabilities = MetaAggregateOnly
+            Capabilities = InstagramDirect
         },
         new PlatformDefinition
         {

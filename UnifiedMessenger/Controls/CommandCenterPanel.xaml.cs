@@ -4106,6 +4106,17 @@ public sealed partial class CommandCenterPanel : UserControl
         // Channels with no conversation scraper are not "still loading" — they will never be scanned.
         // Re-sync used to report all three Google Business accounts as "still loading — open this account
         // once to finish loading", which sends the owner off to open a tab that cannot change the outcome.
+        // Instagram is measured (A13) but does not join the WhatsApp pipeline, so it must be routed before
+        // the pipeline gate below — otherwise Re-sync reports "no conversation metrics for this channel"
+        // for an account whose rows are visibly in the queue underneath.
+        if (string.Equals(instance.Platform, "instagram", StringComparison.OrdinalIgnoreCase))
+        {
+            var instagram = await InstagramSnapshotReader.RefreshAsync(instance).ConfigureAwait(true);
+            return instagram is null
+                ? "could not read this account"
+                : $"{instagram.Value.Threads} conversation(s), {instagram.Value.Awaiting} waiting";
+        }
+
         if (!PlatformModuleSettingsHelper.IsPlatformModuleEnabled(instance.Platform))
         {
             return "no conversation metrics for this channel";

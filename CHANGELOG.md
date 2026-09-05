@@ -5,6 +5,40 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.88
+
+> **What you will notice:** your Instagram DMs now appear in the needs-a-reply queue — who is waiting and
+> for how long, on the dashboard, alongside WhatsApp. What they said still lives in Instagram.
+
+**Instagram is a measured channel (Phase 5 — A13) (Increment 122).**
+
+Instagram carries the same LightSpeed store as Messenger, and on the feed it is empty — which is why this
+channel was written off as countable-only. That conclusion did not follow. Instagram prefetches the DM
+mailbox into its **Relay** store to draw its own Messages badge, so the thread list is already in memory
+before the app looks. Reading what the client already fetched tells the customer nothing.
+
+- **Who is waiting, and for how long** — name, `@handle`, exact timestamp and unread state, for the top 15
+  Primary conversations, with no navigation and no thread opened.
+- **`marked_as_unread` is not the unread state.** It is the manual "Mark as unread" flag, and it read
+  `false` on all 15 threads of an account whose own badge said 6. A reader trusting it would report every
+  account permanently caught up. The real signal is a Relay resolver, and it matched both accounts' badges
+  exactly (1/1 and 6/6).
+- **No message text, said plainly.** The feed's prefetch carries thread metadata only. The card and the
+  queue's branch header now say "No message text" rather than rendering a blank preview, which reads as a
+  read that failed.
+- **The thread-open prohibition stays.** A first draft of the capabilities relaxed it, reasoning that the
+  list needs no thread opened — true of the list, false of everything else. Reading a message body still
+  fires a read receipt at a real customer. The classification was what was wrong, not the safety flag.
+- **A fifth coverage level.** "Counts only" would have rendered Instagram as a bare number and hidden a
+  list the app actually has. `NoMessageText` is the narrower, truer statement, and "counts only" now means
+  what its name says.
+
+Known limits, all on screen rather than papered over: **Primary folder, top 15** (General and Requests are
+never fetched, and the app can see that more exist without being able to read them), and **unread is a
+lower bound on awaiting** — a chat you opened and did not answer reads as handled.
+
+2105 tests green.
+
 ## v4.99.87
 
 > **What you will notice:** nothing, on purpose. This release changes where the app's colours come from,

@@ -6,6 +6,7 @@ internal static class PlatformAdapterInternals
 {
     private static readonly WhatsAppAdapter WhatsApp = new();
     private static readonly WhatsAppBusinessAdapter WhatsAppBusiness = new();
+    private static readonly InstagramAdapter Instagram = new();
     private static readonly NullPlatformAdapter Unsupported = new();
 
     public static IPlatformAdapter ResolveEnabledAdapter(string normalizedPlatformId) =>
@@ -13,6 +14,7 @@ internal static class PlatformAdapterInternals
         {
             "whatsapp" => WhatsApp,
             "whatsappbusiness" => WhatsAppBusiness,
+            "instagram" => Instagram,
             _ => Unsupported
         };
 }

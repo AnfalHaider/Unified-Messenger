@@ -18,12 +18,15 @@ namespace UnifiedMessenger.Services;
 /// missing, and the honest reason is that nothing has been built to read it yet. And a channel that can be
 /// counted but not detailed is missing something narrower still. Telling an owner "1 channel not shown"
 /// for all three would be true and useless.</para>
-/// <para><see cref="ChannelCoverageLevel.CountsOnly"/> is the rendering path
-/// <see cref="PlatformCapabilities.IsAggregateOnly"/> has documented since it was written and never had:
-/// <i>"callers should render a count and explicitly say detail is unavailable, rather than showing an
-/// empty list"</i>. No platform reaches it today — Meta declares <c>CanReadUnread = false</c> because no
-/// adapter exists — so it is one branch of a function whose others ship live, waiting for the increment
-/// that flips that flag rather than a surface built on speculation.</para>
+/// <para><b>Five levels since A13.</b> Instagram forced the split: it lists every waiting customer by name
+/// with an exact timestamp and cannot show what they said. Under the old classification that was
+/// <see cref="ChannelCoverageLevel.CountsOnly"/>, which would have rendered a bare number and hidden a
+/// list the app actually has. <see cref="ChannelCoverageLevel.NoMessageText"/> is the narrower, truer
+/// statement, and <see cref="ChannelCoverageLevel.CountsOnly"/> now means what its name says: a count with
+/// no list behind it at all.</para>
+/// <para><see cref="ChannelCoverageLevel.CountsOnly"/> still has no live consumer, and that is the correct
+/// outcome rather than a disappointment — it stays the documented rendering path for
+/// <see cref="PlatformCapabilities.IsAggregateOnly"/> should a channel ever land there.</para>
 /// </remarks>
 public enum ChannelCoverageLevel
 {
@@ -35,6 +38,12 @@ public enum ChannelCoverageLevel
     /// adapter cannot read a preview yet. Render the count and say detail is unavailable; never an empty list.
     /// </summary>
     CountsOnly,
+
+    /// <summary>
+    /// Every waiting conversation is listed with who and when, but not what they said. Narrower than
+    /// <see cref="CountsOnly"/>, which has no list at all — Instagram is the first channel here.
+    /// </summary>
+    NoMessageText,
 
     /// <summary>Carries customer conversations, and nothing here can read them yet. The honest gap.</summary>
     NotMeasured,
@@ -62,11 +71,18 @@ public static class ChannelCoverage
             return ChannelCoverageLevel.CountsOnly;
         }
 
-        // The pipeline gate, not the capability flags: a channel can declare it reads previews and still
-        // not be wired into the queue that renders them. What the owner sees is decided by the pipeline.
-        return PlatformModuleSettingsHelper.IsPlatformModuleEnabled(platformId)
+        // Not the WhatsApp pipeline gate. That gate answers "does this channel use WhatsApp IndexedDB",
+        // which was the same question as "is it measured" only while WhatsApp was the only measured
+        // channel. Instagram (A13) reads its own store and is measured without joining that pipeline, so
+        // asking the pipeline would have reported it as an unread gap while its rows sat in the queue.
+        if (!capabilities.ContributesConversationMetrics)
+        {
+            return ChannelCoverageLevel.NotMeasured;
+        }
+
+        return capabilities.CanReadPreview
             ? ChannelCoverageLevel.FullDetail
-            : ChannelCoverageLevel.NotMeasured;
+            : ChannelCoverageLevel.NoMessageText;
     }
 
     /// <summary>
@@ -99,7 +115,8 @@ public static class ChannelCoverage
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        if (counts.Count == 0 && countsOnly.Count == 0)
+        var hasNoText = all.Any(i => For(i) is ChannelCoverageLevel.NoMessageText);
+        if (counts.Count == 0 && countsOnly.Count == 0 && !hasNoText)
         {
             return string.Empty;
         }
@@ -116,6 +133,21 @@ public static class ChannelCoverage
         {
             var names = countsOnly.Select(g => Describe(g.Count(), g.Key)).ToList();
             parts.Add($"{JoinReadable(names)} can be counted but not listed — opening a conversation there would tell the customer you looked.");
+        }
+
+        // Deliberately last, and deliberately softer. These accounts ARE in the queue with every waiting
+        // customer named; only the message text is missing. Leading with them would put the mildest gap
+        // first and push the channels that are absent entirely to the end of a sentence nobody finishes.
+        var noText = all
+            .Where(i => For(i) is ChannelCoverageLevel.NoMessageText)
+            .GroupBy(i => ChannelScope.ChannelName(i), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (noText.Count > 0)
+        {
+            var names = noText.Select(g => Describe(g.Count(), g.Key)).ToList();
+            parts.Add($"{JoinReadable(names)} listed without message text — open a conversation to read what was said.");
         }
 
         return string.Join(" ", parts);
@@ -142,6 +174,7 @@ public static class ChannelCoverage
     {
         ChannelCoverageLevel.FullDetail => "Measured in full",
         ChannelCoverageLevel.CountsOnly => "Counts only",
+        ChannelCoverageLevel.NoMessageText => "No message text",
         ChannelCoverageLevel.NotMeasured => "Not measured",
         ChannelCoverageLevel.NotAConversationChannel => "Reviews only",
         _ => string.Empty
@@ -156,6 +189,8 @@ public static class ChannelCoverage
             "Every waiting conversation on this account appears in the queue, with who is waiting and what they said.",
         ChannelCoverageLevel.CountsOnly =>
             "This account can be counted but not listed. Open it to see who is waiting and what they said.",
+        ChannelCoverageLevel.NoMessageText =>
+            "Every waiting customer is listed with how long they have waited. What they said stays in the app they sent it from — open the conversation to read it.",
         ChannelCoverageLevel.NotMeasured =>
             "Nothing reads this channel yet, so it contributes no figures here.",
         ChannelCoverageLevel.NotAConversationChannel =>
