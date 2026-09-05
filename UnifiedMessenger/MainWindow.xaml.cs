@@ -29,6 +29,9 @@ public sealed partial class MainWindow : Window, IShellUiHost
     XamlRoot IShellUiHost.XamlRoot => Content.XamlRoot;
     Grid IShellUiHost.InstanceWebViewHost => InstanceWebViewHost;
     Grid IShellUiHost.ShellLayoutGrid => ShellLayoutGrid;
+    Border IShellUiHost.AccountReadStrip => AccountReadStrip;
+    Microsoft.UI.Xaml.Shapes.Ellipse IShellUiHost.AccountReadStripPip => AccountReadStripPip;
+    TextBlock IShellUiHost.AccountReadStripText => AccountReadStripText;
     Frame IShellUiHost.ContentFrame => ContentFrame;
     WorkspaceSidebar IShellUiHost.WorkspaceSidebar => WorkspaceSidebar;
     NotificationFeedPanel IShellUiHost.NotificationPanel => NotificationPanel;

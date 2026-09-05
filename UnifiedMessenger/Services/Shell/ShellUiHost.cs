@@ -42,6 +42,13 @@ public interface IShellUiHost
 
     HyperlinkButton BackToDashboardButton { get; }
 
+    /// <summary>The read strip under an open account's client (mockup section 09).</summary>
+    Border AccountReadStrip { get; }
+
+    Microsoft.UI.Xaml.Shapes.Ellipse AccountReadStripPip { get; }
+
+    TextBlock AccountReadStripText { get; }
+
     void ActivateWindow();
 
     void ShowAppWindow();

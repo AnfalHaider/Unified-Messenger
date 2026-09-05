@@ -5,6 +5,39 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.94
+
+> **What you will notice:** open any account and a line under the client tells you whether the app is
+> actually reading it, what it last read, and when.
+
+**The read strip (mockup §09) (Increment 128).**
+
+*"Is this account being read?"* had no answer anywhere in the app. You could sit and watch a client for a
+minute with no way to tell whether the app was reading it, had stopped, or had never started — and every
+failure this stream has fixed (a signed-out account, a broken selector, a scan that never ran) is
+invisible from inside the client it affects.
+
+Five states, reported worst-first because each earlier one makes the later ones meaningless:
+
+- **Not signed in** — nothing is being read; sign in here.
+- **Last read failed** — the figures are out of date.
+- **Never read** — nothing yet; picked up automatically once the page has loaded.
+- **Reading** — *"42 conversations, 5 waiting, last read 3 min ago."*
+- **Nothing reads this channel yet** — for a channel with no scraper, stated without implying a fault.
+
+Google Business gets **no strip at all**: a reviews tab is not failing to be read, and "not measured"
+under it would read as a fault where there is none.
+
+On Instagram the line adds **"Message text is never copied out of this client."** That sentence sits
+inside a window showing a customer's messages, which is exactly where an owner wonders what the app is
+taking — so it answers beside the evidence rather than in a settings page nobody opens.
+
+It sits *under* the client, never over it, so it cannot cover a customer's message. It does not
+live-update: a sentence that rewrites itself while being read is worse than one a cycle old, and every
+state it reports changes on the order of minutes.
+
+2156 tests green.
+
 ## v4.99.93
 
 > **What you will notice:** Analytics now says when a signed-out account is missing from its charts, and

@@ -26,6 +26,45 @@ public sealed class ShellNavigationCoordinator
 
     public void BindChrome(ShellChromeCoordinator chrome) => _chrome = chrome;
 
+    /// <summary>
+    /// Fills the read strip under an open account's client (mockup §09).
+    /// </summary>
+    /// <remarks>
+    /// Called on navigation, so the strip reflects the state at the moment the owner opened the account.
+    /// It is deliberately not live-updating: a sentence that rewrites itself while being read is worse
+    /// than one that is a cycle old, and every state it reports changes on the order of minutes.
+    /// </remarks>
+    public void UpdateAccountReadStrip(MessengerInstance? instance)
+    {
+        var chats = instance is null
+            ? []
+            : OversightChatSnapshotService.Instance.GetAwaiting(instance.Id);
+
+        var conversationCount = instance is null
+            ? 0
+            : OversightChatSnapshotService.Instance.GetChats(instance.Id).Count;
+
+        var status = AccountReadStrip.Describe(
+            instance,
+            conversationCount,
+            chats.Count,
+            instance is null ? null : OversightChatSnapshotService.Instance.TryGetCapturedAtUtc(instance.Id),
+            DateTimeOffset.UtcNow);
+
+        if (status is not { } value)
+        {
+            _ui.AccountReadStrip.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        _ui.AccountReadStripText.Text = value.Text;
+        _ui.AccountReadStripPip.Fill = ThemeBrushResolver.Resolve(
+            _ui.AccountReadStrip,
+            AccountReadStrip.PipBrushKey(value.State));
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_ui.AccountReadStrip, value.Text);
+        _ui.AccountReadStrip.Visibility = Visibility.Visible;
+    }
+
     /// <summary>The section whose page is loaded in the ContentFrame.</summary>
     public ShellSection CurrentSection { get; private set; } = ShellSection.Dashboard;
 
@@ -74,6 +113,8 @@ public sealed class ShellNavigationCoordinator
 
         await _services.SessionManager.HideVisibleSessionAsync();
         _ui.InstanceWebViewHost.Visibility = Visibility.Collapsed;
+        // Nothing to report about a page: the strip speaks only for an open account.
+        _ui.AccountReadStrip.Visibility = Visibility.Collapsed;
         _ui.ShowWebNavBar(null);
         SetInstanceLoading(false, null);
         _ui.ContentFrame.Visibility = Visibility.Visible;
@@ -192,6 +233,7 @@ public sealed class ShellNavigationCoordinator
         _chrome?.UpdateShellChromeSelection();
         _ui.ContentFrame.Visibility = Visibility.Collapsed;
         _ui.InstanceWebViewHost.Visibility = Visibility.Visible;
+        UpdateAccountReadStrip(instance);
         // Show the docked bar (with "Back to dashboard") right away so it's available during load; re-called
         // after SwitchToAsync to bind the now-ready WebView to the browser toolbar for embedded/custom tabs.
         _ui.ShowWebNavBar(instance);

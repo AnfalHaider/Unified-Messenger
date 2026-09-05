@@ -189,6 +189,12 @@
                 </Border>
 
                 <Grid Grid.Row="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <!-- The read strip. Auto, so it takes exactly the height of its own sentence and
+                         collapses to nothing on the dashboard, where it has nothing to report. -->
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid x:Name="InstanceWebViewHost" />
 
                 <StackPanel
@@ -224,6 +230,34 @@
                     x:Name="ContentFrame"
                     Background="{ThemeResource UmCanvasBrush}"
                     Visibility="Collapsed" />
+
+                <!-- Read strip (mockup section 09). Answers "is this account actually being read?", a
+                     question that had no on-screen answer anywhere in the app: the owner could sit and
+                     watch a client for a minute with no way to tell whether the app was reading it,
+                     had stopped, or had never started. Sits under the client rather than over it,
+                     because it must never cover a customer's message. -->
+                <Border
+                    x:Name="AccountReadStrip"
+                    Grid.Row="1"
+                    Background="{ThemeResource UmSurfaceSunkenBrush}"
+                    BorderBrush="{ThemeResource UmHairlineBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="12,8,12,8"
+                    Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Ellipse
+                            x:Name="AccountReadStripPip"
+                            Width="10"
+                            Height="10"
+                            VerticalAlignment="Center"
+                            Fill="{ThemeResource UmStatusMutedBrush}" />
+                        <TextBlock
+                            x:Name="AccountReadStripText"
+                            FontSize="{StaticResource UmFontSizeBody}"
+                            VerticalAlignment="Center"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
                 </Grid>
             </Grid>
 
