@@ -287,7 +287,8 @@ public sealed partial class CommandCenterPanel : UserControl
         OversightWindow window,
         DateTimeOffset? start,
         DateTimeOffset? end,
-        OversightCommandCenterSnapshot snapshot)
+        OversightCommandCenterSnapshot snapshot,
+        InstagramActivityStore.Snapshot? publicActivity)
     {
         var sb = new StringBuilder();
         sb.Append((int)grouping).Append('|').Append((int)window).Append('|')
@@ -309,6 +310,12 @@ public sealed partial class CommandCenterPanel : UserControl
                 // this the card would keep showing figures for an account that has stopped being read.
                 .Append(',').Append(e.IsSignedOut ? 1 : 0).Append(';');
         }
+
+        // Public activity lives in its own store, so it moves without any entity count changing. Without
+        // it here the card would freeze at whatever it read first and never update again.
+        sb.Append(publicActivity is { } activity
+            ? $"ig:{activity.Comments},{activity.Likes},{activity.Relationships}"
+            : "ig:none");
 
         return sb.ToString();
     }
@@ -386,7 +393,18 @@ public sealed partial class CommandCenterPanel : UserControl
 
         // Change-detection: the 20s auto-refresh re-renders constantly; rebuilding the card list when the
         // data is identical makes the accordions flash. Skip the rebuild when nothing changed.
-        var signature = BuildRenderSignature(grouping, window, rangeStart, rangeEnd, snapshot);
+        var signature = BuildRenderSignature(
+            grouping,
+            window,
+            rangeStart,
+            rangeEnd,
+            snapshot,
+            // Public activity lives in its own store, so it moves without any entity count changing.
+            // Without it here the card would freeze at whatever it read first.
+            InstagramActivityStore.Instance.SumFor(
+                _services?.Registry.Instances
+                    .Where(i => string.Equals(i.Platform, "instagram", StringComparison.OrdinalIgnoreCase))
+                    .Select(i => i.Id)));
         if (signature == _lastRenderSignature)
         {
             return;
@@ -575,8 +593,115 @@ public sealed partial class CommandCenterPanel : UserControl
             });
         }
 
+        // Public activity (A13b) sits after the account cards, not among them. It is a different kind of
+        // fact — an aggregate that clears when the owner opens Instagram's notifications — and giving it a
+        // card in the same row would invite reading it as another account's waiting count.
+        if (BuildPublicActivityCard() is { } activityCard)
+        {
+            CardsHost.Children.Add(activityCard);
+        }
+
         // Legend explains the status bands + what the % means — only when health cards are on screen.
         LegendRow.Visibility = renderedCount > 0 && !_compact ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// New comments, likes and follow requests across every Instagram account, or null when there is
+    /// nothing to show.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Null when no Instagram account has ever been read — <b>not</b> a card full of zeroes. Zero means
+    /// "we looked and there is no new activity"; an unread account means nothing is known, and rendering
+    /// zeroes for it is the same false calm the sign-in gate exists to prevent.
+    /// </para>
+    /// <para>
+    /// Also null when every count is zero, because a permanently-present card reading 0 · 0 · 0 is
+    /// furniture. It appears when there is something to say.
+    /// </para>
+    /// </remarks>
+    private FrameworkElement? BuildPublicActivityCard()
+    {
+        if (_services is null)
+        {
+            return null;
+        }
+
+        var instagramIds = _services.Registry.Instances
+            .Where(i => i.IsProfessional &&
+                        string.Equals(i.Platform, "instagram", StringComparison.OrdinalIgnoreCase))
+            .Select(i => i.Id)
+            .ToList();
+
+        if (instagramIds.Count == 0)
+        {
+            return null;
+        }
+
+        var totals = InstagramActivityStore.Instance.SumFor(instagramIds);
+        if (totals is not { } activity || activity.Total == 0)
+        {
+            return null;
+        }
+
+        var card = new StackPanel { Spacing = _compact ? 4 : 8 };
+
+        var heading = new TextBlock
+        {
+            Text = "Public activity on Instagram",
+            FontWeight = FontWeights.SemiBold,
+            FontSize = UmScale.Text.BodyStrong
+        };
+        card.Children.Add(heading);
+
+        var stats = new StackPanel { Orientation = Orientation.Horizontal, Spacing = UmScale.Space.Xl };
+
+        // Comments first, and it is the only one that carries a status colour. An unanswered comment sits
+        // in public where every other customer can see it go unanswered; a like needs nothing from anyone.
+        stats.Children.Add(BuildStat(
+            activity.Comments == 1 ? "New comment" : "New comments",
+            activity.Comments.ToString(),
+            activity.Comments > 0 ? Brush("UmStatusWarningBrush") : Brush("TextFillColorSecondaryBrush"),
+            "Comments on your posts that you have not looked at yet."));
+
+        stats.Children.Add(BuildStat(
+            "Likes",
+            activity.Likes.ToString(),
+            Brush("TextFillColorSecondaryBrush"),
+            "New likes. Nothing to action — shown so the total adds up."));
+
+        stats.Children.Add(BuildStat(
+            "Follow requests",
+            activity.Relationships.ToString(),
+            Brush("TextFillColorSecondaryBrush"),
+            "New follows and follow requests."));
+
+        card.Children.Add(stats);
+
+        card.Children.Add(new TextBlock
+        {
+            Text = InstagramActivityStore.DescribeCaveat(),
+            FontSize = UmScale.Text.Caption,
+            Foreground = Brush("UmStatusMutedBrush"),
+            TextWrapping = TextWrapping.WrapWholeWords
+        });
+
+        var wrapper = new Border
+        {
+            Background = Brush("UmSurfaceBrush"),
+            BorderBrush = Brush("UmHairlineBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(UmScale.Space.Lg),
+            Child = card
+        };
+
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(
+            wrapper,
+            $"Public activity on Instagram. {activity.Comments} new comments, {activity.Likes} likes, "
+            + $"{activity.Relationships} follow requests. {InstagramActivityStore.DescribeCaveat()}");
+
+        return wrapper;
     }
 
     private Expander BuildExpander(OversightEntityHealth location, IReadOnlyList<OversightEntityHealth> members)

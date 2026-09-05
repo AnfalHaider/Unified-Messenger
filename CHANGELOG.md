@@ -5,6 +5,38 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.91
+
+> **What you will notice:** a new card on the dashboard showing comments, likes and follow requests
+> waiting on Instagram. Comments are the ones that matter — an unanswered comment sits in public.
+
+**Instagram's second surface: public activity (Phase 5 — A13b) (Increment 125).**
+
+The Instagram badge is not one number. `activity_badge_counts` breaks it into **comments**, **likes** and
+**relationships**, and nothing in the product has ever surfaced any of them. Measured live on the owner's
+two accounts: 4 / 5 / 1 and 5 / 9 / 8.
+
+Comments are the find. An unanswered comment under a post is a customer waiting **in public**, where every
+other customer can see it go unanswered — arguably worse than a missed DM, and it costs one field read on
+a page already loaded.
+
+- **A separate card, not a stat on the account card.** These are a different kind of fact: an aggregate
+  that clears when you open Instagram's notifications, whether or not you replied. Folding it into the
+  needs-a-reply queue would let a number that resets on a glance contaminate one that must not.
+- **The wording is the feature.** It reads "new comments", never "comments need a reply" — the count is
+  *unseen activity*, so it under-reports after a glance and is not a to-do list. The card also says
+  Instagram does not tell the app who commented or on which post, so nobody goes looking for a drill-down
+  that cannot exist.
+- **Only comments get a colour.** A like needs nothing from anyone; showing three warning-coloured figures
+  would make the one that matters invisible.
+- **Nothing read means no card, not a card of zeroes.** Zero means "we looked and there is no new
+  activity"; an unread account means nothing is known. The card also stays hidden when every count is
+  zero, because a permanent 0 · 0 · 0 is furniture.
+- **Stored in memory only.** The value is meaningless the moment you look at Instagram, so a figure
+  restored from disk on next launch would be a claim about a state that has already gone.
+
+2127 tests green.
+
 ## v4.99.90
 
 > **What you will notice:** your busiest Instagram account is back. v4.99.89 was hiding it.

@@ -132,13 +132,19 @@ public static class InstagramSnapshotReader
             OversightChatSnapshotService.Instance.Update(instance.Id, chats, nowUtc);
             AccountReadHealth.RecordSuccess(instance.Id);
 
+            // Public activity (A13b), stored separately from the conversation snapshot above. Deliberately
+            // not gated by the badge cross-check: that check is about per-thread unread state, and these
+            // counts come from a different query with no per-thread claim to contradict.
             var comments = 0;
-            if (root.TryGetProperty("badge", out var badge) &&
-                badge.ValueKind == JsonValueKind.Object &&
-                badge.TryGetProperty("comments", out var c) &&
-                c.ValueKind == JsonValueKind.Number)
+            if (root.TryGetProperty("badge", out var badge) && badge.ValueKind == JsonValueKind.Object)
             {
-                comments = c.GetInt32();
+                comments = ActivityCount(badge, "comments");
+                InstagramActivityStore.Instance.Update(
+                    instance.Id,
+                    comments,
+                    ActivityCount(badge, "likes"),
+                    ActivityCount(badge, "relationships"),
+                    nowUtc);
             }
 
             // Length only, never the payload — it carries customer names, and app.log is the file support
@@ -252,6 +258,16 @@ public static class InstagramSnapshotReader
 
         return chats;
     }
+
+    /// <summary>
+    /// One activity count off the badge record. Absent and null both read as zero: Instagram returns
+    /// <c>null</c> for a category with nothing in it (<c>usertags</c> was null on both live accounts),
+    /// which is the same statement as zero rather than a missing reading.
+    /// </summary>
+    private static int ActivityCount(JsonElement badge, string property) =>
+        badge.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.Number
+            ? Math.Max(0, value.GetInt32())
+            : 0;
 
     private static string Text(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
