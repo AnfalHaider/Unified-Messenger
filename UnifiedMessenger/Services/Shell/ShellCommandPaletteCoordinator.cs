@@ -193,7 +193,11 @@ public sealed class ShellCommandPaletteCoordinator
             entries.Add(new CommandPaletteEntry
             {
                 Title = instance.DisplayName,
-                Subtitle = $"{platform?.DisplayName ?? instance.Platform} · {instance.Category}",
+                Subtitle = CommandPaletteAccountSubtitle.Build(
+                    platform?.DisplayName ?? instance.Platform,
+                    instance.Category.ToString(),
+                    SignInGate.IsSignedOut(instance.Id),
+                    OversightChatSnapshotService.Instance.GetAwaiting(instance.Id).Count),
                 Category = "Instances",
                 Selection = new CommandPaletteSelection
                 {

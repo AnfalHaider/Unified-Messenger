@@ -5,6 +5,35 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.95
+
+> **What you will notice:** the notification hub says when quiet hours are holding your alerts, and
+> Ctrl+K shows which accounts are signed out and which have people waiting.
+
+**Notification hub and command palette (mockup §07 and §12) (Increment 129).**
+
+Two surfaces where an account's state was invisible.
+
+- **An empty hub meant two different things** — *nothing happened* and *we are not telling you* — and
+  rendered the same either way. Quiet hours lived only in Settings, so an owner who turned it on weeks ago
+  and then had a silent evening had no way, from the hub, to tell a calm night from a suppressed one. It
+  now says *"Quiet hours until 8am — alerts are held, not lost"*, and names accounts that are signed out
+  and therefore cannot raise an alert at all: their silence is not evidence of anything.
+- **The palette listed every account identically** — channel and workspace, nothing about whether the app
+  can see it. Ctrl+K is a jump list read at speed, and a row that looks like its neighbours reads as being
+  in the same state as its neighbours. Rows now carry a waiting count, and a signed-out account says so.
+
+Signed-out **replaces** the waiting count rather than joining it: there is no honest waiting figure for an
+account nothing has read, and a number beside "signed out" would answer *does this need me?* with
+something meaningless.
+
+Both lines stay silent when there is nothing to disclose. A notice that appears every day stops being
+read, and then the one that matters is invisible too.
+
+The design-scale guard caught a 6px margin in the new hub line and sent it back to the 4px grid.
+
+2168 tests green.
+
 ## v4.99.94
 
 > **What you will notice:** open any account and a line under the client tells you whether the app is

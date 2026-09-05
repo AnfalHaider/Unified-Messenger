@@ -37,6 +37,30 @@ public sealed partial class NotificationFeedPanel : UserControl
 
         _hub = hub;
         ApplyPresentation(NotificationFeedPresenter.BuildPresentation(hub, instances));
+        ApplyHubStatus(instances);
+    }
+
+    /// <summary>
+    /// Says why the hub may be quieter than expected — quiet hours, and accounts that cannot raise an
+    /// alert at all. See <see cref="NotificationHubStatus"/> for why an empty hub is ambiguous without it.
+    /// </summary>
+    private void ApplyHubStatus(IEnumerable<MessengerInstance>? instances)
+    {
+        var accounts = instances?.ToList() ?? _services?.Registry.Instances.ToList();
+
+        var text = NotificationHubStatus.Describe(
+            _services?.AppSettings.Settings,
+            SignInGate.CountSignedOut(accounts),
+            DateTime.Now.Hour);
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            HubStatusText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        HubStatusText.Text = text;
+        HubStatusText.Visibility = Visibility.Visible;
     }
 
     private void ApplyPresentation(NotificationFeedPresentation presentation)

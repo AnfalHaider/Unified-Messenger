@@ -198,6 +198,20 @@
             </Grid>
         </Border>
 
+        <!-- Why the hub may be quieter than expected (mockup section 07). An empty hub means two
+             different things — nothing happened, and we are not telling you — and it rendered the same
+             either way. Collapsed when there is nothing to disclose, because a notice that appears every
+             day stops being read. -->
+        <TextBlock
+            x:Name="HubStatusText"
+            Grid.Row="0"
+            VerticalAlignment="Bottom"
+            Margin="12,0,12,8"
+            FontSize="{StaticResource UmFontSizeCaption}"
+            Foreground="{ThemeResource UmStatusMutedBrush}"
+            TextWrapping="WrapWholeWords"
+            Visibility="Collapsed" />
+
         <Grid Grid.Row="1">
             <ListView
                 x:Name="AlertsList"
