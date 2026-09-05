@@ -80,6 +80,28 @@ caught up. The real signal is the Relay resolver `$r:client__is_unread` → `__r
 arithmetically — `last_activity > my_watermark` — and got `null` on 15/15, because the receipts are the
 *other* party's. Deriving unread from receipts is not available; read the resolver.
 
+### The third trap: the tab badge is capped at `9+`
+
+**CONFIRMED, on the shipped build, 2026-09-05.** `document.title` reads `(2) Instagram` on a quiet account
+and **`(9+) Instagram`** on a busy one. The `+` is the whole trap: a digits-only pattern
+(`/^\((\d+)\)/`) returns null on the capped form, and any code treating that as "no unread" concludes the
+opposite of the truth about the account that matters most.
+
+That is not hypothetical — v4.99.89 shipped exactly that pattern behind a guard, read the badge as zero on
+`depilex_f11_islamabad`, and discarded all 15 of its genuinely-unread threads. Parse it as
+`/^\((\d+)(\+?)\)/` and treat a capped value as a **lower bound**.
+
+> ⚠️ **A retracted finding used to sit here.** This section previously described a "first minute" window in
+> which the resolver reports every thread unread. **There is no such window.** The 15-of-15 read that
+> prompted it was correct — the account had 9+ unread — and the probe that appeared to contradict it had
+> hit the same account twice. Two CDP probes returning identical output for indices 0 and 1 is the signal
+> that was missed. Verify *which* account a probe reached before drawing a conclusion from it.
+
+The badge is still worth reading, as an independent cross-check: a per-thread count that exceeds the
+client's own **uncapped** aggregate is a genuine contradiction. **Exceeds, not differs** — the badge counts
+every unread thread while this route sees the top 15 of Primary, so an account with 20 unread legitimately
+reports 15 against a badge of 20.
+
 ### The verification
 
 Resolver-derived unread count vs. the client's own badge, both accounts, same instant:

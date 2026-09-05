@@ -94,25 +94,38 @@ public class InstagramReaderTests
     }
 
     [Theory]
-    // The measured case: 15 of 15 threads flagged unread, sixty-five seconds after launch, on an account
-    // whose own tab title read "(2) Instagram". Nothing in the Relay record marked that state — the
-    // may-be-invalid flag was false and no resolver error was set — so the store looked settled while
-    // reporting the opposite of the truth.
-    [InlineData(15, 2, true)]
+    // A direct contradiction with the client's own uncapped count.
+    [InlineData(15, 2, false, true)]
     // Equal is fine, and so is fewer: those are ordinary settled reads.
-    [InlineData(2, 2, false)]
-    [InlineData(0, 2, false)]
-    [InlineData(0, 0, false)]
-    // Fewer than the badge is EXPECTED on a busy account, not suspicious: the badge counts every unread
-    // thread while the reader sees the top 15 of Primary. Requiring equality would discard exactly the
-    // accounts that need watching most.
-    [InlineData(15, 20, false)]
-    // A missing badge means Instagram omitted the prefix, which it does when nothing is unread — so
-    // threads flagged unread against no badge is the same contradiction in a quieter form.
-    [InlineData(3, null, true)]
-    [InlineData(0, null, false)]
-    public void AnUnreadCountAboveTheClientsOwnBadgeIsRejected(int awaiting, int? badge, bool expected) =>
-        Assert.Equal(expected, InstagramSnapshotReader.LooksLikeAnUnsyncedRead(awaiting, badge));
+    [InlineData(2, 2, false, false)]
+    [InlineData(0, 2, false, false)]
+    [InlineData(0, 0, false, false)]
+    // Fewer than the badge is EXPECTED on a busy account: the badge counts every unread thread while the
+    // reader sees the top 15 of Primary.
+    [InlineData(15, 20, false, false)]
+    // A missing badge means Instagram omitted the prefix, which it does when nothing is unread.
+    [InlineData(3, null, false, true)]
+    [InlineData(0, null, false, false)]
+    // THE CAPPED FORM, and the reason this parameter exists. Instagram writes "(9+) Instagram" past nine.
+    // v4.99.89 shipped a digits-only pattern that could not parse it, read the badge as zero, and
+    // discarded all 15 genuinely-unread threads on the busiest account in the workspace. A capped badge is
+    // a lower bound, so it can never contradict anything and must never reject.
+    [InlineData(15, 9, true, false)]
+    [InlineData(200, 9, true, false)]
+    public void AnUnreadCountAboveTheClientsOwnBadgeIsRejected(
+        int awaiting, int? badge, bool capped, bool expected) =>
+        Assert.Equal(expected, InstagramSnapshotReader.LooksLikeAnUnsyncedRead(awaiting, badge, capped));
+
+    [Fact]
+    public void TheScriptParsesTheCappedBadgeForm()
+    {
+        var script = ScriptText();
+
+        // The regex must tolerate "(9+)". A digits-only group returns null there, the reader treats that
+        // as a badge of zero, and the guard then throws away every thread on a busy account.
+        Assert.Contains(@"(\d+)(\+?)", script, StringComparison.Ordinal);
+        Assert.Contains("unreadBadgeCapped", script, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void TheScriptReportsTheClientsOwnBadgeSoTheReadCanBeCrossChecked()

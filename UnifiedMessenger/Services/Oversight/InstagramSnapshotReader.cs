@@ -110,12 +110,15 @@ public static class InstagramSnapshotReader
                 ? b.GetInt32()
                 : (int?)null;
 
-            if (LooksLikeAnUnsyncedRead(awaiting, unreadBadge))
+            var badgeIsCapped = root.TryGetProperty("unreadBadgeCapped", out var capped) &&
+                                capped.ValueKind == JsonValueKind.True;
+
+            if (LooksLikeAnUnsyncedRead(awaiting, unreadBadge, badgeIsCapped))
             {
                 AppLogger.LogWarningThrottled(
                     $"InstagramScan.{instance.Id}",
                     $"Discarded an Instagram read: {awaiting} thread(s) looked unread against the client's own badge of {unreadBadge}. "
-                    + "Read state has not synced yet; the next pass will pick it up.",
+                    + "The per-thread read and the client's own count disagree; the next pass will pick it up.",
                     "instagram-unsynced");
 
                 // Deliberately NOT a read failure. Nothing is broken — the page is still syncing, and
@@ -162,11 +165,18 @@ public static class InstagramSnapshotReader
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Measured, not assumed.</b> Sixty-five seconds after the app warmed an account, the Relay
-    /// resolver reported <c>true</c> for all 15 fetched threads on an account whose tab title read
-    /// <c>(2) Instagram</c>; a later pass on the same account read 2. Nothing in the record marks that
-    /// state — <c>__resolverValueMayBeInvalid</c> is false and <c>__resolverError</c> is unset — so the
-    /// store looks settled while reporting the opposite of the truth.
+    /// <b>A correction, recorded because the first version of this shipped.</b> v4.99.89 justified this
+    /// check with an observation that turned out to be a misreading: an account reporting 15 of 15 threads
+    /// unread was assumed to be mid-sync, because a probe of "the other account" showed 2. Both probes had
+    /// in fact hit the same account. The 15 were real, and the account's own title said so — as
+    /// <c>(9+) Instagram</c>.
+    /// </para>
+    /// <para>
+    /// <b>That is why the capped form matters more than the rule.</b> Instagram writes <c>(9+)</c> once the
+    /// count passes nine. The first version's digits-only pattern could not parse it, read the badge as
+    /// zero, and discarded every thread on the busiest account in the workspace — the precise failure this
+    /// remark's own next paragraph warns about, arrived at through a regex rather than through the
+    /// comparison. A capped badge is a lower bound and can never contradict anything, so it never rejects.
     /// </para>
     /// <para>
     /// <b>Exceeds, not differs.</b> The badge counts every unread thread; this reader sees the top 15 of
@@ -175,13 +185,19 @@ public static class InstagramSnapshotReader
     /// waiting customers, and only over-reporting is rejected.
     /// </para>
     /// <para>
+    /// <b>What it is worth keeping for.</b> No live desync has been demonstrated, so this now earns its
+    /// place as a cheap consistency check rather than as a fix for a known defect: it fires only when the
+    /// client's own uncapped aggregate directly contradicts the per-thread read, which would be a genuine
+    /// contradiction worth refusing to publish.
+    /// </para>
+    /// <para>
     /// A missing badge is treated as zero rather than as unknown, because Instagram omits the prefix
     /// exactly when there is nothing unread — so "no badge with threads flagged unread" is the same
     /// contradiction in a quieter form.
     /// </para>
     /// </remarks>
-    public static bool LooksLikeAnUnsyncedRead(int awaitingCount, int? unreadBadge) =>
-        awaitingCount > (unreadBadge ?? 0);
+    public static bool LooksLikeAnUnsyncedRead(int awaitingCount, int? unreadBadge, bool badgeIsCapped = false) =>
+        !badgeIsCapped && awaitingCount > (unreadBadge ?? 0);
 
     /// <summary>
     /// Turns the adapter's JSON into <see cref="OversightChatSnapshotService.ChatEntry"/> values.

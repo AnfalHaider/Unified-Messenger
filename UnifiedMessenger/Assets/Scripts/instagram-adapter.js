@@ -184,8 +184,14 @@
       // every unread thread while this reads the top 15 of Primary, so an account with 20 unread
       // legitimately reports 15 against a badge of 20. Over-reporting is the direction that invents
       // waiting customers.
-      var titleMatch = String(document.title || '').match(/^\((\d+)\)/);
+      // MUST tolerate the capped form. Instagram writes "(9+) Instagram" once the count passes nine, and
+      // a digits-only pattern returns null there — which the C# side then reads as a badge of zero and
+      // rejects the whole account. Measured live: depilex_f11_islamabad showed "(9+)" with 15 threads
+      // genuinely unread, and the first version of this guard discarded every one of them. A busy account
+      // is exactly the account that must not be silently dropped.
+      var titleMatch = String(document.title || '').match(/^\((\d+)(\+?)\)/);
       out.unreadBadge = titleMatch ? Number(titleMatch[1]) : 0;
+      out.unreadBadgeCapped = titleMatch ? titleMatch[2] === '+' : false;
 
       out.diag.stage = out.conversations.length > 0 ? 'done' : 'empty';
       out.diag.count = out.conversations.length;

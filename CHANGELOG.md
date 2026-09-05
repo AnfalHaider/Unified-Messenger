@@ -5,12 +5,48 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.90
+
+> **What you will notice:** your busiest Instagram account is back. v4.99.89 was hiding it.
+
+**A correction to the release before this one (Increment 124).**
+
+v4.99.89 added a guard that cross-checks Instagram's per-thread unread read against the client's own tab
+badge. The guard was justified by an observation that was **wrong**, and shipped with a bug that made it
+worse than the thing it was written to prevent.
+
+- **The observation was a misread.** An account reporting 15 of 15 threads unread was taken to be
+  mid-sync, because a probe of "the other account" showed 2. Both probes had hit the same account. The 15
+  were real.
+- **The bug: the badge form.** Instagram writes **`(9+)`** once the count passes nine. The digits-only
+  pattern could not parse that, read the badge as **zero**, and discarded every thread on
+  `depilex_f11_islamabad` — the busiest account in the workspace, and precisely the one the guard's own
+  documentation warned must never be dropped. On the installed build it logged
+  *"Discarded an Instagram read: 15 thread(s) … against the client's own badge of 0."*
+
+A capped badge is a lower bound, so it can never contradict a per-thread count and now never rejects one.
+
+**The guard is kept, with its justification rewritten.** No live desync has been demonstrated, so it earns
+its place as a cheap consistency check rather than as a fix for a known defect: it fires only when the
+client's own *uncapped* aggregate directly contradicts the per-thread read — a real contradiction worth
+refusing to publish.
+
+Found the same way the last two were: by installing the build, watching the log, and checking a claim
+instead of assuming it. The check that caught it was reading the account's own title, which is the same
+independent-readback idea the guard itself is built on.
+
+2119 tests green.
+
 ## v4.99.89
 
 > **What you will notice:** the greeting no longer says every account is connected when one is signed out,
 > and Instagram no longer briefly reports everyone as waiting just after the app starts.
 
 **Two defects found by installing v4.99.88 and looking at it (Increment 123).**
+
+> ⚠️ **The second item below is retracted — see v4.99.90.** The Instagram "unsynced window" it
+> describes did not exist: the 15-of-15 read was correct, and the probe that appeared to contradict it had
+> hit the same account twice. The guard it introduced also shipped a bug that hid a busy account.
 
 Both were invisible to a green suite, and both were in code the previous two increments had claimed to fix.
 
