@@ -170,6 +170,16 @@
                                     Visibility="{x:Bind DeltaVisibility}" />
                             </StackPanel>
                             <TextBlock FontSize="{StaticResource UmFontSizeCaption}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{x:Bind Hint}" TextWrapping="WrapWholeWords" />
+                            <!-- What the figure covers, kept apart from the hint above it. A hint is
+                                 advice; this is the boundary of the claim the number makes, and merging
+                                 them makes a scope statement read as a tip and get skipped. Hidden when
+                                 the figure covers everything. -->
+                            <TextBlock
+                                FontSize="{StaticResource UmFontSizeCaption}"
+                                Foreground="{ThemeResource UmStatusMutedBrush}"
+                                Text="{x:Bind Coverage}"
+                                TextWrapping="WrapWholeWords"
+                                Visibility="{x:Bind CoverageVisibility}" />
                             <shared:MiniSparkline Margin="0,4,0,0" Values="{x:Bind Trend}" />
                         </StackPanel>
                     </Button>

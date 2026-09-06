@@ -5,6 +5,37 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v4.99.99
+
+> **What you will notice:** each dashboard KPI now says what it covers, and the Overview admits which
+> channels it cannot show without you having to open the queue to find out.
+
+**Closing the gaps between the shipped shell and the renders (Increment 133).**
+
+A walk of the installed build against the published mockup found four deviations. Three are fixed here.
+
+- **KPI figures asserted numbers without saying what they covered.** The account cards' chips say what an
+  *account* can supply; a KPI is an aggregate, and the answer differs per figure — "Response time" is
+  WhatsApp-only on a dashboard where Instagram contributes to "Backlog". Each tile now carries its own
+  coverage line, kept separate from the hint above it: a hint is advice, this is the boundary of the claim
+  the number makes. It stays empty when the figure genuinely covers everything.
+- **The Overview had no coverage notice.** It rendered only under Needs-reply, so an owner who never left
+  the Overview — which is where the app opens — saw the KPI band and the account cards with nothing
+  anywhere saying a whole channel was missing from them.
+- **The public-activity card vanished after every restart.** The counts live in memory, so it was absent
+  until the background monitor's next pass — up to ninety seconds reading as a missing feature rather than
+  as data not yet read. The dashboard now asks for one read when it finds no data, once per session.
+  Persisting three integers that expire the moment you open Instagram would have been the wrong trade.
+
+**Not fixed, and named rather than quietly dropped:** the Add-account picker is still a dropdown where the
+render drew a card grid. The channel descriptions are present and correct; only the layout differs.
+
+A signed-out account is named on a KPI **only where it could have contributed**. Naming a signed-out
+Google account beside a WhatsApp-only figure would send the owner to fix something that would not change
+the number.
+
+2189 tests green.
+
 ## v4.99.98
 
 > **What you will notice:** the notification panel's status line no longer collides with its own title.

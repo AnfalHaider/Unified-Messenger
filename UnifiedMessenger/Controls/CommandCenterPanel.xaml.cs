@@ -142,6 +142,12 @@ public sealed partial class CommandCenterPanel : UserControl
     private string _searchQuery = string.Empty;
     private bool _compact;
 
+    /// <summary>
+    /// Whether this panel has already asked for a one-off Instagram read to fill the public-activity
+    /// card after a restart. See <see cref="BuildPublicActivityCard"/>.
+    /// </summary>
+    private bool _requestedInstagramActivity;
+
     // When set, the Needs-reply list is scoped to just these accounts (a card's awaiting pill was clicked).
     private List<string>? _needsReplyFilterIds;
     private string _needsReplyFilterLabel = string.Empty;
@@ -593,6 +599,21 @@ public sealed partial class CommandCenterPanel : UserControl
             });
         }
 
+        // The channels this dashboard cannot show, on the Overview as well as the queue. It rendered only
+        // under Needs-reply, so an owner who never left the Overview — which is where the app opens — saw
+        // the KPI band and the account cards with nothing anywhere saying a whole channel was missing from
+        // them. The queue is not the only place the omission matters; it is only the place it was noticed.
+        if (_services is not null)
+        {
+            var overviewCoverage = ChannelCoverage.DescribeGaps(
+                _services.Registry.Instances.Where(i => i.IsProfessional).ToList());
+
+            if (overviewCoverage.Length > 0)
+            {
+                CardsHost.Children.Add(BuildCoverageNotice(overviewCoverage));
+            }
+        }
+
         // Public activity (A13b) sits after the account cards, not among them. It is a different kind of
         // fact — an aggregate that clears when the owner opens Instagram's notifications — and giving it a
         // card in the same row would invite reading it as another account's waiting count.
@@ -639,6 +660,25 @@ public sealed partial class CommandCenterPanel : UserControl
         }
 
         var totals = InstagramActivityStore.Instance.SumFor(instagramIds);
+
+        // The store is in-memory, so after a restart it is empty until the background monitor's next pass —
+        // up to ninety seconds during which the card is simply absent, which reads as a missing feature
+        // rather than as data not yet read. Rather than persist three integers that expire the moment the
+        // owner opens Instagram, ask for one read now; the next render picks it up.
+        //
+        // Once per panel lifetime. A retry on every render would re-scan an account that legitimately has
+        // nothing to report, forever.
+        if (totals is null && !_requestedInstagramActivity)
+        {
+            _requestedInstagramActivity = true;
+            foreach (var instance in _services.Registry.Instances
+                         .Where(i => instagramIds.Contains(i.Id, StringComparer.OrdinalIgnoreCase))
+                         .ToList())
+            {
+                _ = InstagramSnapshotReader.RefreshAsync(instance);
+            }
+        }
+
         if (totals is not { } activity || activity.Total == 0)
         {
             return null;
@@ -2387,6 +2427,7 @@ public sealed partial class CommandCenterPanel : UserControl
             // step quieter so the eye has somewhere to land.
             IsPrimary = true,
             Label = "Caught up",
+            Coverage = KpiCoverage.ForConversations(instances),
             Value = overallPct is { } p ? $"{p}%" : "—",
             ValueBrush = overallPct is { } pp ? StatusBrushForPercent(pp) : secondary,
             Hint = "unread cleared, across accounts",
@@ -2402,6 +2443,7 @@ public sealed partial class CommandCenterPanel : UserControl
         tiles.Add(new KpiTileViewModel
         {
             Label = awaitingSplit.Backlog > 0 ? "Backlog" : "Needs a reply",
+            Coverage = KpiCoverage.ForConversations(instances),
             Value = awaitingSplit.Backlog > 0
                 ? awaitingSplit.Backlog.ToString()
                 : awaitingSplit.NeedsReply.ToString(),
@@ -2445,6 +2487,7 @@ public sealed partial class CommandCenterPanel : UserControl
         tiles.Add(new KpiTileViewModel
         {
             Label = "Response time",
+            Coverage = KpiCoverage.ForReplyTiming(instances),
             Value = response.HasData ? FormatMinutes(response.MedianMinutes) : "—",
             ValueBrush = response.HasData ? primary : secondary,
             Delta = responseDeltaText,
@@ -2456,6 +2499,7 @@ public sealed partial class CommandCenterPanel : UserControl
         tiles.Add(new KpiTileViewModel
         {
             Label = "SLA met",
+            Coverage = KpiCoverage.ForReplyTiming(instances),
             Value = response.HasData ? $"{response.SlaCompliancePercent}%" : "—",
             ValueBrush = response.HasData ? primary : secondary,
             Delta = slaDeltaText,
@@ -2486,6 +2530,7 @@ public sealed partial class CommandCenterPanel : UserControl
         tiles.Add(new KpiTileViewModel
         {
             Label = "Messages / day",
+            Coverage = KpiCoverage.ForMessageAnalytics(instances),
             Value = perDay.HasData ? perDay.AveragePerDay.ToString() : "—",
             ValueBrush = perDay.HasData ? primary : secondary,
             Delta = perDayDelta,
@@ -2500,6 +2545,7 @@ public sealed partial class CommandCenterPanel : UserControl
         tiles.Add(new KpiTileViewModel
         {
             Label = "Busiest window",
+            Coverage = KpiCoverage.ForMessageAnalytics(instances),
             Value = busyHour,
             ValueBrush = busyHour == "—" ? secondary : primary,
             Hint = busyDay == "—" ? "peak hour" : $"peak hour · {busyDay}",

@@ -16,6 +16,26 @@ public sealed class KpiTileViewModel
 
     public string Hint { get; init; } = string.Empty;
 
+    /// <summary>
+    /// What this figure covers — "WhatsApp only", "4 of 6 channels". Empty when it covers everything.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately separate from <see cref="Hint"/>, which carries advice ("builds as you reply",
+    /// "target 15 min"). Coverage is not advice: it is the boundary of the claim the number is making,
+    /// and folding the two into one line makes a scope statement read as a tip and get skipped.
+    /// </para>
+    /// <para>
+    /// Empty means the figure covers every account the dashboard measures, and the line is hidden rather
+    /// than rendered as "all accounts" — a caption present on every tile is furniture, and the tiles that
+    /// need the disclosure stop standing out.
+    /// </para>
+    /// </remarks>
+    public string Coverage { get; init; } = string.Empty;
+
+    public Visibility CoverageVisibility =>
+        string.IsNullOrWhiteSpace(Coverage) ? Visibility.Collapsed : Visibility.Visible;
+
     /// <summary>Optional ▲/▼ delta shown next to the value (empty = none).</summary>
     public string Delta { get; init; } = string.Empty;
 
