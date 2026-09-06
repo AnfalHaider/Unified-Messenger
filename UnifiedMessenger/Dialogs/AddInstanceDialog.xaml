@@ -49,7 +49,17 @@
                 ScrollViewer.VerticalScrollBarVisibility="Auto">
                 <GridView.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="2" />
+                        <!--
+                            ItemHeight is explicit because a GridView sizes every cell from the FIRST
+                            item, and WhatsApp's description is two lines while "Opens in its own tab. No
+                            oversight metrics — this channel is not measured." is four. Left to itself the
+                            grid clipped the longer ones mid-word — the same wrap-versus-clip trap that cut
+                            the AI briefing and the About page, arriving through a different control.
+                        -->
+                        <ItemsWrapGrid
+                            Orientation="Horizontal"
+                            MaximumRowsOrColumns="2"
+                            ItemHeight="104" />
                     </ItemsPanelTemplate>
                 </GridView.ItemsPanel>
                 <GridView.ItemTemplate>

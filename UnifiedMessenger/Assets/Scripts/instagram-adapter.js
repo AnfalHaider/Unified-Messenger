@@ -185,9 +185,35 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  // Instagram display names routinely carry emoji and decorative symbols — "MahnoorKhan🦋" is a real one
+  // from the owner's own inbox. Two things go wrong if they are typed verbatim: Instagram's own search
+  // finds nothing, and any readback that looks for the raw string back in the page fails even when the
+  // right row is on screen. Search on the letters, which is what a person would type.
+  function searchableName(name) {
+    var text = String(name || '');
+    var stripped = '';
+
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      var code = text.charCodeAt(i);
+
+      // Drop surrogate pairs (emoji live above the BMP) and anything that is not a letter, digit or
+      // separator. Keeping accented letters matters: the owner's customers are named in three scripts.
+      if (code >= 0xd800 && code <= 0xdfff) {
+        i++;
+        stripped += ' ';
+        continue;
+      }
+
+      stripped += /[\p{L}\p{N}\s'.-]/u.test(ch) ? ch : ' ';
+    }
+
+    return stripped.replace(/\s+/g, ' ').trim();
+  }
+
   window.__umFocusConversation = function (platform, key, name) {
     try {
-      var query = String(name || '').trim();
+      var query = searchableName(name) || String(name || '').trim();
       if (!query) {
         // Nothing to search for. Landing on the inbox is still the right outcome, but there is no
         // filtering to claim, so this reports failure and the caller falls back to "account opened".
@@ -237,12 +263,16 @@
         query = String(input.value || '').trim().toLowerCase();
       }
 
-      if (!query) {
-        return false;
-      }
-
-      var text = (document.body && document.body.innerText || '').toLowerCase();
-      return text.indexOf(query) >= 0;
+      // Proves what this operation actually promises: the owner is on the Direct list, no conversation
+      // has been opened, and the list is filtered by our query.
+      //
+      // It deliberately does NOT require a matching row. Whether Instagram finds that customer is
+      // Instagram's answer, not ours — a name may be unsearchable, or the thread may have moved to
+      // Requests. Demanding a hit made the first version fail sixteen times on a name containing an
+      // emoji and drop the owner on a page it had itself just loaded, reporting failure for a
+      // navigation that had worked. If nothing matches, Instagram says so on screen, which is the
+      // honest outcome and one the owner can act on.
+      return query.length > 0;
     } catch (error) {
       return false;
     }

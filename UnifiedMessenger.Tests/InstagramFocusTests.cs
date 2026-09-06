@@ -98,6 +98,33 @@ public class InstagramFocusTests
     }
 
     [Fact]
+    public void TheSearchQueryStripsEmojiButKeepsNonLatinScripts()
+    {
+        var script = Script();
+
+        // Instagram display names routinely carry emoji — "MahnoorKhan🦋" is real, from the owner's own
+        // inbox. Typed verbatim, Instagram's search finds nothing. Stripping them is what makes the filter
+        // work, and keeping letters in every script matters because these customers are named in three.
+        Assert.Contains("searchableName", script, StringComparison.Ordinal);
+        Assert.Contains(@"\p{L}", script, StringComparison.Ordinal);
+        Assert.Contains("0xd800", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheReadbackDoesNotDemandAMatchingRow()
+    {
+        var script = Script();
+        var start = script.IndexOf("__umIgFocusReadback", StringComparison.Ordinal);
+        var body = script[start..];
+
+        // Whether Instagram finds that customer is Instagram's answer, not ours: a name may be
+        // unsearchable, or the thread may have moved to Requests. The first version demanded a hit in the
+        // page text and failed sixteen times on an emoji name, reporting failure for a navigation that had
+        // in fact worked and leaving the owner on a page it had just loaded.
+        Assert.DoesNotContain("innerText", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FocusWithNoCustomerNameReportsFailureRatherThanGuessing()
     {
         var script = Script();

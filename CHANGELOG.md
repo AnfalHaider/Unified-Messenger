@@ -5,6 +5,34 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v5.0.1
+
+> **What you will notice:** clicking an Instagram customer whose name has an emoji now works, and the
+> Add-account cards no longer cut their descriptions off mid-word.
+
+**Two defects in v5.0.0, both found by using it (Increment 135).**
+
+- **The search typed the customer's name verbatim, emoji and all.** Instagram display names routinely carry
+  them — `MahnoorKhan🦋` is real, from your own inbox — and Instagram's own search finds nothing when they
+  are included. The query is now stripped to letters, digits and separators, which is what a person would
+  type. Non-Latin scripts are kept: your customers are named in three, and `سیدہ رضا راشدی` survives intact.
+- **The readback demanded a matching row and failed sixteen times.** Whether Instagram finds that customer
+  is Instagram's answer, not ours — a name may be unsearchable, or the thread may have moved to Requests.
+  It now proves what the operation actually promises: you are on the Direct list, no conversation has been
+  opened, and the list is filtered. If nothing matches, Instagram says so on screen, which is honest and
+  actionable. The old version reported failure for a navigation that had worked and left you on a page it
+  had itself just loaded.
+- **The Add-account cards clipped their descriptions.** A GridView sizes every cell from the first item,
+  and WhatsApp's description is two lines while *"Opens in its own tab. No oversight metrics — this channel
+  is not measured."* is four. The row height is now explicit. Same wrap-versus-clip trap that cut the AI
+  briefing and the About page, arriving through a different control.
+
+Confirmed working on the installed build in the same pass: every KPI now states its coverage
+(*"WhatsApp only · 1 signed out"*), the Overview carries its own coverage notice, and the public-activity
+card survives a restart.
+
+2198 tests green.
+
 ## v5.0.0
 
 > **What you will notice:** clicking an Instagram customer takes you to that conversation in Direct,
