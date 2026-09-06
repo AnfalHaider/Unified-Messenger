@@ -149,6 +149,39 @@ thread list stays current without the app polling for it. Worth confirming befor
 
 ---
 
+## ✅ The Direct-inbox question is answered: it does NOT open a conversation
+
+**CONFIRMED 2026-09-06, build v5.0.1, owner-verified on live accounts.** Clicking an Instagram customer in
+the needs-a-reply queue navigates that account to `https://www.instagram.com/direct/inbox/`, the thread
+list renders, the search box filters to that customer — and **no conversation opens**. The owner ran it
+and reported it working.
+
+This was the blocking question behind **B2a** for the whole stream, and the answer is the good one:
+
+- **`/direct/inbox/` behaves unlike `messenger.com`.** Messenger's root was measured redirecting *into* a
+  conversation, which is why this route was treated as dangerous by analogy. Instagram's does not.
+- **So the inbox route is reachable without opening a thread**, which means the two things the feed cannot
+  give — **preview text** and **threads beyond the top 15** — are both obtainable there. Whether to take
+  them is now a design decision rather than a blocked one.
+
+⚠️ **What is still NOT established.** Nobody has watched a customer's device while this ran, so *"does
+merely landing on the inbox mark anything as seen?"* has not been observed from the other side. What can be
+said is narrower and true: **no thread was opened**, and Instagram fires its read receipt on thread open.
+Treat the receipt question as unobserved rather than as answered.
+
+### Two traps this route carries, both hit on the first real run
+
+- **Display names carry emoji, and Instagram's own search fails on them.** `MahnoorKhan🦋` is a real name
+  from the owner's inbox; typed verbatim the search returns nothing. Strip to letters, digits and
+  separators — and keep non-Latin scripts, because these customers are named in three and
+  `سیدہ رضا راشدی` must survive intact.
+- **Do not require a matching row as proof the focus worked.** Whether Instagram finds a given customer is
+  Instagram's answer: a name may be unsearchable, or the thread may sit in Requests, which this app never
+  fetches. The first version demanded a hit, failed all sixteen attempts, and reported failure for a
+  navigation that had in fact succeeded.
+
+---
+
 ## What is NOT there, and what it costs
 
 **CONFIRMED — there is no message preview text anywhere in the feed's Relay store.** A sweep of every
