@@ -5,6 +5,37 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v5.0.0
+
+> **What you will notice:** clicking an Instagram customer takes you to that conversation in Direct,
+> filtered and ready — without opening it. And the Add-account picker shows every channel side by side.
+
+**Instagram click-through, and the last render deviation (Increment 134).**
+
+- **Clicking an Instagram row now navigates to Direct and filters to that conversation — and stops.** It
+  never clicks the thread. **That is the entire design:** opening an Instagram thread marks it read and
+  fires a "Seen" to the customer, which cannot be withdrawn and destroys the very signal this app measures.
+  The app takes you to the doorstep and lets you decide to step through it.
+- **Typing into the search box is not the banned interaction.** The prohibition is on synthesising input
+  into a message composer or clicking send; a search field sends nothing and is invisible to the customer.
+  The two are kept apart by tests: this script may not reference a composer, a send call, a key event, or
+  a click, and a thread URL may appear only as something to detect and back out of.
+- **Instagram gets its own readback, asserting the opposite of WhatsApp's.** WhatsApp's proves a
+  conversation is open; Instagram's proves one is **not**. Running WhatsApp's against Instagram would hunt
+  for an open conversation, never find one, and report every successful focus as a failure.
+- **If it finds itself inside a thread, it backs out to the list.** Leaving you in a conversation you did
+  not choose is the outcome this path exists to avoid.
+- **The Add-account picker is a card grid**, the last outstanding deviation from the renders. Every
+  channel's description is visible at once, so the choice is made by comparing what each one gives you
+  rather than by selecting a name and then reading a line about what you just picked. Nine channels look
+  equivalent in a dropdown; only two produce full oversight, and that difference is the whole decision.
+
+Two guards caught their own author again: the 4-pixel grid rejected a card padding of 6, and an existing
+test asserting *"this script never navigates"* correctly failed once the focus path landed. That claim was
+**narrowed to what still holds** rather than deleted — the one permitted destination is the inbox list.
+
+2196 tests green.
+
 ## v4.99.99
 
 > **What you will notice:** each dashboard KPI now says what it covers, and the Overview admits which

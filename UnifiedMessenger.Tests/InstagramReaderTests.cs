@@ -152,17 +152,24 @@ public class InstagramReaderTests
     }
 
     [Fact]
-    public void TheScriptNeverNavigatesOpensAThreadOrPagesTheConnection()
+    public void TheReadPathNeverNavigatesOpensAThreadOrPagesTheConnection()
     {
         var script = ScriptText();
 
-        // The whole safety case for this channel: it reads records the client already fetched for its own
-        // badge. Navigating, opening a thread, or following the connection's end_cursor would each turn a
-        // passive read into an action a real customer can see.
-        Assert.DoesNotContain("location.href =", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("/direct/t/", script, StringComparison.Ordinal);
+        // The safety case for the READ: it takes records the client already fetched for its own badge.
+        // Following the connection's end_cursor would turn a passive read into a query we issued, and a
+        // click would turn it into something a customer can see.
         Assert.DoesNotContain("end_cursor", script, StringComparison.Ordinal);
         Assert.DoesNotContain(".click(", script, StringComparison.Ordinal);
+
+        // This assertion used to be "the script never navigates at all", which was true while the file held
+        // only the reader. The focus path (Increment 134) navigates deliberately — and only ever to the
+        // inbox LIST. The claim is narrowed to what still holds rather than deleted: the one destination
+        // permitted is the list, and a thread URL may appear only as something to detect and back out of.
+        var threadMentions = script.Split("/direct/t/").Length - 1;
+        Assert.True(threadMentions <= 1, "A thread path should appear once, as a guard — never as a destination.");
+        Assert.DoesNotContain("assign('https://www.instagram.com/direct/t/", script, StringComparison.Ordinal);
+        Assert.Contains("assign('https://www.instagram.com/direct/inbox/')", script, StringComparison.Ordinal);
     }
 
     [Fact]

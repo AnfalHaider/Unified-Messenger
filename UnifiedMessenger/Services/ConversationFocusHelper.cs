@@ -130,8 +130,16 @@ public static class ConversationFocusHelper
     {
         try
         {
-            var script = NavigationOperations.BuildReadbackScript(
-                NavigationOperations.Require(NavigationOperations.FocusConversation));
+            // Platform-aware, and the two readbacks assert OPPOSITE things.
+            //
+            // WhatsApp's proves a conversation is open. Instagram's proves one is NOT — the whole point of
+            // its focus path is to filter the Direct list and stop, because opening a thread there fires a
+            // "Seen" at the customer. Running WhatsApp's readback against Instagram would look for an open
+            // conversation, never find one, and report every successful focus as a failure.
+            var script = string.Equals(instance.Platform, "instagram", StringComparison.OrdinalIgnoreCase)
+                ? "window.__umIgFocusReadback ? window.__umIgFocusReadback() : 'NOFN'"
+                : NavigationOperations.BuildReadbackScript(
+                    NavigationOperations.Require(NavigationOperations.FocusConversation));
 
             var raw = await sessionManager
                 .TryExecuteScriptOnInstanceAsync(instance.Id, script)

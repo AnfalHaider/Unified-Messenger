@@ -10,7 +10,7 @@
     Title="Add account"
     AutomationProperties.Name="Add account">
 
-    <StackPanel MinWidth="360" Spacing="12" TabFocusNavigation="Cycle">
+    <StackPanel MinWidth="440" Spacing="12" TabFocusNavigation="Cycle">
         <ComboBox
             x:Name="RestoreBox"
             Header="Restore removed account (optional)"
@@ -25,16 +25,61 @@
             PlaceholderText="e.g. WhatsApp Work" />
 
         <StackPanel Spacing="4">
-            <ComboBox
-                x:Name="PlatformBox"
-                Header="Platform"
-                HorizontalAlignment="Stretch"
-                SelectionChanged="PlatformBox_SelectionChanged" />
+            <TextBlock Text="Platform" FontSize="{StaticResource UmFontSizeBody}" />
 
             <!--
-                What the selected channel actually gives you. Without this, the picker showed six channels
-                as if they were equivalent when only three produce oversight data, so adding Messenger or
-                Discord looked broken rather than out of scope.
+                A card grid, not a dropdown. Every channel's description is visible at once, so the
+                choice is made by comparing what each one gives you rather than by selecting a name and
+                then reading a line underneath about what you just picked. Nine channels look equivalent
+                in a ComboBox; only two produce full oversight, and the difference is the whole decision.
+
+                Still a Selector, so SelectedItem / SelectionChanged / IsEnabled behave exactly as the
+                ComboBox did and the code-behind is untouched.
+            -->
+            <GridView
+                x:Name="PlatformBox"
+                MaxHeight="248"
+                Padding="0"
+                SelectionMode="Single"
+                IsItemClickEnabled="False"
+                AutomationProperties.Name="Platform"
+                SelectionChanged="PlatformBox_SelectionChanged"
+                ScrollViewer.HorizontalScrollMode="Disabled"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="2" />
+                    </ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+                <GridView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Width="196" Spacing="4" Padding="4,8,4,8">
+                            <TextBlock
+                                Text="{Binding DisplayName}"
+                                FontSize="{StaticResource UmFontSizeBodyStrong}"
+                                FontWeight="SemiBold"
+                                TextTrimming="CharacterEllipsis" />
+                            <!--
+                                The description is the point of the grid. It must state what the channel
+                                does TODAY - PlatformDescriptionTests fails the build on roadmap words and
+                                requires every unmeasured channel to say so, because this is shown to a
+                                paying customer at the moment they decide what to connect.
+                            -->
+                            <TextBlock
+                                Text="{Binding Description}"
+                                FontSize="{StaticResource UmFontSizeCaption}"
+                                Foreground="{ThemeResource UmStatusMutedBrush}"
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </DataTemplate>
+                </GridView.ItemTemplate>
+            </GridView>
+
+            <!--
+                Repeats the selected channel's description under the grid. Redundant by sight and not by
+                ear: a screen reader announces the selected item's name, not the card's second line, so
+                without this the capability statement is invisible to the person who most needs it.
             -->
             <TextBlock
                 x:Name="PlatformCapabilityText"

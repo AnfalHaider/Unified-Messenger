@@ -125,6 +125,129 @@
     };
   }
 
+  // ─── Focus a conversation WITHOUT opening it ────────────────────────────────────────────────
+  //
+  // Clicking an Instagram row in the needs-a-reply queue lands the owner on Direct with that
+  // conversation filtered to the top of the list — and stops there. It never clicks the thread.
+  //
+  // THAT IS THE WHOLE DESIGN. Opening an Instagram thread marks it read and fires a "Seen" to the
+  // customer, which cannot be withdrawn and destroys the very signal this app measures. So the app
+  // takes the owner to the doorstep and lets them decide to step through it.
+  //
+  // Typing into the SEARCH box is not the banned interaction. The prohibition is on synthesising
+  // input into a message composer or clicking send; a search field neither sends anything nor is
+  // visible to the customer. The two are kept apart deliberately, and a test asserts this script
+  // touches no composer and clicks no thread row.
+
+  var INBOX_PATH = '/direct/inbox';
+  var THREAD_PATH = '/direct/t/';
+
+  var SEARCH_INPUTS = [
+    'input[placeholder="Search"]',
+    'input[aria-label="Search input"]',
+    'input[placeholder*="Search" i]',
+    'input[aria-label*="Search" i]'
+  ];
+
+  function firstMatch(selectors) {
+    for (var i = 0; i < selectors.length; i++) {
+      try {
+        var node = document.querySelector(selectors[i]);
+        if (node) {
+          return node;
+        }
+      } catch (error) {
+        // Bad selector: try the next candidate rather than abandoning the search.
+      }
+    }
+    return null;
+  }
+
+  function onInbox() {
+    return String(location.pathname || '').indexOf(INBOX_PATH) === 0;
+  }
+
+  function insideThread() {
+    return String(location.pathname || '').indexOf(THREAD_PATH) >= 0;
+  }
+
+  // React owns the input's value, so assigning .value directly updates the DOM and leaves React's
+  // state stale — the list would not filter. Going through the native setter and then dispatching a
+  // bubbling 'input' event is what makes React observe the change.
+  function typeInto(input, text) {
+    var descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+    if (descriptor && descriptor.set) {
+      descriptor.set.call(input, text);
+    } else {
+      input.value = text;
+    }
+
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  window.__umFocusConversation = function (platform, key, name) {
+    try {
+      var query = String(name || '').trim();
+      if (!query) {
+        // Nothing to search for. Landing on the inbox is still the right outcome, but there is no
+        // filtering to claim, so this reports failure and the caller falls back to "account opened".
+        return false;
+      }
+
+      if (insideThread()) {
+        // Already inside somebody's conversation. Do NOT stay - back out to the list, because leaving
+        // the owner in a thread they did not choose is the outcome this whole path exists to avoid.
+        location.assign('https://www.instagram.com/direct/inbox/');
+        return false;
+      }
+
+      if (!onInbox()) {
+        location.assign('https://www.instagram.com/direct/inbox/');
+        return false;
+      }
+
+      var input = firstMatch(SEARCH_INPUTS);
+      if (!input) {
+        return false;
+      }
+
+      if (input.value !== query) {
+        typeInto(input, query);
+      }
+
+      // Deliberately returns without clicking anything. The readback below decides whether the filter
+      // actually took, from the DOM rather than from this function's own optimism.
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // Independent readback for the focus above. Asserts the OPPOSITE of the WhatsApp one: WhatsApp's
+  // proves a conversation is open, this proves we are still on the list and have not opened one.
+  window.__umIgFocusReadback = function () {
+    try {
+      if (insideThread() || !onInbox()) {
+        return false;
+      }
+
+      var query = '';
+      var input = firstMatch(SEARCH_INPUTS);
+      if (input) {
+        query = String(input.value || '').trim().toLowerCase();
+      }
+
+      if (!query) {
+        return false;
+      }
+
+      var text = (document.body && document.body.innerText || '').toLowerCase();
+      return text.indexOf(query) >= 0;
+    } catch (error) {
+      return false;
+    }
+  };
+
   window.__umReadInstagramThreads = function () {
     var out = { diag: { stage: 'starting' }, conversations: [], badge: null };
 

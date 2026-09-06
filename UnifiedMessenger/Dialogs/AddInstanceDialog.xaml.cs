@@ -34,7 +34,6 @@ public sealed partial class AddInstanceDialog : ContentDialog
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         PlatformBox.ItemsSource = PlatformModuleSettingsHelper.GetSelectablePlatforms();
-        PlatformBox.DisplayMemberPath = nameof(PlatformDefinition.DisplayName);
         PlatformBox.SelectedIndex = 0;
 
         CategoryBox.ItemsSource = new[]
