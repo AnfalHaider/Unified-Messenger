@@ -113,9 +113,16 @@ public class InstagramFocusTests
     [Fact]
     public void TheReadbackDoesNotDemandAMatchingRow()
     {
+        // Scoped to the readback FUNCTION, not "everything after its name". The loose version broke the
+        // moment the preview harvest was added below it — the harvest reads innerText legitimately, and a
+        // test that fails because unrelated code appeared later in the file is measuring position, not
+        // behaviour.
         var script = Script();
-        var start = script.IndexOf("__umIgFocusReadback", StringComparison.Ordinal);
-        var body = script[start..];
+        var start = script.IndexOf("window.__umIgFocusReadback", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The readback must exist.");
+
+        var end = script.IndexOf("window.__um", start + 10, StringComparison.Ordinal);
+        var body = end > start ? script[start..end] : script[start..];
 
         // Whether Instagram finds that customer is Instagram's answer, not ours: a name may be
         // unsearchable, or the thread may have moved to Requests. The first version demanded a hit in the

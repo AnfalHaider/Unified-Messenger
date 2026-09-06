@@ -5,6 +5,39 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v5.1.0
+
+> **What you will notice:** open an Instagram account once and its waiting customers gain message text —
+> so you can tell the one about to miss a flight from the one saying thank you.
+
+**Message previews, from the inbox you opened (Increment 136).**
+
+B2a established that `/direct/inbox/` renders the list without opening a conversation. This takes the
+narrow version of what that unlocked.
+
+- **Only the account you click.** The harvest runs after the click-through has already navigated that
+  account to Direct — never on a background cycle, never for an account you are not opening. The passive
+  feed read stays passive for everything else, so "we only read what the client already fetched" remains
+  true of every account except the one you just asked to see.
+- **It reads the rendered list, not a store field.** The feed's prefetch carries no snippet at all, and
+  whether the inbox route adds one has never been measured — whereas the list visibly shows the preview on
+  screen. Each row is an anchor to its own thread, and reading that anchor's href is not clicking it.
+- **It merges, never replaces.** The feed read stays authoritative for who is waiting and how long; this
+  adds only the text. Rebuilding from the DOM would trade a structured read for a scraped one and lose the
+  unread state the resolver gives.
+- **The coverage chip corrects itself per account.** An account whose Direct list has been read stops
+  saying "No message text", because labelling it that while its rows visibly carry message text is the
+  stale disclosure that teaches people to ignore every other one. It only ever upgrades.
+
+A timestamp is not mistaken for a preview: Instagram renders the message and the age as separate runs, so
+a naive read puts "· 5h" in the queue as if the customer had said it.
+
+**Still no thread opened, and still no receipt fired on one.** The unobserved question is unchanged — does
+merely landing on the inbox mark anything as seen — and it is unchanged because this adds no navigation you
+did not already cause by clicking.
+
+2204 tests green.
+
 ## v5.0.1
 
 > **What you will notice:** clicking an Instagram customer whose name has an emoji now works, and the

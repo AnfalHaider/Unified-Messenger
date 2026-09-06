@@ -54,8 +54,34 @@ public enum ChannelCoverageLevel
 
 public static class ChannelCoverage
 {
-    public static ChannelCoverageLevel For(MessengerInstance? instance) =>
-        For(instance?.Platform);
+    public static ChannelCoverageLevel For(MessengerInstance? instance)
+    {
+        var level = For(instance?.Platform);
+
+        // A channel-level answer, corrected by what this ACCOUNT actually holds. Instagram supplies no
+        // preview on the passive feed read, but once the owner has opened an account's Direct list the
+        // app has harvested them — and continuing to label that account "No message text" while its rows
+        // visibly carry message text is the kind of stale disclosure that teaches people to ignore every
+        // other one.
+        //
+        // Only ever upgrades. A channel that has never supplied previews cannot be promoted by an empty
+        // snapshot, and nothing here can downgrade a fully-measured channel.
+        if (level == ChannelCoverageLevel.NoMessageText && HasPreviews(instance?.Id))
+        {
+            return ChannelCoverageLevel.FullDetail;
+        }
+
+        return level;
+    }
+
+    /// <summary>
+    /// True when this account's snapshot carries at least one message preview.
+    /// </summary>
+    public static bool HasPreviews(string? instanceId) =>
+        !string.IsNullOrWhiteSpace(instanceId) &&
+        OversightChatSnapshotService.Instance
+            .GetChats(instanceId!)
+            .Any(chat => !string.IsNullOrWhiteSpace(chat.Preview));
 
     public static ChannelCoverageLevel For(string? platformId)
     {

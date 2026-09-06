@@ -191,6 +191,17 @@ public sealed class ShellNavigationCoordinator
                     contactPhone: request.ContactPhone)
                 .ConfigureAwait(true);
 
+            // The click-through has navigated this account to Direct, so the list is on screen and its
+            // previews are readable — for THIS account only, because the owner opened it. Runs whether or
+            // not the search matched: the list is up either way, and the previews are worth having.
+            //
+            // Fire-and-forget. A preview is an enrichment; making the owner wait on it after they asked to
+            // see a conversation would trade the thing they wanted for the thing they did not ask for.
+            if (string.Equals(instance.Platform, "instagram", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = InstagramSnapshotReader.HarvestInboxPreviewsAsync(instance);
+            }
+
             if (!focused)
             {
                 // The account is open on its inbox — a good-enough fallback. Some chats genuinely can't be

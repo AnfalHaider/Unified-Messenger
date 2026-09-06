@@ -278,6 +278,93 @@
     }
   };
 
+  // ─── Preview harvest, on the inbox route only ───────────────────────────────────────────────
+  //
+  // Runs ONLY after the owner has clicked an Instagram customer and the app has navigated that
+  // account to Direct. Never on a background cycle: the passive read on the feed stays passive, and
+  // an account the owner is not opening is never navigated.
+  //
+  // Reads the RENDERED LIST, not the Relay store. The feed's prefetch carries no snippet field at
+  // all, and whether the inbox route adds one has not been measured — whereas the list visibly
+  // shows "You sent a photo · 58m" on screen, so the DOM is the source we know exists. Each row is
+  // an anchor to its own thread; reading that anchor's href is not clicking it.
+
+  var ROW_LINKS = [
+    'a[href^="/direct/t/"]',
+    'div[role="listitem"] a[href*="/direct/t/"]'
+  ];
+
+  function rowAnchors() {
+    for (var i = 0; i < ROW_LINKS.length; i++) {
+      try {
+        var found = document.querySelectorAll(ROW_LINKS[i]);
+        if (found && found.length) {
+          return Array.prototype.slice.call(found);
+        }
+      } catch (error) {
+        // Try the next candidate.
+      }
+    }
+    return [];
+  }
+
+  function threadIdFrom(href) {
+    var match = String(href || '').match(/\/direct\/t\/(\d+)/);
+    return match ? match[1] : '';
+  }
+
+  window.__umHarvestInstagramInbox = function () {
+    var out = { diag: { stage: 'starting' }, rows: [] };
+
+    try {
+      if (!onInbox() || insideThread()) {
+        // Only ever harvests from the list. If something navigated into a conversation, this reports
+        // nothing rather than scraping a thread the owner did not ask to open.
+        out.diag.stage = 'not-on-inbox';
+        return JSON.stringify(out);
+      }
+
+      var anchors = rowAnchors();
+      out.diag.anchors = anchors.length;
+
+      for (var i = 0; i < anchors.length; i++) {
+        var anchor = anchors[i];
+        var lines = String(anchor.innerText || '')
+          .split('\n')
+          .map(function (line) { return line.trim(); })
+          .filter(function (line) { return line.length > 0; });
+
+        if (!lines.length) {
+          continue;
+        }
+
+        // Line 0 is the display name. The preview is the next line that is not purely a timestamp —
+        // Instagram renders "Raja sent a video." and "· 5h" as separate runs, and a naive "line 1"
+        // read picks up the age on rows whose preview is empty.
+        var preview = '';
+        for (var j = 1; j < lines.length; j++) {
+          if (!/^[·•]?\s*\d+\s*(m|h|d|w|min|hour|day|week)/i.test(lines[j])) {
+            preview = lines[j];
+            break;
+          }
+        }
+
+        out.rows.push({
+          threadId: threadIdFrom(anchor.getAttribute('href')),
+          name: safeTruncate(lines[0], 120),
+          preview: safeTruncate(preview, 240)
+        });
+      }
+
+      out.diag.stage = out.rows.length > 0 ? 'done' : 'empty';
+    } catch (error) {
+      out.diag.stage = 'error';
+      out.diag.message = String(error && error.message).slice(0, 120);
+    }
+
+    return JSON.stringify(out);
+  };
+
   window.__umReadInstagramThreads = function () {
     var out = { diag: { stage: 'starting' }, conversations: [], badge: null };
 

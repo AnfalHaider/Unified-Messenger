@@ -167,6 +167,125 @@ public static class InstagramSnapshotReader
     }
 
     /// <summary>
+    /// Harvests message previews from the Direct inbox for one account and merges them into its snapshot.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Called only after the owner clicks that account's row</b>, once the click-through has already
+    /// navigated it to Direct. Never on a background cycle. The passive read on the feed stays passive,
+    /// and an account the owner is not opening is never navigated — which is what keeps the "we only read
+    /// what the client already fetched" claim true for everything else.
+    /// </para>
+    /// <para>
+    /// Merges rather than replaces. The feed read is authoritative for <i>who is waiting and for how
+    /// long</i>; this adds only the preview text. Rebuilding the list from the DOM would trade a
+    /// structured read for a scraped one and lose the unread state the resolver gives us.
+    /// </para>
+    /// </remarks>
+    public static async Task<int> HarvestInboxPreviewsAsync(MessengerInstance instance)
+    {
+        if (instance is null ||
+            string.IsNullOrWhiteSpace(instance.Id) ||
+            !string.Equals(instance.Platform, "instagram", StringComparison.OrdinalIgnoreCase) ||
+            !SignInGate.MayScan(instance.Id))
+        {
+            return 0;
+        }
+
+        var raw = await InstanceConnection.Current
+            .ExecuteScriptAsync(
+                instance.Id,
+                "window.__umHarvestInstagramInbox ? window.__umHarvestInstagramInbox() : 'NOFN'")
+            .ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(raw) || raw == "null" || raw.Contains("NOFN", StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        try
+        {
+            var json = JsonSerializer.Deserialize<string>(raw);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return 0;
+            }
+
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("rows", out var rows) || rows.ValueKind != JsonValueKind.Array)
+            {
+                return 0;
+            }
+
+            // Keyed by name, because the DOM anchor's thread id and the Relay thread_key are different
+            // identifiers and matching them has not been measured. Names are what the two surfaces
+            // demonstrably share.
+            var previewByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rows.EnumerateArray())
+            {
+                var name = Text(row, "name");
+                var preview = Text(row, "preview");
+                if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(preview))
+                {
+                    previewByName[name] = preview;
+                }
+            }
+
+            if (previewByName.Count == 0)
+            {
+                return 0;
+            }
+
+            var existing = OversightChatSnapshotService.Instance.GetChats(instance.Id);
+            if (existing.Count == 0)
+            {
+                return 0;
+            }
+
+            var merged = new List<OversightChatSnapshotService.ChatEntry>(existing.Count);
+            var applied = 0;
+
+            foreach (var chat in existing)
+            {
+                if (previewByName.TryGetValue(chat.CustomerName, out var preview))
+                {
+                    merged.Add(chat with { Preview = preview });
+                    applied++;
+                }
+                else
+                {
+                    merged.Add(chat);
+                }
+            }
+
+            if (applied == 0)
+            {
+                return 0;
+            }
+
+            OversightChatSnapshotService.Instance.Update(instance.Id, merged, DateTimeOffset.UtcNow);
+
+            // Count only. The payload carries customer names and message text, and app.log is the file
+            // support asks the owner to send.
+            AppLogger.LogInfo(
+                $"InstagramInbox.{instance.Id}",
+                $"Merged {applied} message preview(s) from the Direct list.");
+
+            return applied;
+        }
+        catch (JsonException ex)
+        {
+            AppLogger.LogWarningThrottled(
+                $"InstagramInbox.{instance.Id}",
+                $"Instagram inbox harvest returned unparseable data: {ex.Message}",
+                "instagram-inbox-parse");
+            return 0;
+        }
+    }
+
+    /// <summary>
     /// True when the unread count cannot be believed, because it exceeds the client's own badge.
     /// </summary>
     /// <remarks>

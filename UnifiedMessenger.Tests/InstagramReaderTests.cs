@@ -162,13 +162,23 @@ public class InstagramReaderTests
         Assert.DoesNotContain("end_cursor", script, StringComparison.Ordinal);
         Assert.DoesNotContain(".click(", script, StringComparison.Ordinal);
 
-        // This assertion used to be "the script never navigates at all", which was true while the file held
-        // only the reader. The focus path (Increment 134) navigates deliberately — and only ever to the
-        // inbox LIST. The claim is narrowed to what still holds rather than deleted: the one destination
-        // permitted is the list, and a thread URL may appear only as something to detect and back out of.
-        var threadMentions = script.Split("/direct/t/").Length - 1;
-        Assert.True(threadMentions <= 1, "A thread path should appear once, as a guard — never as a destination.");
-        Assert.DoesNotContain("assign('https://www.instagram.com/direct/t/", script, StringComparison.Ordinal);
+        // This began as "the script never navigates at all", true while the file held only the reader, and
+        // was then narrowed to "a thread path appears at most once". Counting occurrences was the wrong
+        // proxy: the preview harvest (Increment 136) legitimately READS thread anchors — their href is how
+        // a row is identified — and reading an href is not navigating to it.
+        //
+        // Asserted directly now: the only destination this file navigates to is the inbox list.
+        foreach (var navigation in new[] { "location.assign(", "location.replace(", "location.href =" })
+        {
+            var at = script.IndexOf(navigation, StringComparison.Ordinal);
+            while (at >= 0)
+            {
+                var target = script.Substring(at, Math.Min(90, script.Length - at));
+                Assert.Contains("/direct/inbox/", target, StringComparison.Ordinal);
+                at = script.IndexOf(navigation, at + 1, StringComparison.Ordinal);
+            }
+        }
+
         Assert.Contains("assign('https://www.instagram.com/direct/inbox/')", script, StringComparison.Ordinal);
     }
 
