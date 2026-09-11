@@ -6,7 +6,7 @@ export interface ChatEntry {
   conversationKey: string;
   customerName: string;
   unread: number;
-  lastActivity: Date;
+  lastActivity: number; // epoch ms, so a saved snapshot round-trips as plain JSON
   preview: string;
   awaiting: boolean;
   lastMessageFromMe: boolean;
@@ -64,7 +64,7 @@ export function parseConversation(row: unknown): ChatEntry | null {
     conversationKey: str(row, 'conversationKey'),
     customerName: str(row, 'customerName'),
     unread,
-    lastActivity: new Date(when),
+    lastActivity: when,
     preview: sanitizePreview(str(row, 'lastMessagePreview')),
     awaiting: row.awaiting !== undefined && row.awaiting !== null ? row.awaiting === true : unread > 0,
     lastMessageFromMe: row.lastMessageFromMe === true,

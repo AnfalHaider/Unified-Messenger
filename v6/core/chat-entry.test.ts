@@ -23,7 +23,7 @@ test('reads every field, including lastMessageFromMe', () => {
   assert.equal(entry.awaiting, true);
   assert.equal(entry.lastMessageFromMe, false);
   assert.equal(entry.contactPhone, '923001234567');
-  assert.equal(entry.lastActivity.toISOString(), '2026-07-10T08:30:00.000Z');
+  assert.equal(new Date(entry.lastActivity).toISOString(), '2026-07-10T08:30:00.000Z');
 });
 
 test('fromMe true round-trips', () => {
@@ -123,5 +123,5 @@ test('an unread count that is not an integer defaults to zero', () => {
 
 test('timestamps are normalised to UTC', () => {
   const [entry] = root('[{ "awaiting": true, "lastActivityTimestampUtc": "2026-08-10T14:00:00+05:00" }]');
-  assert.equal(entry.lastActivity.getUTCHours(), 9);
+  assert.equal(new Date(entry.lastActivity).getUTCHours(), 9);
 });
