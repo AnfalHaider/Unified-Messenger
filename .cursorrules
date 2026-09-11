@@ -26,7 +26,8 @@ It is an **oversight tool**, not a messaging client. It never sends.
 
 ## Hard constraints — a change that breaks one is not a fix
 
-1. Nothing on cloud. No APIs. No recurring cost.
+1. No paid APIs, no recurring cost. The only cloud service is the app's own free Firebase project — Google
+   sign-in, workspace membership, business configuration — never oversight data. Access is by membership.
 2. **Zero oversight data leaves the machine** — no telemetry, analytics or crash upload, ever. This governs
    data the app derives. A browse tab the owner opens is their own traffic, on a separate WebView2 profile;
    oversight data must never reach it.

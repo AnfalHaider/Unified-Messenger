@@ -5,16 +5,22 @@
 A **free, fully-local Windows oversight app** for a multi-location business owner to monitor customer conversations (WhatsApp first, then Telegram / Messenger / Instagram) **plus Google Business reviews** — Google is a *reviews* channel, not a conversation channel, because Google Business Messages was shut down in 2024. The app passively scrapes connected web clients and surfaces health metrics — on-time %, awaiting reply, stale accounts — in a command-center dashboard.
 
 **Hard constraints (never violate):**
-- Nothing on cloud. No APIs. No recurring cost.
+- **No paid APIs. No recurring cost to run the app.** Free official APIs are allowed. The only
+  cloud service the app uses is its own free Firebase project: Google sign-in, workspace membership,
+  and business configuration (accounts, channels, locations, settings). *(Owner decision 2026-09-11;
+  replaces "Nothing on cloud. No APIs.")*
 - **Zero *oversight* data leaves the machine.** The app must never transmit metrics, message
   content, customer identities, or AI prompts off-box — no telemetry, no analytics, no crash
-  upload, ever. This governs data *the app derives*. It does **not** prohibit the user's own
+  upload, ever. This governs data *the app derives*. Business configuration synced to Firebase
+  is not oversight data, and nothing else goes there. It does **not** prohibit the user's own
   browsing traffic in a browse tab: a page the owner deliberately opens is their own request,
   isolated in a separate WebView2 profile, and is not app-originated exfiltration. Never
   conflate the two — and never let oversight data reach a browse tab.
 - App never auto-sends. Automation is read-only scraping only.
 - All AI is fully on-device via Ollama. No cloud LLM.
-- No roles/permissions. Anyone with access to the installed machine sees the same data.
+- **Access is by membership.** A business workspace decides who may use its configuration, and the
+  product owner can suspend a member or a workspace. Everyone with access sees the same oversight
+  data on their own machine. *(Owner decision 2026-09-11; replaces "No roles/permissions.")*
 - No unofficial protocol libraries (Baileys, whatsmeow, etc.) — ban risk. Use real web clients in WebView2.
   Such projects may be **read** for DOM/protocol knowledge; their code may not be vendored or copied.
   GPL/AGPL sources (Telegram Web A/K, mautrix) are reference-only. MIT sources (Ferdium recipes) may be
