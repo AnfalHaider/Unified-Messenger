@@ -19,11 +19,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mem.ps1 report
 
 ## Open threads
 
-- Owner must **rotate** `FIRECRAWL_API_KEY` in `.env` (gitignored; length 35 at bootstrap).
+- `FIRECRAWL_API_KEY` sits in plaintext in `.env` (gitignored). Owner decided 2026-09-11 **not** to rotate it — do not raise it again unless it leaks.
 - `python3` App Execution Alias still points at the Microsoft Store stub — use `python` (3.12.10) until aliases are disabled in Windows Settings.
 - csharp-ls loads `UnifiedMessenger.sln` but emits WinUI metadata warnings until a full NuGet restore has succeeded in that environment.
-- Neon MCP was removed from Cursor's `%USERPROFILE%\.cursor\mcp.json` only. As of 2026-09-11 it is still a **user-scope** server in `%USERPROFILE%\.claude.json` (loaded by every Claude session, write mode, plaintext bearer token), and `D:\Projects\taskmasterx.com` does use Neon — so the fix is to move it to that project's scope, not delete it. Owner to rotate the key. See `bootstrap-mcp-removed-from-one-agent-only`.
-- `.agent-bootstrap-backup-20260910-041530/` (2.1 GB, gitignored) holds unredacted copies of `.claude.json` and Cursor `mcp.json`. Delete once the Neon key is rotated.
+- Neon MCP was removed from Cursor's `%USERPROFILE%\.cursor\mcp.json` only. As of 2026-09-11 it is still a **user-scope** server in `%USERPROFILE%\.claude.json` (loaded by every Claude session, write mode, plaintext bearer token), and `D:\Projects\taskmasterx.com` does use Neon — so the fix is to move it to that project's scope, not delete it. That move was denied by the permission classifier on 2026-09-11 and is still open. Owner decided **not** to rotate the key. See `bootstrap-mcp-removed-from-one-agent-only`.
+- `.agent-bootstrap-backup-20260910-041530/` (2.1 GB, gitignored) holds unredacted copies of `.claude.json` and Cursor `mcp.json`. Owner decided 2026-09-11 **not** to delete it. Keep it out of any commit.
 - Ollama is installed with **no models** yet (`ollama list` empty) — app Tier-2 AI still needs a pulled model.
 
 ## Agents (one writer per log)

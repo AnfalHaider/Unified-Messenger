@@ -29,10 +29,10 @@ A **free, fully-local Windows oversight app** for a multi-location business owne
 `docs/MASTER-PLAN.md` only when the task needs them. Do **not** paste memory lessons into
 always-loaded rules.
 
-**Branch model:** day-to-day work on a feature branch; default integration branch is `main`.
-**Do not push `main` or create/push `v*` release tags without explicit owner permission.**
-PRs and pushes to other remote branches still trigger CI packaging — treat remotes as
-release-adjacent.
+**Branch model:** one branch, `main`. Commit there; do not create feature branches unless the
+owner asks for one. **Do not push `main` or create/push `v*` release tags without explicit owner
+permission.** Every push to `main` runs CI verify, packaging and ui-smoke, and a `v*` tag publishes
+a GitHub release — treat the remote as release-adjacent.
 
 **Merge / push gate (must pass before you ask to push):**
 ```
