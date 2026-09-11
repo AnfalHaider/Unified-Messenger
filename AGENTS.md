@@ -22,6 +22,39 @@ A **free, fully-local Windows oversight app** for a multi-location business owne
 
 ---
 
+## Agent operating rules (read first)
+
+**Read-first order:** this file (`AGENTS.md`) → on-demand `docs/memory/` via
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mem.ps1 mem "<topic>"` → `docs/remaining-work.md` /
+`docs/MASTER-PLAN.md` only when the task needs them. Do **not** paste memory lessons into
+always-loaded rules.
+
+**Branch model:** day-to-day work on a feature branch; default integration branch is `main`.
+**Do not push `main` or create/push `v*` release tags without explicit owner permission.**
+PRs and pushes to other remote branches still trigger CI packaging — treat remotes as
+release-adjacent.
+
+**Merge / push gate (must pass before you ask to push):**
+```
+Stop-Process -Name UnifiedMessenger -Force -ErrorAction SilentlyContinue
+dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release --nologo -v quiet
+```
+Filters are for iteration only. Never push without asking unless the owner has already
+given a standing instruction for that specific change set.
+
+**Agents present:** Cursor and Claude (multi-agent). One writer per log file under
+`docs/memory/<agent>/log.md`. Immutable lessons live in `docs/memory/lessons/` — correct by
+adding a new file with `supersedes: [old-id]`, never by editing an old lesson. Tool-specific notes
+stay in that tool’s file (`CLAUDE.md`, `.cursorrules`); shared rules stay here — do not
+duplicate.
+
+**Memory commands:** `index` · `report` · `mem <topic>` · `check` — all via
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mem.ps1 <command>`. Keep the
+`-ExecutionPolicy Bypass`: every policy scope here is Undefined (= Restricted), so a plain shell
+refuses to load the script. It is process-scoped and changes no setting.
+
+---
+
 ## Tech stack
 
 - **WinUI 3 / Windows App SDK 2.1.3** — unpackaged desktop app (`WindowsPackageType=None`, no MSIX)

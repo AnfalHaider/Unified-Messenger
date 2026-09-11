@@ -2,7 +2,9 @@
 
 **The working agreement for this repository is [`AGENTS.md`](AGENTS.md). Read it before doing anything
 else.** It carries the hard constraints, the build and publish sequence, and a table of gotchas that were
-each learned by getting them wrong once. Do not re-derive the facts recorded there.
+each learned by getting them wrong once. Do not re-derive the facts recorded there. For cross-session
+lessons: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/mem.ps1 mem "<topic>"` (see
+`docs/memory/MEMORY.md`).
 
 This file exists because Cursor reads it and cannot follow an include. Everything below is a summary; where
 it and `AGENTS.md` differ, `AGENTS.md` is right.

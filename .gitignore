@@ -88,3 +88,7 @@ docs/completion-todo.md
 # Claude Code workspace config (hooks, local settings, task locks). Session scaffolding,
 # like the agent prompts above — useful on one machine, meaningless in the product repo.
 .claude/
+
+# Agent bootstrap machine-config backups (may contain MCP tokens)
+.agent-bootstrap-backup-*/
+
