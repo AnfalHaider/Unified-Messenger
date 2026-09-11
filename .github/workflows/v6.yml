@@ -1,0 +1,42 @@
+name: v6
+
+# Separate from build.yml on purpose: that workflow builds, packages and publishes the shipping v5 release,
+# and v6 must not be able to fail or delay it. This one only runs when v6 changes.
+on:
+  push:
+    branches: [main]
+    paths: ["v6/**", ".github/workflows/v6.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["v6/**", ".github/workflows/v6.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: v6
+
+jobs:
+  check:
+    # Linux because core is pure logic with no Windows dependency; the day tests pin their own time zones,
+    # so they behave the same here as on the owner's machine.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Node runs the TypeScript directly by stripping the types, which is why there is no build step.
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: v6/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
