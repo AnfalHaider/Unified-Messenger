@@ -92,3 +92,6 @@ docs/completion-todo.md
 # Agent bootstrap machine-config backups (may contain MCP tokens)
 .agent-bootstrap-backup-*/
 
+
+# v6 (Electron + TypeScript) dependencies
+node_modules/
