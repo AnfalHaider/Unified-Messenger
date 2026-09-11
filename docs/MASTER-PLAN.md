@@ -10,7 +10,7 @@
 
 **Is:** a Windows (WinUI 3) **oversight workspace**. You install every location's customer channels on **your** machine, grouped (optionally) into per-location workspaces. The app **passively scrapes** those conversations and turns them into a **location-scoped dashboard** — who's replying on time, what's urgent, which customers are being dropped, review health — with **optional on-device AI** for assessments. WhatsApp first; other channels later.
 
-**Isn't:** a bulk sender, an API client, a cloud service, or a team inbox with roles. No automation, no recurring cost, no data leaves the machine.
+**Isn't:** a bulk sender or a team inbox. No automation, no paid APIs, no recurring cost, and no *oversight* data leaves the machine. Since 2026-09-11 (D-12, D-13) sign-in, membership and business configuration sync through the app's own free Firebase project.
 
 **Primary user & job:** a multi-location business owner/manager who today has *no unified visibility* — "I don't know if staff are replying on time, in the right tone, or dropping customers." The app answers "**what's happening where**" at a glance.
 
@@ -20,16 +20,20 @@
 
 | # | Decision | Date |
 |---|---|---|
-| D-1 | **No Meta/WhatsApp APIs and no cloud** — zero recurring cost, nothing leaves the machine | 2026-06-16 |
+| D-1 | ~~**No Meta/WhatsApp APIs and no cloud**~~ — *superseded by D-12 on 2026-09-11.* Still true: no paid API, zero recurring cost, no oversight data leaves the machine | 2026-06-16 |
 | D-2 | **Unofficial protocol libraries (Baileys/whatsmeow/mautrix) are rejected** — research shows they carry *higher* ban risk than the real WhatsApp Web; the no-ban-risk rule selects **WebView2 + real web clients** | 2026-06-16 |
 | D-3 | **Read-only automation stance** — the app never auto-sends; the human may reply fully through the embedded web client | 2026-06-16 |
 | D-4 | **Locations are an optional grouping layer** — works per-account with no locations defined | 2026-06-16 |
 | D-5 | **Two scopes:** Personal (own accounts) and Professional (business), kept separate | 2026-06-16 |
 | D-6 | **AI is an optional, tiered, free, on-device download** — dashboard degrades to analytics-only without it | 2026-06-16 |
 | D-7 | **Per-platform isolation** — each channel is its own integration module; **refine WhatsApp first** | 2026-06-16 |
-| D-8 | **No roles/permissions; no cross-machine sync** — anyone with access to an instance sees the same scoped data | 2026-06-16 |
+| D-8 | ~~**No roles/permissions; no cross-machine sync**~~ — *superseded by D-13 on 2026-09-11.* Still true: everyone with access sees the same oversight data on their own machine | 2026-06-16 |
 | D-9 | MVVM + presenters · refresh coordinator · CI-built releases · interface composition root | ADR 001–004 |
 | D-10 | SLA excludes backfilled/historical threads; adds at-risk window | v4.5.0 |
+| D-11 | **v6 is rebuilt as one TypeScript app on Electron** — React screens, one `tokens.css`, JSON stores, channel readers as modules, Node's built-in test runner + Playwright; Windows first, Mac/Linux possible later; code follows the ponytail rule (built-ins before dependencies). v5 keeps shipping until v6 reaches parity | 2026-09-11 |
+| D-12 | **No paid APIs; one free cloud service** — the app's own Firebase project on the Spark plan (never Blaze, so no Cloud Functions) for Google sign-in, workspace membership and business configuration (accounts, channels, locations, settings). Free official APIs are allowed. Messages, customers, metrics, history and AI chats never go there | 2026-09-11 |
+| D-13 | **Access is by membership** — a business workspace decides who may use its configuration; a removed member's app wipes its account logins when next online; the product owner can suspend a member or a workspace, enforced by Firestore security rules | 2026-09-11 |
+| D-14 | **AI assistant is part of the foundation, off by default** — Ollama on the PC answers questions from a summary the app builds, shows the app's own figures beside each answer, and has no way to send | 2026-09-11 |
 
 ---
 
@@ -128,7 +132,7 @@ UI shows mode honestly: no model → analytics only; model present → **additiv
 
 ## 11. Constraints (hard)
 
-Local-only · zero ongoing cost · no cloud · no Meta/WhatsApp APIs · no protocol libraries (ban risk) · no cross-machine sync · no roles/permissions · all AI on-device · customer data never leaves the machine.
+Zero ongoing cost · no paid APIs · the only cloud service is the app's own free Firebase project, for sign-in, membership and business configuration (D-12) · access by membership (D-13) · no protocol libraries (ban risk) · never auto-sends · all AI on-device · oversight data (messages, customer identities, metrics, AI prompts) never leaves the machine.
 
 ---
 

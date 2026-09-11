@@ -2,6 +2,15 @@
 
 Newest entries on top. Append only — never edit an older entry.
 
+## 2026-09-12 — v6 revamp decided; Phase 1 proof build done
+
+- Owner decisions: v6 rebuilt as Electron + TypeScript + React, ponytail code; Firebase Spark only for sign-in, membership and configuration; access by membership; AI assistant off by default. Rules changed in AGENTS.md (`dae053b`) and MASTER-PLAN (D-11–D-14). Single branch `main`, no co-author trailers.
+- Artifacts: "Revamp Blueprint" (stack, rules, roadmap) and "Unified Messenger v6 Screens" (39 artboards incl. title bar).
+- Phase 1 proof build outside the repo (`D:\Projects\um-v6-proof`): steps 1, 2, 3, 5, 6, 8 passed; 4 skipped by owner; 7 reduced to `gemma3:4b` (7/10). Results: `docs/revamp/phase-1-proof.md`.
+- Firebase project `unified-messenger-5549a` created through the owner's Chrome: Analytics and Gemini off, Google provider on, Desktop OAuth client. Credential files stay in the proof folder.
+- Found: two Ollama installs with separate model folders (start order decides which model is reachable); Chrome downloads land on the OneDrive Desktop, so the OAuth client JSON reached OneDrive before being moved.
+- Not done: Neon MCP scope move (blocked by the permission classifier earlier); 2.3 GB of partial `phi4-mini` download left in `%USERPROFILE%\.ollama\models\blobs`.
+
 ## 2026-09-11 — Bootstrap Phases 6–7 (seed, prove) and mem.ps1 fixes
 
 - Found Cursor's 2026-09-10 bootstrap present and working but uncommitted; skipped Phases 2–5.
