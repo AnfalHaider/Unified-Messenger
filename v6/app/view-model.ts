@@ -243,6 +243,10 @@ const waitingNow = (config: Config, snapshots: Snapshots, judge: Judge, accountI
   return awaitingChats(snapshots, accountId, judge).filter((chat) => chat.lastActivity >= cutoff);
 };
 
+/** An account's reply target: its location's, or the app-wide one. */
+export const targetFor = (config: Config, account: { location: string }) =>
+  Math.max(1, config.locations.find((l) => l.name === account.location)?.slaMinutes ?? config.settings.slaMinutes);
+
 const locationRules = (config: Config) =>
   Object.fromEntries(config.locations.map((l) => [l.name, { slaMinutes: l.slaMinutes, hours: l.hours }]));
 
@@ -250,7 +254,7 @@ function queueFor(config: Config, snapshots: Snapshots, judge: Judge, accountId:
   const account = config.accounts.find((a) => a.id === accountId);
   if (!account) return [];
   const rules = config.locations.find((l) => l.name === account.location);
-  const target = Math.max(1, rules?.slaMinutes ?? config.settings.slaMinutes);
+  const target = targetFor(config, account);
   return waitingNow(config, snapshots, judge, account.id).map((chat) => {
     // The clock only runs inside the location's working hours, so a message at closing time is not late by morning.
     const waited = Math.round(elapsedBusinessMinutes(new Date(chat.lastActivity), new Date(now), rules?.hours));
@@ -278,7 +282,7 @@ function detailFor(config: Config, snapshots: Snapshots, times: ResponseTimes, j
   const reads = CHANNELS[account.channel].reads;
   const snap = snapshots[account.id];
   const rules = config.locations.find((l) => l.name === account.location);
-  const target = Math.max(1, rules?.slaMinutes ?? config.settings.slaMinutes);
+  const target = targetFor(config, account);
   const stats = responseStats(times, [account.id], target, { now: ctx.now });
   const queue = reads ? queueFor(config, snapshots, judge, account.id, ctx.now) : [];
   queue.sort((a, b) => b.waited - a.waited);

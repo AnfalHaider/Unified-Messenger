@@ -69,7 +69,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 199 tests
+npm test            # 211 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 
@@ -178,7 +178,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.4 Opening hours and holidays editor.** `Location.hours` exists in `core/config.ts` (every location currently has `enabled: false`, so waits count around the clock). Build the editor in Settings › Opening hours writing through `set-settings`-style IPC that runs `parseConfig`. Add holidays to the config model and to `core/business-hours.ts` with tests. Done when a closed evening stops a wait from growing.
 
-**4.5 History store for reports.** Reports need per-day facts the snapshot does not keep. Add `core/history.ts`: one record per account per local day (messages seen, replies measured, median, on-time %, backlog at opening, reopened count, missed calls), appended from `recordRead`, pruned after 400 days, with tests pinned to time zones as `days.test.ts` does. Done when a week of history survives restarts.
+**4.5 History store for reports.** Built 2026-09-13. `core/history.ts` keeps one record per account per local day (`YYYY-MM-DD`): customers who wrote or called, first replies measured with median and within-target (target in force that day), waiting over a day at the first read of the day, reopened (answered, then waiting again), missed calls. Only activity after the account came under watch counts; identities are kept for today and yesterday only to de-duplicate; records pruned after 400 days. Main records after every read into `history.json`; a failure there is logged as `history-failed` and never touches the read. Tests pin New York across the autumn change. v5 kept no per-day history worth importing, so reports start from the install. Remaining check: a week of real records on the owner's PC.
 
 **4.6 Reports.** Wire the five tabs in `reports.tsx` to the history store and `response-times.ts`. Export: CSV with the Node `fs` API via a save dialog; PDF with `webContents.printToPDF` of the weekly report view; image with `webContents.capturePage`. Customer names off by default. Done when each tab shows real figures and each export opens.
 

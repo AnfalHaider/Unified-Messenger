@@ -12,10 +12,12 @@ import { CHANNELS, emptyConfig, parseConfig, type Account } from '../core/config
 import { clear, markHandled, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
 import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.ts';
-import { distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
+import { DAY_MS } from '../core/days.ts';
+import { recordHistory, type History } from '../core/history.ts';
+import { awaitingChats, distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
-import { ACCOUNT_ROUTES, buildUiState, waitingQueue, type Route } from './view-model.ts';
+import { ACCOUNT_ROUTES, buildUiState, targetFor, waitingQueue, type Route } from './view-model.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -46,6 +48,7 @@ const FILE = {
   times: join(DATA, 'response-times.json'),
   overrides: join(DATA, 'overrides.json'),
   alerts: join(DATA, 'alerts.json'),
+  history: join(DATA, 'history.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -73,6 +76,7 @@ const snapshots = loadJson<Snapshots>(FILE.snapshot, {}, note('snapshot'));
 const times = loadJson<ResponseTimes>(FILE.times, emptyResponseTimes(), note('response-times'));
 const overrides = loadJson<Overrides>(FILE.overrides, {}, note('overrides'));
 const notified = loadJson<Notified>(FILE.alerts, {}, note('alerts'));
+const history = loadJson<History>(FILE.history, {}, note('history'));
 
 // A snapshot written by a cold scan claims almost every chat has no message. Honouring that on load would
 // close the whole queue until a warm read replaced it — 354 real conversations once rendered as 5.
@@ -186,7 +190,19 @@ async function readAccount(a: Account, reason: string) {
     const { entries, skipped, awaitingInferred, notReady, stage } = module.parse(raw);
     lastReadAt[a.id] = now;
     if (entries.length) {
+      const prior = snapshots[a.id]?.chats;
       recordRead(snapshots, times, a.id, entries, now);
+      // The day's record, by the same waiting rule as the line: overrides and the closed-chat setting apply.
+      // A history file edited into a strange shape costs the day's record, never the read or the reader's health.
+      try {
+        const judge = { now, overrides, filterClosed: config.settings.filterClosedConversations };
+        recordHistory(history, a.id, prior, snapshots[a.id].chats, {
+          now, samples: times.samples[a.id] ?? [], targetMinutes: targetFor(config, a),
+          waitingOverADay: awaitingChats(snapshots, a.id, judge).filter((c) => c.lastActivity < now - DAY_MS).length,
+        });
+      } catch (e) {
+        log({ event: 'history-failed', account: a.id, error: (e as Error).message.slice(0, 120) });
+      }
       signedOut.delete(a.id);
       recordHealth(a.channel, true);
       const waiting = entries.filter((c) => c.awaiting).length;
@@ -194,6 +210,7 @@ async function readAccount(a: Account, reason: string) {
       log({ event: 'read', account: a.id, channel: a.channel, reason, chats: entries.length, awaiting: waiting, skipped, awaitingInferred });
       saveJson(FILE.snapshot, snapshots);
       saveJson(FILE.times, times);
+      saveJson(FILE.history, history);
       return;
     }
     // Empty is not the same as quiet. Ask the page why before believing it — sign-in first, because a page
