@@ -16,10 +16,26 @@ Folders appear when their first file does.
 
 ```
 npm install
-npm test          # node --test, runs *.test.ts directly (Node strips the types)
-npm run typecheck # tsc --noEmit
-npm start         # opens the window and starts reading
+npm test               # node --test, runs *.test.ts directly (Node strips the types)
+npm run typecheck      # tsc --noEmit
+npm start              # opens the window from source and starts reading
+npm run dist           # builds dist\UnifiedMessenger6Setup.exe
+npm run install-local  # builds it, installs it on this PC and opens the installed app
 ```
+
+## Installing on this PC
+
+`npm run install-local` is the loop after every change: it rebuilds the screens, packages the app with
+`@electron/packager` (no asar, so Electron runs the same TypeScript it runs from source), wraps it with Inno
+Setup (`installer.iss`, needs Inno Setup 6), and installs it silently to `%LOCALAPPDATA%\Programs\UnifiedMessenger6`
+with Start Menu and desktop shortcuts. A running copy is closed the normal way first, never killed.
+
+The installed app and `npm start` share one data folder, `%APPDATA%\unified-messenger-v6`, named explicitly in
+`app/main.ts`, so logins and history carry across every reinstall and survive an uninstall. Only one copy runs
+at a time: a second launch brings the first window forward.
+
+Run it from your own terminal. An agent's shell sits in an MSIX sandbox that redirects the install to a private
+copy the shortcuts never see; from there, run the built Setup through `Win32_Process` instead.
 
 ## Running the shell
 
