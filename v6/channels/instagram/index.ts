@@ -23,7 +23,7 @@ export const looksUnsynced = (awaiting: number, badge: number, capped: boolean) 
 export const instagram: ChannelModule = {
   id: 'instagram',
   name: 'Instagram',
-  inject: (load) => load('instagram-adapter.js'),
+  inject: (load) => load('instagram/instagram-adapter.js'),
   scan: 'window.__umReadInstagramThreads ? window.__umReadInstagramThreads() : ""',
   signedOutProbe: `({
     qr: false,

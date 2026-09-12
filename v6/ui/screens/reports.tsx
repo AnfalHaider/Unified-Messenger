@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Heatmap, Histogram, LineChart, Spark } from '../charts.tsx';
 import { Icon } from '../icons.tsx';
-import { Btn, Chip, Facts, Headline, Panel, Seg, Toggle, type ScreenProps } from '../parts.tsx';
+import { Btn, Chip, Facts, Headline, Logo, Panel, Seg, Toggle, type ScreenProps } from '../parts.tsx';
 import {
   BACKLOG, BACKLOG_TREND, BUSY, CALLS, CALLS_BY_LOCATION, DAYS, HOURS, ON_TIME_BY_LOCATION, REOPENED, REPLY_BUCKETS,
   REPLY_BY_ACCOUNT, REVIEW_DRAFT, REVIEW_PROFILES, REVIEWS, WEEK_FACTS, WEEKS,
@@ -181,7 +181,7 @@ function Weekly({ bar }: { bar: React.ReactNode }) {
         {bar}
         <div className="doc-wrap" style={{ overflow: 'visible' }}>
           <article className="doc">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 20 }}><div><span className="sub">Depilex · Unified Messenger</span><h1>Week of 6 to 12 September</h1></div><span className="mark" style={{ width: 34, height: 34, fontSize: 17 }}>U</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 20 }}><div><span className="sub">Depilex · Unified Messenger</span><h1>Week of 6 to 12 September</h1></div><Logo size={40} /></div>
             <p className="lede">1,284 customers wrote to the three locations. 84% got a first reply within 15 minutes, two points down on the week before. Men DHA-2 hit the 90% goal; F-11 fell to 77%, almost all between 1 and 3 pm.</p>
             <Facts facts={WEEK_FACTS.filter((f) => ['Answered on time', 'Median first reply', 'Waiting over a day', 'Missed calls'].includes(f.label)).map(({ trend: _t, ...f }) => f)} />
             <div><h3>On time, by location</h3><LineChart labels={WEEKS} min={60} max={100} ticks={[60, 70, 80, 90, 100]} unit="%" target={90} targetLabel="Goal 90%" series={ON_TIME_BY_LOCATION} width={716} height={200} /></div>

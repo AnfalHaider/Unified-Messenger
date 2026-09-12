@@ -20,9 +20,23 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 // UM_DATA exists because an agent shell runs inside an MSIX container, where a write to the real user-data
 // path is silently redirected to a private copy. Customers never set it.
-const DATA = process.env.UM_DATA || app.getPath('userData');
+// The folder is named explicitly rather than taken from the app's name, so the installed app and a run from
+// source share one set of logins and history, and renaming the product can never strand them.
+const DATA = process.env.UM_DATA || join(app.getPath('appData'), 'unified-messenger-v6');
 mkdirSync(DATA, { recursive: true });
 app.setPath('userData', DATA);
+
+// One copy at a time. Two would open the same saved sessions and fight over them; a second launch (a
+// shortcut clicked twice, the installer starting it) brings the first window forward instead.
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
+  process.exit(0);
+}
+app.on('second-instance', () => {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.focus();
+});
 
 const FILE = {
   config: join(DATA, 'config.json'),
@@ -36,10 +50,8 @@ const FILE = {
 const log = (entry: Record<string, unknown>) =>
   appendFileSync(FILE.log, `${JSON.stringify({ t: new Date().toISOString(), ...entry })}\n`);
 
-// ponytail: the reader scripts are still the shipped v5 files, read from the tree. channels/ owns which file
-// each module wants and what to do with the result; moving the files themselves is the end of this phase.
-const SCRIPTS = join(HERE, '..', '..', 'UnifiedMessenger', 'Assets', 'Scripts');
-const script = (file: string) => readFileSync(join(SCRIPTS, file), 'utf8');
+// Page scripts live beside the module that injects them, so the installed app carries its own readers.
+const script = (file: string) => readFileSync(join(HERE, '..', 'channels', file), 'utf8');
 
 // ---- state ---------------------------------------------------------------------------------------
 
@@ -277,8 +289,11 @@ app.whenReady().then(async () => {
     width: 1440, height: 900, minWidth: 1100, minHeight: 700, show: false,
     // The title bar is drawn by the app, as the designs have it.
     frame: false, backgroundColor: nativeTheme.shouldUseDarkColors ? '#121513' : '#ECEEEA',
+    icon: join(HERE, '..', 'assets', 'icon.ico'),
     webPreferences: { preload: join(HERE, 'preload.cjs') },
   });
+  // Windows signing out or shutting down gives the app seconds, not a normal close: write the sessions first.
+  win.on('session-end', () => { for (const a of config.accounts) session.fromPartition(`persist:${a.id}`).flushStorageData(); });
 
   const built = join(HERE, '..', 'dist-ui', 'index.html');
   if (process.env.UM_DEV) await win.loadURL('http://localhost:5173');

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Route, UiState } from '../app/view-model.ts';
 import { Icon, type IconName } from './icons.tsx';
-import { bridge, isPreview, type LockScreen, type Nav, onPreviewSettings, type Overlay, type View } from './parts.tsx';
+import { bridge, isPreview, type LockScreen, Logo, type Nav, onPreviewSettings, type Overlay, type View } from './parts.tsx';
 import { AccountDetailScreen, AccountsScreen, LostLoginScreen, ReaderScreen } from './screens/accounts.tsx';
 import { AssistantScreen } from './screens/assistant.tsx';
 import { needsCount, Overlays } from './screens/overlays.tsx';
@@ -115,7 +115,7 @@ function TitleBar({ state, nav, scope, onScope }: { state?: UiState; nav?: Nav; 
   const themes: ['system' | 'light' | 'dark', IconName, string][] = [['system', 'monitor', 'Match Windows'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
   return (
     <header className="tb">
-      <div className="mark">U</div><span className="tb-name">Unified Messenger</span>
+      <Logo size={22} /><span className="tb-name">Unified Messenger</span>
       {state && locations.length > 1 && (
         <div className="scope" role="group" aria-label="Locations">
           {['All', ...locations].map((loc) => (

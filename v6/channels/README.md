@@ -60,8 +60,9 @@ Settings › Accounts › Channel readers.
 A channel in `core/config.ts` with `reads: false` is one the app can show but cannot measure. Its description
 must say so, and its accounts show no figures rather than zeroes.
 
-## Still the v5 files
+## The page scripts
 
-`inject` currently loads the reader scripts from the v5 tree (`UnifiedMessenger/Assets/Scripts`). They are the
-shipped, proven readers; copying them here before this phase's work would have forked them. Moving them in is
-the last step of this phase, once each has its own fixtures.
+Each module's page script lives in its own folder (`whatsapp/whatsapp-store-bridge.js`,
+`instagram/instagram-adapter.js`), so the installed app carries its readers. They started as copies of v5's
+shipped readers, which stay in `UnifiedMessenger/Assets/Scripts` until v5 is retired; a fix made to one is not
+made to the other, so change the v6 copy.

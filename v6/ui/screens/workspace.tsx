@@ -2,7 +2,7 @@
 // moments — signing in, a new PC, a removed PC, a paused workspace, and the move from the previous version.
 // The new-PC checklist reads the real accounts; the rest are sample until Phase 6 and Phase 7 wire them.
 import { channelIcon, Icon } from '../icons.tsx';
-import { Btn, Chip, Headline, Panel, plural, Sample, type LockScreen, type Nav, type ScreenProps } from '../parts.tsx';
+import { Btn, Chip, Headline, Logo, Panel, plural, Sample, type LockScreen, type Nav, type ScreenProps } from '../parts.tsx';
 import { WORKSPACES } from '../sample.ts';
 
 export function OwnerScreen(_: ScreenProps) {
@@ -43,7 +43,7 @@ export function Lock({ screen, state, nav }: ScreenProps & { screen: LockScreen 
   const back = <Btn kind="quiet" onClick={() => nav.lock(null)}>Back to the app</Btn>;
   if (screen === 'sign-in') return (
     <LockCard>
-      <span className="mark" style={{ width: 44, height: 44, fontSize: 22, borderRadius: 12 }}>U</span>
+      <Logo size={52} />
       <h1>Sign in to see all your business’s messages in one place</h1>
       <p>Your Google account tells the app which workspace you belong to. Your WhatsApp, Instagram and Google logins are then made on this PC.</p>
       <button className="btn primary" style={{ height: 44, fontSize: 14.5, justifyContent: 'center', gap: 10 }} disabled title="Sign-in is not connected yet">{GOOGLE}Continue with Google</button>

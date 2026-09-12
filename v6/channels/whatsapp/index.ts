@@ -16,7 +16,7 @@ const TRUNCATE =
 export const whatsapp: ChannelModule = {
   id: 'whatsapp',
   name: 'WhatsApp',
-  inject: (load) => TRUNCATE + load('whatsapp-store-bridge.js'),
+  inject: (load) => TRUNCATE + load('whatsapp/whatsapp-store-bridge.js'),
   // Start the scan and take whatever the last one produced: executeJavaScript does not await a promise, so
   // the reader is written as start-then-collect rather than as one call that returns a promise.
   scan: 'window.__umStartStoreScan ? (window.__umStartStoreScan(500), window.__umGetStoreScanResult()) : ""',

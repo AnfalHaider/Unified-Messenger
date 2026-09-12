@@ -3,6 +3,7 @@
 import type { Route, Tone, UiState } from '../app/view-model.ts';
 import { Spark, toneInk } from './charts.tsx';
 import { Icon, type IconName } from './icons.tsx';
+import logo from '../assets/logo.png';
 
 declare global {
   interface Window {
@@ -51,6 +52,9 @@ export interface Nav {
 export interface ScreenProps { state: UiState; nav: Nav }
 
 // ---- pieces ----------------------------------------------------------------------------------------------
+
+/** The product's logo, carried over from v5. Decorative wherever the product name sits beside it. */
+export const Logo = ({ size = 22 }: { size?: number }) => <img src={logo} width={size} height={size} alt="" draggable={false} style={{ flex: 'none', display: 'block' }} />;
 
 /** Marks a screen whose feature is not connected yet, so its figures cannot pass for the owner's own. */
 export const Sample = () => <span className="sample" title="This screen's feature is not connected yet. The figures are invented."><Icon name="alert" size={12} />Sample figures, not connected yet</span>;
