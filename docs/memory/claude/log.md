@@ -2,6 +2,17 @@
 
 Newest entries on top. Append only — never edit an older entry.
 
+## 2026-09-13 — v6 Phases 2–4: core, channels, Front Desk shell, installer
+
+- Phase 2: `v6/core` ports of v5 logic with v5's test cases; parity with v5 verified on the owner's real data (figures kept out of the repo); first-run import of v5 config and history.
+- Phase 3: `v6/channels` with WhatsApp, WhatsApp Business and Instagram modules, per-channel health, `notReady` stages, sign-in probes from v5's selectors. Instagram fixed to v5's own reader shape (it was rejecting every thread).
+- Design: the "departures board" screens were rejected; the Front Desk design (the line, docked chat, colour = lateness) was approved and expanded to 36 renders across every phase (artifact "Unified Messenger Front Desk", source `docs/design/v6-front-desk`). Owner: the product is for any business, never "salon".
+- Phase 4: the complete shell in `v6/ui` (real data on the line, dock, Needs you, accounts, account figures, readers, reading settings; every other screen on `ui/sample.ts`, marked on screen). One theme for the whole window via `nativeTheme`. Close-to-background with a tray icon, `--quit` for scripts.
+- Shipping loop: v5 5.1.0 uninstalled (data kept). v6 installer (`@electron/packager` + Inno Setup), installed per-user; `npm run install-local`. v5 logo and icon carried over; reader scripts moved into `channels/`.
+- Owner's logins imported from v5 for testing (WhatsApp F-11 and Men DHA-2, Instagram DHA-2 and F-11, three Google). DHA-2 WhatsApp and Men DHA-2 Instagram had no valid v5 session.
+- Mistakes, recorded as lessons: a forced restart without asking lost two WhatsApp logins (`v6-force-kill-damages-sessions-and-hangs-quit`); the self-kill quit workaround blamed Electron for damaged storage; Instagram fixtures in the wrong shape; the line showed signed-out and backlog chats as live; three commits carry the forbidden `Co-Authored-By` trailer (235627d, 824eb60, faa4e3a).
+- Roadmap for the next session: `docs/revamp/roadmap.md`.
+
 ## 2026-09-12 — v6 revamp decided; Phase 1 proof build done
 
 - Owner decisions: v6 rebuilt as Electron + TypeScript + React, ponytail code; Firebase Spark only for sign-in, membership and configuration; access by membership; AI assistant off by default. Rules changed in AGENTS.md (`dae053b`) and MASTER-PLAN (D-11–D-14). Single branch `main`, no co-author trailers.

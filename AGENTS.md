@@ -28,6 +28,15 @@ A **free, fully-local Windows oversight app** for a multi-location business owne
 
 ---
 
+## v6 rebuild (read if the task touches `v6/`)
+
+v6 is the Electron + TypeScript rebuild in `v6/`, and it is what the owner runs now: v5 is uninstalled from the
+owner's PC and stays in this repo only as reference until Phase 7. Before working on v6 read
+[`docs/revamp/roadmap.md`](docs/revamp/roadmap.md) (status, session start, rules that bit, phase-by-phase steps),
+then `v6/README.md`, and the `v6-*` lessons. The v5 build, test and install sections below do not apply to v6.
+
+---
+
 ## Agent operating rules (read first)
 
 **Read-first order:** this file (`AGENTS.md`) → on-demand `docs/memory/` via
