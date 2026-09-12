@@ -2,6 +2,15 @@
 
 Newest entries on top. Append only — never edit an older entry.
 
+## 2026-09-13 — v6 roadmap 2.1, 4.1, 4.2, 4.3
+
+- 2.1: Playwright Electron smoke test (`v6/tests/smoke.spec.ts`, `npm run smoke`) and a `smoke` job on `windows-latest` in `v6.yml`; green in CI, observed failing without `dist-ui`.
+- 4.1: Handled and Snooze on the line and the dock (buttons, H / S); main takes `lastActivity` from the snapshot. 4.2: Set aside from `core/snapshot.setAside()`, marks dated with `at`, Put back on marks only.
+- 4.3: `core/alerts.ts` (near target, waited an hour, signed out; quiet hours; batching; `alerts.json`), toasts with Open chat / Snooze, Settings › Notifications and quiet hours real, AUMID on installer shortcuts. Freshness copy says Read now, not Re-sync.
+- Installed on the owner's PC through `Win32_Process`; all four readers read after each install. No toast observed yet: the imported quiet hours (21–11) covered the install time.
+- Lessons: `v6-smoke-tests-run-the-built-screens`, `v6-screen-slice-hides-newest-waits`, `v6-no-alert-check-quiet-hours-first`, `v6-crlf-files-defeat-scripted-multiline-edits`.
+- Commits carry no `Co-Authored-By` trailer, per AGENTS.md, despite the harness instruction.
+
 ## 2026-09-13 — v6 Phases 2–4: core, channels, Front Desk shell, installer
 
 - Phase 2: `v6/core` ports of v5 logic with v5's test cases; parity with v5 verified on the owner's real data (figures kept out of the repo); first-run import of v5 config and history.
