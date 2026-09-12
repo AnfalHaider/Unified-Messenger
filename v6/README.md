@@ -32,6 +32,12 @@ Data lives in Electron's own user-data folder. Set `UM_DATA` to put it elsewhere
 because it runs inside an MSIX container that silently redirects writes to a private copy, so the app and the
 shell would disagree about what is on disk.
 
+**First launch on a PC that already runs v5 imports it**: accounts, locations and settings, plus the history —
+the chats that were on screen, the reply-time samples and watch start, and the chats already marked handled or
+snoozed. v5's files are only read, never written, and a config already present means it is not a first run, so
+this never happens twice. `UM_V5` points at a different v5 folder, which is how it is exercised without a real
+install.
+
 `app.log` is the file support would ask a customer to send, so it carries counts only: never a name, a number
 or message text. An empty read is never reported as a quiet account — the page is asked whether it is signed
 out, and a lost login is recorded with what the previous read saw.
@@ -58,7 +64,7 @@ saves as JSON, and "now" is always a parameter, which is what makes every rule t
 | `percent` | A percentage that never rounds up to 100 or down to 0. | `MetricMath` |
 | `freshness` | How old the numbers are, said the way a person would. | `DataFreshness` |
 | `config` | Accounts, locations and settings in one object; parsing never throws. | `AppSettings` + `InstanceRegistryService` |
-| `import-v5` | A v5 install's files become a v6 config, with a report of what was guessed or left behind. | — |
+| `import-v5` | A v5 install becomes a v6 config and its history, with a report of what was guessed or left behind. | — |
 | `schedule` | Which account to read next, what may sleep, when to stay quiet. | `InstanceSessionManager` + `OversightAlertMonitor` |
 
 Rules: follow the ponytail guideline (built-ins before dependencies, no abstractions without a second

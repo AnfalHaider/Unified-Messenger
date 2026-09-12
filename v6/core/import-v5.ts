@@ -1,7 +1,11 @@
 // Brings a v5 install across: its parsed instances.json and settings.json become one v6 config, plus a report
 // of what came over, what was guessed and what was left behind. The v5 files are only read, never written, and
 // the app keeps running until v6 reaches parity.
+import { isNonCustomerConversation, sanitizePreview, type ChatEntry } from './chat-entry.ts';
 import { CHANNELS, parseConfig, type ChannelId, type Config } from './config.ts';
+import { pruneExpired, type Overrides } from './awaiting-overrides.ts';
+import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from './response-times.ts';
+import { distrustColdScan, type Snapshots } from './snapshot.ts';
 
 export interface ImportReport {
   accounts: number;
@@ -53,6 +57,151 @@ export function importV5(instances: unknown, settings: unknown): { config: Confi
   report.locations = config.locations.map((l) => l.name);
   return { config, report };
 }
+
+// ---- history ------------------------------------------------------------------------------------
+// The three files worth carrying: what was on screen, how fast replies went out, and which chats the owner
+// had already dealt with. The last one matters most — without it, work they closed comes back as waiting.
+
+export interface HistoryReport {
+  chats: number;
+  samples: number;
+  pending: number;
+  handled: number;
+  snoozed: number;
+  /** History belonging to accounts that did not come across. Restoring it against nothing would be a lie. */
+  orphaned: string[];
+  /** Rows that could not be read. Counted, never silently dropped. */
+  dropped: number;
+  notes: string[];
+}
+
+export interface V5History { snapshot?: unknown; responseTimes?: unknown; overrides?: unknown }
+
+export function importV5History(accountIds: string[], files: V5History, now = Date.now()):
+{ snapshots: Snapshots; times: ResponseTimes; overrides: Overrides; report: HistoryReport } {
+  const known = new Map(accountIds.map((id) => [id.trim().toLowerCase(), id.trim()]));
+  const report: HistoryReport = { chats: 0, samples: 0, pending: 0, handled: 0, snoozed: 0, orphaned: [], dropped: 0, notes: [] };
+  const snapshots: Snapshots = {};
+  const times = emptyResponseTimes();
+  const overrides: Overrides = {};
+  const orphaned = new Set<string>();
+  const resolve = (id: string) => {
+    const hit = known.get(id.trim().toLowerCase());
+    if (!hit) orphaned.add(id);
+    return hit;
+  };
+
+  for (const [id, dto] of instancesOf(files.snapshot)) {
+    const account = resolve(id);
+    if (!account || !isObject(dto)) continue;
+    const capturedAt = ms(dto.capturedAtUtc);
+    if (capturedAt === null) { report.dropped++; continue; }
+    const chats: ChatEntry[] = [];
+    for (const row of Array.isArray(dto.chats) ? dto.chats : []) {
+      const chat = chatFromV5(row);
+      if (!chat) { report.dropped++; continue; }
+      // The same two guards v5 applied on its own load: groups and notice accounts are not customers, and a
+      // raw base64 payload is not a message preview.
+      if (isNonCustomerConversation(chat.conversationKey)) continue;
+      chats.push(chat);
+    }
+    // A snapshot taken seconds after a reload claims almost every chat has no message; honouring that would
+    // close the whole queue on the first launch after the move.
+    snapshots[account] = { capturedAt, chats: distrustColdScan(chats) };
+    report.chats += chats.length;
+  }
+
+  for (const [id, dto] of instancesOf(files.responseTimes)) {
+    const account = resolve(id);
+    if (!account || !isObject(dto)) continue;
+    const samples = [];
+    for (const row of Array.isArray(dto.samples) ? dto.samples : []) {
+      const answeredAt = isObject(row) ? ms(row.answeredAtUtc) : null;
+      const minutes = isObject(row) && typeof row.frtMinutes === 'number' ? row.frtMinutes : null;
+      if (answeredAt === null || minutes === null || !(minutes > 0)) { report.dropped++; continue; }
+      samples.push({ answeredAt, minutes });
+    }
+    if (samples.length) times.samples[account] = samples;
+    const watchStart = ms(dto.watchStartUtc);
+    // Without the watch start, every waiting chat older than the move would be measured from zero and the
+    // first reply would look like a days-long response.
+    if (watchStart !== null) times.watchStart[account] = watchStart;
+    const pending: Record<string, number> = {};
+    for (const [chat, at] of Object.entries(isObject(dto.pending) ? dto.pending : {})) {
+      const inbound = ms(at);
+      if (!chat.trim() || inbound === null) { report.dropped++; continue; }
+      pending[chat] = inbound;
+    }
+    if (Object.keys(pending).length) { times.pending[account] = pending; report.pending += Object.keys(pending).length; }
+  }
+  pruneResponseTimes(times, now);
+  report.samples = Object.values(times.samples).reduce((n, list) => n + list.length, 0);
+
+  let snoozed = 0;
+  for (const [id, chats] of instancesOf(files.overrides)) {
+    const account = resolve(id);
+    if (!account || !isObject(chats)) continue;
+    for (const [chat, dto] of Object.entries(chats)) {
+      if (!chat.trim() || !isObject(dto)) { report.dropped++; continue; }
+      const kind = overrideKind(dto.kind);
+      const at = ms(kind === 'handled' ? dto.handledForActivityUtc : dto.snoozeUntilUtc);
+      if (!kind || at === null) { report.dropped++; continue; }
+      (overrides[account] ??= {})[chat] = kind === 'handled' ? { kind, activity: at } : { kind, until: at };
+      if (kind === 'handled') report.handled++; else snoozed++;
+    }
+  }
+  // A snooze that ran out while the owner was moving has done its job; it does not come back.
+  pruneExpired(overrides, now);
+  report.snoozed = Object.values(overrides).reduce((n, chats) => n + Object.values(chats).filter((o) => o.kind === 'snoozed').length, 0);
+  if (snoozed > report.snoozed) report.notes.push(`${snoozed - report.snoozed} snooze(s) had already elapsed and were not restored.`);
+
+  report.orphaned = [...orphaned];
+  if (report.orphaned.length) report.notes.push(`History for ${report.orphaned.length} account(s) that did not come across was left behind.`);
+  report.notes.push('v5 message analytics and contact history were not imported: v6 has no surface for them yet.');
+  return { snapshots, times, overrides, report };
+}
+
+/** v5's stored chat row. Its key names differ from the live scan JSON, so it gets its own mapper. */
+function chatFromV5(row: unknown): ChatEntry | null {
+  if (!isObject(row)) return null;
+  const lastActivity = ms(row.lastActivityUtc);
+  if (lastActivity === null) return null;
+  return {
+    conversationKey: str(row.conversationKey),
+    customerName: str(row.customerName),
+    unread: typeof row.unread === 'number' && Number.isInteger(row.unread) ? row.unread : 0,
+    lastActivity,
+    preview: sanitizePreview(str(row.preview)),
+    awaiting: row.isAwaiting === true,
+    lastMessageFromMe: row.lastMessageFromMe === true,
+    contactPhone: str(row.contactPhone),
+    // Null is "this build did not record it", which is not the same as "there is no message".
+    hasLastMessage: typeof row.hasLastMessage === 'boolean' ? row.hasLastMessage : null,
+    lastMessageType: str(row.lastMessageType),
+    lastCallOutcome: str(row.lastCallOutcome),
+  };
+}
+
+/** v5 wrote the enum as a name; an older file may hold the number. */
+function overrideKind(v: unknown): 'handled' | 'snoozed' | null {
+  const name = typeof v === 'string' ? v.trim().toLowerCase() : v === 0 ? 'handled' : v === 1 ? 'snoozed' : '';
+  return name === 'handled' || name === 'snoozed' ? name : null;
+}
+
+const instancesOf = (raw: unknown): [string, unknown][] => {
+  const instances = isObject(raw) ? raw.instances : undefined;
+  return isObject(instances) ? Object.entries(instances) : [];
+};
+
+/** v5 wrote times as ISO strings; a hand-edited file may hold epoch milliseconds. */
+function ms(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v !== 'string') return null;
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? null : at;
+}
+
+// ---- config -------------------------------------------------------------------------------------
 
 function importLocations(profiles: unknown, used: string[], report: ImportReport) {
   const locations: { name: string; slaMinutes?: unknown; hours?: unknown }[] = [];

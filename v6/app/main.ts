@@ -8,12 +8,13 @@ import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseConversations } from '../core/chat-entry.ts';
-import { CHANNELS, emptyConfig, parseConfig, type Account, type Config } from '../core/config.ts';
+import { CHANNELS, emptyConfig, parseConfig, type Account } from '../core/config.ts';
 import { describeFreshness } from '../core/freshness.ts';
 import { pruneExpired, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
 import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.ts';
 import { awaitingSplit, distrustColdScan, lastCaptured, recordRead, type Judge, type Snapshots } from '../core/snapshot.ts';
+import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -59,6 +60,10 @@ const READERS: Partial<Record<string, { inject: () => string; scan: string }>> =
 
 const problems: string[] = [];
 const note = (file: string) => (why: string) => { problems.push(`${file}: ${why}`); log({ event: 'store-problem', file, why }); };
+
+// Before anything is loaded: a first launch on a PC that already runs v5 brings the whole install across,
+// history included. It writes the files below, which are then read exactly as if they had always been there.
+const imported = importFromV5(FILE, log);
 
 const { config, dropped } = parseConfig(loadJson<unknown>(FILE.config, emptyConfig(), note('config')));
 const snapshots = loadJson<Snapshots>(FILE.snapshot, {}, note('snapshot'));
@@ -202,7 +207,7 @@ ${config.accounts.map((a) => `<button onclick="um.show('${a.id}')">${a.name}</bu
 <script>um.onStatus((s) => { document.getElementById('status').textContent = s; });</script>`;
 
 app.whenReady().then(async () => {
-  log({ event: 'startup', electron: process.versions.electron, node: process.versions.node, accounts: config.accounts.length, readable: readableAccounts(config).length, droppedFromConfig: dropped, problems: problems.length });
+  log({ event: 'startup', electron: process.versions.electron, node: process.versions.node, importedFromV5: imported, accounts: config.accounts.length, readable: readableAccounts(config).length, droppedFromConfig: dropped, problems: problems.length });
 
   win = new BrowserWindow({
     width: 1280, height: 860, title: 'Unified Messenger', backgroundColor: '#0C1018',
