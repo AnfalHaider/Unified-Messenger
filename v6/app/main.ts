@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
 import { CHANNELS, emptyConfig, parseConfig, type Account } from '../core/config.ts';
-import { pruneExpired, type Overrides } from '../core/awaiting-overrides.ts';
+import { clear, markHandled, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
 import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.ts';
 import { distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
@@ -377,6 +377,29 @@ app.whenReady().then(async () => {
     if (visible === id) { route = 'line'; visible = null; }
     layout();
     push();
+  });
+  // The owner's marks. Main looks the chat up itself: "handled" holds until a message newer than the one on
+  // record, so that time comes from the snapshot, never from the screen. The log names the account, not the chat.
+  const saveOverrides = (event: string, id: string) => {
+    pruneExpired(overrides, Date.now());
+    saveJson(FILE.overrides, overrides);
+    log({ event, account: id });
+    push();
+  };
+  ipcMain.on('mark-handled', (_e, id: string, key: string) => {
+    const chat = snapshots[id]?.chats.find((c) => c.conversationKey === key);
+    if (!chat) return;
+    markHandled(overrides, id, key, chat.lastActivity);
+    saveOverrides('marked-handled', id);
+  });
+  ipcMain.on('snooze', (_e, id: string, key: string, minutes: number) => {
+    if (!snapshots[id]?.chats.some((c) => c.conversationKey === key)) return;
+    snooze(overrides, id, key, Date.now() + Math.min(7 * 24 * 60, Math.max(1, Number(minutes) || 60)) * 60_000);
+    saveOverrides('snoozed', id);
+  });
+  ipcMain.on('put-back', (_e, id: string, key: string) => {
+    clear(overrides, id, key);
+    saveOverrides('put-back', id);
   });
   ipcMain.on('set-theme', (_e, theme: 'system' | 'light' | 'dark') => {
     config.settings.theme = theme;

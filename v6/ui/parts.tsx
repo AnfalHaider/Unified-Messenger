@@ -14,6 +14,9 @@ declare global {
       readNow(): void;
       reloadAccount(accountId: string): void;
       sleepAccount(accountId: string): void;
+      markHandled(accountId: string, key: string): void;
+      snooze(accountId: string, key: string, minutes: number): void;
+      putBack(accountId: string, key: string): void;
       setSettings(patch: Record<string, unknown>): void;
       setTheme(theme: 'system' | 'light' | 'dark'): void;
       windowAction(action: 'minimise' | 'maximise' | 'close'): void;
@@ -29,6 +32,7 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
+  markHandled() {}, snooze() {}, putBack() {},
   setSettings(patch) { previewSettings?.(patch); },
   setTheme(theme) { previewSettings?.({ theme }); },
 };
@@ -75,7 +79,7 @@ export function Headline({ title, children, actions, sample, eyebrow }: {
 }
 
 export const Btn = ({ icon, children, kind, onClick, disabled, title }: {
-  icon?: IconName; children?: React.ReactNode; kind?: 'primary' | 'quiet' | 'danger'; onClick?: () => void; disabled?: boolean; title?: string;
+  icon?: IconName; children?: React.ReactNode; kind?: 'primary' | 'quiet' | 'danger'; onClick?: (e: React.MouseEvent) => void; disabled?: boolean; title?: string;
 }) => (
   <button className={`btn ${kind ?? ''}`} onClick={onClick} disabled={disabled} title={title}>
     {icon && <Icon name={icon} size={14} />}{children}

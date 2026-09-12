@@ -36,9 +36,9 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 
 | Real data | Sample figures (marked "Sample figures, not connected yet") |
 |---|---|
-| The line, lanes, queue, J/K/Enter | Handled and Snooze buttons (disabled) |
-| Docked account page | Customer panel: history, tags, note, saved replies, suggested replies |
-| Needs you | Set aside |
+| The line, lanes, queue, J/K/Enter | Set aside |
+| Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
+| Needs you | |
 | Accounts grid, account figures | Morning digest |
 | Channel readers list | Reader timeline, lost-login record |
 | Look and reading settings, closing, memory | Reviews |
@@ -166,7 +166,11 @@ window on a temp data folder, asserts the first heading, moves to Accounts and q
 
 ### Phase 4 · Screens: wire the sample screens
 
-**4.1 Handled and Snooze.** `core/awaiting-overrides.ts` already has `markHandled`, `snooze`, `clear`, `isSuppressed`. Add IPC `mark-handled`, `snooze`, `put-back` in `preload.cjs` and `main.ts` (save `overrides.json`, then `push()`); enable the buttons and the H / S keys in `work.tsx`. Done when a handled chat leaves the line, a snoozed one returns at its time, and both survive a restart.
+**4.1 Handled and Snooze.** Done 2026-09-13. IPC `mark-handled`, `snooze`, `put-back` (main takes `lastActivity` from
+the snapshot, never the screen; the log names the account only). Buttons and H / S work on the line and in the dock;
+the dock moves on to the next customer. `QueueRow.key` carries the conversation key. The Playwright test proves both
+marks leave the line and survive a restart; snooze expiry is covered by the core tests and the 5-second push.
+`put-back` has no button yet: that is 4.2.
 
 **4.2 Set aside.** Build from `automaticallyClosed()` plus the overrides (who and when needs a small `movedBy` / `movedAt` addition to the override record). Replace `SET_ASIDE`. Done when Put back returns a chat to the line.
 

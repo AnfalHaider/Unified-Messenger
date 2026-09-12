@@ -8,7 +8,22 @@ import { channelIcon, Icon } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, isPreview, Panel, plural, Sample, type ScreenProps, Wait, waitText } from '../parts.tsx';
 import { CUSTOMER, OWED, SET_ASIDE, YESTERDAY } from '../sample.ts';
 
-const rowKey = (r: QueueRow) => `${r.accountId}:${r.customer}`;
+const rowKey = (r: QueueRow) => `${r.accountId}:${r.key}`;
+/** Snoozing from the line or the dock is always an hour; the keys hint says so. */
+const SNOOZE_MINUTES = 60;
+
+/** Handled or snoozed: the row leaves, so the one after it (or before, at the end) takes its place. */
+function setAside(rows: QueueRow[], r: QueueRow, how: 'handled' | 'snooze'): QueueRow | undefined {
+  const i = rows.findIndex((x) => rowKey(x) === rowKey(r));
+  if (how === 'handled') bridge.markHandled(r.accountId, r.key);
+  else bridge.snooze(r.accountId, r.key, SNOOZE_MINUTES);
+  return rows[i + 1] ?? rows[i - 1];
+}
+
+/** H and S from the keyboard, unless something else has it. */
+const actionKey = (e: KeyboardEvent, overlay: unknown): 'handled' | 'snooze' | null =>
+  overlay || e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest('input, textarea') ? null
+    : e.key === 'h' ? 'handled' : e.key === 's' ? 'snooze' : null;
 const statusText = (r: QueueRow, target: number) =>
   r.tone === 'late' ? `${waitText(r.waited - target).join(' ')} past target` : r.tone === 'due' ? `Due in ${Math.max(0, target - r.waited)} min` : 'On time';
 
@@ -36,11 +51,18 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
   const onTime = state.figures.find((f) => f.label === 'Answered on time');
   const firstReply = state.figures.find((f) => f.label === 'First reply');
 
-  // J and K move, Enter opens the chat. Ignored while an overlay has the keyboard.
+  const act = (r: QueueRow, how: 'handled' | 'snooze') => {
+    const next = setAside(rows, r, how);
+    setSelected(next ? rowKey(next) : null);
+  };
+
+  // J and K move, Enter opens the chat, H and S set it aside. Ignored while an overlay has the keyboard.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (nav.view.overlay || e.ctrlKey || e.metaKey || (e.target as HTMLElement).closest('input, textarea')) return;
       const i = rows.findIndex((r) => rowKey(r) === selected);
+      const how = actionKey(e, nav.view.overlay);
+      if (how && rows[i]) { act(rows[i], how); e.preventDefault(); return; }
       if (e.key === 'j' || e.key === 'ArrowDown') { const next = rows[Math.min(rows.length - 1, i + 1)]; if (next) setSelected(rowKey(next)); e.preventDefault(); }
       if (e.key === 'k' || e.key === 'ArrowUp') { const prev = rows[Math.max(0, i - 1)]; if (prev) setSelected(rowKey(prev)); e.preventDefault(); }
       if (e.key === 'Enter' && rows[i]) nav.go('dock', rows[i].accountId, rows[i].customer);
@@ -99,8 +121,8 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
                 {sel ? (
                   <div className="row-actions">
                     <Btn icon="open" kind="primary" onClick={() => nav.go('dock', r.accountId, r.customer)}>Open chat</Btn>
-                    <Btn icon="check" disabled title="Marking handled is not connected yet">Handled</Btn>
-                    <Btn icon="snooze" disabled title="Snoozing is not connected yet">Snooze</Btn>
+                    <Btn icon="check" title="Answered another way. Returns if they write again." onClick={(e) => { e.stopPropagation(); act(r, 'handled'); }}>Handled</Btn>
+                    <Btn icon="snooze" title="Off the line for an hour" onClick={(e) => { e.stopPropagation(); act(r, 'snooze'); }}>Snooze</Btn>
                   </div>
                 ) : <span className={`status ${r.tone}`}>{statusText(r, target)}</span>}
               </div>
@@ -127,6 +149,22 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
   const due = rows.filter((r) => r.tone === 'due').length;
   const target = state.settings.slaMinutes;
 
+  // Setting the docked customer aside moves the dock on to the next one waiting, or back to the line when none is.
+  const act = (how: 'handled' | 'snooze') => {
+    if (!customer) return;
+    const next = setAside(rows, customer, how);
+    if (next) nav.go('dock', next.accountId, next.customer);
+    else nav.go('line');
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const how = actionKey(e, nav.view.overlay);
+      if (how && customer) { act(how); e.preventDefault(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   return (
     <div className="split">
       <main className="main" style={{ gap: 14, paddingRight: 16 }}>
@@ -150,8 +188,8 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
             <span>{d?.name}{customer ? ` · waiting ${waitText(customer.waited).join(' ')}${customer.tone === 'late' ? `, ${waitText(customer.waited - target).join(' ')} past target` : ''}` : d ? ` · ${d.freshness.text}` : ''}</span>
           </span>
           <div className="actions">
-            <Btn icon="check" disabled title="Marking handled is not connected yet">Handled <kbd>H</kbd></Btn>
-            <Btn icon="snooze" disabled title="Snoozing is not connected yet">Snooze <kbd>S</kbd></Btn>
+            <Btn icon="check" disabled={!customer} title="Answered another way. Returns if they write again." onClick={() => act('handled')}>Handled <kbd>H</kbd></Btn>
+            <Btn icon="snooze" disabled={!customer} title="Off the line for an hour" onClick={() => act('snooze')}>Snooze <kbd>S</kbd></Btn>
             {d && <Btn icon="refresh" kind="quiet" onClick={() => bridge.reloadAccount(d.id)}>Reload</Btn>}
             <Btn icon="x" kind="quiet" onClick={() => nav.go('line')}>Close</Btn>
           </div>

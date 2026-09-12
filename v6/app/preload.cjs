@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld('um', {
   readNow: () => ipcRenderer.send('read-now'),
   reloadAccount: (accountId) => ipcRenderer.send('reload-account', accountId),
   sleepAccount: (accountId) => ipcRenderer.send('sleep-account', accountId),
+  /** Takes a waiting chat off the line until the customer writes again. */
+  markHandled: (accountId, key) => ipcRenderer.send('mark-handled', accountId, key),
+  snooze: (accountId, key, minutes) => ipcRenderer.send('snooze', accountId, key, minutes),
+  /** Undoes either mark. */
+  putBack: (accountId, key) => ipcRenderer.send('put-back', accountId, key),
   /** A patch of settings. Main merges it, runs it back through the config parser so limits hold, and saves. */
   setSettings: (patch) => ipcRenderer.send('set-settings', patch),
   setTheme: (theme) => ipcRenderer.send('set-theme', theme),

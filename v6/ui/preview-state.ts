@@ -9,7 +9,7 @@ const row = (customer: string, preview: string, waited: number, accountName: str
   const target = 15;
   const remaining = target - waited;
   return {
-    accountId: accountName, accountName, location, channel, customer, preview, waited,
+    accountId: accountName, accountName, location, channel, key: customer, customer, preview, waited,
     status: remaining < 0 ? 'Past target' : remaining <= 5 ? `Due in ${remaining} min` : 'On time',
     tone: remaining < 0 ? 'late' : remaining <= 5 ? 'due' : 'ok',
     fill: Math.min(100, (waited / (target * 3)) * 100),

@@ -36,6 +36,8 @@ export interface QueueRow {
   accountName: string;
   location: string;
   channel: string;
+  /** The chat's identity within its account. Names repeat; this does not. */
+  key: string;
   customer: string;
   preview: string;
   /** Minutes waited inside the location's working hours. */
@@ -206,6 +208,7 @@ function queueFor(config: Config, snapshots: Snapshots, judge: Judge, accountId:
     const remaining = target - waited;
     return {
       accountId: account.id, accountName: account.name, location: account.location, channel: account.channel,
+      key: chat.conversationKey,
       customer: chat.customerName || chat.contactPhone || 'Unknown number',
       preview: chat.preview,
       waited,
