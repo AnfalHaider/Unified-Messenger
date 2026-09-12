@@ -10,6 +10,7 @@ import { describeFreshness } from '../core/freshness.ts';
 import { dailyResponse, responseStats, type ResponseTimes } from '../core/response-times.ts';
 import { buildRollup } from '../core/rollup.ts';
 import { readableAccounts } from '../core/schedule.ts';
+import { DAY_MS } from '../core/days.ts';
 import { awaitingChats, awaitingSplit, lastCaptured, type Judge, type Snapshots } from '../core/snapshot.ts';
 import type { Overrides } from '../core/awaiting-overrides.ts';
 
@@ -104,7 +105,10 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
   const judge: Judge = { now, overrides, filterClosed: config.settings.filterClosedConversations };
   const readable = readableAccounts(config);
   const ids = readable.map((a) => a.id);
-  const split = awaitingSplit(snapshots, ids, judge, config.settings.backlogAfterDays);
+  // A signed-out account's last snapshot is history, not a live queue: its chats stay off the line and out of
+  // the counts until it reads again, exactly as its figures are hidden rather than guessed.
+  const live = ids.filter((id) => !ctx.signedOut.has(id));
+  const split = awaitingSplit(snapshots, live, judge, config.settings.backlogAfterDays);
   const stats = responseStats(times, ids, config.settings.slaMinutes, { now });
   const freshness = describeFreshness(lastCaptured(snapshots), now);
 
@@ -117,7 +121,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     { groupBy: 'location', slaMinutes: config.settings.slaMinutes, locations: locationRules(config) },
   );
 
-  const queue = readable.flatMap((a) => queueFor(config, snapshots, judge, a.id, now));
+  const queue = live.flatMap((id) => queueFor(config, snapshots, judge, id, now));
   queue.sort((x, y) => y.waited - x.waited);
 
   const pastTarget = queue.filter((q) => q.tone === 'late').length;
@@ -156,7 +160,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     })),
     accounts: config.accounts.map((a) => ({
       id: a.id, name: a.name, channel: a.channel, location: a.location,
-      waiting: CHANNELS[a.channel].reads ? awaitingChats(snapshots, a.id, judge).length : null,
+      waiting: CHANNELS[a.channel].reads ? waitingNow(config, snapshots, judge, a.id).length : null,
       signedOut: ctx.signedOut.has(a.id),
       asleep: ctx.asleep.has(a.id),
     })),
@@ -179,6 +183,15 @@ function readerHealth(m: ModuleHealth): ReaderHealth {
   return { id: m.id, name: m.name, tone: 'neutral', status: 'Idle', detail: 'No read yet' };
 }
 
+/**
+ * Customers waiting now: awaiting, and not older than the backlog line. Older ones are backlog, counted
+ * separately by awaitingSplit with the same cutoff, so "waiting now" means the same thing on every screen.
+ */
+const waitingNow = (config: Config, snapshots: Snapshots, judge: Judge, accountId: string) => {
+  const cutoff = judge.now - Math.max(1, config.settings.backlogAfterDays) * DAY_MS;
+  return awaitingChats(snapshots, accountId, judge).filter((chat) => chat.lastActivity >= cutoff);
+};
+
 const locationRules = (config: Config) =>
   Object.fromEntries(config.locations.map((l) => [l.name, { slaMinutes: l.slaMinutes, hours: l.hours }]));
 
@@ -187,7 +200,7 @@ function queueFor(config: Config, snapshots: Snapshots, judge: Judge, accountId:
   if (!account) return [];
   const rules = config.locations.find((l) => l.name === account.location);
   const target = Math.max(1, rules?.slaMinutes ?? config.settings.slaMinutes);
-  return awaitingChats(snapshots, account.id, judge).map((chat) => {
+  return waitingNow(config, snapshots, judge, account.id).map((chat) => {
     // The clock only runs inside the location's working hours, so a message at closing time is not late by morning.
     const waited = Math.round(elapsedBusinessMinutes(new Date(chat.lastActivity), new Date(now), rules?.hours));
     const remaining = target - waited;

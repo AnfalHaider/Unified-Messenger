@@ -4,7 +4,7 @@
 import type { UiState } from '../../app/view-model.ts';
 import { DayBars, toneInk } from '../charts.tsx';
 import { channelIcon, Icon, type IconName } from '../icons.tsx';
-import { bridge, Btn, Check, Chip, Facts, Headline, Panel, plural, type ScreenProps, Timeline } from '../parts.tsx';
+import { bridge, Btn, Check, Chip, Facts, Headline, Panel, plural, type ScreenProps, Timeline, Wait } from '../parts.tsx';
 import { LOST_LOGIN, READER_TIMELINE } from '../sample.ts';
 
 type Column = { key: string; name: string; icon: IconName; channels: string[] };
@@ -113,7 +113,7 @@ export function AccountDetailScreen({ state, nav }: ScreenProps) {
         <div className="queue">
           {d.queue.map((r) => (
             <div key={r.customer + r.waited} className={`row ${r.tone}`} onClick={() => nav.go('dock', d.id, r.customer)} style={{ gridTemplateColumns: '96px minmax(0,1fr) 200px' }}>
-              <span className={`wait ${r.tone}`}>{r.waited}<small>min</small></span>
+              <Wait minutes={r.waited} tone={r.tone} />
               <span className="who"><b>{r.customer}</b><span>{r.preview}</span></span>
               <span className={`status ${r.tone}`}>{r.status}</span>
             </div>

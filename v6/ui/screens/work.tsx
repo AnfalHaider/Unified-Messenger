@@ -5,12 +5,12 @@ import { useEffect, useMemo, useState } from 'react';
 import type { QueueRow, UiState } from '../../app/view-model.ts';
 import { Spark, TheLine, toneInk } from '../charts.tsx';
 import { channelIcon, Icon } from '../icons.tsx';
-import { bridge, Btn, Chip, Headline, isPreview, Panel, plural, Sample, type ScreenProps } from '../parts.tsx';
+import { bridge, Btn, Chip, Headline, isPreview, Panel, plural, Sample, type ScreenProps, Wait, waitText } from '../parts.tsx';
 import { CUSTOMER, OWED, SET_ASIDE, YESTERDAY } from '../sample.ts';
 
 const rowKey = (r: QueueRow) => `${r.accountId}:${r.customer}`;
 const statusText = (r: QueueRow, target: number) =>
-  r.tone === 'late' ? `${r.waited - target} min past target` : r.tone === 'due' ? `Due in ${Math.max(0, target - r.waited)} min` : 'On time';
+  r.tone === 'late' ? `${waitText(r.waited - target).join(' ')} past target` : r.tone === 'due' ? `Due in ${Math.max(0, target - r.waited)} min` : 'On time';
 
 /** Locations for the lanes: every configured one, in the order the rollup gives, so an empty lane still shows. */
 export const laneNames = (state: UiState) => {
@@ -93,9 +93,9 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
             const sel = key === selected;
             return (
               <div key={key} className={`row ${r.tone} ${sel ? 'sel' : ''}`} onClick={() => setSelected(key)} onDoubleClick={() => nav.go('dock', r.accountId, r.customer)}>
-                <span className={`wait ${r.tone}`}>{r.waited}<small>min</small></span>
+                <Wait minutes={r.waited} tone={r.tone} />
                 <span className="who"><b>{r.customer}</b><span>{r.preview || 'No preview could be read'}</span></span>
-                <span className="acct"><Icon name={channelIcon(r.channel)} size={15} />{r.accountName}</span>
+                <span className="acct"><Icon name={channelIcon(r.channel)} size={15} /><span>{r.accountName}</span></span>
                 {sel ? (
                   <div className="row-actions">
                     <Btn icon="open" kind="primary" onClick={() => nav.go('dock', r.accountId, r.customer)}>Open chat</Btn>
@@ -134,7 +134,7 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
         <div className="queue mini">
           {rows.map((r) => (
             <div key={rowKey(r)} className={`row ${r.tone} ${customer && rowKey(customer) === rowKey(r) ? 'sel' : ''}`} onClick={() => nav.go('dock', r.accountId, r.customer)}>
-              <span className={`wait ${r.tone}`}>{r.waited}<small>min</small></span>
+              <Wait minutes={r.waited} tone={r.tone} />
               <span className="who"><b>{r.customer}</b><span><Icon name={channelIcon(r.channel)} size={12} /> {r.location} · {r.preview}</span></span>
               <span style={{ color: 'var(--ink-3)' }}><Icon name="right" size={15} /></span>
             </div>
@@ -147,7 +147,7 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
           <Icon name={channelIcon(d?.channel ?? '')} size={18} />
           <span className="who">
             <b>{customer?.customer ?? d?.name ?? 'Account'}</b>
-            <span>{d?.name}{customer ? ` · waiting ${customer.waited} min${customer.tone === 'late' ? `, ${customer.waited - target} past target` : ''}` : d ? ` · ${d.freshness.text}` : ''}</span>
+            <span>{d?.name}{customer ? ` · waiting ${waitText(customer.waited).join(' ')}${customer.tone === 'late' ? `, ${waitText(customer.waited - target).join(' ')} past target` : ''}` : d ? ` · ${d.freshness.text}` : ''}</span>
           </span>
           <div className="actions">
             <Btn icon="check" disabled title="Marking handled is not connected yet">Handled <kbd>H</kbd></Btn>

@@ -405,3 +405,13 @@ button:disabled { cursor: default; opacity: .55; }
 .lock-screen { grid-row: 2; overflow: auto; }
 .offline-bar { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: center; padding: 10px 32px; background: var(--due-w); font-size: 13px; }
 .empty-line { padding: 14px 0 4px; color: var(--ink-2); font-size: 13px; }
+
+/* The line screen: headline and the line keep their size; the list takes the rest of the height and scrolls
+   inside itself. The whole screen still scrolls when the window is too short for even that. */
+.main > * { flex-shrink: 0; }
+.main > .work { flex: 1 0 320px; display: flex; flex-direction: column; min-height: 320px; }
+.work .queue { flex: 1; min-height: 0; overflow: auto; }
+.queue.mini { overflow: auto; min-height: 0; flex: 1 1 auto; border-bottom: 1px solid var(--line); }
+.row { grid-template-columns: 110px minmax(0, 1fr) minmax(160px, 220px) 330px; }
+.acct span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini .row { grid-template-columns: 96px minmax(0, 1fr) 30px; }

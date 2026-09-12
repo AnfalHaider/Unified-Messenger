@@ -157,4 +157,16 @@ export function Stepper({ value, options, format, onChange, label }: { value: nu
   );
 }
 
+/** A wait in opening-hours minutes, readable at any size: 38 min, 2 h 5 min, 31 h. */
+export function waitText(minutes: number): [string, string] {
+  if (minutes < 60) return [String(minutes), 'min'];
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return h >= 10 || m === 0 ? [String(h), 'h'] : [String(h), `h ${m} min`];
+}
+
+export const Wait = ({ minutes, tone }: { minutes: number; tone: string }) => {
+  const [value, unit] = waitText(minutes);
+  return <span className={`wait ${tone}`}>{value}<small>{unit}</small></span>;
+};
+
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
