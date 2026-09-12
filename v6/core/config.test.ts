@@ -74,3 +74,16 @@ test('a saved config reloads as itself', () => {
   });
   assert.deepEqual(parse(JSON.parse(JSON.stringify(config))), config);
 });
+
+test('accounts that spell a location differently land in one group', () => {
+  // Real data: the WhatsApp account guessed "Men-DHA-2" and the Instagram one "Men-Dha-2", which the
+  // rollup would have shown as two branches.
+  const { config } = parseConfig({
+    accounts: [
+      { id: 'a', name: 'A', channel: 'whatsapp', location: 'Men-DHA-2', professional: true },
+      { id: 'b', name: 'B', channel: 'instagram', location: 'men-dha-2', professional: true },
+    ],
+    locations: [{ name: 'Men-DHA-2' }],
+  });
+  assert.deepEqual(config.accounts.map((a) => a.location), ['Men-DHA-2', 'Men-DHA-2']);
+});

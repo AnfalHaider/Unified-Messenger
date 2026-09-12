@@ -105,6 +105,14 @@ export function parseConfig(raw: unknown): { config: Config; dropped: number } {
     config.locations.push(location);
   }
 
+  // Two accounts that spell the same location differently would otherwise become two rows on every screen:
+  // the rollup groups by the name as written, so the location list decides the spelling.
+  const canonical = new Map(config.locations.map((l) => [l.name.toLowerCase(), l.name]));
+  for (const account of config.accounts) {
+    const match = canonical.get(account.location.toLowerCase());
+    if (match) account.location = match;
+  }
+
   config.settings = parseSettings(root.settings);
   return { config, dropped };
 }
