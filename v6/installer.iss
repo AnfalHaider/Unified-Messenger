@@ -41,8 +41,10 @@ Type: filesandordirs; Name: "{app}\resources\app"
 Source: "out\Unified Messenger-win32-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#ExeName}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#ExeName}"
+; The app id must match app.setAppUserModelId in app/main.ts: Windows shows an unpackaged app's notifications only
+; for an id a Start Menu shortcut carries.
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#ExeName}"; AppUserModelID: "UnifiedMessenger.v6"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#ExeName}"; AppUserModelID: "UnifiedMessenger.v6"
 
 [Run]
 ; Also after a silent install, so installing a new build ends with the app open.

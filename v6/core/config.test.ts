@@ -88,3 +88,8 @@ test('accounts that spell a location differently land in one group', () => {
   });
   assert.deepEqual(config.accounts.map((a) => a.location), ['Men-DHA-2', 'Men-DHA-2']);
 });
+
+test('alerts are on by default, and each can be switched off on its own', () => {
+  assert.deepEqual(defaultSettings().alerts, { nearTarget: true, waitedHour: true, signedOut: true });
+  assert.deepEqual(parse({ settings: { alerts: { waitedHour: false, signedOut: 'no' } } }).settings.alerts, { nearTarget: true, waitedHour: false, signedOut: true });
+});

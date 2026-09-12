@@ -9,7 +9,7 @@ test('never captured says so and offers the fix', () => {
   const v = describeFreshness(null, NOW);
   assert.equal(v.hasData, false);
   assert.equal(v.isStale, true);
-  assert.match(v.text, /re-sync/i);
+  assert.match(v.text, /read now/i);
 });
 
 test('the age is phrased the way a person would say it', () => {
@@ -23,13 +23,13 @@ test('fresh data is stamped but not flagged', () => {
   const v = describeFreshness(NOW - 2 * 60_000, NOW);
   assert.equal(v.isStale, false);
   assert.equal(v.hasData, true);
-  assert.doesNotMatch(v.text, /re-sync/i);
+  assert.doesNotMatch(v.text, /read now/i);
 });
 
 test('old data is flagged and says what to do', () => {
   const v = describeFreshness(NOW - STALE_AFTER_MS, NOW);
   assert.equal(v.isStale, true);
-  assert.match(v.text, /re-sync/i);
+  assert.match(v.text, /read now/i);
 });
 
 test('the threshold is well clear of the background poll', () => {

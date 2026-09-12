@@ -27,6 +27,9 @@ async function quit(app: ElectronApplication, win: Page) {
   await closed;
 }
 
+const alertLines = (data: string) =>
+  readFileSync(join(data, 'app.log'), 'utf8').split('\n').filter((l) => l.includes('"event":"alert"')).map((l) => JSON.parse(l));
+
 const heading = (win: Page, name: string | RegExp) => win.getByRole('heading', { level: 1, name, exact: typeof name === 'string' });
 
 test('the window renders, navigates and quits', async () => {
@@ -104,6 +107,41 @@ test('handled and snoozed chats leave the line, stay off it after a restart, and
     await expect(rowOf('Sample Customer C')).toHaveCount(0);
     await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
     await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('a chat near its target alerts exactly once, across passes and a restart, and the alert opens its chat', async () => {
+  const now = Date.now();
+  const data = dataFolder({ accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true }] });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({
+    'test-wa': { capturedAt: now, chats: [{
+      conversationKey: 'e@c.us', customerName: 'Sample Customer E', unread: 1, lastActivity: now - 13.4 * 60_000,
+      preview: 'Could you call me back at seven?', awaiting: true, lastMessageFromMe: false, contactPhone: '',
+      hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+    }] },
+  }));
+
+  let { app, win } = await open(data);
+  try {
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    // The alert pass runs with every push, every five seconds: wait for several.
+    await expect.poll(() => alertLines(data).length, { timeout: 15_000 }).toBe(1);
+    await win.waitForTimeout(11_000);
+    expect(alertLines(data)).toEqual([expect.objectContaining({ kind: 'near-target', account: 'test-wa' })]);
+
+    // What a click on the toast does: main asks the screens for the chat.
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.send('open', 'dock', 'test-wa', 'Sample Customer E'));
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Customer E');
+    await quit(app, win);
+
+    ({ app, win } = await open(data));
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    await win.waitForTimeout(6_000);
+    expect(alertLines(data)).toHaveLength(1);
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

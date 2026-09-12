@@ -13,6 +13,15 @@ const MINUTE = 60_000;
 
 // ponytail: reads the machine's local time zone, as v5 does. Add a timeZone parameter when a test needs
 // a western offset or a DST transition (see the AGENTS.md date-helper gotcha).
+/** Whether the location is open at this moment. Hours that are off or invalid mean always open, as above. */
+export function isOpen(hours: BusinessHours | null | undefined, now: number): boolean {
+  if (!hours?.enabled || hours.closeMinutes <= hours.openMinutes) return true;
+  const d = new Date(now);
+  const days = hours.workingDays?.length ? hours.workingDays : [1, 2, 3, 4, 5, 6];
+  const minute = d.getHours() * 60 + d.getMinutes();
+  return days.includes(d.getDay()) && minute >= hours.openMinutes && minute < hours.closeMinutes;
+}
+
 export function elapsedBusinessMinutes(start: Date, end: Date, hours?: BusinessHours | null): number {
   const raw = Math.max(0, (end.getTime() - start.getTime()) / MINUTE);
   if (!hours?.enabled || end <= start) return raw;

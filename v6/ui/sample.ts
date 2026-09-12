@@ -154,13 +154,11 @@ export const HOLIDAYS = [
   { name: 'New Year’s Day', date: 'Thursday 1 January', where: 'F-11 and DHA-2 only', past: false },
 ];
 
+/** Alerts whose reader or feature does not exist yet; Settings lists them as not connected. */
 export const ALERTS = [
-  { title: 'A customer is about to pass the target', detail: '2 minutes before, while the location is open', where: 'All locations', on: true },
-  { title: 'Someone has waited over an hour', detail: 'Once per customer', where: 'All locations', on: true },
-  { title: 'An account needs signing in again', detail: 'As soon as the app notices', where: 'All locations', on: true },
-  { title: 'A channel reader stops working', detail: 'After 3 failed reads in a row', where: 'All locations', on: true },
-  { title: 'A one- or two-star review arrives', detail: 'Within an hour of it appearing', where: 'F-11, DHA-2', on: false },
-  { title: 'A missed call has not been returned', detail: 'After 30 minutes', where: 'Men DHA-2', on: false },
+  { title: 'A channel reader stops working', detail: 'After 3 failed reads in a row' },
+  { title: 'A one- or two-star review arrives', detail: 'Within an hour of it appearing' },
+  { title: 'A missed call has not been returned', detail: 'After 30 minutes' },
 ];
 
 export const KEPT = [

@@ -62,6 +62,8 @@ export interface Settings {
   assistant: { enabled: boolean; model: string; endpoint: string };
   theme: 'system' | 'light' | 'dark';
   quietHours: { enabled: boolean; startHour: number; endHour: number };
+  /** Windows notifications, each switchable. Quiet hours hold all of them back. */
+  alerts: { nearTarget: boolean; waitedHour: boolean; signedOut: boolean };
 }
 
 export interface Config { version: number; accounts: Account[]; locations: Location[]; settings: Settings }
@@ -79,6 +81,7 @@ export const defaultSettings = (): Settings => ({
   assistant: { enabled: false, model: 'gemma3:4b', endpoint: 'http://127.0.0.1:11434/' },
   theme: 'system',
   quietHours: { enabled: false, startHour: 21, endHour: 8 },
+  alerts: { nearTarget: true, waitedHour: true, signedOut: true },
 });
 
 export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [], locations: [], settings: defaultSettings() });
@@ -168,6 +171,7 @@ function parseSettings(raw: unknown): Settings {
   if (!isObject(raw)) return d;
   const assistant = isObject(raw.assistant) ? raw.assistant : {};
   const quiet = isObject(raw.quietHours) ? raw.quietHours : {};
+  const alerts = isObject(raw.alerts) ? raw.alerts : {};
   const theme = str(raw.theme);
   return {
     slaMinutes: clampInt(raw.slaMinutes, SLA_MIN_MINUTES, SLA_MAX_MINUTES, d.slaMinutes),
@@ -187,6 +191,11 @@ function parseSettings(raw: unknown): Settings {
       enabled: bool(quiet.enabled, d.quietHours.enabled),
       startHour: clampInt(quiet.startHour, 0, 23, d.quietHours.startHour),
       endHour: clampInt(quiet.endHour, 0, 23, d.quietHours.endHour),
+    },
+    alerts: {
+      nearTarget: bool(alerts.nearTarget, d.alerts.nearTarget),
+      waitedHour: bool(alerts.waitedHour, d.alerts.waitedHour),
+      signedOut: bool(alerts.signedOut, d.alerts.signedOut),
     },
   };
 }

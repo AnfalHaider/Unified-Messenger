@@ -9,6 +9,7 @@ declare global {
   interface Window {
     um: {
       onState(fn: (state: UiState) => void): void;
+      onOpen(fn: (route: Route, accountId: string | null, sub: string) => void): void;
       ready(): void;
       navigate(route: Route, accountId?: string | null): void;
       readNow(): void;
@@ -31,7 +32,7 @@ let previewSettings: ((patch: Record<string, unknown>) => void) | null = null;
 export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettings = fn; };
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
-  onState() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
+  onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
   markHandled() {}, snooze() {}, putBack() {},
   setSettings(patch) { previewSettings?.(patch); },
   setTheme(theme) { previewSettings?.({ theme }); },

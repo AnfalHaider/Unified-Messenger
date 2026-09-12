@@ -14,6 +14,9 @@ const row = (customer: string, preview: string, waited: number, accountName: str
     tone: remaining < 0 ? 'late' : remaining <= 5 ? 'due' : 'ok',
     fill: Math.min(100, (waited / (target * 3)) * 100),
     target: 100 / 3,
+    targetMinutes: target,
+    lastActivity: Date.now() - waited * 60_000,
+    open: true,
   };
 };
 

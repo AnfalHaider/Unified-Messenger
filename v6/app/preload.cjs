@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('um', {
   /** The main process pushes a whole view model; the screens never compute a figure themselves. */
   onState: (fn) => ipcRenderer.on('state', (_e, state) => fn(state)),
+  /** Main asks for a screen, when a notification was clicked. */
+  onOpen: (fn) => ipcRenderer.on('open', (_e, route, accountId, sub) => fn(route, accountId, sub)),
   /** Says the screens are mounted and want the first state. */
   ready: () => ipcRenderer.send('ready'),
   navigate: (route, accountId) => ipcRenderer.send('navigate', route, accountId ?? null),

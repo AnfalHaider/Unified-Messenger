@@ -1,5 +1,5 @@
-// Settings. "Look and reading" writes to config.json and changes behaviour on the next read. Opening hours,
-// notifications, the assistant, the workspace and parts of privacy are sample settings until their features
+// Settings. "Look and reading" and "Notifications" write to config.json and take effect at once. Opening hours,
+// the assistant, the workspace, the summaries and parts of privacy are sample settings until their features
 // are wired, and say so.
 import { useState } from 'react';
 import { Icon, type IconName } from '../icons.tsx';
@@ -22,7 +22,7 @@ export function SettingsScreen(props: ScreenProps) {
         <div style={{ display: 'grid', gap: 22, alignContent: 'start', minWidth: 0 }}>
           {section === 'Look and reading' && <Look {...props} />}
           {section === 'Opening hours' && <Hours />}
-          {section === 'Notifications' && <Notifications />}
+          {section === 'Notifications' && <Notifications {...props} />}
           {section === 'Assistant' && <AssistantSettings />}
           {section === 'Workspace' && <Workspace {...props} />}
           {section === 'Privacy' && <Privacy />}
@@ -114,25 +114,39 @@ function Hours() {
   );
 }
 
-function Notifications() {
-  const [on, setOn] = useState(ALERTS.map((a) => a.on));
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const hour = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: 'numeric' });
+
+function Notifications({ state }: ScreenProps) {
+  const s = state.settings;
+  const alerts: [keyof typeof s.alerts, string, string][] = [
+    ['nearTarget', 'A customer is about to pass the target', '2 minutes before, while the location is open'],
+    ['waitedHour', 'Someone has waited over an hour', 'Once per customer'],
+    ['signedOut', 'An account needs signing in again', 'As soon as the app notices'],
+  ];
+  // Settings merge one level deep, so a nested group is always sent whole.
+  const setAlert = (key: keyof typeof s.alerts, on: boolean) => bridge.setSettings({ alerts: { ...s.alerts, [key]: on } });
+  const setQuiet = (patch: Partial<typeof s.quietHours>) => bridge.setSettings({ quietHours: { ...s.quietHours, ...patch } });
   return (
     <>
-      <div className="sgroup"><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Tell me when</h3><Sample /></div>
+      <div className="sgroup"><h3>Tell me when</h3>
+        <p>Windows notifications with Open chat and Snooze buttons. They name the customer and the account, never the message.</p>
         <div className="panel" style={{ padding: 0 }}>
-          {ALERTS.map((a, i) => (
-            <SettingRow key={a.title} title={a.title} detail={a.detail} columns="minmax(0,1fr) 150px auto">
-              <span className="sub">{a.where}</span><Toggle label={a.title} on={on[i]} onChange={(v) => setOn(on.map((x, j) => (j === i ? v : x)))} />
-            </SettingRow>
+          {alerts.map(([key, title, detail]) => (
+            <SettingRow key={key} title={title} detail={detail}><Toggle label={title} on={s.alerts[key]} onChange={(v) => setAlert(key, v)} /></SettingRow>
+          ))}
+          {ALERTS.map((a) => (
+            <SettingRow key={a.title} title={a.title} detail={a.detail}><span className="sub">Not connected yet</span></SettingRow>
           ))}
         </div>
       </div>
-      <div className="grid2">
+      <div className="grid2" style={{ alignItems: 'start' }}>
         <div className="sgroup"><h3>Quiet hours</h3><div className="panel" style={{ padding: 0 }}>
-          <SettingRow title="No alerts between" detail="The tray count still updates."><span className="sub num">10:30 pm – 10:30 am</span></SettingRow>
-          <SettingRow title="Also on holidays" detail="From Opening hours"><Toggle label="Also on holidays" on /></SettingRow>
+          <SettingRow title="Hold alerts back" detail="Reading goes on and the tray count still updates."><Toggle label="Quiet hours" on={s.quietHours.enabled} onChange={(v) => setQuiet({ enabled: v })} /></SettingRow>
+          <SettingRow title="From" detail="Quiet hours can run past midnight."><Stepper label="quiet hours start" value={s.quietHours.startHour} options={HOURS} format={hour} onChange={(v) => setQuiet({ startHour: v })} /></SettingRow>
+          <SettingRow title="Until"><Stepper label="quiet hours end" value={s.quietHours.endHour} options={HOURS} format={hour} onChange={(v) => setQuiet({ endHour: v })} /></SettingRow>
         </div></div>
-        <div className="sgroup"><h3>Summaries</h3><div className="panel" style={{ padding: 0 }}>
+        <div className="sgroup"><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Summaries</h3><Sample /></div><div className="panel" style={{ padding: 0 }}>
           <SettingRow title="Morning digest" detail="When the app first opens each day"><Toggle label="Morning digest" on /></SettingRow>
           <SettingRow title="Weekly report" detail="Monday, 10:00 am, as a PDF"><Toggle label="Weekly report" on /></SettingRow>
         </div></div>

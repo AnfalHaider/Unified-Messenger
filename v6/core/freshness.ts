@@ -7,12 +7,12 @@ export const STALE_AFTER_MS = 30 * 60_000;
 export interface Freshness { text: string; isStale: boolean; hasData: boolean }
 
 export function describeFreshness(capturedAt: number | null | undefined, now = Date.now()): Freshness {
-  if (capturedAt == null) return { text: 'No data captured yet — press Re-sync', isStale: true, hasData: false };
+  if (capturedAt == null) return { text: 'Nothing read yet — press Read now', isStale: true, hasData: false };
   // A clock change can put the capture in the future, and "Updated in 3 minutes" reads as a bug.
   const age = Math.max(0, now - capturedAt);
   const isStale = age >= STALE_AFTER_MS;
   const phrase = agePhrase(age / 1000);
-  return { text: isStale ? `Updated ${phrase} — press Re-sync for current numbers` : `Updated ${phrase}`, isStale, hasData: true };
+  return { text: isStale ? `Updated ${phrase} — press Read now for current numbers` : `Updated ${phrase}`, isStale, hasData: true };
 }
 
 function agePhrase(s: number): string {

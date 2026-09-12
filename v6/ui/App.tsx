@@ -24,7 +24,12 @@ export function App() {
   const [scope, setScope] = useState('All');
 
   useEffect(() => {
-    if (!isPreview) { bridge.onState(setState); bridge.ready(); return; }
+    if (!isPreview) {
+      bridge.onState(setState);
+      bridge.onOpen((route, accountId, sub) => setView((v) => ({ ...v, route, accountId, sub, overlay: null })));
+      bridge.ready();
+      return;
+    }
     onPreviewSettings((patch) => setState((s) => (s ? { ...s, settings: { ...s.settings, ...patch }, theme: (patch.theme as UiState['theme']) ?? s.theme } : s)));
     void import('./preview-state.ts').then((m) => setState(m.PREVIEW_STATE));
   }, []);

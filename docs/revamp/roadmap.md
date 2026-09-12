@@ -38,11 +38,11 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 |---|---|
 | The line, lanes, queue, J/K/Enter | Morning digest |
 | Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
-| Set aside, with Put back | Opening hours, notifications, privacy sizes |
+| Set aside, with Put back | Opening hours, privacy sizes, summaries (digest, weekly report) |
 | Needs you | |
 | Accounts grid, account figures | |
 | Channel readers list | Reader timeline, lost-login record |
-| Look and reading settings, closing, memory | Reviews |
+| Look and reading settings, closing, memory, notifications and quiet hours | Reviews |
 | Command palette (customers, accounts, screens) | Reports: all five tabs, export |
 | Theme | Assistant screen and settings |
 | | Workspace members, owner console, sign-in, new PC, removed, suspended, upgrade, update, offline |
@@ -69,7 +69,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 187 tests
+npm test            # 199 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 
@@ -174,7 +174,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.2 Set aside.** Done 2026-09-13. `core/snapshot.setAside()` lists the owner's marks (still-waiting chats only) and the rule's closures, each once, newest move first; marks now carry `at` (when made; v5 imports have none). "Moved by" says You or Automatic until Phase 6 adds members. Put back only on marks; a closure comes back by turning the rule off. Playwright checks the rows and that Put back returns a chat to the line.
 
-**4.3 About-to-breach notifications.** In `main.ts` after each read, find rows crossing `target - 2` minutes while the location is open (respect `settings.quietHours` through `inQuietHours` in `core/schedule.ts`); show an Electron `Notification` with Open chat and Snooze actions; remember which were notified. Wire Settings › Notifications to real settings in `core/config.ts`. Done when a test chat near the target produces exactly one notification.
+**4.3 About-to-breach notifications.** Done 2026-09-13. `core/alerts.ts` decides, on every 5-second push rather than per read: near target (2 min before, location open via `isOpen` in `core/business-hours.ts`), waited over an hour (only as the hour is crossed), and account signed out; quiet hours hold them back without using them up; more than 3 of a kind become one counting toast. Shown ids live in `alerts.json` (forgotten after 2 days), so a restart never repeats one. Toasts have Open chat and Snooze 1 hour buttons and name the customer and account, never the message. The toast app id `UnifiedMessenger.v6` is set in `main.ts` and on both installer shortcuts; a run from `npm start` has no such shortcut, so Windows may not show its toasts. Settings › Notifications switches the three alerts and edits quiet hours; reader-stopped, low-star review and missed-call alerts say "Not connected yet". Playwright proves exactly one alert across passes and a restart, and that the open message lands in the dock.
 
 **4.4 Opening hours and holidays editor.** `Location.hours` exists in `core/config.ts` (every location currently has `enabled: false`, so waits count around the clock). Build the editor in Settings › Opening hours writing through `set-settings`-style IPC that runs `parseConfig`. Add holidays to the config model and to `core/business-hours.ts` with tests. Done when a closed evening stops a wait from growing.
 

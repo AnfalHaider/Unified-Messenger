@@ -2,11 +2,12 @@
 // to read, what counts as waiting and when to sleep an account lives in core/; how a channel is read lives in
 // channels/. This file only carries both out, and hands the screens a finished view model so no figure is
 // computed twice.
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, session, Tray, WebContentsView } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, Notification, session, Tray, WebContentsView } from 'electron';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
+import { alertsDue, pruneNotified, type Alert, type Notified } from '../core/alerts.ts';
 import { CHANNELS, emptyConfig, parseConfig, type Account } from '../core/config.ts';
 import { clear, markHandled, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
@@ -14,7 +15,7 @@ import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.
 import { distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
-import { ACCOUNT_ROUTES, buildUiState, type Route } from './view-model.ts';
+import { ACCOUNT_ROUTES, buildUiState, waitingQueue, type Route } from './view-model.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -44,8 +45,12 @@ const FILE = {
   snapshot: join(DATA, 'snapshot.json'),
   times: join(DATA, 'response-times.json'),
   overrides: join(DATA, 'overrides.json'),
+  alerts: join(DATA, 'alerts.json'),
   log: join(DATA, 'app.log'),
 };
+
+// Windows shows a toast only for an app id that a Start Menu shortcut carries; installer.iss sets the same one.
+app.setAppUserModelId('UnifiedMessenger.v6');
 
 /** Counts only. Never a customer name, a phone number or message text — this is the file support asks for. */
 const log = (entry: Record<string, unknown>) =>
@@ -67,6 +72,7 @@ const { config, dropped } = parseConfig(loadJson<unknown>(FILE.config, emptyConf
 const snapshots = loadJson<Snapshots>(FILE.snapshot, {}, note('snapshot'));
 const times = loadJson<ResponseTimes>(FILE.times, emptyResponseTimes(), note('response-times'));
 const overrides = loadJson<Overrides>(FILE.overrides, {}, note('overrides'));
+const notified = loadJson<Notified>(FILE.alerts, {}, note('alerts'));
 
 // A snapshot written by a cold scan claims almost every chat has no message. Honouring that on load would
 // close the whole queue until a warm read replaced it — 354 real conversations once rendered as 5.
@@ -246,6 +252,75 @@ function push() {
   });
   win.webContents.send('state', state);
   tray?.setToolTip(`Unified Messenger: ${state.split.needsReply} waiting`);
+  notifyDue();
+}
+
+// ---- the owner's marks ---------------------------------------------------------------------------
+
+// Main looks the chat up itself: "handled" holds until a message newer than the one on record, so that time comes
+// from the snapshot, never from the screen. The log names the account, not the chat.
+function saveOverrides(event: string, id: string) {
+  pruneExpired(overrides, Date.now());
+  saveJson(FILE.overrides, overrides);
+  log({ event, account: id });
+  push();
+}
+
+function markChatHandled(id: string, key: string) {
+  const chat = snapshots[id]?.chats.find((c) => c.conversationKey === key);
+  if (!chat) return;
+  markHandled(overrides, id, key, chat.lastActivity, Date.now());
+  saveOverrides('marked-handled', id);
+}
+
+function snoozeChat(id: string, key: string, minutes: number) {
+  if (!snapshots[id]?.chats.some((c) => c.conversationKey === key)) return;
+  snooze(overrides, id, key, Date.now() + Math.min(7 * 24 * 60, Math.max(1, Number(minutes) || 60)) * 60_000, Date.now());
+  saveOverrides('snoozed', id);
+}
+
+// ---- alerts --------------------------------------------------------------------------------------
+
+/** Shown toasts, kept so their click and button handlers are not collected while the toast is on screen. */
+const toasts = new Set<Notification>();
+
+/** Runs with every push, so a wait crossing its warning point is caught within seconds, not at the next read. */
+function notifyDue() {
+  if (quitting || !Notification.isSupported()) return;
+  const now = Date.now();
+  const before = JSON.stringify(notified);
+  const shown = alertsDue({
+    rows: waitingQueue(config, snapshots, overrides, now, signedOut),
+    signedOut: config.accounts.filter((a) => signedOut.has(a.id)).map((a) => ({ id: a.id, name: a.name })),
+    settings: config.settings, now,
+  }, notified);
+  pruneNotified(notified, now);
+  if (JSON.stringify(notified) !== before) saveJson(FILE.alerts, notified);
+  for (const alert of shown) showAlert(alert);
+}
+
+function showAlert(alert: Alert) {
+  const toast = new Notification({
+    title: alert.title, body: alert.body, icon: join(HERE, '..', 'assets', 'icon.ico'),
+    actions: alert.key ? [{ type: 'button', text: 'Open chat' }, { type: 'button', text: 'Snooze 1 hour' }] : [],
+  });
+  toasts.add(toast);
+  const done = () => toasts.delete(toast);
+  toast.on('click', () => { openFromAlert(alert); done(); });
+  toast.on('action', (details) => {
+    if (details.actionIndex === 1 && alert.accountId && alert.key) snoozeChat(alert.accountId, alert.key, 60);
+    else openFromAlert(alert);
+    done();
+  });
+  toast.on('close', done);
+  toast.show();
+  log({ event: 'alert', kind: alert.kind, account: alert.accountId });
+}
+
+/** A chat alert opens that chat in the dock; a sign-in alert opens the account's page; a summary opens the line. */
+function openFromAlert(alert: Alert) {
+  showWindow();
+  win.webContents.send('open', alert.accountId ? 'dock' : 'line', alert.accountId, alert.customer ?? '');
 }
 
 // ---- running in the background -------------------------------------------------------------------
@@ -378,25 +453,8 @@ app.whenReady().then(async () => {
     layout();
     push();
   });
-  // The owner's marks. Main looks the chat up itself: "handled" holds until a message newer than the one on
-  // record, so that time comes from the snapshot, never from the screen. The log names the account, not the chat.
-  const saveOverrides = (event: string, id: string) => {
-    pruneExpired(overrides, Date.now());
-    saveJson(FILE.overrides, overrides);
-    log({ event, account: id });
-    push();
-  };
-  ipcMain.on('mark-handled', (_e, id: string, key: string) => {
-    const chat = snapshots[id]?.chats.find((c) => c.conversationKey === key);
-    if (!chat) return;
-    markHandled(overrides, id, key, chat.lastActivity, Date.now());
-    saveOverrides('marked-handled', id);
-  });
-  ipcMain.on('snooze', (_e, id: string, key: string, minutes: number) => {
-    if (!snapshots[id]?.chats.some((c) => c.conversationKey === key)) return;
-    snooze(overrides, id, key, Date.now() + Math.min(7 * 24 * 60, Math.max(1, Number(minutes) || 60)) * 60_000, Date.now());
-    saveOverrides('snoozed', id);
-  });
+  ipcMain.on('mark-handled', (_e, id: string, key: string) => markChatHandled(id, key));
+  ipcMain.on('snooze', (_e, id: string, key: string, minutes: number) => snoozeChat(id, key, minutes));
   ipcMain.on('put-back', (_e, id: string, key: string) => {
     clear(overrides, id, key);
     saveOverrides('put-back', id);

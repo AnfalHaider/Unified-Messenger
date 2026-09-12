@@ -4,7 +4,7 @@
 // Nothing here decides anything on its own: waiting comes from snapshot, grouping from rollup, elapsed time
 // from business-hours, freshness from freshness. This file only shapes their answers for the screen.
 import type { ModuleHealth } from '../channels/index.ts';
-import { elapsedBusinessMinutes } from '../core/business-hours.ts';
+import { elapsedBusinessMinutes, isOpen } from '../core/business-hours.ts';
 import { CHANNELS, type Config } from '../core/config.ts';
 import { describeFreshness } from '../core/freshness.ts';
 import { dailyResponse, responseStats, type ResponseTimes } from '../core/response-times.ts';
@@ -48,6 +48,10 @@ export interface QueueRow {
   /** 0–100 across the meter, and where the target sits on it. */
   fill: number;
   target: number;
+  targetMinutes: number;
+  lastActivity: number;
+  /** The location is open now, so the wait is growing. */
+  open: boolean;
 }
 
 /** A waiting chat that is off the line without a reply, and why. */
@@ -124,14 +128,26 @@ export interface Context {
   modules: ModuleHealth[];
 }
 
+const judgeFor = (config: Config, overrides: Overrides, now: number): Judge =>
+  ({ now, overrides, filterClosed: config.settings.filterClosedConversations });
+
+// A signed-out account's last snapshot is history, not a live queue: its chats stay off the line and out of
+// the counts until it reads again, exactly as its figures are hidden rather than guessed.
+const liveIds = (config: Config, signedOut: Set<string>) =>
+  readableAccounts(config).map((a) => a.id).filter((id) => !signedOut.has(id));
+
+/** Everyone waiting now, longest first and not cut to what the screen draws: the alerts need the newest too. */
+export function waitingQueue(config: Config, snapshots: Snapshots, overrides: Overrides, now: number, signedOut: Set<string>): QueueRow[] {
+  const judge = judgeFor(config, overrides, now);
+  return liveIds(config, signedOut).flatMap((id) => queueFor(config, snapshots, judge, id, now)).sort((x, y) => y.waited - x.waited);
+}
+
 export function buildUiState(config: Config, snapshots: Snapshots, times: ResponseTimes, overrides: Overrides, ctx: Context): UiState {
   const { now } = ctx;
-  const judge: Judge = { now, overrides, filterClosed: config.settings.filterClosedConversations };
+  const judge = judgeFor(config, overrides, now);
   const readable = readableAccounts(config);
   const ids = readable.map((a) => a.id);
-  // A signed-out account's last snapshot is history, not a live queue: its chats stay off the line and out of
-  // the counts until it reads again, exactly as its figures are hidden rather than guessed.
-  const live = ids.filter((id) => !ctx.signedOut.has(id));
+  const live = liveIds(config, ctx.signedOut);
   const split = awaitingSplit(snapshots, live, judge, config.settings.backlogAfterDays);
   const stats = responseStats(times, ids, config.settings.slaMinutes, { now });
   const freshness = describeFreshness(lastCaptured(snapshots), now);
@@ -145,8 +161,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     { groupBy: 'location', slaMinutes: config.settings.slaMinutes, locations: locationRules(config) },
   );
 
-  const queue = live.flatMap((id) => queueFor(config, snapshots, judge, id, now));
-  queue.sort((x, y) => y.waited - x.waited);
+  const queue = waitingQueue(config, snapshots, overrides, now, ctx.signedOut);
   const asideRows = setAside(snapshots, live, judge);
 
   const pastTarget = queue.filter((q) => q.tone === 'late').length;
@@ -250,6 +265,9 @@ function queueFor(config: Config, snapshots: Snapshots, judge: Judge, accountId:
       tone: (remaining < 0 ? 'late' : remaining <= DUE_SOON_MINUTES ? 'due' : 'ok') as Tone,
       fill: Math.min(100, (waited / (target * METER_SCALE)) * 100),
       target: 100 / METER_SCALE,
+      targetMinutes: target,
+      lastActivity: chat.lastActivity,
+      open: isOpen(rules?.hours, now),
     };
   });
 }
