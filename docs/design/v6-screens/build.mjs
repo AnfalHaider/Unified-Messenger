@@ -14,7 +14,7 @@ const S = (file, title, render, page, w = 1440, h = 900) => ({ file, title, rend
 
 const PAGES = [['oversight', 'Oversight'], ['start', 'Start and sign-in'], ['settings', 'Settings'], ['owner', 'Owner console'], ['states', 'Dialogs and states'], ['system', 'System']];
 const SCREENS = [
-  S('Main', 'Command Center', A.Main, 'oversight'), S('AccountLive', 'Account · live page', () => A.AccountLive(false), 'oversight'), S('AccountDetail', 'Account · detail', A.AccountDetail, 'oversight'),
+  S('Main', 'Command Center', A.Main, 'oversight'), S('MainDark', 'Command Center · dark', A.MainDark, 'oversight'), S('AccountLive', 'Account · live page', () => A.AccountLive(false), 'oversight'), S('AccountDetail', 'Account · detail', A.AccountDetail, 'oversight'),
   S('Reviews', 'Reviews', B.Reviews, 'oversight'), S('Analytics', 'Analytics', B.Analytics, 'oversight'), S('Reports', 'Reports', B.Reports, 'oversight'),
   S('Assistant', 'Assistant panel', B.Assistant, 'oversight'), S('Notifications', 'Notifications panel', B.Notifications, 'oversight'), S('CommandPalette', 'Command palette', B.CommandPalette, 'oversight'),
   S('SignIn', 'Sign in', D.SignIn, 'start'), S('SignInBrowser', 'Finish sign-in in browser', D.SignInBrowser, 'start'), S('CreateWorkspace', 'Join or create workspace', D.CreateWorkspace, 'start'),

@@ -1,4 +1,4 @@
-import { band, chip, clock, fig, ic, meter, shell, trend } from './lib.mjs';
+import { band, chip, clock, dayBars, fig, ic, meter, shell } from './lib.mjs';
 
 // The meter runs to 45 minutes, with the reply target marked at 15. A bar past the tick is a customer the
 // business has already let down, and you can see that without reading a single number.
@@ -32,8 +32,8 @@ export const boardRow = ([n, a, l, w, m, k, s], i = 0) => `<div class="brow ${k 
 const locationRow = (name, waiting, ontime, k) => `<div class="row" style="padding:12px 14px;border-bottom:1px solid var(--line);align-items:flex-start">
   <div class="col" style="gap:6px;flex:1">
     <div class="row"><span class="h3">${name}</span><span style="margin-left:auto;font-size:12px;color:${waiting ? 'var(--ink)' : 'var(--ink-3)'}">${waiting ? `${waiting} waiting` : 'nobody waiting'}</span></div>
-    ${meter(parseInt(ontime, 10), k)}
-    <span style="font-size:11.5px;color:${k === 'late' ? 'var(--late)' : k === 'due' ? 'var(--due)' : 'var(--ontime)'};font-weight:600">${ontime} answered on time</span>
+    ${meter(parseInt(ontime, 10), k, 90)}
+    <span style="font-size:11.5px;color:${k === 'late' ? 'var(--late)' : k === 'due' ? 'var(--due)' : 'var(--ok)'};font-weight:600">${ontime} answered on time</span>
   </div></div>`;
 
 export const commandCenterContent = (opts = {}) => `
@@ -79,6 +79,9 @@ ${band(
 
 export const Main = () => shell({ active: 'center', content: commandCenterContent() });
 
+// The same screen on the dark board. The rail does not change between themes; only the board does.
+export const MainDark = () => shell({ active: 'center', content: commandCenterContent(), theme: 'dark' });
+
 const fakeWhatsApp = (qr) => `<div style="flex:1;border:1px solid var(--line);border-radius:6px;overflow:hidden;display:grid;grid-template-columns:${qr ? '1fr' : '340px 1fr'};background:#fff;min-height:0">
 ${qr ? `<div style="display:grid;place-items:center;background:#F7F8FA"><div class="row" style="gap:48px;align-items:center">
   <div class="col" style="gap:14px;max-width:380px"><span style="font-size:21px;font-weight:600">Link this account</span>
@@ -113,7 +116,7 @@ export const AccountLive = (qr = false) => shell({
 
 export const AccountDetail = () => shell({
   active: '', acct: 'WhatsApp · Front deskDHA Phase 2',
-  content: `<div class="row"><div style="width:36px;height:36px;border-radius:6px;background:var(--ontime-w);display:grid;place-items:center;color:var(--ontime)">${ic('chat', 19)}</div>
+  content: `<div class="row"><div style="width:36px;height:36px;border-radius:6px;background:var(--ok-w);display:grid;place-items:center;color:var(--ok)">${ic('chat', 19)}</div>
   <div class="col" style="gap:0"><h1 class="h1" style="font-size:19px">WhatsApp · Front desk</h1><span class="sub" style="font-size:12.5px">DHA Phase 2 · linked on this PC · read every 30 seconds</span></div>
   <div class="row" style="margin-left:auto"><span class="btn">${ic('out', 14)}Open live page</span><span class="btn">${ic('edit', 14)}Edit</span></div></div>
   <div class="seg" style="align-self:flex-start"><span class="on">Overview</span><span>Waiting</span><span>Reply times</span><span>Health</span></div>
@@ -125,14 +128,11 @@ export const AccountDetail = () => shell({
   )}
   <div style="display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:22px;flex:1;min-height:0">
     <div class="col" style="gap:10px"><div class="row"><h2 class="h2">First reply, last 7 days</h2><span class="sub" style="margin-left:auto;font-size:12px">median minutes · target 15</span></div>
-    <svg viewBox="0 0 640 230" width="100%" height="230">
-    <line x1="34" y1="70" x2="636" y2="70" stroke="#BE3227" stroke-dasharray="3 4"/><text x="30" y="74" text-anchor="end" font-size="11" fill="#6C7488" font-family="IBM Plex Mono">15</text>
-    ${[12, 10, 11, 9, 18, 10, 9].map((v, i) => `<rect x="${58 + i * 84}" y="${200 - v * 8.7}" width="42" height="${v * 8.7}" fill="${v > 15 ? '#BE3227' : '#2E3191'}"/><text x="${79 + i * 84}" y="${192 - v * 8.7}" text-anchor="middle" font-size="11.5" fill="#141726" font-family="IBM Plex Mono" font-weight="600">${v}</text><text x="${79 + i * 84}" y="220" text-anchor="middle" font-size="11" fill="#6C7488">${['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'][i]}</text>`).join('')}
-    <line x1="34" y1="200" x2="636" y2="200" stroke="#CCD2E0"/></svg>
+    ${dayBars({ data: [12, 10, 11, 9, 18, 10, 9], labels: ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'], target: 15, hover: 4 })}
     <span class="sub" style="font-size:12px">Monday is the one day this account missed the target, when bookings doubled at midday.</span></div>
     <div class="col" style="gap:10px"><h2 class="h2">Health</h2>
     <div class="sheet" style="overflow:hidden">
     ${[['check', 'ok', 'Reader working', 'WhatsApp module · last read 20 s ago'], ['check', 'ok', 'Login saved on this PC', 'Survives restarts and sleep'], ['check', 'ok', 'Message previews', '96% of waiting chats'], ['info', 'neu', 'Awake', 'Every account stays awake']].map(([i, k, t, s]) =>
-      `<div class="row" style="align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--line)"><span style="color:${k === 'neu' ? 'var(--ink-3)' : 'var(--ontime)'}">${ic(i, 15)}</span><div class="col" style="gap:1px"><span style="font-weight:600;font-size:12.5px">${t}</span><span class="sub" style="font-size:11.5px">${s}</span></div></div>`).join('')}
+      `<div class="row" style="align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--line)"><span style="color:${k === 'neu' ? 'var(--ink-3)' : 'var(--ok)'}">${ic(i, 15)}</span><div class="col" style="gap:1px"><span style="font-weight:600;font-size:12.5px">${t}</span><span class="sub" style="font-size:11.5px">${s}</span></div></div>`).join('')}
     </div></div></div>`,
 });

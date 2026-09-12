@@ -13,7 +13,7 @@ const group = (title, inner, note = '') => `<div class="col" style="gap:8px">
 const settingsShell = (key, title, sub, inner) => shell({ active: 'settings', content: `
 <div class="col" style="gap:3px"><h1 class="h1">Settings</h1><span class="sub" style="font-size:12.5px">Anything marked ${chip('info', 'Workspace', 'building')} follows every PC in Glow Salons. The rest stays on this one.</span></div>
 <div style="display:grid;grid-template-columns:206px minmax(0,1fr);gap:26px;flex:1;min-height:0">
-  <div class="col" style="gap:1px">${SECTIONS.map(([k, i, t]) => `<div class="row" style="height:30px;padding:0 10px;border-radius:4px;gap:10px;font-weight:${k === key ? '600' : '500'};font-size:12.5px;color:${k === key ? 'var(--brand)' : 'var(--ink-2)'};background:${k === key ? 'var(--wash)' : 'transparent'}">${ic(i, 15)}<span>${t}</span></div>`).join('')}</div>
+  <div class="col" style="gap:1px">${SECTIONS.map(([k, i, t]) => `<div class="row" style="height:30px;padding:0 10px;border-radius:4px;gap:10px;font-weight:${k === key ? '600' : '500'};font-size:12.5px;color:${k === key ? 'var(--brand-ink)' : 'var(--ink-2)'};background:${k === key ? 'var(--wash)' : 'transparent'}">${ic(i, 15)}<span>${t}</span></div>`).join('')}</div>
   <div class="col" style="gap:16px;min-width:0;max-width:840px"><div class="col" style="gap:2px"><h2 class="h2" style="font-size:17px">${title}</h2>${sub ? `<span class="sub" style="font-size:12.5px">${sub}</span>` : ''}</div>${inner}</div>
 </div>` });
 
@@ -73,22 +73,22 @@ ${group('How', setting('Windows notifications', '', '<span class="toggle on"></s
   + setting('Morning digest', 'A short summary when you open the app each day', '<span class="toggle on"></span>'))}`);
 
 export const SettingsAppearance = () => settingsShell('appearance', 'Appearance', 'Stays on this PC.', `
-${group('Theme', setting('Theme', '', '<div class="seg"><span>Light</span><span>Dark</span><span class="on">Match Windows</span></div>')
+${group('Theme', setting('Theme', 'Also in the title bar, so you can flip it without coming here', '<div class="seg"><span>Light</span><span>Dark</span><span class="on">Match Windows</span></div>')
   + setting('High contrast', 'Follows the Windows setting on its own', chip('neu', 'Automatic')))}
 ${group('Layout', setting('Density', '', '<div class="seg"><span class="on">Comfortable</span><span>Compact</span></div>')
   + setting('Text size', '', '<div class="seg"><span>Smaller</span><span class="on">Default</span><span>Larger</span></div>')
   + setting('Show message previews in the waiting list', 'Turn this off if other people can see your screen', '<span class="toggle on"></span>'))}
-<div class="row" style="gap:14px">${['Light', 'Dark'].map((t, i) => `<div class="sheet" style="flex:1;padding:11px;${i === 0 ? 'outline:2px solid var(--brand);outline-offset:-1px' : ''}">
-  <div style="height:112px;border-radius:4px;background:${i ? '#101322' : '#F2F4F8'};display:grid;grid-template-columns:52px 1fr;gap:5px;padding:5px">
-    <div style="background:${i ? '#191D33' : '#101322'};border-radius:3px"></div>
-    <div style="display:grid;grid-template-rows:18px 1fr;gap:5px"><div style="background:${i ? '#232842' : '#fff'};border-radius:3px"></div><div style="background:${i ? '#191D33' : '#fff'};border-radius:3px"></div></div></div>
+<div class="row" style="gap:14px">${['Light', 'Dark'].map((t, i) => `<div class="sheet" style="flex:1;padding:11px;${i === 0 ? 'outline:2px solid var(--brand-ink);outline-offset:-1px' : ''}">
+  <div style="height:112px;border-radius:4px;background:${i ? '#0C1018' : '#F2F4F8'};display:grid;grid-template-columns:52px 1fr;gap:5px;padding:5px">
+    <div style="background:${i ? '#0C1018' : '#0C1018'};border-radius:3px"></div>
+    <div style="display:grid;grid-template-rows:18px 1fr;gap:5px"><div style="background:${i ? '#1D2334' : '#fff'};border-radius:3px"></div><div style="background:${i ? '#151926' : '#fff'};border-radius:3px"></div></div></div>
   <div style="margin-top:8px;font-weight:600;font-size:12.5px">${t}</div></div>`).join('')}</div>`);
 
 export const SettingsPrivacy = () => settingsShell('privacy', 'Data & privacy', 'Exactly what leaves this PC, and what never does.', `
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
-  <div class="sheet" style="padding:15px 16px;display:flex;flex-direction:column;gap:9px"><div class="row">${ic('cloud', 17, 'var(--brand)')}<h3 class="h3">Kept in your workspace</h3></div><span class="sub" style="font-size:12px">So it follows you to a new PC.</span>
+  <div class="sheet" style="padding:15px 16px;display:flex;flex-direction:column;gap:9px"><div class="row">${ic('cloud', 17, 'var(--brand-ink)')}<h3 class="h3">Kept in your workspace</h3></div><span class="sub" style="font-size:12px">So it follows you to a new PC.</span>
   <ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px;color:var(--ink-2);font-size:12.5px"><li>Account names and channels</li><li>Locations and opening hours</li><li>Shared settings</li><li>Who is a member</li></ul></div>
-  <div class="sheet" style="padding:15px 16px;display:flex;flex-direction:column;gap:9px;background:var(--ontime-w);border-color:transparent"><div class="row">${ic('shield', 17, 'var(--ontime)')}<h3 class="h3">Never leaves this PC</h3></div><span class="sub" style="font-size:12px;color:var(--ink-2)">Not even to the workspace.</span>
+  <div class="sheet" style="padding:15px 16px;display:flex;flex-direction:column;gap:9px;background:var(--ok-w);border-color:transparent"><div class="row">${ic('shield', 17, 'var(--ok)')}<h3 class="h3">Never leaves this PC</h3></div><span class="sub" style="font-size:12px;color:var(--ink-2)">Not even to the workspace.</span>
   <ul style="margin:0;padding-left:17px;display:flex;flex-direction:column;gap:5px;color:var(--ink-2);font-size:12.5px"><li>Messages and previews</li><li>Customer names and numbers</li><li>Waiting times, reports and history</li><li>Assistant chats</li><li>WhatsApp, Instagram and Google logins</li></ul></div>
 </div>
 ${group('On this PC', setting('Keep history for', '', '<div class="input" style="width:150px">12 months' + ic('down', 13) + '</div>')

@@ -5,7 +5,7 @@ import { band, chip, fig, ic, meter, shell, titleBar } from './lib.mjs';
 const bare = (inner, tb = { minimal: true }) =>
   `<div class="app">${titleBar(tb)}<div style="display:grid;place-items:center;min-height:0;background:var(--shell);padding:40px">${inner}</div></div>`;
 
-const googleBtn = `<span class="btn lg" style="gap:10px;width:300px;background:#fff">${ic('google', 17, 'var(--brand)', 1.6)}Continue with Google</span>`;
+const googleBtn = `<span class="btn lg" style="gap:10px;width:300px;background:#fff">${ic('google', 17, 'var(--brand-ink)', 1.6)}Continue with Google</span>`;
 
 export const SignIn = () => bare(`<div style="display:grid;grid-template-columns:500px 380px;gap:72px;align-items:center">
   <div class="col" style="gap:20px">
@@ -27,7 +27,7 @@ export const SignIn = () => bare(`<div style="display:grid;grid-template-columns
   </div></div>`);
 
 export const SignInBrowser = () => bare(`<div class="sheet" style="width:460px;padding:34px;display:flex;flex-direction:column;gap:13px;align-items:center;text-align:center">
-  <div style="width:52px;height:52px;border-radius:26px;background:var(--wash);display:grid;place-items:center;color:var(--brand)">${ic('out', 22)}</div>
+  <div style="width:52px;height:52px;border-radius:26px;background:var(--wash);display:grid;place-items:center;color:var(--brand-ink)">${ic('out', 22)}</div>
   <h2 class="h2" style="font-size:17px">Finish signing in in your browser</h2>
   <span class="sub" style="font-size:12.5px">Google's sign-in page is open in your default browser. Come back here when it says you're done.</span>
   <div class="row" style="gap:8px;color:var(--ink-3);font-size:12.5px">${ic('refresh', 14)}<span>Waiting for Google…</span></div>
@@ -40,11 +40,11 @@ export const CreateWorkspace = () => bare(`<div class="col" style="gap:22px;widt
     <span style="color:var(--shell-ink-2);font-size:12.5px">anfal@glowsalons.pk · <a href="#" style="color:var(--shell-ink-2)">not you?</a></span></div>
   <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
     <div class="sheet" style="padding:16px;display:flex;flex-direction:column;gap:12px">
-      <div class="row">${ic('mail', 17, 'var(--brand)')}<h3 class="h3">You have been invited</h3></div>
+      <div class="row">${ic('mail', 17, 'var(--brand-ink)')}<h3 class="h3">You have been invited</h3></div>
       <div class="row" style="padding:12px;border-radius:5px;background:var(--field)"><div class="col" style="gap:1px"><span style="font-weight:600">Glow Salons</span><span class="sub" style="font-size:12px">Invited by Nida R. · 7 accounts · 3 locations</span></div><span class="btn primary" style="margin-left:auto">Join</span></div>
       <span class="sub" style="font-size:12px">Your accounts appear straight away. You sign in to each one on this PC.</span></div>
     <div class="sheet" style="padding:16px;display:flex;flex-direction:column;gap:12px">
-      <div class="row">${ic('building', 17, 'var(--brand)')}<h3 class="h3">Start a new workspace</h3></div>
+      <div class="row">${ic('building', 17, 'var(--brand-ink)')}<h3 class="h3">Start a new workspace</h3></div>
       <div class="col" style="gap:5px"><span class="label">Business name</span><div class="input" style="color:var(--ink)">Glow Salons</div></div>
       <div class="col" style="gap:5px"><span class="label">First location</span><div class="input">for example, DHA Phase 2</div></div>
       <span class="btn" style="align-self:flex-start">Create workspace</span></div>
