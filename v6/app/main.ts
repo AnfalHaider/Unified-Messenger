@@ -109,7 +109,7 @@ function layout() {
 }
 
 function wake(a: Account) {
-  if (views.has(a.id)) return;
+  if (quitting || views.has(a.id)) return;
   const partition = `persist:${a.id}`;
   const ses = session.fromPartition(partition);
   // WhatsApp refuses a browser whose user agent carries the Electron token, and shows "update your browser".
@@ -200,7 +200,7 @@ async function readAccount(a: Account, reason: string) {
 let ticking = false;
 
 async function tick(reason: string) {
-  if (ticking) return;
+  if (ticking || quitting) return;
   ticking = true;
   try {
     await readPass(reason);
@@ -228,25 +228,41 @@ function push() {
   }));
 }
 
+/** Set once shutdown starts, so a read, a wake or a second close cannot race it. */
+let quitting = false;
+let readTimer: ReturnType<typeof setInterval> | undefined;
+
 /**
- * Closing must actually close. Measured on this machine: with the account pages open, neither closing the
- * window nor app.exit() ends the process — it keeps running with every login held open, so the next launch
- * would find its sessions locked. So the pages are closed first, the graceful path is given two seconds, and
- * then the process ends outright. Nothing is lost by that: snapshots and reply times are written on every
- * read, and settings on every change.
+ * Closing closes. A WebContentsView's page is not destroyed with its window, and while any page is still alive
+ * Electron will not finish quitting — which is why this app once had to kill its own process, and why that kill
+ * cost two WhatsApp logins: a page ended mid-write leaves its storage damaged. So the order is: stop reading,
+ * ask every session to write what it holds, close each page and wait until it is really gone, then quit the
+ * ordinary way. A page that ignores the close is logged and left to Electron after five seconds; nothing is
+ * ever killed.
  */
-function quitNow(reason: string) {
+async function quitNow(reason: string) {
+  if (quitting) return;
+  quitting = true;
+  const started = Date.now();
+  clearInterval(readTimer);
   log({ event: 'quitting', reason, awake: views.size });
-  for (const id of [...views.keys()]) sleep(id);
-  // Ending the process abruptly would otherwise risk a login that was never written to disk, and a lost
-  // login costs the owner a QR scan. Ask each account's session to write what it is holding first.
-  for (const a of config.accounts) session.fromPartition(`persist:${a.id}`).flushStorageData();
-  // ponytail: a blunt stop. app.exit() halts the app's own code but leaves the process running, so the app
-  // ends itself instead. Find the page that refuses to shut down and this can go back to being app.exit().
-  setTimeout(() => {
-    log({ event: 'quit-forced', reason });
-    process.kill(process.pid, 'SIGKILL');
-  }, 500);
+  await Promise.all(config.accounts.map((a) => new Promise<void>((done) => {
+    session.fromPartition(`persist:${a.id}`).flushStorageData();
+    done();
+  })));
+  const closing = [...views.entries()].map(([id, view]) => new Promise<string | null>((done) => {
+    const contents = view.webContents;
+    if (contents.isDestroyed()) return done(null);
+    contents.once('destroyed', () => done(null));
+    setTimeout(() => done(id), 5_000);
+    if (win && !win.isDestroyed()) win.contentView.removeChildView(view);
+    contents.close();
+  }));
+  const stuck = (await Promise.all(closing)).filter((id): id is string => id !== null);
+  views.clear();
+  log({ event: 'pages-closed', ms: Date.now() - started, stuck });
+  if (win && !win.isDestroyed()) win.destroy();
+  app.quit();
 }
 
 // ---- start ---------------------------------------------------------------------------------------
@@ -312,13 +328,13 @@ app.whenReady().then(async () => {
   });
   ipcMain.on('window-action', (_e, action: 'minimise' | 'maximise' | 'close') => {
     if (action === 'minimise') win.minimize();
-    else if (action === 'close') win.close();
+    else if (action === 'close') void quitNow('close-button');
     else if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
   ipcMain.handle('wipe', (_e, id: string) => wipe(id));
 
-  setInterval(() => void tick('schedule'), 5_000);
+  readTimer = setInterval(() => void tick('schedule'), 5_000);
   push();
 
   // Unattended check: start, give the pages time to bring their readers up, read, write one line, quit.
@@ -330,10 +346,13 @@ app.whenReady().then(async () => {
     // works right now, and a background pass a moment earlier would otherwise skip them all.
     for (const a of readableAccounts(config)) await readAccount(a, 'selftest');
     log({ event: 'selftest', accounts: config.accounts.length, awake: views.size, snapshots: Object.keys(snapshots).length, modules: [...health.values()].map((m) => ({ id: m.id, ok: m.ok, failed: m.failed })) });
-    // The open account pages outlive app.quit(), so close them and then end the process outright.
-    for (const id of [...views.keys()]) sleep(id);
-    quitNow('selftest');
+    // The same shutdown the close button uses, so the check proves closing works too.
+    void quitNow('selftest');
   }
 });
 
-app.on('window-all-closed', () => quitNow('window-closed'));
+app.on('window-all-closed', () => void quitNow('window-closed'));
+// Closing from the taskbar or with Alt+F4 goes through the same shutdown: the window waits for its pages.
+app.on('browser-window-created', (_e, w) => w.on('close', (e) => { if (!quitting) { e.preventDefault(); void quitNow('window-close'); } }));
+app.on('will-quit', () => log({ event: 'will-quit' }));
+app.on('quit', (_e, code) => log({ event: 'quit', code }));
