@@ -43,7 +43,7 @@ test('the window renders, navigates and quits', async () => {
   }
 });
 
-test('handled and snoozed chats leave the line and stay off it after a restart', async () => {
+test('handled and snoozed chats leave the line, stay off it after a restart, and come back when put back', async () => {
   // Invented customers on a page that never loads WhatsApp, so no read replaces them.
   const now = Date.now();
   const chat = (key: string, name: string, minutesAgo: number, preview: string) => ({
@@ -56,6 +56,8 @@ test('handled and snoozed chats leave the line and stay off it after a restart',
       chat('a@c.us', 'Sample Customer A', 12, 'Do you have space on Friday afternoon?'),
       chat('b@c.us', 'Sample Customer B', 8, 'What time do you open tomorrow?'),
       chat('c@c.us', 'Sample Customer C', 4, 'Can I change my booking to next week?'),
+      // Closed by the "ended the chat" rule: never on the line, listed in Set aside with no Put back.
+      chat('d@c.us', 'Sample Customer D', 20, 'ok thanks'),
     ] },
   }));
 
@@ -86,6 +88,22 @@ test('handled and snoozed chats leave the line and stay off it after a restart',
 
     ({ app, win } = await open(data));
     await expect(heading(win, 'Nobody is waiting')).toBeVisible();
+
+    // Set aside lists all four with why; only the owner's marks can be put back.
+    await win.keyboard.press('Control+k');
+    await win.getByRole('textbox', { name: 'Search' }).fill('Set aside');
+    await win.keyboard.press('Enter');
+    await expect(heading(win, 'Set aside')).toBeVisible();
+    const rowOf = (name: string) => win.getByRole('row').filter({ hasText: name });
+    await expect(rowOf('Sample Customer A')).toContainText('Handled');
+    await expect(rowOf('Sample Customer C')).toContainText('Snoozed');
+    await expect(rowOf('Sample Customer D')).toContainText('Closed by rule');
+    await expect(rowOf('Sample Customer D').getByRole('button', { name: 'Put back' })).toHaveCount(0);
+
+    await rowOf('Sample Customer C').getByRole('button', { name: 'Put back' }).click();
+    await expect(rowOf('Sample Customer C')).toHaveCount(0);
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

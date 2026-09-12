@@ -3,7 +3,7 @@
 //
 // The figures are invented and deliberately match the approved designs, not anyone's real business.
 import { defaultSettings } from '../core/config.ts';
-import type { QueueRow, UiState } from '../app/view-model.ts';
+import type { QueueRow, SetAsideRow, UiState } from '../app/view-model.ts';
 
 const row = (customer: string, preview: string, waited: number, accountName: string, location: string, channel = 'whatsapp'): QueueRow => {
   const target = 15;
@@ -16,6 +16,11 @@ const row = (customer: string, preview: string, waited: number, accountName: str
     target: 100 / 3,
   };
 };
+
+const aside = (why: SetAsideRow['why'], customer: string, accountName: string, preview: string, next: string, hoursAgo: number, backInHours?: number): SetAsideRow => ({
+  accountId: accountName, accountName, key: customer, customer, preview, why, next,
+  at: Date.now() - hoursAgo * 3_600_000, until: backInHours ? Date.now() + backInHours * 3_600_000 : null,
+});
 
 export const PREVIEW_STATE: UiState = {
   theme: 'system',
@@ -40,6 +45,12 @@ export const PREVIEW_STATE: UiState = {
     row('Ali H.', 'Photo', 3, 'WhatsApp · Front desk', 'DHA Phase 2'),
   ],
   queueTotal: 19,
+  setAside: [
+    aside('Snoozed', 'Maryam D.', 'DHA-2 WhatsApp', 'Running 10 min late, sorry', 'Returns when the snooze ends', 1, 1),
+    aside('Handled', 'Tariq S.', 'Men DHA-2 WhatsApp', 'Thank you bhai', 'Returns if they write again', 2),
+    aside('Closed by rule', 'Nida K.', 'F-11 WhatsApp', 'ok thanks', 'Last message was an acknowledgement', 3),
+  ],
+  setAsideTotal: 3,
   locations: [
     { name: 'F-11 Markaz', waiting: 12, onTimePercent: 71, tone: 'late', accounts: 2 },
     { name: 'DHA Phase 2', waiting: 7, onTimePercent: 84, tone: 'due', accounts: 3 },

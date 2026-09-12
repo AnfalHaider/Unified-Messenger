@@ -11,7 +11,8 @@ import { dailyResponse, responseStats, type ResponseTimes } from '../core/respon
 import { buildRollup } from '../core/rollup.ts';
 import { readableAccounts } from '../core/schedule.ts';
 import { DAY_MS } from '../core/days.ts';
-import { awaitingChats, awaitingSplit, lastCaptured, type Judge, type Snapshots } from '../core/snapshot.ts';
+import { explain } from '../core/reply-need.ts';
+import { awaitingChats, awaitingSplit, lastCaptured, setAside, type Judge, type Snapshots } from '../core/snapshot.ts';
 import type { Overrides } from '../core/awaiting-overrides.ts';
 
 /** How close to the target counts as "due soon". The design's warning window. */
@@ -49,6 +50,25 @@ export interface QueueRow {
   target: number;
 }
 
+/** A waiting chat that is off the line without a reply, and why. */
+export interface SetAsideRow {
+  accountId: string;
+  accountName: string;
+  key: string;
+  customer: string;
+  preview: string;
+  why: 'Handled' | 'Snoozed' | 'Closed by rule';
+  /** For a closure, the rule's reason; for a mark, what brings it back. */
+  next: string;
+  /** When a snooze ends. */
+  until: number | null;
+  /** When it left the line: the mark, or the message that closed it. */
+  at: number;
+}
+
+/** Enough rows to check the rule's work without drawing hundreds. */
+const SET_ASIDE_ROWS = 200;
+
 export interface ReaderHealth { id: string; name: string; tone: Tone; status: string; detail: string }
 
 export interface AccountDetail {
@@ -82,6 +102,8 @@ export interface UiState {
   split: { needsReply: number; backlog: number; closedAutomatically: number; unreadable: number };
   queue: QueueRow[];
   queueTotal: number;
+  setAside: SetAsideRow[];
+  setAsideTotal: number;
   locations: { name: string; waiting: number; onTimePercent: number; tone: Tone; accounts: number }[];
   accounts: { id: string; name: string; channel: string; location: string; waiting: number | null; signedOut: boolean; asleep: boolean }[];
   reads: boolean;
@@ -125,6 +147,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
 
   const queue = live.flatMap((id) => queueFor(config, snapshots, judge, id, now));
   queue.sort((x, y) => y.waited - x.waited);
+  const asideRows = setAside(snapshots, live, judge);
 
   const pastTarget = queue.filter((q) => q.tone === 'late').length;
   const dueSoon = queue.filter((q) => q.tone === 'due').length;
@@ -156,6 +179,17 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     split,
     queue: queue.slice(0, 60),
     queueTotal: queue.length,
+    setAside: asideRows.slice(0, SET_ASIDE_ROWS).map((x) => {
+      const account = config.accounts.find((a) => a.id === x.account);
+      return {
+        accountId: x.account, accountName: account?.name ?? x.account, key: x.chat.conversationKey,
+        customer: x.chat.customerName || x.chat.contactPhone || 'Unknown number', preview: x.chat.preview, at: x.at,
+        why: x.kind === 'closed' ? 'Closed by rule' : x.kind === 'handled' ? 'Handled' : 'Snoozed',
+        next: x.kind === 'closed' ? explain(x.verdict.reason) : x.kind === 'handled' ? 'Returns if they write again' : 'Returns when the snooze ends',
+        until: x.kind === 'snoozed' && x.override.kind === 'snoozed' ? x.override.until : null,
+      };
+    }),
+    setAsideTotal: asideRows.length,
     locations: rollup.entities.map((e) => ({
       name: e.name, waiting: e.awaiting, onTimePercent: e.onTimePercent, accounts: e.accountIds.length,
       tone: e.pastTarget ? 'late' : e.awaiting ? 'due' : 'ok',

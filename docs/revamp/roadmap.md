@@ -36,15 +36,15 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 
 | Real data | Sample figures (marked "Sample figures, not connected yet") |
 |---|---|
-| The line, lanes, queue, J/K/Enter | Set aside |
+| The line, lanes, queue, J/K/Enter | Morning digest |
 | Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
+| Set aside, with Put back | Opening hours, notifications, privacy sizes |
 | Needs you | |
-| Accounts grid, account figures | Morning digest |
+| Accounts grid, account figures | |
 | Channel readers list | Reader timeline, lost-login record |
 | Look and reading settings, closing, memory | Reviews |
 | Command palette (customers, accounts, screens) | Reports: all five tabs, export |
 | Theme | Assistant screen and settings |
-| | Opening hours, notifications, privacy sizes |
 | | Workspace members, owner console, sign-in, new PC, removed, suspended, upgrade, update, offline |
 
 ---
@@ -69,7 +69,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 184 tests
+npm test            # 187 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 
@@ -172,7 +172,7 @@ the dock moves on to the next customer. `QueueRow.key` carries the conversation 
 marks leave the line and survive a restart; snooze expiry is covered by the core tests and the 5-second push.
 `put-back` has no button yet: that is 4.2.
 
-**4.2 Set aside.** Build from `automaticallyClosed()` plus the overrides (who and when needs a small `movedBy` / `movedAt` addition to the override record). Replace `SET_ASIDE`. Done when Put back returns a chat to the line.
+**4.2 Set aside.** Done 2026-09-13. `core/snapshot.setAside()` lists the owner's marks (still-waiting chats only) and the rule's closures, each once, newest move first; marks now carry `at` (when made; v5 imports have none). "Moved by" says You or Automatic until Phase 6 adds members. Put back only on marks; a closure comes back by turning the rule off. Playwright checks the rows and that Put back returns a chat to the line.
 
 **4.3 About-to-breach notifications.** In `main.ts` after each read, find rows crossing `target - 2` minutes while the location is open (respect `settings.quietHours` through `inQuietHours` in `core/schedule.ts`); show an Electron `Notification` with Open chat and Snooze actions; remember which were notified. Wire Settings › Notifications to real settings in `core/config.ts`. Done when a test chat near the target produces exactly one notification.
 

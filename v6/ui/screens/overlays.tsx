@@ -37,7 +37,7 @@ function Palette({ state, nav }: ScreenProps) {
     const go = (route: Route, id: string | null = null, sub = '') => () => nav.go(route, id, sub);
     const lock = (s: LockScreen) => () => nav.lock(s);
     const screens: [IconName, string, () => void][] = [
-      ['line', 'The line', go('line')], ['sunrise', 'Morning digest', go('digest')], ['reopen', 'Set aside today', go('set-aside')],
+      ['line', 'The line', go('line')], ['sunrise', 'Morning digest', go('digest')], ['reopen', 'Set aside', go('set-aside')],
       ['grid', 'Accounts', go('accounts')], ['star', 'Reviews', go('reviews')], ['spark', 'Assistant', go('assistant')], ['key', 'Owner console', go('owner')],
       ...REPORT_TABS.map((t): [IconName, string, () => void] => ['chart', `Reports: ${t}`, go('reports', null, t)]),
       ...SETTINGS_SECTIONS.map((s): [IconName, string, () => void] => ['gear', `Settings: ${s}`, go('settings', null, s)]),

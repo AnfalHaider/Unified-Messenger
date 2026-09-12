@@ -1,19 +1,19 @@
 // The day's work: the line, a chat docked beside it, what was set aside, and the morning digest.
-// The line and the dock read the real view model. Set aside, the digest, and the customer panel's notes and
+// The line, the dock and Set aside read the real view model. The digest, and the customer panel's notes and
 // saved replies are sample figures until those features are wired.
 import { useEffect, useMemo, useState } from 'react';
 import type { QueueRow, UiState } from '../../app/view-model.ts';
 import { Spark, TheLine, toneInk } from '../charts.tsx';
 import { channelIcon, Icon } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, isPreview, Panel, plural, Sample, type ScreenProps, Wait, waitText } from '../parts.tsx';
-import { CUSTOMER, OWED, SET_ASIDE, YESTERDAY } from '../sample.ts';
+import { CUSTOMER, OWED, YESTERDAY } from '../sample.ts';
 
 const rowKey = (r: QueueRow) => `${r.accountId}:${r.key}`;
 /** Snoozing from the line or the dock is always an hour; the keys hint says so. */
 const SNOOZE_MINUTES = 60;
 
 /** Handled or snoozed: the row leaves, so the one after it (or before, at the end) takes its place. */
-function setAside(rows: QueueRow[], r: QueueRow, how: 'handled' | 'snooze'): QueueRow | undefined {
+function takeOffLine(rows: QueueRow[], r: QueueRow, how: 'handled' | 'snooze'): QueueRow | undefined {
   const i = rows.findIndex((x) => rowKey(x) === rowKey(r));
   if (how === 'handled') bridge.markHandled(r.accountId, r.key);
   else bridge.snooze(r.accountId, r.key, SNOOZE_MINUTES);
@@ -52,7 +52,7 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
   const firstReply = state.figures.find((f) => f.label === 'First reply');
 
   const act = (r: QueueRow, how: 'handled' | 'snooze') => {
-    const next = setAside(rows, r, how);
+    const next = takeOffLine(rows, r, how);
     setSelected(next ? rowKey(next) : null);
   };
 
@@ -152,7 +152,7 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
   // Setting the docked customer aside moves the dock on to the next one waiting, or back to the line when none is.
   const act = (how: 'handled' | 'snooze') => {
     if (!customer) return;
-    const next = setAside(rows, customer, how);
+    const next = takeOffLine(rows, customer, how);
     if (next) nav.go('dock', next.accountId, next.customer);
     else nav.go('line');
   };
@@ -243,28 +243,42 @@ function ReplyPanel({ name }: { name: string }) {
 
 // ---- set aside ---------------------------------------------------------------------------------------------
 
+/** A time said the way a person would: "4:12 pm" today, "Tue 4:12 pm" otherwise. */
+function when(ms: number) {
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}, ${time}`;
+}
+
 export function SetAsideScreen({ state }: ScreenProps) {
   const [filter, setFilter] = useState('All');
-  const list = useMemo(() => SET_ASIDE.filter((s) => filter === 'All' || s.why === filter), [filter]);
+  const list = useMemo(() => state.setAside.filter((s) => filter === 'All' || s.why === filter), [state.setAside, filter]);
+  const closed = state.setAside.filter((s) => s.why === 'Closed by rule').length;
   return (
     <main className="main">
-      <Headline sample title="Set aside today" actions={
+      <Headline title="Set aside" actions={
         <div className="seg" role="group" aria-label="Show">{['All', 'Snoozed', 'Handled', 'Closed by rule'].map((f) => <button key={f} aria-pressed={f === filter} onClick={() => setFilter(f)}>{f}</button>)}</div>}>
-        Every chat that left the line without a reply, with who moved it and when. Today the “ended the chat” rule closed <b>{state.split.closedAutomatically}</b> on its own.
+        Customers still waiting who are off the line without a reply, newest first. The “ended the chat” rule closed <b>{state.split.closedAutomatically}</b> on its own; turn it off in Settings to count them again.
       </Headline>
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
         <table className="table"><thead><tr><th>Why it left the line</th><th>Customer</th><th>Last message</th><th>What happens next</th><th>Moved by</th><th /></tr></thead><tbody>
           {list.map((s) => (
-            <tr key={s.who}>
+            <tr key={`${s.accountId}:${s.key}`}>
               <td><Chip tone={s.why === 'Snoozed' ? 'due' : 'neutral'} icon={s.why === 'Snoozed' ? 'snooze' : s.why === 'Handled' ? 'check' : 'more'}>{s.why}</Chip></td>
-              <td><b style={{ fontWeight: 600 }}>{s.who}</b><div className="sub">{s.account}</div></td>
-              <td className="sub">{s.message}</td><td>{s.next}</td><td className="sub">{s.by}</td>
-              <td className="r"><Btn icon="reopen" disabled title="Putting chats back is not connected yet">Put back</Btn></td>
+              <td><b style={{ fontWeight: 600 }}>{s.customer}</b><div className="sub">{s.accountName}</div></td>
+              <td className="sub">{s.preview || 'No preview could be read'}</td>
+              <td>{s.until ? `Back ${when(s.until)}` : s.next}</td>
+              <td className="sub">{s.why === 'Closed by rule' ? 'Automatic' : 'You'}, {when(s.at)}</td>
+              <td className="r">{s.why !== 'Closed by rule' && <Btn icon="reopen" onClick={() => bridge.putBack(s.accountId, s.key)}>Put back</Btn>}</td>
             </tr>
           ))}
+          {list.length === 0 && <tr><td colSpan={6} className="sub" style={{ padding: 18 }}>{filter === 'All' ? 'Nothing is set aside. Every waiting customer is on the line.' : `No chats are ${filter === 'Closed by rule' ? 'closed by the rule' : filter.toLowerCase()}.`}</td></tr>}
         </tbody></table>
       </div>
-      <p className="sub" style={{ margin: 0 }}>Marks are kept on this PC. A chat put back returns to the line at the position its real wait gives it.</p>
+      <p className="sub" style={{ margin: 0 }}>
+        {state.setAsideTotal > state.setAside.length && <>Showing the newest {state.setAside.length} of {state.setAsideTotal}; {closed} of those were closed by the rule. </>}
+        Marks are kept on this PC. A chat put back returns to the line at the position its real wait gives it.
+      </p>
     </main>
   );
 }

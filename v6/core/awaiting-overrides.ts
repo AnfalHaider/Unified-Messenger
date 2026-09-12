@@ -3,7 +3,8 @@
 // their own so the backlog can never be faked for good: "handled" lasts until a newer customer message
 // arrives, "snoozed" until a time.
 
-export type Override = { kind: 'handled'; activity: number } | { kind: 'snoozed'; until: number };
+/** `at` is when the mark was made, for the Set aside list. Marks imported from v5 have none. */
+export type Override = ({ kind: 'handled'; activity: number } | { kind: 'snoozed'; until: number }) & { at?: number };
 /** accountId → conversationKey → override. Times are epoch milliseconds. */
 export type Overrides = Record<string, Record<string, Override>>;
 
@@ -12,11 +13,13 @@ function put(o: Overrides, account: string, chat: string, value: Override) {
   (o[account.trim()] ??= {})[chat] = value;
 }
 
-export const markHandled = (o: Overrides, account: string, chat: string, lastActivity: number) =>
-  put(o, account, chat, { kind: 'handled', activity: lastActivity });
+const dated = (at?: number) => (at === undefined ? {} : { at });
 
-export const snooze = (o: Overrides, account: string, chat: string, until: number) =>
-  put(o, account, chat, { kind: 'snoozed', until });
+export const markHandled = (o: Overrides, account: string, chat: string, lastActivity: number, at?: number) =>
+  put(o, account, chat, { kind: 'handled', activity: lastActivity, ...dated(at) });
+
+export const snooze = (o: Overrides, account: string, chat: string, until: number, at?: number) =>
+  put(o, account, chat, { kind: 'snoozed', until, ...dated(at) });
 
 export function clear(o: Overrides, account: string, chat: string) {
   delete o[account.trim()]?.[chat];

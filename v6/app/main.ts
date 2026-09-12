@@ -389,12 +389,12 @@ app.whenReady().then(async () => {
   ipcMain.on('mark-handled', (_e, id: string, key: string) => {
     const chat = snapshots[id]?.chats.find((c) => c.conversationKey === key);
     if (!chat) return;
-    markHandled(overrides, id, key, chat.lastActivity);
+    markHandled(overrides, id, key, chat.lastActivity, Date.now());
     saveOverrides('marked-handled', id);
   });
   ipcMain.on('snooze', (_e, id: string, key: string, minutes: number) => {
     if (!snapshots[id]?.chats.some((c) => c.conversationKey === key)) return;
-    snooze(overrides, id, key, Date.now() + Math.min(7 * 24 * 60, Math.max(1, Number(minutes) || 60)) * 60_000);
+    snooze(overrides, id, key, Date.now() + Math.min(7 * 24 * 60, Math.max(1, Number(minutes) || 60)) * 60_000, Date.now());
     saveOverrides('snoozed', id);
   });
   ipcMain.on('put-back', (_e, id: string, key: string) => {

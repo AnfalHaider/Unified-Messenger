@@ -1,4 +1,4 @@
-// Sample figures for the screens whose feature is not connected yet: set aside, the morning digest, reviews,
+// Sample figures for the screens whose feature is not connected yet: the morning digest, reviews,
 // reports, the assistant, workspace and owner screens, and parts of Settings. Every screen that draws from here
 // shows a "Sample figures" marker, so none of this can pass for the owner's real data. As each feature is
 // wired, its screen switches to the view model and its block here is deleted.
@@ -7,15 +7,6 @@
 // numbers agree from one screen to the next.
 
 export const SAMPLE_LOCATIONS = ['F-11', 'DHA-2', 'Men DHA-2'];
-
-export const SET_ASIDE = [
-  { why: 'Snoozed', who: 'Maryam D.', account: 'DHA-2 WhatsApp', message: 'Running 10 min late, sorry', next: 'Back at 5:40 pm', by: 'Front desk, 4:40 pm' },
-  { why: 'Snoozed', who: 'Kinza W.', account: 'DHA-2 WhatsApp', message: 'Ok, and the address?', next: 'Back tomorrow 11:00 am', by: 'You, 4:12 pm' },
-  { why: 'Handled', who: 'Tariq S.', account: 'Men DHA-2 WhatsApp', message: 'Thank you bhai', next: 'Returns if they write again', by: 'You, 3:58 pm' },
-  { why: 'Handled', who: 'Laiba R.', account: 'F-11 Instagram', message: 'Reacted with a heart', next: 'Returns if they write again', by: 'Front desk, 2:31 pm' },
-  { why: 'Closed by rule', who: 'Nida K.', account: 'F-11 WhatsApp', message: 'ok thanks', next: 'Last message ended the chat', by: 'Automatic, 1:05 pm' },
-  { why: 'Closed by rule', who: 'Faraz M.', account: 'Men DHA-2 WhatsApp', message: 'Done', next: 'Last message ended the chat', by: 'Automatic, 12:48 pm' },
-] as const;
 
 export const OWED = [
   { who: 'Zainab T.', account: 'DHA-2 WhatsApp', message: 'Still waiting to hear if 3pm is confirmed', since: 'since 8:40 pm' },

@@ -40,3 +40,14 @@ test('pruning drops elapsed snoozes and keeps handled chats', () => {
   assert.deepEqual(Object.keys(o), ['inst-1']);
   assert.deepEqual(Object.keys(o['inst-1']), ['handled']);
 });
+
+test('a mark remembers when it was made, and one without a date still works', () => {
+  const o: Overrides = {};
+  markHandled(o, 'inst-1', 'dated', NOW - MIN, NOW);
+  snooze(o, 'inst-1', 'snoozed', NOW + MIN, NOW);
+  markHandled(o, 'inst-1', 'imported', NOW - MIN);
+  assert.equal(o['inst-1'].dated.at, NOW);
+  assert.equal(o['inst-1'].snoozed.at, NOW);
+  assert.equal('at' in o['inst-1'].imported, false);
+  assert.equal(isSuppressed(o, 'inst-1', 'imported', NOW - MIN, NOW), true);
+});

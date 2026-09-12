@@ -3,11 +3,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ChatEntry } from './chat-entry.ts';
-import { markHandled } from './awaiting-overrides.ts';
+import { markHandled, snooze } from './awaiting-overrides.ts';
 import { explain } from './reply-need.ts';
 import { emptyResponseTimes } from './response-times.ts';
 import {
-  automaticallyClosed, awaitingChats, awaitingSplit, digest, distrustColdScan, lastCaptured, recordRead, windowed,
+  automaticallyClosed, awaitingChats, awaitingSplit, digest, distrustColdScan, lastCaptured, recordRead, setAside, windowed,
   type Judge, type Snapshots,
 } from './snapshot.ts';
 
@@ -190,4 +190,34 @@ test('a fresh read after reload replaces the account', () => {
   const reloaded: Snapshots = JSON.parse(JSON.stringify(read([chat('a@c.us', { unread: 5, awaiting: true, preview: 'preview' })])));
   read([chat('a@c.us', { preview: 'thanks!', lastMessageFromMe: true })], reloaded);
   assert.deepEqual(awaitingChats(reloaded, 'inst', judge()), []);
+});
+
+// ---- Set aside
+
+test('set aside lists the owner\'s marks and the rule\'s closures, each once, newest move first', () => {
+  const s = read([
+    waiting('handled', 'Is Friday free?', NOW - 3 * HOUR),
+    waiting('snoozed', 'What time do you open?', NOW - 2 * HOUR),
+    waiting('closed', 'ok thanks', NOW - HOUR),
+    // Marked handled and also closed by the rule: the owner's decision is the one shown.
+    waiting('both', 'ok', NOW - 4 * HOUR),
+    waiting('open', 'Can I book?', NOW - HOUR),
+  ]);
+  const overrides = {};
+  markHandled(overrides, 'inst', 'handled', NOW - 3 * HOUR, NOW - 10 * 60_000);
+  snooze(overrides, 'inst', 'snoozed', NOW + HOUR, NOW - 5 * 60_000);
+  markHandled(overrides, 'inst', 'both', NOW - 4 * HOUR);
+  const list = setAside(s, ['inst'], judge({ overrides }));
+  assert.deepEqual(list.map((x) => [x.chat.conversationKey, x.kind]), [
+    ['snoozed', 'snoozed'], ['handled', 'handled'], ['closed', 'closed'], ['both', 'handled'],
+  ]);
+  assert.equal(list[0].at, NOW - 5 * 60_000, 'a mark is dated when it was made');
+  assert.equal(list[2].at, NOW - HOUR, 'a closure is dated by the message that closed it');
+});
+
+test('a mark whose chat was since answered is not set aside, it is done', () => {
+  const s = read([chat('answered', { preview: 'See you then', lastMessageFromMe: true, lastActivity: NOW - HOUR })]);
+  const overrides = {};
+  markHandled(overrides, 'inst', 'answered', NOW - 2 * HOUR, NOW - 2 * HOUR);
+  assert.deepEqual(setAside(s, ['inst'], judge({ overrides })), []);
 });

@@ -2,7 +2,7 @@
 // predicate every "waiting" number comes from. The headline, the list under it, the digest and the split all
 // route through isAwaiting, which is what stops a count and its own list disagreeing.
 import type { ChatEntry } from './chat-entry.ts';
-import { isSuppressed, type Overrides } from './awaiting-overrides.ts';
+import { isSuppressed, type Override, type Overrides } from './awaiting-overrides.ts';
 import { classify, type ReplyNeedVerdict } from './reply-need.ts';
 import { observe, type ResponseTimes } from './response-times.ts';
 
@@ -112,6 +112,23 @@ export function automaticallyClosed(snapshots: Snapshots, accounts: string[], ju
     if (!verdict.needsReply) closed.push({ account, chat, verdict });
   }
   return closed.sort((a, b) => b.chat.lastActivity - a.chat.lastActivity);
+}
+
+export type SetAside = { account: string; chat: ChatEntry; at: number } & (
+  | { kind: 'handled' | 'snoozed'; override: Override }
+  | { kind: 'closed'; verdict: ReplyNeedVerdict });
+
+/** Every waiting chat that is off the line without a reply: the owner's marks and the rule's closures, each once,
+ *  newest move first. A mark is dated when it was made; a closure by the message that closed it. */
+export function setAside(snapshots: Snapshots, accounts: string[], judge: Judge): SetAside[] {
+  const list: SetAside[] = automaticallyClosed(snapshots, accounts, judge)
+    .map(({ account, chat, verdict }) => ({ account, chat, verdict, kind: 'closed' as const, at: chat.lastActivity }));
+  for (const [account, chat] of chatsOf(snapshots, accounts)) {
+    if (!chat.awaiting || !isSuppressed(judge.overrides, account, chat.conversationKey, chat.lastActivity, judge.now)) continue;
+    const override = judge.overrides[account][chat.conversationKey];
+    list.push({ account, chat, override, kind: override.kind, at: override.at ?? chat.lastActivity });
+  }
+  return list.sort((a, b) => b.at - a.at);
 }
 
 export interface Digest { newAwaiting: number; totalAwaiting: number; accountsWithAwaiting: number; oldestActivity: number | null; hasData: boolean }
