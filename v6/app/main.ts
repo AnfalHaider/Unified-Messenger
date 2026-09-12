@@ -13,7 +13,7 @@ import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.
 import { distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
-import { buildUiState } from './view-model.ts';
+import { buildUiState, type Route } from './view-model.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -81,6 +81,7 @@ const lastUsedAt: Record<string, number> = {};
 const lastRead: Record<string, { chats: number; awaiting: number; at: number }> = {};
 /** Accounts whose last read found a sign-in screen. Their figures are hidden on screen, never guessed. */
 const signedOut = new Set<string>();
+let route: Route = 'dashboard';
 let visible: string | null = null;
 let win: BrowserWindow;
 
@@ -88,15 +89,16 @@ const account = (id: string) => config.accounts.find((a) => a.id === id);
 
 // ---- window and sessions -------------------------------------------------------------------------
 
-// Must match tokens.css: the account's own page sits exactly where the dashboard would be.
-const BAR = 38, RAIL = 228;
+// Must match tokens.css: the account's own page sits exactly under the header the screens draw.
+const BAR = 38, RAIL = 228, HEADER = 48;
 
 function layout() {
   if (!win || win.isDestroyed()) return;
   const { width, height } = win.getContentBounds();
   for (const [id, view] of views) {
-    view.setBounds({ x: RAIL, y: BAR, width: Math.max(0, width - RAIL), height: Math.max(0, height - BAR) });
-    view.setVisible(id === visible);
+    view.setBounds({ x: RAIL, y: BAR + HEADER, width: Math.max(0, width - RAIL), height: Math.max(0, height - BAR - HEADER) });
+    // Only the live-page route shows a page; the figures screen is ours to draw.
+    view.setVisible(id === visible && route === 'account');
   }
 }
 
@@ -189,7 +191,8 @@ async function tick(reason: string) {
 /** The screens draw what this sends and nothing else. */
 function push() {
   if (!win || win.isDestroyed()) return;
-  win.webContents.send('state', buildUiState(config, snapshots, times, overrides, { now: Date.now(), visible, signedOut }));
+  const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
+  win.webContents.send('state', buildUiState(config, snapshots, times, overrides, { now: Date.now(), route, visible, signedOut, asleep }));
 }
 
 // ---- start ---------------------------------------------------------------------------------------
@@ -217,16 +220,36 @@ app.whenReady().then(async () => {
   layout();
 
   ipcMain.on('ready', () => push());
-  ipcMain.on('show', (_e, id: string | null) => {
-    visible = id;
-    if (id) { lastUsedAt[id] = Date.now(); const a = account(id); if (a) wake(a); }
+  ipcMain.on('navigate', (_e, to: Route, id: string | null) => {
+    route = to;
+    visible = to === 'dashboard' || to === 'settings' ? null : id;
+    if (visible) { lastUsedAt[visible] = Date.now(); const a = account(visible); if (a) wake(a); }
     layout();
     push();
   });
   ipcMain.on('read-now', () => void tick('button'));
+  ipcMain.on('reload-account', (_e, id: string) => {
+    views.get(id)?.webContents.reload();
+    log({ event: 'reload', account: id });
+  });
+  ipcMain.on('sleep-account', (_e, id: string) => {
+    sleep(id);
+    if (visible === id) { route = 'dashboard'; visible = null; }
+    layout();
+    push();
+  });
   ipcMain.on('set-theme', (_e, theme: 'system' | 'light' | 'dark') => {
     config.settings.theme = theme;
     saveJson(FILE.config, config);
+    push();
+  });
+  ipcMain.on('set-settings', (_e, patch: Record<string, unknown>) => {
+    // Straight back through the config parser, so a value out of range is brought inside the limits here
+    // rather than reaching the rules that use it.
+    const { config: next } = parseConfig({ ...config, settings: { ...config.settings, ...patch } });
+    config.settings = next.settings;
+    saveJson(FILE.config, config);
+    log({ event: 'settings-changed', keys: Object.keys(patch) });
     push();
   });
   ipcMain.on('window-action', (_e, action: 'minimise' | 'maximise' | 'close') => {

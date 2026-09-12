@@ -7,8 +7,12 @@ contextBridge.exposeInMainWorld('um', {
   onState: (fn) => ipcRenderer.on('state', (_e, state) => fn(state)),
   /** Says the screens are mounted and want the first state. */
   ready: () => ipcRenderer.send('ready'),
-  show: (accountId) => ipcRenderer.send('show', accountId),
+  navigate: (route, accountId) => ipcRenderer.send('navigate', route, accountId ?? null),
   readNow: () => ipcRenderer.send('read-now'),
+  reloadAccount: (accountId) => ipcRenderer.send('reload-account', accountId),
+  sleepAccount: (accountId) => ipcRenderer.send('sleep-account', accountId),
+  /** A patch of settings. Main merges it, runs it back through the config parser so limits hold, and saves. */
+  setSettings: (patch) => ipcRenderer.send('set-settings', patch),
   setTheme: (theme) => ipcRenderer.send('set-theme', theme),
   windowAction: (action) => ipcRenderer.send('window-action', action),
 });

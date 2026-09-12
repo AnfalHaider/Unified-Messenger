@@ -1,42 +1,60 @@
-// The Command Center. It draws what the main process sends and decides nothing: every number here was
-// computed in core/ and shaped in app/view-model.ts, which is what keeps one answer in one place.
+// The screens. They draw what the main process sends and decide nothing: every number here was computed in
+// core/ and shaped in app/view-model.ts, which is what keeps one answer in one place.
 //
-// Only screens that work are shown. Reviews, Analytics and Reports arrive with their phases rather than
-// sitting in the rail as dead items that imply they do something.
+// Only screens with a working feature behind them exist. Reviews, Analytics, Reports, the assistant and the
+// workspace screens arrive with their phases rather than sitting in the rail implying they do something.
 import { useEffect, useState } from 'react';
-import type { QueueRow, Tone, UiState } from '../app/view-model.ts';
+import type { AccountDetail, QueueRow, Route, Tone, UiState } from '../app/view-model.ts';
+import { DayBars, Meter } from './charts.tsx';
 import { channelIcon, Icon } from './icons.tsx';
+import { Settings, type SettingsSection } from './Settings.tsx';
 
 declare global {
   interface Window {
     um: {
       onState(fn: (state: UiState) => void): void;
       ready(): void;
-      show(accountId: string | null): void;
+      navigate(route: Route, accountId?: string | null): void;
       readNow(): void;
+      reloadAccount(accountId: string): void;
+      sleepAccount(accountId: string): void;
+      setSettings(patch: Record<string, unknown>): void;
       setTheme(theme: 'system' | 'light' | 'dark'): void;
       windowAction(action: 'minimise' | 'maximise' | 'close'): void;
     };
   }
 }
 
+const isPreview = !(typeof window !== 'undefined' && window.um);
+/** Set only in preview, so the screens can still be walked in a browser while they are being built. */
+let previewNav: ((route: Route, accountId: string | null) => void) | null = null;
+let previewSettings: ((patch: Record<string, unknown>) => void) | null = null;
+
+/** Opened in a plain browser for design work there is no main process to ask, so the screens fall back to
+ *  sample data and say so. In the app this is always the real bridge. */
+const bridge: Window['um'] = !isPreview ? window.um : {
+  onState() {}, ready() {},
+  navigate(route, accountId) { previewNav?.(route, accountId ?? null); },
+  readNow() {}, reloadAccount() {}, sleepAccount() {},
+  setSettings(patch) { previewSettings?.(patch); },
+  setTheme(theme) { previewSettings?.({ theme }); },
+  windowAction() {},
+};
+
 const greeting = () => {
   const hour = new Date().getHours();
   return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 };
-
-/** Opened in a plain browser for design work there is no main process to ask, so the screens fall back to
- *  sample data and say so. In the app this is always the real bridge. */
-const bridge: Window['um'] = typeof window !== 'undefined' && window.um ? window.um : {
-  onState() {}, ready() {}, show() {}, readNow() {}, setTheme() {}, windowAction() {},
-};
-const isPreview = !(typeof window !== 'undefined' && window.um);
+const toneInk = (tone: Tone) => (tone === 'neutral' ? 'var(--ink-3)' : `var(--${tone})`);
 
 export function App() {
   const [state, setState] = useState<UiState | null>(null);
+  const [section, setSection] = useState<SettingsSection>('General');
 
   useEffect(() => {
     if (!isPreview) { bridge.onState(setState); bridge.ready(); return; }
+    previewNav = (route, accountId) => setState((s) => (s ? { ...s, route, visible: route === 'dashboard' || route === 'settings' ? null : accountId ?? s.visible } : s));
+    previewSettings = (patch) => setState((s) => (s ? { ...s, settings: { ...s.settings, ...patch }, theme: (patch.theme as UiState['theme']) ?? s.theme } : s));
     void import('./preview-state.ts').then((m) => setState(m.PREVIEW_STATE));
   }, []);
 
@@ -61,10 +79,22 @@ export function App() {
       <TitleBar state={state} />
       <div className="body">
         <Rail state={state} />
-        {/* When an account is on screen its own page covers this area, so the dashboard is simply not drawn. */}
-        {state.visible === null ? <Dashboard state={state} /> : <main className="board-surface" />}
+        <Screen state={state} section={section} onSection={setSection} />
       </div>
     </div>
+  );
+}
+
+function Screen({ state, section, onSection }: { state: UiState; section: SettingsSection; onSection: (s: SettingsSection) => void }) {
+  if (state.route === 'dashboard') return <Dashboard state={state} />;
+  if (state.route === 'settings') return <Settings state={state} section={section} onSection={onSection} set={(p) => bridge.setSettings(p)} />;
+  if (!state.detail) return <main className="board-surface" />;
+  // On the live page the account's own page fills everything under the header, so nothing else is drawn.
+  return (
+    <main className="board-surface" style={state.route === 'account' ? { padding: 0, overflow: 'hidden' } : undefined}>
+      <AccountHeader detail={state.detail} route={state.route} />
+      {state.route === 'account-detail' && <AccountFigures detail={state.detail} />}
+    </main>
   );
 }
 
@@ -74,7 +104,11 @@ function TitleBar({ state }: { state?: UiState }) {
     <header className="titlebar">
       <div className="mark">U</div>
       <span className="tb-name">Unified Messenger</span>
-      {state && <span className="sub no-drag" style={{ fontSize: 12, color: state.freshness.isStale ? 'var(--due)' : 'var(--shell-ink-2)' }}>{state.freshness.text}</span>}
+      {state && (
+        <span className="sub no-drag" style={{ fontSize: 12, color: state.freshness.isStale ? 'var(--due)' : 'var(--shell-ink-2)' }}>
+          {state.freshness.text}
+        </span>
+      )}
       <div className="tb-right">
         <div className="theme-switch no-drag" role="group" aria-label="Theme">
           <button aria-pressed={theme === 'light'} aria-label="Light" onClick={() => bridge.setTheme('light')}><Icon name="sun" size={13} /></button>
@@ -99,7 +133,7 @@ function Rail({ state }: { state: UiState }) {
 
   return (
     <nav className="rail" aria-label="Accounts">
-      <button className="nav" aria-current={state.visible === null ? 'page' : undefined} onClick={() => bridge.show(null)}>
+      <button className="nav" aria-current={state.route === 'dashboard' ? 'page' : undefined} onClick={() => bridge.navigate('dashboard', null)}>
         <Icon name="grid" size={15} />
         <span>Waiting now</span>
         <span className="count mono">{state.split.needsReply}</span>
@@ -110,10 +144,10 @@ function Rail({ state }: { state: UiState }) {
         <div key={location}>
           <div className="rail-loc">{location}</div>
           {accounts.map((a) => (
-            <button key={a.id} className="nav" aria-current={state.visible === a.id ? 'page' : undefined} onClick={() => bridge.show(a.id)}>
+            <button key={a.id} className="nav" aria-current={state.visible === a.id ? 'page' : undefined} onClick={() => bridge.navigate('account', a.id)}>
               <Icon name={channelIcon(a.channel)} size={14} />
               <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
-              <span className="count mono" style={{ color: a.signedOut ? 'var(--shell-ink-2)' : a.waiting ? '#F0867C' : 'var(--shell-ink-2)', fontWeight: a.signedOut ? 500 : 600 }}>
+              <span className="count mono" style={{ color: a.signedOut || !a.waiting ? 'var(--shell-ink-2)' : '#F0867C', fontWeight: a.signedOut ? 500 : 600 }}>
                 {a.signedOut ? 'Sign in' : a.waiting === null ? '' : a.waiting}
               </span>
             </button>
@@ -123,10 +157,109 @@ function Rail({ state }: { state: UiState }) {
 
       <div className="rail-foot">
         <button className="nav" onClick={() => bridge.readNow()}><Icon name="refresh" size={15} /><span>Re-sync now</span></button>
+        <button className="nav" aria-current={state.route === 'settings' ? 'page' : undefined} onClick={() => bridge.navigate('settings', null)}>
+          <Icon name="gear" size={15} /><span>Settings</span>
+        </button>
       </div>
     </nav>
   );
 }
+
+// ---- the account screens -------------------------------------------------------------------------
+
+function AccountHeader({ detail, route }: { detail: AccountDetail; route: Route }) {
+  return (
+    <div className="account-header">
+      <Icon name={channelIcon(detail.channel)} size={18} />
+      <div className="col" style={{ gap: 0, minWidth: 0 }}>
+        <strong style={{ fontSize: 13.5 }}>{detail.name}</strong>
+        <span className="sub" style={{ fontSize: 11.5 }}>{detail.location || 'No location'}</span>
+      </div>
+      {detail.signedOut
+        ? <span className="chip neutral"><Icon name="lock" size={12} />Sign in needed</span>
+        : detail.reads
+          ? <span className={`chip ${detail.freshness.isStale ? 'due' : 'ok'}`}><Icon name="check" size={12} />{detail.freshness.text}</span>
+          : <span className="chip neutral">No figures from this channel</span>}
+      {detail.asleep && <span className="chip neutral"><Icon name="moon" size={12} />Asleep</span>}
+
+      <div className="spacer" />
+      {detail.reads && (
+        <div className="seg" role="group" aria-label="Account view">
+          <button aria-pressed={route === 'account'} onClick={() => bridge.navigate('account', detail.id)}>Live page</button>
+          <button aria-pressed={route === 'account-detail'} onClick={() => bridge.navigate('account-detail', detail.id)}>Figures</button>
+        </div>
+      )}
+      <button className="btn quiet" onClick={() => bridge.reloadAccount(detail.id)}><Icon name="refresh" size={14} />Reload page</button>
+      <button className="btn quiet" onClick={() => bridge.sleepAccount(detail.id)}><Icon name="moon" size={14} />Sleep</button>
+    </div>
+  );
+}
+
+function AccountFigures({ detail }: { detail: AccountDetail }) {
+  if (!detail.reads) {
+    return (
+      <div className="empty" style={{ padding: 24 }}>
+        <div className="col" style={{ alignItems: 'center', maxWidth: 460 }}>
+          <h2>No figures from this channel</h2>
+          <p className="sub">{detail.health[0]?.detail}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="col" style={{ gap: 16, padding: '18px 26px 26px', overflow: 'auto' }}>
+      <div className="band">
+        {detail.figures.map((f) => (
+          <div className="fig" key={f.label}>
+            <span className="label">{f.label}</span>
+            <span className="fig-value">
+              <b style={{ color: f.tone === 'neutral' ? undefined : toneInk(f.tone) }}>{f.value}</b>
+              <span className="fig-unit">{f.unit}</span>
+            </span>
+            <span className="fig-note" style={{ color: toneInk(f.tone) }}>{f.note}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 330px', gap: 22 }}>
+        <section className="col" style={{ gap: 10 }}>
+          <div className="row">
+            <h2>First reply, last 7 days</h2>
+            <span className="sub spacer" style={{ fontSize: 12 }}>median minutes · target {detail.targetMinutes}</span>
+          </div>
+          {detail.daily.some((d) => d.count)
+            ? <DayBars data={detail.daily} target={detail.targetMinutes} />
+            : <p className="sub" style={{ fontSize: 12.5 }}>No replies measured yet. Reply times are measured going forward, from what the app actually sees happen.</p>}
+
+          <div className="row" style={{ paddingTop: 6 }}><h2>Waiting here</h2><span className="sub" style={{ fontSize: 12 }}>longest first</span></div>
+          {detail.queue.length === 0
+            ? <p className="sub" style={{ fontSize: 12.5 }}>Nobody is waiting on this account.</p>
+            : detail.queue.map((row) => <QueueLine key={`${row.customer}:${row.waited}`} row={row} compact />)}
+        </section>
+
+        <section className="col" style={{ gap: 10 }}>
+          <h2>Health</h2>
+          <div className="sheet" style={{ overflow: 'hidden' }}>
+            {detail.health.map((h) => (
+              <div key={h.title} className="row" style={{ alignItems: 'flex-start', padding: '12px 14px', borderBottom: '1px solid var(--line)' }}>
+                <span style={{ color: toneInk(h.tone) }}>
+                  <Icon name={h.tone === 'ok' ? 'check' : h.tone === 'late' ? 'alert' : h.tone === 'due' ? 'clock' : 'lock'} size={15} />
+                </span>
+                <div className="col" style={{ gap: 1 }}>
+                  <span style={{ fontWeight: 600, fontSize: 12.5 }}>{h.title}</span>
+                  <span className="sub" style={{ fontSize: 11.5 }}>{h.detail}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+// ---- the dashboard -------------------------------------------------------------------------------
 
 function Dashboard({ state }: { state: UiState }) {
   if (!state.reads) {
@@ -135,7 +268,7 @@ function Dashboard({ state }: { state: UiState }) {
         <div className="empty">
           <div className="col" style={{ alignItems: 'center', maxWidth: 460 }}>
             <h1>No accounts are being read yet</h1>
-            <p className="sub">Add a WhatsApp, Instagram or Google Business account, and sign in to it here. The app reads who is waiting and never sends anything.</p>
+            <p className="sub">Add a WhatsApp, Instagram or Google Business account and sign in to it here. The app reads who is waiting and never sends anything.</p>
           </div>
         </div>
       </main>
@@ -170,10 +303,10 @@ function Dashboard({ state }: { state: UiState }) {
           <div className="fig" key={f.label}>
             <span className="label">{f.label}</span>
             <span className="fig-value">
-              <b style={{ color: f.tone === 'neutral' ? undefined : `var(--${f.tone})` }}>{f.value}</b>
+              <b style={{ color: f.tone === 'neutral' ? undefined : toneInk(f.tone) }}>{f.value}</b>
               <span className="fig-unit">{f.unit}</span>
             </span>
-            <span className="fig-note" style={{ color: f.tone === 'neutral' ? 'var(--ink-3)' : `var(--${f.tone})` }}>{f.note}</span>
+            <span className="fig-note" style={{ color: toneInk(f.tone) }}>{f.note}</span>
           </div>
         ))}
       </div>
@@ -221,9 +354,9 @@ function Queue({ state }: { state: UiState }) {
   );
 }
 
-function QueueLine({ row }: { row: QueueRow }) {
+function QueueLine({ row, compact }: { row: QueueRow; compact?: boolean }) {
   return (
-    <button className={`queue-row ${row.tone}`} onClick={() => bridge.show(row.accountId)}>
+    <button className={`queue-row ${row.tone}`} onClick={() => bridge.navigate('account', row.accountId)}>
       <span className="clock" style={{ color: toneInk(row.tone) }}>{row.waited}<small>min</small></span>
       <span className="col" style={{ gap: 5 }}>
         <Meter fill={row.fill} tone={row.tone} target={row.target} />
@@ -234,8 +367,8 @@ function QueueLine({ row }: { row: QueueRow }) {
         <span className="preview">{row.preview || 'No preview could be read'}</span>
       </span>
       <span className="col" style={{ gap: 1, fontSize: 12 }}>
-        <span>{row.accountName}</span>
-        <span className="sub" style={{ fontSize: 11.5 }}>{row.location}</span>
+        {!compact && <span>{row.accountName}</span>}
+        {!compact && <span className="sub" style={{ fontSize: 11.5 }}>{row.location}</span>}
       </span>
       <span style={{ textAlign: 'right', color: 'var(--ink-3)' }}><Icon name="right" size={15} /></span>
     </button>
@@ -262,21 +395,10 @@ function Locations({ state }: { state: UiState }) {
         <div className="col" style={{ gap: 4, padding: '12px 14px', background: 'var(--field)' }}>
           <span style={{ fontWeight: 600, fontSize: 12.5 }}>{state.split.closedAutomatically} closed by the rules</span>
           <span className="sub" style={{ fontSize: 12 }}>
-            Chats whose last message ended the conversation. {state.split.unreadable > 0 && `${state.split.unreadable} could not be read and stay counted.`}
+            Chats whose last message ended the conversation.{state.split.unreadable > 0 && ` ${state.split.unreadable} could not be read and stay counted.`}
           </span>
         </div>
       </div>
     </section>
   );
 }
-
-function Meter({ fill, tone, target }: { fill: number; tone: Tone; target: number }) {
-  return (
-    <span className="meter">
-      <i style={{ width: `${Math.min(100, fill)}%`, background: `var(--mark-${tone === 'neutral' ? 'flat' : tone})` }} />
-      <u style={{ left: `${target}%` }} />
-    </span>
-  );
-}
-
-const toneInk = (tone: Tone) => (tone === 'neutral' ? 'var(--ink-3)' : `var(--${tone})`);
