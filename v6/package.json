@@ -4,13 +4,19 @@
   "private": true,
   "description": "Unified Messenger v6: Electron + TypeScript rebuild. v5 (UnifiedMessenger/) keeps shipping until parity.",
   "type": "module",
-  "engines": { "node": ">=24.12" },
+  "engines": {
+    "node": ">=24.12"
+  },
   "scripts": {
     "test": "node --test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "start": "electron app/main.ts",
+    "smoke": "electron app/main.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.2",
+    "electron": "^44.3.0",
     "typescript": "7.0.2"
-  }
+  },
+  "main": "app/main.ts"
 }

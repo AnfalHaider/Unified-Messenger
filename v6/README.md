@@ -6,7 +6,7 @@ until v6 reaches parity. Roadmap: the "Revamp Blueprint" artifact; Phase 1 resul
 | Folder | Holds |
 |---|---|
 | `core/` | Pure logic: who is waiting, reply times, SLA, rollups. Every number the UI shows is computed here. |
-| `app/` | Electron main process: window, tray, account sessions, read scheduler, updates. |
+| `app/` | The Electron shell: one signed-in session per account, the read scheduler, the JSON stores, lost-login logging. |
 | `channels/<name>/` | One module per channel: reader, find-a-chat, health check, tests. |
 | `ui/` | React screens. |
 | `assistant/` | Local Ollama chat. Off by default. |
@@ -18,7 +18,26 @@ Folders appear when their first file does.
 npm install
 npm test          # node --test, runs *.test.ts directly (Node strips the types)
 npm run typecheck # tsc --noEmit
+npm start         # opens the window and starts reading
 ```
+
+## Running the shell
+
+`UM_SELFTEST=1 npm start` starts the app, reads once, writes a line to `app.log` and quits — the unattended
+check. Electron runs the TypeScript directly, with no build step, which is why `core/` is written to stay
+strippable (`erasableSyntaxOnly` in `tsconfig.json`). Adding a syntax that cannot be erased would quietly
+require a build.
+
+Data lives in Electron's own user-data folder. Set `UM_DATA` to put it elsewhere — an agent shell **must**,
+because it runs inside an MSIX container that silently redirects writes to a private copy, so the app and the
+shell would disagree about what is on disk.
+
+`app.log` is the file support would ask a customer to send, so it carries counts only: never a name, a number
+or message text. An empty read is never reported as a quiet account — the page is asked whether it is signed
+out, and a lost login is recorded with what the previous read saw.
+
+The window is a strip of buttons on purpose. The screens are Phase 4; this exists so v6 can read live accounts
+and show honest numbers now.
 
 ## What is in `core/` today
 
