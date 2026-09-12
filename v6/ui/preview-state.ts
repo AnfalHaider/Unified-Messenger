@@ -19,7 +19,7 @@ const row = (customer: string, preview: string, waited: number, accountName: str
 
 export const PREVIEW_STATE: UiState = {
   theme: 'system',
-  route: 'dashboard',
+  route: 'line',
   visible: null,
   meta: '3 locations · 6 accounts read · 1 needs sign-in',
   freshness: { text: 'Updated just now', isStale: false, hasData: true },

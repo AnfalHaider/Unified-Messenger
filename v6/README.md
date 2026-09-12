@@ -52,8 +52,12 @@ go back to being a plain `app.exit()`.
 or message text. An empty read is never reported as a quiet account — the page is asked whether it is signed
 out, and a lost login is recorded with what the previous read saw.
 
-The window is a strip of buttons on purpose. The screens are Phase 4; this exists so v6 can read live accounts
-and show honest numbers now.
+The screens are the complete shell from the approved Front Desk renders (`docs/design/v6-front-desk`). The
+line, the docked account page, Needs you, the accounts grid, one account's figures, the channel readers and the
+reading settings run on real data. Every other screen — set aside, the morning digest, reviews, reports, the
+assistant, workspace, owner and the full-window states — shows its final layout with sample figures from
+`ui/sample.ts`, and says so on screen, until its feature is wired. Settings › About lists the moment-only
+screens so they can be reviewed. Opening `npm run ui` in a browser draws every screen with sample data.
 
 ## What is in `core/` today
 

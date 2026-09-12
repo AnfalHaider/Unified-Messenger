@@ -19,7 +19,14 @@ const DUE_SOON_MINUTES = 5;
 const METER_SCALE = 3;
 
 export type Tone = 'ok' | 'due' | 'late' | 'neutral';
-export type Route = 'dashboard' | 'account' | 'account-detail' | 'settings';
+/** Every screen in the shell. Main only cares which ones show an account: its page is laid over 'dock'. */
+export type Route =
+  | 'line' | 'dock' | 'set-aside' | 'digest'
+  | 'accounts' | 'account-detail' | 'reader' | 'lost-login'
+  | 'reviews' | 'reports' | 'assistant' | 'settings' | 'owner';
+
+/** Screens that are about one account, so navigating to them keeps that account in view. */
+export const ACCOUNT_ROUTES: readonly Route[] = ['dock', 'account-detail', 'lost-login'];
 
 export interface Figure { label: string; value: string; unit: string; note: string; tone: Tone }
 

@@ -14,7 +14,7 @@ import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.
 import { distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
-import { buildUiState, type Route } from './view-model.ts';
+import { ACCOUNT_ROUTES, buildUiState, type Route } from './view-model.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -76,7 +76,7 @@ for (const a of config.accounts) {
   const module = moduleFor(a.channel);
   if (module && !health.has(a.channel)) health.set(a.channel, newHealth(module));
 }
-let route: Route = 'dashboard';
+let route: Route = 'line';
 let visible: string | null = null;
 let win: BrowserWindow;
 
@@ -93,16 +93,18 @@ function recordHealth(channel: string, ok: boolean, error?: string) {
 
 // ---- window and sessions -------------------------------------------------------------------------
 
-// Must match tokens.css: the account's own page sits exactly under the header the screens draw.
-const BAR = 38, RAIL = 228, HEADER = 48;
+// Must match tokens.css: the account's own page fills the dock's page slot, between the line on the left, the
+// dock bar above and the customer panel on the right.
+const BAR = 44, RAIL = 84, LINE = 400, DOCK_BAR = 57, CUSTOMER = 290;
 
 function layout() {
   if (!win || win.isDestroyed()) return;
   const { width, height } = win.getContentBounds();
   for (const [id, view] of views) {
-    view.setBounds({ x: RAIL, y: BAR + HEADER, width: Math.max(0, width - RAIL), height: Math.max(0, height - BAR - HEADER) });
+    const x = RAIL + LINE, y = BAR + DOCK_BAR;
+    view.setBounds({ x, y, width: Math.max(0, width - x - CUSTOMER), height: Math.max(0, height - y) });
     // Only the live-page route shows a page; the figures screen is ours to draw.
-    view.setVisible(id === visible && route === 'account');
+    view.setVisible(id === visible && route === 'dock');
   }
 }
 
@@ -258,7 +260,7 @@ app.whenReady().then(async () => {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1100, minHeight: 700, show: false,
     // The title bar is drawn by the app, as the designs have it.
-    frame: false, backgroundColor: nativeTheme.shouldUseDarkColors ? '#0C1018' : '#E8EBF2',
+    frame: false, backgroundColor: nativeTheme.shouldUseDarkColors ? '#121513' : '#ECEEEA',
     webPreferences: { preload: join(HERE, 'preload.cjs') },
   });
 
@@ -277,7 +279,7 @@ app.whenReady().then(async () => {
   ipcMain.on('ready', () => push());
   ipcMain.on('navigate', (_e, to: Route, id: string | null) => {
     route = to;
-    visible = to === 'dashboard' || to === 'settings' ? null : id;
+    visible = ACCOUNT_ROUTES.includes(to) ? id : null;
     if (visible) { lastUsedAt[visible] = Date.now(); const a = account(visible); if (a) wake(a); }
     layout();
     push();
@@ -289,7 +291,7 @@ app.whenReady().then(async () => {
   });
   ipcMain.on('sleep-account', (_e, id: string) => {
     sleep(id);
-    if (visible === id) { route = 'dashboard'; visible = null; }
+    if (visible === id) { route = 'line'; visible = null; }
     layout();
     push();
   });
