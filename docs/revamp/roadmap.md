@@ -223,7 +223,7 @@ Done when a removed member's second PC wipes its logins, a suspended workspace l
 **7.1 Cookie encryption.** Turn on Electron's `EnableCookieEncryption` fuse at package time (`@electron/fuses` in `scripts/dist.mjs`). Test that existing plaintext cookies still log in afterwards, on a copy of the data, before installing on the owner's PC.
 **7.2 Pack the app** into asar (currently off so Electron runs the TypeScript as-is); confirm TypeScript stripping works inside asar, or add a build step.
 **7.3 Auto-update decision (owner).** Electron's free update service needs Squirrel (Electron Forge makers), which conflicts with the current Inno Setup installer. Options: switch to Forge + Squirrel; keep Inno and check GitHub Releases from the app, downloading the new Setup; or `electron-updater` with `electron-builder`. Decide, then implement and publish through GitHub Releases (a `v*` tag needs the owner's permission).
-**7.4 Code signing** is optional and a cost decision for the owner.
+**7.4 Code signing** is a cost decision for the owner, and no longer only cosmetic: on 2026-09-13 Windows Smart App Control on the owner's PC blocked the unsigned Setup for the 4.5 build after allowing three earlier builds (lesson `v6-smart-app-control-blocks-unsigned-setup`). Unsigned builds may be blocked again at any time.
 **7.5 Upgrade from v5** for other customers: the upgrade screen exists; wire it to `first-run.ts`, and add the session import (profile copy for WhatsApp; decrypted cookies to the `value` column for the rest, see lesson `v6-electron-cookies-are-plaintext`).
 **7.6 Retire v5:** remove `UnifiedMessenger/`, `UnifiedMessenger.Tests/`, the v5 installers and `build.yml` jobs; move lessons that still apply; rewrite `AGENTS.md` for v6 (stack, commands, gotchas from the `v6-*` lessons). Remove the v5 copies of the reader scripts.
 **7.7 Release notes** and a week of clean running on a real v5 machine that upgraded.
@@ -240,7 +240,7 @@ Google Business Profile API for complete review history (needs Google approval);
 2. **The Co-Authored-By trailer** already on commits 235627d, 824eb60 and faa4e3a (and older ones from other sessions): leave them, or rewrite `main` history with a force-push.
 3. **Opening hours:** every location has hours disabled, so waits count around the clock. Enter real hours (4.4) or keep it.
 4. **Imported assistant settings:** v5's config came across with the assistant marked enabled (`llama3.2:3b`); v6 ignores it until Phase 5. Decide the default then.
-5. **Code signing** (7.4).
+5. **Code signing** (7.4). Smart App Control blocked an unsigned build on 2026-09-13; until this is decided, an install can fail with no way round it from the agent side.
 
 ## 6. Known limits today
 

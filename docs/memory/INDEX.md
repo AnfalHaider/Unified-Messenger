@@ -58,7 +58,8 @@
 | v6-line-must-show-only-live-waiting | 2026-09-13 | claude | live | The line listed a signed-out account's month-old chats as customers waiting now | queue, the line, waiting now, backlog, signed out, stale snapshot, awaitingChats, view model, huge wait |
 | v6-no-alert-check-quiet-hours-first | 2026-09-13 | claude | live | No alert on the owner's PC is expected behaviour inside the quiet hours imported from v5 | notification, toast, alert, no alert, quiet hours, alerts.json missing, AppUserModelID, setAppUserModelId, Windows toast not shown |
 | v6-screen-slice-hides-newest-waits | 2026-09-13 | claude | live | UiState.queue is cut to 60 longest waits, so anything about new waits must use waitingQueue | alerts, notifications, near target, queue, slice, UiState, waitingQueue, backlog, missing rows |
+| v6-smart-app-control-blocks-unsigned-setup | 2026-09-13 | claude | live | Smart App Control can block a freshly built unsigned Setup.exe, and Win32_Process.Create only says "8 | install-local, Setup.exe, installer did nothing, Win32_Process, ReturnValue 8, Smart App Control, Code Integrity, 3077, 3033, unsigned, code signing, no startup in app.log |
 | v6-smoke-tests-run-the-built-screens | 2026-09-13 | claude | live | The Electron smoke test draws dist-ui, so a UI edit without vite build tests the old screens | playwright, smoke, electron, _electron.launch, dist-ui, vite build, screenshot unchanged, testMatch, closeToBackground, app.close hangs |
 | v6-user-agent-product-name-breaks-whatsapp | 2026-09-13 | claude | live | A product name with a space slipped past the user-agent filter and WhatsApp stopped building its stores | user agent, setUserAgent, productName, WhatsApp no-store, update your browser, installed app reads nothing, packaged |
 
-Generated: 2026-09-13 02:36:55
+Generated: 2026-09-13 04:41:57
