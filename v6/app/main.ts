@@ -120,12 +120,17 @@ function layout() {
   }
 }
 
+/** Chrome's own user agent, without the tokens Electron and the app add to it. */
+const userAgent = (ua: string) => ua.replace(/\(KHTML, like Gecko\) .*?Chrome\//, '(KHTML, like Gecko) Chrome/').replace(/ Electron\/\S+/, '');
+
 function wake(a: Account) {
   if (quitting || views.has(a.id)) return;
   const partition = `persist:${a.id}`;
   const ses = session.fromPartition(partition);
   // WhatsApp refuses a browser whose user agent carries the Electron token, and shows "update your browser".
-  ses.setUserAgent(ses.getUserAgent().replace(/ (unified-messenger-v6|Electron)\/\S+/g, ''));
+  // Electron adds the app's name and version before "Chrome/" and its own token before "Safari/". The name can
+  // contain spaces, so everything between Chrome's "(KHTML, like Gecko)" and "Chrome/" goes, not one token.
+  ses.setUserAgent(userAgent(ses.getUserAgent()));
   const view = new WebContentsView({ webPreferences: { partition, backgroundThrottling: false, contextIsolation: true, sandbox: true } });
   const module = moduleFor(a.channel);
   if (module) {
