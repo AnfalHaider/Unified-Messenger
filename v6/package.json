@@ -10,13 +10,24 @@
   "scripts": {
     "test": "node --test",
     "typecheck": "tsc --noEmit",
-    "start": "electron app/main.ts",
-    "smoke": "electron app/main.ts"
+    "start": "vite build && electron app/main.ts",
+    "smoke": "electron app/main.ts",
+    "build:ui": "vite build",
+    "ui": "vite",
+    "dev": "electron app/main.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "electron": "^44.3.0",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vite": "^8.3.0"
   },
-  "main": "app/main.ts"
+  "main": "app/main.ts",
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  }
 }

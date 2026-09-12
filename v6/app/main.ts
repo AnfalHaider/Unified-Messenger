@@ -1,21 +1,19 @@
-// The Electron shell: windows, one signed-in session per account, and the timers. Every decision about who to
-// read, what counts as waiting and when to sleep an account lives in core/ — this file only carries it out.
-//
-// The window here is deliberately a strip of buttons. The real screens are Phase 4; this exists so v6 can read
-// live accounts and show honest numbers today.
+// The Electron shell: the window, one signed-in session per account, and the timers. Every decision about who
+// to read, what counts as waiting and when to sleep an account lives in core/ — this file only carries it out,
+// and hands the screens a finished view model so no figure is computed twice.
 import { app, BrowserWindow, ipcMain, session, WebContentsView } from 'electron';
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseConversations } from '../core/chat-entry.ts';
 import { CHANNELS, emptyConfig, parseConfig, type Account } from '../core/config.ts';
-import { describeFreshness } from '../core/freshness.ts';
 import { pruneExpired, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
 import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.ts';
-import { awaitingSplit, distrustColdScan, lastCaptured, recordRead, type Judge, type Snapshots } from '../core/snapshot.ts';
+import { distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
+import { buildUiState } from './view-model.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -81,21 +79,23 @@ const lastReadAt: Record<string, number> = {};
 const lastUsedAt: Record<string, number> = {};
 /** What the previous read of this account saw, so a lost login can say what happened just before it. */
 const lastRead: Record<string, { chats: number; awaiting: number; at: number }> = {};
+/** Accounts whose last read found a sign-in screen. Their figures are hidden on screen, never guessed. */
+const signedOut = new Set<string>();
 let visible: string | null = null;
 let win: BrowserWindow;
 
-const judge = (): Judge => ({ now: Date.now(), overrides, filterClosed: config.settings.filterClosedConversations });
 const account = (id: string) => config.accounts.find((a) => a.id === id);
 
-// ---- sessions ------------------------------------------------------------------------------------
+// ---- window and sessions -------------------------------------------------------------------------
 
-const BAR = 46;
+// Must match tokens.css: the account's own page sits exactly where the dashboard would be.
+const BAR = 38, RAIL = 228;
 
 function layout() {
-  if (!win) return;
+  if (!win || win.isDestroyed()) return;
   const { width, height } = win.getContentBounds();
   for (const [id, view] of views) {
-    view.setBounds({ x: 0, y: BAR, width, height: Math.max(0, height - BAR) });
+    view.setBounds({ x: RAIL, y: BAR, width: Math.max(0, width - RAIL), height: Math.max(0, height - BAR) });
     view.setVisible(id === visible);
   }
 }
@@ -158,6 +158,7 @@ async function readAccount(a: Account, reason: string) {
     lastReadAt[a.id] = now;
     if (entries.length) {
       recordRead(snapshots, times, a.id, entries, now);
+      signedOut.delete(a.id);
       const waiting = entries.filter((c) => c.awaiting).length;
       lastRead[a.id] = { chats: entries.length, awaiting: waiting, at: now };
       log({ event: 'read', account: a.id, reason, chats: entries.length, awaiting: waiting, skipped, awaitingInferred });
@@ -167,6 +168,7 @@ async function readAccount(a: Account, reason: string) {
     }
     // Empty is not the same as quiet. Ask the page why before believing it.
     const state = await view.webContents.executeJavaScript(SIGNED_OUT_PROBE).catch(() => ({}));
+    if (state.qr || state.login) signedOut.add(a.id); else signedOut.delete(a.id);
     log({ event: state.qr || state.login ? 'signed-out' : 'read-empty', account: a.id, reason, ...state, before: lastRead[a.id] ?? null });
   } catch (e) {
     lastReadAt[a.id] = now;
@@ -181,54 +183,64 @@ async function tick(reason: string) {
     if (a) { if (!views.has(id)) wake(a); await readAccount(a, reason); }
   }
   for (const id of accountsToSleep(config, lastUsedAt, now, visible ?? undefined)) sleep(id);
-  status();
+  push();
 }
 
-// ---- window --------------------------------------------------------------------------------------
-
-function status() {
+/** The screens draw what this sends and nothing else. */
+function push() {
   if (!win || win.isDestroyed()) return;
-  const ids = readableAccounts(config).map((a) => a.id);
-  const split = awaitingSplit(snapshots, ids, judge(), config.settings.backlogAfterDays);
-  const fresh = describeFreshness(lastCaptured(snapshots));
-  win.webContents.send('status', ids.length
-    ? `${split.needsReply} waiting · ${split.backlog} backlog · ${split.closedAutomatically} closed by the rules · ${fresh.text}`
-    : 'No accounts to read yet. Add one in config.json.');
+  win.webContents.send('state', buildUiState(config, snapshots, times, overrides, { now: Date.now(), visible, signedOut }));
 }
 
-const toolbar = () => `<!doctype html><meta charset="utf-8"><title>Unified Messenger v6</title><style>
-body{margin:0;height:${BAR}px;display:flex;align-items:center;gap:6px;padding:0 10px;background:#0C1018;color:#EAECF7;
-font:12.5px/1.4 "Segoe UI",system-ui,sans-serif}
-button{height:26px;border:0;border-radius:4px;background:#161B2B;color:#EAECF7;padding:0 10px;cursor:pointer}
-button.on{background:#4B4FD6}#status{margin-left:auto;color:#9298BE}</style>
-${config.accounts.map((a) => `<button onclick="um.show('${a.id}')">${a.name}</button>`).join('')}
-<button onclick="um.readNow()">Read now</button>
-<span id="status">Starting…</span>
-<script>um.onStatus((s) => { document.getElementById('status').textContent = s; });</script>`;
+// ---- start ---------------------------------------------------------------------------------------
 
 app.whenReady().then(async () => {
   log({ event: 'startup', electron: process.versions.electron, node: process.versions.node, importedFromV5: imported, accounts: config.accounts.length, readable: readableAccounts(config).length, droppedFromConfig: dropped, problems: problems.length });
 
   win = new BrowserWindow({
-    width: 1280, height: 860, title: 'Unified Messenger', backgroundColor: '#0C1018',
+    width: 1440, height: 900, minWidth: 1100, minHeight: 700, show: false,
+    // The title bar is drawn by the app, as the designs have it.
+    frame: false, backgroundColor: '#0C1018',
     webPreferences: { preload: join(HERE, 'preload.cjs') },
   });
-  win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(toolbar())}`);
+
+  const built = join(HERE, '..', 'dist-ui', 'index.html');
+  if (process.env.UM_DEV) await win.loadURL('http://localhost:5173');
+  else if (existsSync(built)) await win.loadFile(built);
+  else log({ event: 'no-ui', hint: 'run: npm run build:ui' });
+  win.once('ready-to-show', () => win.show());
   win.on('resize', layout);
 
   // Every account stays awake by default; the sleep setting is the exception, and never touches an account
   // whose numbers the dashboard shows.
   for (const a of config.accounts) wake(a);
-  visible = config.accounts[0]?.id ?? null;
   layout();
 
-  ipcMain.on('show', (_e, id: string) => { visible = id; lastUsedAt[id] = Date.now(); const a = account(id); if (a) wake(a); layout(); });
+  ipcMain.on('ready', () => push());
+  ipcMain.on('show', (_e, id: string | null) => {
+    visible = id;
+    if (id) { lastUsedAt[id] = Date.now(); const a = account(id); if (a) wake(a); }
+    layout();
+    push();
+  });
   ipcMain.on('read-now', () => void tick('button'));
+  ipcMain.on('set-theme', (_e, theme: 'system' | 'light' | 'dark') => {
+    config.settings.theme = theme;
+    saveJson(FILE.config, config);
+    push();
+  });
+  ipcMain.on('window-action', (_e, action: 'minimise' | 'maximise' | 'close') => {
+    if (action === 'minimise') win.minimize();
+    else if (action === 'close') win.close();
+    else if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  });
+  ipcMain.handle('wipe', (_e, id: string) => wipe(id));
 
   setInterval(() => void tick('schedule'), 5_000);
-  status();
+  push();
 
-  // Unattended check: start, read what there is, write one line, quit. Used by npm run smoke.
+  // Unattended check: start, read what there is, write one line, quit. Used by UM_SELFTEST=1 npm start.
   if (process.env.UM_SELFTEST) {
     await tick('selftest');
     log({ event: 'selftest', accounts: config.accounts.length, awake: views.size, snapshots: Object.keys(snapshots).length });
@@ -237,6 +249,3 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => app.quit());
-
-// Wipe has no UI yet: Settings owns it in Phase 4. Exported through IPC so the screens can call it then.
-ipcMain.handle('wipe', (_e, id: string) => wipe(id));

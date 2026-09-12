@@ -95,3 +95,4 @@ docs/completion-todo.md
 
 # v6 (Electron + TypeScript) dependencies
 node_modules/
+v6/dist-ui/
