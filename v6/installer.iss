@@ -59,19 +59,31 @@ begin
   Result := Code = 0;
 end;
 
-{ Asks a running copy to close, the way its close button does, and waits for it to finish writing. }
-function CloseRunningApp(): Boolean;
-var Code, Waited: Integer;
+function WaitUntilClosed(Limit: Integer): Boolean;
+var Waited: Integer;
 begin
-  Result := True;
-  if not IsRunning() then exit;
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM {#ExeName}', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Waited := 0;
-  while IsRunning() and (Waited < 30000) do begin
+  while IsRunning() and (Waited < Limit) do begin
     Sleep(500);
     Waited := Waited + 500;
   end;
   Result := not IsRunning();
+end;
+
+{ Asks a running copy to quit through its normal shutdown and waits for it to finish writing. "--quit" reaches
+  the running copy; closing its window would only hide it to the tray. taskkill without /F is the fallback for
+  a build from before --quit existed, whose window close still quit. }
+function CloseRunningApp(): Boolean;
+var Code: Integer;
+begin
+  Result := True;
+  if not IsRunning() then exit;
+  if FileExists(ExpandConstant('{app}\{#ExeName}')) then begin
+    Exec(ExpandConstant('{app}\{#ExeName}'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    if WaitUntilClosed(20000) then exit;
+  end;
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM {#ExeName}', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Result := WaitUntilClosed(30000);
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

@@ -2,7 +2,7 @@
 // to read, what counts as waiting and when to sleep an account lives in core/; how a channel is read lives in
 // channels/. This file only carries both out, and hands the screens a finished view model so no figure is
 // computed twice.
-import { app, BrowserWindow, ipcMain, nativeTheme, session, WebContentsView } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, session, Tray, WebContentsView } from 'electron';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,10 +32,11 @@ if (!app.requestSingleInstanceLock()) {
   app.exit(0);
   process.exit(0);
 }
-app.on('second-instance', () => {
-  if (!win || win.isDestroyed()) return;
-  if (win.isMinimized()) win.restore();
-  win.focus();
+// `UnifiedMessenger6.exe --quit` is how the installer, the uninstaller and scripts close a running copy: with
+// close-to-background on, a window close only hides the app, so they need a way that really quits.
+app.on('second-instance', (_e, argv) => {
+  if (argv.includes('--quit')) void quitNow('quit-requested');
+  else showWindow();
 });
 
 const FILE = {
@@ -240,9 +241,41 @@ async function readPass(reason: string) {
 function push() {
   if (!win || win.isDestroyed()) return;
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
-  win.webContents.send('state', buildUiState(config, snapshots, times, overrides, {
+  const state = buildUiState(config, snapshots, times, overrides, {
     now: Date.now(), route, visible, signedOut, asleep, modules: [...health.values()],
-  }));
+  });
+  win.webContents.send('state', state);
+  tray?.setToolTip(`Unified Messenger: ${state.split.needsReply} waiting`);
+}
+
+// ---- running in the background -------------------------------------------------------------------
+
+let tray: Tray | undefined;
+let toldAboutTray = false;
+/** Windows is signing out or shutting down: a close must really close, not hide. */
+let endingSession = false;
+
+function showWindow() {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  push();
+}
+
+/** Hides the window and keeps every account reading. Said once per run, from the tray, so it is not a mystery. */
+function hideToBackground(reason: string) {
+  win.hide();
+  log({ event: 'hidden', reason });
+  if (toldAboutTray) return;
+  toldAboutTray = true;
+  tray?.displayBalloon({ iconType: 'info', title: 'Unified Messenger is still reading', content: 'It keeps counting who is waiting. Open it or quit from this icon.' });
+}
+
+/** What every close does: hide when the owner chose background running, otherwise quit. */
+function closeWindow(reason: string) {
+  if (config.settings.closeToBackground && !endingSession) hideToBackground(reason);
+  else void quitNow(reason);
 }
 
 /** Set once shutdown starts, so a read, a wake or a second close cannot race it. */
@@ -277,6 +310,7 @@ async function quitNow(reason: string) {
   }));
   const stuck = (await Promise.all(closing)).filter((id): id is string => id !== null);
   views.clear();
+  tray?.destroy();
   log({ event: 'pages-closed', ms: Date.now() - started, stuck });
   if (win && !win.isDestroyed()) win.destroy();
   app.quit();
@@ -298,7 +332,20 @@ app.whenReady().then(async () => {
     webPreferences: { preload: join(HERE, 'preload.cjs') },
   });
   // Windows signing out or shutting down gives the app seconds, not a normal close: write the sessions first.
-  win.on('session-end', () => { for (const a of config.accounts) session.fromPartition(`persist:${a.id}`).flushStorageData(); });
+  win.on('session-end', () => {
+    endingSession = true;
+    for (const a of config.accounts) session.fromPartition(`persist:${a.id}`).flushStorageData();
+  });
+
+  tray = new Tray(join(HERE, '..', 'assets', 'icon.ico'));
+  tray.setToolTip('Unified Messenger');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Open Unified Messenger', click: showWindow },
+    { label: 'Read every account now', click: () => void tick('tray') },
+    { type: 'separator' },
+    { label: 'Quit Unified Messenger', click: () => void quitNow('tray-quit') },
+  ]));
+  tray.on('click', showWindow);
 
   const built = join(HERE, '..', 'dist-ui', 'index.html');
   if (process.env.UM_DEV) await win.loadURL('http://localhost:5173');
@@ -348,7 +395,7 @@ app.whenReady().then(async () => {
   });
   ipcMain.on('window-action', (_e, action: 'minimise' | 'maximise' | 'close') => {
     if (action === 'minimise') win.minimize();
-    else if (action === 'close') void quitNow('close-button');
+    else if (action === 'close') closeWindow('close-button');
     else if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
@@ -372,7 +419,8 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => void quitNow('window-closed'));
-// Closing from the taskbar or with Alt+F4 goes through the same shutdown: the window waits for its pages.
-app.on('browser-window-created', (_e, w) => w.on('close', (e) => { if (!quitting) { e.preventDefault(); void quitNow('window-close'); } }));
+// Closing from the taskbar or with Alt+F4 does what the close button does: hide, or quit through the shutdown
+// that waits for every page.
+app.on('browser-window-created', (_e, w) => w.on('close', (e) => { if (!quitting) { e.preventDefault(); closeWindow('window-close'); } }));
 app.on('will-quit', () => log({ event: 'will-quit' }));
 app.on('quit', (_e, code) => log({ event: 'quit', code }));

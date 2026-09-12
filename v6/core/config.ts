@@ -56,6 +56,8 @@ export interface Settings {
   sleepUnusedAccounts: boolean;
   sleepAfterMinutes: number;
   readEverySeconds: number;
+  /** Closing the window keeps the app reading from the tray. Off, closing quits. */
+  closeToBackground: boolean;
   /** The local assistant is off by default, so a low-end PC never pays for it. */
   assistant: { enabled: boolean; model: string; endpoint: string };
   theme: 'system' | 'light' | 'dark';
@@ -71,6 +73,7 @@ export const defaultSettings = (): Settings => ({
   backlogAfterDays: 7,
   filterClosedConversations: true,
   sleepUnusedAccounts: false,
+  closeToBackground: true,
   sleepAfterMinutes: 20,
   readEverySeconds: 60,
   assistant: { enabled: false, model: 'gemma3:4b', endpoint: 'http://127.0.0.1:11434/' },
@@ -171,6 +174,7 @@ function parseSettings(raw: unknown): Settings {
     backlogAfterDays: clampInt(raw.backlogAfterDays, 1, 90, d.backlogAfterDays),
     filterClosedConversations: bool(raw.filterClosedConversations, d.filterClosedConversations),
     sleepUnusedAccounts: bool(raw.sleepUnusedAccounts, d.sleepUnusedAccounts),
+    closeToBackground: bool(raw.closeToBackground, d.closeToBackground),
     sleepAfterMinutes: clampInt(raw.sleepAfterMinutes, 0, 240, d.sleepAfterMinutes),
     readEverySeconds: clampInt(raw.readEverySeconds, 15, 600, d.readEverySeconds),
     assistant: {

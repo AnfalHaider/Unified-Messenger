@@ -137,7 +137,7 @@ function TitleBar({ state, nav, scope, onScope }: { state?: UiState; nav?: Nav; 
         <div className="win">
           <button aria-label="Minimise" onClick={() => bridge.windowAction('minimise')}><Icon name="min" size={14} /></button>
           <button aria-label="Maximise" onClick={() => bridge.windowAction('maximise')}><Icon name="max" size={13} /></button>
-          <button className="close" aria-label="Close" onClick={() => bridge.windowAction('close')}><Icon name="x" size={14} /></button>
+          <button className="close" aria-label={state?.settings.closeToBackground ? 'Close, keep reading in the background' : 'Quit'} title={state?.settings.closeToBackground ? 'Close (keeps reading in the background)' : 'Quit'} onClick={() => bridge.windowAction('close')}><Icon name="x" size={14} /></button>
         </div>
       </div>
     </header>

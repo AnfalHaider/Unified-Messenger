@@ -14,6 +14,7 @@ test('a missing or unreadable file gives the defaults', () => {
 test('the defaults match the owner decisions: accounts awake, assistant off, closers filtered', () => {
   const s = defaultSettings();
   assert.equal(s.sleepUnusedAccounts, false);
+  assert.equal(s.closeToBackground, true, 'closing keeps the app reading unless the owner turns it off');
   assert.equal(s.assistant.enabled, false);
   assert.equal(s.filterClosedConversations, true);
 });

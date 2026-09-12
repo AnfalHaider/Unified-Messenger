@@ -71,6 +71,16 @@ function Look({ state }: ScreenProps) {
           </SettingRow>
         </div>
       </div>
+      <div className="sgroup"><h3>Closing the window</h3>
+        <div className="panel" style={{ padding: 0 }}>
+          <SettingRow title="When I close the window" detail={s.closeToBackground
+            ? 'The app keeps reading in the background. Open it again or quit from its icon beside the clock.'
+            : 'The app quits. Nobody is counted until you open it again.'}>
+            <Seg label="When I close the window" value={s.closeToBackground ? 'background' : 'quit'} onChange={(v) => set({ closeToBackground: v === 'background' })}
+              options={[['background', 'Keep reading in the background'], ['quit', 'Quit']] as const} />
+          </SettingRow>
+        </div>
+      </div>
       <div className="sgroup"><h3>Memory</h3>
         <div className="panel" style={{ padding: 0 }}>
           <SettingRow title="Sleep accounts I’m not using" detail="Closes idle pages and keeps their logins. An account on the line is never slept.">
