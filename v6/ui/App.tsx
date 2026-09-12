@@ -60,9 +60,16 @@ export function App() {
 
   useEffect(() => {
     if (!state) return;
-    const dark = state.theme === 'dark'
-      || (state.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    // In the app, main sets nativeTheme from the same setting, so prefers-color-scheme already carries the
+    // choice and follows Windows live on "system". The explicit branches keep the browser preview honest.
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      const dark = state.theme === 'dark' || (state.theme === 'system' && query.matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    };
+    apply();
+    query.addEventListener('change', apply);
+    return () => query.removeEventListener('change', apply);
   }, [state?.theme]);
 
   if (!state) {
@@ -111,6 +118,7 @@ function TitleBar({ state }: { state?: UiState }) {
       )}
       <div className="tb-right">
         <div className="theme-switch no-drag" role="group" aria-label="Theme">
+          <button aria-pressed={theme === 'system'} aria-label="Match Windows" title="Match Windows" onClick={() => bridge.setTheme('system')}><Icon name="monitor" size={13} /></button>
           <button aria-pressed={theme === 'light'} aria-label="Light" onClick={() => bridge.setTheme('light')}><Icon name="sun" size={13} /></button>
           <button aria-pressed={theme === 'dark'} aria-label="Dark" onClick={() => bridge.setTheme('dark')}><Icon name="moon" size={13} /></button>
         </div>
@@ -147,7 +155,7 @@ function Rail({ state }: { state: UiState }) {
             <button key={a.id} className="nav" aria-current={state.visible === a.id ? 'page' : undefined} onClick={() => bridge.navigate('account', a.id)}>
               <Icon name={channelIcon(a.channel)} size={14} />
               <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
-              <span className="count mono" style={{ color: a.signedOut || !a.waiting ? 'var(--shell-ink-2)' : '#F0867C', fontWeight: a.signedOut ? 500 : 600 }}>
+              <span className="count mono" style={{ color: a.signedOut || !a.waiting ? 'var(--shell-ink-2)' : 'var(--shell-count)', fontWeight: a.signedOut ? 500 : 600 }}>
                 {a.signedOut ? 'Sign in' : a.waiting === null ? '' : a.waiting}
               </span>
             </button>

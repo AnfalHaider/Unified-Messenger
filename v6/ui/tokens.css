@@ -7,12 +7,13 @@
  * floor, contrast. Text steps are held to WCAG contrast instead, which is why they are different values from
  * the marks and must not be swapped for them.
  *
- * The rail and title bar are the same near-black indigo in both themes; only the board flips.
+ * The whole window flips, rail and title bar included. The main process sets Electron's nativeTheme from the
+ * same setting, so the account pages, menus and scrollbars follow it too.
  */
 
 :root {
-  --shell: #0C1018; --shell-2: #161B2B; --shell-3: #222840; --shell-line: #232A40;
-  --shell-ink: #EAECF7; --shell-ink-2: #9298BE;
+  --shell: #E8EBF2; --shell-2: #DCE0EA; --shell-3: #CDD2DF; --shell-line: #D3D8E3;
+  --shell-ink: #141726; --shell-ink-2: #535A70; --shell-ink-3: #666D84; --shell-count: #A3201C;
 
   --board: #FFFFFF; --field: #F2F4F8; --line: #E4E7EF; --line-2: #CCD2E0;
   --ink: #141726; --ink-2: #495064; --ink-3: #6C7488;
@@ -33,6 +34,8 @@
 }
 
 [data-theme="dark"] {
+  --shell: #0C1018; --shell-2: #161B2B; --shell-3: #222840; --shell-line: #232A40;
+  --shell-ink: #EAECF7; --shell-ink-2: #9298BE; --shell-ink-3: #666D95; --shell-count: #F0867C;
   --board: #151926; --field: #1D2334; --line: #29304A; --line-2: #39415C;
   --ink: #EAECF7; --ink-2: #A8B0C6; --ink-3: #7C8499;
 
@@ -89,7 +92,7 @@ body {
 
 .theme-switch { display: flex; align-items: center; gap: 1px; height: 24px; padding: 2px; border-radius: 5px; background: var(--shell-2); }
 .theme-switch button { width: 26px; height: 20px; display: grid; place-items: center; border: 0; border-radius: 3px; background: transparent; color: var(--shell-ink-2); }
-.theme-switch button[aria-pressed="true"] { background: var(--shell-3); color: #fff; }
+.theme-switch button[aria-pressed="true"] { background: var(--shell-3); color: var(--shell-ink); }
 
 .win { display: flex; height: 100%; margin-left: 8px; }
 .win button { width: 44px; height: 100%; display: grid; place-items: center; border: 0; background: transparent; color: var(--shell-ink-2); }
@@ -99,9 +102,9 @@ body {
 .rail { background: var(--shell); padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 1px; min-height: 0; overflow: auto; color: var(--shell-ink); }
 .nav { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent; color: var(--shell-ink-2); font: inherit; font-weight: 500; text-align: left; width: 100%; }
 .nav:hover { background: var(--shell-2); }
-.nav[aria-current="page"] { background: var(--shell-2); color: #fff; }
+.nav[aria-current="page"] { background: var(--shell-2); color: var(--shell-ink); }
 .nav .count { margin-left: auto; font-size: 11.5px; font-weight: 600; }
-.rail-section { margin: 16px 10px 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #666D95; }
+.rail-section { margin: 16px 10px 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--shell-ink-3); }
 .rail-loc { margin: 12px 10px 4px; font-size: 11.5px; font-weight: 600; color: var(--shell-ink-2); }
 .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 1px; border-top: 1px solid var(--shell-line); padding-top: 8px; }
 

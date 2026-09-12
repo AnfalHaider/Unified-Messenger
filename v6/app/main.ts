@@ -2,7 +2,7 @@
 // to read, what counts as waiting and when to sleep an account lives in core/; how a channel is read lives in
 // channels/. This file only carries both out, and hands the screens a finished view model so no figure is
 // computed twice.
-import { app, BrowserWindow, ipcMain, session, WebContentsView } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, session, WebContentsView } from 'electron';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -250,12 +250,15 @@ function quitNow(reason: string) {
 // ---- start ---------------------------------------------------------------------------------------
 
 app.whenReady().then(async () => {
+  // One theme for everything in the window. nativeTheme drives prefers-color-scheme in every page (so WhatsApp
+  // and Instagram follow it), plus menus, scrollbars and form controls; "system" tracks Windows live.
+  nativeTheme.themeSource = config.settings.theme;
   log({ event: 'startup', electron: process.versions.electron, node: process.versions.node, importedFromV5: imported, accounts: config.accounts.length, readable: readableAccounts(config).length, droppedFromConfig: dropped, problems: problems.length });
 
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1100, minHeight: 700, show: false,
     // The title bar is drawn by the app, as the designs have it.
-    frame: false, backgroundColor: '#0C1018',
+    frame: false, backgroundColor: nativeTheme.shouldUseDarkColors ? '#0C1018' : '#E8EBF2',
     webPreferences: { preload: join(HERE, 'preload.cjs') },
   });
 
@@ -292,6 +295,7 @@ app.whenReady().then(async () => {
   });
   ipcMain.on('set-theme', (_e, theme: 'system' | 'light' | 'dark') => {
     config.settings.theme = theme;
+    nativeTheme.themeSource = theme;
     saveJson(FILE.config, config);
     push();
   });
