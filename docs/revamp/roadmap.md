@@ -246,6 +246,7 @@ Google Business Profile API for complete review history (needs Google approval);
 
 - A WhatsApp read takes the first 500 chats (`__umStartStoreScan(500)`), and Instagram the top 15 threads of Primary; older conversations are not counted.
 - Instagram previews are always empty on this route (thread metadata only).
+- Notifications: the owner's quiet hours came across from v5 as 9 pm to 11 am, so alerts only appear between 11 am and 9 pm. A toast has not yet been seen on the owner's PC (installed at 02:20, inside quiet hours): check once at 11 am that the two signed-out accounts each raise one, and that `alerts.json` appears.
 - Cookies are stored unencrypted on disk until 7.1.
 - The reader scripts exist twice (v5 tree and `v6/channels`); change the v6 copy.
 - The design renders (`docs/design/v6-front-desk`) must be served by a plain static server, not Vite.
