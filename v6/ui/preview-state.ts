@@ -82,5 +82,9 @@ export const PREVIEW_STATE: UiState = {
       row('Zara T.', 'Thanks! Also, is parking available?', 6, 'WhatsApp · Bookings', 'F-11 Markaz'),
     ],
   },
+  modules: [
+    { id: 'whatsapp', name: 'WhatsApp', tone: 'ok', status: 'Healthy', detail: '48 good reads since the app started' },
+    { id: 'instagram', name: 'Instagram', tone: 'due', status: 'Intermittent', detail: '12 good reads, 3 failed. Last problem: scan returned nothing' },
+  ],
   settings: defaultSettings(),
 };

@@ -1,11 +1,12 @@
 // The Electron shell: the window, one signed-in session per account, and the timers. Every decision about who
-// to read, what counts as waiting and when to sleep an account lives in core/ — this file only carries it out,
-// and hands the screens a finished view model so no figure is computed twice.
+// to read, what counts as waiting and when to sleep an account lives in core/; how a channel is read lives in
+// channels/. This file only carries both out, and hands the screens a finished view model so no figure is
+// computed twice.
 import { app, BrowserWindow, ipcMain, session, WebContentsView } from 'electron';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseConversations } from '../core/chat-entry.ts';
+import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
 import { CHANNELS, emptyConfig, parseConfig, type Account } from '../core/config.ts';
 import { pruneExpired, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
@@ -35,24 +36,10 @@ const FILE = {
 const log = (entry: Record<string, unknown>) =>
   appendFileSync(FILE.log, `${JSON.stringify({ t: new Date().toISOString(), ...entry })}\n`);
 
-// ponytail: the readers are still the v5 files, read from the tree. Phase 3 moves them into channels/<name>/
-// with their own tests; copying them now would fork them before that work starts.
+// ponytail: the reader scripts are still the shipped v5 files, read from the tree. channels/ owns which file
+// each module wants and what to do with the result; moving the files themselves is the end of this phase.
 const SCRIPTS = join(HERE, '..', '..', 'UnifiedMessenger', 'Assets', 'Scripts');
-const script = (f: string) => readFileSync(join(SCRIPTS, f), 'utf8');
-// The store bridge calls window.__umTruncate, which lives in adapter-core.js. Same surrogate-safe cut: a slice
-// through an emoji leaves a lone surrogate, and one conversation then vanishes from every scan.
-const TRUNCATE =
-  'window.__umTruncate = window.__umTruncate || function (v, max) { var t = String(v || ""); if (!(max > 0) || t.length <= max) return t; var e = max, c = t.charCodeAt(e - 1); if (c >= 0xd800 && c <= 0xdbff) e -= 1; return t.slice(0, e); };';
-
-const WHATSAPP = {
-  inject: () => TRUNCATE + script('whatsapp-store-bridge.js'),
-  scan: 'window.__umStartStoreScan ? (window.__umStartStoreScan(500), window.__umGetStoreScanResult()) : ""',
-};
-const READERS: Partial<Record<string, { inject: () => string; scan: string }>> = {
-  whatsapp: WHATSAPP,
-  whatsappbusiness: WHATSAPP,
-  instagram: { inject: () => script('instagram-adapter.js'), scan: 'window.__umReadInstagramThreads ? window.__umReadInstagramThreads() : ""' },
-};
+const script = (file: string) => readFileSync(join(SCRIPTS, file), 'utf8');
 
 // ---- state ---------------------------------------------------------------------------------------
 
@@ -81,11 +68,28 @@ const lastUsedAt: Record<string, number> = {};
 const lastRead: Record<string, { chats: number; awaiting: number; at: number }> = {};
 /** Accounts whose last read found a sign-in screen. Their figures are hidden on screen, never guessed. */
 const signedOut = new Set<string>();
+/** Per channel, not per account: a reader that breaks breaks for every account on that channel. */
+const health = new Map<string, ModuleHealth>();
+// Seeded from the accounts that exist, so the screen names every reader in use from the moment the app opens
+// rather than only once one has succeeded or failed.
+for (const a of config.accounts) {
+  const module = moduleFor(a.channel);
+  if (module && !health.has(a.channel)) health.set(a.channel, newHealth(module));
+}
 let route: Route = 'dashboard';
 let visible: string | null = null;
 let win: BrowserWindow;
 
 const account = (id: string) => config.accounts.find((a) => a.id === id);
+
+function recordHealth(channel: string, ok: boolean, error?: string) {
+  const module = moduleFor(channel);
+  if (!module) return;
+  const entry = health.get(channel) ?? newHealth(module);
+  if (ok) { entry.ok++; entry.lastOkAt = Date.now(); entry.lastError = null; }
+  else { entry.failed++; if (error) entry.lastError = error.slice(0, 120); }
+  health.set(channel, entry);
+}
 
 // ---- window and sessions -------------------------------------------------------------------------
 
@@ -109,11 +113,14 @@ function wake(a: Account) {
   // WhatsApp refuses a browser whose user agent carries the Electron token, and shows "update your browser".
   ses.setUserAgent(ses.getUserAgent().replace(/ (unified-messenger-v6|Electron)\/\S+/g, ''));
   const view = new WebContentsView({ webPreferences: { partition, backgroundThrottling: false, contextIsolation: true, sandbox: true } });
-  const reader = READERS[a.channel];
-  if (reader) {
+  const module = moduleFor(a.channel);
+  if (module) {
     view.webContents.on('did-finish-load', () => {
-      view.webContents.executeJavaScript(reader.inject())
-        .catch((e: Error) => log({ event: 'inject-failed', account: a.id, error: e.message.slice(0, 120) }));
+      view.webContents.executeJavaScript(module.inject(script))
+        .catch((e: Error) => {
+          recordHealth(a.channel, false, e.message);
+          log({ event: 'inject-failed', account: a.id, channel: a.channel, error: e.message.slice(0, 120) });
+        });
     });
   }
   view.webContents.loadURL(a.url || CHANNELS[a.channel].url);
@@ -142,43 +149,65 @@ async function wipe(id: string) {
 
 // ---- reading -------------------------------------------------------------------------------------
 
-/** Did the page stop being signed in? Asked only when a read comes back empty, so it costs nothing normally. */
-const SIGNED_OUT_PROBE = `({
-  qr: !!document.querySelector('canvas'),
-  login: !!document.querySelector('input[name="username"], input[type="password"]'),
-  unsupported: /works with google chrome|browser (isn.t|is not) supported/i.test(document.body ? document.body.innerText : '')
-})`;
-
 async function readAccount(a: Account, reason: string) {
-  const reader = READERS[a.channel];
+  const module = moduleFor(a.channel);
   const view = views.get(a.id);
-  if (!reader || !view) return;
+  if (!module || !view) return;
   const now = Date.now();
   try {
-    const raw = await view.webContents.executeJavaScript(reader.scan);
-    const { entries, skipped, awaitingInferred } = parseConversations(raw ? JSON.parse(raw) : null);
+    const raw = await view.webContents.executeJavaScript(module.scan);
+    // parse never throws: a page that changed shape costs this read, and the loop moves to the next account.
+    const { entries, skipped, awaitingInferred, notReady, stage } = module.parse(raw);
     lastReadAt[a.id] = now;
     if (entries.length) {
       recordRead(snapshots, times, a.id, entries, now);
       signedOut.delete(a.id);
+      recordHealth(a.channel, true);
       const waiting = entries.filter((c) => c.awaiting).length;
       lastRead[a.id] = { chats: entries.length, awaiting: waiting, at: now };
-      log({ event: 'read', account: a.id, reason, chats: entries.length, awaiting: waiting, skipped, awaitingInferred });
+      log({ event: 'read', account: a.id, channel: a.channel, reason, chats: entries.length, awaiting: waiting, skipped, awaitingInferred });
       saveJson(FILE.snapshot, snapshots);
       saveJson(FILE.times, times);
       return;
     }
-    // Empty is not the same as quiet. Ask the page why before believing it.
-    const state = await view.webContents.executeJavaScript(SIGNED_OUT_PROBE).catch(() => ({}));
-    if (state.qr || state.login) signedOut.add(a.id); else signedOut.delete(a.id);
-    log({ event: state.qr || state.login ? 'signed-out' : 'read-empty', account: a.id, reason, ...state, before: lastRead[a.id] ?? null });
+    // Empty is not the same as quiet. Ask the page why before believing it — sign-in first, because a page
+    // showing a QR code has no store to read and would otherwise look like a reader that is still starting.
+    const state = await view.webContents.executeJavaScript(module.signedOutProbe).catch(() => ({}));
+    if (state.qr || state.login) {
+      signedOut.add(a.id);
+      log({ event: 'signed-out', account: a.id, channel: a.channel, reason, ...state, stage: stage ?? null, before: lastRead[a.id] ?? null });
+      return;
+    }
+    signedOut.delete(a.id);
+    // Signed in, but the reader is still coming up. WhatsApp Web builds its stores a few seconds after the
+    // page loads, so an early read legitimately has nothing to give and must not count as a failure.
+    if (notReady) {
+      log({ event: 'reader-not-ready', account: a.id, channel: a.channel, reason, stage: stage ?? null });
+      return;
+    }
+    recordHealth(a.channel, false, skipped ? 'scan returned nothing usable' : 'scan returned nothing');
+    log({ event: 'read-empty', account: a.id, channel: a.channel, reason, ...state, skipped, stage: stage ?? null, before: lastRead[a.id] ?? null });
   } catch (e) {
     lastReadAt[a.id] = now;
-    log({ event: 'read-failed', account: a.id, reason, error: (e as Error).message.slice(0, 120), before: lastRead[a.id] ?? null });
+    recordHealth(a.channel, false, (e as Error).message);
+    log({ event: 'read-failed', account: a.id, channel: a.channel, reason, error: (e as Error).message.slice(0, 120), before: lastRead[a.id] ?? null });
   }
 }
 
+/** One pass at a time. A page that is slow to answer must not stack the next pass on top of this one. */
+let ticking = false;
+
 async function tick(reason: string) {
+  if (ticking) return;
+  ticking = true;
+  try {
+    await readPass(reason);
+  } finally {
+    ticking = false;
+  }
+}
+
+async function readPass(reason: string) {
   const now = Date.now();
   for (const id of dueForRead(config, lastReadAt, now)) {
     const a = account(id);
@@ -192,7 +221,30 @@ async function tick(reason: string) {
 function push() {
   if (!win || win.isDestroyed()) return;
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
-  win.webContents.send('state', buildUiState(config, snapshots, times, overrides, { now: Date.now(), route, visible, signedOut, asleep }));
+  win.webContents.send('state', buildUiState(config, snapshots, times, overrides, {
+    now: Date.now(), route, visible, signedOut, asleep, modules: [...health.values()],
+  }));
+}
+
+/**
+ * Closing must actually close. Measured on this machine: with the account pages open, neither closing the
+ * window nor app.exit() ends the process — it keeps running with every login held open, so the next launch
+ * would find its sessions locked. So the pages are closed first, the graceful path is given two seconds, and
+ * then the process ends outright. Nothing is lost by that: snapshots and reply times are written on every
+ * read, and settings on every change.
+ */
+function quitNow(reason: string) {
+  log({ event: 'quitting', reason, awake: views.size });
+  for (const id of [...views.keys()]) sleep(id);
+  // Ending the process abruptly would otherwise risk a login that was never written to disk, and a lost
+  // login costs the owner a QR scan. Ask each account's session to write what it is holding first.
+  for (const a of config.accounts) session.fromPartition(`persist:${a.id}`).flushStorageData();
+  // ponytail: a blunt stop. app.exit() halts the app's own code but leaves the process running, so the app
+  // ends itself instead. Find the page that refuses to shut down and this can go back to being app.exit().
+  setTimeout(() => {
+    log({ event: 'quit-forced', reason });
+    process.kill(process.pid, 'SIGKILL');
+  }, 500);
 }
 
 // ---- start ---------------------------------------------------------------------------------------
@@ -263,12 +315,19 @@ app.whenReady().then(async () => {
   setInterval(() => void tick('schedule'), 5_000);
   push();
 
-  // Unattended check: start, read what there is, write one line, quit. Used by UM_SELFTEST=1 npm start.
+  // Unattended check: start, give the pages time to bring their readers up, read, write one line, quit.
+  // Used by UM_SELFTEST=1 npm start. The wait is the point: reading the instant the window opens only ever
+  // measures how fast WhatsApp Web loads.
   if (process.env.UM_SELFTEST) {
-    await tick('selftest');
-    log({ event: 'selftest', accounts: config.accounts.length, awake: views.size, snapshots: Object.keys(snapshots).length });
-    app.quit();
+    await new Promise((done) => setTimeout(done, Number(process.env.UM_SELFTEST_WAIT ?? 30_000)));
+    // Every readable account, not only the ones the schedule says are due: the point is to prove each reader
+    // works right now, and a background pass a moment earlier would otherwise skip them all.
+    for (const a of readableAccounts(config)) await readAccount(a, 'selftest');
+    log({ event: 'selftest', accounts: config.accounts.length, awake: views.size, snapshots: Object.keys(snapshots).length, modules: [...health.values()].map((m) => ({ id: m.id, ok: m.ok, failed: m.failed })) });
+    // The open account pages outlive app.quit(), so close them and then end the process outright.
+    for (const id of [...views.keys()]) sleep(id);
+    quitNow('selftest');
   }
 });
 
-app.on('window-all-closed', () => app.quit());
+app.on('window-all-closed', () => quitNow('window-closed'));

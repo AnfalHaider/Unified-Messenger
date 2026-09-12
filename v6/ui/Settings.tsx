@@ -110,6 +110,27 @@ function General({ state, set }: { state: UiState; set: (patch: Record<string, u
 
 function Accounts({ state }: { state: UiState }) {
   return (
+    <>
+      <Group title="Channel readers" note="one per channel, not per account">
+        {state.modules.length === 0
+          ? <div className="setting"><span className="sub" style={{ fontSize: 12.5, flex: 1 }}>None of your accounts are on a channel that has a reader yet.</span></div>
+          : state.modules.map((m) => (
+            <div key={m.id} className="setting">
+              <span className="col" style={{ gap: 2, flex: 1 }}>
+                <span style={{ fontWeight: 600, fontSize: 12.5 }}>{m.name}</span>
+                <span className="sub" style={{ fontSize: 12 }}>{m.detail}</span>
+              </span>
+              <span className={`chip ${m.tone}`}>{m.status}</span>
+            </div>
+          ))}
+      </Group>
+      <AccountList state={state} />
+    </>
+  );
+}
+
+function AccountList({ state }: { state: UiState }) {
+  return (
     <Group title="Accounts and channels" note={`${state.accounts.length} in total`}>
       {state.accounts.map((a) => (
         <div key={a.id} className="setting">

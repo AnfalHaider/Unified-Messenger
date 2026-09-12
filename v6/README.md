@@ -23,8 +23,11 @@ npm start         # opens the window and starts reading
 
 ## Running the shell
 
-`UM_SELFTEST=1 npm start` starts the app, reads once, writes a line to `app.log` and quits — the unattended
-check. Electron runs the TypeScript directly, with no build step, which is why `core/` is written to stay
+`UM_SELFTEST=1 npm start` starts the app, waits for the pages to bring their readers up, reads every readable
+account, writes a verdict to `app.log` and ends — the unattended check. `UM_SELFTEST_WAIT` sets the wait in
+milliseconds (30 seconds by default); reading sooner only measures how fast WhatsApp Web loads. It exits with
+a **non-zero code on purpose**: the app ends its own process (see below), so the verdict to read is the
+`selftest` line in `app.log`, not the exit status. Electron runs the TypeScript directly, with no build step, which is why `core/` is written to stay
 strippable (`erasableSyntaxOnly` in `tsconfig.json`). Adding a syntax that cannot be erased would quietly
 require a build.
 
@@ -37,6 +40,13 @@ the chats that were on screen, the reply-time samples and watch start, and the c
 snoozed. v5's files are only read, never written, and a config already present means it is not a first run, so
 this never happens twice. `UM_V5` points at a different v5 folder, which is how it is exercised without a real
 install.
+
+**Closing the app ends its own process.** Measured on Windows with the account pages open, neither closing
+the window nor `app.exit()` terminates it — the process keeps running with every login held open, and the
+next launch would find its sessions locked. So closing writes what the sessions are holding, then ends the
+process outright. Nothing is lost by that: snapshots and reply times are written on every read, settings on
+every change. It is marked `ponytail:` in `app/main.ts` — find the page that refuses to shut down and it can
+go back to being a plain `app.exit()`.
 
 `app.log` is the file support would ask a customer to send, so it carries counts only: never a name, a number
 or message text. An empty read is never reported as a quiet account — the page is asked whether it is signed

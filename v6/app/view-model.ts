@@ -3,6 +3,7 @@
 //
 // Nothing here decides anything on its own: waiting comes from snapshot, grouping from rollup, elapsed time
 // from business-hours, freshness from freshness. This file only shapes their answers for the screen.
+import type { ModuleHealth } from '../channels/index.ts';
 import { elapsedBusinessMinutes } from '../core/business-hours.ts';
 import { CHANNELS, type Config } from '../core/config.ts';
 import { describeFreshness } from '../core/freshness.ts';
@@ -37,6 +38,8 @@ export interface QueueRow {
   fill: number;
   target: number;
 }
+
+export interface ReaderHealth { id: string; name: string; tone: Tone; status: string; detail: string }
 
 export interface AccountDetail {
   id: string;
@@ -73,6 +76,8 @@ export interface UiState {
   accounts: { id: string; name: string; channel: string; location: string; waiting: number | null; signedOut: boolean; asleep: boolean }[];
   reads: boolean;
   detail: AccountDetail | null;
+  /** One line per channel reader, so a channel that stopped working is named instead of averaged away. */
+  modules: ReaderHealth[];
   settings: Config['settings'];
 }
 
@@ -84,6 +89,7 @@ export interface Context {
   signedOut: Set<string>;
   /** Accounts with no page open right now. Their numbers are the last ones read, not live. */
   asleep: Set<string>;
+  modules: ModuleHealth[];
 }
 
 export function buildUiState(config: Config, snapshots: Snapshots, times: ResponseTimes, overrides: Overrides, ctx: Context): UiState {
@@ -112,6 +118,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
   const onTime = rollup.entities.length
     ? Math.round(rollup.entities.reduce((n, e) => n + e.onTimePercent, 0) / rollup.entities.length)
     : 100;
+  const broken = ctx.modules.filter((m) => m.lastError && m.ok === 0);
 
   return {
     theme: config.settings.theme,
@@ -119,11 +126,14 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     visible: ctx.visible,
     meta: `${config.locations.length} location${config.locations.length === 1 ? '' : 's'} · ${readable.length} account${readable.length === 1 ? '' : 's'} read${ctx.signedOut.size ? ` · ${ctx.signedOut.size} needs sign-in` : ''}`,
     freshness,
-    strip: dueSoon > 0
-      ? { tone: 'due', text: `${dueSoon} customer${dueSoon === 1 ? '' : 's'} pass${dueSoon === 1 ? 'es' : ''} the ${config.settings.slaMinutes}-minute target within ${DUE_SOON_MINUTES} minutes.` }
-      : ctx.signedOut.size
-        ? { tone: 'neutral', text: `${ctx.signedOut.size} account${ctx.signedOut.size === 1 ? '' : 's'} need signing in again. Their figures are hidden rather than guessed.` }
-        : null,
+    // A reader that has never worked is said first: it means figures are missing, not that nobody is waiting.
+    strip: broken.length
+      ? { tone: 'late', text: `The ${broken.map((m) => m.name).join(' and ')} reader stopped working. Those figures are hidden rather than guessed; the other channels are unaffected.` }
+      : dueSoon > 0
+        ? { tone: 'due', text: `${dueSoon} customer${dueSoon === 1 ? '' : 's'} pass${dueSoon === 1 ? 'es' : ''} the ${config.settings.slaMinutes}-minute target within ${DUE_SOON_MINUTES} minutes.` }
+        : ctx.signedOut.size
+          ? { tone: 'neutral', text: `${ctx.signedOut.size} account${ctx.signedOut.size === 1 ? '' : 's'} need signing in again. Their figures are hidden rather than guessed.` }
+          : null,
     figures: [
       { label: 'Waiting now', value: String(split.needsReply), unit: split.needsReply === 1 ? 'customer' : 'customers', note: split.backlog ? `${split.backlog} more in backlog` : 'Nothing older than the backlog line', tone: pastTarget ? 'late' : split.needsReply ? 'due' : 'ok' },
       { label: 'Past target', value: String(pastTarget), unit: `over ${config.settings.slaMinutes} min`, note: dueSoon ? `${dueSoon} due within ${DUE_SOON_MINUTES} min` : 'None due in the next few minutes', tone: pastTarget ? 'late' : 'ok' },
@@ -145,8 +155,21 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     })),
     reads: ids.length > 0,
     detail: ctx.visible ? detailFor(config, snapshots, times, judge, ctx) : null,
+    modules: ctx.modules.map(readerHealth),
     settings: config.settings,
   };
+}
+
+/** A reader that fails sometimes is not the same as one that never works, and neither is one never used. */
+function readerHealth(m: ModuleHealth): ReaderHealth {
+  if (m.lastError && m.ok === 0) {
+    return { id: m.id, name: m.name, tone: 'late', status: 'Not reading', detail: `Nothing has been read. Last problem: ${m.lastError}` };
+  }
+  if (m.lastError) {
+    return { id: m.id, name: m.name, tone: 'due', status: 'Intermittent', detail: `${m.ok} good read${m.ok === 1 ? '' : 's'}, ${m.failed} failed. Last problem: ${m.lastError}` };
+  }
+  if (m.ok) return { id: m.id, name: m.name, tone: 'ok', status: 'Healthy', detail: `${m.ok} good read${m.ok === 1 ? '' : 's'} since the app started` };
+  return { id: m.id, name: m.name, tone: 'neutral', status: 'Idle', detail: 'No read yet' };
 }
 
 const locationRules = (config: Config) =>
