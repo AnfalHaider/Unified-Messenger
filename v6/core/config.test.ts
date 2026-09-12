@@ -68,7 +68,7 @@ test('business hours are repaired rather than rejected', () => {
 
 test('a saved config reloads as itself', () => {
   const config = parse({
-    accounts: [{ id: 'a', name: 'DHA-2 salon', channel: 'whatsapp', location: 'DHA-2', professional: true, sortOrder: 2, notes: 'front desk' }],
+    accounts: [{ id: 'a', name: 'DHA-2 front desk', channel: 'whatsapp', location: 'DHA-2', professional: true, sortOrder: 2, notes: 'front desk' }],
     locations: [{ name: 'DHA-2', slaMinutes: 20, hours: { enabled: true, openMinutes: 600, closeMinutes: 1200, workingDays: [1, 2, 3] } }],
     settings: { slaMinutes: 20, assistant: { enabled: true, model: 'gemma3:4b' }, theme: 'dark' },
   });

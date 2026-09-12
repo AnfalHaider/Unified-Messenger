@@ -6,7 +6,7 @@ import { parseConversations, sanitizePreview } from './chat-entry.ts';
 const parse = (json: string) => parseConversations(JSON.parse(json)).entries;
 const root = (conversations: string) => parse(`{"conversations":${conversations}}`);
 const GOOD_ROW = `{ "conversationKey": "923001234567@c.us", "customerName": "Ayesha", "unreadCount": 2,
-  "lastActivityTimestampUtc": "2026-08-10T09:00:00Z", "lastMessagePreview": "is the salon open today?",
+  "lastActivityTimestampUtc": "2026-08-10T09:00:00Z", "lastMessagePreview": "is the shop open today?",
   "awaiting": true, "lastMessageFromMe": false, "contactPhone": "923001234567" }`;
 
 // ---- ChatEntryParserTests
