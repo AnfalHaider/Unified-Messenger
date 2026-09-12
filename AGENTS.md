@@ -35,10 +35,12 @@ A **free, fully-local Windows oversight app** for a multi-location business owne
 `docs/MASTER-PLAN.md` only when the task needs them. Do **not** paste memory lessons into
 always-loaded rules.
 
-**Branch model:** one branch, `main`. Commit there; do not create feature branches unless the
-owner asks for one. **Do not push `main` or create/push `v*` release tags without explicit owner
-permission.** Every push to `main` runs CI verify, packaging and ui-smoke, and a `v*` tag publishes
-a GitHub release — treat the remote as release-adjacent.
+**Branch model:** two branches, `dev` and `main`. Commit on `dev`; when a piece of work is finished,
+merge it into `main` and push `main`. `main` is the only branch on GitHub, and no other branch
+survives once it is merged. Every push to `main` runs CI verify, packaging and ui-smoke, so push
+finished work rather than a checkpoint. **Creating or pushing a `v*` release tag still needs explicit
+owner permission** — a tag publishes a GitHub release. *(Owner decision 2026-09-12; replaces "one
+branch, main" and the requirement to ask before every push.)*
 
 **Merge / push gate (must pass before you ask to push):**
 ```
