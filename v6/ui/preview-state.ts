@@ -54,6 +54,7 @@ export const PREVIEW_STATE: UiState = {
     aside('Closed by rule', 'Nida K.', 'F-11 WhatsApp', 'ok thanks', 'Last message was an acknowledgement', 3),
   ],
   setAsideTotal: 3,
+  reports: null,
   locations: [
     { name: 'F-11 Markaz', waiting: 12, onTimePercent: 71, tone: 'late', accounts: 2 },
     { name: 'DHA Phase 2', waiting: 7, onTimePercent: 84, tone: 'due', accounts: 3 },

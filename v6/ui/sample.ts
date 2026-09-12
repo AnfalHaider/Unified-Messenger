@@ -82,50 +82,6 @@ export const WEEK_FACTS: Fact[] = [
   { label: 'Missed calls', value: '23', unit: '', note: '9 not called back', tone: 'late', trend: [2, 4, 3, 3, 4, 3, 4] },
 ];
 
-export const HOURS = ['11', '12', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-export const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-/** Messages per hour, averaged: a weekday lunchtime peak and a busier weekend afternoon. */
-export const BUSY = DAYS.map((_, d) => HOURS.map((_, h) => Math.round(4 + 22 * Math.exp(-((h - (d >= 5 ? 5 : 3)) ** 2) / 6) + (d >= 5 ? 9 : 0) + ((d * 7 + h * 3) % 6))));
-
-export const REPLY_BUCKETS = [['0–5', 164], ['5–10', 131], ['10–15', 88], ['15–30', 57], ['30–60', 29], ['1–2 h', 11], ['2 h +', 6]] as const;
-
-export const REPLY_BY_ACCOUNT = [
-  { account: 'F-11 WhatsApp', replies: 188, median: 13, onTime: 77, slowest: 28, tone: 'late' },
-  { account: 'F-11 Instagram', replies: 36, median: 22, onTime: 61, slowest: 95, tone: 'late' },
-  { account: 'DHA-2 WhatsApp', replies: 152, median: 12, onTime: 83, slowest: 38, tone: 'due' },
-  { account: 'DHA-2 Instagram', replies: 29, median: 16, onTime: 72, slowest: 70, tone: 'late' },
-  { account: 'Men DHA-2 WhatsApp', replies: 81, median: 7, onTime: 92, slowest: 19, tone: 'ok' },
-] as const;
-
-export const BACKLOG_TREND = [31, 30, 32, 29, 28, 30, 27, 26, 27, 25, 24, 25, 23, 22, 23, 21, 20, 21, 19, 18, 19, 17, 16, 16, 15, 14, 15, 13, 12, 12];
-
-export const REOPENED = [
-  { why: 'Price or package', count: 21, example: 'Answered with a price, then asked what it includes' },
-  { why: 'Booking time', count: 8, example: 'Told a slot, then asked to change it' },
-  { why: 'Location or parking', count: 5, example: 'Given the address, then asked for directions' },
-  { why: 'Other', count: 3, example: '' },
-];
-
-export const BACKLOG = [
-  { who: 'Nadia F.', account: 'F-11 Instagram', first: 'Tuesday 2:10 pm', message: 'Hello? Is anyone there', waited: '3 days 4 h' },
-  { who: 'Kashif U.', account: 'Men DHA-2 WhatsApp', first: 'Wednesday 6:45 pm', message: 'Do you have an appointment Friday', waited: '2 days 1 h' },
-  { who: 'Mariam Y.', account: 'DHA-2 WhatsApp', first: 'Thursday 8:30 pm', message: 'Photo', waited: '1 day 3 h' },
-];
-
-export const CALLS = [
-  { who: 'Imran A.', account: 'F-11 WhatsApp', kind: 'Voice call', at: '4:31 pm', after: 'Wrote after: “Called about a booking”', back: 'Not called back', tone: 'late' },
-  { who: 'Unknown number', account: 'DHA-2 WhatsApp', kind: 'Voice call', at: '3:58 pm', after: 'No message after', back: 'Not called back', tone: 'late' },
-  { who: 'Hina A.', account: 'F-11 WhatsApp', kind: 'Video call', at: '2:12 pm', after: 'No message after', back: 'Not called back', tone: 'late' },
-  { who: 'Omar K.', account: 'Men DHA-2 WhatsApp', kind: 'Voice call', at: '1:40 pm', after: 'Wrote after: “Price?”', back: 'Answered by message, 1:52 pm', tone: 'ok' },
-  { who: 'Saba N.', account: 'DHA-2 WhatsApp', kind: 'Voice call, twice', at: '12:05 pm', after: 'No message after', back: 'Called back, 12:20 pm', tone: 'ok' },
-] as const;
-
-export const CALLS_BY_LOCATION = [
-  { location: 'F-11', missed: 11, returned: 6, trend: [1, 2, 2, 1, 2, 1, 2] },
-  { location: 'DHA-2', missed: 8, returned: 5, trend: [1, 1, 2, 1, 1, 1, 1] },
-  { location: 'Men DHA-2', missed: 4, returned: 3, trend: [0, 1, 0, 1, 1, 0, 1] },
-];
-
 export const MEMBERS = [
   { name: 'Anfal Haider', email: 'you@example.com', role: 'Admin', pcs: 'Office PC, Laptop', seen: 'Now' },
   { name: 'Front desk F-11', email: 'desk.f11@example.com', role: 'Member', pcs: 'F-11 reception', seen: '6 min ago' },

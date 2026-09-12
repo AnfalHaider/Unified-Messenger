@@ -11,8 +11,10 @@ import { dailyResponse, responseStats, type ResponseTimes } from '../core/respon
 import { buildRollup } from '../core/rollup.ts';
 import { readableAccounts } from '../core/schedule.ts';
 import { DAY_MS } from '../core/days.ts';
+import type { History } from '../core/history.ts';
+import { buildReport, type Report } from '../core/report.ts';
 import { explain } from '../core/reply-need.ts';
-import { awaitingChats, awaitingSplit, lastCaptured, setAside, type Judge, type Snapshots } from '../core/snapshot.ts';
+import { awaitingChats, awaitingSplit, lastCaptured, setAside, verdictFor, type Judge, type Snapshots } from '../core/snapshot.ts';
 import type { Overrides } from '../core/awaiting-overrides.ts';
 
 /** How close to the target counts as "due soon". The design's warning window. */
@@ -30,7 +32,29 @@ export type Route =
 /** Screens that are about one account, so navigating to them keeps that account in view. */
 export const ACCOUNT_ROUTES: readonly Route[] = ['dock', 'account-detail', 'lost-login'];
 
-export interface Figure { label: string; value: string; unit: string; note: string; tone: Tone }
+export interface Figure { label: string; value: string; unit: string; note: string; tone: Tone; trend?: number[] }
+
+/** One range of the Reports screen: the core report plus the sentences and facts drawn from it. */
+export interface ReportRange {
+  label: string;
+  report: Report;
+  headline: string;
+  summary: string;
+  /** Said when the app has recorded fewer days than the range covers, so a short history is not read as a full one. */
+  coverage: string | null;
+  facts: Figure[];
+  /** One label per day, blank where the axis would crowd. */
+  dayLabels: string[];
+}
+
+export interface ReportsView {
+  ranges: { today: ReportRange; week: ReportRange; month: ReportRange };
+  targetMinutes: number;
+  /** Customers waiting over a day now, oldest first. */
+  backlog: { accountId: string; accountName: string; customer: string; preview: string; since: number; waited: number }[];
+  /** Customers whose last message is a call nobody answered, and who are still waiting. */
+  unansweredCalls: { accountId: string; accountName: string; customer: string; at: number }[];
+}
 
 export interface QueueRow {
   accountId: string;
@@ -108,6 +132,8 @@ export interface UiState {
   queueTotal: number;
   setAside: SetAsideRow[];
   setAsideTotal: number;
+  /** Built only while Reports is open. */
+  reports: ReportsView | null;
   locations: { name: string; waiting: number; onTimePercent: number; tone: Tone; accounts: number }[];
   accounts: { id: string; name: string; channel: string; location: string; waiting: number | null; signedOut: boolean; asleep: boolean }[];
   reads: boolean;
@@ -119,6 +145,8 @@ export interface UiState {
 
 export interface Context {
   now: number;
+  /** The day records. Only read while Reports is open. */
+  history?: History;
   route: Route;
   visible: string | null;
   /** Accounts whose last read found a sign-in screen. Their figures are hidden, never guessed. */
@@ -217,6 +245,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     })),
     reads: ids.length > 0,
     detail: ctx.visible ? detailFor(config, snapshots, times, judge, ctx) : null,
+    reports: ctx.route === 'reports' ? reportsFor(config, snapshots, times, judge, ctx, live) : null,
     modules: ctx.modules.map(readerHealth),
     settings: config.settings,
   };
@@ -323,4 +352,104 @@ function health(channel: string, reads: boolean, signedOut: boolean, asleep: boo
     ? { tone: 'neutral', title: 'Asleep', detail: 'The page is closed to save memory. Its login is kept, and it wakes when opened.' }
     : { tone: 'ok', title: 'Awake', detail: 'The page stays open so the numbers keep moving.' });
   return lines;
+}
+
+// ---- reports -------------------------------------------------------------------------------------------------
+
+const RANGE_LABELS = { today: 'Today', week: 'Last 7 days', month: 'Last 30 days' } as const;
+
+const shortDate = (at: number) => new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+const dayDate = (key: string) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
+
+/** "4 points up", "6% fewer", or nothing to compare with. */
+function change(now: number | null, before: number | null, unit: 'points' | 'percent', up: string, down: string): string | null {
+  if (now === null || before === null) return null;
+  if (unit === 'points') {
+    const diff = now - before;
+    return diff === 0 ? 'Same as the period before' : `${Math.abs(diff)} point${Math.abs(diff) === 1 ? '' : 's'} ${diff > 0 ? up : down}`;
+  }
+  if (before === 0) return null;
+  const pct = Math.round(((now - before) / before) * 100);
+  return pct === 0 ? 'Same as the period before' : `${Math.abs(pct)}% ${pct > 0 ? up : down}`;
+}
+
+function reportRange(key: keyof typeof RANGE_LABELS, report: Report, target: number, unanswered: number): ReportRange {
+  const label = RANGE_LABELS[key];
+  const { totals: t, previous: p } = report;
+  const span = report.days.length;
+  const hadBefore = p.replies > 0 || p.customersWrote > 0;
+
+  const coverage = report.recordingSince === null
+    ? 'Nothing has been recorded yet. Reports fill in as the app reads.'
+    : report.daysRecorded < span
+      ? `Recording since ${shortDate(report.recordingSince)}, so this covers ${report.daysRecorded} of ${span} day${span === 1 ? '' : 's'}.`
+      : null;
+
+  const located = report.byLocation.filter((l) => l.onTimePercent !== null);
+  const lowest = located.length > 1 ? [...located].sort((a, b) => (a.onTimePercent ?? 0) - (b.onTimePercent ?? 0))[0] : null;
+  const headline = !report.hasData ? `${label}: nothing recorded yet`
+    : t.onTimePercent !== null ? `${label}: ${t.onTimePercent}% answered on time`
+      : `${label}: ${t.customersWrote} customer${t.customersWrote === 1 ? '' : 's'} wrote, no replies measured yet`;
+  const summary = !report.hasData ? 'Figures appear here as the app reads each account.'
+    : [
+      t.medianMinutes !== null ? `Median first reply ${Math.round(t.medianMinutes)} minutes across ${t.replies} repl${t.replies === 1 ? 'y' : 'ies'}.` : '',
+      lowest ? `Lowest: ${lowest.name} at ${lowest.onTimePercent}%.` : '',
+      hadBefore ? change(t.onTimePercent, p.onTimePercent, 'points', 'up on the period before', 'down on the period before') + '.' : '',
+    ].filter((s) => s && s !== 'null.').join(' ');
+
+  const onTimeTone: Tone = t.onTimePercent === null ? 'neutral' : t.onTimePercent >= 90 ? 'ok' : t.onTimePercent >= 80 ? 'due' : 'late';
+  const facts: Figure[] = [
+    { label: 'Answered on time', value: t.onTimePercent === null ? '—' : String(t.onTimePercent), unit: '%', tone: onTimeTone,
+      note: (hadBefore && change(t.onTimePercent, p.onTimePercent, 'points', 'up', 'down')) || `Within the ${target}-minute target` },
+    { label: 'Median first reply', value: t.medianMinutes === null ? '—' : String(Math.round(t.medianMinutes)), unit: 'min',
+      tone: t.medianMinutes === null ? 'neutral' : t.medianMinutes <= target ? 'ok' : 'late',
+      note: t.replies ? `${t.replies} repl${t.replies === 1 ? 'y' : 'ies'} measured` : 'No replies measured yet' },
+    { label: 'Customers who wrote', value: t.customersWrote.toLocaleString('en-GB'), unit: '', tone: 'neutral',
+      note: (hadBefore && change(t.customersWrote, p.customersWrote, 'percent', 'more', 'fewer')) || 'Each counted once a day',
+      trend: span > 1 ? report.days.map((d) => d.customersWrote) : undefined },
+    { label: 'Waiting over a day', value: t.waitingOverADay === null ? '—' : String(t.waitingOverADay), unit: '',
+      tone: t.waitingOverADay ? 'late' : 'neutral', note: 'At the latest morning read' },
+    { label: 'Reopened', value: String(t.reopened), unit: '', tone: 'neutral', note: 'Waiting again after a reply',
+      trend: span > 1 ? report.days.map((d) => d.reopened) : undefined },
+    { label: 'Missed calls', value: String(t.missedCalls), unit: '', tone: unanswered ? 'late' : 'neutral',
+      note: unanswered ? `${unanswered} still waiting for an answer` : 'None waiting for an answer now' },
+  ];
+
+  const dayLabels = report.days.map((d, i) => {
+    const at = dayDate(d.day);
+    if (span <= 7) return new Date(at).toLocaleDateString('en-GB', { weekday: 'short' });
+    return i % 7 === (span - 1) % 7 ? shortDate(at) : '';
+  });
+  return { label, report, headline, summary, coverage, facts, dayLabels };
+}
+
+function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, judge: Judge, ctx: Context, live: string[]): ReportsView {
+  const { now } = ctx;
+  const accounts = readableAccounts(config).map((a) => ({ id: a.id, name: a.name, location: a.location, targetMinutes: targetFor(config, a) }));
+  const history = ctx.history ?? {};
+  const name = (id: string) => config.accounts.find((a) => a.id === id)?.name ?? id;
+  const who = (c: { customerName: string; contactPhone: string }) => c.customerName || c.contactPhone || 'Unknown number';
+
+  const waiting = live.flatMap((id) => awaitingChats(snapshots, id, judge).map((chat) => ({ id, chat })));
+  const unansweredCalls = waiting
+    .filter(({ chat }) => verdictFor(chat, judge).reason === 'missedCall')
+    .sort((a, b) => b.chat.lastActivity - a.chat.lastActivity)
+    .map(({ id, chat }) => ({ accountId: id, accountName: name(id), customer: who(chat), at: chat.lastActivity }));
+  const backlog = waiting
+    .filter(({ chat }) => chat.lastActivity < now - DAY_MS)
+    .sort((a, b) => a.chat.lastActivity - b.chat.lastActivity)
+    .slice(0, 20)
+    .map(({ id, chat }) => {
+      const account = config.accounts.find((a) => a.id === id);
+      const hours = config.locations.find((l) => l.name === account?.location)?.hours;
+      return {
+        accountId: id, accountName: name(id), customer: who(chat), preview: chat.preview, since: chat.lastActivity,
+        waited: Math.round(elapsedBusinessMinutes(new Date(chat.lastActivity), new Date(now), hours)),
+      };
+    });
+
+  const target = config.settings.slaMinutes;
+  const range = (key: keyof typeof RANGE_LABELS, days: number) =>
+    reportRange(key, buildReport(history, times, accounts, days, now), target, unansweredCalls.length);
+  return { ranges: { today: range('today', 1), week: range('week', 7), month: range('month', 30) }, targetMinutes: target, backlog, unansweredCalls };
 }

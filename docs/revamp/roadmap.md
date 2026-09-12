@@ -43,7 +43,8 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Accounts grid, account figures | |
 | Channel readers list | Reader timeline, lost-login record |
 | Look and reading settings, closing, memory, notifications and quiet hours | Reviews |
-| Command palette (customers, accounts, screens) | Reports: all five tabs, export |
+| Reports: Overview, Reply times, Backlog and reopened, Missed calls (Today, 7 and 30 days) | |
+| Command palette (customers, accounts, screens) | Reports: the weekly report document and every export |
 | Theme | Assistant screen and settings |
 | | Workspace members, owner console, sign-in, new PC, removed, suspended, upgrade, update, offline |
 
@@ -69,7 +70,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 212 tests
+npm test            # 224 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 
@@ -180,7 +181,9 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.5 History store for reports.** Built 2026-09-13. `core/history.ts` keeps one record per account per local day (`YYYY-MM-DD`): customers who wrote or called (also by local hour, for the busy-hours chart), first replies measured with median and within-target (target in force that day), waiting over a day at the first read of the day, reopened (answered, then waiting again), missed calls. Only activity after the account came under watch counts; identities are kept for today and yesterday only to de-duplicate; records pruned after 400 days. Main records after every read into `history.json`; a failure there is logged as `history-failed` and never touches the read. Tests pin New York across the autumn change. Reports start from the install unless v5 history is imported (see 4.6). On the owner's PC records appeared for all four read accounts and survived a normal restart; a full week is still to be observed.
 
-**4.6 Reports.** Wire the five tabs in `reports.tsx` to the history store and `response-times.ts`. Export: CSV with the Node `fs` API via a save dialog; PDF with `webContents.printToPDF` of the weekly report view; image with `webContents.capturePage`. Customer names off by default. Done when each tab shows real figures and each export opens. **Open decision for this step:** v5 kept per-day history that could fill the charts from before the install: `analytics.json` (messages sent and received per day per account, plus one lifetime received-by-hour count, `MessageAnalyticsService.InstanceMessageStats`) and `kpi-trend.json` (per-day waiting count and caught-up %, `KpiTrendStore`), both still in the owner's v5 data folder. Their measures differ from `core/history.ts` (messages, not customers), so either import them as a clearly labelled "before v6" series or leave them.
+**4.6 Reports.** Four tabs done 2026-09-13. `core/report.ts` builds a range of whole local days (Today, 7, 30): reply measures from the response-times samples against each account's target, traffic, reopened, missed calls and the morning backlog from `history.json`, busy hours averaged per weekday, the previous equal range for up/down notes; null wherever nothing was measured, and "Recording since …, so this covers N of M days". The view model builds it only while Reports is open, plus the backlog list and unanswered missed calls from the snapshot. `LineChart` draws gaps for null days. Custom range was dropped. Whether a missed call was returned is 4.8. Playwright seeds invented history and replies and checks every tab. **Open decision for this step:** v5 kept per-day history that could fill the charts from before the install: `analytics.json` (messages sent and received per day per account, plus one lifetime received-by-hour count, `MessageAnalyticsService.InstanceMessageStats`) and `kpi-trend.json` (per-day waiting count and caught-up %, `KpiTrendStore`), both still in the owner's v5 data folder. Their measures differ from `core/history.ts` (messages, not customers), so either import them as a clearly labelled "before v6" series or leave them.
+
+**4.6b Weekly report and export.** The Weekly report tab is still the sample document. Compose it from the 7-day report (no model phrasing); export CSV with the Node `fs` API via a save dialog, PDF with `webContents.printToPDF` of the report view, image with `webContents.capturePage`; customer names off by default. Done when each export opens.
 
 **4.7 Morning digest.** `digest()` exists in `core/snapshot.ts`. Show the digest screen on the first open of each local day (remember the last shown day in a small store); owed-from-yesterday comes from the snapshot, yesterday by location from the history store. Done when it appears once a day and never on a second open.
 

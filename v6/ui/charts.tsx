@@ -99,14 +99,24 @@ export function Spark({ values, width = 120, height = 30, min = 0, max }: { valu
   );
 }
 
-export interface Series { label: string; values: number[]; dash?: string; width?: number; nudge?: number }
+/** A null value is a gap: a day with nothing measured is drawn as missing, never as zero. */
+export interface Series { label: string; values: (number | null)[]; dash?: string; width?: number; nudge?: number }
+
+/** Runs of consecutive values that exist, each with its starting index. */
+const runs = (values: (number | null)[]) => values.reduce<{ start: number; values: number[] }[]>((out, v, i) => {
+  if (v === null) return out;
+  const last = out.at(-1);
+  if (last && last.start + last.values.length === i) last.values.push(v);
+  else out.push({ start: i, values: [v] });
+  return out;
+}, []);
 
 /** Lines over time against an optional goal. Series differ by dash and an end label, not colour. */
 export function LineChart({ series, labels, min = 0, max = 100, ticks, unit = '', target, targetLabel = '', width = 700, height = 250 }: {
   series: Series[]; labels: string[]; min?: number; max?: number; ticks: number[]; unit?: string; target?: number; targetLabel?: string; width?: number; height?: number;
 }) {
   const pl = 38, pr = 110, pt = 14, pb = 28;
-  const x = (i: number) => pl + (i * (width - pl - pr)) / (labels.length - 1);
+  const x = (i: number) => pl + (i * (width - pl - pr)) / Math.max(1, labels.length - 1);
   const y = (v: number) => pt + (height - pt - pb) * (1 - (v - min) / (max - min));
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width="100%" role="img" aria-label={series.map((s) => s.label).join(', ')}>
@@ -123,12 +133,18 @@ export function LineChart({ series, labels, min = 0, max = 100, ticks, unit = ''
         </g>
       )}
       {series.map((s) => {
-        const end = s.values.length - 1;
+        const parts = runs(s.values);
+        const last = parts.at(-1);
+        if (!last) return null;
+        const end = last.start + last.values.length - 1;
+        const endValue = last.values.at(-1)!;
         return (
           <g key={s.label}>
-            <polyline points={s.values.map((v, i) => `${x(i)},${y(v)}`).join(' ')} fill="none" stroke="var(--ink)" strokeWidth={s.width ?? 2} strokeDasharray={s.dash} strokeLinejoin="round" />
-            <circle cx={x(end)} cy={y(s.values[end])} r={3.2} fill="var(--surface)" stroke="var(--ink)" strokeWidth={2} />
-            <text x={x(end) + 9} y={y(s.values[end]) + (s.nudge ?? 0) + 4} fontSize={11.5} fontWeight={600} fill="var(--ink)">{s.label} {s.values[end]}{unit}</text>
+            {parts.map((p) => p.values.length === 1
+              ? <circle key={p.start} cx={x(p.start)} cy={y(p.values[0])} r={2.2} fill="var(--ink)" />
+              : <polyline key={p.start} points={p.values.map((v, i) => `${x(p.start + i)},${y(v)}`).join(' ')} fill="none" stroke="var(--ink)" strokeWidth={s.width ?? 2} strokeDasharray={s.dash} strokeLinejoin="round" />)}
+            <circle cx={x(end)} cy={y(endValue)} r={3.2} fill="var(--surface)" stroke="var(--ink)" strokeWidth={2} />
+            <text x={x(end) + 9} y={y(endValue) + (s.nudge ?? 0) + 4} fontSize={11.5} fontWeight={600} fill="var(--ink)">{s.label} {endValue}{unit}</text>
           </g>
         );
       })}
@@ -143,14 +159,14 @@ export function Heatmap({ rows, cols, data, width = 600, cell = 30 }: { rows: st
   const top = Math.max(...data.flat());
   const cw = (width - pl) / cols.length;
   return (
-    <svg viewBox={`0 0 ${width} ${pt + rows.length * cell + 4}`} width="100%" role="img" aria-label="Messages by day and hour">
+    <svg viewBox={`0 0 ${width} ${pt + rows.length * cell + 4}`} width="100%" role="img" aria-label="Customers by day and hour">
       {cols.map((c, i) => i % 2 === 0 && <text key={c} x={pl + i * cw + cw / 2} y={12} textAnchor="middle" fontSize={11} fill="var(--ink-3)">{c}</text>)}
       {rows.map((r, ri) => (
         <g key={r}>
           <text x={pl - 8} y={pt + ri * cell + cell / 2 + 4} textAnchor="end" fontSize={11} fill="var(--ink-3)">{r}</text>
           {data[ri].map((v, ci) => (
             <rect key={ci} x={pl + ci * cw + 1} y={pt + ri * cell + 1} width={cw - 2} height={cell - 2} rx={3} fill="var(--ink)" opacity={0.05 + 0.85 * (v / top)}>
-              <title>{`${r} ${cols[ci]}: ${v} messages`}</title>
+              <title>{`${r} ${cols[ci]}: ${v} customers`}</title>
             </rect>
           ))}
         </g>

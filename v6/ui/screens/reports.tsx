@@ -1,13 +1,13 @@
-// Reviews and Reports. Both are sample figures until the Google reviews reader and the reporting store are
-// wired; the layouts, charts and wording are final.
+// Reviews and Reports. Reviews and the weekly report document are sample figures until the Google reviews reader
+// and the report export are wired; the other report tabs read the day records and measured replies.
 import { useState } from 'react';
+import type { ReportRange, ReportsView } from '../../app/view-model.ts';
+import { dayKey as dayKeyOf } from '../../core/history.ts';
+import { REPLY_BANDS } from '../../core/report.ts';
 import { Heatmap, Histogram, LineChart, Spark } from '../charts.tsx';
 import { Icon } from '../icons.tsx';
-import { Btn, Chip, Facts, Headline, Logo, Panel, Seg, Toggle, type ScreenProps } from '../parts.tsx';
-import {
-  BACKLOG, BACKLOG_TREND, BUSY, CALLS, CALLS_BY_LOCATION, DAYS, HOURS, ON_TIME_BY_LOCATION, REOPENED, REPLY_BUCKETS,
-  REPLY_BY_ACCOUNT, REVIEW_DRAFT, REVIEW_PROFILES, REVIEWS, WEEK_FACTS, WEEKS,
-} from '../sample.ts';
+import { Btn, Chip, Facts, Headline, Logo, Panel, Seg, Toggle, waitText, type ScreenProps } from '../parts.tsx';
+import { ON_TIME_BY_LOCATION, REVIEW_DRAFT, REVIEW_PROFILES, REVIEWS, WEEK_FACTS, WEEKS } from '../sample.ts';
 
 const Stars = ({ n, size = 13 }: { n: number; size?: number }) => (
   <span className="stars" aria-label={`${n} of 5 stars`}>
@@ -67,103 +67,173 @@ export function ReviewsScreen(_: ScreenProps) {
 
 export const REPORT_TABS = ['Overview', 'Reply times', 'Backlog and reopened', 'Missed calls', 'Weekly report'] as const;
 type Tab = typeof REPORT_TABS[number];
+const RANGES = [['today', 'Today'], ['week', '7 days'], ['month', '30 days']] as const;
+type RangeKey = typeof RANGES[number][0];
 
-export function ReportsScreen({ nav }: ScreenProps) {
+const HOUR_LABELS = Array.from({ length: 24 }, (_, h) => `${h % 12 || 12}${h < 12 ? 'a' : 'p'}`);
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** A time said the way a person would: "4:12 pm" today, "Tue 13 Sep, 4:12 pm" otherwise. */
+function when(ms: number) {
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}, ${time}`;
+}
+
+/** Ticks and a top for a chart of counts, so small numbers are not drawn against an axis of hundreds. */
+function countAxis(values: (number | null)[]) {
+  const top = Math.max(4, ...values.map((v) => v ?? 0));
+  const step = Math.ceil(top / 4);
+  return { max: step * 4, ticks: [0, step, 2 * step, 3 * step, 4 * step] };
+}
+
+const Empty = ({ children }: { children: React.ReactNode }) => <p className="sub" style={{ margin: 0, padding: '18px 0' }}>{children}</p>;
+
+export function ReportsScreen({ state, nav }: ScreenProps) {
   const tab = (REPORT_TABS as readonly string[]).includes(nav.view.sub) ? nav.view.sub as Tab : 'Overview';
-  const [range, setRange] = useState('7 days');
+  const [rangeKey, setRange] = useState<RangeKey>('week');
   const bar = (
     <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
       <Seg label="Report" value={tab} onChange={(t) => nav.go('reports', null, t)} options={REPORT_TABS} />
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-        <Seg label="Range" value={range} onChange={setRange} options={['Today', '7 days', '30 days', 'Custom']} />
+        {tab !== 'Weekly report' && <Seg label="Range" value={rangeKey} onChange={setRange} options={RANGES} />}
         <Btn icon="export" disabled title="Export is not connected yet">Export</Btn>
       </div>
     </div>
   );
-  if (tab === 'Reply times') return <ReplyTimes bar={bar} />;
-  if (tab === 'Backlog and reopened') return <Backlog bar={bar} />;
-  if (tab === 'Missed calls') return <Calls bar={bar} />;
   if (tab === 'Weekly report') return <Weekly bar={bar} />;
+  const view = state.reports;
+  if (!view) return <main className="main"><Headline title="Reports">Gathering the figures…</Headline>{bar}</main>;
+  const range = view.ranges[rangeKey];
+  const props = { view, range, bar, nav };
+  if (tab === 'Reply times') return <ReplyTimes {...props} />;
+  if (tab === 'Backlog and reopened') return <Backlog {...props} />;
+  if (tab === 'Missed calls') return <Calls {...props} />;
+
+  const r = range.report;
+  const trend = r.days.length > 1;
+  const busiest = r.busy.flatMap((row, d) => row.map((v, h) => ({ v, d, h }))).sort((a, b) => b.v - a.v)[0];
   return (
     <main className="main" style={{ gap: 16 }}>
-      <Headline sample title="Last 7 days: slower at F-11 in the afternoons">84% answered on time, 2 points below the week before. The drop is almost all F-11 between 1 and 3 pm.</Headline>
+      <Headline title={range.headline}>{range.summary} {range.coverage}</Headline>
       {bar}
-      <Facts facts={WEEK_FACTS} />
+      <Facts facts={range.facts} />
       <div className="grid2" style={{ gridTemplateColumns: 'minmax(0,1.1fr) minmax(0,1fr)' }}>
-        <Panel title="Answered on time, by location, week by week">
-          <LineChart labels={WEEKS} min={60} max={100} ticks={[60, 70, 80, 90, 100]} unit="%" target={90} targetLabel="Goal 90%" series={ON_TIME_BY_LOCATION} height={260} />
+        <Panel title="Answered on time, by location, day by day">
+          {!trend ? <Empty>Choose 7 or 30 days to see the trend.</Empty>
+            : r.byLocation.every((l) => l.daily.every((v) => v === null)) ? <Empty>No replies measured in this range yet.</Empty>
+              : <LineChart labels={range.dayLabels} min={0} max={100} ticks={[0, 25, 50, 75, 100]} unit="%" target={90} targetLabel="Goal 90%"
+                series={r.byLocation.map((l, i) => ({ label: l.name, values: l.daily, dash: ['', '6 4', '1.5 3.5'][i % 3] || undefined, nudge: [0, 8, -8][i % 3] }))} height={260} />}
         </Panel>
-        <Panel title="When customers write" note="Messages per hour, averaged over 4 weeks. Darker is busier.">
-          <Heatmap rows={DAYS} cols={HOURS} data={BUSY} />
-          <p className="sub" style={{ margin: '6px 0 0' }}>Busiest: Saturday and Sunday, 3 to 5 pm. Weekdays peak at 1 to 2 pm.</p>
+        <Panel title="When customers write" note={`Customers per hour, averaged per weekday over the recorded days.`}>
+          {!busiest?.v ? <Empty>No customers recorded writing in this range yet.</Empty> : <>
+            <Heatmap rows={WEEKDAYS} cols={HOUR_LABELS} data={r.busy} />
+            <p className="sub" style={{ margin: '6px 0 0' }}>Busiest: {WEEKDAYS[busiest.d]} around {HOUR_LABELS[busiest.h]}.</p>
+          </>}
         </Panel>
       </div>
     </main>
   );
 }
 
-function ReplyTimes({ bar }: { bar: React.ReactNode }) {
+interface TabProps { view: ReportsView; range: ReportRange; bar: React.ReactNode; nav: ScreenProps['nav'] }
+
+function ReplyTimes({ view, range, bar }: TabProps) {
+  const r = range.report;
+  const t = r.totals;
+  const slowest = r.byAccount.filter((a) => a.p90Minutes !== null).sort((a, b) => (b.p90Minutes ?? 0) - (a.p90Minutes ?? 0))[0];
+  const targetIndex = Math.max(1, REPLY_BANDS.findIndex((_, i) => i > 0 && REPLY_BANDS[i - 1][1] >= view.targetMinutes));
+  const top = countAxis(r.bands.map(([, n]) => n)).max;
   return (
     <main className="main" style={{ gap: 16 }}>
-      <Headline sample title="Most replies are quick. The slow ones are very slow.">Median first reply <b>11 min</b>, but the slowest one in ten took <b className="late">28 min or more</b>. Instagram is slower than WhatsApp at every location.</Headline>
+      <Headline title={t.medianMinutes === null ? `${range.label}: no replies measured yet` : `${range.label}: median first reply ${Math.round(t.medianMinutes)} min`}>
+        {t.replies ? <>{t.replies} first repl{t.replies === 1 ? 'y' : 'ies'} measured, {t.onTimePercent}% within target.</> : 'Replies are measured going forward from what the app sees happen.'}
+        {slowest && <> The slowest one in ten at <b>{slowest.name}</b> took {Math.round(slowest.p90Minutes ?? 0)} min or more.</>} {range.coverage}
+      </Headline>
       {bar}
       <div className="grid2">
-        <Panel title="First replies by how long they took" note="486 replies in the last 7 days, counted in opening hours">
-          <Histogram buckets={REPLY_BUCKETS} targetIndex={3} targetLabel="Target 15 min" max={180} />
+        <Panel title="First replies by how long they took" note={`${t.replies} repl${t.replies === 1 ? 'y' : 'ies'} in range`}>
+          {t.replies ? <Histogram buckets={r.bands} targetIndex={targetIndex} targetLabel={`Target ${view.targetMinutes} min`} max={top} /> : <Empty>No replies measured in this range yet.</Empty>}
         </Panel>
         <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '14px 18px 4px' }}><h3 style={{ margin: 0 }}>By account</h3></div>
           <table className="table"><thead><tr><th>Account</th><th className="r">Replies</th><th className="r">Median</th><th className="r">On time</th><th className="r">Slowest 1 in 10</th></tr></thead><tbody>
-            {REPLY_BY_ACCOUNT.map((a) => <tr key={a.account}><td><b style={{ fontWeight: 600 }}>{a.account}</b></td><td className="r">{a.replies}</td><td className="r">{a.median} min</td><td className={`r ${a.tone}`}>{a.onTime}%</td><td className={`r ${a.slowest > 30 ? 'late' : ''}`}>{a.slowest} min</td></tr>)}
+            {r.byAccount.map((a) => {
+              const tone = a.onTimePercent === null ? '' : a.onTimePercent >= 90 ? 'ok' : a.onTimePercent >= 80 ? 'due' : 'late';
+              return <tr key={a.id}><td><b style={{ fontWeight: 600 }}>{a.name}</b></td><td className="r">{a.replies}</td><td className="r">{a.medianMinutes === null ? '—' : `${Math.round(a.medianMinutes)} min`}</td><td className={`r ${tone}`}>{a.onTimePercent === null ? '—' : `${a.onTimePercent}%`}</td><td className="r">{a.p90Minutes === null ? '—' : `${Math.round(a.p90Minutes)} min`}</td></tr>;
+            })}
           </tbody></table>
-          <div className="sub" style={{ padding: '12px 18px', borderTop: '1px solid var(--line)' }}>Replies are measured going forward from what the app sees happen. Opening hours and holidays pause the clock.</div>
+          <div className="sub" style={{ padding: '12px 18px', borderTop: '1px solid var(--line)' }}>Measured going forward from what the app sees happen, each against its location’s target.</div>
         </div>
       </div>
     </main>
   );
 }
 
-function Backlog({ bar }: { bar: React.ReactNode }) {
-  const labels = BACKLOG_TREND.map((_, i) => (i === 0 ? '15 Aug' : i === 14 ? '1 Sep' : i === BACKLOG_TREND.length - 1 ? '13 Sep' : ''));
+function Backlog({ view, range, bar, nav }: TabProps) {
+  const r = range.report;
+  const trend = r.days.length > 1;
+  const backlogAxis = countAxis(r.days.map((d) => d.waitingOverADay));
+  const reopenedAxis = countAxis(r.days.map((d) => d.reopened));
   return (
     <main className="main" style={{ gap: 16 }}>
-      <Headline sample title="The backlog is shrinking. Reopened chats are not."><b>12</b> customers have waited more than a day, down from 31 a month ago. But <b>37</b> chats reopened this week, and 21 of them were about prices.</Headline>
+      <Headline title={view.backlog.length ? `${view.backlog.length === 20 ? '20 or more' : view.backlog.length} customer${view.backlog.length === 1 ? ' has' : 's have'} waited more than a day` : 'Nobody has waited more than a day'}>
+        {range.label}: <b>{r.totals.reopened}</b> chat{r.totals.reopened === 1 ? '' : 's'} reopened after a reply. {range.coverage}
+      </Headline>
       {bar}
       <div className="grid2">
-        <Panel title="Waiting more than a day" note="Counted each morning at opening, last 30 days">
-          <LineChart labels={labels} min={0} max={40} ticks={[0, 10, 20, 30, 40]} series={[{ label: 'Backlog', values: BACKLOG_TREND }]} height={230} />
+        <Panel title="Waiting more than a day" note="Counted at each day’s first read">
+          {!trend ? <Empty>Choose 7 or 30 days to see the trend.</Empty>
+            : r.days.every((d) => d.waitingOverADay === null) ? <Empty>No morning counts recorded in this range yet.</Empty>
+              : <LineChart labels={range.dayLabels} min={0} max={backlogAxis.max} ticks={backlogAxis.ticks} series={[{ label: 'Backlog', values: r.days.map((d) => d.waitingOverADay) }]} height={230} />}
         </Panel>
-        <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px 4px' }}><h3 style={{ margin: 0 }}>Why chats reopened</h3><span className="sub">What the customer’s second message was about</span></div>
-          <table className="table"><tbody>
-            {REOPENED.map((r) => <tr key={r.why}><td><b style={{ fontWeight: 600 }}>{r.why}</b>{r.example && <div className="sub">{r.example}</div>}</td><td style={{ width: '40%' }}><span style={{ display: 'block', height: 8, borderRadius: 4, background: 'var(--line)' }}><i style={{ display: 'block', height: '100%', width: `${(r.count / REOPENED[0].count) * 100}%`, background: 'var(--ink)', borderRadius: 4 }} /></span></td><td className="r"><b>{r.count}</b></td></tr>)}
-          </tbody></table>
-        </div>
+        <Panel title="Reopened, day by day" note="Customers who wrote again after being answered">
+          {!trend ? <Empty>Choose 7 or 30 days to see the trend.</Empty>
+            : <LineChart labels={range.dayLabels} min={0} max={reopenedAxis.max} ticks={reopenedAxis.ticks} series={[{ label: 'Reopened', values: r.days.map((d) => (r.recordingSince !== null && d.day >= dayKeyOf(r.recordingSince) ? d.reopened : null)) }]} height={230} />}
+        </Panel>
       </div>
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-        <table className="table"><thead><tr><th>Still in the backlog</th><th>Account</th><th>First wrote</th><th>Last message</th><th className="r">Waited, opening hours</th></tr></thead><tbody>
-          {BACKLOG.map((b) => <tr key={b.who}><td><b style={{ fontWeight: 600 }}>{b.who}</b></td><td className="sub">{b.account}</td><td>{b.first}</td><td className="sub">{b.message}</td><td className="r late">{b.waited}</td></tr>)}
+        <table className="table"><thead><tr><th>Still waiting</th><th>Account</th><th>Waiting since</th><th>Last message</th><th className="r">Waited, opening hours</th><th /></tr></thead><tbody>
+          {view.backlog.map((b) => (
+            <tr key={`${b.accountId}:${b.customer}:${b.since}`}>
+              <td><b style={{ fontWeight: 600 }}>{b.customer}</b></td><td className="sub">{b.accountName}</td><td>{when(b.since)}</td>
+              <td className="sub">{b.preview || 'No preview could be read'}</td><td className="r late">{waitText(b.waited).join(' ')}</td>
+              <td className="r"><Btn icon="open" onClick={() => nav.go('dock', b.accountId, b.customer)}>Open chat</Btn></td>
+            </tr>
+          ))}
+          {view.backlog.length === 0 && <tr><td colSpan={6} className="sub" style={{ padding: 18 }}>Every waiting customer wrote within the last day.</td></tr>}
         </tbody></table>
       </div>
     </main>
   );
 }
 
-function Calls({ bar }: { bar: React.ReactNode }) {
+function Calls({ view, range, bar, nav }: TabProps) {
+  const r = range.report;
+  const open = view.unansweredCalls.length;
   return (
     <main className="main" style={{ gap: 16 }}>
-      <Headline sample title="3 missed calls today have not been returned">2 of them left no message, so the call is the only way they reached you. Across the week, 23 calls were missed and 14 returned.</Headline>
+      <Headline title={open ? `${open} missed call${open === 1 ? ' is' : 's are'} still waiting for an answer` : 'No missed call is waiting for an answer'}>
+        {range.label}: {r.totals.missedCalls} missed call{r.totals.missedCalls === 1 ? '' : 's'} recorded. Whether a call was returned is not tracked yet. {range.coverage}
+      </Headline>
       {bar}
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-        <table className="table"><thead><tr><th>Caller</th><th>Account</th><th>Call</th><th>Missed at</th><th>After the call</th><th>Returned</th><th /></tr></thead><tbody>
-          {CALLS.map((c) => <tr key={c.who + c.at}><td><b style={{ fontWeight: 600 }}>{c.who}</b></td><td className="sub">{c.account}</td><td><Icon name="phone" size={13} /> {c.kind}</td><td className="num">{c.at}</td><td className="sub">{c.after}</td><td className={c.tone}>{c.back}</td><td className="r">{c.tone === 'late' && <Btn icon="open" disabled title="Not connected yet">Open chat</Btn>}</td></tr>)}
+        <table className="table"><thead><tr><th>Caller</th><th>Account</th><th>Called at</th><th /></tr></thead><tbody>
+          {view.unansweredCalls.map((c) => (
+            <tr key={`${c.accountId}:${c.customer}:${c.at}`}>
+              <td><b style={{ fontWeight: 600 }}>{c.customer}</b></td><td className="sub">{c.accountName}</td>
+              <td className="num"><Icon name="phone" size={13} /> {when(c.at)}</td>
+              <td className="r"><Btn icon="open" onClick={() => nav.go('dock', c.accountId, c.customer)}>Open chat</Btn></td>
+            </tr>
+          ))}
+          {open === 0 && <tr><td colSpan={4} className="sub" style={{ padding: 18 }}>Nobody whose last message was a missed call is waiting now.</td></tr>}
         </tbody></table>
       </div>
       <div className="grid3">
-        {CALLS_BY_LOCATION.map((c) => (
-          <div key={c.location} className="panel" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, alignItems: 'end' }}>
-            <span><span className="sub">{c.location}, last 7 days</span><div className="num" style={{ font: '600 30px/1.1 var(--text)', fontStretch: '80%' }}>{c.missed} missed</div><span className="sub">{c.returned} returned, {c.missed - c.returned} not</span></span>
-            <Spark values={c.trend} width={110} height={34} max={3} />
+        {r.byLocation.map((l) => (
+          <div key={l.name} className="panel" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, alignItems: 'end' }}>
+            <span><span className="sub">{l.name}, {range.label.toLowerCase()}</span><div className="num" style={{ font: '600 30px/1.1 var(--text)', fontStretch: '80%' }}>{l.missedCalls} missed</div></span>
+            {l.missedDaily.length > 1 && <Spark values={l.missedDaily} width={110} height={34} max={Math.max(3, ...l.missedDaily)} />}
           </div>
         ))}
       </div>

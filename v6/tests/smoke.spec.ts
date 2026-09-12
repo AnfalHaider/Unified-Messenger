@@ -148,3 +148,66 @@ test('a chat near its target alerts exactly once, across passes and a restart, a
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('reports show the recorded days, measured replies and who is still owed a call', async () => {
+  const now = Date.now();
+  const HOUR = 3_600_000;
+  const key = (at: number) => { const d = new Date(at); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const byHour = (h: number, n: number) => Array.from({ length: 24 }, (_, i) => (i === h ? n : 0));
+  const day = (at: number, o: Record<string, unknown>) => ({
+    day: key(at), customersWrote: 0, wroteByHour: Array(24).fill(0), replies: 0, medianReplyMinutes: null, repliesWithinTarget: 0,
+    targetMinutes: 15, waitingOverADayAtFirstRead: null, reopened: 0, missedCalls: 0, ...o,
+  });
+  const data = dataFolder({ accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true }] });
+  writeFileSync(join(data, 'history.json'), JSON.stringify({
+    'test-wa': { watchStart: now - 3 * 24 * HOUR, seen: {}, days: [
+      day(now - 24 * HOUR, { customersWrote: 4, wroteByHour: byHour(11, 4), reopened: 1, waitingOverADayAtFirstRead: 2 }),
+      day(now, { customersWrote: 3, wroteByHour: byHour(14, 3), missedCalls: 1, waitingOverADayAtFirstRead: 1 }),
+    ] },
+  }));
+  writeFileSync(join(data, 'response-times.json'), JSON.stringify({
+    pending: {}, watchStart: { 'test-wa': now - 3 * 24 * HOUR },
+    samples: { 'test-wa': [{ answeredAt: now - 60_000, minutes: 10 }, { answeredAt: now - 2 * 60_000, minutes: 30 }] },
+  }));
+  const chat = (k: string, name: string, minutesAgo: number, o: Record<string, unknown>) => ({
+    conversationKey: k, customerName: name, unread: 1, lastActivity: now - minutesAgo * 60_000, preview: '', awaiting: true,
+    lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '', ...o,
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [
+    chat('f@c.us', 'Sample Caller F', 20, { lastMessageType: 'call_log', lastCallOutcome: 'Missed' }),
+    chat('g@c.us', 'Sample Customer G', 2 * 24 * 60, { preview: 'Could you send the price list?' }),
+  ] } }));
+
+  const { app, win } = await open(data);
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Reports', exact: true }).click();
+    await expect(heading(win, 'Last 7 days: 50% answered on time')).toBeVisible();
+    await expect(win.getByText('Recording since')).toBeVisible();
+    await expect(win.locator('.fact').filter({ hasText: 'Customers who wrote' })).toContainText('7');
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'reports-overview.png') });
+
+    await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: 'Reply times' }).click();
+    await expect(heading(win, 'Last 7 days: median first reply 10 min')).toBeVisible();
+    await expect(win.getByRole('row').filter({ hasText: 'Test front desk' })).toContainText('50%');
+
+    await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: 'Backlog and reopened' }).click();
+    await expect(heading(win, '1 customer has waited more than a day')).toBeVisible();
+    await expect(win.getByRole('row').filter({ hasText: 'Sample Customer G' })).toContainText('Could you send the price list?');
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'reports-backlog.png') });
+
+    await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: 'Missed calls' }).click();
+    await expect(heading(win, '1 missed call is still waiting for an answer')).toBeVisible();
+    await win.getByRole('row').filter({ hasText: 'Sample Caller F' }).getByRole('button', { name: 'Open chat' }).click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Caller F');
+
+    await win.keyboard.press('Escape');
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Reports', exact: true }).click();
+    await win.getByRole('group', { name: 'Range' }).getByRole('button', { name: 'Today' }).click();
+    await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: 'Overview' }).click();
+    await expect(heading(win, 'Today: 50% answered on time')).toBeVisible();
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});

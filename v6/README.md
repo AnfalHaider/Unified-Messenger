@@ -97,6 +97,7 @@ saves as JSON, and "now" is always a parameter, which is what makes every rule t
 | `import-v5` | A v5 install becomes a v6 config and its history, with a report of what was guessed or left behind. | — |
 | `schedule` | Which account to read next, what may sleep, when to stay quiet. | `InstanceSessionManager` + `OversightAlertMonitor` |
 | `history` | One record per account per local day, for reports and the digest. | — |
+| `report` | A range of whole days for the Reports screen: replies, traffic, backlog, calls, busy hours. | `BusinessReport` |
 
 Rules: follow the ponytail guideline (built-ins before dependencies, no abstractions without a second
 user); port v5 behaviour with its test cases before changing it; never commit `firebase-config.json`,

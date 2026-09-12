@@ -265,7 +265,7 @@ function push() {
   if (!win || win.isDestroyed()) return;
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   const state = buildUiState(config, snapshots, times, overrides, {
-    now: Date.now(), route, visible, signedOut, asleep, modules: [...health.values()],
+    now: Date.now(), route, visible, signedOut, asleep, modules: [...health.values()], history,
   });
   win.webContents.send('state', state);
   tray?.setToolTip(`Unified Messenger: ${state.split.needsReply} waiting`);
