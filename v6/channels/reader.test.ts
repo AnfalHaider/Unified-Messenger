@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MODULES, moduleFor } from './index.ts';
+import { looksUnsynced } from './instagram/index.ts';
 
 const scan = (rows: unknown[]) => JSON.stringify({ conversations: rows, diag: { stage: 'ok' } });
 
@@ -27,6 +28,15 @@ const GOOD = scan([
   },
 ]);
 
+/** Instagram's reader has its own shape: thread metadata from the Relay prefetch, and the client's badge. */
+const ig = (rows: unknown[], extra: Record<string, unknown> = {}) =>
+  JSON.stringify({ conversations: rows, unreadBadge: 1, unreadBadgeCapped: false, diag: { stage: 'done' }, ...extra });
+const GOOD_IG = ig([
+  { key: '340282366841710300949128', name: 'Ayesha', username: 'ayesha.k', unread: 1, awaiting: true, lastActivityMs: 1_757_667_600_000 },
+  { key: '340282366841710300949129', name: 'Bilal', username: 'bilal', unread: 0, awaiting: false, lastActivityMs: 1_757_665_800_000 },
+]);
+const GOOD_FOR: Record<string, string> = { whatsapp: GOOD, whatsappbusiness: GOOD, instagram: GOOD_IG };
+
 /** Anything a page could hand back when it has changed, failed, or not finished loading. */
 const HOSTILE: unknown[] = [
   '', null, undefined, 0, false,
@@ -39,11 +49,11 @@ const HOSTILE: unknown[] = [
 ];
 
 for (const [channel, module] of Object.entries(MODULES)) {
-  test(`${channel}: a good read becomes customer chats, and a group is not one`, () => {
-    const { entries, skipped } = module.parse(GOOD);
+  test(`${channel}: a good read becomes customer chats`, () => {
+    const { entries, skipped } = module.parse(GOOD_FOR[channel]);
     assert.deepEqual(entries.map((e) => e.customerName), ['Ayesha', 'Bilal']);
     assert.equal(entries[0].awaiting, true);
-    assert.equal(entries[0].preview, 'kitna charge hoga');
+    if (channel !== 'instagram') assert.equal(entries[0].preview, 'kitna charge hoga');
     assert.equal(skipped, 0);
   });
 
@@ -65,7 +75,7 @@ for (const [channel, module] of Object.entries(MODULES)) {
     // The shell counts a health failure from an empty read. A page that has not finished bringing its reader
     // up must say so, or every start would report the channel as broken for its first few seconds.
     assert.equal(module.parse('').notReady, true);
-    assert.ok(!module.parse(GOOD).notReady);
+    assert.ok(!module.parse(GOOD_FOR[channel]).notReady);
   });
 
   test(`${channel}: the page script and both probes are present`, () => {
@@ -80,7 +90,7 @@ test('one broken module cannot take another down', () => {
   // The shell reads account by account; this pins the boundary the shell relies on. A module handed rubbish
   // still returns a result, so the loop moves on to the next account instead of ending the pass.
   const broken = moduleFor('whatsapp')!.parse('<html>Something went very wrong</html>');
-  const fine = moduleFor('instagram')!.parse(GOOD);
+  const fine = moduleFor('instagram')!.parse(GOOD_IG);
   assert.equal(broken.entries.length, 0);
   assert.equal(broken.skipped, 1);
   assert.equal(fine.entries.length, 2);
@@ -103,4 +113,31 @@ test('WhatsApp Web that has not built its stores yet is not a broken reader', ()
   assert.equal(early('no-models').notReady, true);
   // Loaded, scanned, and genuinely nothing waiting: that IS an answer, and must be treated as one.
   assert.ok(!early('empty').notReady);
+});
+
+test('Instagram: a thread with no title falls back to the handle, then the key', () => {
+  const { entries } = moduleFor('instagram')!.parse(ig([
+    { key: 'k1', name: '', username: 'new.customer', awaiting: false, lastActivityMs: 1 },
+    { key: 'k2', name: '', username: '', awaiting: false, lastActivityMs: 1 },
+    { name: 'No key at all', awaiting: true },
+  ]));
+  assert.deepEqual(entries.map((e) => e.customerName), ['@new.customer', 'k2']);
+});
+
+test('Instagram: a read taken before read state has synced is dropped, not believed', () => {
+  // Measured in v5: 15 of 15 threads flagged unread against a badge of 2, a minute after launch.
+  const early = moduleFor('instagram')!.parse(ig(
+    Array.from({ length: 15 }, (_, i) => ({ key: `k${i}`, name: `C${i}`, awaiting: true, lastActivityMs: 1 })),
+    { unreadBadge: 2 },
+  ));
+  assert.equal(early.notReady, true);
+  assert.deepEqual(early.entries, []);
+  assert.equal(looksUnsynced(15, 20, false), false, 'fewer than the badge is the top of Primary, not a fault');
+  assert.equal(looksUnsynced(15, 9, true), false, 'a capped badge cannot be compared');
+});
+
+test('Instagram: a read that did not complete is a failed read', () => {
+  const r = moduleFor('instagram')!.parse(JSON.stringify({ conversations: [], diag: { stage: 'no-relay' } }));
+  assert.equal(r.skipped, 1);
+  assert.ok(!r.notReady);
 });
