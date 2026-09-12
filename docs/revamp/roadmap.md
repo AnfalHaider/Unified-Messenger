@@ -69,7 +69,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 211 tests
+npm test            # 212 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 
@@ -178,9 +178,9 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.4 Opening hours and holidays editor.** `Location.hours` exists in `core/config.ts` (every location currently has `enabled: false`, so waits count around the clock). Build the editor in Settings › Opening hours writing through `set-settings`-style IPC that runs `parseConfig`. Add holidays to the config model and to `core/business-hours.ts` with tests. Done when a closed evening stops a wait from growing.
 
-**4.5 History store for reports.** Built 2026-09-13. `core/history.ts` keeps one record per account per local day (`YYYY-MM-DD`): customers who wrote or called, first replies measured with median and within-target (target in force that day), waiting over a day at the first read of the day, reopened (answered, then waiting again), missed calls. Only activity after the account came under watch counts; identities are kept for today and yesterday only to de-duplicate; records pruned after 400 days. Main records after every read into `history.json`; a failure there is logged as `history-failed` and never touches the read. Tests pin New York across the autumn change. v5 kept no per-day history worth importing, so reports start from the install. Remaining check: a week of real records on the owner's PC.
+**4.5 History store for reports.** Built 2026-09-13. `core/history.ts` keeps one record per account per local day (`YYYY-MM-DD`): customers who wrote or called (also by local hour, for the busy-hours chart), first replies measured with median and within-target (target in force that day), waiting over a day at the first read of the day, reopened (answered, then waiting again), missed calls. Only activity after the account came under watch counts; identities are kept for today and yesterday only to de-duplicate; records pruned after 400 days. Main records after every read into `history.json`; a failure there is logged as `history-failed` and never touches the read. Tests pin New York across the autumn change. Reports start from the install unless v5 history is imported (see 4.6). Remaining check: a week of real records on the owner's PC.
 
-**4.6 Reports.** Wire the five tabs in `reports.tsx` to the history store and `response-times.ts`. Export: CSV with the Node `fs` API via a save dialog; PDF with `webContents.printToPDF` of the weekly report view; image with `webContents.capturePage`. Customer names off by default. Done when each tab shows real figures and each export opens.
+**4.6 Reports.** Wire the five tabs in `reports.tsx` to the history store and `response-times.ts`. Export: CSV with the Node `fs` API via a save dialog; PDF with `webContents.printToPDF` of the weekly report view; image with `webContents.capturePage`. Customer names off by default. Done when each tab shows real figures and each export opens. **Open decision for this step:** v5 kept per-day history that could fill the charts from before the install: `analytics.json` (messages sent and received per day per account, plus one lifetime received-by-hour count, `MessageAnalyticsService.InstanceMessageStats`) and `kpi-trend.json` (per-day waiting count and caught-up %, `KpiTrendStore`), both still in the owner's v5 data folder. Their measures differ from `core/history.ts` (messages, not customers), so either import them as a clearly labelled "before v6" series or leave them.
 
 **4.7 Morning digest.** `digest()` exists in `core/snapshot.ts`. Show the digest screen on the first open of each local day (remember the last shown day in a small store); owed-from-yesterday comes from the snapshot, yesterday by location from the history store. Done when it appears once a day and never on a second open.
 

@@ -15,6 +15,8 @@ export interface DayRecord {
   day: string;
   /** Customers whose own message or call the app saw that day, each counted once. */
   customersWrote: number;
+  /** The same customers by the local hour of their message, 24 entries, for the busy-hours chart. */
+  wroteByHour: number[];
   /** First replies measured that day, their median, and how many were within the target in force then. */
   replies: number;
   medianReplyMinutes: number | null;
@@ -52,7 +54,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export const dayKey = (at: number) => { const d = new Date(at); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 
 const emptyDay = (day: string, targetMinutes: number): DayRecord => ({
-  day, customersWrote: 0, replies: 0, medianReplyMinutes: null, repliesWithinTarget: 0, targetMinutes,
+  day, customersWrote: 0, wroteByHour: Array(24).fill(0), replies: 0, medianReplyMinutes: null, repliesWithinTarget: 0, targetMinutes,
   waitingOverADayAtFirstRead: null, reopened: 0, missedCalls: 0,
 });
 
@@ -89,7 +91,7 @@ export function recordHistory(history: History, account: string, prior: ChatEntr
     const call = classify({ preview: c.preview, type: c.lastMessageType, fromMe: false, callOutcome: c.lastCallOutcome }).reason;
     if (call === 'missedCall') { const d = firstTime(c.lastActivity, 'calls', `${c.conversationKey}:${c.lastActivity}`); if (d) d.missedCalls++; }
     const d = firstTime(c.lastActivity, 'wrote', c.conversationKey);
-    if (d) d.customersWrote++;
+    if (d) { d.customersWrote++; d.wroteByHour[new Date(c.lastActivity).getHours()]++; }
     const was = before.get(c.conversationKey);
     if (c.awaiting && was?.lastMessageFromMe && c.lastActivity > was.lastActivity) {
       const r = firstTime(c.lastActivity, 'reopened', c.conversationKey);

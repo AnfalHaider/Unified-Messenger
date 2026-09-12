@@ -131,3 +131,15 @@ test('records older than the retention are dropped, and identities are kept only
   assert.ok(HISTORY_DAYS >= 400);
   assert.deepEqual(Object.keys(h.acct.seen), [dayKey(NOW)]);
 });
+
+test('who wrote is also counted by the hour they wrote, for the busy-hours chart', () => {
+  const h: History = {};
+  recordHistory(h, 'acct', undefined, [], ctx({ now: local(2026, 9, 14, 8) }));
+  recordHistory(h, 'acct', undefined, [
+    chat('a', { lastActivity: local(2026, 9, 14, 13, 5) }), chat('b', { lastActivity: local(2026, 9, 14, 13, 50) }),
+    chat('c', { lastActivity: local(2026, 9, 14, 14, 10) }),
+  ], ctx());
+  const byHour = today(h).wroteByHour;
+  assert.equal(byHour.length, 24);
+  assert.deepEqual([byHour[13], byHour[14], byHour.reduce((a, b) => a + b, 0)], [2, 1, 3]);
+});
