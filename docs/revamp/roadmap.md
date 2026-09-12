@@ -15,7 +15,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 |---|---|
 | 0 · Decisions | Done. Rules changed in AGENTS.md; Firebase Spark only; ponytail code. |
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
-| 2 · Foundation | Done except the Playwright smoke test in CI. |
+| 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live. Open: Google reviews reader, open-a-chat, WhatsApp IndexedDB fallback, the deliberate break test. |
 | 4 · Screens | The complete shell exists from the approved design. About half the screens run on real data; the rest show marked sample figures until wired. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
@@ -69,7 +69,8 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 184 tests at the end of this session
+npm test            # 184 tests
+npm run smoke       # the window opens, navigates and quits
 ```
 
 Then confirm the `v6` workflow is green on GitHub for the latest `main` (`gh` is not installed on this PC; use the Actions page).
@@ -140,10 +141,9 @@ Each step lists what to build, where, and how you know it is done. Do them in or
 
 ### Phase 2 leftover
 
-**2.1 Playwright smoke test on Windows in CI.**
-- Add `@playwright/test` as a dev dependency; `v6/tests/smoke.spec.ts` launches Electron with `_electron.launch({ args: ['app/main.ts'], env: { UM_DATA: <temp dir> } })`, waits for "customers are waiting" or "No accounts are being read yet", clicks the rail's Accounts button and asserts the Accounts heading.
-- Add a `windows-latest` job to `.github/workflows/v6.yml` running `npx vite build` then the test.
-- Done when the job is green and fails if the window never renders.
+**2.1 Playwright smoke test on Windows in CI.** Done 2026-09-13. `v6/tests/smoke.spec.ts` (`npm run smoke`) opens the
+window on a temp data folder, asserts the first heading, moves to Accounts and quits through the Quit button. The
+`smoke` job in `v6.yml` runs it on `windows-latest`. Observed failing with `dist-ui` removed.
 
 ### Phase 3 · Channel modules
 

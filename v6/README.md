@@ -19,6 +19,7 @@ npm install
 npm test               # node --test, runs *.test.ts directly (Node strips the types)
 npm run typecheck      # tsc --noEmit
 npm start              # opens the window from source and starts reading
+npm run smoke          # Playwright: the window renders, navigates and quits (own temp data folder)
 npm run dist           # builds dist\UnifiedMessenger6Setup.exe
 npm run install-local  # builds it, installs it on this PC and opens the installed app
 ```

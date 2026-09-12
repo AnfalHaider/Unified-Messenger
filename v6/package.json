@@ -11,7 +11,7 @@
     "test": "node --test",
     "typecheck": "tsc --noEmit",
     "start": "vite build && electron app/main.ts",
-    "smoke": "electron app/main.ts",
+    "smoke": "vite build && playwright test",
     "build:ui": "vite build",
     "ui": "vite",
     "dev": "electron app/main.ts",
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "22.20.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

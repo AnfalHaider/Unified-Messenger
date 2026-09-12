@@ -98,3 +98,5 @@ node_modules/
 v6/dist-ui/
 v6/out/
 v6/dist/
+v6/test-results/
+v6/playwright-report/
