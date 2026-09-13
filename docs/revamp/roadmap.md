@@ -1,6 +1,7 @@
 # Unified Messenger v6 roadmap
 
-Updated 2026-09-13, at the end of the session that built the v6 shell and installer. This replaces the roadmap
+Updated 2026-09-13, after the session that built 2.1, 4.1–4.3, 4.5 and most of 4.6 and installed them on the
+owner's PC. **Next step: 4.6b** (weekly report and exports), unless an owner decision in §5 changes the order. This replaces the roadmap
 section of the "Revamp Blueprint" artifact wherever the two disagree; the blueprint's stack, rules and data model
 still stand.
 
@@ -17,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live. Open: Google reviews reader, open-a-chat, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | The complete shell exists from the approved design. About half the screens run on real data; the rest show marked sample figures until wired. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.5 daily history, 4.6 four report tabs. Open: 4.6b weekly report and exports, 4.4 opening hours editor, 4.7 digest, 4.8 missed-call callbacks, 4.9–4.12. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -26,7 +27,9 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 ### What works on the owner's PC today
 
 - **Installed** per-user at `%LOCALAPPDATA%\Programs\UnifiedMessenger6`, Start Menu and desktop shortcut "Unified Messenger". v5 is uninstalled; its data folder `%LOCALAPPDATA%\UnifiedMessenger` was kept.
-- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
+- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
+- **Working day:** Handled and Snooze on the line and the dock, Set aside with Put back, Reports on recorded days (history began 2026-09-13, so reports cover few days yet).
+- **Notifications** appear (Windows lists the app as `UnifiedMessenger.v6`) outside the quiet hours imported from v5, 9 pm to 11 am.
 - **Reading:** WhatsApp F-11 and Men DHA-2 (500 chats each), Instagram DHA-2 and F-11 (15 threads each), every minute. Google profiles are signed in but have no reader.
 - **Needs signing in by hand:** DHA-2 WhatsApp (QR code) and Men DHA-2 Instagram (password). Neither had a valid session in v5.
 - **Closing** hides the window to the tray and keeps reading (Settings › Look and reading › Closing the window). Tray menu: Open, Read every account now, Quit.
@@ -39,14 +42,13 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | The line, lanes, queue, J/K/Enter | Morning digest |
 | Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
 | Set aside, with Put back | Opening hours, privacy sizes, summaries (digest, weekly report) |
-| Needs you | |
-| Accounts grid, account figures | |
-| Channel readers list | Reader timeline, lost-login record |
-| Look and reading settings, closing, memory, notifications and quiet hours | Reviews |
-| Reports: Overview, Reply times, Backlog and reopened, Missed calls (Today, 7 and 30 days) | |
-| Command palette (customers, accounts, screens) | Reports: the weekly report document and every export |
-| Theme | Assistant screen and settings |
-| | Workspace members, owner console, sign-in, new PC, removed, suspended, upgrade, update, offline |
+| Needs you | Reader timeline, lost-login record |
+| Accounts grid, account figures | Reviews |
+| Channel readers list | Reports: the weekly report document and every export |
+| Look and reading settings, closing, memory, notifications and quiet hours | Assistant screen and settings |
+| Reports: Overview, Reply times, Backlog and reopened, Missed calls (Today, 7 and 30 days) | Workspace members, owner console, sign-in, new PC, removed, suspended, upgrade, update, offline |
+| Command palette (customers, accounts, screens) | |
+| Theme | |
 
 ---
 
@@ -113,6 +115,13 @@ Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{Comman
 ```
 
 WhatsApp takes 60 to 120 seconds after launch to build its stores (`reader-not-ready`, stage `no-store`) before the first `read`.
+
+An install is only done when all three hold, because each has failed silently once:
+1. The `Create` call's `ReturnValue` is 0. An 8 with no process id means Smart App Control blocked the unsigned Setup (lesson `v6-smart-app-control-block-can-lift`): tell the owner and retry the same file later.
+2. `app.log` shows `quitting`, `quit`, then a new `startup`. No `startup` means the installer gave up waiting for a process named `UnifiedMessenger6.exe`: look for a main process (no `--type=` in its command line) older than the last `quit` (lesson `v6-quit-can-leave-a-husk-that-blocks-install`).
+3. Both WhatsApp accounts log `read` with 500 chats after the new `startup`.
+
+Nested quoting inside `Win32_Process` command lines breaks easily. For anything beyond one command, write a `.ps1` into `D:\um-scratch` and run it with `powershell -NoProfile -ExecutionPolicy Bypass -File`.
 
 ---
 

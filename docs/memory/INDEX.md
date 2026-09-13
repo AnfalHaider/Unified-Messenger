@@ -63,5 +63,6 @@
 | v6-smart-app-control-blocks-unsigned-setup | 2026-09-13 | claude | superseded by v6-smart-app-control-block-can-lift | Smart App Control can block a freshly built unsigned Setup.exe, and Win32_Process.Create only says "8 | install-local, Setup.exe, installer did nothing, Win32_Process, ReturnValue 8, Smart App Control, Code Integrity, 3077, 3033, unsigned, code signing, no startup in app.log |
 | v6-smoke-tests-run-the-built-screens | 2026-09-13 | claude | live | The Electron smoke test draws dist-ui, so a UI edit without vite build tests the old screens | playwright, smoke, electron, _electron.launch, dist-ui, vite build, screenshot unchanged, testMatch, closeToBackground, app.close hangs |
 | v6-user-agent-product-name-breaks-whatsapp | 2026-09-13 | claude | live | A product name with a space slipped past the user-agent filter and WhatsApp stopped building its stores | user agent, setUserAgent, productName, WhatsApp no-store, update your browser, installed app reads nothing, packaged |
+| v6-win32-process-quoting-fails-silently | 2026-09-13 | claude | live | A Win32_Process command line with nested quotes fails without an error; put the work in a .ps1 file | Win32_Process, Invoke-CimMethod, Create, cmd /c, powershell -Command, quoting, output file missing, Remove-Item blocked, /VERYSILENT, protected from removal, agent shell |
 
-Generated: 2026-09-13 13:34:47
+Generated: 2026-09-13 13:53:49
