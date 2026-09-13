@@ -12,7 +12,7 @@ import { buildRollup } from '../core/rollup.ts';
 import { readableAccounts } from '../core/schedule.ts';
 import { DAY_MS } from '../core/days.ts';
 import type { History } from '../core/history.ts';
-import { buildReport, type Report } from '../core/report.ts';
+import { buildReport, weekEnding, type Report } from '../core/report.ts';
 import { explain } from '../core/reply-need.ts';
 import { awaitingChats, awaitingSplit, lastCaptured, setAside, verdictFor, type Judge, type Snapshots } from '../core/snapshot.ts';
 import type { Overrides } from '../core/awaiting-overrides.ts';
@@ -47,8 +47,23 @@ export interface ReportRange {
   dayLabels: string[];
 }
 
+/** The weekly report document: every sentence computed from the week's figures, none phrased by a model. */
+export interface WeeklyDoc {
+  which: 'this' | 'last';
+  title: string;
+  hasData: boolean;
+  coverage: string | null;
+  lede: string;
+  facts: Figure[];
+  dayLabels: string[];
+  report: Report;
+  lookAt: string[];
+  wentWell: string[];
+}
+
 export interface ReportsView {
   ranges: { today: ReportRange; week: ReportRange; month: ReportRange };
+  weekly: { this: WeeklyDoc; last: WeeklyDoc };
   targetMinutes: number;
   /** Customers waiting over a day now, oldest first. */
   backlog: { accountId: string; accountName: string; key: string; customer: string; preview: string; since: number; waited: number }[];
@@ -425,7 +440,7 @@ function reportRange(key: keyof typeof RANGE_LABELS, report: Report, target: num
 
 function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, judge: Judge, ctx: Context, live: string[]): ReportsView {
   const { now } = ctx;
-  const accounts = readableAccounts(config).map((a) => ({ id: a.id, name: a.name, location: a.location, targetMinutes: targetFor(config, a) }));
+  const accounts = reportAccounts(config);
   const history = ctx.history ?? {};
   const name = (id: string) => config.accounts.find((a) => a.id === id)?.name ?? id;
   const who = (c: { customerName: string; contactPhone: string }) => c.customerName || c.contactPhone || 'Unknown number';
@@ -451,5 +466,66 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
   const target = config.settings.slaMinutes;
   const range = (key: keyof typeof RANGE_LABELS, days: number) =>
     reportRange(key, buildReport(history, times, accounts, days, now), target, unansweredCalls.length);
-  return { ranges: { today: range('today', 1), week: range('week', 7), month: range('month', 30) }, targetMinutes: target, backlog, unansweredCalls };
+  const week = (which: 'this' | 'last') =>
+    weeklyDoc(which, buildReport(history, times, accounts, 7, weekEnding(now, which)), target, unansweredCalls.length);
+  return {
+    ranges: { today: range('today', 1), week: range('week', 7), month: range('month', 30) },
+    weekly: { this: week('this'), last: week('last') },
+    targetMinutes: target, backlog, unansweredCalls,
+  };
+}
+
+/** The accounts a report covers, with each one's target. Shared by the screen and the exports. */
+export const reportAccounts = (config: Config) =>
+  readableAccounts(config).map((a) => ({ id: a.id, name: a.name, location: a.location, targetMinutes: targetFor(config, a) }));
+
+const pointsOnWeekBefore = (diff: number) =>
+  diff === 0 ? 'the same as the week before' : `${Math.abs(diff)} point${Math.abs(diff) === 1 ? '' : 's'} ${diff > 0 ? 'up' : 'down'} on the week before`;
+
+const plainCount =(n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
+
+function weeklyDoc(which: 'this' | 'last', report: Report, target: number, unanswered: number): WeeklyDoc {
+  const base = reportRange('week', report, target, unanswered);
+  const { totals: t, previous: p } = report;
+  const first = dayDate(report.days[0].day), last = dayDate(report.days.at(-1)!.day);
+  const sameMonth = new Date(first).getMonth() === new Date(last).getMonth();
+  const from = new Date(first).toLocaleDateString('en-GB', sameMonth ? { day: 'numeric' } : { day: 'numeric', month: 'long' });
+  const to = new Date(last).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+  const title = `${which === 'this' ? 'This week so far' : 'Week of'}${which === 'this' ? ':' : ''} ${from} to ${to}`;
+
+  const located = report.byLocation.filter((l) => l.onTimePercent !== null).sort((a, b) => (b.onTimePercent ?? 0) - (a.onTimePercent ?? 0));
+  const hadBefore = p.replies > 0;
+  const locationsWithAccounts = report.byLocation.length;
+
+  const lede = !report.hasData ? 'Nothing was recorded for this week.'
+    : [
+      `${plainCount(t.customersWrote, 'customer')} wrote to ${plainCount(locationsWithAccounts, 'location')}.`,
+      t.onTimePercent === null ? 'No first replies were measured.'
+        : `${t.onTimePercent}% got a first reply within target${hadBefore && p.onTimePercent !== null ? `, ${pointsOnWeekBefore(t.onTimePercent - p.onTimePercent)}` : ''}.`,
+      located.length > 1 ? `${located[0].name} answered ${located[0].onTimePercent}% on time; ${located.at(-1)!.name} ${located.at(-1)!.onTimePercent}%.` : '',
+    ].filter(Boolean).join(' ');
+
+  const lookAt: string[] = [];
+  const weakest = located.at(-1);
+  if (weakest && (weakest.onTimePercent ?? 100) < 90) lookAt.push(`${weakest.name} answered ${weakest.onTimePercent}% on time across ${plainCount(weakest.replies, 'reply', 'replies')}.`);
+  const slowest = [...report.byAccount].filter((a) => a.p90Minutes !== null).sort((a, b) => (b.p90Minutes ?? 0) - (a.p90Minutes ?? 0))[0];
+  if (slowest && (slowest.p90Minutes ?? 0) > 2 * target) lookAt.push(`At ${slowest.name}, the slowest one in ten first replies took ${Math.round(slowest.p90Minutes ?? 0)} minutes or more.`);
+  if (t.waitingOverADay) lookAt.push(`${plainCount(t.waitingOverADay, 'customer')} had waited more than a day at the latest morning read.`);
+  if (t.missedCalls) lookAt.push(`${plainCount(t.missedCalls, 'missed call')} recorded.`);
+
+  const wentWell: string[] = [];
+  for (const l of located) if ((l.onTimePercent ?? 0) >= 90) wentWell.push(`${l.name} answered ${l.onTimePercent}% on time.`);
+  if (hadBefore && t.onTimePercent !== null && p.onTimePercent !== null && t.onTimePercent > p.onTimePercent) wentWell.push(`On time rose from ${p.onTimePercent}% to ${t.onTimePercent}%.`);
+  if (t.waitingOverADay !== null && p.waitingOverADay !== null && t.waitingOverADay < p.waitingOverADay) wentWell.push(`Fewer customers waited more than a day: ${t.waitingOverADay}, down from ${p.waitingOverADay}.`);
+
+  const keep = ['Answered on time', 'Median first reply', 'Waiting over a day', 'Missed calls'];
+  return {
+    which, title, hasData: report.hasData, coverage: base.coverage, lede, report,
+    // A report about a week says what happened that week, not what is true this minute.
+    facts: base.facts.filter((f) => keep.includes(f.label)).map(({ trend: _t, ...f }) =>
+      f.label === 'Missed calls' ? { ...f, tone: 'neutral' as Tone, note: 'Recorded this week' } : f),
+    dayLabels: report.days.map((d) => new Date(dayDate(d.day)).toLocaleDateString('en-GB', { weekday: 'short' })),
+    lookAt: report.hasData ? (lookAt.length ? lookAt : ['Nothing stood out.']) : [],
+    wentWell: report.hasData ? (wentWell.length ? wentWell : [hadBefore ? 'Nothing improved on the week before.' : 'This is the first week recorded, so there is nothing to compare with yet.']) : [],
+  };
 }

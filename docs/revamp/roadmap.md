@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-13, after the session that built 2.1, 4.1–4.3, 4.5 and most of 4.6 and installed them on the
-owner's PC. **Next step: 4.6b** (weekly report and exports), unless an owner decision in §5 changes the order. This replaces the roadmap
+owner's PC, then 3.2 and 4.6b. **Next step: 4.4** (opening hours editor), unless an owner decision in §5 changes the order. This replaces the roadmap
 section of the "Revamp Blueprint" artifact wherever the two disagree; the blueprint's stack, rules and data model
 still stand.
 
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.5 daily history, 4.6 four report tabs. Open: 4.6b weekly report and exports, 4.4 opening hours editor, 4.7 digest, 4.8 missed-call callbacks, 4.9–4.12. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports. Open: 4.4 opening hours editor, 4.7 digest, 4.8 missed-call callbacks, 4.9–4.12. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -27,7 +27,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 ### What works on the owner's PC today
 
 - **Installed** per-user at `%LOCALAPPDATA%\Programs\UnifiedMessenger6`, Start Menu and desktop shortcut "Unified Messenger". v5 is uninstalled; its data folder `%LOCALAPPDATA%\UnifiedMessenger` was kept.
-- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
+- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `exports.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
 - **Working day:** Handled and Snooze on the line and the dock, Set aside with Put back, Reports on recorded days (history began 2026-09-13, so reports cover few days yet).
 - **Notifications** appear (Windows lists the app as `UnifiedMessenger.v6`) outside the quiet hours imported from v5, 9 pm to 11 am.
 - **Reading:** WhatsApp F-11 and Men DHA-2 (500 chats each), Instagram DHA-2 and F-11 (15 threads each), every minute. Google profiles are signed in but have no reader.
@@ -41,12 +41,13 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 |---|---|
 | The line, lanes, queue, J/K/Enter | Morning digest |
 | Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
-| Set aside, with Put back | Opening hours, privacy sizes, summaries (digest, weekly report) |
+| Set aside, with Put back | Opening hours, privacy sizes |
 | Needs you | Reader timeline, lost-login record |
 | Accounts grid, account figures | Reviews |
-| Channel readers list | Reports: the weekly report document and every export |
+| Channel readers list | |
 | Look and reading settings, closing, memory, notifications and quiet hours | Assistant screen and settings |
 | Reports: Overview, Reply times, Backlog and reopened, Missed calls (Today, 7 and 30 days) | Workspace members, owner console, sign-in, new PC, removed, suspended, upgrade, update, offline |
+| Weekly report, PDF / CSV / image export, Monday auto-save; Export (CSV) on every report tab | |
 | Command palette (customers, accounts, screens) | |
 | Theme | |
 
@@ -72,7 +73,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 224 tests
+npm test            # 233 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 
@@ -191,7 +192,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.6 Reports.** Four tabs done 2026-09-13. `core/report.ts` builds a range of whole local days (Today, 7, 30): reply measures from the response-times samples against each account's target, traffic, reopened, missed calls and the morning backlog from `history.json`, busy hours averaged per weekday, the previous equal range for up/down notes; null wherever nothing was measured, and "Recording since …, so this covers N of M days". The view model builds it only while Reports is open, plus the backlog list and unanswered missed calls from the snapshot. `LineChart` draws gaps for null days. Custom range was dropped. Whether a missed call was returned is 4.8. Playwright seeds invented history and replies and checks every tab. **Open decision for this step:** v5 kept per-day history that could fill the charts from before the install: `analytics.json` (messages sent and received per day per account, plus one lifetime received-by-hour count, `MessageAnalyticsService.InstanceMessageStats`) and `kpi-trend.json` (per-day waiting count and caught-up %, `KpiTrendStore`), both still in the owner's v5 data folder. Their measures differ from `core/history.ts` (messages, not customers), so either import them as a clearly labelled "before v6" series or leave them.
 
-**4.6b Weekly report and export.** The Weekly report tab is still the sample document. Compose it from the 7-day report (no model phrasing); export CSV with the Node `fs` API via a save dialog, PDF with `webContents.printToPDF` of the report view, image with `webContents.capturePage`; customer names off by default. Done when each export opens.
+**4.6b Weekly report and export.** Done 2026-09-13. Weeks run Monday to Sunday (`weekEnding` in `core/report.ts`); the tab offers Last week and This week and opens on the one with data. `weeklyDoc` in `view-model.ts` computes the title, lede, four facts, "What to look at" and "What went well" from the week's report; nothing is phrased by a model. Includes (figures, locations, accounts, missed calls, names) and Monday auto-save live in `settings.weeklyReport`; names and auto-save are off by default. PDF and image are made from the same `WeeklyDocument` component drawn in a hidden window (`ui/print.tsx`, `#print=weekly`), sized to the page; the PDF is one tall page, the image goes to the clipboard. CSV (`reportCsv`) is figures only, one row per account per recorded day, never names; the Export button on the other tabs saves the chosen range. Auto-save writes last week's PDF to Documents › Unified Messenger reports from Monday 10 am, once per week (`weeklyDue`, `exports.json`), skipping a week with nothing recorded. Playwright checks the text, the three files (PDF header, PNG size, CSV row, no names) and the names switch; `UM_EXPORT_DIR` replaces the save dialog and clipboard in tests, so the dialog, the clipboard copy and the Monday save have not been exercised by a test.
 
 **4.7 Morning digest.** `digest()` exists in `core/snapshot.ts`. Show the digest screen on the first open of each local day (remember the last shown day in a small store); owed-from-yesterday comes from the snapshot, yesterday by location from the history store. Done when it appears once a day and never on a second open.
 

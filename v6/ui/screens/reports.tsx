@@ -1,13 +1,13 @@
-// Reviews and Reports. Reviews and the weekly report document are sample figures until the Google reviews reader
-// and the report export are wired; the other report tabs read the day records and measured replies.
+// Reviews and Reports. Reviews are sample figures until the Google reviews reader is wired; every report tab,
+// the weekly report and its exports read the day records and measured replies.
 import { useState } from 'react';
-import type { ReportRange, ReportsView } from '../../app/view-model.ts';
+import type { ReportRange, ReportsView, UiState, WeeklyDoc } from '../../app/view-model.ts';
 import { dayKey as dayKeyOf } from '../../core/history.ts';
 import { REPLY_BANDS } from '../../core/report.ts';
 import { Heatmap, Histogram, LineChart, Spark } from '../charts.tsx';
 import { Icon } from '../icons.tsx';
-import { Btn, Chip, Facts, Headline, Logo, Panel, Seg, Toggle, waitText, type ScreenProps } from '../parts.tsx';
-import { ON_TIME_BY_LOCATION, REVIEW_DRAFT, REVIEW_PROFILES, REVIEWS, WEEK_FACTS, WEEKS } from '../sample.ts';
+import { bridge, Btn, Chip, Facts, Headline, Logo, Panel, Seg, Toggle, waitText, type ScreenProps } from '../parts.tsx';
+import { REVIEW_DRAFT, REVIEW_PROFILES, REVIEWS } from '../sample.ts';
 
 const Stars = ({ n, size = 13 }: { n: number; size?: number }) => (
   <span className="stars" aria-label={`${n} of 5 stars`}>
@@ -92,16 +92,21 @@ const Empty = ({ children }: { children: React.ReactNode }) => <p className="sub
 export function ReportsScreen({ state, nav }: ScreenProps) {
   const tab = (REPORT_TABS as readonly string[]).includes(nav.view.sub) ? nav.view.sub as Tab : 'Overview';
   const [rangeKey, setRange] = useState<RangeKey>('week');
+  const [saved, setSaved] = useState('');
+  const days = rangeKey === 'today' ? 1 : rangeKey === 'week' ? 7 : 30;
   const bar = (
     <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
       <Seg label="Report" value={tab} onChange={(t) => nav.go('reports', null, t)} options={REPORT_TABS} />
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-        {tab !== 'Weekly report' && <Seg label="Range" value={rangeKey} onChange={setRange} options={RANGES} />}
-        <Btn icon="export" disabled title="Export is not connected yet">Export</Btn>
-      </div>
+      {tab !== 'Weekly report' && saved && <span className="sub" role="status" style={{ overflowWrap: 'anywhere' }}>{saved}</span>}
+      {tab !== 'Weekly report' && (
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <Seg label="Range" value={rangeKey} onChange={setRange} options={RANGES} />
+          <Btn icon="export" title="Save this range's figures as CSV" onClick={() => void bridge.exportReport({ format: 'csv', days }).then((r) => setSaved(exportMessage(r)))}>Export</Btn>
+        </div>
+      )}
     </div>
   );
-  if (tab === 'Weekly report') return <Weekly bar={bar} />;
+  if (tab === 'Weekly report') return <Weekly state={state} bar={bar} />;
   const view = state.reports;
   if (!view) return <main className="main"><Headline title="Reports">Gathering the figures…</Headline>{bar}</main>;
   const range = view.ranges[rangeKey];
@@ -241,38 +246,102 @@ function Calls({ view, range, bar, nav }: TabProps) {
   );
 }
 
-function Weekly({ bar }: { bar: React.ReactNode }) {
-  const [parts, setParts] = useState<Record<string, boolean>>({ 'Summary and figures': true, 'On time by location': true, 'Reply times by account': true, Reviews: true, 'Missed calls': true, 'Customer names': false });
-  const [weekly, setWeekly] = useState(true);
+type Include = UiState['settings']['weeklyReport']['include'];
+type Backlog = ReportsView['backlog'];
+
+/** The weekly report page. Drawn in the Weekly report tab and, unchanged, in the hidden window the PDF and the
+ *  image are made from, so what is saved is exactly what was on screen. */
+export function WeeklyDocument({ doc, include, backlog }: { doc: WeeklyDoc; include: Include; backlog: Backlog }) {
+  const r = doc.report;
+  const accounts = r.byAccount.filter((a) => a.replies > 0);
+  return (
+    <article className="doc" data-weekly-doc="">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 20 }}>
+        <div><span className="sub">Unified Messenger · weekly report</span><h1>{doc.title}</h1></div><Logo size={40} />
+      </div>
+      <p className="lede">{doc.lede}{doc.coverage && <> <span className="sub">{doc.coverage}</span></>}</p>
+      {doc.hasData && include.figures && <Facts facts={doc.facts} />}
+      {doc.hasData && include.locations && (
+        <div><h3>On time, by location</h3>
+          {r.byLocation.every((l) => l.daily.every((v) => v === null)) ? <p>No first replies were measured this week.</p>
+            : <LineChart labels={doc.dayLabels} min={0} max={100} ticks={[0, 25, 50, 75, 100]} unit="%" target={90} targetLabel="Goal 90%"
+              series={r.byLocation.map((l, i) => ({ label: l.name, values: l.daily, dash: ['', '6 4', '1.5 3.5'][i % 3] || undefined, nudge: [0, 8, -8][i % 3] }))} width={716} height={200} />}
+        </div>
+      )}
+      {doc.hasData && (
+        <div className="grid2" style={{ gap: 28 }}>
+          <div><h3>What to look at</h3>{doc.lookAt.map((s) => <p key={s}>{s}</p>)}</div>
+          <div><h3>What went well</h3>{doc.wentWell.map((s) => <p key={s}>{s}</p>)}</div>
+        </div>
+      )}
+      {doc.hasData && include.accounts && accounts.length > 0 && (
+        <div><h3>Reply times by account</h3>
+          <table className="table"><thead><tr><th>Account</th><th className="r">Replies</th><th className="r">Median</th><th className="r">On time</th><th className="r">Slowest 1 in 10</th></tr></thead><tbody>
+            {accounts.map((a) => <tr key={a.id}><td>{a.name}</td><td className="r">{a.replies}</td><td className="r">{a.medianMinutes === null ? '—' : `${Math.round(a.medianMinutes)} min`}</td><td className="r">{a.onTimePercent === null ? '—' : `${a.onTimePercent}%`}</td><td className="r">{a.p90Minutes === null ? '—' : `${Math.round(a.p90Minutes)} min`}</td></tr>)}
+          </tbody></table>
+        </div>
+      )}
+      {doc.hasData && include.calls && (
+        <div><h3>Missed calls</h3>
+          <p>{r.totals.missedCalls ? r.byLocation.filter((l) => l.missedCalls).map((l) => `${l.name}: ${l.missedCalls}`).join(' · ') : 'No missed calls were recorded this week.'}</p>
+        </div>
+      )}
+      {include.names && (
+        <div><h3>Waiting more than a day when this report was made</h3>
+          {backlog.length ? <table className="table"><tbody>{backlog.map((b) => <tr key={`${b.accountId}:${b.key}`}><td>{b.customer}</td><td className="sub">{b.accountName}</td><td className="r">{waitText(b.waited).join(' ')}</td></tr>)}</tbody></table>
+            : <p>Nobody.</p>}
+        </div>
+      )}
+    </article>
+  );
+}
+
+type ExportResult = Awaited<ReturnType<Window['um']['exportReport']>>;
+const exportMessage = (r: ExportResult) =>
+  r.error ? `Could not save: ${r.error}` : r.cancelled ? '' : r.copied ? 'Copied. Paste it into a message or a document.' : r.saved ? `Saved to ${r.saved}` : '';
+
+function Weekly({ state, bar }: { state: UiState; bar: React.ReactNode }) {
+  const view = state.reports;
+  const s = state.settings.weeklyReport;
+  const [picked, setWhich] = useState<'this' | 'last' | null>(null);
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!view) return <main className="main"><Headline title="The weekly report">Gathering the figures…</Headline>{bar}</main>;
+  const which = picked ?? (view.weekly.last.hasData ? 'last' : 'this');
+  const doc = view.weekly[which];
+  const setInclude = (key: keyof Include, on: boolean) => bridge.setSettings({ weeklyReport: { ...s, include: { ...s.include, [key]: on } } });
+  const run = async (format: 'pdf' | 'csv' | 'png') => {
+    setBusy(true); setStatus('');
+    try { setStatus(exportMessage(await bridge.exportReport({ format, week: which }))); } finally { setBusy(false); }
+  };
+  const parts: [keyof Include, string][] = [['figures', 'Summary and figures'], ['locations', 'On time by location'], ['accounts', 'Reply times by account'], ['calls', 'Missed calls'], ['names', 'Customer names']];
   return (
     <div className="split" style={{ gridTemplateColumns: 'minmax(0,1fr) 300px' }}>
       <main className="main" style={{ gap: 16 }}>
-        <Headline sample title="The weekly report">Written for someone who was not watching. Every sentence is computed from the figures; nothing is phrased by a model.</Headline>
+        <Headline title="The weekly report" actions={<Seg label="Week" value={which} onChange={setWhich} options={[['last', 'Last week'], ['this', 'This week']] as const} />}>
+          Written for someone who was not watching. Every sentence is computed from the figures; nothing is phrased by a model.
+        </Headline>
         {bar}
         <div className="doc-wrap" style={{ overflow: 'visible' }}>
-          <article className="doc">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 20 }}><div><span className="sub">Depilex · Unified Messenger</span><h1>Week of 6 to 12 September</h1></div><Logo size={40} /></div>
-            <p className="lede">1,284 customers wrote to the three locations. 84% got a first reply within 15 minutes, two points down on the week before. Men DHA-2 hit the 90% goal; F-11 fell to 77%, almost all between 1 and 3 pm.</p>
-            <Facts facts={WEEK_FACTS.filter((f) => ['Answered on time', 'Median first reply', 'Waiting over a day', 'Missed calls'].includes(f.label)).map(({ trend: _t, ...f }) => f)} />
-            <div><h3>On time, by location</h3><LineChart labels={WEEKS} min={60} max={100} ticks={[60, 70, 80, 90, 100]} unit="%" target={90} targetLabel="Goal 90%" series={ON_TIME_BY_LOCATION} width={716} height={200} /></div>
-            <div className="grid2" style={{ gap: 28 }}>
-              <div><h3>What to look at</h3><p>F-11 between 1 and 2 pm: 38 replies took a median 24 minutes. And 3 one- and two-star reviews from this week still have no reply.</p></div>
-              <div><h3>What went well</h3><p>Men DHA-2 answered 92% on time, its best week since July, and the backlog is at its lowest this month.</p></div>
-            </div>
-          </article>
+          <WeeklyDocument doc={doc} include={s.include} backlog={view.backlog} />
         </div>
       </main>
       <aside className="cust" style={{ gap: 14 }}>
         <h3 style={{ margin: 0, font: '650 17px/1.2 var(--display)' }}>Save or send</h3>
         <div style={{ display: 'grid', gap: 8 }}>
-          <Btn icon="export" kind="primary" disabled title="Not connected yet">Save as PDF</Btn>
-          <Btn icon="export" disabled title="Not connected yet">Save figures as CSV</Btn>
-          <Btn icon="copy" disabled title="Not connected yet">Copy as image</Btn>
+          <Btn icon="export" kind="primary" disabled={busy} onClick={() => void run('pdf')}>Save as PDF</Btn>
+          <Btn icon="export" disabled={busy} onClick={() => void run('csv')}>Save figures as CSV</Btn>
+          <Btn icon="copy" disabled={busy} onClick={() => void run('png')}>Copy as image</Btn>
         </div>
+        {status && <p className="sub" role="status" style={{ margin: 0, overflowWrap: 'anywhere' }}>{status}</p>}
         <div><h4>Includes</h4><div style={{ display: 'grid', gap: 8, fontSize: 13 }}>
-          {Object.entries(parts).map(([k, on]) => <label key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{k}<Toggle label={k} on={on} onChange={(v) => setParts({ ...parts, [k]: v })} /></label>)}
-        </div><p className="sub" style={{ margin: '8px 0 0' }}>Customer names are left out by default, so the report can go to anyone.</p></div>
-        <div><h4>Every week</h4><div className="srow" style={{ padding: 0, border: 0 }}><span><b>Prepare on Monday at 10 am</b><span>Saved to Documents</span></span><Toggle label="Prepare every week" on={weekly} onChange={setWeekly} /></div></div>
+          {parts.map(([k, label]) => <label key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>{label}<Toggle label={label} on={s.include[k]} onChange={(v) => setInclude(k, v)} /></label>)}
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--ink-3)' }}>Reviews<span className="sub">Not connected yet</span></label>
+        </div><p className="sub" style={{ margin: '8px 0 0' }}>Customer names are left out by default, so the report can go to anyone. The CSV never has names.</p></div>
+        <div><h4>Every week</h4><div className="srow" style={{ padding: 0, border: 0 }}>
+          <span><b>Save last week’s PDF on Monday</b><span>From 10 am, to Documents › Unified Messenger reports, while the app is running</span></span>
+          <Toggle label="Save last week’s PDF on Monday" on={s.autoSave} onChange={(v) => bridge.setSettings({ weeklyReport: { ...s, autoSave: v } })} />
+        </div></div>
       </aside>
     </div>
   );

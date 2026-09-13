@@ -64,7 +64,12 @@ export interface Settings {
   quietHours: { enabled: boolean; startHour: number; endHour: number };
   /** Windows notifications, each switchable. Quiet hours hold all of them back. */
   alerts: { nearTarget: boolean; waitedHour: boolean; signedOut: boolean };
+  /** What the weekly report includes, and whether last week's PDF is saved on Monday morning. Names are off by
+   *  default so the report can go to anyone; saving files unasked is off by default too. */
+  weeklyReport: { autoSave: boolean; include: WeeklyInclude };
 }
+
+export interface WeeklyInclude { figures: boolean; locations: boolean; accounts: boolean; calls: boolean; names: boolean }
 
 export interface Config { version: number; accounts: Account[]; locations: Location[]; settings: Settings }
 
@@ -82,6 +87,7 @@ export const defaultSettings = (): Settings => ({
   theme: 'system',
   quietHours: { enabled: false, startHour: 21, endHour: 8 },
   alerts: { nearTarget: true, waitedHour: true, signedOut: true },
+  weeklyReport: { autoSave: false, include: { figures: true, locations: true, accounts: true, calls: true, names: false } },
 });
 
 export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [], locations: [], settings: defaultSettings() });
@@ -172,6 +178,9 @@ function parseSettings(raw: unknown): Settings {
   const assistant = isObject(raw.assistant) ? raw.assistant : {};
   const quiet = isObject(raw.quietHours) ? raw.quietHours : {};
   const alerts = isObject(raw.alerts) ? raw.alerts : {};
+  const weekly = isObject(raw.weeklyReport) ? raw.weeklyReport : {};
+  const include = isObject(weekly.include) ? weekly.include : {};
+  const di = d.weeklyReport.include;
   const theme = str(raw.theme);
   return {
     slaMinutes: clampInt(raw.slaMinutes, SLA_MIN_MINUTES, SLA_MAX_MINUTES, d.slaMinutes),
@@ -196,6 +205,13 @@ function parseSettings(raw: unknown): Settings {
       nearTarget: bool(alerts.nearTarget, d.alerts.nearTarget),
       waitedHour: bool(alerts.waitedHour, d.alerts.waitedHour),
       signedOut: bool(alerts.signedOut, d.alerts.signedOut),
+    },
+    weeklyReport: {
+      autoSave: bool(weekly.autoSave, d.weeklyReport.autoSave),
+      include: {
+        figures: bool(include.figures, di.figures), locations: bool(include.locations, di.locations),
+        accounts: bool(include.accounts, di.accounts), calls: bool(include.calls, di.calls), names: bool(include.names, di.names),
+      },
     },
   };
 }

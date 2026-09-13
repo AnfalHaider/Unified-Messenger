@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('um', {
   snooze: (accountId, key, minutes) => ipcRenderer.send('snooze', accountId, key, minutes),
   /** Takes the account's page to one conversation: opened on WhatsApp, found but not opened on Instagram. */
   openChat: (accountId, key) => ipcRenderer.send('open-chat', accountId, key),
+  /** A report saved (PDF, CSV) or copied as an image. Resolves with where it went, or why it did not. */
+  exportReport: (request) => ipcRenderer.invoke('export-report', request),
+  /** The hidden report window says it has drawn the page, and how tall the page is. */
+  printRendered: (height) => ipcRenderer.send('print-rendered', height),
   /** Undoes either mark. */
   putBack: (accountId, key) => ipcRenderer.send('put-back', accountId, key),
   /** A patch of settings. Main merges it, runs it back through the config parser so limits hold, and saves. */

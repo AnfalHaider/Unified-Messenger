@@ -1,5 +1,5 @@
 // Settings. "Look and reading" and "Notifications" write to config.json and take effect at once. Opening hours,
-// the assistant, the workspace, the summaries and parts of privacy are sample settings until their features
+// the assistant, the workspace, the morning digest and parts of privacy are sample settings until their features
 // are wired, and say so.
 import { useState } from 'react';
 import { Icon, type IconName } from '../icons.tsx';
@@ -146,9 +146,11 @@ function Notifications({ state }: ScreenProps) {
           <SettingRow title="From" detail="Quiet hours can run past midnight."><Stepper label="quiet hours start" value={s.quietHours.startHour} options={HOURS} format={hour} onChange={(v) => setQuiet({ startHour: v })} /></SettingRow>
           <SettingRow title="Until"><Stepper label="quiet hours end" value={s.quietHours.endHour} options={HOURS} format={hour} onChange={(v) => setQuiet({ endHour: v })} /></SettingRow>
         </div></div>
-        <div className="sgroup"><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Summaries</h3><Sample /></div><div className="panel" style={{ padding: 0 }}>
-          <SettingRow title="Morning digest" detail="When the app first opens each day"><Toggle label="Morning digest" on /></SettingRow>
-          <SettingRow title="Weekly report" detail="Monday, 10:00 am, as a PDF"><Toggle label="Weekly report" on /></SettingRow>
+        <div className="sgroup"><h3>Summaries</h3><div className="panel" style={{ padding: 0 }}>
+          <SettingRow title="Morning digest" detail="When the app first opens each day"><span className="sub">Not connected yet</span></SettingRow>
+          <SettingRow title="Weekly report" detail="Saves last week’s PDF from Monday 10 am, to Documents › Unified Messenger reports">
+            <Toggle label="Weekly report" on={s.weeklyReport.autoSave} onChange={(v) => bridge.setSettings({ weeklyReport: { ...s.weeklyReport, autoSave: v } })} />
+          </SettingRow>
         </div></div>
       </div>
     </>

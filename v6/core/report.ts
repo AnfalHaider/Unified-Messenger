@@ -145,3 +145,50 @@ export function buildReport(history: History, times: ResponseTimes, accounts: Re
     busy,
   };
 }
+
+// ---- weeks and export ----------------------------------------------------------------------------------------
+
+/** Monday of the week `at` falls in, as a start-of-day time. */
+const mondayOf = (at: number) => startOfDay(at, (new Date(at).getDay() + 6) % 7);
+
+/**
+ * A time on the last day of a Monday-to-Sunday week, to pass to buildReport as `now` with 7 days. "This week" ends
+ * today, so far; "last week" ends on the Sunday before this week's Monday. Noon, so a clock change cannot move it
+ * into a neighbouring day.
+ */
+export function weekEnding(now: number, which: 'this' | 'last'): number {
+  if (which === 'this') return now;
+  const sunday = startOfDay(mondayOf(now), 1);
+  return sunday + 12 * 3_600_000;
+}
+
+/** The hour on Monday from which last week's report is saved. */
+export const WEEKLY_SAVE_HOUR = 10;
+
+/** The Monday key of last week when its report is due and has not been saved yet, else null. Due from Monday
+ *  10 am through the rest of the week, so a PC switched off on Monday still saves it when it next runs. */
+export function weeklyDue(now: number, lastSavedWeek: string | null): string | null {
+  const at = new Date(now);
+  if (at.getDay() === 1 && at.getHours() < WEEKLY_SAVE_HOUR) return null;
+  const week = dayKey(mondayOf(startOfDay(mondayOf(now), 1)));
+  return week === lastSavedWeek ? null : week;
+}
+
+const CSV_HEADER = ['Date', 'Account', 'Location', 'Customers who wrote', 'First replies', 'Within target',
+  'Median first reply (min)', 'Reopened', 'Missed calls', 'Waiting over a day at first read'];
+
+const csvCell = (v: string | number | null) => {
+  const text = v === null ? '' : String(v);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+/** Figures only, never a customer: one row per account per recorded day in the range, oldest first. */
+export function reportCsv(history: History, accounts: ReportAccount[], days: number, now: number): string {
+  const span = Math.max(1, Math.round(days));
+  const keys = new Set(Array.from({ length: span }, (_, i) => dayKey(startOfDay(now, i))));
+  const rows = accounts.flatMap((a) => (history[a.id]?.days ?? []).filter((d) => keys.has(d.day)).map((d) => ({ a, d })))
+    .sort((x, y) => x.d.day.localeCompare(y.d.day) || x.a.name.localeCompare(y.a.name));
+  const lines = [CSV_HEADER, ...rows.map(({ a, d }) => [d.day, a.name, a.location, d.customersWrote, d.replies, d.repliesWithinTarget,
+    d.medianReplyMinutes, d.reopened, d.missedCalls, d.waitingOverADayAtFirstRead])];
+  return lines.map((cells) => cells.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}

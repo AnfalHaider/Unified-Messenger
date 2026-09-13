@@ -2,8 +2,8 @@
 // to read, what counts as waiting and when to sleep an account lives in core/; how a channel is read lives in
 // channels/. This file only carries both out, and hands the screens a finished view model so no figure is
 // computed twice.
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, Notification, session, Tray, WebContentsView } from 'electron';
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, Notification, session, Tray, WebContentsView } from 'electron';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
@@ -13,11 +13,12 @@ import { clear, markHandled, pruneExpired, snooze, type Overrides } from '../cor
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
 import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.ts';
 import { DAY_MS } from '../core/days.ts';
-import { recordHistory, type History } from '../core/history.ts';
+import { dayKey, recordHistory, type History } from '../core/history.ts';
+import { reportCsv, weekEnding, weeklyDue } from '../core/report.ts';
 import { awaitingChats, distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
-import { ACCOUNT_ROUTES, buildUiState, targetFor, waitingQueue, type Route } from './view-model.ts';
+import { ACCOUNT_ROUTES, buildUiState, reportAccounts, targetFor, waitingQueue, type Route } from './view-model.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +50,7 @@ const FILE = {
   overrides: join(DATA, 'overrides.json'),
   alerts: join(DATA, 'alerts.json'),
   history: join(DATA, 'history.json'),
+  exports: join(DATA, 'exports.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -77,6 +79,8 @@ const times = loadJson<ResponseTimes>(FILE.times, emptyResponseTimes(), note('re
 const overrides = loadJson<Overrides>(FILE.overrides, {}, note('overrides'));
 const notified = loadJson<Notified>(FILE.alerts, {}, note('alerts'));
 const history = loadJson<History>(FILE.history, {}, note('history'));
+/** Which week's report was last saved on its own, so Monday's save happens once. */
+const exportsState = loadJson<{ lastWeeklyWeek: string | null }>(FILE.exports, { lastWeeklyWeek: null }, note('exports'));
 
 // A snapshot written by a cold scan claims almost every chat has no message. Honouring that on load would
 // close the whole queue until a warm read replaced it — 354 real conversations once rendered as 5.
@@ -260,16 +264,125 @@ async function readPass(reason: string) {
   push();
 }
 
+/** The view model for a route: the one on screen, or 'reports' for the hidden window a report is saved from. */
+function stateFor(forRoute: Route) {
+  const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
+  return buildUiState(config, snapshots, times, overrides, {
+    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history,
+  });
+}
+
 /** The screens draw what this sends and nothing else. */
 function push() {
   if (!win || win.isDestroyed()) return;
-  const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
-  const state = buildUiState(config, snapshots, times, overrides, {
-    now: Date.now(), route, visible, signedOut, asleep, modules: [...health.values()], history,
-  });
+  const state = stateFor(route);
   win.webContents.send('state', state);
   tray?.setToolTip(`Unified Messenger: ${state.split.needsReply} waiting`);
   notifyDue();
+}
+
+// ---- saving reports ------------------------------------------------------------------------------
+
+/** Tests set this, so a save goes straight to a folder instead of a dialog nobody can answer, and an image is
+ *  written there instead of replacing whatever is on the clipboard. Customers never set it. */
+const EXPORT_DIR = process.env.UM_EXPORT_DIR;
+const REPORT_WIDTH = 820;
+type ExportRequest = { format: 'pdf' | 'csv' | 'png'; week?: 'this' | 'last'; days?: number };
+type ExportResult = { saved?: string; copied?: boolean; cancelled?: boolean; error?: string };
+
+/**
+ * Draws the weekly report in a hidden window from the same component the screen uses, so what is saved is what
+ * was shown. The page says when it has drawn and how tall it is; the window is then sized to the whole page.
+ * The caller destroys it (never closes it: a close would run the main window's hide-or-quit).
+ */
+async function drawWeekly(week: 'this' | 'last') {
+  const page = new BrowserWindow({
+    show: false, width: REPORT_WIDTH, height: 1100, useContentSize: true, backgroundColor: '#ffffff',
+    webPreferences: { preload: join(HERE, 'preload.cjs') },
+  });
+  try {
+    const drawn = new Promise<number>((done, fail) => {
+      const timer = setTimeout(() => fail(new Error('the report did not finish drawing')), 20_000);
+      page.webContents.ipc.once('print-rendered', (_e, height: number) => { clearTimeout(timer); done(Math.max(400, Math.ceil(Number(height) || 1100))); });
+    });
+    page.webContents.ipc.on('ready', () => page.webContents.send('state', stateFor('reports')));
+    await page.loadFile(join(HERE, '..', 'dist-ui', 'index.html'), { hash: `print=weekly&week=${week}` });
+    const height = await drawn;
+    page.setContentSize(REPORT_WIDTH, height);
+    await new Promise((done) => setTimeout(done, 300));
+    return { page, height };
+  } catch (e) {
+    page.destroy();
+    throw e;
+  }
+}
+
+async function saveAs(name: string, filter: { name: string; extensions: string[] }, data: Buffer | string): Promise<ExportResult> {
+  let path: string;
+  if (EXPORT_DIR) path = join(EXPORT_DIR, name);
+  else {
+    const choice = await dialog.showSaveDialog(win, { defaultPath: join(app.getPath('documents'), name), filters: [filter] });
+    if (choice.canceled || !choice.filePath) return { cancelled: true };
+    path = choice.filePath;
+  }
+  writeFileSync(path, data);
+  return { saved: path };
+}
+
+const pdfOf = (page: BrowserWindow, height: number) => page.webContents.printToPDF({
+  printBackground: true, margins: { top: 0, bottom: 0, left: 0, right: 0 },
+  // One tall page, inches at 96 dpi: the report is read on a screen, and a page break through a chart helps nobody.
+  pageSize: { width: REPORT_WIDTH / 96, height: height / 96 },
+});
+
+async function exportReport(request: ExportRequest): Promise<ExportResult> {
+  const week = request.week === 'this' ? 'this' : 'last';
+  const now = Date.now();
+  if (request.format === 'csv') {
+    const days = request.week ? 7 : Math.min(400, Math.max(1, Math.round(Number(request.days) || 7)));
+    const end = request.week ? weekEnding(now, week) : now;
+    const name = request.week ? `Weekly figures ${dayKey(end - 6 * DAY_MS)}.csv` : `Report figures ${days === 1 ? dayKey(end) : `${dayKey(end - (days - 1) * DAY_MS)} to ${dayKey(end)}`}.csv`;
+    return saveAs(name, { name: 'CSV', extensions: ['csv'] }, reportCsv(history, reportAccounts(config), days, end));
+  }
+  const { page, height } = await drawWeekly(week);
+  try {
+    const monday = dayKey(weekEnding(now, week) - 6 * DAY_MS);
+    if (request.format === 'pdf') return await saveAs(`Weekly report ${monday}.pdf`, { name: 'PDF', extensions: ['pdf'] }, await pdfOf(page, height));
+    const image = await page.webContents.capturePage();
+    if (image.isEmpty()) throw new Error('the report image came out empty');
+    if (EXPORT_DIR) return await saveAs(`Weekly report ${monday}.png`, { name: 'PNG', extensions: ['png'] }, image.toPNG());
+    // Electron 44's clipboard is the W3C one: an item per MIME type, written asynchronously.
+    await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' }) })]);
+    return { copied: true };
+  } finally {
+    page.destroy();
+  }
+}
+
+let savingWeekly = false;
+
+/** Last week's PDF, once, from Monday 10 am, when the owner turned it on. A week with nothing recorded is skipped. */
+async function saveWeeklyIfDue() {
+  if (!config.settings.weeklyReport.autoSave || savingWeekly || quitting) return;
+  const week = weeklyDue(Date.now(), exportsState.lastWeeklyWeek);
+  if (!week) return;
+  savingWeekly = true;
+  try {
+    const hasData = stateFor('reports').reports?.weekly.last.hasData ?? false;
+    if (hasData) {
+      const folder = EXPORT_DIR ?? join(app.getPath('documents'), 'Unified Messenger reports');
+      mkdirSync(folder, { recursive: true });
+      const { page, height } = await drawWeekly('last');
+      try { writeFileSync(join(folder, `Weekly report ${week}.pdf`), await pdfOf(page, height)); } finally { page.destroy(); }
+    }
+    exportsState.lastWeeklyWeek = week;
+    saveJson(FILE.exports, exportsState);
+    log({ event: 'weekly-saved', week, skipped: !hasData });
+  } catch (e) {
+    log({ event: 'weekly-save-failed', week, error: (e as Error).message.slice(0, 120) });
+  } finally {
+    savingWeekly = false;
+  }
 }
 
 // ---- going to a conversation ---------------------------------------------------------------------
@@ -485,6 +598,8 @@ app.whenReady().then(async () => {
   else if (existsSync(built)) await win.loadFile(built);
   else log({ event: 'no-ui', hint: 'run: npm run build:ui' });
   win.once('ready-to-show', () => win.show());
+  // Only the main window hides or quits on close. Other windows (the hidden report page) just go.
+  win.on('close', (e) => { if (!quitting) { e.preventDefault(); closeWindow('window-close'); } });
   win.on('resize', layout);
 
   // Every account stays awake by default; the sleep setting is the exception, and never touches an account
@@ -512,6 +627,16 @@ app.whenReady().then(async () => {
     push();
   });
   ipcMain.on('open-chat', (_e, id: string, key: string) => void focusChat(id, key));
+  ipcMain.handle('export-report', async (_e, request: ExportRequest) => {
+    try {
+      const result = await exportReport(request);
+      log({ event: 'export', format: request.format, result: result.error ? 'error' : result.cancelled ? 'cancelled' : result.copied ? 'copied' : 'saved' });
+      return result;
+    } catch (e) {
+      log({ event: 'export', format: request.format, result: 'error', error: (e as Error).message.slice(0, 120) });
+      return { error: (e as Error).message };
+    }
+  });
   ipcMain.on('mark-handled', (_e, id: string, key: string) => markChatHandled(id, key));
   ipcMain.on('snooze', (_e, id: string, key: string, minutes: number) => snoozeChat(id, key, minutes));
   ipcMain.on('put-back', (_e, id: string, key: string) => {
@@ -541,7 +666,7 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle('wipe', (_e, id: string) => wipe(id));
 
-  readTimer = setInterval(() => void tick('schedule'), 5_000);
+  readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); }, 5_000);
   push();
 
   // Unattended check: start, give the pages time to bring their readers up, read, write one line, quit.
@@ -559,8 +684,6 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => void quitNow('window-closed'));
-// Closing from the taskbar or with Alt+F4 does what the close button does: hide, or quit through the shutdown
-// that waits for every page.
-app.on('browser-window-created', (_e, w) => w.on('close', (e) => { if (!quitting) { e.preventDefault(); closeWindow('window-close'); } }));
+
 app.on('will-quit', () => log({ event: 'will-quit' }));
 app.on('quit', (_e, code) => log({ event: 'quit', code }));

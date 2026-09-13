@@ -93,3 +93,11 @@ test('alerts are on by default, and each can be switched off on its own', () => 
   assert.deepEqual(defaultSettings().alerts, { nearTarget: true, waitedHour: true, signedOut: true });
   assert.deepEqual(parse({ settings: { alerts: { waitedHour: false, signedOut: 'no' } } }).settings.alerts, { nearTarget: true, waitedHour: false, signedOut: true });
 });
+
+test('the weekly report leaves names out and saves nothing on its own until asked', () => {
+  const d = defaultSettings().weeklyReport;
+  assert.equal(d.autoSave, false);
+  assert.equal(d.include.names, false);
+  const parsed = parse({ settings: { weeklyReport: { autoSave: true, include: { names: true, calls: 'yes' } } } }).settings.weeklyReport;
+  assert.deepEqual(parsed, { autoSave: true, include: { figures: true, locations: true, accounts: true, calls: true, names: true } });
+});

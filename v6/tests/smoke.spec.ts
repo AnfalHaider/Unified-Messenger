@@ -1,7 +1,7 @@
 // The window opens, draws a screen, moves to another, and quits the ordinary way. Needs `npx vite build` first:
 // without dist-ui the window stays blank and this fails, which is the point.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -267,6 +267,76 @@ test('Open chat goes to the conversation: WhatsApp opens it, Instagram filters t
 
     expect(arrived()).toBe(4);
     expect(focusLines().every((l) => !JSON.stringify(l).includes('Sample'))).toBe(true);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('the weekly report is computed from the figures, and saves as PDF, CSV and image without names unless asked', async () => {
+  const now = Date.now();
+  const HOUR = 3_600_000;
+  const key = (at: number) => { const d = new Date(at); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const day = (at: number, o: Record<string, unknown>) => ({
+    day: key(at), customersWrote: 0, wroteByHour: Array(24).fill(0), replies: 0, medianReplyMinutes: null, repliesWithinTarget: 0,
+    targetMinutes: 15, waitingOverADayAtFirstRead: null, reopened: 0, missedCalls: 0, ...o,
+  });
+  const data = dataFolder({ accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }] });
+  const exportsDir = join(data, 'exports');
+  mkdirSync(exportsDir);
+  writeFileSync(join(data, 'history.json'), JSON.stringify({
+    'test-wa': { watchStart: now - 2 * HOUR, seen: {}, days: [day(now, { customersWrote: 6, replies: 2, repliesWithinTarget: 1, medianReplyMinutes: 10, missedCalls: 1, waitingOverADayAtFirstRead: 1 })] },
+  }));
+  writeFileSync(join(data, 'response-times.json'), JSON.stringify({
+    pending: {}, watchStart: { 'test-wa': now - 2 * HOUR }, samples: { 'test-wa': [{ answeredAt: now - 60_000, minutes: 10 }, { answeredAt: now - 120_000, minutes: 40 }] },
+  }));
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [{
+    conversationKey: 'g@c.us', customerName: 'Sample Customer Owed', unread: 1, lastActivity: now - 2 * 24 * HOUR, preview: 'Hello?', awaiting: true,
+    lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  }] } }));
+
+  const app = await electron.launch({ args: ['app/main.ts'], cwd: V6, env: { ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5'), UM_EXPORT_DIR: exportsDir } });
+  const win = await app.firstWindow();
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Reports', exact: true }).click();
+    await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: 'Weekly report' }).click();
+    // Nothing was recorded last week, so the report opens on this week.
+    const doc = win.locator('[data-weekly-doc]');
+    await expect(doc.getByRole('heading', { level: 1 })).toHaveText(/^This week so far: /);
+    await expect(doc).toContainText('6 customers wrote to 1 location. 50% got a first reply within target.');
+    await expect(doc).toContainText('Test front desk');
+    await expect(doc).not.toContainText('Sample Customer Owed');
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'weekly.png') });
+
+    const save = async (button: string, pattern: RegExp) => {
+      await win.getByRole('button', { name: button }).click();
+      await expect(win.getByRole('status')).toHaveText(pattern, { timeout: 30_000 });
+    };
+    await save('Save as PDF', /^Saved to .*Weekly report \d{4}-\d{2}-\d{2}\.pdf$/);
+    await save('Save figures as CSV', /^Saved to .*Weekly figures \d{4}-\d{2}-\d{2}\.csv$/);
+    await save('Copy as image', /^Saved to .*Weekly report \d{4}-\d{2}-\d{2}\.png$/);
+
+    const files = readdirSync(exportsDir);
+    const pdf = readFileSync(join(exportsDir, files.find((f) => f.endsWith('.pdf'))!));
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    const png = readFileSync(join(exportsDir, files.find((f) => f.endsWith('.png'))!));
+    if (process.env.UM_SHOTS) writeFileSync(join(process.env.UM_SHOTS, 'weekly-export.png'), png);
+    expect(png.subarray(1, 4).toString()).toBe('PNG');
+    // A real page, not a blank capture: the image is the report's width and taller than a screenful of nothing.
+    expect(png.readUInt32BE(16)).toBeGreaterThanOrEqual(800);
+    expect(png.readUInt32BE(20)).toBeGreaterThan(400);
+    const csv = readFileSync(join(exportsDir, files.find((f) => f.endsWith('.csv'))!), 'utf8');
+    expect(csv.split('\r\n')[1]).toMatch(/^\d{4}-\d{2}-\d{2},Test front desk,Main branch,6,2,1,10,0,1,1$/);
+    expect(csv).not.toContain('Sample Customer');
+
+    // Names only when switched on, and the choice is kept.
+    await win.getByRole('switch', { name: 'Customer names' }).click();
+    await expect(doc).toContainText('Sample Customer Owed');
+    const config = JSON.parse(readFileSync(join(data, 'config.json'), 'utf8'));
+    expect(config.settings.weeklyReport.include.names).toBe(true);
+    // The export never replaced the main window's content or closed it.
+    await expect(win.getByRole('heading', { level: 1, name: 'The weekly report' })).toBeVisible();
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

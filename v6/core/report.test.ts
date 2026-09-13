@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { dayKey, type DayRecord, type History } from './history.ts';
-import { buildReport, REPLY_BANDS, type ReportAccount } from './report.ts';
+import { buildReport, REPLY_BANDS, reportCsv, weekEnding, weeklyDue, type ReportAccount } from './report.ts';
 import { emptyResponseTimes, type ResponseTimes } from './response-times.ts';
 
 process.env.TZ = 'America/New_York';
@@ -132,4 +132,36 @@ test('missed calls per location, day by day', () => {
   const f = r.byLocation.find((l) => l.name === 'F')!;
   assert.deepEqual([f.missedCalls, f.missedDaily.slice(-2)], [4, [2, 2]]);
   assert.equal(r.byLocation.find((l) => l.name === 'D')!.missedCalls, 4);
+});
+
+test('a week runs Monday to Sunday: this week ends today, last week ends on the Sunday before', () => {
+  // NOW is Monday 14 September.
+  assert.equal(dayKey(weekEnding(NOW, 'this')), '2026-09-14');
+  assert.equal(dayKey(weekEnding(NOW, 'last')), '2026-09-13');
+  const sunday = local(2026, 9, 20, 18);
+  assert.equal(dayKey(weekEnding(sunday, 'this')), '2026-09-20');
+  assert.equal(dayKey(weekEnding(sunday, 'last')), '2026-09-13');
+  assert.equal(buildReport({}, emptyResponseTimes(), accounts, 7, weekEnding(NOW, 'last')).days[0].day, '2026-09-07');
+});
+
+test('last week\'s PDF is due from Monday 10 am, once per week, and never before', () => {
+  assert.equal(weeklyDue(local(2026, 9, 14, 9), null), null);
+  assert.equal(weeklyDue(local(2026, 9, 14, 10), null), '2026-09-07');
+  assert.equal(weeklyDue(local(2026, 9, 16, 15), null), '2026-09-07', 'a PC off on Monday saves it on Wednesday');
+  assert.equal(weeklyDue(local(2026, 9, 16, 15), '2026-09-07'), null);
+  assert.equal(weeklyDue(local(2026, 9, 21, 11), '2026-09-07'), '2026-09-14');
+});
+
+test('the CSV has one row per account per recorded day, figures only, safely quoted', () => {
+  const quoted: ReportAccount[] = [{ id: 'wa-f', name: 'Front desk, "main"', location: 'F', targetMinutes: 15 }, accounts[2]];
+  const history: History = {
+    'wa-f': account([day(local(2026, 9, 6), { customersWrote: 9 }), day(local(2026, 9, 13), { customersWrote: 5, replies: 4, repliesWithinTarget: 3, medianReplyMinutes: 12.5, reopened: 1, missedCalls: 2, waitingOverADayAtFirstRead: 3 })]),
+    'wa-d': account([day(NOW, { customersWrote: 2 })]),
+  };
+  const lines = reportCsv(history, quoted, 7, NOW).trimEnd().split('\r\n');
+  assert.equal(lines[0], 'Date,Account,Location,Customers who wrote,First replies,Within target,Median first reply (min),Reopened,Missed calls,Waiting over a day at first read');
+  assert.deepEqual(lines.slice(1), [
+    '2026-09-13,"Front desk, ""main""",F,5,4,3,12.5,1,2,3',
+    '2026-09-14,D WhatsApp,D,2,0,0,,0,0,',
+  ]);
 });

@@ -16,6 +16,10 @@ declare global {
       reloadAccount(accountId: string): void;
       sleepAccount(accountId: string): void;
       openChat(accountId: string, key: string): void;
+      /** Saves a report after asking where (PDF, CSV), or copies it as an image (PNG). */
+      exportReport(request: { format: 'pdf' | 'csv' | 'png'; week?: 'this' | 'last'; days?: number }): Promise<{ saved?: string; copied?: boolean; cancelled?: boolean; error?: string }>;
+      /** Only in the hidden window a report is drawn in: says the page is drawn, and how tall it is. */
+      printRendered(height: number): void;
       markHandled(accountId: string, key: string): void;
       snooze(accountId: string, key: string, minutes: number): void;
       putBack(accountId: string, key: string): void;
@@ -34,7 +38,8 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
-  openChat() {}, markHandled() {}, snooze() {}, putBack() {},
+  openChat() {}, markHandled() {}, snooze() {}, putBack() {}, printRendered() {},
+  exportReport: async () => ({ error: 'exports need the app, not the browser preview' }),
   setSettings(patch) { previewSettings?.(patch); },
   setTheme(theme) { previewSettings?.({ theme }); },
 };
