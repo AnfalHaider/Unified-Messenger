@@ -27,6 +27,15 @@ export interface SignInState {
   unsupported?: boolean;
 }
 
+/** Who to go to. Taken from the snapshot by main, never from the screen. */
+export interface FocusTarget { key: string; name: string; phone: string }
+
+/**
+ * One step of going to a conversation, as the page reports it. `done` means the page shows what focusing
+ * promises for this channel; anything else means call again shortly (the page may still be loading).
+ */
+export type FocusStep = 'done' | 'working' | 'not-found' | 'no-target';
+
 export interface ChannelModule {
   /** Matches the ChannelId in core/config.ts. */
   id: string;
@@ -43,6 +52,12 @@ export interface ChannelModule {
   signedOutProbe: string;
   /** Never throws. A page that changed shape costs this read, not the app. */
   parse(raw: unknown): ReadResult;
+  /**
+   * Expression taking one step toward a conversation and returning a FocusStep. Called repeatedly until `done`.
+   * What `done` means is the channel's decision: WhatsApp opens the chat, Instagram only finds it, because
+   * opening an Instagram thread tells the customer it was seen and clears the unread that marks it waiting.
+   */
+  focus?(target: FocusTarget): string;
 }
 
 export const EMPTY: ReadResult = { entries: [], skipped: 0, awaitingInferred: 0 };

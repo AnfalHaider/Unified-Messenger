@@ -16,7 +16,9 @@ const TRUNCATE =
 export const whatsapp: ChannelModule = {
   id: 'whatsapp',
   name: 'WhatsApp',
-  inject: (load) => TRUNCATE + load('whatsapp/whatsapp-store-bridge.js'),
+  inject: (load) => TRUNCATE + load('whatsapp/whatsapp-store-bridge.js') + load('whatsapp/whatsapp-focus.js'),
+  // Opens the chat. On WhatsApp that is safe for the figures: waiting is judged by who wrote last, not by unread.
+  focus: (t) => `window.__umFocusWhatsApp ? window.__umFocusWhatsApp(${JSON.stringify(t.key)}, ${JSON.stringify(t.name)}, ${JSON.stringify(t.phone)}) : 'working'`,
   // Start the scan and take whatever the last one produced: executeJavaScript does not await a promise, so
   // the reader is written as start-then-collect rather than as one call that returns a promise.
   scan: 'window.__umStartStoreScan ? (window.__umStartStoreScan(500), window.__umGetStoreScanResult()) : ""',

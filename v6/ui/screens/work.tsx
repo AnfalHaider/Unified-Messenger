@@ -65,7 +65,7 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
       if (how && rows[i]) { act(rows[i], how); e.preventDefault(); return; }
       if (e.key === 'j' || e.key === 'ArrowDown') { const next = rows[Math.min(rows.length - 1, i + 1)]; if (next) setSelected(rowKey(next)); e.preventDefault(); }
       if (e.key === 'k' || e.key === 'ArrowUp') { const prev = rows[Math.max(0, i - 1)]; if (prev) setSelected(rowKey(prev)); e.preventDefault(); }
-      if (e.key === 'Enter' && rows[i]) nav.go('dock', rows[i].accountId, rows[i].customer);
+      if (e.key === 'Enter' && rows[i]) nav.go('dock', rows[i].accountId, rows[i].key);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -114,13 +114,13 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
             const key = rowKey(r);
             const sel = key === selected;
             return (
-              <div key={key} className={`row ${r.tone} ${sel ? 'sel' : ''}`} onClick={() => setSelected(key)} onDoubleClick={() => nav.go('dock', r.accountId, r.customer)}>
+              <div key={key} className={`row ${r.tone} ${sel ? 'sel' : ''}`} onClick={() => setSelected(key)} onDoubleClick={() => nav.go('dock', r.accountId, r.key)}>
                 <Wait minutes={r.waited} tone={r.tone} />
                 <span className="who"><b>{r.customer}</b><span>{r.preview || 'No preview could be read'}</span></span>
                 <span className="acct"><Icon name={channelIcon(r.channel)} size={15} /><span>{r.accountName}</span></span>
                 {sel ? (
                   <div className="row-actions">
-                    <Btn icon="open" kind="primary" onClick={() => nav.go('dock', r.accountId, r.customer)}>Open chat</Btn>
+                    <Btn icon="open" kind="primary" onClick={() => nav.go('dock', r.accountId, r.key)}>Open chat</Btn>
                     <Btn icon="check" title="Answered another way. Returns if they write again." onClick={(e) => { e.stopPropagation(); act(r, 'handled'); }}>Handled</Btn>
                     <Btn icon="snooze" title="Off the line for an hour" onClick={(e) => { e.stopPropagation(); act(r, 'snooze'); }}>Snooze</Btn>
                   </div>
@@ -142,7 +142,7 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
 export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string }) {
   const rows = scoped(state, scope);
   const d = state.detail;
-  const customer = rows.find((r) => r.accountId === nav.view.accountId && r.customer === nav.view.sub)
+  const customer = rows.find((r) => r.accountId === nav.view.accountId && r.key === nav.view.sub)
     ?? rows.find((r) => r.accountId === nav.view.accountId);
   const [panel, setPanel] = useState<'customer' | 'reply'>('customer');
   const late = rows.filter((r) => r.tone === 'late').length;
@@ -153,7 +153,7 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
   const act = (how: 'handled' | 'snooze') => {
     if (!customer) return;
     const next = takeOffLine(rows, customer, how);
-    if (next) nav.go('dock', next.accountId, next.customer);
+    if (next) nav.go('dock', next.accountId, next.key);
     else nav.go('line');
   };
   useEffect(() => {
@@ -171,7 +171,7 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
         <Headline title={`${rows.length} waiting`}><b className="late">{late} past target</b>, {due} due soon</Headline>
         <div className="queue mini">
           {rows.map((r) => (
-            <div key={rowKey(r)} className={`row ${r.tone} ${customer && rowKey(customer) === rowKey(r) ? 'sel' : ''}`} onClick={() => nav.go('dock', r.accountId, r.customer)}>
+            <div key={rowKey(r)} className={`row ${r.tone} ${customer && rowKey(customer) === rowKey(r) ? 'sel' : ''}`} onClick={() => nav.go('dock', r.accountId, r.key)}>
               <Wait minutes={r.waited} tone={r.tone} />
               <span className="who"><b>{r.customer}</b><span><Icon name={channelIcon(r.channel)} size={12} /> {r.location} · {r.preview}</span></span>
               <span style={{ color: 'var(--ink-3)' }}><Icon name="right" size={15} /></span>

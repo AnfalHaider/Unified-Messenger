@@ -23,7 +23,9 @@ export const looksUnsynced = (awaiting: number, badge: number, capped: boolean) 
 export const instagram: ChannelModule = {
   id: 'instagram',
   name: 'Instagram',
-  inject: (load) => load('instagram/instagram-adapter.js'),
+  inject: (load) => load('instagram/instagram-adapter.js') + load('instagram/instagram-focus.js'),
+  // Finds the thread and stops: opening it would send a "Seen" and clear the unread that marks it waiting.
+  focus: (t) => `window.__umFocusInstagram ? window.__umFocusInstagram(${JSON.stringify(t.name)}) : 'working'`,
   scan: 'window.__umReadInstagramThreads ? window.__umReadInstagramThreads() : ""',
   signedOutProbe: `({
     qr: false,

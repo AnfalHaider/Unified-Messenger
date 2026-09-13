@@ -272,6 +272,43 @@ function push() {
   notifyDue();
 }
 
+// ---- going to a conversation ---------------------------------------------------------------------
+
+const FOCUS_STEP_MS = 700, FOCUS_BUDGET_MS = 15_000, FOCUS_STEP_TIMEOUT_MS = 3_000;
+/** The latest request per account. A newer one ends the older loop, so two quick clicks never fight. */
+const focusRequest: Record<string, number> = {};
+
+/**
+ * The owner asked for one chat. The page is asked to take a step every 700 ms until it says it arrived, for up
+ * to 15 s: a page woken for this, or a WhatsApp still building its stores, needs several seconds first. Who to
+ * look for comes from the snapshot, never the screen. The log records the outcome, never the customer.
+ */
+async function focusChat(id: string, key: string) {
+  const a = account(id);
+  const module = a && moduleFor(a.channel);
+  const chat = snapshots[id]?.chats.find((c) => c.conversationKey === key);
+  if (!a || !module?.focus || !chat) return;
+  if (!views.has(id)) wake(a);
+  const request = (focusRequest[id] = (focusRequest[id] ?? 0) + 1);
+  const started = Date.now();
+  const expression = module.focus({ key, name: chat.customerName, phone: chat.contactPhone });
+  let step = 'working', attempts = 0;
+  while (!quitting && focusRequest[id] === request && Date.now() - started < FOCUS_BUDGET_MS) {
+    const view = views.get(id);
+    if (!view || view.webContents.isDestroyed()) break;
+    attempts++;
+    // A page mid-navigation can leave executeJavaScript unanswered; a step that does not answer is a step to retry.
+    step = await Promise.race([
+      view.webContents.executeJavaScript(expression).then((s) => String(s)).catch(() => 'working'),
+      new Promise<string>((done) => setTimeout(() => done('working'), FOCUS_STEP_TIMEOUT_MS)),
+    ]);
+    if (step === 'done' || step === 'no-target') break;
+    await new Promise((done) => setTimeout(done, FOCUS_STEP_MS));
+  }
+  const result = focusRequest[id] !== request ? 'replaced' : step === 'done' ? 'arrived' : step;
+  log({ event: 'focus', account: id, channel: a.channel, result, attempts, ms: Date.now() - started });
+}
+
 // ---- the owner's marks ---------------------------------------------------------------------------
 
 // Main looks the chat up itself: "handled" holds until a message newer than the one on record, so that time comes
@@ -339,7 +376,8 @@ function showAlert(alert: Alert) {
 /** A chat alert opens that chat in the dock; a sign-in alert opens the account's page; a summary opens the line. */
 function openFromAlert(alert: Alert) {
   showWindow();
-  win.webContents.send('open', alert.accountId ? 'dock' : 'line', alert.accountId, alert.customer ?? '');
+  win.webContents.send('open', alert.accountId ? 'dock' : 'line', alert.accountId, alert.key ?? '');
+  if (alert.accountId && alert.key) void focusChat(alert.accountId, alert.key);
 }
 
 // ---- running in the background -------------------------------------------------------------------
@@ -472,6 +510,7 @@ app.whenReady().then(async () => {
     layout();
     push();
   });
+  ipcMain.on('open-chat', (_e, id: string, key: string) => void focusChat(id, key));
   ipcMain.on('mark-handled', (_e, id: string, key: string) => markChatHandled(id, key));
   ipcMain.on('snooze', (_e, id: string, key: string, minutes: number) => snoozeChat(id, key, minutes));
   ipcMain.on('put-back', (_e, id: string, key: string) => {

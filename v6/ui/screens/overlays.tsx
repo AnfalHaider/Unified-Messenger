@@ -46,7 +46,7 @@ function Palette({ state, nav }: ScreenProps) {
       ['download', 'Preview: moving from the previous version', lock('upgrade')],
     ];
     return [
-      ...state.queue.map((r): Item => ({ group: 'Customers', icon: channelIcon(r.channel), label: r.customer, hint: `${r.accountName} · waiting ${r.waited} min`, run: go('dock', r.accountId, r.customer) })),
+      ...state.queue.map((r): Item => ({ group: 'Customers', icon: channelIcon(r.channel), label: r.customer, hint: `${r.accountName} · waiting ${r.waited} min`, run: go('dock', r.accountId, r.key) })),
       ...state.accounts.map((a): Item => ({ group: 'Go to', icon: channelIcon(a.channel), label: a.name, hint: 'Accounts', run: go('dock', a.id) })),
       ...screens.map(([icon, label, run]): Item => ({ group: 'Go to', icon, label, run })),
       { group: 'Do', icon: 'refresh', label: 'Read every account now', hint: 'R', run: () => bridge.readNow() },

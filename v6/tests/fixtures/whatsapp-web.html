@@ -1,0 +1,55 @@
+<!doctype html>
+<!-- A stand-in for WhatsApp Web's chat list, with invented chats. It keeps the two traps v5 measured on the real
+     page: a row ignores a plain click() and opens only on a pointer sequence, and search results render a moment
+     after typing. Nothing here is real customer data. -->
+<meta charset="utf-8">
+<title>Fixture chats</title>
+<div id="app">
+  <div id="side">
+    <input aria-label="Search or start a new chat" type="text">
+    <div id="pane-side" role="grid"></div>
+  </div>
+  <div id="main-slot"></div>
+</div>
+<script>
+  const CHATS = [
+    { title: 'Sample Customer Alpha' },
+    { title: 'Sample Customer Al' },
+    { title: 'Sample Customer Beta' },
+    // Not on screen until searched for.
+    { title: 'Sample Customer Hidden', hidden: true },
+    { title: '+92 300 1112233', hidden: true },
+  ];
+  window.__opened = [];
+  const pane = document.getElementById('pane-side');
+  const search = document.querySelector('input');
+  function render(list) {
+    pane.innerHTML = '';
+    for (const chat of list) {
+      const row = document.createElement('div');
+      row.setAttribute('role', 'row');
+      row.innerHTML = '<div data-testid="cell-frame-title"><span></span></div>';
+      const span = row.querySelector('span');
+      span.setAttribute('title', chat.title);
+      span.textContent = chat.title;
+      // Like the real list: a plain click() does nothing, the pointer sequence opens the chat.
+      span.addEventListener('pointerdown', () => open(chat.title));
+      pane.appendChild(row);
+    }
+  }
+  function open(title) {
+    window.__opened.push(title);
+    document.getElementById('main-slot').innerHTML = '<div id="main"><header><span></span></header></div>';
+    const h = document.querySelector('#main header span');
+    h.setAttribute('title', title);
+    h.textContent = title;
+  }
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    setTimeout(() => {
+      const digits = q.replace(/\D/g, '');
+      render(q ? CHATS.filter((c) => c.title.toLowerCase().includes(q) || (digits.length >= 8 && c.title.replace(/\D/g, '').includes(digits))) : CHATS.filter((c) => !c.hidden));
+    }, 400);
+  });
+  render(CHATS.filter((c) => !c.hidden));
+</script>

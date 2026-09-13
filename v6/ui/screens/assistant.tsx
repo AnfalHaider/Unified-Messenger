@@ -28,7 +28,7 @@ export function AssistantScreen({ state, nav }: ScreenProps) {
               ? <p><b>{longest.customer} at {longest.location || 'no location'} has waited longest</b>, {longest.waited} minutes, on {longest.accountName}.</p>
               : <p><b>Nobody is waiting right now.</b></p>}
             <p>{late > 0 ? `${late} customers are past the ${state.settings.slaMinutes}-minute target. Answer them in the order the line shows.` : 'Nobody is past the target.'}</p>
-            {longest && <div style={{ display: 'flex', gap: 8, marginTop: 12 }}><Btn icon="open" onClick={() => nav.go('dock', longest.accountId, longest.customer)}>Open {longest.customer.split(' ')[0]}’s chat</Btn></div>}
+            {longest && <div style={{ display: 'flex', gap: 8, marginTop: 12 }}><Btn icon="open" onClick={() => nav.go('dock', longest.accountId, longest.key)}>Open {longest.customer.split(' ')[0]}’s chat</Btn></div>}
           </div>
           <div className="evidence">
             <h5>Figures used, from the app</h5>

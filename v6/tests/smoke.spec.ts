@@ -4,7 +4,7 @@ import { _electron as electron, expect, test, type ElectronApplication, type Pag
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const V6 = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -205,6 +205,69 @@ test('reports show the recorded days, measured replies and who is still owed a c
     await win.getByRole('group', { name: 'Range' }).getByRole('button', { name: 'Today' }).click();
     await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: 'Overview' }).click();
     await expect(heading(win, 'Today: 50% answered on time')).toBeVisible();
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('Open chat goes to the conversation: WhatsApp opens it, Instagram filters the list and stops', async () => {
+  const now = Date.now();
+  const fixture = (path: string) => pathToFileURL(join(V6, 'tests', 'fixtures', path)).href;
+  const data = dataFolder({ accounts: [
+    { id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: fixture('whatsapp-web.html'), professional: true },
+    { id: 'test-ig', name: 'Test Instagram', channel: 'instagram', url: fixture('direct/inbox/index.html'), professional: true },
+  ] });
+  const chat = (k: string, name: string, minutesAgo: number, phone = '') => ({
+    conversationKey: k, customerName: name, unread: 1, lastActivity: now - minutesAgo * 60_000, preview: 'Is there space this week?', awaiting: true,
+    lastMessageFromMe: false, contactPhone: phone, hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({
+    'test-wa': { capturedAt: now, chats: [
+      chat('al@c.us', 'Sample Customer Al', 9),
+      chat('hidden@c.us', 'Sample Customer Hidden', 8),
+      chat('923001112233@c.us', '+92 300 1112233', 7, '923001112233'),
+    ] },
+    'test-ig': { capturedAt: now, chats: [chat('333', 'Sample Insta Kay🦋', 6)] },
+  }));
+  /** Runs an expression in the account page whose address contains `part`. */
+  const inPage = (part: string, expression: string) => app.evaluate(({ webContents }, [p, e]) =>
+    webContents.getAllWebContents().find((w) => w.getURL().includes(p))?.executeJavaScript(e), [part, expression] as const);
+  const focusLines = () => readFileSync(join(data, 'app.log'), 'utf8').split('\n').filter((l) => l.includes('"event":"focus"')).map((l) => JSON.parse(l));
+
+  const { app, win } = await open(data);
+  try {
+    await expect(heading(win, '4 customers are waiting')).toBeVisible();
+    const arrived = () => focusLines().filter((l) => l.result === 'arrived').length;
+    const openChat = async (name: string) => {
+      const before = arrived();
+      await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
+      await win.locator('.queue .row').filter({ hasText: name }).click();
+      await win.locator('.queue .row.sel').getByRole('button', { name: 'Open chat' }).click();
+      // Each request finishes before the next, so none is replaced by a newer click.
+      await expect.poll(arrived, { timeout: 15_000 }).toBe(before + 1);
+    };
+
+    // A name that another chat's title starts with: only the exact one may open.
+    await openChat('Sample Customer Al');
+    await expect.poll(() => inPage('whatsapp-web.html', "document.querySelector('#main header span')?.title ?? ''")).toBe('Sample Customer Al');
+    // Not on screen until searched: found through the search, opened, and the search box cleared again.
+    await openChat('Sample Customer Hidden');
+    await expect.poll(() => inPage('whatsapp-web.html', "document.querySelector('#main header span')?.title ?? ''"), { timeout: 15_000 }).toBe('Sample Customer Hidden');
+    await expect.poll(() => inPage('whatsapp-web.html', "document.querySelector('input').value")).toBe('');
+    // An unsaved number, matched by its digits.
+    await openChat('+92 300 1112233');
+    await expect.poll(() => inPage('whatsapp-web.html', "document.querySelector('#main header span')?.title ?? ''"), { timeout: 15_000 }).toBe('+92 300 1112233');
+    expect(await inPage('whatsapp-web.html', 'JSON.stringify(window.__opened.filter((t) => t.includes("Alpha")))')).toBe('[]');
+
+    // Instagram: the list filtered by the letters of the name, and no thread opened.
+    await openChat('Sample Insta Kay');
+    await expect.poll(() => inPage('direct/inbox', 'window.__filteredBy')).toBe('Sample Insta Kay');
+    expect(await inPage('direct/inbox', 'window.__threadOpened')).toBe(false);
+
+    expect(arrived()).toBe(4);
+    expect(focusLines().every((l) => !JSON.stringify(l).includes('Sample'))).toBe(true);
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

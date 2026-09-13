@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- A stand-in for Instagram Direct's list, with invented threads, at a path containing /direct/inbox so the
+     focus script treats it as the inbox. Any attempt to open a thread is recorded. -->
+<meta charset="utf-8">
+<title>Fixture Direct</title>
+<input placeholder="Search" type="text">
+<div role="list">
+  <div role="listitem"><a href="/direct/t/111">Sample Insta Kay</a></div>
+  <div role="listitem"><a href="/direct/t/222">Sample Insta Lee</a></div>
+</div>
+<script>
+  window.__threadOpened = false;
+  window.__filteredBy = '';
+  document.querySelector('input').addEventListener('input', (e) => { window.__filteredBy = e.target.value; });
+  document.addEventListener('click', (e) => { if (e.target.closest('a[href*="/direct/t/"]')) { window.__threadOpened = true; e.preventDefault(); } }, true);
+</script>

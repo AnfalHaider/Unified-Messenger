@@ -15,6 +15,7 @@ declare global {
       readNow(): void;
       reloadAccount(accountId: string): void;
       sleepAccount(accountId: string): void;
+      openChat(accountId: string, key: string): void;
       markHandled(accountId: string, key: string): void;
       snooze(accountId: string, key: string, minutes: number): void;
       putBack(accountId: string, key: string): void;
@@ -33,7 +34,7 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
-  markHandled() {}, snooze() {}, putBack() {},
+  openChat() {}, markHandled() {}, snooze() {}, putBack() {},
   setSettings(patch) { previewSettings?.(patch); },
   setTheme(theme) { previewSettings?.({ theme }); },
 };

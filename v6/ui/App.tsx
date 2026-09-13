@@ -57,7 +57,11 @@ export function App() {
 
   const nav = useMemo<Nav>(() => ({
     view,
-    go: (route: Route, accountId: string | null = null, sub = '') => setView((v) => ({ ...v, route, accountId, sub, overlay: null })),
+    go: (route: Route, accountId: string | null = null, sub = '') => {
+      setView((v) => ({ ...v, route, accountId, sub, overlay: null }));
+      // On the dock, sub is a conversation key: ask the account's page to go to that chat.
+      if (route === 'dock' && accountId && sub) bridge.openChat(accountId, sub);
+    },
     open: (overlay: Overlay | null) => setView((v) => ({ ...v, overlay })),
     lock: (lock: LockScreen | null) => setView((v) => ({ ...v, lock, overlay: null })),
     setOffline: (offline: boolean) => setView((v) => ({ ...v, offline })),

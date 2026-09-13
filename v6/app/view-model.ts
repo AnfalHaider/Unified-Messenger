@@ -51,9 +51,9 @@ export interface ReportsView {
   ranges: { today: ReportRange; week: ReportRange; month: ReportRange };
   targetMinutes: number;
   /** Customers waiting over a day now, oldest first. */
-  backlog: { accountId: string; accountName: string; customer: string; preview: string; since: number; waited: number }[];
+  backlog: { accountId: string; accountName: string; key: string; customer: string; preview: string; since: number; waited: number }[];
   /** Customers whose last message is a call nobody answered, and who are still waiting. */
-  unansweredCalls: { accountId: string; accountName: string; customer: string; at: number }[];
+  unansweredCalls: { accountId: string; accountName: string; key: string; customer: string; at: number }[];
 }
 
 export interface QueueRow {
@@ -434,7 +434,7 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
   const unansweredCalls = waiting
     .filter(({ chat }) => verdictFor(chat, judge).reason === 'missedCall')
     .sort((a, b) => b.chat.lastActivity - a.chat.lastActivity)
-    .map(({ id, chat }) => ({ accountId: id, accountName: name(id), customer: who(chat), at: chat.lastActivity }));
+    .map(({ id, chat }) => ({ accountId: id, accountName: name(id), key: chat.conversationKey, customer: who(chat), at: chat.lastActivity }));
   const backlog = waiting
     .filter(({ chat }) => chat.lastActivity < now - DAY_MS)
     .sort((a, b) => a.chat.lastActivity - b.chat.lastActivity)
@@ -443,7 +443,7 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
       const account = config.accounts.find((a) => a.id === id);
       const hours = config.locations.find((l) => l.name === account?.location)?.hours;
       return {
-        accountId: id, accountName: name(id), customer: who(chat), preview: chat.preview, since: chat.lastActivity,
+        accountId: id, accountName: name(id), key: chat.conversationKey, customer: who(chat), preview: chat.preview, since: chat.lastActivity,
         waited: Math.round(elapsedBusinessMinutes(new Date(chat.lastActivity), new Date(now), hours)),
       };
     });

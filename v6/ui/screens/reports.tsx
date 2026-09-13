@@ -198,7 +198,7 @@ function Backlog({ view, range, bar, nav }: TabProps) {
             <tr key={`${b.accountId}:${b.customer}:${b.since}`}>
               <td><b style={{ fontWeight: 600 }}>{b.customer}</b></td><td className="sub">{b.accountName}</td><td>{when(b.since)}</td>
               <td className="sub">{b.preview || 'No preview could be read'}</td><td className="r late">{waitText(b.waited).join(' ')}</td>
-              <td className="r"><Btn icon="open" onClick={() => nav.go('dock', b.accountId, b.customer)}>Open chat</Btn></td>
+              <td className="r"><Btn icon="open" onClick={() => nav.go('dock', b.accountId, b.key)}>Open chat</Btn></td>
             </tr>
           ))}
           {view.backlog.length === 0 && <tr><td colSpan={6} className="sub" style={{ padding: 18 }}>Every waiting customer wrote within the last day.</td></tr>}
@@ -223,7 +223,7 @@ function Calls({ view, range, bar, nav }: TabProps) {
             <tr key={`${c.accountId}:${c.customer}:${c.at}`}>
               <td><b style={{ fontWeight: 600 }}>{c.customer}</b></td><td className="sub">{c.accountName}</td>
               <td className="num"><Icon name="phone" size={13} /> {when(c.at)}</td>
-              <td className="r"><Btn icon="open" onClick={() => nav.go('dock', c.accountId, c.customer)}>Open chat</Btn></td>
+              <td className="r"><Btn icon="open" onClick={() => nav.go('dock', c.accountId, c.key)}>Open chat</Btn></td>
             </tr>
           ))}
           {open === 0 && <tr><td colSpan={4} className="sub" style={{ padding: 18 }}>Nobody whose last message was a missed call is waiting now.</td></tr>}

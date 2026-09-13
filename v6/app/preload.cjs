@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('um', {
   /** Takes a waiting chat off the line until the customer writes again. */
   markHandled: (accountId, key) => ipcRenderer.send('mark-handled', accountId, key),
   snooze: (accountId, key, minutes) => ipcRenderer.send('snooze', accountId, key, minutes),
+  /** Takes the account's page to one conversation: opened on WhatsApp, found but not opened on Instagram. */
+  openChat: (accountId, key) => ipcRenderer.send('open-chat', accountId, key),
   /** Undoes either mark. */
   putBack: (accountId, key) => ipcRenderer.send('put-back', accountId, key),
   /** A patch of settings. Main merges it, runs it back through the config parser so limits hold, and saves. */

@@ -112,7 +112,7 @@ export function AccountDetailScreen({ state, nav }: ScreenProps) {
       {d.queue.length > 0 && (
         <div className="queue">
           {d.queue.map((r) => (
-            <div key={r.customer + r.waited} className={`row ${r.tone}`} onClick={() => nav.go('dock', d.id, r.customer)} style={{ gridTemplateColumns: '96px minmax(0,1fr) 200px' }}>
+            <div key={r.customer + r.waited} className={`row ${r.tone}`} onClick={() => nav.go('dock', d.id, r.key)} style={{ gridTemplateColumns: '96px minmax(0,1fr) 200px' }}>
               <Wait minutes={r.waited} tone={r.tone} />
               <span className="who"><b>{r.customer}</b><span>{r.preview}</span></span>
               <span className={`status ${r.tone}`}>{r.status}</span>
