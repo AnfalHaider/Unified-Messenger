@@ -11,7 +11,7 @@ const row = (key: string, waited: number, o: Partial<WaitingRow> = {}): WaitingR
   waited, targetMinutes: 15, lastActivity: NOW - waited * MIN, open: true, ...o,
 });
 const input = (rows: WaitingRow[], o: Partial<AlertInput> = {}): AlertInput =>
-  ({ rows, signedOut: [], settings: defaultSettings(), now: NOW, ...o });
+  ({ rows, signedOut: [], signedIn: [], settings: defaultSettings(), now: NOW, ...o });
 const kinds = (list: { kind: string }[]) => list.map((a) => a.kind);
 
 test('a chat two minutes from its target alerts once, and not again on the next pass', () => {
@@ -48,8 +48,17 @@ test('a signed-out account alerts once, and again only after it signed back in',
   const out = [{ id: 'acct', name: 'Front desk' }];
   assert.deepEqual(kinds(alertsDue(input([], { signedOut: out }), notified)), ['signed-out']);
   assert.deepEqual(alertsDue(input([], { signedOut: out }), notified), []);
-  alertsDue(input([]), notified);
+  alertsDue(input([], { signedIn: ['acct'] }), notified);
   assert.equal(alertsDue(input([], { signedOut: out }), notified).length, 1);
+});
+
+test('a restart does not repeat a sign-in alert: not yet read is not the same as signed back in', () => {
+  const notified: Notified = {};
+  const out = [{ id: 'acct', name: 'Front desk' }];
+  alertsDue(input([], { signedOut: out }), notified);
+  // The app has just started: nothing is known to be signed out or signed in yet.
+  alertsDue(input([]), notified);
+  assert.deepEqual(alertsDue(input([], { signedOut: out }), notified), []);
 });
 
 test('quiet hours and switched-off alerts stay silent, and do not use up the alert', () => {

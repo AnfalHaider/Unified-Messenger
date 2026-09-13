@@ -17,7 +17,15 @@ export interface WaitingRow {
   open: boolean;
 }
 
-export interface AlertInput { rows: WaitingRow[]; signedOut: { id: string; name: string }[]; settings: Settings; now: number }
+export interface AlertInput {
+  rows: WaitingRow[];
+  signedOut: { id: string; name: string }[];
+  /** Accounts whose latest read succeeded. Only these re-arm their sign-in alert: an account the app has not read
+   *  yet since starting is unknown, not signed back in, and treating it as signed in repeated the alert on restart. */
+  signedIn: string[];
+  settings: Settings;
+  now: number;
+}
 
 export type AlertKind = 'near-target' | 'waited-hour' | 'signed-out';
 
@@ -38,10 +46,9 @@ const FORGET_AFTER_MS = 2 * 24 * 60 * 60_000;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** Returns what to show now and records it in `notified`. Quiet hours hold alerts back without using them up. */
-export function alertsDue({ rows, signedOut, settings, now }: AlertInput, notified: Notified): Alert[] {
+export function alertsDue({ rows, signedOut, signedIn, settings, now }: AlertInput, notified: Notified): Alert[] {
   // Signed back in: the next sign-out is news again.
-  const out = new Set(signedOut.map((a) => `signed-out:${a.id}`));
-  for (const id of Object.keys(notified)) if (id.startsWith('signed-out:') && !out.has(id)) delete notified[id];
+  for (const id of signedIn) delete notified[`signed-out:${id}`];
   if (inQuietHours(settings, now)) return [];
 
   const { nearTarget, waitedHour, signedOut: signIn } = settings.alerts;

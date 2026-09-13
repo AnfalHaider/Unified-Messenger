@@ -244,12 +244,14 @@ Google Business Profile API for complete review history (needs Google approval);
 3. **Opening hours:** every location has hours disabled, so waits count around the clock. Enter real hours (4.4) or keep it.
 4. **Imported assistant settings:** v5's config came across with the assistant marked enabled (`llama3.2:3b`); v6 ignores it until Phase 5. Decide the default then.
 5. **Code signing** (7.4). Smart App Control blocked an unsigned build for two hours on 2026-09-13; until this is decided, an install can be held up with nothing to do but wait.
+6. **Alert volume.** A busy Instagram account can raise a notification every minute or so. Keep one per customer, or cap per account (for example one summary every 10 minutes)?
 
 ## 6. Known limits today
 
 - A WhatsApp read takes the first 500 chats (`__umStartStoreScan(500)`), and Instagram the top 15 threads of Primary; older conversations are not counted.
 - Instagram previews are always empty on this route (thread metadata only).
-- Notifications: the owner's quiet hours came across from v5 as 9 pm to 11 am, so alerts only appear between 11 am and 9 pm. A toast has not yet been seen on the owner's PC (installed at 02:20, inside quiet hours): check once at 11 am that the two signed-out accounts each raise one, and that `alerts.json` appears.
+- Notifications fire on the owner's PC (seen 2026-09-13 after 11 am; Windows lists the app as UnifiedMessenger.v6). Quiet hours came across from v5 as 9 pm to 11 am. Instagram counts every unread thread as waiting, so one busy Instagram account produced 13 near-target and 10 hour alerts in about 15 minutes, all for real chats: whether to rate-limit or summarise per account is an owner decision (§5).
+- A quit once left the main process alive after logging `quit`, and the installer, which checks for any process with the app's name, then installed nothing without a message (lesson `v6-quit-can-leave-a-husk-that-blocks-install`). Cause unknown. Worth making the installer say when it gives up, and checking `startup` in the log after every install.
 - Cookies are stored unencrypted on disk until 7.1.
 - The reader scripts exist twice (v5 tree and `v6/channels`); change the v6 copy.
 - The design renders (`docs/design/v6-front-desk`) must be served by a plain static server, not Vite.

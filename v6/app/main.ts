@@ -309,6 +309,8 @@ function notifyDue() {
   const shown = alertsDue({
     rows: waitingQueue(config, snapshots, overrides, now, signedOut),
     signedOut: config.accounts.filter((a) => signedOut.has(a.id)).map((a) => ({ id: a.id, name: a.name })),
+    // lastRead is set only by a read that found chats, so it is proof of a login this run.
+    signedIn: Object.keys(lastRead).filter((id) => !signedOut.has(id)),
     settings: config.settings, now,
   }, notified);
   pruneNotified(notified, now);
