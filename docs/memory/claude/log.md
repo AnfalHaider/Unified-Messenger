@@ -2,6 +2,13 @@
 
 Newest entries on top. Append only — never edit an older entry.
 
+## 2026-09-13 (later) — v6 roadmap 4.5, 4.6, alert fix, two install incidents
+
+- 4.5 `core/history.ts` (per account per local day, `history.json`), verified surviving a restart on the owner's PC. 4.6 `core/report.ts` and four real Reports tabs; weekly document and exports split out as 4.6b.
+- Corrected a wrong roadmap claim: v5 does keep daily history (`analytics.json`, `kpi-trend.json`); importing it is an open owner decision in 4.6.
+- Smart App Control blocked the unsigned Setup for two hours, then allowed the same file. A quit left a main-process husk that made a silent install do nothing; ended with the owner's permission (only that PID, no children, `quit` already logged). Lessons `v6-smart-app-control-block-can-lift`, `v6-quit-can-leave-a-husk-that-blocks-install`.
+- Notifications confirmed firing on the owner's PC after quiet hours. Fixed a restart repeating sign-in alerts. Instagram's unread-as-waiting makes alert volume high; owner decision §5.6.
+
 ## 2026-09-13 — v6 roadmap 2.1, 4.1, 4.2, 4.3
 
 - 2.1: Playwright Electron smoke test (`v6/tests/smoke.spec.ts`, `npm run smoke`) and a `smoke` job on `windows-latest` in `v6.yml`; green in CI, observed failing without `dist-ui`.
