@@ -36,7 +36,10 @@
     return out.replace(/\s+/g, ' ').trim();
   }
 
+  // Focus first: measured live, Instagram's list switches to search results each time the text arrives in a
+  // focused box, and once ignored text set without focus after the box had been cleared.
   function typeInto(input, value) {
+    try { input.focus(); } catch (e) { /* not fatal */ }
     var desc = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
     if (desc && desc.set) desc.set.call(input, value); else input.value = value;
     input.dispatchEvent(new Event('input', { bubbles: true }));

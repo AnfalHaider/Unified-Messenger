@@ -274,13 +274,14 @@ function push() {
 
 // ---- going to a conversation ---------------------------------------------------------------------
 
-const FOCUS_STEP_MS = 700, FOCUS_BUDGET_MS = 15_000, FOCUS_STEP_TIMEOUT_MS = 3_000;
+const FOCUS_STEP_MS = 700, FOCUS_BUDGET_MS = 20_000, FOCUS_STEP_TIMEOUT_MS = 3_000;
 /** The latest request per account. A newer one ends the older loop, so two quick clicks never fight. */
 const focusRequest: Record<string, number> = {};
 
 /**
  * The owner asked for one chat. The page is asked to take a step every 700 ms until it says it arrived, for up
- * to 15 s: a page woken for this, or a WhatsApp still building its stores, needs several seconds first. Who to
+ * to 20 s: a page woken for this, or a WhatsApp still building its stores, needs several seconds first, and an
+ * unsaved number took 8.5 s to open on the live page. Who to
  * look for comes from the snapshot, never the screen. The log records the outcome, never the customer.
  */
 async function focusChat(id: string, key: string) {

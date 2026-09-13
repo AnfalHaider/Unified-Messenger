@@ -1,7 +1,7 @@
 <!doctype html>
-<!-- A stand-in for WhatsApp Web's chat list, with invented chats. It keeps the two traps v5 measured on the real
-     page: a row ignores a plain click() and opens only on a pointer sequence, and search results render a moment
-     after typing. Nothing here is real customer data. -->
+<!-- A stand-in for WhatsApp Web's chat list, with invented chats. It keeps what was measured on the real page: a
+     row ignores a plain click() and opens only on a pointer sequence, only some chats are drawn, and the rest are
+     reachable through the store's open-chat command. Nothing here is real customer data. -->
 <meta charset="utf-8">
 <title>Fixture chats</title>
 <div id="app">
@@ -16,13 +16,13 @@
     { title: 'Sample Customer Alpha' },
     { title: 'Sample Customer Al' },
     { title: 'Sample Customer Beta' },
-    // Not on screen until searched for.
+    // Not drawn: reachable only through the store command below.
     { title: 'Sample Customer Hidden', hidden: true },
     { title: '+92 300 1112233', hidden: true },
   ];
   window.__opened = [];
   const pane = document.getElementById('pane-side');
-  const search = document.querySelector('input');
+
   function render(list) {
     pane.innerHTML = '';
     for (const chat of list) {
@@ -44,12 +44,13 @@
     h.setAttribute('title', title);
     h.textContent = title;
   }
-  search.addEventListener('input', () => {
-    const q = search.value.trim().toLowerCase();
-    setTimeout(() => {
-      const digits = q.replace(/\D/g, '');
-      render(q ? CHATS.filter((c) => c.title.toLowerCase().includes(q) || (digits.length >= 8 && c.title.replace(/\D/g, '').includes(digits))) : CHATS.filter((c) => !c.hidden));
-    }, 400);
-  });
+  // WhatsApp's own store and open-chat command, for chats that are not drawn. The real command opens the chat a
+  // moment later, so this one does too.
+  const STORE = { 'hidden@c.us': 'Sample Customer Hidden', '923001112233@c.us': '+92 300 1112233' };
+  window.require = (name) => {
+    if (name === 'WAWebChatCollection') return { ChatCollection: { get: (key) => (STORE[key] ? { id: key, title: STORE[key] } : undefined) } };
+    if (name === 'WAWebCmd') return { Cmd: { openChatBottom: ({ chat }) => setTimeout(() => open(chat.title), 300) } };
+    throw new Error(`Requiring unknown module "${name}"`);
+  };
   render(CHATS.filter((c) => !c.hidden));
 </script>

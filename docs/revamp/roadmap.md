@@ -17,7 +17,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 0 · Decisions | Done. Rules changed in AGENTS.md; Firebase Spark only; ponytail code. |
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
-| 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live. Open: Google reviews reader, open-a-chat, WhatsApp IndexedDB fallback, the deliberate break test. |
+| 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
 | 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.5 daily history, 4.6 four report tabs. Open: 4.6b weekly report and exports, 4.4 opening hours editor, 4.7 digest, 4.8 missed-call callbacks, 4.9–4.12. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
@@ -164,11 +164,10 @@ window on a temp data folder, asserts the first heading, moves to Accounts and q
 - Wire the Reviews screen (`ui/screens/reports.tsx` `ReviewsScreen`) to the view model; delete `REVIEW_*` from `sample.ts`.
 - Done when the three Google profiles show real ratings, totals and unanswered reviews, and the reader's own health line appears.
 
-**3.2 Open a specific chat.**
-- WhatsApp: port v5's focus-by-`span[title]` search (`ConversationFocusHelper`, and the focus functions in v5's `whatsapp-adapter.js`). It must never mark a chat read by accident beyond what opening does; opening is the owner's own act here.
-- Instagram: port v5.0.0's "go to the conversation without opening it" (commit `0127ef8`, `instagram-adapter.js`).
-- Add `focus(customerKey)` to the module contract in `channels/types.ts`; call it from `main.ts` when the renderer navigates to `dock` with a customer.
-- Done when Open chat lands on that customer's conversation for both channels.
+**3.2 Open a specific chat.** Done 2026-09-13, verified on the owner's live pages. Every dock navigation carries the conversation key; main takes name and number from the snapshot and asks the page for a step every 700 ms, up to 20 s (`focusChat`, logged as `focus` with arrived / not-found / replaced / no-target, never the customer).
+- WhatsApp (`channels/whatsapp/whatsapp-focus.js`) opens the chat: a drawn row whose title is exactly the name or carries the number gets the pointer sequence; a chat not drawn is opened with WhatsApp's own `Cmd.openChatBottom({ chat })` from `ChatCollection.get(key)`; done only when the open chat's header matches. Live: drawn 3.6 s, not drawn 3.5 s, unsaved number 8.5 s, both accounts. v5's typed search no longer filters the list (lesson `v6-whatsapp-search-ignores-typed-text`).
+- Instagram (`channels/instagram/instagram-focus.js`) goes to Direct, focuses the search box, types the name and stops; it never opens a thread (a Seen, and the unread that marks waiting, would go). Live on both signed-in accounts; the reader still reads on Direct (more threads there than on the feed). A title made only of emoji now gives way to the `@handle`.
+- Tests: `channels/focus.test.ts` holds both scripts away from message boxes, typing (WhatsApp) and thread links (Instagram); a Playwright test drives both against invented pages in `tests/fixtures`.
 
 **3.3 WhatsApp IndexedDB fallback.** Port v5's IndexedDB scan (`whatsapp-adapter.js`, bounded `chat` `getAll`) as a second scan the module uses when the store bridge reports `no-store` for longer than a few minutes on a signed-in page. Done when a deliberately disabled bridge still yields chats.
 

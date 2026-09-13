@@ -124,6 +124,16 @@ test('Instagram: a thread with no title falls back to the handle, then the key',
   assert.deepEqual(entries.map((e) => e.customerName), ['@new.customer', 'k2']);
 });
 
+test('Instagram: a title made only of symbols gives way to the handle, which can be searched and read', () => {
+  // Measured live: a thread titled only with emoji left Open chat with nothing to search for.
+  const { entries } = moduleFor('instagram')!.parse(ig([
+    { key: 'k1', name: '✨🦋✨', username: 'sample.handle', awaiting: false, lastActivityMs: 1 },
+    { key: 'k2', name: 'Sample Kay 🦋', username: 'sample.kay', awaiting: false, lastActivityMs: 1 },
+    { key: 'k3', name: '✨', username: '', awaiting: false, lastActivityMs: 1 },
+  ]));
+  assert.deepEqual(entries.map((e) => e.customerName), ['@sample.handle', 'Sample Kay 🦋', '✨']);
+});
+
 test('Instagram: a read taken before read state has synced is dropped, not believed', () => {
   // Measured in v5: 15 of 15 threads flagged unread against a badge of 2, a minute after launch.
   const early = moduleFor('instagram')!.parse(ig(

@@ -252,10 +252,9 @@ test('Open chat goes to the conversation: WhatsApp opens it, Instagram filters t
     // A name that another chat's title starts with: only the exact one may open.
     await openChat('Sample Customer Al');
     await expect.poll(() => inPage('whatsapp-web.html', "document.querySelector('#main header span')?.title ?? ''")).toBe('Sample Customer Al');
-    // Not on screen until searched: found through the search, opened, and the search box cleared again.
+    // Not drawn on screen: opened through WhatsApp's own open-chat command, looked up by its key.
     await openChat('Sample Customer Hidden');
     await expect.poll(() => inPage('whatsapp-web.html', "document.querySelector('#main header span')?.title ?? ''"), { timeout: 15_000 }).toBe('Sample Customer Hidden');
-    await expect.poll(() => inPage('whatsapp-web.html', "document.querySelector('input').value")).toBe('');
     // An unsaved number, matched by its digits.
     await openChat('+92 300 1112233');
     await expect.poll(() => inPage('whatsapp-web.html', "document.querySelector('#main header span')?.title ?? ''"), { timeout: 15_000 }).toBe('+92 300 1112233');

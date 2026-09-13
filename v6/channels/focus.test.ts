@@ -34,13 +34,12 @@ test('the Instagram focus never opens a thread, never clicks and never touches a
   assert.match(code, /location\.assign\(location\.origin \+ '\/direct\/inbox\/'\)/);
 });
 
-test('the WhatsApp focus writes only to the chat-list search, never to a message box', () => {
+test('the WhatsApp focus opens a chat and types into nothing', () => {
   const code = source('whatsapp/whatsapp-focus.js');
-  for (const banned of ['contenteditable', 'footer', 'KeyboardEvent', "'Enter'", 'sendMessage', '.submit(', 'execCommand']) {
+  for (const banned of ['contenteditable', 'footer', 'KeyboardEvent', "'Enter'", 'sendMessage', 'sendText', '.submit(', 'execCommand', 'HTMLInputElement', '.value', "new Event('input'"]) {
     assert.ok(!code.includes(banned), `whatsapp-focus.js must not contain ${banned}`);
   }
-  // Every search candidate is an <input>, never an editable div, so the setter can only ever reach the search box.
-  const search = code.match(/var SEARCH = \[([^\]]*)\]/)?.[1] ?? '';
-  assert.ok(search.length > 0);
-  for (const candidate of search.split(',')) assert.match(candidate, /input/, candidate);
+  // The one WhatsApp command it may call is the one that opens a chat.
+  const commands = [...code.matchAll(/cmd\.(\w+)/g)].map((m) => m[1]);
+  assert.deepEqual([...new Set(commands)], ['openChatBottom']);
 });

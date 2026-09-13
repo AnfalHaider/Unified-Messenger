@@ -53,8 +53,9 @@ export const instagram: ChannelModule = {
         const at = count(row.lastActivityMs);
         entries.push({
           conversationKey: key,
-          // A brand-new request can have no title; an empty name is a row nobody can act on.
-          customerName: name || (username ? `@${username}` : key),
+          // A brand-new request can have no title, and some titles are only emoji: neither can be recognised or
+          // searched, so the handle stands in, and the key only when there is no handle either.
+          customerName: /[\p{L}\p{N}]/u.test(name) ? name : username ? `@${username}` : name || key,
           unread: count(row.unread),
           lastActivity: at > 0 ? at : Date.now(),
           // Empty on purpose: the feed's prefetch carries thread metadata only, never message text.
