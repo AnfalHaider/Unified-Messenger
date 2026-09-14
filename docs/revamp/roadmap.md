@@ -251,7 +251,7 @@ Google Business Profile API for complete review history (needs Google approval);
 
 1. **Auto-update approach** (7.3).
 2. **The Co-Authored-By trailer** already on commits 235627d, 824eb60 and faa4e3a (and older ones from other sessions): leave them, or rewrite `main` history with a force-push.
-3. **Opening hours:** the editor exists (Settings › Opening hours), but every location still has hours switched off, so waits count around the clock. Only the owner knows the real hours; enter them there.
+3. **Opening hours:** the editor exists (Settings › Opening hours). On the owner's PC (checked 2026-09-14) all three locations carry v5's hours, 11 am to 9 pm Monday to Saturday, with the switch off, so waits count around the clock; there are no holidays. Switching a location on uses those hours until edited. Only the owner knows whether they are right.
 4. **Imported assistant settings:** v5's config came across with the assistant marked enabled (`llama3.2:3b`); v6 ignores it until Phase 5. Decide the default then.
 5. **Code signing** (7.4). Smart App Control blocked an unsigned build for two hours on 2026-09-13; until this is decided, an install can be held up with nothing to do but wait.
 6. **Alert volume.** A busy Instagram account can raise a notification every minute or so. Keep one per customer, or cap per account (for example one summary every 10 minutes)?
