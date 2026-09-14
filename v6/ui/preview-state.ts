@@ -55,6 +55,7 @@ export const PREVIEW_STATE: UiState = {
   ],
   setAsideTotal: 3,
   reports: null,
+  digest: null,
   openingHours: {
     locations: ['F-11 Markaz', 'DHA Phase 2'].map((name) => ({
       name, accounts: 2,

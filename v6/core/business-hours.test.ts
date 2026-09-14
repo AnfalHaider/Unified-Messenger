@@ -1,7 +1,7 @@
 // Same cases as UnifiedMessenger.Tests/BusinessHoursCalculatorTests.cs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { elapsedBusinessMinutes, isOpen } from './business-hours.ts';
+import { elapsedBusinessMinutes, isOpen, lastClosing } from './business-hours.ts';
 
 const local = (y: number, mo: number, d: number, h: number, mi: number) => new Date(y, mo - 1, d, h, mi);
 const allWeek = { enabled: true, openMinutes: 9 * 60, closeMinutes: 18 * 60, workingDays: [0, 1, 2, 3, 4, 5, 6] };
@@ -71,4 +71,16 @@ test('the uniform hours v5 wrote still work, and closed dates apply to them too'
 
 test('hours switched off ignore closed dates too: the clock runs around the clock', () => {
   assert.equal(elapsedBusinessMinutes(local(2026, 7, 15, 10, 0), local(2026, 7, 15, 11, 0), { ...week(), enabled: false, closedDates: ['2026-07-15'] }), 60);
+});
+
+test('the last closing is the end of the latest window already over, skipping closed days', () => {
+  const hours = week({ 0: null }); // 11:00 to 21:00, Sunday closed
+  // Monday 20 July 2026, 10:00, before opening: the last closing was Saturday 21:00, since Sunday was closed.
+  assert.equal(lastClosing(hours, local(2026, 7, 20, 10, 0).getTime()), local(2026, 7, 18, 21, 0).getTime());
+  // Open now: still the previous evening's closing, not today's.
+  assert.equal(lastClosing(hours, local(2026, 7, 21, 15, 0).getTime()), local(2026, 7, 20, 21, 0).getTime());
+  // After today's closing: today's.
+  assert.equal(lastClosing(hours, local(2026, 7, 21, 22, 0).getTime()), local(2026, 7, 21, 21, 0).getTime());
+  assert.equal(lastClosing({ ...hours, enabled: false }, local(2026, 7, 21, 22, 0).getTime()), null, 'hours off have no closing');
+  assert.equal(lastClosing(null, local(2026, 7, 21, 22, 0).getTime()), null);
 });

@@ -42,7 +42,7 @@ export interface Report {
   /** The same figures for the equal range just before this one. */
   previous: ReportTotals;
   days: ReportDay[];
-  byLocation: { name: string; replies: number; onTimePercent: number | null; daily: (number | null)[]; missedCalls: number; missedDaily: number[] }[];
+  byLocation: { name: string; replies: number; onTimePercent: number | null; medianMinutes: number | null; daily: (number | null)[]; missedCalls: number; missedDaily: number[] }[];
   byAccount: { id: string; name: string; replies: number; medianMinutes: number | null; onTimePercent: number | null; p90Minutes: number | null }[];
   /** First replies by how long they took; a band holds replies up to and including its upper minute. */
   bands: [string, number][];
@@ -128,12 +128,12 @@ export function buildReport(history: History, times: ResponseTimes, accounts: Re
     }),
     byLocation: locations.map((name) => {
       const here = rangeReplies.filter((r) => (r.account.location || NO_LOCATION) === name);
-      const { replies: count, onTimePercent } = replyFigures(here);
+      const { replies: count, onTimePercent, medianMinutes } = replyFigures(here);
       const missedDaily = keys.map((key) => records
         .filter((r) => r.record.day === key && (r.account.location || NO_LOCATION) === name)
         .reduce((n, r) => n + r.record.missedCalls, 0));
       return {
-        name, replies: count, onTimePercent, daily: keys.map((key) => replyFigures(here.filter((r) => r.day === key)).onTimePercent),
+        name, replies: count, onTimePercent, medianMinutes, daily: keys.map((key) => replyFigures(here.filter((r) => r.day === key)).onTimePercent),
         missedCalls: missedDaily.reduce((a, b) => a + b, 0), missedDaily,
       };
     }),

@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-13, after the session that built 2.1, 4.1–4.3, 4.5 and most of 4.6 and installed them on the
-owner's PC, then 3.2, 4.6b and 4.4. **Next step: 4.7** (morning digest), unless an owner decision in §5 changes the order. This replaces the roadmap
+owner's PC, then 3.2, 4.6b, 4.4 and 4.7. **Next step: 4.8** (missed-call callbacks), unless an owner decision in §5 changes the order. This replaces the roadmap
 section of the "Revamp Blueprint" artifact wherever the two disagree; the blueprint's stack, rules and data model
 still stand.
 
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports, 4.4 opening hours and holidays. Open: 4.7 digest, 4.8 missed-call callbacks, 4.9–4.12. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports, 4.4 opening hours and holidays, 4.7 morning digest. Open: 4.8 missed-call callbacks, 4.9–4.12. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -39,7 +39,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 
 | Real data | Sample figures (marked "Sample figures, not connected yet") |
 |---|---|
-| The line, lanes, queue, J/K/Enter | Morning digest |
+| The line, lanes, queue, J/K/Enter | |
 | Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
 | Set aside, with Put back | Privacy sizes |
 | Needs you | Reader timeline, lost-login record |
@@ -51,6 +51,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Command palette (customers, accounts, screens) | |
 | Theme | |
 | Opening hours per location and day, holidays | |
+| Morning digest, once a day | |
 
 ---
 
@@ -74,7 +75,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 240 tests
+npm test            # 246 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 
@@ -195,7 +196,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.6b Weekly report and export.** Done 2026-09-13. Weeks run Monday to Sunday (`weekEnding` in `core/report.ts`); the tab offers Last week and This week and opens on the one with data. `weeklyDoc` in `view-model.ts` computes the title, lede, four facts, "What to look at" and "What went well" from the week's report; nothing is phrased by a model. Includes (figures, locations, accounts, missed calls, names) and Monday auto-save live in `settings.weeklyReport`; names and auto-save are off by default. PDF and image are made from the same `WeeklyDocument` component drawn in a hidden window (`ui/print.tsx`, `#print=weekly`), sized to the page; the PDF is one tall page, the image goes to the clipboard. CSV (`reportCsv`) is figures only, one row per account per recorded day, never names; the Export button on the other tabs saves the chosen range. Auto-save writes last week's PDF to Documents › Unified Messenger reports from Monday 10 am, once per week (`weeklyDue`, `exports.json`), skipping a week with nothing recorded. Playwright checks the text, the three files (PDF header, PNG size, CSV row, no names) and the names switch; `UM_EXPORT_DIR` replaces the save dialog and clipboard in tests, so the dialog, the clipboard copy and the Monday save have not been exercised by a test.
 
-**4.7 Morning digest.** `digest()` exists in `core/snapshot.ts`. Show the digest screen on the first open of each local day (remember the last shown day in a small store); owed-from-yesterday comes from the snapshot, yesterday by location from the history store. Done when it appears once a day and never on a second open.
+**4.7 Morning digest.** Done 2026-09-14. `core/digest.ts` splits the waiting customers (inside the backlog line, closed-by-rule excluded) into still owed, wrote before the location's last closing (`lastClosing` in `core/business-hours.ts`) or before midnight when hours are off, and wrote since. Yesterday by location (on time, median, 14-day trend) comes from `buildReport` over the history store. The view model builds it only while the digest is open, with computed sentences ("Good morning. 4 customers wrote while you were closed."). Main opens it the first time the window is shown on a local day, at start or back from the tray, when `settings.morningDigest` is on (default) and an account is read; `digest.json` remembers the day, so a second opening goes to the line. Settings › Notifications › Summaries switches it. Playwright checks the owed row, the count since, Open chat, and that a second launch the same day opens on the line. The Playwright helper turns the digest off for every other test.
 
 **4.8 Missed calls.** The store bridge already reads `lastCallOutcome`; add call entries to the history store and a callback list that marks a call returned when an outgoing call or reply follows. Done when a missed test call appears and ticks off.
 

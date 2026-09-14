@@ -98,6 +98,7 @@ saves as JSON, and "now" is always a parameter, which is what makes every rule t
 | `schedule` | Which account to read next, what may sleep, when to stay quiet. | `InstanceSessionManager` + `OversightAlertMonitor` |
 | `history` | One record per account per local day, for reports and the digest. | — |
 | `report` | A range of whole days for the Reports screen, Monday-to-Sunday weeks, the Monday auto-save, and the figures CSV. | `BusinessReport` |
+| `digest` | The morning digest: who is still owed from before closing, who wrote since, and when it is due. | — |
 
 Rules: follow the ponytail guideline (built-ins before dependencies, no abstractions without a second
 user); port v5 behaviour with its test cases before changing it; never commit `firebase-config.json`,

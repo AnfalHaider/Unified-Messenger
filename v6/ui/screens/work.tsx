@@ -1,12 +1,12 @@
 // The day's work: the line, a chat docked beside it, what was set aside, and the morning digest.
-// The line, the dock and Set aside read the real view model. The digest, and the customer panel's notes and
+// The line, the dock, Set aside and the morning digest read the real view model. The customer panel's notes and
 // saved replies are sample figures until those features are wired.
 import { useEffect, useMemo, useState } from 'react';
 import type { QueueRow, UiState } from '../../app/view-model.ts';
 import { Spark, TheLine, toneInk } from '../charts.tsx';
 import { channelIcon, Icon } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, isPreview, Panel, plural, Sample, type ScreenProps, Wait, waitText } from '../parts.tsx';
-import { CUSTOMER, OWED, YESTERDAY } from '../sample.ts';
+import { CUSTOMER } from '../sample.ts';
 
 const rowKey = (r: QueueRow) => `${r.accountId}:${r.key}`;
 /** Snoozing from the line or the dock is always an hour; the keys hint says so. */
@@ -287,24 +287,49 @@ export function SetAsideScreen({ state }: ScreenProps) {
 
 export function DigestScreen({ state, nav }: ScreenProps) {
   const signedOut = state.accounts.filter((a) => a.signedOut);
+  const d = state.digest;
+  const eyebrow = <span className="phase"><Icon name="sunrise" size={12} /> {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</span>;
+  if (!d) return <main className="main"><Headline eyebrow={eyebrow} title="The morning digest">Gathering the figures…</Headline></main>;
+  const since = (ms: number) => {
+    const at = new Date(ms);
+    const time = at.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return at.toDateString() === new Date().toDateString() ? `since ${time}` : `since ${at.toLocaleDateString(undefined, { weekday: 'short' })} ${time}`;
+  };
   return (
     <main className="main" style={{ gap: 18 }}>
-      <Headline sample eyebrow={<span className="phase"><Icon name="sunrise" size={12} /> {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</span>}
-        title="Good morning. 14 people wrote while you were closed."
-        actions={<Btn icon="line" kind="primary" onClick={() => nav.go('line')}>Go to the line</Btn>}>
-        Answer the 3 still owed from yesterday first. Yesterday <b>81%</b> were answered on time across all locations, down from 86% the week before.
+      <Headline eyebrow={eyebrow} title={d.title} actions={<Btn icon="line" kind="primary" onClick={() => nav.go('line')}>Go to the line</Btn>}>
+        {d.summary}
       </Headline>
       <div className="grid2" style={{ gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)' }}>
         <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px 6px' }}><h3 style={{ margin: 0 }}>Owed from yesterday</h3><span className="sub">Wrote before closing and never got a reply</span></div>
-          <table className="table"><tbody>{OWED.map((o) => <tr key={o.who}><td><b style={{ fontWeight: 600 }}>{o.who}</b><div className="sub">{o.account} · “{o.message}”</div></td><td className="r late">{o.since}</td></tr>)}</tbody></table>
-          <div style={{ padding: '12px 18px', borderTop: '1px solid var(--line)' }}><b style={{ fontWeight: 600 }}>11 wrote overnight.</b> <span className="sub">The wait clock starts at opening time.</span></div>
+          <div style={{ padding: '14px 18px 6px' }}><h3 style={{ margin: 0 }}>Still owed a reply</h3><span className="sub">{d.owedLabel}</span></div>
+          <table className="table"><tbody>
+            {d.owed.map((o) => (
+              <tr key={`${o.accountId}:${o.key}`}>
+                <td><b style={{ fontWeight: 600 }}>{o.customer}</b><div className="sub">{o.accountName}{o.preview ? <> · “{o.preview}”</> : null}</div></td>
+                <td className="r late">{since(o.since)}</td>
+                <td className="r"><Btn icon="open" onClick={() => nav.go('dock', o.accountId, o.key)}>Open chat</Btn></td>
+              </tr>
+            ))}
+            {d.owed.length === 0 && <tr><td className="sub" style={{ padding: 18 }}>Nobody from before is still waiting.</td></tr>}
+          </tbody></table>
+          {d.owedTotal > d.owed.length && <div className="sub" style={{ padding: '0 18px 10px' }}>And {d.owedTotal - d.owed.length} more on the line.</div>}
+          <div style={{ padding: '12px 18px', borderTop: '1px solid var(--line)' }}><b style={{ fontWeight: 600 }}>{plural(d.overnight, 'customer')} wrote since.</b> <span className="sub">{d.overnightNote}</span></div>
         </div>
         <Panel title="Yesterday, by location">
-          <table className="table"><thead><tr><th>Location</th><th className="r">On time</th><th>Last 14 days</th><th className="r">Median reply</th></tr></thead><tbody>
-            {YESTERDAY.map((y) => <tr key={y.location}><td><b style={{ fontWeight: 600 }}>{y.location}</b></td><td className="r" style={{ color: toneInk(y.onTime >= 90 ? 'ok' : 'due'), fontWeight: 600 }}>{y.onTime}%</td><td><Spark values={y.trend} min={60} max={100} /></td><td className="r">{y.median} min</td></tr>)}
-          </tbody></table>
-          <p className="sub" style={{ margin: '10px 0 0' }}>Aiming for 90%.</p>
+          {d.yesterday.every((y) => y.replies === 0) ? <p className="sub" style={{ margin: 0 }}>No first replies were measured yesterday.</p> : <>
+            <table className="table"><thead><tr><th>Location</th><th className="r">On time</th><th>Last 14 days</th><th className="r">Median reply</th></tr></thead><tbody>
+              {d.yesterday.map((y) => (
+                <tr key={y.name}>
+                  <td><b style={{ fontWeight: 600 }}>{y.name}</b></td>
+                  <td className="r" style={{ color: y.onTimePercent === null ? undefined : toneInk(y.onTimePercent >= 90 ? 'ok' : y.onTimePercent >= 80 ? 'due' : 'late'), fontWeight: 600 }}>{y.onTimePercent === null ? '—' : `${y.onTimePercent}%`}</td>
+                  <td>{y.trend.length > 1 ? <Spark values={y.trend} min={0} max={100} /> : <span className="sub">Not enough days yet</span>}</td>
+                  <td className="r">{y.medianMinutes === null ? '—' : `${Math.round(y.medianMinutes)} min`}</td>
+                </tr>
+              ))}
+            </tbody></table>
+            <p className="sub" style={{ margin: '10px 0 0' }}>Aiming for 90%.</p>
+          </>}
         </Panel>
       </div>
       {signedOut.length > 0 && (

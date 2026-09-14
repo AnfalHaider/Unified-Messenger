@@ -71,3 +71,19 @@ export function elapsedBusinessMinutes(start: Date, end: Date, hours?: BusinessH
   }
   return total;
 }
+
+/** When the location last closed: the end of the most recent opening window that is already over. Null when the
+ *  hours are off or unusable, or nothing closed in the last two weeks. Used to split "owed from before closing"
+ *  from "wrote while closed". */
+export function lastClosing(hours: BusinessHours | null | undefined, now: number): number | null {
+  if (!usable(hours)) return null;
+  const today = new Date(now);
+  for (let back = 0; back <= 14; back++) {
+    const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() - back);
+    const window = windowFor(hours, day);
+    if (!window) continue;
+    const close = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, window.close).getTime();
+    if (close <= now) return close;
+  }
+  return null;
+}

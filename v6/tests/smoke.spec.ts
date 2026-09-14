@@ -9,10 +9,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const V6 = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** A data folder of its own, never the owner's. A config already present also means no v5 import is tried, and
- *  closing quits instead of hiding, so the process really ends. */
+ *  closing quits instead of hiding, so the process really ends. The morning digest is off unless a test turns it
+ *  on, or every test with accounts would open on it. */
 function dataFolder(config: Record<string, unknown> = {}) {
   const data = mkdtempSync(join(tmpdir(), 'um-smoke-'));
-  writeFileSync(join(data, 'config.json'), JSON.stringify({ ...config, settings: { closeToBackground: false } }));
+  const settings = { closeToBackground: false, morningDigest: false, ...(config.settings as Record<string, unknown> | undefined) };
+  writeFileSync(join(data, 'config.json'), JSON.stringify({ ...config, settings }));
   return data;
 }
 
@@ -396,6 +398,47 @@ test('opening hours and holidays stop a wait from growing, and are kept', async 
     await win.getByRole('switch', { name: 'Count waits only while open' }).click();
     await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
     await expect(token(30)).toBeVisible();
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('the morning digest opens once a day, with who is still owed and how many wrote since', async () => {
+  const now = Date.now();
+  const HOUR = 3_600_000;
+  const data = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }],
+    locations: [{ name: 'Main branch' }],
+    settings: { morningDigest: true },
+  });
+  const chat = (k: string, name: string, at: number, preview: string) => ({
+    conversationKey: k, customerName: name, unread: 1, lastActivity: at, preview, awaiting: true,
+    lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  });
+  // No opening hours: the day starts at midnight, so "owed" is anyone waiting since before today.
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [
+    chat('owed@c.us', 'Sample Customer Owed', now - 30 * HOUR, 'Is Saturday possible?'),
+    chat('new@c.us', 'Sample Customer New', now - 60_000, 'Hello'),
+  ] } }));
+
+  let { app, win } = await open(data);
+  try {
+    await expect(heading(win, /^Good (morning|afternoon|evening)\. 1 customer wrote since midnight\.$/)).toBeVisible();
+    await expect(win.getByText('Answer the 1 still owed from yesterday first.')).toBeVisible();
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'digest.png') });
+    const owed = win.getByRole('row').filter({ hasText: 'Sample Customer Owed' });
+    await expect(owed).toContainText('Is Saturday possible?');
+    await expect(win.getByRole('row').filter({ hasText: 'Sample Customer New' })).toHaveCount(0);
+    await owed.getByRole('button', { name: 'Open chat' }).click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Customer Owed');
+    await quit(app, win);
+    expect(JSON.parse(readFileSync(join(data, 'digest.json'), 'utf8')).lastShownDay).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    // A second opening the same day goes straight to the line.
+    ({ app, win } = await open(data));
+    await expect(heading(win, '2 customers are waiting')).toBeVisible();
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

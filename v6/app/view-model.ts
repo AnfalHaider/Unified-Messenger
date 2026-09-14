@@ -10,7 +10,8 @@ import { describeFreshness } from '../core/freshness.ts';
 import { dailyResponse, responseStats, type ResponseTimes } from '../core/response-times.ts';
 import { buildRollup } from '../core/rollup.ts';
 import { readableAccounts } from '../core/schedule.ts';
-import { DAY_MS } from '../core/days.ts';
+import { DAY_MS, startOfDay } from '../core/days.ts';
+import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
 import { explain } from '../core/reply-need.ts';
@@ -59,6 +60,20 @@ export interface WeeklyDoc {
   report: Report;
   lookAt: string[];
   wentWell: string[];
+}
+
+export interface DigestView {
+  hasData: boolean;
+  title: string;
+  summary: string;
+  /** Still waiting from before the location closed (or before midnight), oldest first, at most 12. */
+  owed: { accountId: string; accountName: string; key: string; customer: string; preview: string; since: number }[];
+  owedTotal: number;
+  owedLabel: string;
+  overnight: number;
+  overnightNote: string;
+  /** Yesterday per location, with the 14 days before it as a trend of the days that had replies. */
+  yesterday: { name: string; replies: number; onTimePercent: number | null; medianMinutes: number | null; trend: number[] }[];
 }
 
 export interface ReportsView {
@@ -149,6 +164,8 @@ export interface UiState {
   setAsideTotal: number;
   /** Built only while Reports is open. */
   reports: ReportsView | null;
+  /** Built only while the morning digest is open. */
+  digest: DigestView | null;
   locations: { name: string; waiting: number; onTimePercent: number; tone: Tone; accounts: number }[];
   accounts: { id: string; name: string; channel: string; location: string; waiting: number | null; signedOut: boolean; asleep: boolean }[];
   reads: boolean;
@@ -263,6 +280,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     reads: ids.length > 0,
     detail: ctx.visible ? detailFor(config, snapshots, times, judge, ctx) : null,
     reports: ctx.route === 'reports' ? reportsFor(config, snapshots, times, judge, ctx, live) : null,
+    digest: ctx.route === 'digest' ? digestFor(config, snapshots, times, judge, ctx, live) : null,
     modules: ctx.modules.map(readerHealth),
     settings: config.settings,
     openingHours: {
@@ -483,8 +501,9 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
 export const reportAccounts = (config: Config) =>
   readableAccounts(config).map((a) => ({ id: a.id, name: a.name, location: a.location, targetMinutes: targetFor(config, a) }));
 
-const pointsOnWeekBefore = (diff: number) =>
-  diff === 0 ? 'the same as the week before' : `${Math.abs(diff)} point${Math.abs(diff) === 1 ? '' : 's'} ${diff > 0 ? 'up' : 'down'} on the week before`;
+const pointsOn = (diff: number, when: string) =>
+  diff === 0 ? `the same as ${when}` : `${Math.abs(diff)} point${Math.abs(diff) === 1 ? '' : 's'} ${diff > 0 ? 'up' : 'down'} on ${when}`;
+const pointsOnWeekBefore = (diff: number) => pointsOn(diff, 'the week before');
 
 const plainCount =(n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 
@@ -531,5 +550,52 @@ function weeklyDoc(which: 'this' | 'last', report: Report, target: number, unans
     dayLabels: report.days.map((d) => new Date(dayDate(d.day)).toLocaleDateString('en-GB', { weekday: 'short' })),
     lookAt: report.hasData ? (lookAt.length ? lookAt : ['Nothing stood out.']) : [],
     wentWell: report.hasData ? (wentWell.length ? wentWell : [hadBefore ? 'Nothing improved on the week before.' : 'This is the first week recorded, so there is nothing to compare with yet.']) : [],
+  };
+}
+
+// ---- the morning digest --------------------------------------------------------------------------------------
+
+function digestFor(config: Config, snapshots: Snapshots, times: ResponseTimes, judge: Judge, ctx: Context, live: string[]): DigestView {
+  const { now } = ctx;
+  const split = morningSplit(config, snapshots, judge, live, now);
+  const accounts = reportAccounts(config);
+  const history = ctx.history ?? {};
+  const yesterdayNoon = startOfDay(now, 1) + 12 * 3_600_000;
+  const yesterday = buildReport(history, times, accounts, 1, yesterdayNoon);
+  const fortnight = buildReport(history, times, accounts, 14, yesterdayNoon);
+  const name = (id: string) => config.accounts.find((a) => a.id === id)?.name ?? id;
+
+  const hour = new Date(now).getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const whenClosed = split.byHours ? 'while you were closed' : 'since midnight';
+  const owed = split.owed.length;
+
+  const title = !split.hasData ? `${greeting}. Nothing has been read yet.`
+    : split.overnight ? `${greeting}. ${plainCount(split.overnight, 'customer')} wrote ${whenClosed}.`
+      : owed ? `${greeting}. ${plainCount(owed, 'customer')} ${owed === 1 ? 'is' : 'are'} still owed a reply.`
+        : `${greeting}. Nobody is waiting.`;
+
+  const y = yesterday.totals, before = yesterday.previous;
+  const summary = [
+    owed ? `Answer the ${owed} still owed from ${split.byHours ? 'before closing' : 'yesterday'} first.` : '',
+    y.onTimePercent !== null
+      ? `Yesterday ${y.onTimePercent}% were answered on time${before.onTimePercent !== null ? `, ${pointsOn(y.onTimePercent - before.onTimePercent, 'the day before')}` : ''}.`
+      : yesterday.recordingSince !== null ? 'No first replies were measured yesterday.' : '',
+  ].filter(Boolean).join(' ') || 'The line fills in as the accounts are read.';
+
+  return {
+    hasData: split.hasData, title, summary,
+    owed: split.owed.slice(0, 12).map(({ account, chat }) => ({
+      accountId: account, accountName: name(account), key: chat.conversationKey,
+      customer: chat.customerName || chat.contactPhone || 'Unknown number', preview: chat.preview, since: chat.lastActivity,
+    })),
+    owedTotal: owed,
+    owedLabel: split.byHours ? 'Wrote before closing and never got a reply' : 'Wrote before midnight and never got a reply',
+    overnight: split.overnight,
+    overnightNote: split.byHours ? 'The wait clock starts at opening time.' : 'Opening hours are off, so these waits count from when they wrote.',
+    yesterday: yesterday.byLocation.map((l) => ({
+      name: l.name, replies: l.replies, onTimePercent: l.onTimePercent, medianMinutes: l.medianMinutes,
+      trend: (fortnight.byLocation.find((f) => f.name === l.name)?.daily ?? []).filter((v): v is number => v !== null),
+    })),
   };
 }

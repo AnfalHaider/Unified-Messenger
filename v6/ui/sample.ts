@@ -1,22 +1,10 @@
-// Sample figures for the screens whose feature is not connected yet: the morning digest, reviews,
+// Sample figures for the screens whose feature is not connected yet: reviews,
 // the assistant, workspace and owner screens, the customer panel and parts of Settings and Accounts. Every screen that draws from here
 // shows a "Sample figures" marker, so none of this can pass for the owner's real data. As each feature is
 // wired, its screen switches to the view model and its block here is deleted.
 //
 // Customers, reviews, members and figures are invented. The same invented week is used everywhere, so the
 // numbers agree from one screen to the next.
-
-export const OWED = [
-  { who: 'Zainab T.', account: 'DHA-2 WhatsApp', message: 'Still waiting to hear if 3pm is confirmed', since: 'since 8:40 pm' },
-  { who: 'Ayesha K.', account: 'F-11 Instagram', message: 'Package price? Date is 14 Nov', since: 'since 9:55 pm' },
-  { who: 'Bilal R.', account: 'Men DHA-2 WhatsApp', message: 'Walk-in possible today?', since: 'since 10:31 pm' },
-];
-
-export const YESTERDAY = [
-  { location: 'F-11', onTime: 78, trend: [84, 86, 83, 88, 85, 82, 79, 81, 84, 80, 77, 83, 80, 78], median: 13 },
-  { location: 'DHA-2', onTime: 80, trend: [90, 88, 91, 87, 86, 89, 84, 85, 83, 86, 82, 84, 81, 80], median: 12 },
-  { location: 'Men DHA-2', onTime: 91, trend: [86, 84, 88, 87, 89, 90, 88, 91, 89, 92, 90, 88, 93, 91], median: 7 },
-];
 
 export const CUSTOMER = {
   history: [['Today', 'Waiting now'], ['2 Sept', 'Answered in 6 min'], ['19 Aug', 'Answered in 41 min'], ['Since', 'July, 7 conversations']],

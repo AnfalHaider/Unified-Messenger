@@ -15,6 +15,7 @@ import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.
 import { DAY_MS } from '../core/days.ts';
 import { dayKey, recordHistory, type History } from '../core/history.ts';
 import { reportCsv, weekEnding, weeklyDue } from '../core/report.ts';
+import { digestDue } from '../core/digest.ts';
 import { awaitingChats, distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
@@ -51,6 +52,7 @@ const FILE = {
   alerts: join(DATA, 'alerts.json'),
   history: join(DATA, 'history.json'),
   exports: join(DATA, 'exports.json'),
+  digest: join(DATA, 'digest.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -81,6 +83,8 @@ const notified = loadJson<Notified>(FILE.alerts, {}, note('alerts'));
 const history = loadJson<History>(FILE.history, {}, note('history'));
 /** Which week's report was last saved on its own, so Monday's save happens once. */
 const exportsState = loadJson<{ lastWeeklyWeek: string | null }>(FILE.exports, { lastWeeklyWeek: null }, note('exports'));
+/** The local day the morning digest was last shown, so it opens once a day. */
+const digestState = loadJson<{ lastShownDay: string | null }>(FILE.digest, { lastShownDay: null }, note('digest'));
 
 // A snapshot written by a cold scan claims almost every chat has no message. Honouring that on load would
 // close the whole queue until a warm read replaced it — 354 real conversations once rendered as 5.
@@ -507,6 +511,22 @@ function showWindow() {
   win.show();
   win.focus();
   push();
+  showDigestIfDue();
+}
+
+/**
+ * The first time the window is opened on a local day, it opens on the morning digest. "Opened" is the app starting
+ * or the window coming back from the tray, so an app left reading overnight still greets the owner in the morning.
+ * Only when something is read: a PC with no accounts has nothing to summarise.
+ */
+function showDigestIfDue() {
+  const now = Date.now();
+  if (!win || win.isDestroyed() || quitting || !readableAccounts(config).length) return;
+  if (!digestDue(now, digestState.lastShownDay, config.settings.morningDigest)) return;
+  digestState.lastShownDay = dayKey(now);
+  saveJson(FILE.digest, digestState);
+  win.webContents.send('open', 'digest', null, '');
+  log({ event: 'digest-shown' });
 }
 
 /** Hides the window and keeps every account reading. Said once per run, from the tray, so it is not a mystery. */
@@ -607,7 +627,7 @@ app.whenReady().then(async () => {
   for (const a of config.accounts) wake(a);
   layout();
 
-  ipcMain.on('ready', () => push());
+  ipcMain.on('ready', (e) => { push(); if (e.sender === win.webContents) showDigestIfDue(); });
   ipcMain.on('navigate', (_e, to: Route, id: string | null) => {
     route = to;
     visible = ACCOUNT_ROUTES.includes(to) ? id : null;

@@ -67,6 +67,8 @@ export interface Settings {
   /** What the weekly report includes, and whether last week's PDF is saved on Monday morning. Names are off by
    *  default so the report can go to anyone; saving files unasked is off by default too. */
   weeklyReport: { autoSave: boolean; include: WeeklyInclude };
+  /** The morning digest opens on the first opening of each day. */
+  morningDigest: boolean;
 }
 
 export interface WeeklyInclude { figures: boolean; locations: boolean; accounts: boolean; calls: boolean; names: boolean }
@@ -88,6 +90,7 @@ export const defaultSettings = (): Settings => ({
   quietHours: { enabled: false, startHour: 21, endHour: 8 },
   alerts: { nearTarget: true, waitedHour: true, signedOut: true },
   weeklyReport: { autoSave: false, include: { figures: true, locations: true, accounts: true, calls: true, names: false } },
+  morningDigest: true,
 });
 
 export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [], locations: [], holidays: [], settings: defaultSettings() });
@@ -250,6 +253,7 @@ function parseSettings(raw: unknown): Settings {
       waitedHour: bool(alerts.waitedHour, d.alerts.waitedHour),
       signedOut: bool(alerts.signedOut, d.alerts.signedOut),
     },
+    morningDigest: bool(raw.morningDigest, d.morningDigest),
     weeklyReport: {
       autoSave: bool(weekly.autoSave, d.weeklyReport.autoSave),
       include: {
