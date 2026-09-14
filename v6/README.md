@@ -69,10 +69,11 @@ or message text. An empty read is never reported as a quiet account — the page
 out, and a lost login is recorded with what the previous read saw.
 
 The screens are the complete shell from the approved Front Desk renders (`docs/design/v6-front-desk`). The
-line, the docked account page, Needs you, the accounts grid, one account's figures, the channel readers and the
-reading settings run on real data. Every other screen — set aside, the morning digest, reviews, reports, the
-assistant, workspace, owner and the full-window states — shows its final layout with sample figures from
-`ui/sample.ts`, and says so on screen, until its feature is wired. Settings › About lists the moment-only
+line, the docked account page, Set aside, the morning digest, Needs you, the accounts grid, one account's figures,
+the channel readers, Reports with the weekly report, and the reading, notification and opening-hours settings run
+on real data. Reviews, the customer panel, the reader timeline, the assistant, workspace, owner and the
+full-window states show their final layout with sample figures from `ui/sample.ts`, and say so on screen, until
+their features are wired (see `docs/revamp/roadmap.md` §1). Settings › About lists the moment-only
 screens so they can be reviewed. Opening `npm run ui` in a browser draws every screen with sample data.
 
 ## What is in `core/` today
