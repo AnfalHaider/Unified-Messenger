@@ -10,7 +10,7 @@ import { describeFreshness } from '../core/freshness.ts';
 import { dailyResponse, responseStats, type ResponseTimes } from '../core/response-times.ts';
 import { buildRollup } from '../core/rollup.ts';
 import { readableAccounts } from '../core/schedule.ts';
-import { DAY_MS, startOfDay } from '../core/days.ts';
+import { DAY_MS, dayKey, startOfDay } from '../core/days.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
@@ -79,6 +79,8 @@ export interface DigestView {
 export interface ReportsView {
   ranges: { today: ReportRange; week: ReportRange; month: ReportRange };
   weekly: { this: WeeklyDoc; last: WeeklyDoc };
+  /** The location these reports cover, or null for every location. */
+  scope: string | null;
   targetMinutes: number;
   /** Customers waiting over a day now, oldest first. */
   backlog: { accountId: string; accountName: string; key: string; customer: string; preview: string; since: number; waited: number }[];
@@ -160,6 +162,8 @@ export interface UiState {
   split: { needsReply: number; backlog: number; closedAutomatically: number; unreadable: number };
   queue: QueueRow[];
   queueTotal: number;
+  /** Everyone waiting per location name ("No location" for none), counted from the whole queue, not the rows drawn. */
+  queueByLocation: Record<string, number>;
   setAside: SetAsideRow[];
   setAsideTotal: number;
   /** Built only while Reports is open. */
@@ -181,6 +185,8 @@ export interface Context {
   now: number;
   /** The day records. Only read while Reports is open. */
   history?: History;
+  /** The location chosen in the title bar, or null for all. Reports and their exports cover only that location. */
+  scope?: string | null;
   route: Route;
   visible: string | null;
   /** Accounts whose last read found a sign-in screen. Their figures are hidden, never guessed. */
@@ -256,6 +262,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     split,
     queue: queue.slice(0, 60),
     queueTotal: queue.length,
+    queueByLocation: queue.reduce<Record<string, number>>((n, q) => { const k = q.location || 'No location'; n[k] = (n[k] ?? 0) + 1; return n; }, {}),
     setAside: asideRows.slice(0, SET_ASIDE_ROWS).map((x) => {
       const account = config.accounts.find((a) => a.id === x.account);
       return {
@@ -416,10 +423,11 @@ function reportRange(key: keyof typeof RANGE_LABELS, report: Report, target: num
   const span = report.days.length;
   const hadBefore = p.replies > 0 || p.customersWrote > 0;
 
-  const coverage = report.recordingSince === null
+  const earlierReplies = report.repliesSince !== null && report.recordingSince !== null && dayKey(report.repliesSince) < dayKey(report.recordingSince);
+  const coverage = report.recordingSince === null && report.repliesSince === null
     ? 'Nothing has been recorded yet. Reports fill in as the app reads.'
-    : report.daysRecorded < span
-      ? `Recording since ${shortDate(report.recordingSince)}, so this covers ${report.daysRecorded} of ${span} day${span === 1 ? '' : 's'}.`
+    : report.recordingSince !== null && report.daysRecorded < span
+      ? `Customers, backlog and calls are recorded from ${shortDate(report.recordingSince)}, so they cover ${report.daysRecorded} of ${span} day${span === 1 ? '' : 's'}${earlierReplies ? `; reply times go back to ${shortDate(report.repliesSince!)}` : ''}.`
       : null;
 
   const located = report.byLocation.filter((l) => l.onTimePercent !== null);
@@ -449,7 +457,7 @@ function reportRange(key: keyof typeof RANGE_LABELS, report: Report, target: num
     { label: 'Reopened', value: String(t.reopened), unit: '', tone: 'neutral', note: 'Waiting again after a reply',
       trend: span > 1 ? report.days.map((d) => d.reopened) : undefined },
     { label: 'Missed calls', value: String(t.missedCalls), unit: '', tone: unanswered ? 'late' : 'neutral',
-      note: unanswered ? `${unanswered} still waiting for an answer` : 'None waiting for an answer now' },
+      note: unanswered ? `${unanswered} caller${unanswered === 1 ? '' : 's'} waiting for an answer now` : 'No caller waiting for an answer now' },
   ];
 
   const dayLabels = report.days.map((d, i) => {
@@ -462,12 +470,14 @@ function reportRange(key: keyof typeof RANGE_LABELS, report: Report, target: num
 
 function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, judge: Judge, ctx: Context, live: string[]): ReportsView {
   const { now } = ctx;
-  const accounts = reportAccounts(config);
+  const scope = ctx.scope ?? null;
+  const accounts = reportAccounts(config, scope);
   const history = ctx.history ?? {};
   const name = (id: string) => config.accounts.find((a) => a.id === id)?.name ?? id;
   const who = (c: { customerName: string; contactPhone: string }) => c.customerName || c.contactPhone || 'Unknown number';
+  const here = live.filter((id) => inScope(config.accounts.find((a) => a.id === id)?.location ?? '', scope));
 
-  const waiting = live.flatMap((id) => awaitingChats(snapshots, id, judge).map((chat) => ({ id, chat })));
+  const waiting = here.flatMap((id) => awaitingChats(snapshots, id, judge).map((chat) => ({ id, chat })));
   const unansweredCalls = waiting
     .filter(({ chat }) => verdictFor(chat, judge).reason === 'missedCall')
     .sort((a, b) => b.chat.lastActivity - a.chat.lastActivity)
@@ -493,13 +503,18 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
   return {
     ranges: { today: range('today', 1), week: range('week', 7), month: range('month', 30) },
     weekly: { this: week('this'), last: week('last') },
+    scope,
     targetMinutes: target, backlog, unansweredCalls,
   };
 }
 
+/** Whether an account's location is inside the chosen scope. Accounts with no location sit under "No location". */
+export const inScope = (location: string, scope: string | null) => !scope || (location || 'No location') === scope;
+
 /** The accounts a report covers, with each one's target. Shared by the screen and the exports. */
-export const reportAccounts = (config: Config) =>
-  readableAccounts(config).map((a) => ({ id: a.id, name: a.name, location: a.location, targetMinutes: targetFor(config, a) }));
+export const reportAccounts = (config: Config, scope: string | null = null) =>
+  readableAccounts(config).filter((a) => inScope(a.location, scope))
+    .map((a) => ({ id: a.id, name: a.name, location: a.location, targetMinutes: targetFor(config, a) }));
 
 const pointsOn = (diff: number, when: string) =>
   diff === 0 ? `the same as ${when}` : `${Math.abs(diff)} point${Math.abs(diff) === 1 ? '' : 's'} ${diff > 0 ? 'up' : 'down'} on ${when}`;

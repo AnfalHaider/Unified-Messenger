@@ -165,3 +165,13 @@ test('the CSV has one row per account per recorded day, figures only, safely quo
     '2026-09-14,D WhatsApp,D,2,0,0,,0,0,',
   ]);
 });
+
+test('reply times can reach back before the day records begin, and the report says from when each does', () => {
+  const history: History = { 'wa-f': account([day(NOW)], local(2026, 9, 13, 9)) };
+  const times = emptyResponseTimes();
+  reply(times, 'wa-f', local(2026, 9, 9), 12);   // imported from before recording began
+  reply(times, 'wa-d', local(2026, 8, 1), 12);   // outside the range: not what this range covers
+  const r = buildReport(history, times, accounts, 7, NOW);
+  assert.equal(r.recordingSince, local(2026, 9, 13, 9));
+  assert.equal(r.repliesSince, local(2026, 9, 9));
+});

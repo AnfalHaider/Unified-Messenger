@@ -30,7 +30,7 @@ export function PrintApp({ week }: { week: 'this' | 'last' }) {
   if (!state?.reports) return null;
   return (
     <div className="print-page">
-      <WeeklyDocument doc={state.reports.weekly[week]} include={state.settings.weeklyReport.include} backlog={state.reports.backlog} />
+      <WeeklyDocument doc={state.reports.weekly[week]} include={state.settings.weeklyReport.include} backlog={state.reports.backlog} scope={state.reports.scope} />
     </div>
   );
 }

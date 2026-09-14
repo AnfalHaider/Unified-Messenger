@@ -184,7 +184,7 @@ test('reports show the recorded days, measured replies and who is still owed a c
   try {
     await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Reports', exact: true }).click();
     await expect(heading(win, 'Last 7 days: 50% answered on time')).toBeVisible();
-    await expect(win.getByText('Recording since')).toBeVisible();
+    await expect(win.getByText('Customers, backlog and calls are recorded from')).toBeVisible();
     await expect(win.locator('.fact').filter({ hasText: 'Customers who wrote' })).toContainText('7');
     if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'reports-overview.png') });
 
@@ -439,6 +439,65 @@ test('the morning digest opens once a day, with who is still owed and how many w
     // A second opening the same day goes straight to the line.
     ({ app, win } = await open(data));
     await expect(heading(win, '2 customers are waiting')).toBeVisible();
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('reports and their exports follow the location chosen in the title bar', async () => {
+  const now = Date.now();
+  const HOUR = 3_600_000;
+  const data = dataFolder({
+    accounts: [
+      { id: 'wa-main', name: 'Main front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
+      { id: 'wa-north', name: 'North front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'North branch' },
+    ],
+    locations: [{ name: 'Main branch' }, { name: 'North branch' }],
+  });
+  const exportsDir = join(data, 'exports');
+  mkdirSync(exportsDir);
+  const chat = (k: string, name: string) => ({
+    conversationKey: k, customerName: name, unread: 1, lastActivity: now - 5 * 60_000, preview: 'Hello', awaiting: true,
+    lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({
+    'wa-main': { capturedAt: now, chats: [chat('m1@c.us', 'Sample Main One'), chat('m2@c.us', 'Sample Main Two')] },
+    'wa-north': { capturedAt: now, chats: [chat('n1@c.us', 'Sample North One')] },
+  }));
+  // Main answers everyone on time; North answers nobody on time.
+  writeFileSync(join(data, 'response-times.json'), JSON.stringify({
+    pending: {}, watchStart: { 'wa-main': now - 2 * HOUR, 'wa-north': now - 2 * HOUR },
+    samples: { 'wa-main': [{ answeredAt: now - 60_000, minutes: 5 }, { answeredAt: now - 120_000, minutes: 6 }], 'wa-north': [{ answeredAt: now - 60_000, minutes: 50 }] },
+  }));
+
+  const app = await electron.launch({ args: ['app/main.ts'], cwd: V6, env: { ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5'), UM_EXPORT_DIR: exportsDir } });
+  const win = await app.firstWindow();
+  try {
+    const locations = win.getByRole('group', { name: 'Locations' });
+    // The counts come from the whole queue.
+    await expect(locations.getByRole('button', { name: /^Main branch 2$/ })).toBeVisible();
+    await expect(locations.getByRole('button', { name: /^North branch 1$/ })).toBeVisible();
+
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Reports', exact: true }).click();
+    await expect(heading(win, 'Last 7 days: 67% answered on time')).toBeVisible();
+
+    await locations.getByRole('button', { name: /^North branch/ }).click();
+    await expect(heading(win, 'Last 7 days: 0% answered on time')).toBeVisible();
+    await expect(win.getByText('North branch', { exact: true }).first()).toBeVisible();
+    await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: 'Reply times' }).click();
+    await expect(win.getByRole('row').filter({ hasText: 'Main front desk' })).toHaveCount(0);
+    await expect(win.getByRole('row').filter({ hasText: 'North front desk' })).toBeVisible();
+
+    await win.getByRole('button', { name: 'Export', exact: true }).click();
+    await expect(win.getByRole('status')).toHaveText(/North branch\.csv$/);
+    const csv = readFileSync(join(exportsDir, readdirSync(exportsDir)[0]), 'utf8');
+    expect(csv).not.toContain('Main front desk');
+
+    await locations.getByRole('button', { name: /^Main branch/ }).click();
+    await expect(win.getByRole('row').filter({ hasText: 'Main front desk' })).toBeVisible();
+    await expect(win.getByRole('row').filter({ hasText: 'North front desk' })).toHaveCount(0);
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

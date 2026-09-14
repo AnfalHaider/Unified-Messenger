@@ -22,6 +22,8 @@ export function App() {
   const [state, setState] = useState<UiState | null>(null);
   const [view, setView] = useState<View>(START);
   const [scope, setScope] = useState('All');
+  // Reports are built in the main process, so it needs to know which location they are for.
+  useEffect(() => { bridge.setScope(scope === 'All' ? null : scope); }, [scope]);
 
   useEffect(() => {
     if (!isPreview) {
@@ -119,7 +121,7 @@ function Screen({ state, nav, scope }: { state: UiState; nav: Nav; scope: string
 
 function TitleBar({ state, nav, scope, onScope }: { state?: UiState; nav?: Nav; scope?: string; onScope?: (s: string) => void }) {
   const locations = state ? laneNames(state) : [];
-  const count = (loc: string) => (state ? (loc === 'All' ? state.queueTotal : state.queue.filter((r) => (r.location || 'No location') === loc).length) : 0);
+  const count = (loc: string) => (state ? (loc === 'All' ? state.queueTotal : state.queueByLocation[loc] ?? 0) : 0);
   const needs = state ? needsCount(state) : 0;
   const themes: ['system' | 'light' | 'dark', IconName, string][] = [['system', 'monitor', 'Match Windows'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
   return (

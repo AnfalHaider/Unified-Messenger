@@ -48,6 +48,7 @@ export const PREVIEW_STATE: UiState = {
     row('Ali H.', 'Photo', 3, 'WhatsApp · Front desk', 'DHA Phase 2'),
   ],
   queueTotal: 19,
+  queueByLocation: { 'F-11 Markaz': 12, 'DHA Phase 2': 7 },
   setAside: [
     aside('Snoozed', 'Maryam D.', 'DHA-2 WhatsApp', 'Running 10 min late, sorry', 'Returns when the snooze ends', 1, 1),
     aside('Handled', 'Tariq S.', 'Men DHA-2 WhatsApp', 'Thank you bhai', 'Returns if they write again', 2),

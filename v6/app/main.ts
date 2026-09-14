@@ -109,6 +109,8 @@ for (const a of config.accounts) {
 }
 let route: Route = 'line';
 let visible: string | null = null;
+/** The location chosen in the title bar. Reports and their exports cover only it. */
+let scope: string | null = null;
 let win: BrowserWindow;
 
 const account = (id: string) => config.accounts.find((a) => a.id === id);
@@ -292,7 +294,7 @@ async function readPass(reason: string) {
 function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
-    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history,
+    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope,
   });
 }
 
@@ -359,6 +361,9 @@ const pdfOf = (page: BrowserWindow, height: number) => page.webContents.printToP
   pageSize: { width: REPORT_WIDTH / 96, height: height / 96 },
 });
 
+/** A file name that says which location it covers, when one is chosen. Characters Windows refuses become dashes. */
+const scoped = (name: string) => (scope ? name.replace(/(\.\w+)$/, ` ${scope.replace(/[\\/:*?"<>|]/g, '-')}$1`) : name);
+
 async function exportReport(request: ExportRequest): Promise<ExportResult> {
   const week = request.week === 'this' ? 'this' : 'last';
   const now = Date.now();
@@ -366,15 +371,15 @@ async function exportReport(request: ExportRequest): Promise<ExportResult> {
     const days = request.week ? 7 : Math.min(400, Math.max(1, Math.round(Number(request.days) || 7)));
     const end = request.week ? weekEnding(now, week) : now;
     const name = request.week ? `Weekly figures ${dayKey(end - 6 * DAY_MS)}.csv` : `Report figures ${days === 1 ? dayKey(end) : `${dayKey(end - (days - 1) * DAY_MS)} to ${dayKey(end)}`}.csv`;
-    return saveAs(name, { name: 'CSV', extensions: ['csv'] }, reportCsv(history, reportAccounts(config), days, end));
+    return saveAs(scoped(name), { name: 'CSV', extensions: ['csv'] }, reportCsv(history, reportAccounts(config, scope), days, end));
   }
   const { page, height } = await drawWeekly(week);
   try {
     const monday = dayKey(weekEnding(now, week) - 6 * DAY_MS);
-    if (request.format === 'pdf') return await saveAs(`Weekly report ${monday}.pdf`, { name: 'PDF', extensions: ['pdf'] }, await pdfOf(page, height));
+    if (request.format === 'pdf') return await saveAs(scoped(`Weekly report ${monday}.pdf`), { name: 'PDF', extensions: ['pdf'] }, await pdfOf(page, height));
     const image = await page.webContents.capturePage();
     if (image.isEmpty()) throw new Error('the report image came out empty');
-    if (EXPORT_DIR) return await saveAs(`Weekly report ${monday}.png`, { name: 'PNG', extensions: ['png'] }, image.toPNG());
+    if (EXPORT_DIR) return await saveAs(scoped(`Weekly report ${monday}.png`), { name: 'PNG', extensions: ['png'] }, image.toPNG());
     // Electron 44's clipboard is the W3C one: an item per MIME type, written asynchronously.
     await clipboard.write([new ClipboardItem({ 'image/png': new Blob([new Uint8Array(image.toPNG())], { type: 'image/png' }) })]);
     return { copied: true };
@@ -664,6 +669,10 @@ app.whenReady().then(async () => {
     sleep(id);
     if (visible === id) { route = 'line'; visible = null; }
     layout();
+    push();
+  });
+  ipcMain.on('set-scope', (_e, next: string | null) => {
+    scope = typeof next === 'string' && next ? next : null;
     push();
   });
   ipcMain.on('open-chat', (_e, id: string, key: string) => void focusChat(id, key));

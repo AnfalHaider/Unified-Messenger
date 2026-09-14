@@ -43,7 +43,7 @@ export function TheLine({ rows, locations, target, selected, onSelect }: {
                 let slot = last.findIndex((prev) => x - prev >= 2.8);
                 if (slot < 0) slot = last[0] <= last[1] ? 0 : 1;
                 last[slot] = x;
-                const key = `${r.accountId}:${r.customer}`;
+                const key = `${r.accountId}:${r.key}`;
                 return (
                   <button key={key} className={`tok ${r.tone} ${selected === key ? 'sel' : ''}`}
                     style={{ left: `${x}%`, top: here.length > 1 ? (slot === 0 ? 5 : 33) : 19 }}
@@ -111,6 +111,15 @@ const runs = (values: (number | null)[]) => values.reduce<{ start: number; value
   return out;
 }, []);
 
+/** Label positions no closer than `gap`, kept in their order and as near their own points as the gap allows. */
+function spreadLabels(ys: (number | null)[], gap: number): (number | undefined)[] {
+  const order = ys.map((v, i) => ({ v, i })).filter((p): p is { v: number; i: number } => p.v !== null).sort((a, b) => a.v - b.v);
+  const placed: (number | undefined)[] = [];
+  let previous = -Infinity;
+  for (const p of order) { const at = Math.max(p.v, previous + gap); placed[p.i] = at; previous = at; }
+  return placed;
+}
+
 /** Lines over time against an optional goal. Series differ by dash and an end label, not colour. */
 export function LineChart({ series, labels, min = 0, max = 100, ticks, unit = '', target, targetLabel = '', width = 700, height = 250 }: {
   series: Series[]; labels: string[]; min?: number; max?: number; ticks: number[]; unit?: string; target?: number; targetLabel?: string; width?: number; height?: number;
@@ -118,6 +127,8 @@ export function LineChart({ series, labels, min = 0, max = 100, ticks, unit = ''
   const pl = 38, pr = 110, pt = 14, pb = 28;
   const x = (i: number) => pl + (i * (width - pl - pr)) / Math.max(1, labels.length - 1);
   const y = (v: number) => pt + (height - pt - pb) * (1 - (v - min) / (max - min));
+  // Where each series' end label sits: at its last value, pushed apart so two labels never overlap.
+  const labelYs = spreadLabels(series.map((s) => { const last = runs(s.values).at(-1); return last ? y(last.values.at(-1)!) : null; }), 14);
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width="100%" role="img" aria-label={series.map((s) => s.label).join(', ')}>
       {ticks.map((t) => (
@@ -132,19 +143,20 @@ export function LineChart({ series, labels, min = 0, max = 100, ticks, unit = ''
           <text x={pl + 6} y={y(target) - 6} fontSize={11} fontWeight={600} fill="var(--late)">{targetLabel}</text>
         </g>
       )}
-      {series.map((s) => {
+      {series.map((s, index) => {
         const parts = runs(s.values);
         const last = parts.at(-1);
         if (!last) return null;
         const end = last.start + last.values.length - 1;
         const endValue = last.values.at(-1)!;
+        const labelY = labelYs[index] ?? y(endValue);
         return (
           <g key={s.label}>
             {parts.map((p) => p.values.length === 1
               ? <circle key={p.start} cx={x(p.start)} cy={y(p.values[0])} r={2.2} fill="var(--ink)" />
               : <polyline key={p.start} points={p.values.map((v, i) => `${x(p.start + i)},${y(v)}`).join(' ')} fill="none" stroke="var(--ink)" strokeWidth={s.width ?? 2} strokeDasharray={s.dash} strokeLinejoin="round" />)}
             <circle cx={x(end)} cy={y(endValue)} r={3.2} fill="var(--surface)" stroke="var(--ink)" strokeWidth={2} />
-            <text x={x(end) + 9} y={y(endValue) + (s.nudge ?? 0) + 4} fontSize={11.5} fontWeight={600} fill="var(--ink)">{s.label} {endValue}{unit}</text>
+            <text x={x(end) + 9} y={labelY + 4} fontSize={11.5} fontWeight={600} fill="var(--ink)">{s.label} {endValue}{unit}</text>
           </g>
         );
       })}

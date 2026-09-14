@@ -47,7 +47,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Channel readers list | |
 | Look and reading settings, closing, memory, notifications and quiet hours | Assistant screen and settings |
 | Reports: Overview, Reply times, Backlog and reopened, Missed calls (Today, 7 and 30 days) | Workspace members, owner console, sign-in, new PC, removed, suspended, upgrade, update, offline |
-| Weekly report, PDF / CSV / image export, Monday auto-save; Export (CSV) on every report tab | |
+| Weekly report, PDF / CSV / image export, Monday auto-save; Export (CSV) on every report tab; all of it follows the title bar's location filter | |
 | Command palette (customers, accounts, screens) | |
 | Theme | |
 | Opening hours per location and day, holidays | |
@@ -75,7 +75,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 246 tests
+npm test            # 247 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 

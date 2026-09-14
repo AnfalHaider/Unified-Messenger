@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('um', {
   snooze: (accountId, key, minutes) => ipcRenderer.send('snooze', accountId, key, minutes),
   /** Takes the account's page to one conversation: opened on WhatsApp, found but not opened on Instagram. */
   openChat: (accountId, key) => ipcRenderer.send('open-chat', accountId, key),
+  /** The location chosen in the title bar; null for all. Reports follow it. */
+  setScope: (location) => ipcRenderer.send('set-scope', location ?? null),
   /** Opening hours and holidays. Main runs them through the config parser before saving. */
   setLocationHours: (location, hours) => ipcRenderer.send('set-location-hours', location, hours),
   setHolidays: (holidays) => ipcRenderer.send('set-holidays', holidays),

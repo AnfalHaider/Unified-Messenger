@@ -37,6 +37,8 @@ export interface Report {
   hasData: boolean;
   /** When the earliest of these accounts began recording, and how many of the range's days that covers. */
   recordingSince: number | null;
+  /** The earliest reply measured in this range. Reply times imported from v5 can reach back before recordingSince. */
+  repliesSince: number | null;
   daysRecorded: number;
   totals: ReportTotals;
   /** The same figures for the equal range just before this one. */
@@ -66,7 +68,7 @@ export function buildReport(history: History, times: ResponseTimes, accounts: Re
 
   /** Every measured reply of these accounts, with its day and whether it met that account's target. */
   const replies = accounts.flatMap((a) => (times.samples[a.id] ?? []).map((s) => ({
-    account: a, day: dayKey(s.answeredAt), minutes: s.minutes, within: s.minutes <= a.targetMinutes,
+    account: a, day: dayKey(s.answeredAt), answeredAt: s.answeredAt, minutes: s.minutes, within: s.minutes <= a.targetMinutes,
   })));
   const records = accounts.flatMap((a) => (history[a.id]?.days ?? []).map((d) => ({ account: a, record: d })));
 
@@ -114,6 +116,7 @@ export function buildReport(history: History, times: ResponseTimes, accounts: Re
   return {
     hasData: rangeReplies.length > 0 || records.some((r) => inRange.has(r.record.day)),
     recordingSince,
+    repliesSince: rangeReplies.length ? Math.min(...rangeReplies.map((r) => r.answeredAt)) : null,
     daysRecorded: recordingSince === null ? 0 : keys.filter((k) => k >= dayKey(recordingSince)).length,
     totals: totalsFor(keys),
     previous: totalsFor(previousKeys),

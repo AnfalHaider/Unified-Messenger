@@ -120,7 +120,7 @@ export function ReportsScreen({ state, nav }: ScreenProps) {
   const busiest = r.busy.flatMap((row, d) => row.map((v, h) => ({ v, d, h }))).sort((a, b) => b.v - a.v)[0];
   return (
     <main className="main" style={{ gap: 16 }}>
-      <Headline title={range.headline}>{range.summary} {range.coverage}</Headline>
+      <Headline eyebrow={<span className="phase">{view.scope ?? 'All locations'}</span>} title={range.headline}>{range.summary} {range.coverage}</Headline>
       {bar}
       <Facts facts={range.facts} />
       <div className="grid2" style={{ gridTemplateColumns: 'minmax(0,1.1fr) minmax(0,1fr)' }}>
@@ -251,13 +251,13 @@ type Backlog = ReportsView['backlog'];
 
 /** The weekly report page. Drawn in the Weekly report tab and, unchanged, in the hidden window the PDF and the
  *  image are made from, so what is saved is exactly what was on screen. */
-export function WeeklyDocument({ doc, include, backlog }: { doc: WeeklyDoc; include: Include; backlog: Backlog }) {
+export function WeeklyDocument({ doc, include, backlog, scope }: { doc: WeeklyDoc; include: Include; backlog: Backlog; scope: string | null }) {
   const r = doc.report;
   const accounts = r.byAccount.filter((a) => a.replies > 0);
   return (
     <article className="doc" data-weekly-doc="">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 20 }}>
-        <div><span className="sub">Unified Messenger · weekly report</span><h1>{doc.title}</h1></div><Logo size={40} />
+        <div><span className="sub">Unified Messenger · weekly report · {scope ?? 'all locations'}</span><h1>{doc.title}</h1></div><Logo size={40} />
       </div>
       <p className="lede">{doc.lede}{doc.coverage && <> <span className="sub">{doc.coverage}</span></>}</p>
       {doc.hasData && include.figures && <Facts facts={doc.facts} />}
@@ -323,7 +323,7 @@ function Weekly({ state, bar }: { state: UiState; bar: React.ReactNode }) {
         </Headline>
         {bar}
         <div className="doc-wrap" style={{ overflow: 'visible' }}>
-          <WeeklyDocument doc={doc} include={s.include} backlog={view.backlog} />
+          <WeeklyDocument doc={doc} include={s.include} backlog={view.backlog} scope={view.scope} />
         </div>
       </main>
       <aside className="cust" style={{ gap: 14 }}>
