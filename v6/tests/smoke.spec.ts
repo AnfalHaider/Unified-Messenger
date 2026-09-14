@@ -343,3 +343,62 @@ test('the weekly report is computed from the figures, and saves as PDF, CSV and 
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('opening hours and holidays stop a wait from growing, and are kept', async () => {
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }],
+    locations: [{ name: 'Main branch' }, { name: 'North branch' }],
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [{
+    conversationKey: 'h@c.us', customerName: 'Sample Customer H', unread: 1, lastActivity: now - 30 * 60_000, preview: 'Are you open today?', awaiting: true,
+    lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  }] } }));
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const d = new Date();
+  const todayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const config = () => JSON.parse(readFileSync(join(data, 'config.json'), 'utf8'));
+  const token = (minutes: number) => win.getByRole('button', { name: `Sample Customer H, waiting ${minutes} minutes` });
+
+  const { app, win } = await open(data);
+  try {
+    // No hours yet: the wait counts around the clock.
+    await expect(token(30)).toBeVisible();
+
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('button', { name: 'Opening hours', exact: true }).click();
+    await win.getByRole('switch', { name: 'Count waits only while open' }).click();
+    // Closed all day today: no minute of the last half hour was inside opening hours.
+    if (await win.getByRole('switch', { name: `${today} open` }).getAttribute('aria-checked') === 'true') {
+      await win.getByRole('switch', { name: `${today} open` }).click();
+    }
+    await expect.poll(() => config().locations[0].hours?.week?.[d.getDay()] === null, { timeout: 5_000 }).toBe(true);
+    expect(config().locations[0].hours.enabled).toBe(true);
+
+    // Open all day today, but a holiday for this location only: still standing still.
+    await win.getByRole('switch', { name: `${today} open` }).click();
+    await win.getByLabel(`${today} opens`).fill('00:00');
+    await win.getByLabel(`${today} closes`).fill('23:45');
+    await win.getByLabel('Name').fill('Sample closed day');
+    await win.getByLabel('Date').fill(todayKey);
+    await win.getByRole('checkbox', { name: 'Main branch' }).check();
+    await win.getByRole('button', { name: 'Add', exact: true }).click();
+    await expect(win.getByText('Sample closed day')).toBeVisible();
+    expect(config().holidays).toEqual([{ name: 'Sample closed day', date: todayKey, locations: ['Main branch'] }]);
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'opening-hours.png'), fullPage: true });
+
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
+    await expect(token(0)).toBeVisible();
+
+    // Hours switched back off: the whole half hour counts again.
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('button', { name: 'Opening hours', exact: true }).click();
+    await win.getByRole('switch', { name: 'Count waits only while open' }).click();
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
+    await expect(token(30)).toBeVisible();
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});

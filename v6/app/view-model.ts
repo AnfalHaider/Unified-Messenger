@@ -5,7 +5,7 @@
 // from business-hours, freshness from freshness. This file only shapes their answers for the screen.
 import type { ModuleHealth } from '../channels/index.ts';
 import { elapsedBusinessMinutes, isOpen } from '../core/business-hours.ts';
-import { CHANNELS, type Config } from '../core/config.ts';
+import { CHANNELS, hoursFor, type Config } from '../core/config.ts';
 import { describeFreshness } from '../core/freshness.ts';
 import { dailyResponse, responseStats, type ResponseTimes } from '../core/response-times.ts';
 import { buildRollup } from '../core/rollup.ts';
@@ -156,6 +156,8 @@ export interface UiState {
   /** One line per channel reader, so a channel that stopped working is named instead of averaged away. */
   modules: ReaderHealth[];
   settings: Config['settings'];
+  /** Settings › Opening hours: each location's hours as written (holidays kept apart), and the holidays. */
+  openingHours: { locations: { name: string; accounts: number; hours: Config['locations'][number]['hours'] }[]; holidays: Config['holidays'] };
 }
 
 export interface Context {
@@ -263,6 +265,10 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     reports: ctx.route === 'reports' ? reportsFor(config, snapshots, times, judge, ctx, live) : null,
     modules: ctx.modules.map(readerHealth),
     settings: config.settings,
+    openingHours: {
+      locations: config.locations.map((l) => ({ name: l.name, accounts: config.accounts.filter((a) => a.location === l.name).length, hours: l.hours })),
+      holidays: config.holidays,
+    },
   };
 }
 
@@ -292,16 +298,15 @@ export const targetFor = (config: Config, account: { location: string }) =>
   Math.max(1, config.locations.find((l) => l.name === account.location)?.slaMinutes ?? config.settings.slaMinutes);
 
 const locationRules = (config: Config) =>
-  Object.fromEntries(config.locations.map((l) => [l.name, { slaMinutes: l.slaMinutes, hours: l.hours }]));
+  Object.fromEntries(config.locations.map((l) => [l.name, { slaMinutes: l.slaMinutes, hours: hoursFor(config, l.name) }]));
 
 function queueFor(config: Config, snapshots: Snapshots, judge: Judge, accountId: string, now: number): QueueRow[] {
   const account = config.accounts.find((a) => a.id === accountId);
   if (!account) return [];
-  const rules = config.locations.find((l) => l.name === account.location);
   const target = targetFor(config, account);
   return waitingNow(config, snapshots, judge, account.id).map((chat) => {
     // The clock only runs inside the location's working hours, so a message at closing time is not late by morning.
-    const waited = Math.round(elapsedBusinessMinutes(new Date(chat.lastActivity), new Date(now), rules?.hours));
+    const waited = Math.round(elapsedBusinessMinutes(new Date(chat.lastActivity), new Date(now), hoursFor(config, account.location)));
     const remaining = target - waited;
     return {
       accountId: account.id, accountName: account.name, location: account.location, channel: account.channel,
@@ -315,7 +320,7 @@ function queueFor(config: Config, snapshots: Snapshots, judge: Judge, accountId:
       target: 100 / METER_SCALE,
       targetMinutes: target,
       lastActivity: chat.lastActivity,
-      open: isOpen(rules?.hours, now),
+      open: isOpen(hoursFor(config, account.location), now),
     };
   });
 }
@@ -325,7 +330,6 @@ function detailFor(config: Config, snapshots: Snapshots, times: ResponseTimes, j
   if (!account) return null;
   const reads = CHANNELS[account.channel].reads;
   const snap = snapshots[account.id];
-  const rules = config.locations.find((l) => l.name === account.location);
   const target = targetFor(config, account);
   const stats = responseStats(times, [account.id], target, { now: ctx.now });
   const queue = reads ? queueFor(config, snapshots, judge, account.id, ctx.now) : [];
@@ -456,7 +460,7 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
     .slice(0, 20)
     .map(({ id, chat }) => {
       const account = config.accounts.find((a) => a.id === id);
-      const hours = config.locations.find((l) => l.name === account?.location)?.hours;
+      const hours = hoursFor(config, account?.location ?? '');
       return {
         accountId: id, accountName: name(id), key: chat.conversationKey, customer: who(chat), preview: chat.preview, since: chat.lastActivity,
         waited: Math.round(elapsedBusinessMinutes(new Date(chat.lastActivity), new Date(now), hours)),

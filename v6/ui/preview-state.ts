@@ -55,6 +55,13 @@ export const PREVIEW_STATE: UiState = {
   ],
   setAsideTotal: 3,
   reports: null,
+  openingHours: {
+    locations: ['F-11 Markaz', 'DHA Phase 2'].map((name) => ({
+      name, accounts: 2,
+      hours: { enabled: true, openMinutes: 660, closeMinutes: 1260, week: [720, 660, 660, 660, 660, 870, 660].map((open, d) => ({ open, close: d === 0 || d === 6 ? 1320 : 1260 })) },
+    })),
+    holidays: [{ name: 'Sample closed day', date: '2026-12-25', locations: [] }],
+  },
   locations: [
     { name: 'F-11 Markaz', waiting: 12, onTimePercent: 71, tone: 'late', accounts: 2 },
     { name: 'DHA Phase 2', waiting: 7, onTimePercent: 84, tone: 'due', accounts: 3 },

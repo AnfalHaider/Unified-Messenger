@@ -89,7 +89,7 @@ saves as JSON, and "now" is always a parameter, which is what makes every rule t
 | `rollup` | Per account or per location: caught up, waiting, past target, at risk, worst first. | `OversightRollupBuilder` |
 | `response-times` | First response time, measured forward from what we actually see happen. | `ResponseTimeTracker` |
 | `awaiting-overrides` | Marked handled or snoozed, both expiring on their own. | `AwaitingOverrideStore` |
-| `business-hours` | Elapsed minutes inside a location's working hours. | `BusinessHoursCalculator` |
+| `business-hours` | Elapsed minutes inside a location's hours, per day, with closed dates. | `BusinessHoursCalculator` |
 | `days` | Local calendar days that survive a clock change. | `LocalDayBoundary` |
 | `percent` | A percentage that never rounds up to 100 or down to 0. | `MetricMath` |
 | `freshness` | How old the numbers are, said the way a person would. | `DataFreshness` |

@@ -37,3 +37,38 @@ test('open now: inside the window on a working day, and always when hours are of
   assert.equal(isOpen({ ...allWeek, enabled: false }, local(2026, 6, 15, 3, 0).getTime()), true);
   assert.equal(isOpen(null, monday.getTime()), true);
 });
+
+// ---- per-day hours and closed dates (v6 additions)
+
+const week = (o: Partial<Record<number, { open: number; close: number } | null>> = {}) => {
+  const days = Array.from({ length: 7 }, (_, d) => (d in o ? o[d]! : { open: 11 * 60, close: 21 * 60 }));
+  return { enabled: true, openMinutes: 0, closeMinutes: 0, week: days };
+};
+
+test('each day can have its own hours, and a day set to null is closed', () => {
+  // 17 July 2026 is a Friday: open 14:30 to 21:30; the Saturday after is closed.
+  const hours = week({ 5: { open: 14 * 60 + 30, close: 21 * 60 + 30 }, 6: null });
+  assert.equal(elapsedBusinessMinutes(local(2026, 7, 17, 12, 0), local(2026, 7, 17, 15, 0), hours), 30);
+  assert.equal(isOpen(hours, local(2026, 7, 17, 13, 0).getTime()), false);
+  assert.equal(isOpen(hours, local(2026, 7, 17, 21, 0).getTime()), true);
+  // Friday 21:00 to Sunday 12:00: half an hour on Friday, nothing on Saturday, an hour on Sunday.
+  assert.equal(elapsedBusinessMinutes(local(2026, 7, 17, 21, 0), local(2026, 7, 19, 12, 0), hours), 90);
+});
+
+test('a closed date stops the clock for the whole day, and only that day', () => {
+  const hours = { ...week(), closedDates: ['2026-07-15'] };
+  assert.equal(elapsedBusinessMinutes(local(2026, 7, 15, 10, 0), local(2026, 7, 15, 20, 0), hours), 0);
+  assert.equal(isOpen(hours, local(2026, 7, 15, 12, 0).getTime()), false);
+  // A message the evening before waits through the holiday and starts counting again the next morning.
+  assert.equal(elapsedBusinessMinutes(local(2026, 7, 14, 20, 0), local(2026, 7, 16, 12, 0), hours), 60 + 60);
+});
+
+test('the uniform hours v5 wrote still work, and closed dates apply to them too', () => {
+  const uniform = { ...allWeek, closedDates: ['2026-06-15'] };
+  assert.equal(elapsedBusinessMinutes(local(2026, 6, 15, 10, 0), local(2026, 6, 15, 12, 0), uniform), 0);
+  assert.equal(elapsedBusinessMinutes(local(2026, 6, 16, 10, 0), local(2026, 6, 16, 12, 0), uniform), 120);
+});
+
+test('hours switched off ignore closed dates too: the clock runs around the clock', () => {
+  assert.equal(elapsedBusinessMinutes(local(2026, 7, 15, 10, 0), local(2026, 7, 15, 11, 0), { ...week(), enabled: false, closedDates: ['2026-07-15'] }), 60);
+});

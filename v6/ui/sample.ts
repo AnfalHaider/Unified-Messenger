@@ -1,12 +1,10 @@
 // Sample figures for the screens whose feature is not connected yet: the morning digest, reviews,
-// reports, the assistant, workspace and owner screens, and parts of Settings. Every screen that draws from here
+// the assistant, workspace and owner screens, the customer panel and parts of Settings and Accounts. Every screen that draws from here
 // shows a "Sample figures" marker, so none of this can pass for the owner's real data. As each feature is
 // wired, its screen switches to the view model and its block here is deleted.
 //
 // Customers, reviews, members and figures are invented. The same invented week is used everywhere, so the
 // numbers agree from one screen to the next.
-
-export const SAMPLE_LOCATIONS = ['F-11', 'DHA-2', 'Men DHA-2'];
 
 export const OWED = [
   { who: 'Zainab T.', account: 'DHA-2 WhatsApp', message: 'Still waiting to hear if 3pm is confirmed', since: 'since 8:40 pm' },
@@ -63,24 +61,7 @@ export const REVIEWS = [
 
 export const REVIEW_DRAFT = 'Dear Areej, thank you for telling us, and we’re sorry you were kept waiting 40 minutes without an explanation. That isn’t the visit we want anyone to have. Our DHA-2 manager would like to make it right; please message us on 0300 7654321.';
 
-export const WEEKS = ['2 Aug', '', '16 Aug', '', '30 Aug', '', '13 Sep'];
-
-export const ON_TIME_BY_LOCATION = [
-  { label: 'Men DHA-2', values: [86, 88, 87, 90, 89, 91, 92], nudge: -6 },
-  { label: 'DHA-2', values: [89, 87, 88, 86, 85, 84, 83], dash: '6 4', nudge: 2 },
-  { label: 'F-11', values: [85, 86, 83, 82, 80, 79, 77], dash: '1.5 3.5', width: 2.4, nudge: 6 },
-];
-
 export type Fact = { label: string; value: string; unit: string; note: string; tone: 'ok' | 'due' | 'late' | 'neutral'; trend?: number[] };
-
-export const WEEK_FACTS: Fact[] = [
-  { label: 'Answered on time', value: '84', unit: '%', note: '2 points down', tone: 'due', trend: [88, 87, 89, 86, 86, 85, 84] },
-  { label: 'Median first reply', value: '11', unit: 'min', note: '1 min slower', tone: 'due', trend: [9, 10, 9, 10, 11, 10, 11] },
-  { label: 'Customers who wrote', value: '1,284', unit: '', note: '6% more', tone: 'neutral', trend: [160, 172, 181, 170, 190, 205, 206] },
-  { label: 'Waiting over a day', value: '12', unit: '', note: '4 fewer', tone: 'ok', trend: [18, 17, 16, 16, 15, 13, 12] },
-  { label: 'Reopened', value: '37', unit: '', note: 'waiting again after a reply', tone: 'neutral', trend: [4, 6, 5, 5, 6, 5, 6] },
-  { label: 'Missed calls', value: '23', unit: '', note: '9 not called back', tone: 'late', trend: [2, 4, 3, 3, 4, 3, 4] },
-];
 
 export const MEMBERS = [
   { name: 'Anfal Haider', email: 'you@example.com', role: 'Admin', pcs: 'Office PC, Laptop', seen: 'Now' },
@@ -96,18 +77,6 @@ export const WORKSPACES = [
   { name: 'Northside Pharmacy', admin: 'Mehreen A.', members: 2, pcs: 2, seen: '3 h ago', active: true },
   { name: 'Clifton Auto Service', admin: 'Z. Siddiqui', members: 3, pcs: 3, seen: 'Yesterday', active: true },
   { name: 'Trial: Brightway Tutors', admin: 'owner@example.com', members: 1, pcs: 1, seen: '19 days ago', active: false },
-];
-
-export const OPENING_HOURS = [
-  ['Monday', '11:00 am', '9:00 pm', ''], ['Tuesday', '11:00 am', '9:00 pm', ''], ['Wednesday', '11:00 am', '9:00 pm', ''],
-  ['Thursday', '11:00 am', '9:00 pm', ''], ['Friday', '2:30 pm', '9:30 pm', 'Opens after Jummah'],
-  ['Saturday', '11:00 am', '10:00 pm', ''], ['Sunday', '12:00 pm', '10:00 pm', ''],
-];
-
-export const HOLIDAYS = [
-  { name: '12 Rabi ul Awal', date: 'Sunday 7 September', where: 'Passed', past: true },
-  { name: 'Quaid-e-Azam Day', date: 'Thursday 25 December', where: 'All locations', past: false },
-  { name: 'New Year’s Day', date: 'Thursday 1 January', where: 'F-11 and DHA-2 only', past: false },
 ];
 
 /** Alerts whose reader or feature does not exist yet; Settings lists them as not connected. */

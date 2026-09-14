@@ -5,7 +5,7 @@
 // Only what the app saw happen after it began watching an account is counted: the chats already on screen at the
 // first read are backlog, not that day's traffic. Days are local calendar days, keyed "YYYY-MM-DD".
 import type { ChatEntry } from './chat-entry.ts';
-import { startOfDay } from './days.ts';
+import { dayKey, startOfDay } from './days.ts';
 import { classify } from './reply-need.ts';
 import type { Sample } from './response-times.ts';
 
@@ -50,8 +50,7 @@ export interface RecordContext {
   waitingOverADay: number;
 }
 
-const pad = (n: number) => String(n).padStart(2, '0');
-export const dayKey = (at: number) => { const d = new Date(at); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+export { dayKey };
 
 const emptyDay = (day: string, targetMinutes: number): DayRecord => ({
   day, customersWrote: 0, wroteByHour: Array(24).fill(0), replies: 0, medianReplyMinutes: null, repliesWithinTarget: 0, targetMinutes,

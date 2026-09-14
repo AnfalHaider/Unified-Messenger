@@ -2,7 +2,7 @@
 // stop the app opening.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CHANNELS, defaultSettings, emptyConfig, parseConfig } from './config.ts';
+import { CHANNELS, defaultSettings, emptyConfig, hoursFor, parseConfig } from './config.ts';
 
 const parse = (raw: unknown) => parseConfig(raw).config;
 const account = (o: Record<string, unknown>) => parse({ accounts: [o] }).accounts[0];
@@ -100,4 +100,34 @@ test('the weekly report leaves names out and saves nothing on its own until aske
   assert.equal(d.include.names, false);
   const parsed = parse({ settings: { weeklyReport: { autoSave: true, include: { names: true, calls: 'yes' } } } }).settings.weeklyReport;
   assert.deepEqual(parsed, { autoSave: true, include: { figures: true, locations: true, accounts: true, calls: true, names: true } });
+});
+
+test('per-day hours are read, kept inside the day, and a day that closes before it opens is closed', () => {
+  const [loc] = parse({ locations: [{ name: 'Main', hours: { enabled: true, week: [
+    null, { open: 660, close: 1260 }, { open: 900, close: 600 }, { open: -5, close: 2000 }, 'x', { open: 660, close: 1260 }, { open: 660, close: 1260 },
+  ] } }] }).locations;
+  assert.deepEqual(loc.hours?.week, [null, { open: 660, close: 1260 }, null, { open: 0, close: 1440 }, null, { open: 660, close: 1260 }, { open: 660, close: 1260 }]);
+});
+
+test('holidays keep a name, a real date and where they apply; anything else is dropped', () => {
+  const { holidays } = parse({ locations: [{ name: 'Main' }, { name: 'North' }], holidays: [
+    { name: 'National day', date: '2026-12-25', locations: [] },
+    { name: 'Staff day', date: '2026-10-02', locations: ['main', 'Nowhere'] },
+    { name: 'Bad date', date: '25/12/2026' },
+    { name: '', date: '2026-11-01' },
+    { name: 'Duplicate', date: '2026-12-25', locations: [] },
+  ] });
+  assert.deepEqual(holidays, [
+    { name: 'Staff day', date: '2026-10-02', locations: ['Main'] },
+    { name: 'National day', date: '2026-12-25', locations: [] },
+  ]);
+});
+
+test('the dates a location is closed come from the holidays that apply to it', () => {
+  const config = parse({ locations: [{ name: 'Main', hours: { enabled: true } }, { name: 'North' }], holidays: [
+    { name: 'Everyone', date: '2026-12-25', locations: [] }, { name: 'Main only', date: '2026-10-02', locations: ['Main'] },
+  ] });
+  assert.deepEqual(hoursFor(config, 'Main')?.closedDates, ['2026-10-02', '2026-12-25']);
+  assert.equal(hoursFor(config, 'North'), null, 'a location with no hours counts around the clock');
+  assert.equal(hoursFor(config, ''), null);
 });

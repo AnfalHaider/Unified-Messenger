@@ -627,7 +627,25 @@ app.whenReady().then(async () => {
     push();
   });
   ipcMain.on('open-chat', (_e, id: string, key: string) => void focusChat(id, key));
-  ipcMain.handle('export-report', async (_e, request: ExportRequest) => {
+  // Opening hours and holidays go back through the config parser, so a window that closes before it opens, a
+  // date that does not exist or a location that is gone is corrected here, never reaches the rules.
+  const saveLocations = (event: string, next: unknown) => {
+    const { config: parsed } = parseConfig(next);
+    config.locations = parsed.locations;
+    config.holidays = parsed.holidays;
+    saveJson(FILE.config, config);
+    log({ event, locations: config.locations.length, holidays: config.holidays.length });
+    push();
+  };
+  ipcMain.on('set-location-hours', (_e, name: string, hours: unknown) => {
+    if (!config.locations.some((l) => l.name === name)) return;
+    const location = config.locations.find((l) => l.name === name)!;
+    // Keep what v5 wrote beside the new week, so an older build reading this file still sees sensible hours.
+    const merged = { ...(location.hours ?? {}), ...(typeof hours === 'object' && hours ? hours : {}) };
+    saveLocations('hours-changed', { ...config, locations: config.locations.map((l) => (l.name === name ? { ...l, hours: merged } : l)) });
+  });
+  ipcMain.on('set-holidays', (_e, holidays: unknown) => saveLocations('holidays-changed', { ...config, holidays }));
+  ipcMain.handle('export-report',async (_e, request: ExportRequest) => {
     try {
       const result = await exportReport(request);
       log({ event: 'export', format: request.format, result: result.error ? 'error' : result.cancelled ? 'cancelled' : result.copied ? 'copied' : 'saved' });

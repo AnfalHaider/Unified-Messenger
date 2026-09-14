@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-13, after the session that built 2.1, 4.1–4.3, 4.5 and most of 4.6 and installed them on the
-owner's PC, then 3.2 and 4.6b. **Next step: 4.4** (opening hours editor), unless an owner decision in §5 changes the order. This replaces the roadmap
+owner's PC, then 3.2, 4.6b and 4.4. **Next step: 4.7** (morning digest), unless an owner decision in §5 changes the order. This replaces the roadmap
 section of the "Revamp Blueprint" artifact wherever the two disagree; the blueprint's stack, rules and data model
 still stand.
 
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports. Open: 4.4 opening hours editor, 4.7 digest, 4.8 missed-call callbacks, 4.9–4.12. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports, 4.4 opening hours and holidays. Open: 4.7 digest, 4.8 missed-call callbacks, 4.9–4.12. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -41,7 +41,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 |---|---|
 | The line, lanes, queue, J/K/Enter | Morning digest |
 | Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
-| Set aside, with Put back | Opening hours, privacy sizes |
+| Set aside, with Put back | Privacy sizes |
 | Needs you | Reader timeline, lost-login record |
 | Accounts grid, account figures | Reviews |
 | Channel readers list | |
@@ -50,6 +50,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Weekly report, PDF / CSV / image export, Monday auto-save; Export (CSV) on every report tab | |
 | Command palette (customers, accounts, screens) | |
 | Theme | |
+| Opening hours per location and day, holidays | |
 
 ---
 
@@ -73,7 +74,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 233 tests
+npm test            # 240 tests
 npm run smoke       # the window opens, navigates and quits
 ```
 
@@ -186,7 +187,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.3 About-to-breach notifications.** Done 2026-09-13. `core/alerts.ts` decides, on every 5-second push rather than per read: near target (2 min before, location open via `isOpen` in `core/business-hours.ts`), waited over an hour (only as the hour is crossed), and account signed out; quiet hours hold them back without using them up; more than 3 of a kind become one counting toast. Shown ids live in `alerts.json` (forgotten after 2 days), so a restart never repeats one. Toasts have Open chat and Snooze 1 hour buttons and name the customer and account, never the message. The toast app id `UnifiedMessenger.v6` is set in `main.ts` and on both installer shortcuts; a run from `npm start` has no such shortcut, so Windows may not show its toasts. Settings › Notifications switches the three alerts and edits quiet hours; reader-stopped, low-star review and missed-call alerts say "Not connected yet". Playwright proves exactly one alert across passes and a restart, and that the open message lands in the dock.
 
-**4.4 Opening hours and holidays editor.** `Location.hours` exists in `core/config.ts` (every location currently has `enabled: false`, so waits count around the clock). Build the editor in Settings › Opening hours writing through `set-settings`-style IPC that runs `parseConfig`. Add holidays to the config model and to `core/business-hours.ts` with tests. Done when a closed evening stops a wait from growing.
+**4.4 Opening hours and holidays editor.** Done 2026-09-14. `BusinessHours` gains `week` (seven day windows, 0 = Sunday, null closed) and `closedDates`; hours v5 wrote (one window, working days) still work, and hours that can never open count as off. `config.holidays` holds name, date and locations (empty = all); `hoursFor(config, location)` merges them into closed dates, and every wait, alert and backlog figure goes through it. Settings › Opening hours edits each location's switch and day windows (15-minute steps), copies hours to every location, and adds and removes holidays; main runs each change through `parseConfig` before saving. Playwright proves a closed day and a holiday stop a 30-minute wait at 0 and that switching hours off brings it back, all saved in `config.json`. Not built: a closed afternoon (holidays are whole days), quiet hours "also on holidays", and hours that run past midnight (a day closing after midnight has to close at 23:45).
 
 **4.5 History store for reports.** Built 2026-09-13. `core/history.ts` keeps one record per account per local day (`YYYY-MM-DD`): customers who wrote or called (also by local hour, for the busy-hours chart), first replies measured with median and within-target (target in force that day), waiting over a day at the first read of the day, reopened (answered, then waiting again), missed calls. Only activity after the account came under watch counts; identities are kept for today and yesterday only to de-duplicate; records pruned after 400 days. Main records after every read into `history.json`; a failure there is logged as `history-failed` and never touches the read. Tests pin New York across the autumn change. Reports start from the install unless v5 history is imported (see 4.6). On the owner's PC records appeared for all four read accounts and survived a normal restart; a full week is still to be observed.
 
@@ -250,7 +251,7 @@ Google Business Profile API for complete review history (needs Google approval);
 
 1. **Auto-update approach** (7.3).
 2. **The Co-Authored-By trailer** already on commits 235627d, 824eb60 and faa4e3a (and older ones from other sessions): leave them, or rewrite `main` history with a force-push.
-3. **Opening hours:** every location has hours disabled, so waits count around the clock. Enter real hours (4.4) or keep it.
+3. **Opening hours:** the editor exists (Settings › Opening hours), but every location still has hours switched off, so waits count around the clock. Only the owner knows the real hours; enter them there.
 4. **Imported assistant settings:** v5's config came across with the assistant marked enabled (`llama3.2:3b`); v6 ignores it until Phase 5. Decide the default then.
 5. **Code signing** (7.4). Smart App Control blocked an unsigned build for two hours on 2026-09-13; until this is decided, an install can be held up with nothing to do but wait.
 6. **Alert volume.** A busy Instagram account can raise a notification every minute or so. Keep one per customer, or cap per account (for example one summary every 10 minutes)?

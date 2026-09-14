@@ -71,7 +71,7 @@ export interface Settings {
 
 export interface WeeklyInclude { figures: boolean; locations: boolean; accounts: boolean; calls: boolean; names: boolean }
 
-export interface Config { version: number; accounts: Account[]; locations: Location[]; settings: Settings }
+export interface Config { version: number; accounts: Account[]; locations: Location[]; holidays: Holiday[]; settings: Settings }
 
 export const CONFIG_VERSION = 1;
 
@@ -90,7 +90,7 @@ export const defaultSettings = (): Settings => ({
   weeklyReport: { autoSave: false, include: { figures: true, locations: true, accounts: true, calls: true, names: false } },
 });
 
-export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [], locations: [], settings: defaultSettings() });
+export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [], locations: [], holidays: [], settings: defaultSettings() });
 
 export const SLA_MIN_MINUTES = 5, SLA_MAX_MINUTES = 120;
 
@@ -125,6 +125,7 @@ export function parseConfig(raw: unknown): { config: Config; dropped: number } {
     if (match) account.location = match;
   }
 
+  config.holidays = parseHolidays(root.holidays, config.locations);
   config.settings = parseSettings(root.settings);
   return { config, dropped };
 }
@@ -164,12 +165,55 @@ export function parseHours(raw: unknown): BusinessHours | null {
   if (!isObject(raw)) return null;
   const days = (Array.isArray(raw.workingDays) ? raw.workingDays : [])
     .filter((d): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6);
-  return {
+  const hours: BusinessHours = {
     enabled: bool(raw.enabled, false),
     openMinutes: clampInt(raw.openMinutes, 0, 1440, 9 * 60),
     closeMinutes: clampInt(raw.closeMinutes, 0, 1440, 18 * 60),
     workingDays: days.length ? [...new Set(days)] : [1, 2, 3, 4, 5, 6],
   };
+  // Per-day hours, 0 = Sunday. A day that is not a window, or closes before it opens, is a closed day.
+  if (Array.isArray(raw.week) && raw.week.length === 7) {
+    hours.week = raw.week.map((d) => {
+      if (!isObject(d)) return null;
+      const open = clampInt(d.open, 0, 1440, -1), close = clampInt(d.close, 0, 1440, -1);
+      return open >= 0 && close > open ? { open, close } : null;
+    });
+  }
+  return hours;
+}
+
+export interface Holiday { name: string; date: string; /** Location names; empty means every location. */ locations: string[] }
+
+/** Holidays with a name and a real date, one per date and set of locations, locations spelled as the location
+ *  list spells them (unknown ones dropped), in date order. */
+function parseHolidays(raw: unknown, locations: Location[]): Holiday[] {
+  const canonical = new Map(locations.map((l) => [l.name.toLowerCase(), l.name]));
+  const seen = new Set<string>();
+  const out: Holiday[] = [];
+  for (const row of Array.isArray(raw) ? raw.slice(0, 500) : []) {
+    if (!isObject(row)) continue;
+    const name = str(row.name), date = str(row.date);
+    const [y, m, d] = date.split('-').map(Number);
+    const real = /^\d{4}-\d{2}-\d{2}$/.test(date) && new Date(y, m - 1, d).getDate() === d;
+    if (!name || !real) continue;
+    const wanted = Array.isArray(row.locations) ? row.locations.map((l) => canonical.get(str(l).toLowerCase())) : [];
+    const where = [...new Set(wanted.filter((l): l is string => !!l))].sort();
+    // Named locations that no longer exist leave a holiday that applies nowhere: drop it rather than widen it.
+    if (Array.isArray(row.locations) && row.locations.length && !where.length) continue;
+    const id = `${date}|${where.join('|')}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ name: name.slice(0, 80), date, locations: where });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** A location's hours with its holidays filled in as closed dates. Null when it has none: its clock never stops. */
+export function hoursFor(config: Config, locationName: string): BusinessHours | null {
+  const location = config.locations.find((l) => l.name === locationName);
+  if (!location?.hours) return null;
+  const closedDates = config.holidays.filter((h) => !h.locations.length || h.locations.includes(location.name)).map((h) => h.date);
+  return { ...location.hours, closedDates: [...new Set(closedDates)].sort() };
 }
 
 function parseSettings(raw: unknown): Settings {

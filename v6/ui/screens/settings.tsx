@@ -1,10 +1,11 @@
-// Settings. "Look and reading" and "Notifications" write to config.json and take effect at once. Opening hours,
-// the assistant, the workspace, the morning digest and parts of privacy are sample settings until their features
+// Settings. "Look and reading" and "Notifications" write to config.json and take effect at once. Opening hours and
+// holidays too. The assistant, the workspace, the morning digest and parts of privacy are sample settings until their features
 // are wired, and say so.
 import { useState } from 'react';
 import { Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, Panel, Sample, Seg, SettingRow, Stepper, Toggle, type ScreenProps } from '../parts.tsx';
-import { ALERTS, HOLIDAYS, KEPT, MEMBERS, OPENING_HOURS, SAMPLE_LOCATIONS } from '../sample.ts';
+import { ALERTS, KEPT, MEMBERS } from '../sample.ts';
+import type { UiState } from '../../app/view-model.ts';
 
 export const SETTINGS_SECTIONS = ['Look and reading', 'Opening hours', 'Notifications', 'Assistant', 'Workspace', 'Privacy', 'About'] as const;
 type Section = typeof SETTINGS_SECTIONS[number];
@@ -21,7 +22,7 @@ export function SettingsScreen(props: ScreenProps) {
         </nav>
         <div style={{ display: 'grid', gap: 22, alignContent: 'start', minWidth: 0 }}>
           {section === 'Look and reading' && <Look {...props} />}
-          {section === 'Opening hours' && <Hours />}
+          {section === 'Opening hours' && <Hours {...props} />}
           {section === 'Notifications' && <Notifications {...props} />}
           {section === 'Assistant' && <AssistantSettings />}
           {section === 'Workspace' && <Workspace {...props} />}
@@ -95,22 +96,119 @@ function Look({ state }: ScreenProps) {
   );
 }
 
-function Hours() {
-  const [location, setLocation] = useState(SAMPLE_LOCATIONS[0]);
+type Hours = UiState['openingHours']['locations'][number]['hours'];
+type Holiday = UiState['openingHours']['holidays'][number];
+type DayWindow = { open: number; close: number } | null;
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+/** Monday first, as a week is read here. Indexes stay 0 = Sunday, as the rules store them. */
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const toTime = (m: number) => { const v = Math.min(m, 1439); return `${pad2(Math.floor(v / 60))}:${pad2(v % 60)}`; };
+const fromTime = (v: string) => { const [h, m] = v.split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null; };
+const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const longDate = (key: string) => { const [y, m, d] = key.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+
+/** Seven day windows, whatever form the hours were saved in. v5 wrote one window for every working day. */
+function weekOf(hours: Hours): DayWindow[] {
+  if (hours?.week?.length === 7) return hours.week;
+  const days = hours?.workingDays?.length ? hours.workingDays : [1, 2, 3, 4, 5, 6];
+  const open = hours?.openMinutes ?? 11 * 60, close = hours?.closeMinutes ?? 21 * 60;
+  return DAY_NAMES.map((_, d) => (days.includes(d) ? { open, close } : null));
+}
+
+function Hours({ state }: ScreenProps) {
+  const { locations, holidays } = state.openingHours;
+  const [picked, setPicked] = useState<string | null>(null);
+  const current = locations.find((l) => l.name === picked) ?? locations[0];
+  if (!current) {
+    return (
+      <div className="sgroup"><h3>Opening hours</h3>
+        <Panel><p className="sub" style={{ margin: 0 }}>No locations yet. Give accounts a location to set its hours; until then waits count around the clock.</p></Panel>
+      </div>
+    );
+  }
+  const week = weekOf(current.hours);
+  const enabled = current.hours?.enabled ?? false;
+  const save = (name: string, next: { enabled: boolean; week: DayWindow[] }) => bridge.setLocationHours(name, next);
+  const setDay = (day: number, window: DayWindow) => save(current.name, { enabled, week: week.map((w, d) => (d === day ? window : w)) });
+  const allClosed = week.every((w) => !w);
   return (
     <>
       <div className="sgroup">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><h3>Opening hours</h3><Sample /><div style={{ marginLeft: 'auto' }}><Seg label="Location" value={location} onChange={setLocation} options={SAMPLE_LOCATIONS} /></div></div>
-        <p><Icon name="cloud" size={13} /> Shared with the workspace. The reply clock pauses outside these hours.</p>
-        <Panel><div className="hours">{OPENING_HOURS.map(([d, o, c, n]) => [<b key={d} style={{ fontWeight: 600 }}>{d}</b>, <span key={d + 'o'} className="input">{o}</span>, <span key={d + 'c'} className="input">{c}</span>, <span key={d + 'n'} className="sub">{n}</span>])}</div></Panel>
-      </div>
-      <div className="sgroup"><h3>Holidays</h3><p>Customers who write on these days start waiting at the next opening.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}><h3>Opening hours</h3>
+          {locations.length > 1 && <div style={{ marginLeft: 'auto' }}><Seg label="Location" value={current.name} onChange={setPicked} options={locations.map((l) => l.name)} /></div>}
+        </div>
+        <p>The reply clock only runs while a location is open, so a message at closing time is not late by morning. Kept on this PC.</p>
         <div className="panel" style={{ padding: 0 }}>
-          {HOLIDAYS.map((h) => <div key={h.name} style={h.past ? { opacity: 0.6 } : undefined}><SettingRow title={h.name} detail={h.date}><span className="sub">{h.where}</span></SettingRow></div>)}
-          <SettingRow title="Add a holiday or a closed afternoon"><Btn icon="cal" disabled title="Not connected yet">Add</Btn></SettingRow>
+          <SettingRow title={`Count waits only while ${current.name} is open`} detail={enabled ? (allClosed ? 'Every day is closed, so waits still count around the clock. Open at least one day.' : 'Outside these hours, and on holidays, waits stand still.') : 'Off: waits count around the clock, overnight included.'}>
+            <Toggle label="Count waits only while open" on={enabled} onChange={(v) => save(current.name, { enabled: v, week })} />
+          </SettingRow>
+        </div>
+        <Panel>
+          <div className="hours" role="group" aria-label={`Hours for ${current.name}`} style={{ gridTemplateColumns: '180px repeat(2, 130px) 1fr' }}>
+            {WEEK_ORDER.map((d) => {
+              const w = week[d];
+              const name = DAY_NAMES[d];
+              return [
+                <span key={`${d}n`} style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Toggle label={`${name} open`} on={!!w} onChange={(v) => setDay(d, v ? { open: 11 * 60, close: 21 * 60 } : null)} /><b style={{ fontWeight: 600 }}>{name}</b></span>,
+                w ? <input key={`${d}o`} className="input" type="time" step={900} aria-label={`${name} opens`} value={toTime(w.open)} onChange={(e) => { const m = fromTime(e.target.value); if (m !== null && m < w.close) setDay(d, { ...w, open: m }); }} /> : <span key={`${d}o`} className="closed">Closed</span>,
+                w ? <input key={`${d}c`} className="input" type="time" step={900} aria-label={`${name} closes`} value={toTime(w.close)} onChange={(e) => { const m = fromTime(e.target.value); if (m !== null && m > w.open) setDay(d, { ...w, close: m }); }} /> : <span key={`${d}c`} />,
+                <span key={`${d}x`} className="sub">{w ? `${Math.round(((w.close - w.open) / 60) * 10) / 10} hours` : ''}</span>,
+              ];
+            })}
+          </div>
+        </Panel>
+        {locations.length > 1 && (
+          <div><Btn icon="copy" onClick={() => { for (const l of locations) if (l.name !== current.name) save(l.name, { enabled, week }); }}>Use these hours for every location</Btn></div>
+        )}
+      </div>
+      <Holidays holidays={holidays} locations={locations.map((l) => l.name)} />
+    </>
+  );
+}
+
+function Holidays({ holidays, locations }: { holidays: Holiday[]; locations: string[] }) {
+  const [name, setName] = useState('');
+  const [date, setDate] = useState('');
+  const [where, setWhere] = useState<string[]>([]);
+  const today = todayKey();
+  const add = () => {
+    bridge.setHolidays([...holidays, { name: name.trim(), date, locations: where }]);
+    setName(''); setDate(''); setWhere([]);
+  };
+  return (
+    <div className="sgroup"><h3>Holidays</h3><p>Closed all day. A customer who writes on a holiday starts waiting at the next opening. Only locations with opening hours switched on are affected.</p>
+      <div className="panel" style={{ padding: 0 }}>
+        {holidays.map((h) => (
+          <div key={`${h.date}|${h.locations.join('|')}`} style={h.date < today ? { opacity: 0.6 } : undefined}>
+            <SettingRow title={h.name} detail={`${longDate(h.date)}${h.date < today ? ' · passed' : ''}`} columns="minmax(0,1fr) auto auto">
+              <span className="sub">{h.locations.length ? h.locations.join(', ') : 'All locations'}</span>
+              <Btn kind="quiet" icon="x" onClick={() => bridge.setHolidays(holidays.filter((x) => x !== h))}>Remove</Btn>
+            </SettingRow>
+          </div>
+        ))}
+        {holidays.length === 0 && <SettingRow title="No holidays yet" detail="Add the days a location is closed." />}
+        <div className="srow" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'minmax(0,1fr)' }}>
+          <b>Add a holiday</b>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
+            <label className="field"><span>Name</span><input value={name} maxLength={80} placeholder="For example, National day" onChange={(e) => setName(e.target.value)} /></label>
+            <label className="field"><span>Date</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+            {locations.length > 1 && (
+              <div className="field"><span>Where</span><div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', minHeight: 36, alignItems: 'center' }}>
+                {locations.map((l) => (
+                  <label key={l} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+                    <input type="checkbox" checked={where.includes(l)} onChange={(e) => setWhere(e.target.checked ? [...where, l] : where.filter((x) => x !== l))} />{l}
+                  </label>
+                ))}
+                <span className="sub">{where.length ? '' : 'None ticked: all locations'}</span>
+              </div></div>
+            )}
+            <Btn icon="cal" kind="primary" disabled={!name.trim() || !date} onClick={add}>Add</Btn>
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 

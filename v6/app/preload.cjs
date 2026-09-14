@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('um', {
   snooze: (accountId, key, minutes) => ipcRenderer.send('snooze', accountId, key, minutes),
   /** Takes the account's page to one conversation: opened on WhatsApp, found but not opened on Instagram. */
   openChat: (accountId, key) => ipcRenderer.send('open-chat', accountId, key),
+  /** Opening hours and holidays. Main runs them through the config parser before saving. */
+  setLocationHours: (location, hours) => ipcRenderer.send('set-location-hours', location, hours),
+  setHolidays: (holidays) => ipcRenderer.send('set-holidays', holidays),
   /** A report saved (PDF, CSV) or copied as an image. Resolves with where it went, or why it did not. */
   exportReport: (request) => ipcRenderer.invoke('export-report', request),
   /** The hidden report window says it has drawn the page, and how tall the page is. */
