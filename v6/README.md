@@ -101,6 +101,7 @@ saves as JSON, and "now" is always a parameter, which is what makes every rule t
 | `report` | A range of whole days for the Reports screen, Monday-to-Sunday weeks, the Monday auto-save, and the figures CSV. | `BusinessReport` |
 | `digest` | The morning digest: who is still owed from before closing, who wrote since, and when it is due. | — |
 | `calls` | Missed calls written down while they are the latest message, and whether and how each was returned. | — |
+| `accounts` | Adding, editing and removing accounts, and forgetting everything stored under a removed one. | `InstanceRegistryService` |
 
 Rules: follow the ponytail guideline (built-ins before dependencies, no abstractions without a second
 user); port v5 behaviour with its test cases before changing it; never commit `firebase-config.json`,

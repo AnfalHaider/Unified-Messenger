@@ -17,6 +17,9 @@ declare global {
       sleepAccount(accountId: string): void;
       openChat(accountId: string, key: string): void;
       setScope(location: string | null): void;
+      addAccount(request: { channel: string; name: string; location: string; url?: string }): Promise<{ id?: string; error?: string }>;
+      editAccount(accountId: string, change: { name: string; location: string; professional: boolean }): Promise<{ error?: string }>;
+      removeAccount(accountId: string): Promise<{ error?: string }>;
       /** One location's opening hours: whether they count, and each day's window (0 = Sunday, null closed). */
       setLocationHours(location: string, hours: { enabled: boolean; week: ({ open: number; close: number } | null)[] }): void;
       setHolidays(holidays: { name: string; date: string; locations: string[] }[]): void;
@@ -42,7 +45,9 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
-  openChat() {}, setScope() {}, setLocationHours() {}, setHolidays() {}, markHandled() {}, snooze() {}, putBack() {}, printRendered() {},
+  openChat() {}, setScope() {},
+  addAccount: async () => ({ error: 'accounts can only be added in the app, not the browser preview' }),
+  editAccount: async () => ({}), removeAccount: async () => ({}), setLocationHours() {}, setHolidays() {}, markHandled() {}, snooze() {}, putBack() {}, printRendered() {},
   exportReport: async () => ({ error: 'exports need the app, not the browser preview' }),
   setSettings(patch) { previewSettings?.(patch); },
   setTheme(theme) { previewSettings?.({ theme }); },
@@ -52,7 +57,7 @@ export const bridge: Window['um'] = !isPreview ? window.um : {
 
 /** Full-window screens that replace the shell: signing in, a removed PC, a paused workspace, the v5 move. */
 export type LockScreen = 'sign-in' | 'new-pc' | 'removed' | 'suspended' | 'upgrade';
-export type Overlay = 'palette' | 'needs' | 'add-account' | 'remove-member' | 'update';
+export type Overlay = 'palette' | 'needs' | 'add-account' | 'edit-account' | 'remove-account' | 'remove-member' | 'update';
 
 export interface View { route: Route; accountId: string | null; sub: string; overlay: Overlay | null; lock: LockScreen | null; offline: boolean }
 

@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('um', {
   openChat: (accountId, key) => ipcRenderer.send('open-chat', accountId, key),
   /** The location chosen in the title bar; null for all. Reports follow it. */
   setScope: (location) => ipcRenderer.send('set-scope', location ?? null),
+  /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
+  addAccount: (request) => ipcRenderer.invoke('add-account', request),
+  editAccount: (accountId, change) => ipcRenderer.invoke('edit-account', accountId, change),
+  /** Wipes the login on this PC and everything stored under the account. The screen confirms first. */
+  removeAccount: (accountId) => ipcRenderer.invoke('remove-account', accountId),
   /** Opening hours and holidays. Main runs them through the config parser before saving. */
   setLocationHours: (location, hours) => ipcRenderer.send('set-location-hours', location, hours),
   setHolidays: (holidays) => ipcRenderer.send('set-holidays', holidays),

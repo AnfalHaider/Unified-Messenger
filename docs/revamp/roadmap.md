@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
-Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.8 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 4.9** (accounts: add, rename, remove), unless an owner decision
+Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.9 and Reports following the title bar's
+location filter, each installed on the owner's PC. **Next step: 4.10** (lost-login record and reader timeline), unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned. Open: 4.9 accounts add / rename / remove, 4.10 reader timeline, 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove. Open: 4.10 reader timeline, 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -56,6 +56,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Opening hours per location and day, holidays | |
 | Morning digest, once a day | |
 | Missed calls: returned or not, how and how soon; the not-returned alert | |
+| Add, edit (name, location, counted) and remove accounts | |
 
 ---
 
@@ -79,9 +80,9 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 255 tests
-npm run smoke       # 9 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
-                    # weekly report and exports, opening hours, digest, location filter
+npm test            # 261 tests
+npm run smoke       # 10 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
+                    # weekly report and exports, opening hours, digest, location filter, accounts
 ```
 
 Read every Playwright summary line: it prints `N failed` above `N passed`, so `tail -1` shows a red run as green
@@ -214,7 +215,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.8 Missed calls.** Done 2026-09-14. `core/calls.ts` writes each inbound missed call down while it is the chat's latest message (`calls.json`, keys and times only, a first read reaches back 7 days, kept 31) and marks it returned when a later read shows our own message or call after the call time, recording how (message or call) and when; a customer writing or calling again is not a return. Main records after every read (a failure there is `calls-failed` and never touches the read). Reports › Missed calls lists the range's calls with Returned / Not returned, how and how soon, the median time to return, per-location counts, and Open chat on calls not returned; the Missed calls fact and the weekly report's "What to look at" use the same records; the digest says how many calls from the last two days were not returned. A new alert, "A missed call has not been returned", fires once, 30 to 90 minutes after the call (Settings › Notifications, on by default; a call already older when the app opens is not announced). Calls come from the WhatsApp store bridge only; Instagram has no calls. The per-day missed-call count in `history.json` (CSV, weekly figures) is kept as it was. Tests: 7 core, 1 alert; Playwright seeds `calls.json` and checks the tab. Not yet observed: a real call on the owner's accounts.
 
-**4.9 Accounts: add, rename, remove.** Config writes through IPC and `parseConfig`; remove calls the existing `wipe` handler in `main.ts` (not yet exposed in `preload.cjs`) after a confirmation dialog; new accounts open docked for sign-in. Done when all three work without restarting.
+**4.9 Accounts: add, edit, remove.** Done 2026-09-14. `core/accounts.ts`: `addAccount` (a channel with a reader is counted by default; "Another page" needs an http(s) address; a new location is created, an existing one keeps its spelling and rules), `editAccount` (name, location, and "Count its customers", which is `professional`), `removeAccount` (the location and its hours stay), and `forgetAccount`, which deletes everything stored under the id in place: snapshot, marks, day records, reply times, calls and alert ids. Every change goes through `parseConfig`. IPC `add-account`, `edit-account`, `remove-account` (the old unexposed `wipe` handle is gone); main wakes a new account and the screen docks its page for sign-in; removal wipes the session's storage, forgets the data and saves every store. Dialogs in `overlays.tsx`: Add (six channels), Edit (from each Accounts cell and the account's figures screen), Remove (says the login is wiped, the figures deleted, and where to unlink this PC on the phone). The Accounts grid shows an uncounted account as "Not counted". Logs carry the id and channel only. Playwright adds an account at a new location (`.invalid` address, no real site), renames and uncounts one, removes it, and checks `config.json`, `snapshot.json` and `calls.json`. Not built: reordering accounts, and deleting a location (it stays after its last account goes).
 
 **4.10 Lost-login record and reader timeline.** Keep the last N read events per account in memory (they are already logged) and expose them in the view model; replace `LOST_LOGIN` and `READER_TIMELINE`. Done when a real sign-out shows its real timeline.
 

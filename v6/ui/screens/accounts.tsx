@@ -23,13 +23,14 @@ export function AccountsScreen({ state, nav }: ScreenProps) {
   const columns = others.length ? [...COLUMNS, { key: 'other', name: 'Other pages', icon: 'more' as IconName, channels: [...new Set(others.map((a) => a.channel))] }] : COLUMNS;
   const reading = state.accounts.filter((a) => a.waiting !== null && !a.signedOut).length;
   const signIn = state.accounts.filter((a) => a.signedOut).length;
-  const noReader = state.accounts.filter((a) => a.waiting === null && !a.signedOut).length;
+  const noReader = state.accounts.filter((a) => !a.reads && !a.signedOut).length;
+  const personal = state.accounts.filter((a) => a.reads && !a.counted).length;
 
   return (
     <main className="main">
       <Headline title="Accounts" actions={<><Btn icon="refresh" onClick={() => bridge.readNow()}>Read all now</Btn><Btn icon="users" kind="primary" onClick={() => nav.open('add-account')}>Add an account</Btn></>}>
         {plural(state.accounts.length, 'account')} at {plural(locations.length, 'location')}. <b>{reading} reading</b>
-        {signIn > 0 && <>, <b className="late">{signIn} need signing in</b></>}{noReader > 0 && <>, {noReader} with no reader yet</>}.
+        {signIn > 0 && <>, <b className="late">{signIn} need signing in</b></>}{noReader > 0 && <>, {noReader} with no reader yet</>}{personal > 0 && <>, {personal} not counted</>}.
       </Headline>
       <div className="board-grid" style={{ gridTemplateColumns: `170px repeat(${columns.length}, minmax(0, 1fr))` }}>
         <div className="bg-h" />
@@ -48,18 +49,21 @@ export function AccountsScreen({ state, nav }: ScreenProps) {
                     const module = moduleFor(state, a.channel);
                     const broken = module && module.tone === 'late';
                     const kind = a.signedOut ? 'warn' : a.waiting === null ? 'off' : '';
-                    const [dot, label] = a.signedOut ? ['var(--m-due)', 'Sign in needed'] : broken ? ['var(--m-late)', 'Reader not working'] : a.waiting === null ? ['var(--line-2)', 'Open, no figures'] : ['var(--m-ok)', a.asleep ? 'Asleep' : 'Reading'];
+                    const personal = a.reads && !a.counted;
+                    const [dot, label] = a.signedOut ? ['var(--m-due)', 'Sign in needed'] : broken && !personal ? ['var(--m-late)', 'Reader not working'] : personal ? ['var(--line-2)', 'Not counted'] : a.waiting === null ? ['var(--line-2)', 'Open, no figures'] : ['var(--m-ok)', a.asleep ? 'Asleep' : 'Reading'];
                     return (
                       <div key={a.id} className={`cell ${kind}`} style={{ borderTop: 0, borderLeft: 0 }}>
                         <span className="state"><i style={{ background: dot }} />{label}</span>
                         {inCell.length > 1 && <b style={{ fontWeight: 600, fontSize: 13 }}>{a.name}</b>}
                         {a.signedOut ? <p>The page is asking for a login, so its customers are not being counted.</p>
+                          : personal ? <p>A personal account: its page stays open, and nobody on it is counted.</p>
                           : a.waiting === null ? <p>This channel has no reader yet, so it shows no figures rather than zeroes.</p>
                             : <span className="big num">{a.waiting}<small>waiting</small></span>}
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           <Btn icon={a.signedOut ? 'qr' : 'open'} kind={a.signedOut ? 'primary' : undefined} onClick={() => nav.go('dock', a.id)}>{a.signedOut ? 'Sign in' : 'Open page'}</Btn>
                           {a.waiting !== null && !a.signedOut && <Btn kind="quiet" onClick={() => nav.go('account-detail', a.id)}>Figures</Btn>}
                           {a.signedOut && <Btn kind="quiet" onClick={() => nav.go('lost-login', a.id)}>What happened</Btn>}
+                          <Btn kind="quiet" onClick={() => { nav.go('accounts', a.id); nav.open('edit-account'); }}>Edit</Btn>
                         </div>
                       </div>
                     );
@@ -93,6 +97,7 @@ export function AccountDetailScreen({ state, nav }: ScreenProps) {
         <Btn icon="open" onClick={() => nav.go('dock', d.id)}>Open page</Btn>
         <Btn icon="refresh" onClick={() => bridge.readNow()}>Read now</Btn>
         <Btn icon="sleep" kind="quiet" onClick={() => bridge.sleepAccount(d.id)}>Sleep</Btn>
+        <Btn kind="quiet" onClick={() => nav.open('edit-account')}>Edit</Btn>
       </>}>
         {d.location || 'No location'} · {d.signedOut ? 'signed out' : 'signed in on this PC'} · {d.freshness.text.toLowerCase()}
       </Headline>

@@ -188,7 +188,8 @@ export interface UiState {
   /** Built only while the morning digest is open. */
   digest: DigestView | null;
   locations: { name: string; waiting: number; onTimePercent: number; tone: Tone; accounts: number }[];
-  accounts: { id: string; name: string; channel: string; location: string; waiting: number | null; signedOut: boolean; asleep: boolean }[];
+  /** Every account. `reads` is whether its channel has a reader; `counted` whether the owner has it counted. */
+  accounts: { id: string; name: string; channel: string; location: string; waiting: number | null; signedOut: boolean; asleep: boolean; reads: boolean; counted: boolean }[];
   reads: boolean;
   detail: AccountDetail | null;
   /** One line per channel reader, so a channel that stopped working is named instead of averaged away. */
@@ -299,7 +300,9 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     })),
     accounts: config.accounts.map((a) => ({
       id: a.id, name: a.name, channel: a.channel, location: a.location,
-      waiting: CHANNELS[a.channel].reads ? waitingNow(config, snapshots, judge, a.id).length : null,
+      waiting: CHANNELS[a.channel].reads && a.professional ? waitingNow(config, snapshots, judge, a.id).length : null,
+      reads: CHANNELS[a.channel].reads,
+      counted: a.professional,
       signedOut: ctx.signedOut.has(a.id),
       asleep: ctx.asleep.has(a.id),
     })),

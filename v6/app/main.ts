@@ -3,12 +3,13 @@
 // channels/. This file only carries both out, and hands the screens a finished view model so no figure is
 // computed twice.
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, Notification, session, Tray, WebContentsView } from 'electron';
+import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
 import { alertsDue, pruneNotified, type Alert, type Notified } from '../core/alerts.ts';
-import { CHANNELS, emptyConfig, parseConfig, type Account } from '../core/config.ts';
+import { CHANNELS, emptyConfig, parseConfig, type Account, type Config } from '../core/config.ts';
 import { clear, markHandled, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
 import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.ts';
@@ -17,6 +18,7 @@ import { dayKey, recordHistory, type History } from '../core/history.ts';
 import { reportCsv, weekEnding, weeklyDue } from '../core/report.ts';
 import { digestDue } from '../core/digest.ts';
 import { pruneCalls, recordCalls, type Calls } from '../core/calls.ts';
+import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit, type NewAccount } from '../core/accounts.ts';
 import { awaitingChats, distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
@@ -745,7 +747,58 @@ app.whenReady().then(async () => {
     else if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
-  ipcMain.handle('wipe', (_e, id: string) => wipe(id));
+  // ---- accounts: add, edit, remove. Each change goes through core/accounts.ts, which runs the config parser, and
+  // is saved before the screens are told. The log names the account id and channel, never what it is called.
+  const applyConfig = (next: Config) => {
+    config.accounts = next.accounts;
+    config.locations = next.locations;
+    config.holidays = next.holidays;
+    saveJson(FILE.config, config);
+  };
+  ipcMain.handle('add-account', (_e, request: NewAccount) => {
+    const result = addAccount(config, request ?? {}, randomUUID().replace(/-/g, ''));
+    if (result.error) return { error: result.error };
+    applyConfig(result.config);
+    const added = account(result.id)!;
+    const module = moduleFor(added.channel);
+    if (module && !health.has(added.channel)) health.set(added.channel, newHealth(module));
+    wake(added);
+    layout();
+    log({ event: 'account-added', account: added.id, channel: added.channel, counted: added.professional });
+    push();
+    return { id: added.id };
+  });
+  ipcMain.handle('edit-account', (_e, id: string, change: AccountEdit) => {
+    const result = editAccount(config, id, change ?? { name: '', location: '', professional: false });
+    if (result.error) return { error: result.error };
+    applyConfig(result.config);
+    log({ event: 'account-edited', account: id, counted: account(id)?.professional ?? null });
+    push();
+    return {};
+  });
+  // Removing wipes the login saved on this PC and everything stored under the account. It cannot be undone, which is
+  // why the screen asks first; the phone keeps this PC as a linked device until the owner removes it there.
+  ipcMain.handle('remove-account', async (_e, id: string) => {
+    const result = removeAccount(config, id);
+    if (result.error) return { error: result.error };
+    const channel = account(id)?.channel;
+    if (visible === id) { route = 'accounts'; visible = null; }
+    await wipe(id);
+    forgetAccount(id, { snapshots, overrides, history, times, calls, notified });
+    for (const o of [lastReadAt, lastUsedAt, lastRead, focusRequest]) delete o[id];
+    signedOut.delete(id);
+    applyConfig(result.config);
+    saveJson(FILE.snapshot, snapshots);
+    saveJson(FILE.times, times);
+    saveJson(FILE.overrides, overrides);
+    saveJson(FILE.history, history);
+    saveJson(FILE.calls, calls);
+    saveJson(FILE.alerts, notified);
+    layout();
+    log({ event: 'account-removed', account: id, channel });
+    push();
+    return {};
+  });
 
   readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); }, 5_000);
   push();

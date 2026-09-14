@@ -514,3 +514,72 @@ test('reports and their exports follow the location chosen in the title bar', as
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('accounts can be added, edited and removed, and removing one forgets its data', async () => {
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }],
+    locations: [{ name: 'Main branch' }],
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [{
+    conversationKey: 'x@c.us', customerName: 'Sample Customer X', unread: 1, lastActivity: now - 5 * 60_000, preview: 'Hello', awaiting: true,
+    lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  }] } }));
+  writeFileSync(join(data, 'calls.json'), JSON.stringify({ 'test-wa|x@c.us|1': { account: 'test-wa', key: 'x@c.us', at: now - 60_000, returnedAt: null, returnedBy: null } }));
+  const config = () => JSON.parse(readFileSync(join(data, 'config.json'), 'utf8'));
+  const rail = (name: string | RegExp) => win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name, exact: typeof name === 'string' });
+
+  const { app, win } = await open(data);
+  try {
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+
+    // Add: another page, at a new location. ".invalid" never resolves, so the test reaches no real site.
+    await rail('Accounts').click();
+    await win.getByRole('button', { name: 'Add an account' }).click();
+    const add = win.getByRole('dialog', { name: 'Add an account' });
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'add-account.png') });
+    await add.getByRole('radio', { name: /Another page/ }).click();
+    await add.getByRole('button', { name: 'Add and sign in' }).click();
+    await expect(add.getByRole('alert')).toContainText('web address');
+    await add.getByLabel('Web address').fill('https://booking.invalid/');
+    await add.getByLabel('Name').fill('Booking page');
+    await add.getByLabel('Location').fill('North branch');
+    await add.getByRole('button', { name: 'Add and sign in' }).click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Booking page');
+    const added = config().accounts.find((a: { name: string }) => a.name === 'Booking page');
+    expect([added.channel, added.location, added.professional, added.url]).toEqual(['custom', 'North branch', false, 'https://booking.invalid/']);
+    expect(config().locations.map((l: { name: string }) => l.name)).toEqual(['Main branch', 'North branch']);
+
+    // Edit: rename, and stop counting it. With nothing counted, nothing is read.
+    await rail('Accounts').click();
+    await win.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    const edit = win.getByRole('dialog', { name: 'Edit account' });
+    await edit.getByLabel('Name').fill('Reception');
+    await edit.getByRole('switch', { name: 'Count its customers' }).click();
+    await edit.getByRole('button', { name: 'Save' }).click();
+    await expect(edit).toHaveCount(0);
+    expect(config().accounts.find((a: { id: string }) => a.id === 'test-wa')).toMatchObject({ name: 'Reception', professional: false });
+    await expect(win.getByText('A personal account: its page stays open, and nobody on it is counted.')).toBeVisible();
+    await rail(/^The line/).click();
+    await expect(heading(win, 'No accounts are being read yet')).toBeVisible();
+
+    // Remove: asks first, then the account and everything stored under it are gone.
+    await rail('Accounts').click();
+    await win.getByRole('button', { name: 'Edit', exact: true }).first().click();
+    await win.getByRole('dialog', { name: 'Edit account' }).getByRole('button', { name: 'Remove account' }).click();
+    const remove = win.getByRole('dialog', { name: 'Remove account' });
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'remove-account.png') });
+    await expect(remove).toContainText('Linked devices');
+    await remove.getByRole('button', { name: 'Remove and wipe login' }).click();
+    await expect(remove).toHaveCount(0);
+    await expect.poll(() => config().accounts.map((a: { name: string }) => a.name)).toEqual(['Booking page']);
+    expect(config().locations.map((l: { name: string }) => l.name)).toEqual(['Main branch', 'North branch']);
+    expect(Object.keys(JSON.parse(readFileSync(join(data, 'snapshot.json'), 'utf8')))).toEqual([]);
+    expect(JSON.parse(readFileSync(join(data, 'calls.json'), 'utf8'))).toEqual({});
+    expect(readFileSync(join(data, 'app.log'), 'utf8')).not.toContain('Reception');
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});

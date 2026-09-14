@@ -70,12 +70,12 @@ export const PREVIEW_STATE: UiState = {
     { name: 'Gulberg', waiting: 0, onTimePercent: 96, tone: 'ok', accounts: 2 },
   ],
   accounts: [
-    { id: 'a1', name: 'WhatsApp · Bookings', channel: 'whatsapp', location: 'F-11 Markaz', waiting: 12, signedOut: false, asleep: false },
-    { id: 'a2', name: 'Google reviews', channel: 'googlebusiness', location: 'F-11 Markaz', waiting: null, signedOut: false, asleep: false },
-    { id: 'a3', name: 'WhatsApp · Front desk', channel: 'whatsapp', location: 'DHA Phase 2', waiting: 5, signedOut: false, asleep: false },
-    { id: 'a4', name: 'Instagram', channel: 'instagram', location: 'DHA Phase 2', waiting: 2, signedOut: false, asleep: false },
-    { id: 'a5', name: 'WhatsApp · Front desk', channel: 'whatsapp', location: 'Gulberg', waiting: 0, signedOut: false, asleep: true },
-    { id: 'a6', name: 'Instagram', channel: 'instagram', location: 'Gulberg', waiting: null, signedOut: true, asleep: false },
+    { id: 'a1', name: 'WhatsApp · Bookings', channel: 'whatsapp', location: 'F-11 Markaz', waiting: 12, signedOut: false, asleep: false, reads: true, counted: true },
+    { id: 'a2', name: 'Google reviews', channel: 'googlebusiness', location: 'F-11 Markaz', waiting: null, signedOut: false, asleep: false, reads: true, counted: true },
+    { id: 'a3', name: 'WhatsApp · Front desk', channel: 'whatsapp', location: 'DHA Phase 2', waiting: 5, signedOut: false, asleep: false, reads: true, counted: true },
+    { id: 'a4', name: 'Instagram', channel: 'instagram', location: 'DHA Phase 2', waiting: 2, signedOut: false, asleep: false, reads: true, counted: true },
+    { id: 'a5', name: 'WhatsApp · Front desk', channel: 'whatsapp', location: 'Gulberg', waiting: 0, signedOut: false, asleep: true, reads: true, counted: true },
+    { id: 'a6', name: 'Instagram', channel: 'instagram', location: 'Gulberg', waiting: null, signedOut: true, asleep: false, reads: true, counted: true },
   ],
   reads: true,
   detail: {

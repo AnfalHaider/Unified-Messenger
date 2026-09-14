@@ -1,9 +1,9 @@
-// Everything that opens over a screen: the command palette, Needs you, and the three dialogs. The palette and
-// Needs you read the real view model; the dialogs are sample until accounts and members can be edited.
+// Everything that opens over a screen: the command palette, Needs you, and the dialogs. The palette, Needs you and
+// the account dialogs are real; removing a member and the update dialog are sample until Phases 6 and 7.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route } from '../../app/view-model.ts';
 import { channelIcon, Icon, type IconName } from '../icons.tsx';
-import { bridge, Btn, Check, type LockScreen, type Nav, type Overlay, Sample, type ScreenProps } from '../parts.tsx';
+import { bridge, Btn, Check, type LockScreen, type Nav, type Overlay, Sample, type ScreenProps, Toggle } from '../parts.tsx';
 import { REPORT_TABS } from './reports.tsx';
 import { SETTINGS_SECTIONS } from './settings.tsx';
 
@@ -16,7 +16,9 @@ export function Overlays({ state, nav }: ScreenProps) {
       <div className="scrim" onClick={close} />
       {which === 'palette' && <Palette state={state} nav={nav} />}
       {which === 'needs' && <NeedsYou state={state} nav={nav} />}
-      {which === 'add-account' && <AddAccount close={close} />}
+      {which === 'add-account' && <AddAccount state={state} nav={nav} close={close} />}
+      {which === 'edit-account' && <EditAccount state={state} nav={nav} close={close} />}
+      {which === 'remove-account' && <RemoveAccount state={state} nav={nav} close={close} />}
       {which === 'remove-member' && <RemoveMember close={close} />}
       {which === 'update' && <Update close={close} />}
     </div>
@@ -129,32 +131,132 @@ function NeedsYou({ state, nav }: ScreenProps) {
 
 // ---- dialogs --------------------------------------------------------------------------------------------------
 
-function AddAccount({ close }: { close: () => void }) {
-  const [channel, setChannel] = useState(0);
-  const options: [IconName, string, string][] = [
-    ['chat', 'WhatsApp or WhatsApp Business', 'Who is waiting, reply times, previews'],
-    ['ig', 'Instagram', 'Who is waiting in the inbox. Previews are shorter.'],
-    ['star', 'Google reviews', 'Rating, total and unanswered reviews'],
-    ['more', 'Messenger, Telegram, other page', 'Opens the page. No figures.'],
-  ];
+const CHANNEL_CHOICES: { channel: string; icon: IconName; name: string; detail: string }[] = [
+  { channel: 'whatsapp', icon: 'chat', name: 'WhatsApp or WhatsApp Business', detail: 'Who is waiting, reply times, previews, missed calls' },
+  { channel: 'instagram', icon: 'ig', name: 'Instagram', detail: 'Who is waiting in Direct. No previews.' },
+  { channel: 'googlebusiness', icon: 'star', name: 'Google Business', detail: 'Opens the page. No figures until the reviews reader.' },
+  { channel: 'messenger', icon: 'more', name: 'Messenger', detail: 'Opens the page. No figures.' },
+  { channel: 'telegram', icon: 'more', name: 'Telegram', detail: 'Opens the page. No figures.' },
+  { channel: 'custom', icon: 'open', name: 'Another page', detail: 'Any web address. No figures.' },
+];
+
+/** The location field: free text, with the existing locations offered, so a typo does not start a new location. */
+function LocationField({ value, onChange, locations }: { value: string; onChange: (v: string) => void; locations: string[] }) {
+  return (
+    <label className="field"><span>Location</span>
+      <input value={value} list="um-locations" maxLength={60} placeholder="For example, Main branch" onChange={(e) => onChange(e.target.value)} />
+      <datalist id="um-locations">{locations.map((l) => <option key={l} value={l} />)}</datalist>
+    </label>
+  );
+}
+
+const locationNames = (state: ScreenProps['state']) => [...new Set([...state.openingHours.locations.map((l) => l.name), ...state.accounts.map((a) => a.location).filter(Boolean)])];
+
+function AddAccount({ state, nav, close }: ScreenProps & { close: () => void }) {
+  const [channel, setChannel] = useState('whatsapp');
+  const [name, setName] = useState('');
+  const [location, setLocation] = useState('');
+  const [url, setUrl] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true); setError('');
+    const result = await bridge.addAccount({ channel, name, location, url: channel === 'custom' ? url : undefined });
+    setBusy(false);
+    if (result.error || !result.id) { setError(result.error ?? 'The account could not be added.'); return; }
+    close();
+    // Straight to its page, docked, to sign in there.
+    nav.go('dock', result.id);
+  };
   return (
     <div className="dialog" role="dialog" aria-label="Add an account" style={{ width: 600 }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><h3>Add an account</h3><Sample /></div>
+      <h3>Add an account</h3>
       <div className="field"><span>Channel</span>
-        <div style={{ display: 'grid', gap: 6 }}>
-          {options.map(([icon, name, detail], i) => (
-            <button key={name} onClick={() => setChannel(i)} aria-pressed={i === channel} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'center', padding: '10px 12px', border: `1px solid ${i === channel ? 'var(--ink)' : 'var(--line-2)'}`, borderRadius: 9, boxShadow: i === channel ? 'inset 0 0 0 1px var(--ink)' : undefined, textAlign: 'left' }}>
-              <Icon name={icon} size={17} /><span><b style={{ fontWeight: 600 }}>{name}</b><br /><span className="sub">{detail}</span></span>{i === channel && <Icon name="check" size={16} stroke={2.2} />}
+        <div style={{ display: 'grid', gap: 6 }} role="radiogroup" aria-label="Channel">
+          {CHANNEL_CHOICES.map((c) => (
+            <button key={c.channel} role="radio" aria-checked={c.channel === channel} onClick={() => setChannel(c.channel)} style={{ display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'center', padding: '9px 12px', border: `1px solid ${c.channel === channel ? 'var(--ink)' : 'var(--line-2)'}`, borderRadius: 9, boxShadow: c.channel === channel ? 'inset 0 0 0 1px var(--ink)' : undefined, textAlign: 'left' }}>
+              <Icon name={c.icon} size={17} /><span><b style={{ fontWeight: 600 }}>{c.name}</b><br /><span className="sub">{c.detail}</span></span>{c.channel === channel && <Icon name="check" size={16} stroke={2.2} />}
             </button>
           ))}
         </div>
       </div>
+      {channel === 'custom' && <label className="field"><span>Web address</span><input value={url} placeholder="https://" onChange={(e) => setUrl(e.target.value)} /></label>}
       <div className="grid2" style={{ gap: 12 }}>
-        <label className="field"><span>Name</span><input placeholder="For example, Front desk WhatsApp" /></label>
-        <label className="field"><span>Location</span><input placeholder="For example, Main branch" /></label>
+        <label className="field"><span>Name</span><input value={name} maxLength={60} placeholder="For example, Front desk WhatsApp" onChange={(e) => setName(e.target.value)} /></label>
+        <LocationField value={location} onChange={setLocation} locations={locationNames(state)} />
       </div>
       <p>Next, the account’s page opens beside the line. Sign in there; the login stays on this PC.</p>
-      <div className="foot"><Btn kind="quiet" onClick={close}>Cancel</Btn><Btn kind="primary" disabled title="Adding accounts is not connected yet">Add and sign in</Btn></div>
+      {error && <p className="late" role="alert" style={{ margin: 0 }}>{error}</p>}
+      <div className="foot"><Btn kind="quiet" onClick={close}>Cancel</Btn><Btn kind="primary" disabled={busy} onClick={() => void submit()}>Add and sign in</Btn></div>
+    </div>
+  );
+}
+
+function EditAccount({ state, nav, close }: ScreenProps & { close: () => void }) {
+  const account = state.accounts.find((a) => a.id === nav.view.accountId);
+  const [name, setName] = useState(account?.name ?? '');
+  const [location, setLocation] = useState(account?.location ?? '');
+  const [counted, setCounted] = useState(account?.counted ?? true);
+  const [error, setError] = useState('');
+  if (!account) return <div className="dialog" role="dialog" aria-label="Edit account"><h3>That account no longer exists</h3><div className="foot"><Btn onClick={close}>Close</Btn></div></div>;
+  const save = async () => {
+    const result = await bridge.editAccount(account.id, { name, location, professional: counted });
+    if (result.error) { setError(result.error); return; }
+    close();
+  };
+  return (
+    <div className="dialog" role="dialog" aria-label="Edit account" style={{ width: 560 }}>
+      <h3>Edit {account.name}</h3>
+      <div className="grid2" style={{ gap: 12 }}>
+        <label className="field"><span>Name</span><input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} /></label>
+        <LocationField value={location} onChange={setLocation} locations={locationNames(state)} />
+      </div>
+      {account.reads && (
+        <div className="srow" style={{ padding: 0, border: 0 }}>
+          <span><b>Count its customers</b><span>Off for a personal account: its page stays open, but nobody on it is counted, alerted or reported.</span></span>
+          <Toggle label="Count its customers" on={counted} onChange={setCounted} />
+        </div>
+      )}
+      {error && <p className="late" role="alert" style={{ margin: 0 }}>{error}</p>}
+      <div className="foot" style={{ justifyContent: 'space-between' }}>
+        <Btn kind="danger" icon="x" onClick={() => nav.open('remove-account')}>Remove account</Btn>
+        <span style={{ display: 'flex', gap: 8 }}><Btn kind="quiet" onClick={close}>Cancel</Btn><Btn kind="primary" onClick={() => void save()}>Save</Btn></span>
+      </div>
+    </div>
+  );
+}
+
+/** Where the owner removes this PC on the phone, per channel, so removing here does not leave a session alive there. */
+const LINKED_DEVICE: Record<string, string> = {
+  whatsapp: 'On the phone: WhatsApp › Linked devices, and remove this PC.',
+  whatsappbusiness: 'On the phone: WhatsApp Business › Linked devices, and remove this PC.',
+  instagram: 'In Instagram: Accounts Center › Password and security › Where you’re logged in, and log out this PC.',
+};
+
+function RemoveAccount({ state, nav, close }: ScreenProps & { close: () => void }) {
+  const account = state.accounts.find((a) => a.id === nav.view.accountId);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  if (!account) return <div className="dialog" role="dialog" aria-label="Remove account"><h3>That account no longer exists</h3><div className="foot"><Btn onClick={close}>Close</Btn></div></div>;
+  const remove = async () => {
+    setBusy(true);
+    const result = await bridge.removeAccount(account.id);
+    setBusy(false);
+    if (result.error) { setError(result.error); return; }
+    close();
+    nav.go('accounts');
+  };
+  return (
+    <div className="dialog" role="dialog" aria-label="Remove account" style={{ width: 560 }}>
+      <h3>Remove {account.name}?</h3>
+      <div className="panel" style={{ display: 'grid', gap: 4 }}>
+        <Check icon="lock" tone="neutral" title="The login on this PC is wiped">Adding it again means signing in again.</Check>
+        <Check icon="alert" tone="due" title="Its figures are deleted">Who was waiting, marks, reply times, day records and missed calls for this account. Reports lose its past days.</Check>
+        {LINKED_DEVICE[account.channel] && <Check icon="phone" tone="neutral" title="The phone still lists this PC">{LINKED_DEVICE[account.channel]}</Check>}
+      </div>
+      <p className="sub">Its location and opening hours stay. This cannot be undone.</p>
+      {error && <p className="late" role="alert" style={{ margin: 0 }}>{error}</p>}
+      <div className="foot"><Btn kind="quiet" onClick={close}>Keep it</Btn><Btn kind="danger" disabled={busy} onClick={() => void remove()}>Remove and wipe login</Btn></div>
     </div>
   );
 }
