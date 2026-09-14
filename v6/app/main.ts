@@ -161,6 +161,11 @@ function wake(a: Account) {
         });
     });
   }
+  // A page that crashes or fails to load says so in the log; otherwise it only shows up as reads that never come.
+  view.webContents.on('render-process-gone', (_e, details) => log({ event: 'page-gone', account: a.id, reason: details.reason, exitCode: details.exitCode }));
+  view.webContents.on('did-fail-load', (_e, code, description, _url, isMainFrame) => {
+    if (isMainFrame) log({ event: 'page-load-failed', account: a.id, code, description: String(description).slice(0, 80) });
+  });
   view.webContents.loadURL(a.url || CHANNELS[a.channel].url);
   win.contentView.addChildView(view);
   views.set(a.id, view);
@@ -187,13 +192,28 @@ async function wipe(id: string) {
 
 // ---- reading -------------------------------------------------------------------------------------
 
+/** How long a page may take to answer one read. A page that is loading, crashed or stuck behind a dialog can leave
+ *  executeJavaScript unanswered for ever, and reads run one account at a time, so one silent page would stop every
+ *  account being read. With a limit it costs only its own read. */
+const PAGE_ANSWER_MS = 30_000;
+
+function pageAnswer<T>(view: WebContentsView, expression: string): Promise<T> {
+  return new Promise<T>((done, fail) => {
+    const timer = setTimeout(() => fail(new Error(`the page did not answer within ${PAGE_ANSWER_MS / 1000} s`)), PAGE_ANSWER_MS);
+    view.webContents.executeJavaScript(expression).then(
+      (value) => { clearTimeout(timer); done(value as T); },
+      (error) => { clearTimeout(timer); fail(error); },
+    );
+  });
+}
+
 async function readAccount(a: Account, reason: string) {
   const module = moduleFor(a.channel);
   const view = views.get(a.id);
   if (!module || !view) return;
   const now = Date.now();
   try {
-    const raw = await view.webContents.executeJavaScript(module.scan);
+    const raw = await pageAnswer<unknown>(view, module.scan);
     // parse never throws: a page that changed shape costs this read, and the loop moves to the next account.
     const { entries, skipped, awaitingInferred, notReady, stage } = module.parse(raw);
     lastReadAt[a.id] = now;
@@ -223,7 +243,7 @@ async function readAccount(a: Account, reason: string) {
     }
     // Empty is not the same as quiet. Ask the page why before believing it — sign-in first, because a page
     // showing a QR code has no store to read and would otherwise look like a reader that is still starting.
-    const state = await view.webContents.executeJavaScript(module.signedOutProbe).catch(() => ({}));
+    const state = await pageAnswer<Record<string, boolean>>(view, module.signedOutProbe).catch(() => ({} as Record<string, boolean>));
     if (state.qr || state.login) {
       signedOut.add(a.id);
       log({ event: 'signed-out', account: a.id, channel: a.channel, reason, ...state, stage: stage ?? null, before: lastRead[a.id] ?? null });
