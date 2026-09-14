@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
-Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.7 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 4.8** (missed-call callbacks), unless an owner decision
+Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.8 and Reports following the title bar's
+location filter, each installed on the owner's PC. **Next step: 4.9** (accounts: add, rename, remove), unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest. Open: 4.8 missed-call callbacks, 4.9 accounts add / rename / remove, 4.10 reader timeline, 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned. Open: 4.9 accounts add / rename / remove, 4.10 reader timeline, 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -27,7 +27,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 ### What works on the owner's PC today
 
 - **Installed** per-user at `%LOCALAPPDATA%\Programs\UnifiedMessenger6`, Start Menu and desktop shortcut "Unified Messenger". v5 is uninstalled; its data folder `%LOCALAPPDATA%\UnifiedMessenger` was kept.
-- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `exports.json`, `digest.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
+- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `exports.json`, `digest.json`, `calls.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
 - **Working day:** the morning digest on the first opening of each day; Handled and Snooze on the line and the dock; Set aside with Put back; Open chat goes to the conversation (WhatsApp opens it, Instagram filters Direct and stops).
 - **Reports** on recorded days, following the title bar's location filter: day records began 2026-09-13, reply times imported from v5 reach further back, and the coverage sentence says both. The weekly report saves as PDF, CSV or image; the Monday auto-save is off.
 - **Opening hours** can be edited per location and day, with holidays. All three locations carry v5's 11 am to 9 pm, Monday to Saturday, switched off, so waits still count around the clock (§5.3).
@@ -55,6 +55,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Theme | |
 | Opening hours per location and day, holidays | |
 | Morning digest, once a day | |
+| Missed calls: returned or not, how and how soon; the not-returned alert | |
 
 ---
 
@@ -78,7 +79,7 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 247 tests
+npm test            # 255 tests
 npm run smoke       # 9 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter
 ```
@@ -211,7 +212,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.7 Morning digest.** Done 2026-09-14. `core/digest.ts` splits the waiting customers (inside the backlog line, closed-by-rule excluded) into still owed, wrote before the location's last closing (`lastClosing` in `core/business-hours.ts`) or before midnight when hours are off, and wrote since. Yesterday by location (on time, median, 14-day trend) comes from `buildReport` over the history store. The view model builds it only while the digest is open, with computed sentences ("Good morning. 4 customers wrote while you were closed."). Main opens it the first time the window is shown on a local day, at start or back from the tray, when `settings.morningDigest` is on (default) and an account is read; `digest.json` remembers the day, so a second opening goes to the line. Settings › Notifications › Summaries switches it. Playwright checks the owed row, the count since, Open chat, and that a second launch the same day opens on the line. The Playwright helper turns the digest off for every other test.
 
-**4.8 Missed calls.** What exists: the store bridge reads `lastCallOutcome`; `core/history.ts` counts missed calls per day (once per chat per call time); Reports › Missed calls lists callers whose last message is still a missed call, per location. What is missing: knowing whether a call was returned. Keep a per-call record (account, conversation key, call time) in a small store, mark it returned when a later read shows an outgoing call or a reply from us after the call time, and show returned / not returned with when, in Reports › Missed calls and the digest; wire the "A missed call has not been returned" alert (Settings › Notifications, now "Not connected yet"). v5 found that its IndexedDB fallback cannot read call outcomes (AGENTS.md, phase notes), so this works from the WhatsApp store bridge only. Done when a missed test call appears, ticks off after a reply, and survives a restart.
+**4.8 Missed calls.** Done 2026-09-14. `core/calls.ts` writes each inbound missed call down while it is the chat's latest message (`calls.json`, keys and times only, a first read reaches back 7 days, kept 31) and marks it returned when a later read shows our own message or call after the call time, recording how (message or call) and when; a customer writing or calling again is not a return. Main records after every read (a failure there is `calls-failed` and never touches the read). Reports › Missed calls lists the range's calls with Returned / Not returned, how and how soon, the median time to return, per-location counts, and Open chat on calls not returned; the Missed calls fact and the weekly report's "What to look at" use the same records; the digest says how many calls from the last two days were not returned. A new alert, "A missed call has not been returned", fires once, 30 to 90 minutes after the call (Settings › Notifications, on by default; a call already older when the app opens is not announced). Calls come from the WhatsApp store bridge only; Instagram has no calls. The per-day missed-call count in `history.json` (CSV, weekly figures) is kept as it was. Tests: 7 core, 1 alert; Playwright seeds `calls.json` and checks the tab. Not yet observed: a real call on the owner's accounts.
 
 **4.9 Accounts: add, rename, remove.** Config writes through IPC and `parseConfig`; remove calls the existing `wipe` handler in `main.ts` (not yet exposed in `preload.cjs`) after a confirmation dialog; new accounts open docked for sign-in. Done when all three work without restarting.
 

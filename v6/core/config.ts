@@ -63,7 +63,7 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark';
   quietHours: { enabled: boolean; startHour: number; endHour: number };
   /** Windows notifications, each switchable. Quiet hours hold all of them back. */
-  alerts: { nearTarget: boolean; waitedHour: boolean; signedOut: boolean };
+  alerts: { nearTarget: boolean; waitedHour: boolean; signedOut: boolean; callNotReturned: boolean };
   /** What the weekly report includes, and whether last week's PDF is saved on Monday morning. Names are off by
    *  default so the report can go to anyone; saving files unasked is off by default too. */
   weeklyReport: { autoSave: boolean; include: WeeklyInclude };
@@ -88,7 +88,7 @@ export const defaultSettings = (): Settings => ({
   assistant: { enabled: false, model: 'gemma3:4b', endpoint: 'http://127.0.0.1:11434/' },
   theme: 'system',
   quietHours: { enabled: false, startHour: 21, endHour: 8 },
-  alerts: { nearTarget: true, waitedHour: true, signedOut: true },
+  alerts: { nearTarget: true, waitedHour: true, signedOut: true, callNotReturned: true },
   weeklyReport: { autoSave: false, include: { figures: true, locations: true, accounts: true, calls: true, names: false } },
   morningDigest: true,
 });
@@ -252,6 +252,7 @@ function parseSettings(raw: unknown): Settings {
       nearTarget: bool(alerts.nearTarget, d.alerts.nearTarget),
       waitedHour: bool(alerts.waitedHour, d.alerts.waitedHour),
       signedOut: bool(alerts.signedOut, d.alerts.signedOut),
+      callNotReturned: bool(alerts.callNotReturned, d.alerts.callNotReturned),
     },
     morningDigest: bool(raw.morningDigest, d.morningDigest),
     weeklyReport: {

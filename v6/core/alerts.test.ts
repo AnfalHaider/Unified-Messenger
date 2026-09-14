@@ -14,6 +14,20 @@ const input = (rows: WaitingRow[], o: Partial<AlertInput> = {}): AlertInput =>
   ({ rows, signedOut: [], signedIn: [], settings: defaultSettings(), now: NOW, ...o });
 const kinds = (list: { kind: string }[]) => list.map((a) => a.kind);
 
+test('a missed call not returned is announced once, half an hour after the call, and never replayed later', () => {
+  const notified: Notified = {};
+  const call = (minutesAgo: number) => [{ accountId: 'acct', accountName: 'Front desk', key: 'k', customer: 'Sample Caller', at: NOW - minutesAgo * MIN }];
+  assert.deepEqual(alertsDue(input([], { calls: call(20) }), notified), []);
+  const [alert] = alertsDue(input([], { calls: call(30) }), notified);
+  assert.equal(alert.kind, 'call-not-returned');
+  assert.match(alert.title, /Sample Caller called 30 minutes ago/);
+  assert.deepEqual([alert.accountId, alert.key], ['acct', 'k']);
+  assert.deepEqual(alertsDue(input([], { calls: call(30) }), notified), []);
+  assert.deepEqual(alertsDue(input([], { calls: call(200) }), {}), [], 'an old call is not announced on opening');
+  const off = parseConfig({ settings: { alerts: { callNotReturned: false } } }).config.settings;
+  assert.deepEqual(alertsDue(input([], { calls: call(31), settings: off }), {}), []);
+});
+
 test('a chat two minutes from its target alerts once, and not again on the next pass', () => {
   const notified: Notified = {};
   assert.deepEqual(kinds(alertsDue(input([row('a', 13)]), notified)), ['near-target']);

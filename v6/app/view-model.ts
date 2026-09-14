@@ -11,11 +11,12 @@ import { dailyResponse, responseStats, type ResponseTimes } from '../core/respon
 import { buildRollup } from '../core/rollup.ts';
 import { readableAccounts } from '../core/schedule.ts';
 import { DAY_MS, dayKey, startOfDay } from '../core/days.ts';
+import { callsIn, type Calls } from '../core/calls.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
 import { explain } from '../core/reply-need.ts';
-import { awaitingChats, awaitingSplit, lastCaptured, setAside, verdictFor, type Judge, type Snapshots } from '../core/snapshot.ts';
+import { awaitingChats, awaitingSplit, lastCaptured, setAside, type Judge, type Snapshots } from '../core/snapshot.ts';
 import type { Overrides } from '../core/awaiting-overrides.ts';
 
 /** How close to the target counts as "due soon". The design's warning window. */
@@ -69,11 +70,25 @@ export interface DigestView {
   /** Still waiting from before the location closed (or before midnight), oldest first, at most 12. */
   owed: { accountId: string; accountName: string; key: string; customer: string; preview: string; since: number }[];
   owedTotal: number;
+  /** Missed calls from the last two days that nobody has returned. */
+  callsNotReturned: number;
   owedLabel: string;
   overnight: number;
   overnightNote: string;
   /** Yesterday per location, with the 14 days before it as a trend of the days that had replies. */
   yesterday: { name: string; replies: number; onTimePercent: number | null; medianMinutes: number | null; trend: number[] }[];
+}
+
+/** A missed call, with who called taken from the snapshot, and whether and how it was returned. */
+export interface CallRow {
+  accountId: string;
+  accountName: string;
+  location: string;
+  key: string;
+  customer: string;
+  at: number;
+  returnedAt: number | null;
+  returnedBy: 'message' | 'call' | null;
 }
 
 export interface ReportsView {
@@ -84,8 +99,10 @@ export interface ReportsView {
   targetMinutes: number;
   /** Customers waiting over a day now, oldest first. */
   backlog: { accountId: string; accountName: string; key: string; customer: string; preview: string; since: number; waited: number }[];
-  /** Customers whose last message is a call nobody answered, and who are still waiting. */
-  unansweredCalls: { accountId: string; accountName: string; key: string; customer: string; at: number }[];
+  /** Missed calls not returned yet, newest first, from the last month. */
+  unansweredCalls: CallRow[];
+  /** Missed calls in each range, newest first. */
+  calls: { today: CallRow[]; week: CallRow[]; month: CallRow[] };
 }
 
 export interface QueueRow {
@@ -185,6 +202,8 @@ export interface Context {
   now: number;
   /** The day records. Only read while Reports is open. */
   history?: History;
+  /** Missed calls and whether they were returned. */
+  calls?: Calls;
   /** The location chosen in the title bar, or null for all. Reports and their exports cover only that location. */
   scope?: string | null;
   route: Route;
@@ -417,7 +436,8 @@ function change(now: number | null, before: number | null, unit: 'points' | 'per
   return pct === 0 ? 'Same as the period before' : `${Math.abs(pct)}% ${pct > 0 ? up : down}`;
 }
 
-function reportRange(key: keyof typeof RANGE_LABELS, report: Report, target: number, unanswered: number): ReportRange {
+function reportRange(key: keyof typeof RANGE_LABELS, report: Report, target: number, calls: CallRow[]): ReportRange {
+  const unanswered = calls.filter((c) => c.returnedAt === null).length;
   const label = RANGE_LABELS[key];
   const { totals: t, previous: p } = report;
   const span = report.days.length;
@@ -456,8 +476,8 @@ function reportRange(key: keyof typeof RANGE_LABELS, report: Report, target: num
       tone: t.waitingOverADay ? 'late' : 'neutral', note: 'At the latest morning read' },
     { label: 'Reopened', value: String(t.reopened), unit: '', tone: 'neutral', note: 'Waiting again after a reply',
       trend: span > 1 ? report.days.map((d) => d.reopened) : undefined },
-    { label: 'Missed calls', value: String(t.missedCalls), unit: '', tone: unanswered ? 'late' : 'neutral',
-      note: unanswered ? `${unanswered} caller${unanswered === 1 ? '' : 's'} waiting for an answer now` : 'No caller waiting for an answer now' },
+    { label: 'Missed calls', value: String(calls.length), unit: '', tone: unanswered ? 'late' : 'neutral',
+      note: !calls.length ? 'None in this range' : unanswered ? `${unanswered} not returned` : 'All returned' },
   ];
 
   const dayLabels = report.days.map((d, i) => {
@@ -478,10 +498,9 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
   const here = live.filter((id) => inScope(config.accounts.find((a) => a.id === id)?.location ?? '', scope));
 
   const waiting = here.flatMap((id) => awaitingChats(snapshots, id, judge).map((chat) => ({ id, chat })));
-  const unansweredCalls = waiting
-    .filter(({ chat }) => verdictFor(chat, judge).reason === 'missedCall')
-    .sort((a, b) => b.chat.lastActivity - a.chat.lastActivity)
-    .map(({ id, chat }) => ({ accountId: id, accountName: name(id), key: chat.conversationKey, customer: who(chat), at: chat.lastActivity }));
+  const callsBetween = (from: number, to: number) => callRows(config, snapshots, ctx.calls ?? {}, here, from, to);
+  const unansweredCalls = callsBetween(now - 31 * DAY_MS, now + 1).filter((c) => c.returnedAt === null);
+  const callsFor = (days: number, end = now) => callsBetween(startOfDay(end, days - 1), startOfDay(end, -1));
   const backlog = waiting
     .filter(({ chat }) => chat.lastActivity < now - DAY_MS)
     .sort((a, b) => a.chat.lastActivity - b.chat.lastActivity)
@@ -497,14 +516,15 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
 
   const target = config.settings.slaMinutes;
   const range = (key: keyof typeof RANGE_LABELS, days: number) =>
-    reportRange(key, buildReport(history, times, accounts, days, now), target, unansweredCalls.length);
+    reportRange(key, buildReport(history, times, accounts, days, now), target, callsFor(days));
   const week = (which: 'this' | 'last') =>
-    weeklyDoc(which, buildReport(history, times, accounts, 7, weekEnding(now, which)), target, unansweredCalls.length);
+    weeklyDoc(which, buildReport(history, times, accounts, 7, weekEnding(now, which)), target, callsFor(7, weekEnding(now, which)));
   return {
     ranges: { today: range('today', 1), week: range('week', 7), month: range('month', 30) },
     weekly: { this: week('this'), last: week('last') },
     scope,
     targetMinutes: target, backlog, unansweredCalls,
+    calls: { today: callsFor(1), week: callsFor(7), month: callsFor(30) },
   };
 }
 
@@ -522,8 +542,9 @@ const pointsOnWeekBefore = (diff: number) => pointsOn(diff, 'the week before');
 
 const plainCount =(n: number, one: string, many = `${one}s`) => `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 
-function weeklyDoc(which: 'this' | 'last', report: Report, target: number, unanswered: number): WeeklyDoc {
-  const base = reportRange('week', report, target, unanswered);
+function weeklyDoc(which: 'this' | 'last', report: Report, target: number, calls: CallRow[]): WeeklyDoc {
+  const base = reportRange('week', report, target, calls);
+  const notReturned = calls.filter((c) => c.returnedAt === null).length;
   const { totals: t, previous: p } = report;
   const first = dayDate(report.days[0].day), last = dayDate(report.days.at(-1)!.day);
   const sameMonth = new Date(first).getMonth() === new Date(last).getMonth();
@@ -549,7 +570,7 @@ function weeklyDoc(which: 'this' | 'last', report: Report, target: number, unans
   const slowest = [...report.byAccount].filter((a) => a.p90Minutes !== null).sort((a, b) => (b.p90Minutes ?? 0) - (a.p90Minutes ?? 0))[0];
   if (slowest && (slowest.p90Minutes ?? 0) > 2 * target) lookAt.push(`At ${slowest.name}, the slowest one in ten first replies took ${Math.round(slowest.p90Minutes ?? 0)} minutes or more.`);
   if (t.waitingOverADay) lookAt.push(`${plainCount(t.waitingOverADay, 'customer')} had waited more than a day at the latest morning read.`);
-  if (t.missedCalls) lookAt.push(`${plainCount(t.missedCalls, 'missed call')} recorded.`);
+  if (calls.length) lookAt.push(`${plainCount(calls.length, 'missed call')}, ${notReturned ? `${notReturned} not returned` : 'all returned'}.`);
 
   const wentWell: string[] = [];
   for (const l of located) if ((l.onTimePercent ?? 0) >= 90) wentWell.push(`${l.name} answered ${l.onTimePercent}% on time.`);
@@ -573,6 +594,7 @@ function weeklyDoc(which: 'this' | 'last', report: Report, target: number, unans
 function digestFor(config: Config, snapshots: Snapshots, times: ResponseTimes, judge: Judge, ctx: Context, live: string[]): DigestView {
   const { now } = ctx;
   const split = morningSplit(config, snapshots, judge, live, now);
+  const callsNotReturned = callRows(config, snapshots, ctx.calls ?? {}, live, now - 2 * DAY_MS, now + 1).filter((c) => c.returnedAt === null).length;
   const accounts = reportAccounts(config);
   const history = ctx.history ?? {};
   const yesterdayNoon = startOfDay(now, 1) + 12 * 3_600_000;
@@ -593,6 +615,7 @@ function digestFor(config: Config, snapshots: Snapshots, times: ResponseTimes, j
   const y = yesterday.totals, before = yesterday.previous;
   const summary = [
     owed ? `Answer the ${owed} still owed from ${split.byHours ? 'before closing' : 'yesterday'} first.` : '',
+    callsNotReturned ? `${plainCount(callsNotReturned, 'missed call')} from the last two days ${callsNotReturned === 1 ? 'has' : 'have'} not been returned.` : '',
     y.onTimePercent !== null
       ? `Yesterday ${y.onTimePercent}% were answered on time${before.onTimePercent !== null ? `, ${pointsOn(y.onTimePercent - before.onTimePercent, 'the day before')}` : ''}.`
       : yesterday.recordingSince !== null ? 'No first replies were measured yesterday.' : '',
@@ -605,6 +628,7 @@ function digestFor(config: Config, snapshots: Snapshots, times: ResponseTimes, j
       customer: chat.customerName || chat.contactPhone || 'Unknown number', preview: chat.preview, since: chat.lastActivity,
     })),
     owedTotal: owed,
+    callsNotReturned,
     owedLabel: split.byHours ? 'Wrote before closing and never got a reply' : 'Wrote before midnight and never got a reply',
     overnight: split.overnight,
     overnightNote: split.byHours ? 'The wait clock starts at opening time.' : 'Opening hours are off, so these waits count from when they wrote.',
@@ -613,4 +637,16 @@ function digestFor(config: Config, snapshots: Snapshots, times: ResponseTimes, j
       trend: (fortnight.byLocation.find((f) => f.name === l.name)?.daily ?? []).filter((v): v is number => v !== null),
     })),
   };
+}
+
+/** Missed calls on these accounts between two times, newest first, named from the snapshot (the store keeps no names). */
+function callRows(config: Config, snapshots: Snapshots, calls: Calls, accounts: string[], from: number, to: number): CallRow[] {
+  return callsIn(calls, accounts, from, to).map((c) => {
+    const account = config.accounts.find((a) => a.id === c.account);
+    const chat = snapshots[c.account]?.chats.find((x) => x.conversationKey === c.key);
+    return {
+      accountId: c.account, accountName: account?.name ?? c.account, location: account?.location ?? '', key: c.key,
+      customer: chat?.customerName || chat?.contactPhone || 'Unknown caller', at: c.at, returnedAt: c.returnedAt, returnedBy: c.returnedBy,
+    };
+  });
 }

@@ -178,7 +178,13 @@ test('reports show the recorded days, measured replies and who is still owed a c
   writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [
     chat('f@c.us', 'Sample Caller F', 20, { lastMessageType: 'call_log', lastCallOutcome: 'Missed' }),
     chat('g@c.us', 'Sample Customer G', 2 * 24 * 60, { preview: 'Could you send the price list?' }),
+    chat('h@c.us', 'Sample Caller H', 5, { awaiting: false, lastMessageFromMe: true, preview: 'Sorry we missed you' }),
   ] } }));
+  // One call not returned, one answered by message 12 minutes after it.
+  writeFileSync(join(data, 'calls.json'), JSON.stringify({
+    'test-wa|f@c.us|1': { account: 'test-wa', key: 'f@c.us', at: now - 20 * 60_000, returnedAt: null, returnedBy: null },
+    'test-wa|h@c.us|1': { account: 'test-wa', key: 'h@c.us', at: now - 17 * 60_000, returnedAt: now - 5 * 60_000, returnedBy: 'message' },
+  }));
 
   const { app, win } = await open(data);
   try {
@@ -198,7 +204,11 @@ test('reports show the recorded days, measured replies and who is still owed a c
     if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'reports-backlog.png') });
 
     await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: 'Missed calls' }).click();
-    await expect(heading(win, '1 missed call is still waiting for an answer')).toBeVisible();
+    await expect(heading(win, '1 missed call has not been returned')).toBeVisible();
+    await expect(win.getByText(/2 missed calls, 1 returned, a median 12 min later/)).toBeVisible();
+    await expect(win.getByRole('row').filter({ hasText: 'Sample Caller H' })).toContainText('Answered by message 12 min later');
+    await expect(win.getByRole('row').filter({ hasText: 'Sample Caller H' }).getByRole('button', { name: 'Open chat' })).toHaveCount(0);
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'reports-calls.png') });
     await win.getByRole('row').filter({ hasText: 'Sample Caller F' }).getByRole('button', { name: 'Open chat' }).click();
     await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Caller F');
 

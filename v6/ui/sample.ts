@@ -71,7 +71,6 @@ export const WORKSPACES = [
 export const ALERTS = [
   { title: 'A channel reader stops working', detail: 'After 3 failed reads in a row' },
   { title: 'A one- or two-star review arrives', detail: 'Within an hour of it appearing' },
-  { title: 'A missed call has not been returned', detail: 'After 30 minutes' },
 ];
 
 export const KEPT = [

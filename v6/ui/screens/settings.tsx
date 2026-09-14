@@ -221,6 +221,7 @@ function Notifications({ state }: ScreenProps) {
     ['nearTarget', 'A customer is about to pass the target', '2 minutes before, while the location is open'],
     ['waitedHour', 'Someone has waited over an hour', 'Once per customer'],
     ['signedOut', 'An account needs signing in again', 'As soon as the app notices'],
+    ['callNotReturned', 'A missed call has not been returned', '30 minutes after the call, with no call back or reply'],
   ];
   // Settings merge one level deep, so a nested group is always sent whole.
   const setAlert = (key: keyof typeof s.alerts, on: boolean) => bridge.setSettings({ alerts: { ...s.alerts, [key]: on } });

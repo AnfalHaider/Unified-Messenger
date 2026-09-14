@@ -16,6 +16,7 @@ import { DAY_MS } from '../core/days.ts';
 import { dayKey, recordHistory, type History } from '../core/history.ts';
 import { reportCsv, weekEnding, weeklyDue } from '../core/report.ts';
 import { digestDue } from '../core/digest.ts';
+import { pruneCalls, recordCalls, type Calls } from '../core/calls.ts';
 import { awaitingChats, distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
@@ -53,6 +54,7 @@ const FILE = {
   history: join(DATA, 'history.json'),
   exports: join(DATA, 'exports.json'),
   digest: join(DATA, 'digest.json'),
+  calls: join(DATA, 'calls.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -81,6 +83,9 @@ const times = loadJson<ResponseTimes>(FILE.times, emptyResponseTimes(), note('re
 const overrides = loadJson<Overrides>(FILE.overrides, {}, note('overrides'));
 const notified = loadJson<Notified>(FILE.alerts, {}, note('alerts'));
 const history = loadJson<History>(FILE.history, {}, note('history'));
+/** Missed calls and whether each was returned. Keys and times only. */
+const calls = loadJson<Calls>(FILE.calls, {}, note('calls'));
+pruneCalls(calls, Date.now());
 /** Which week's report was last saved on its own, so Monday's save happens once. */
 const exportsState = loadJson<{ lastWeeklyWeek: string | null }>(FILE.exports, { lastWeeklyWeek: null }, note('exports'));
 /** The local day the morning digest was last shown, so it opens once a day. */
@@ -233,6 +238,11 @@ async function readAccount(a: Account, reason: string) {
       } catch (e) {
         log({ event: 'history-failed', account: a.id, error: (e as Error).message.slice(0, 120) });
       }
+      try {
+        if (recordCalls(calls, a.id, snapshots[a.id].chats, now)) { pruneCalls(calls, now); saveJson(FILE.calls, calls); }
+      } catch (e) {
+        log({ event: 'calls-failed', account: a.id, error: (e as Error).message.slice(0, 120) });
+      }
       signedOut.delete(a.id);
       recordHealth(a.channel, true);
       const waiting = entries.filter((c) => c.awaiting).length;
@@ -294,7 +304,7 @@ async function readPass(reason: string) {
 function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
-    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope,
+    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls,
   });
 }
 
@@ -491,6 +501,10 @@ function notifyDue() {
     signedOut: config.accounts.filter((a) => signedOut.has(a.id)).map((a) => ({ id: a.id, name: a.name })),
     // lastRead is set only by a read that found chats, so it is proof of a login this run.
     signedIn: Object.keys(lastRead).filter((id) => !signedOut.has(id)),
+    calls: Object.values(calls).filter((c) => c.returnedAt === null && !signedOut.has(c.account)).map((c) => {
+      const chat = snapshots[c.account]?.chats.find((x) => x.conversationKey === c.key);
+      return { accountId: c.account, accountName: account(c.account)?.name ?? c.account, key: c.key, customer: chat?.customerName || chat?.contactPhone || 'A customer', at: c.at };
+    }),
     settings: config.settings, now,
   }, notified);
   pruneNotified(notified, now);

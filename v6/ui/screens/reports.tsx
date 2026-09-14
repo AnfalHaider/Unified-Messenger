@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { ReportRange, ReportsView, UiState, WeeklyDoc } from '../../app/view-model.ts';
 import { dayKey as dayKeyOf } from '../../core/history.ts';
 import { REPLY_BANDS } from '../../core/report.ts';
-import { Heatmap, Histogram, LineChart, Spark } from '../charts.tsx';
+import { Heatmap, Histogram, LineChart } from '../charts.tsx';
 import { Icon } from '../icons.tsx';
 import { bridge, Btn, Chip, Facts, Headline, Logo, Panel, Seg, Toggle, waitText, type ScreenProps } from '../parts.tsx';
 import { REVIEW_DRAFT, REVIEW_PROFILES, REVIEWS } from '../sample.ts';
@@ -113,7 +113,7 @@ export function ReportsScreen({ state, nav }: ScreenProps) {
   const props = { view, range, bar, nav };
   if (tab === 'Reply times') return <ReplyTimes {...props} />;
   if (tab === 'Backlog and reopened') return <Backlog {...props} />;
-  if (tab === 'Missed calls') return <Calls {...props} />;
+  if (tab === 'Missed calls') return <Calls {...props} rangeKey={rangeKey} />;
 
   const r = range.report;
   const trend = r.days.length > 1;
@@ -213,38 +213,55 @@ function Backlog({ view, range, bar, nav }: TabProps) {
   );
 }
 
-function Calls({ view, range, bar, nav }: TabProps) {
-  const r = range.report;
-  const open = view.unansweredCalls.length;
+function Calls({ view, range, rangeKey, bar, nav }: TabProps & { rangeKey: 'today' | 'week' | 'month' }) {
+  const calls = view.calls[rangeKey];
+  const notReturned = calls.filter((c) => c.returnedAt === null).length;
+  const returned = calls.filter((c) => c.returnedAt !== null);
+  const minutes = returned.map((c) => (c.returnedAt! - c.at) / 60_000).sort((x, y) => x - y);
+  const median = minutes.length ? Math.round(minutes[Math.ceil(minutes.length / 2) - 1]) : null;
+  const locations = [...new Set(calls.map((c) => c.location || 'No location'))];
+  const later = (c: typeof calls[number]) => {
+    const m = Math.max(1, Math.round((c.returnedAt! - c.at) / 60_000));
+    return `${c.returnedBy === 'call' ? 'Called back' : 'Answered by message'} ${waitText(m).join(' ')} later`;
+  };
   return (
     <main className="main" style={{ gap: 16 }}>
-      <Headline title={open ? `${open} missed call${open === 1 ? ' is' : 's are'} still waiting for an answer` : 'No missed call is waiting for an answer'}>
-        {range.label}: {r.totals.missedCalls} missed call{r.totals.missedCalls === 1 ? '' : 's'} recorded. Whether a call was returned is not tracked yet. {range.coverage}
+      <Headline title={notReturned ? `${notReturned} missed call${notReturned === 1 ? ' has' : 's have'} not been returned` : calls.length ? 'Every missed call was returned' : 'No missed calls'}>
+        {range.label}: {calls.length} missed call{calls.length === 1 ? '' : 's'}{calls.length ? `, ${returned.length} returned` : ''}{median !== null ? `, a median ${waitText(median).join(' ')} later` : ''}. A call counts as returned when a message or call from you follows it. Missed calls are read from WhatsApp only.
       </Headline>
       {bar}
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-        <table className="table"><thead><tr><th>Caller</th><th>Account</th><th>Called at</th><th /></tr></thead><tbody>
-          {view.unansweredCalls.map((c) => (
-            <tr key={`${c.accountId}:${c.customer}:${c.at}`}>
+        <table className="table"><thead><tr><th>Caller</th><th>Account</th><th>Called at</th><th>Returned</th><th /></tr></thead><tbody>
+          {calls.map((c) => (
+            <tr key={`${c.accountId}:${c.key}:${c.at}`}>
               <td><b style={{ fontWeight: 600 }}>{c.customer}</b></td><td className="sub">{c.accountName}</td>
               <td className="num"><Icon name="phone" size={13} /> {when(c.at)}</td>
-              <td className="r"><Btn icon="open" onClick={() => nav.go('dock', c.accountId, c.key)}>Open chat</Btn></td>
+              <td className={c.returnedAt === null ? 'late' : 'ok'}>{c.returnedAt === null ? 'Not returned' : later(c)}</td>
+              <td className="r">{c.returnedAt === null && <Btn icon="open" onClick={() => nav.go('dock', c.accountId, c.key)}>Open chat</Btn>}</td>
             </tr>
           ))}
-          {open === 0 && <tr><td colSpan={4} className="sub" style={{ padding: 18 }}>Nobody whose last message was a missed call is waiting now.</td></tr>}
+          {calls.length === 0 && <tr><td colSpan={5} className="sub" style={{ padding: 18 }}>No missed calls were seen in this range.</td></tr>}
         </tbody></table>
       </div>
-      <div className="grid3">
-        {r.byLocation.map((l) => (
-          <div key={l.name} className="panel" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, alignItems: 'end' }}>
-            <span><span className="sub">{l.name}, {range.label.toLowerCase()}</span><div className="num" style={{ font: '600 30px/1.1 var(--text)', fontStretch: '80%' }}>{l.missedCalls} missed</div></span>
-            {l.missedDaily.length > 1 && <Spark values={l.missedDaily} width={110} height={34} max={Math.max(3, ...l.missedDaily)} />}
-          </div>
-        ))}
-      </div>
+      {locations.length > 0 && (
+        <div className="grid3">
+          {locations.map((name) => {
+            const here = calls.filter((c) => (c.location || 'No location') === name);
+            const back = here.filter((c) => c.returnedAt !== null).length;
+            return (
+              <div key={name} className="panel" style={{ display: 'grid', gap: 6 }}>
+                <span className="sub">{name}, {range.label.toLowerCase()}</span>
+                <div className="num" style={{ font: '600 30px/1.1 var(--text)', fontStretch: '80%' }}>{here.length} missed</div>
+                <span className="sub">{back} returned, {here.length - back} not</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }
+
 
 type Include = UiState['settings']['weeklyReport']['include'];
 type Backlog = ReportsView['backlog'];
