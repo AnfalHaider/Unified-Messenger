@@ -3,9 +3,9 @@
 // saved replies are sample figures until those features are wired.
 import { useEffect, useMemo, useState } from 'react';
 import type { QueueRow, UiState } from '../../app/view-model.ts';
-import { Spark, TheLine, toneInk } from '../charts.tsx';
+import { byChannel, Spark, TheLine, toneInk, waitLabel } from '../charts.tsx';
 import { channelIcon, Icon } from '../icons.tsx';
-import { bridge, Btn, Chip, Headline, isPreview, Panel, plural, Sample, type ScreenProps, Wait, waitText } from '../parts.tsx';
+import { bridge, Btn, Chip, Facts, Headline, isPreview, Panel, plural, Sample, type ScreenProps, Wait, waitText, type Fact } from '../parts.tsx';
 import { CUSTOMER } from '../sample.ts';
 
 const rowKey = (r: QueueRow) => `${r.accountId}:${r.key}`;
@@ -39,6 +39,32 @@ export function scoped(state: UiState, scope: string) {
 }
 
 // ---- the line ----------------------------------------------------------------------------------------------
+
+/** The indicators above the line. Counted from the rows on screen, so switching location changes them too;
+ *  today's two measured figures are the whole business either way, and say so when a location is chosen. */
+function lineFacts(state: UiState, rows: QueueRow[], scope: string, target: number): Fact[] {
+  const late = rows.filter((r) => r.tone === 'late').length;
+  const due = rows.filter((r) => r.tone === 'due').length;
+  const longest = rows[0];
+  const onTime = state.figures.find((f) => f.label === 'Answered on time');
+  const firstReply = state.figures.find((f) => f.label === 'First reply');
+  const caughtUp = state.figures.find((f) => f.label === 'Caught up');
+  const everywhere = scope === 'All' ? '' : ', across every location';
+  const [longestValue, longestUnit] = longest ? waitText(longest.waited) : ['—', ''];
+  return [
+    { label: 'Waiting now', value: String(rows.length), unit: rows.length === 1 ? 'customer' : 'customers',
+      note: byChannel(rows).map((c) => `${c.count} ${c.name}`).join(' · ') || 'Nobody is waiting',
+      tone: late ? 'late' : rows.length ? 'due' : 'ok' },
+    { label: 'Past target', value: String(late), unit: `over ${target} min`,
+      note: due ? `${due} more in the next 5 min` : 'None due in the next few minutes', tone: late ? 'late' : 'ok' },
+    { label: 'Longest wait', value: longestValue, unit: longestUnit,
+      note: longest ? `${longest.customer} · ${longest.accountName}` : 'Nobody is waiting',
+      tone: longest ? longest.tone : 'ok' },
+    { label: 'Caught up', value: caughtUp?.value ?? '—', unit: '%', note: `${caughtUp?.note ?? ''}${everywhere}`, tone: caughtUp?.tone ?? 'neutral' },
+    { label: 'Answered on time', value: onTime?.value ?? '—', unit: '%', note: `${onTime?.note ?? ''}${everywhere}`, tone: onTime?.tone ?? 'neutral' },
+    { label: 'First reply', value: firstReply?.value ?? '—', unit: 'min median', note: `${firstReply?.note ?? 'No replies measured yet'}${everywhere}`, tone: firstReply?.tone ?? 'neutral' },
+  ];
+}
 
 export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string }) {
   const rows = scoped(state, scope);
@@ -87,7 +113,7 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
       <main className="main">
         <Headline title="Nobody is waiting" actions={<Btn icon="refresh" onClick={() => bridge.readNow()}>Read now</Btn>}>
           {scope === 'All' ? 'Every customer across your locations has an answer.' : `Every customer at ${scope} has an answer.`} {state.freshness.text}.
-          {onTime && <> Today <b>{onTime.value}%</b> were answered on time.</>}
+          {onTime && onTime.value !== '—' && <> Today <b>{onTime.value}%</b> of measured replies were within target.</>}
         </Headline>
         <TheLine rows={[]} locations={lanes} target={target} />
         <Panel style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 16, alignItems: 'center' }}>
@@ -103,9 +129,11 @@ export function LineScreen({ state, nav, scope }: ScreenProps & { scope: string 
       <Headline title={`${plural(total, 'customer')} ${total === 1 ? 'is' : 'are'} waiting`} actions={<Btn icon="refresh" onClick={() => bridge.readNow()}>Read now</Btn>}>
         {late > 0 ? <b className="late">{late} {late === 1 ? 'is' : 'are'} past your {target}-minute target</b> : <b>Nobody is past your {target}-minute target</b>}
         {due > 0 ? `, ${due} more pass it in the next five minutes.` : '.'}
-        {onTime && firstReply && firstReply.value !== '—' && <> Today {onTime.value}% were answered on time, with a median first reply of {firstReply.value} minutes.</>}
+        {onTime && onTime.value !== '—' && firstReply && <> Today {onTime.value}% of measured replies were within target, with a median first reply of {firstReply.value} minutes.</>}
       </Headline>
-      <TheLine rows={rows} locations={lanes} target={target} selected={selected} onSelect={(r) => setSelected(rowKey(r))} />
+      <Facts facts={lineFacts(state, rows, scope, target)} />
+      <TheLine rows={rows} locations={lanes} target={target} selected={selected}
+        onSelect={(r) => setSelected(rowKey(r))} onOpen={(r) => { setSelected(rowKey(r)); nav.go('dock', r.accountId, r.key); }} />
       <div className="work">
         <div className="qhead"><strong>Longest wait first</strong><span>{plural(total, 'customer')}</span>
           <span className="keys"><kbd>J</kbd><kbd>K</kbd> move <kbd>Enter</kbd> open chat <kbd>H</kbd> handled <kbd>S</kbd> snooze 1 hour</span></div>

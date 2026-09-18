@@ -1,6 +1,6 @@
 # Unified Messenger v6 roadmap
 
-Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.10 and Reports following the title bar's
+Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.10, 4.13 and Reports following the title bar's
 location filter, each installed on the owner's PC. **Next step: 4.11** (the customer panel), unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens. Open: 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass. Open: 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -58,6 +58,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Missed calls: returned or not, how and how soon; the not-returned alert | |
 | Add, edit (name, location, counted) and remove accounts | |
 | The reading record: the lost-login timeline and the reader timeline | |
+| The line's indicators, per-channel counts and click-to-open chart | |
 
 ---
 
@@ -82,9 +83,9 @@ cd v6
 npm install
 npm run typecheck
 npm test            # 269 tests
-npm run smoke       # 11 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
+npm run smoke       # 12 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter, accounts,
-                    # the reading record
+                    # the reading record, the line
 ```
 
 Read every Playwright summary line: it prints `N failed` above `N passed`, so `tail -1` shows a red run as green
@@ -221,6 +222,8 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.10 Lost-login record and reader timeline.** Done 2026-09-18. `core/events.ts` keeps the last 60 outcomes per account (`events.json`: read, empty, not-ready, signed-out, signed-in, failed, awake, asleep, reload, page-gone, with chat and waiting counts and the reader's stage — no names, numbers or message text, the `app.log` rule, because these lines are on screen). Saved as each one happens, so a sign-out at midnight is still explained in the morning; forgotten with the account by `forgetAccount`. `lostLoginTimeline` shows the reads before the sign-out, the sign-out itself and how long since; `readerTimeline` tells one story across every account on a channel, opening with "N accounts stopped reading" when more than one failed, and saying so when nothing has been read for five minutes. Runs of the same outcome collapse ("12 good reads"). Both screens lost their "Sample figures" marker; the record is reachable for any account from its figures screen ("Reading record"), and the headline follows the record rather than this minute's flags, because just after a restart nothing has been read yet. Tests: 8 core, and a Playwright test that seeds `events.json` and reads both screens. Not built: a support report to save from the reader screen (still disabled).
 
+**4.13 The line, second pass.** Done 2026-09-18, from the owner's own screenshots. Six indicators above the chart (waiting now with the count per channel, past target, longest wait and who it is, caught up, answered on time, first reply), counted from the rows on screen so the title bar's location filter moves them too. The chart carries each channel: counts per channel in its top bar and in every lane label, and a channel badge on every token. Clicking a token opens that conversation instead of only selecting it. Everyone past an hour is one chip per lane ("N over 1 h, longest 9 h", opening the longest) rather than a pile of tokens whose positions no longer say anything, and the axis ends "over 1 h". A customer saved only as a number gets its last two digits instead of "+3". The list below fills the window (`.screen > .main` takes the height it is given). **Corrected while doing it:** the headline figure labelled "Answered on time" was the rollup's caught-up share (answered ÷ active), not replies against the target — the owner's own screen read "93% answered on time" beside "median first reply 130 minutes". They are now two figures, and the measured one says "—" until something is measured rather than 0%. Tests: a Playwright test for the channels, the chip and both clicks.
+
 **4.11 Customer panel.** Notes and tags in a local store keyed by account + conversation key; saved replies in config (they sync in Phase 6). History comes from the history store. Done when a note survives a restart and a saved reply copies.
 
 **4.12 Accessibility.** Add `@axe-core/playwright` checks to the Playwright job for the line, accounts, settings and a dialog; then a Narrator pass by the owner. Known gaps: rail buttons now have labels; the dock's page slot and toggles need checking.

@@ -2,25 +2,69 @@
 // labelled, and colour only for lateness. Series that are not about lateness are told apart by line style and
 // a label at their end, never by hue.
 import type { QueueRow, Tone } from '../app/view-model.ts';
+import { channelIcon, Icon } from './icons.tsx';
 
 // ---- the line ----------------------------------------------------------------------------------------
 
-const OVER = 94; // percent of the track that 0–60 minutes spans; the rest is the 60+ bin
+const OVER = 82; // percent of the track that 0-60 minutes spans; the rest is the "over an hour" bin
 
 const trackX = (minutes: number) => (minutes > 60 ? OVER + (100 - OVER) / 2 : (minutes / 60) * OVER);
-const initials = (name: string) => name.split(/\s+/).map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+
+/** Initials for a name; for a customer saved only as a number, the last two digits, which at least differ. */
+function initials(name: string) {
+  const letters = name.split(/\s+/).map((w) => w[0] ?? '').filter((c) => /\p{L}/u.test(c));
+  if (letters.length) return letters.join('').slice(0, 2).toUpperCase();
+  const digits = name.replace(/\D/g, '');
+  return digits.slice(-2) || '?';
+}
+
+const CHANNEL_NAMES: Record<string, string> = {
+  whatsapp: 'WhatsApp', whatsappbusiness: 'WhatsApp Business', instagram: 'Instagram',
+  messenger: 'Messenger', telegram: 'Telegram', googlebusiness: 'Google', custom: 'Other pages',
+};
+
+/** Who is waiting on each channel, most first, so no channel is hidden behind another's numbers. */
+export function byChannel(rows: QueueRow[]): { channel: string; name: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(r.channel, (counts.get(r.channel) ?? 0) + 1);
+  return [...counts]
+    .map(([channel, count]) => ({ channel, name: CHANNEL_NAMES[channel] ?? channel, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+/** A wait said the way a person would: 38 min, 2 h, 7 days. */
+export function waitLabel(minutes: number) {
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  return hours < 48 ? `${Math.round(hours)} h` : `${Math.round(hours / 24)} days`;
+}
+
+const channelTitle = (c: { count: number; name: string }) => `${c.count} waiting on ${c.name}`;
 
 /**
  * Everyone waiting, placed by how long they have waited, one lane per location, with the target through it.
- * Tokens that would overlap step down to a second row, so two people a minute apart are both visible.
+ * Tokens that would overlap step down to a second row, so two people a minute apart are both visible. Anyone
+ * over an hour is counted in one chip at the end of the lane instead of a pile of tokens whose positions say
+ * nothing: past an hour the exact minute has stopped mattering, and the pile hid how many there were.
  */
-export function TheLine({ rows, locations, target, selected, onSelect }: {
-  rows: QueueRow[]; locations: string[]; target: number; selected?: string | null; onSelect?: (row: QueueRow) => void;
+export function TheLine({ rows, locations, target, selected, onSelect, onOpen }: {
+  rows: QueueRow[]; locations: string[]; target: number; selected?: string | null;
+  onSelect?: (row: QueueRow) => void;
+  /** Clicking a token, or the "over an hour" chip, goes to that conversation. */
+  onOpen?: (row: QueueRow) => void;
 }) {
   const ticks = [0, 5, 10, 15, 20, 30, 40, 50, 60];
+  const channels = byChannel(rows);
   return (
     <section className="line" aria-label="The line">
       <div className="line-top"><strong>The line</strong><span>minutes waited, counted in opening hours only</span>
+        {channels.length > 0 && (
+          <span className="line-ch">
+            {channels.map((c) => (
+              <span key={c.channel} title={channelTitle(c)}><Icon name={channelIcon(c.channel)} size={13} />{c.count} {c.name}</span>
+            ))}
+          </span>
+        )}
         <div className="legend">
           <span><i style={{ borderColor: 'var(--m-ok)' }} />On time</span>
           <span><i style={{ borderColor: 'var(--m-due)' }} />Due within 5 min</span>
@@ -28,48 +72,73 @@ export function TheLine({ rows, locations, target, selected, onSelect }: {
         </div>
       </div>
       <div className="lanes">
-        <div style={{ position: 'absolute', left: 150, right: 0, top: 26, bottom: 24, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', left: 170, right: 0, top: 26, bottom: 24, pointerEvents: 'none' }}>
           <div className="target" style={{ left: `${trackX(target)}%`, top: 0 }}><span style={{ top: -22 }}>Target {target} min</span></div>
         </div>
         <div style={{ gridColumn: '1 / 3', height: 26 }} />
         {locations.map((location) => {
           const here = rows.filter((r) => (r.location || 'No location') === location).sort((a, b) => a.waited - b.waited);
+          const shown = here.filter((r) => r.waited <= 60);
+          const over = here.filter((r) => r.waited > 60);
           const last = [-Infinity, -Infinity];
           const late = here.filter((r) => r.tone === 'late').length;
+          const oldest = over.at(-1);
           return (
-            <Lane key={location} label={location} note={here.length ? `${here.length} waiting${late ? `, ${late} late` : ''}` : 'nobody waiting'} target={target}>
-              {here.map((r) => {
+            <Lane key={location} label={location} target={target} channels={byChannel(here)}
+              note={here.length ? `${here.length} waiting${late ? `, ${late} late` : ''}` : 'nobody waiting'}>
+              {shown.map((r) => {
                 const x = trackX(r.waited);
-                let slot = last.findIndex((prev) => x - prev >= 2.8);
+                let slot = last.findIndex((prev) => x - prev >= 3.4);
                 if (slot < 0) slot = last[0] <= last[1] ? 0 : 1;
                 last[slot] = x;
                 const key = `${r.accountId}:${r.key}`;
                 return (
                   <button key={key} className={`tok ${r.tone} ${selected === key ? 'sel' : ''}`}
-                    style={{ left: `${x}%`, top: here.length > 1 ? (slot === 0 ? 5 : 33) : 19 }}
-                    title={`${r.customer}, ${r.waited} min`} aria-label={`${r.customer}, waiting ${r.waited} minutes`}
-                    onClick={() => onSelect?.(r)}>
+                    style={{ left: `${x}%`, top: shown.length > 1 ? (slot === 0 ? 4 : 36) : 22 }}
+                    title={`${r.customer} · waiting ${waitLabel(r.waited)} · ${r.accountName} · click to open the chat`}
+                    aria-label={`${r.customer}, waiting ${waitLabel(r.waited)} on ${r.accountName}. Open the chat.`}
+                    onMouseEnter={() => onSelect?.(r)} onClick={() => (onOpen ?? onSelect)?.(r)}>
                     {initials(r.customer)}
+                    <i className="tok-ch"><Icon name={channelIcon(r.channel)} size={9} /></i>
                   </button>
                 );
               })}
+              {oldest && (
+                <button className="over-chip"
+                  title={`${over.length} waiting more than an hour. Longest: ${oldest.customer}, ${waitLabel(oldest.waited)} on ${oldest.accountName}. Click to open that chat.`}
+                  aria-label={`${over.length} waiting more than an hour at ${location}. Open the longest, ${oldest.customer}, waiting ${waitLabel(oldest.waited)}.`}
+                  onClick={() => (onOpen ?? onSelect)?.(oldest)}>
+                  <b>{over.length}</b> over 1 h<span>longest {waitLabel(oldest.waited)}</span>
+                </button>
+              )}
             </Lane>
           );
         })}
         <div className="axis">
           {ticks.map((m) => <span key={m} style={{ left: `${trackX(m)}%` }}>{m === 0 ? '0 min' : m}</span>)}
-          <span style={{ left: `${trackX(61)}%` }}>60+</span>
+          <span style={{ left: `${trackX(61)}%` }}>over 1 h</span>
         </div>
       </div>
     </section>
   );
 }
 
-function Lane({ label, note, target, children }: { label: string; note: string; target: number; children: React.ReactNode }) {
+function Lane({ label, note, target, channels, children }: {
+  label: string; note: string; target: number;
+  channels: { channel: string; name: string; count: number }[];
+  children: React.ReactNode;
+}) {
   const dueFrom = trackX(Math.max(0, target - 5));
   return (
     <>
-      <div className="lane-label"><b>{label}</b><span>{note}</span></div>
+      <div className="lane-label">
+        <b>{label}</b><span>{note}</span>
+        {channels.length > 0 && (
+          <span className="lane-ch">
+            {channels.map((c) => <span key={c.channel} title={channelTitle(c)}><Icon name={channelIcon(c.channel)} size={11} />{c.count}</span>)}
+          </span>
+        )}
+      </div>
       <div className="lane">
         <div className="zone-due" style={{ left: `${dueFrom}%`, width: `${trackX(target) - dueFrom}%` }} />
         <div className="zone-late" style={{ left: `${trackX(target)}%`, width: `${OVER - trackX(target)}%` }} />

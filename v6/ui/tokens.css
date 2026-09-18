@@ -419,3 +419,25 @@ button:disabled { cursor: default; opacity: .55; }
 /* The hidden window a report is saved from: the page alone, on white, with no shadow or rounded edge. */
 .print-page { background: #fff; width: 820px; }
 .print-page .doc { border: 0; border-radius: 0; box-shadow: none; }
+
+/* The line screen, second pass: the screen itself takes the height it is given (so the list below the chart
+   fills the window instead of leaving a gap), each token carries its channel, and everyone past an hour is
+   one chip per lane rather than a pile whose positions say nothing. */
+.screen > .main { flex: 1 1 auto; }
+.lanes { grid-template-columns: 170px minmax(0, 1fr); }
+.lane, .lane-label { height: 74px; }
+.lane-label { gap: 1px; }
+.lane-ch { display: flex; gap: 9px; align-items: center; font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.lane-ch span, .line-ch span { display: inline-flex; align-items: center; gap: 3px; }
+.line-ch { display: flex; gap: 14px; align-items: center; font-size: 12px; color: var(--ink-2); }
+.tok { width: 30px; height: 30px; margin-left: -15px; }
+.tok-ch { position: absolute; right: -5px; bottom: -4px; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--surface); color: var(--ink-2); border: 1px solid var(--line-2); display: grid; place-items: center; }
+.tok.late .tok-ch { color: var(--m-late); }
+.over-chip { position: absolute; right: 8px; top: 12px; display: grid; gap: 0; justify-items: end; padding: 5px 10px;
+  border-radius: 9px; border: 1px solid var(--m-late); background: var(--surface); color: var(--late);
+  font-size: 11.5px; line-height: 1.25; z-index: 3; text-align: right; }
+.over-chip b { font-size: 15px; font-weight: 700; font-family: var(--display); }
+.over-chip span { color: var(--ink-3); }
+.over-chip:hover { border-color: var(--ink); }
+.main > .facts { flex: none; }

@@ -36,7 +36,8 @@ export const PREVIEW_STATE: UiState = {
   figures: [
     { label: 'Waiting now', value: '19', unit: 'customers', note: '115 more in backlog', tone: 'late' },
     { label: 'Past target', value: '7', unit: 'over 15 min', note: '2 due within 5 min', tone: 'late' },
-    { label: 'Answered on time', value: '82', unit: '%', note: 'Target is 90%', tone: 'due' },
+    { label: 'Caught up', value: '82', unit: '%', note: 'Of the chats active today, those with an answer', tone: 'due' },
+    { label: 'Answered on time', value: '76', unit: '%', note: '453 replies measured, target 90%', tone: 'late' },
     { label: 'First reply', value: '11', unit: 'min median', note: '453 replies measured', tone: 'ok' },
   ],
   split: { needsReply: 19, backlog: 115, closedAutomatically: 270, unreadable: 17 },

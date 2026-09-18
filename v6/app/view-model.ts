@@ -264,7 +264,9 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
 
   const pastTarget = queue.filter((q) => q.tone === 'late').length;
   const dueSoon = queue.filter((q) => q.tone === 'due').length;
-  const onTime = rollup.entities.length
+  // The share of active chats that have an answer. Not the same as answering within the target, and not labelled
+  // as if it were: a business can be caught up by the evening and still have kept everyone waiting an hour.
+  const caughtUp = rollup.entities.length
     ? Math.round(rollup.entities.reduce((n, e) => n + e.onTimePercent, 0) / rollup.entities.length)
     : 100;
   const broken = ctx.modules.filter((m) => m.lastError && m.ok === 0);
@@ -286,7 +288,11 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     figures: [
       { label: 'Waiting now', value: String(split.needsReply), unit: split.needsReply === 1 ? 'customer' : 'customers', note: split.backlog ? `${split.backlog} more in backlog` : 'Nothing older than the backlog line', tone: pastTarget ? 'late' : split.needsReply ? 'due' : 'ok' },
       { label: 'Past target', value: String(pastTarget), unit: `over ${config.settings.slaMinutes} min`, note: dueSoon ? `${dueSoon} due within ${DUE_SOON_MINUTES} min` : 'None due in the next few minutes', tone: pastTarget ? 'late' : 'ok' },
-      { label: 'Answered on time', value: String(onTime), unit: '%', note: 'Target is 90%', tone: onTime >= 90 ? 'ok' : onTime >= 80 ? 'due' : 'late' },
+      { label: 'Caught up', value: String(caughtUp), unit: '%', note: 'Of the chats active today, those with an answer', tone: caughtUp >= 90 ? 'ok' : caughtUp >= 80 ? 'due' : 'late' },
+      // Measured replies against the target — never a zero standing in for "nothing measured yet".
+      { label: 'Answered on time', value: stats.hasData ? String(stats.slaPercent) : '—', unit: '%',
+        note: stats.hasData ? `${stats.sampleCount} replies measured, target 90%` : 'No replies measured yet',
+        tone: !stats.hasData ? 'neutral' : stats.slaPercent >= 90 ? 'ok' : stats.slaPercent >= 80 ? 'due' : 'late' },
       { label: 'First reply', value: stats.hasData ? stats.medianMinutes.toFixed(0) : '—', unit: 'min median', note: stats.hasData ? `${stats.sampleCount} replies measured` : 'No replies measured yet', tone: !stats.hasData ? 'neutral' : stats.medianMinutes <= config.settings.slaMinutes ? 'ok' : 'late' },
     ],
     split,

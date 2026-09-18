@@ -82,6 +82,7 @@ test('handled and snoozed chats leave the line, stay off it after a restart, and
     await win.keyboard.press('Escape');
 
     await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'line-sparse.png') });
     await win.keyboard.press('s');
     await expect(heading(win, 'Nobody is waiting')).toBeVisible();
     await quit(app, win);
@@ -370,7 +371,7 @@ test('opening hours and holidays stop a wait from growing, and are kept', async 
   const d = new Date();
   const todayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const config = () => JSON.parse(readFileSync(join(data, 'config.json'), 'utf8'));
-  const token = (minutes: number) => win.getByRole('button', { name: `Sample Customer H, waiting ${minutes} minutes` });
+  const token = (minutes: number) => win.getByRole('button', { name: `Sample Customer H, waiting ${minutes} min on` });
 
   const { app, win } = await open(data);
   try {
@@ -629,6 +630,64 @@ test('the reading record and the reader timeline show what the reads actually di
     await expect(reader).toContainText('Nothing came back');
     await expect(reader).toContainText('2 accounts stopped reading');
     await expect(reader).not.toContainText('Sample figures');
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('the line shows every channel, sums up the long waits, and a click in it opens that chat', async () => {
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [
+      { id: 'test-wa', name: 'F-11 WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'F-11' },
+      { id: 'test-ig', name: 'DHA-2 Instagram', channel: 'instagram', url: 'about:blank', professional: true, location: 'DHA-2' },
+    ],
+    locations: [{ name: 'F-11' }, { name: 'DHA-2' }],
+  });
+  const chat = (key: string, customer: string, minutesAgo: number, preview = 'Hello') => ({
+    conversationKey: key, customerName: customer, unread: 1, lastActivity: now - minutesAgo * 60_000, preview,
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({
+    'test-wa': { capturedAt: now, chats: [
+      chat('a@c.us', 'Sample Customer A', 4),
+      chat('b@c.us', 'Sample Customer B', 12),
+      chat('c@c.us', 'Sample Customer C', 9 * 60, 'Still waiting for an answer'),
+      chat('d@c.us', '+92 300 0000042', 8 * 60, 'Photo'),
+    ] },
+    'test-ig': { capturedAt: now, chats: [chat('ig-1', 'Sample Customer E', 40)] },
+  }));
+
+  const { app, win } = await open(data);
+  try {
+    await expect(heading(win, '5 customers are waiting')).toBeVisible();
+
+    // The indicators above the line, counted from the rows on screen.
+    const fact = (label: string) => win.locator('.fact').filter({ hasText: label });
+    await expect(fact('Waiting now')).toContainText('5');
+    await expect(fact('Waiting now')).toContainText('4 WhatsApp · 1 Instagram');
+    await expect(fact('Longest wait')).toContainText('Sample Customer C');
+    await expect(fact('Past target')).toContainText('3');
+
+    // The chart names every channel, and each lane counts its own.
+    const line = win.getByRole('region', { name: 'The line' });
+    await expect(line).toContainText('4 WhatsApp');
+    await expect(line).toContainText('1 Instagram');
+    // Two at F-11 have waited over an hour: one chip, not a pile, and it names the longest.
+    const chip = line.getByRole('button', { name: /2 waiting more than an hour at F-11/ });
+    await expect(chip).toContainText('over 1 h');
+    await expect(chip).toContainText('longest 9 h');
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'the-line.png') });
+
+    // A click in the chart opens that conversation: first a token, then the chip.
+    await line.getByRole('button', { name: /^Sample Customer B/ }).click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Customer B');
+    await win.keyboard.press('Escape');
+    await chip.click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Customer C');
+    await win.keyboard.press('Escape');
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});
