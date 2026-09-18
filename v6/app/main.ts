@@ -19,6 +19,7 @@ import { reportCsv, weekEnding, weeklyDue } from '../core/report.ts';
 import { digestDue } from '../core/digest.ts';
 import { pruneCalls, recordCalls, type Calls } from '../core/calls.ts';
 import { recordEvent, type Events, type Outcome } from '../core/events.ts';
+import { forgetAccountCustomers, pruneCustomers, recordCustomers, setNote, toggleTag, type Customers } from '../core/customers.ts';
 import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit, type NewAccount } from '../core/accounts.ts';
 import { awaitingChats, distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
@@ -59,6 +60,7 @@ const FILE = {
   digest: join(DATA, 'digest.json'),
   calls: join(DATA, 'calls.json'),
   events: join(DATA, 'events.json'),
+  customers: join(DATA, 'customers.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -90,7 +92,10 @@ const history = loadJson<History>(FILE.history, {}, note('history'));
 /** Missed calls and whether each was returned. Keys and times only. */
 const calls = loadJson<Calls>(FILE.calls, {}, note('calls'));
 const events = loadJson<Events>(FILE.events, {}, note('events'));
+/** The owner's notes and tags, and what the reads have seen of each customer. Keys and times only. */
+const customers = loadJson<Customers>(FILE.customers, {}, note('customers'));
 pruneCalls(calls, Date.now());
+pruneCustomers(customers, Date.now());
 /** Which week's report was last saved on its own, so Monday's save happens once. */
 const exportsState = loadJson<{ lastWeeklyWeek: string | null }>(FILE.exports, { lastWeeklyWeek: null }, note('exports'));
 /** The local day the morning digest was last shown, so it opens once a day. */
@@ -266,6 +271,11 @@ async function readAccount(a: Account, reason: string) {
       } catch (e) {
         log({ event: 'calls-failed', account: a.id, error: (e as Error).message.slice(0, 120) });
       }
+      try {
+        if (recordCustomers(customers, a.id, prior, snapshots[a.id].chats, now)) saveJson(FILE.customers, customers);
+      } catch (e) {
+        log({ event: 'customers-failed', account: a.id, error: (e as Error).message.slice(0, 120) });
+      }
       signedOut.delete(a.id);
       recordHealth(a.channel, true);
       const waiting = entries.filter((c) => c.awaiting).length;
@@ -333,7 +343,7 @@ async function readPass(reason: string) {
 function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
-    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events,
+    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers,
   });
 }
 
@@ -716,6 +726,18 @@ app.whenReady().then(async () => {
     layout();
     push();
   });
+  // The note and the tags are the owner's own words about a customer. They stay on this PC, are never logged,
+  // and are deleted with the account.
+  ipcMain.on('set-note', (_e, accountId: string, key: string, text: string) => {
+    setNote(customers, accountId, key, String(text ?? ''), Date.now());
+    saveJson(FILE.customers, customers);
+    push();
+  });
+  ipcMain.on('toggle-tag', (_e, accountId: string, key: string, tag: string) => {
+    toggleTag(customers, accountId, key, String(tag ?? ''), Date.now());
+    saveJson(FILE.customers, customers);
+    push();
+  });
   ipcMain.on('set-scope', (_e, next: string | null) => {
     scope = typeof next === 'string' && next ? next : null;
     push();
@@ -814,6 +836,7 @@ app.whenReady().then(async () => {
     if (visible === id) { route = 'accounts'; visible = null; }
     await wipe(id);
     forgetAccount(id, { snapshots, overrides, history, times, calls, notified, events });
+    forgetAccountCustomers(customers, id);
     for (const o of [lastReadAt, lastUsedAt, lastRead, focusRequest]) delete o[id];
     signedOut.delete(id);
     applyConfig(result.config);
@@ -824,6 +847,7 @@ app.whenReady().then(async () => {
     saveJson(FILE.calls, calls);
     saveJson(FILE.alerts, notified);
     saveJson(FILE.events, events);
+    saveJson(FILE.customers, customers);
     layout();
     log({ event: 'account-removed', account: id, channel });
     push();

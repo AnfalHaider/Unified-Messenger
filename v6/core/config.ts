@@ -69,9 +69,14 @@ export interface Settings {
   weeklyReport: { autoSave: boolean; include: WeeklyInclude };
   /** The morning digest opens on the first opening of each day. */
   morningDigest: boolean;
+  /** Sentences the owner keeps to hand, to copy into a chat themselves. The app never sends one. */
+  savedReplies: SavedReply[];
 }
 
 export interface WeeklyInclude { figures: boolean; locations: boolean; accounts: boolean; calls: boolean; names: boolean }
+
+export interface SavedReply { title: string; body: string }
+export const SAVED_REPLY_MAX = 40, SAVED_REPLY_TITLE_MAX = 40, SAVED_REPLY_BODY_MAX = 1200;
 
 export interface Config { version: number; accounts: Account[]; locations: Location[]; holidays: Holiday[]; settings: Settings }
 
@@ -91,6 +96,7 @@ export const defaultSettings = (): Settings => ({
   alerts: { nearTarget: true, waitedHour: true, signedOut: true, callNotReturned: true },
   weeklyReport: { autoSave: false, include: { figures: true, locations: true, accounts: true, calls: true, names: false } },
   morningDigest: true,
+  savedReplies: [],
 });
 
 export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [], locations: [], holidays: [], settings: defaultSettings() });
@@ -219,6 +225,20 @@ export function hoursFor(config: Config, locationName: string): BusinessHours | 
   return { ...location.hours, closedDates: [...new Set(closedDates)].sort() };
 }
 
+/** A bad row costs only itself, like everywhere else: a saved reply with no words is dropped, not fatal. */
+function parseSavedReplies(raw: unknown): SavedReply[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SavedReply[] = [];
+  for (const row of raw) {
+    if (!isObject(row)) continue;
+    const title = String(row.title ?? '').trim().slice(0, SAVED_REPLY_TITLE_MAX);
+    const body = String(row.body ?? '').trim().slice(0, SAVED_REPLY_BODY_MAX);
+    if (body) out.push({ title: title || body.slice(0, 24), body });
+    if (out.length === SAVED_REPLY_MAX) break;
+  }
+  return out;
+}
+
 function parseSettings(raw: unknown): Settings {
   const d = defaultSettings();
   if (!isObject(raw)) return d;
@@ -255,6 +275,7 @@ function parseSettings(raw: unknown): Settings {
       callNotReturned: bool(alerts.callNotReturned, d.alerts.callNotReturned),
     },
     morningDigest: bool(raw.morningDigest, d.morningDigest),
+    savedReplies: parseSavedReplies(raw.savedReplies),
     weeklyReport: {
       autoSave: bool(weekly.autoSave, d.weeklyReport.autoSave),
       include: {

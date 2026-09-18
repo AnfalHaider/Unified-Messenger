@@ -112,6 +112,10 @@ export const PREVIEW_STATE: UiState = {
     { id: 'whatsapp', name: 'WhatsApp', tone: 'ok', status: 'Healthy', detail: '48 good reads since the app started' },
     { id: 'instagram', name: 'Instagram', tone: 'due', status: 'Intermittent', detail: '12 good reads, 3 failed. Last problem: scan returned nothing' },
   ],
+  customer: { accountId: 'a1', suggestions: ['Regular', 'Evenings'], byKey: { 'Sara M.': {
+    seen: [{ label: 'Now', value: 'Waiting since 4:12 pm' }, { label: '2 Sept', value: 'Answered in 6 min' }, { label: 'Since', value: '19 Aug, 7 times on the line' }],
+    note: 'Prefers evening appointments. Asked for a callback last time rather than a message.', tags: ['Regular', 'Evenings'],
+  } } },
   lostLogin: { since: Date.now() - 9.6 * 3_600_000, items: [...LOST_LOGIN] },
   readerStory: { instagram: [...READER_TIMELINE], whatsapp: [...READER_TIMELINE].slice(-2) },
   settings: defaultSettings(),

@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('um', {
   openChat: (accountId, key) => ipcRenderer.send('open-chat', accountId, key),
   /** The location chosen in the title bar; null for all. Reports follow it. */
   setScope: (location) => ipcRenderer.send('set-scope', location ?? null),
+  /** The owner's own note and tags about one customer. Kept on this PC; never sent anywhere. */
+  setNote: (accountId, key, text) => ipcRenderer.send('set-note', accountId, key, text),
+  toggleTag: (accountId, key, tag) => ipcRenderer.send('toggle-tag', accountId, key, tag),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),
   editAccount: (accountId, change) => ipcRenderer.invoke('edit-account', accountId, change),

@@ -7,7 +7,7 @@ import { bridge, Btn, Chip, Headline, Panel, Sample, Seg, SettingRow, Stepper, T
 import { ALERTS, KEPT, MEMBERS } from '../sample.ts';
 import type { UiState } from '../../app/view-model.ts';
 
-export const SETTINGS_SECTIONS = ['Look and reading', 'Opening hours', 'Notifications', 'Assistant', 'Workspace', 'Privacy', 'About'] as const;
+export const SETTINGS_SECTIONS = ['Look and reading', 'Opening hours', 'Notifications', 'Saved replies', 'Assistant', 'Workspace', 'Privacy', 'About'] as const;
 type Section = typeof SETTINGS_SECTIONS[number];
 
 export function SettingsScreen(props: ScreenProps) {
@@ -24,6 +24,7 @@ export function SettingsScreen(props: ScreenProps) {
           {section === 'Look and reading' && <Look {...props} />}
           {section === 'Opening hours' && <Hours {...props} />}
           {section === 'Notifications' && <Notifications {...props} />}
+          {section === 'Saved replies' && <SavedReplies {...props} />}
           {section === 'Assistant' && <AssistantSettings />}
           {section === 'Workspace' && <Workspace {...props} />}
           {section === 'Privacy' && <Privacy />}
@@ -313,6 +314,49 @@ function Workspace({ nav }: ScreenProps) {
         <Panel title="If a PC goes offline for a week"><p className="sub" style={{ margin: 0 }}>After 7 days without checking in, the app asks that PC to reconnect before it shows anything. A removed member cannot keep reading by staying offline.</p></Panel>
         <Panel title="What syncs"><p className="sub" style={{ margin: 0 }}>Accounts, locations, opening hours, holidays, targets and saved replies. Customer data never syncs.</p></Panel>
       </div>
+    </>
+  );
+}
+
+/** Sentences the owner keeps to hand. They are copied into a chat by the owner: the app never sends one. */
+function SavedReplies({ state }: ScreenProps) {
+  const replies = state.settings.savedReplies;
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const save = (next: { title: string; body: string }[]) => bridge.setSettings({ savedReplies: next });
+  const add = () => {
+    if (!body.trim()) return;
+    save([...replies, { title: title.trim() || body.trim().slice(0, 24), body: body.trim() }]);
+    setTitle('');
+    setBody('');
+  };
+  return (
+    <>
+      <Panel title="Saved replies" note="Kept on this PC and shown beside every chat, where you copy one and send it yourself. The app cannot send messages.">
+        <div className="saved" style={{ marginBottom: 12 }}>
+          {replies.map((r, i) => (
+            <div key={`${r.title}:${i}`}>
+              <span><b>{r.title}</b>{r.body}</span>
+              <Btn icon="x" title={`Remove ${r.title}`} onClick={() => save(replies.filter((_, at) => at !== i))}>Remove</Btn>
+            </div>
+          ))}
+          {replies.length === 0 && <p className="sub" style={{ margin: 0 }}>None yet. The first one could be the sentence you type most often.</p>}
+        </div>
+        <div className="grid2" style={{ gap: 12, alignItems: 'start' }}>
+          <label className="field"><span>Name</span>
+            <input value={title} maxLength={40} placeholder="For example, Prices" onChange={(e) => setTitle(e.target.value)} />
+          </label>
+          <label className="field"><span>Reply</span>
+            <textarea value={body} rows={3} maxLength={1200} placeholder="Our current price list is…"
+              onChange={(e) => setBody(e.target.value)}
+              style={{ resize: 'vertical', border: '1px solid var(--line-2)', borderRadius: 8, background: 'var(--raised)', padding: '8px 11px', font: 'inherit', fontSize: 13.5, color: 'var(--ink)' }} />
+          </label>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <Btn icon="check" kind="primary" disabled={!body.trim()} onClick={add}>Add reply</Btn>
+          <span className="sub" style={{ alignSelf: 'center' }}>{replies.length} saved</span>
+        </div>
+      </Panel>
     </>
   );
 }

@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
-Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.10, 4.13 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 4.11** (the customer panel), unless an owner decision
+Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.11, 4.13 and Reports following the title bar's
+location filter, each installed on the owner's PC. **Next step: 4.12** (accessibility), unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass. Open: 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass, 4.11 the customer panel. Open: 4.12 accessibility. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -27,7 +27,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 ### What works on the owner's PC today
 
 - **Installed** per-user at `%LOCALAPPDATA%\Programs\UnifiedMessenger6`, Start Menu and desktop shortcut "Unified Messenger". v5 is uninstalled; its data folder `%LOCALAPPDATA%\UnifiedMessenger` was kept.
-- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `exports.json`, `digest.json`, `calls.json`, `events.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
+- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `exports.json`, `digest.json`, `calls.json`, `events.json`, `customers.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
 - **Working day:** the morning digest on the first opening of each day; Handled and Snooze on the line and the dock; Set aside with Put back; Open chat goes to the conversation (WhatsApp opens it, Instagram filters Direct and stops).
 - **Reports** on recorded days, following the title bar's location filter: day records began 2026-09-13, reply times imported from v5 reach further back, and the coverage sentence says both. The weekly report saves as PDF, CSV or image; the Monday auto-save is off.
 - **Opening hours** can be edited per location and day, with holidays. All three locations carry v5's 11 am to 9 pm, Monday to Saturday, switched off, so waits still count around the clock (§5.3).
@@ -41,7 +41,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Real data | Sample figures (marked "Sample figures, not connected yet") |
 |---|---|
 | The line, lanes, queue, J/K/Enter | |
-| Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
+| Handled and Snooze (buttons, H / S) on the line and the dock | Suggested replies (they arrive with the assistant, Phase 5) |
 | Set aside, with Put back | Privacy sizes |
 | Needs you | |
 | Accounts grid, account figures | Reviews |
@@ -58,6 +58,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Add, edit (name, location, counted) and remove accounts | |
 | The reading record: the lost-login timeline and the reader timeline | |
 | The line's indicators, per-channel counts and click-to-open chart | |
+| Customer panel: note, tags, what the reads have seen, saved replies | |
 
 ---
 
@@ -81,10 +82,10 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 269 tests
-npm run smoke       # 12 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
+npm test            # 277 tests
+npm run smoke       # 13 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter, accounts,
-                    # the reading record, the line
+                    # the reading record, the line, the customer panel
 ```
 
 Read every Playwright summary line: it prints `N failed` above `N passed`, so `tail -1` shows a red run as green
@@ -225,6 +226,8 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.11 Customer panel.** Notes and tags in a local store keyed by account + conversation key; saved replies in config (they sync in Phase 6). History comes from the history store. Done when a note survives a restart and a saved reply copies.
 
+**4.11 Customer panel.** Done 2026-09-18. `core/customers.ts` keeps one record per account and conversation (`customers.json`): the owner's note and tags, and what the reads saw — when the conversation was first read, how many times it has come back to the line, and the last five answers with how long each took. Keys and times only; the name beside them comes from the snapshot. The reply-time store could not answer "how fast was this customer answered", because its samples carry no conversation key, which is why this keeps its own; the rule for what counts is the same (a gap over seven days was answered somewhere else). Records are written on the read that sees a change, only for chats that are waiting or that the owner has written about, pruned after 120 quiet days unless the owner wrote on them, and deleted with the account. IPC `set-note` and `toggle-tag`; tags match without case, so "Regular" typed twice toggles rather than duplicates, and tags already used are offered. Saved replies live in the config (`settings.savedReplies`, new Settings › Saved replies) and are copied by hand — the app still never sends. The panel lost its "Sample figures" marker; only Suggest a reply is still sample, until Phase 5. Tests: 8 core, and a Playwright test that writes a note and a tag, restarts, and copies a saved reply to the clipboard.
+
 **4.12 Accessibility.** Add `@axe-core/playwright` checks to the Playwright job for the line, accounts, settings and a dialog; then a Narrator pass by the owner. Known gaps: rail buttons now have labels; the dock's page slot and toggles need checking.
 
 ### Phase 5 · Assistant
@@ -274,7 +277,7 @@ Google Business Profile API for complete review history (needs Google approval);
 3. **Opening hours:** the editor exists (Settings › Opening hours). On the owner's PC (checked 2026-09-14) all three locations carry v5's hours, 11 am to 9 pm Monday to Saturday, with the switch off, so waits count around the clock; there are no holidays. Switching a location on uses those hours until edited. Only the owner knows whether they are right.
 4. **Imported assistant settings:** v5's config came across with the assistant marked enabled (`llama3.2:3b`); v6 ignores it until Phase 5. Decide the default then.
 5. **Code signing** (7.4). Smart App Control blocked an unsigned build for two hours on 2026-09-13; until this is decided, an install can be held up with nothing to do but wait.
-6. **Alert volume.** A busy Instagram account can raise a notification every minute or so. Keep one per customer, or cap per account (for example one summary every 10 minutes)?
+6. ~~**Alert volume.**~~ Decided 2026-09-18: keep **one notification per customer**, as it is. A busy Instagram hour can fill the notification centre; the owner would rather see each real customer than a summary. Revisit only if it becomes a nuisance in practice.
 7. **v5's daily history** (4.6): import `analytics.json` and `kpi-trend.json` as a clearly labelled "before v6" series in Reports, or leave Reports starting from 13 September 2026.
 
 ## 6. Known limits today

@@ -694,3 +694,63 @@ test('the line shows every channel, sums up the long waits, and a click in it op
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('the customer panel keeps a note and tags across a restart, and a saved reply copies', async () => {
+  const now = Date.now();
+  const data = dataFolder({ accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true }] });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({
+    'test-wa': { capturedAt: now, chats: [{
+      conversationKey: 'a@c.us', customerName: 'Sample Customer A', unread: 1, lastActivity: now - 20 * 60_000,
+      preview: 'Do you have space on Friday?', awaiting: true, lastMessageFromMe: false, contactPhone: '',
+      hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+    }] },
+  }));
+
+  let { app, win } = await open(data);
+  try {
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    await win.getByRole('button', { name: 'Open chat' }).first().click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Customer A');
+    const panel = win.getByRole('complementary', { name: 'About this customer' });
+    await expect(panel).not.toContainText('Sample figures');
+    await expect(panel).toContainText('Waiting since');
+    await expect(panel).toContainText('None measured yet on this chat');
+
+    await panel.getByRole('textbox', { name: 'Note about Sample Customer A' }).fill('Prefers a call back in the evening.');
+    await panel.getByRole('button', { name: '+ Add' }).click();
+    await panel.getByRole('textbox', { name: 'New tag' }).fill('Regular');
+    await win.keyboard.press('Enter');
+    await expect(panel.getByRole('button', { name: /Remove the tag Regular/ })).toBeVisible();
+    await expect.poll(() => {
+      const saved = JSON.parse(readFileSync(join(data, 'customers.json'), 'utf8'))['test-wa|a@c.us'];
+      return [saved?.note, saved?.tags];
+    }).toEqual(['Prefers a call back in the evening.', ['Regular']]);
+
+    // A saved reply is written in Settings and copied from the panel; the app never sends one.
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Saved replies' }).click();
+    await win.getByRole('textbox', { name: 'Name' }).fill('Prices');
+    await win.getByRole('textbox', { name: 'Reply' }).fill('Our current price list is on the way.');
+    await win.getByRole('button', { name: 'Add reply' }).click();
+    await expect.poll(() => JSON.parse(readFileSync(join(data, 'config.json'), 'utf8')).settings.savedReplies)
+      .toEqual([{ title: 'Prices', body: 'Our current price list is on the way.' }]);
+    await quit(app, win);
+
+    // After a restart the note, the tag and the reply are all still there.
+    ({ app, win } = await open(data));
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    await win.getByRole('button', { name: 'Open chat' }).first().click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Customer A');
+    const panel2 = win.getByRole('complementary', { name: 'About this customer' });
+    await expect(panel2.getByRole('textbox', { name: 'Note about Sample Customer A' })).toHaveValue('Prefers a call back in the evening.');
+    await expect(panel2.getByRole('button', { name: /Remove the tag Regular/ })).toBeVisible();
+    await expect(panel2).toContainText('Prices');
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'customer-panel.png') });
+    await panel2.getByRole('button', { name: 'Copy' }).click();
+    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Our current price list is on the way.');
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});

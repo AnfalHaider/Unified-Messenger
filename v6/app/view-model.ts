@@ -13,6 +13,7 @@ import { readableAccounts } from '../core/schedule.ts';
 import { DAY_MS, dayKey, startOfDay } from '../core/days.ts';
 import { callsIn, type Calls } from '../core/calls.ts';
 import { lostLoginTimeline, readerTimeline, signedOutSince, type Events, type TimelineItem } from '../core/events.ts';
+import { customerFor, tagsInUse, type Customers } from '../core/customers.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
@@ -152,6 +153,22 @@ export interface ReaderHealth { id: string; name: string; tone: Tone; status: st
 /** One line of what the reads did, said the way a person would. Drawn by the lost-login and reader screens. */
 export interface TimelineRow { at: string; tone: Tone | 'neutral'; title: string; detail: string }
 
+/** One customer's panel: what the app has seen of them, and what the owner wrote about them. */
+export interface CustomerCard {
+  /** "Seen by the app": only things the reads actually saw, newest first. */
+  seen: { label: string; value: string }[];
+  note: string;
+  tags: string[];
+}
+
+/** The docked account's customers, by conversation key: main does not know which chat the screen has open. */
+export interface CustomerView {
+  accountId: string;
+  byKey: Record<string, CustomerCard>;
+  /** Tags already used anywhere, offered so the same word is not typed two ways. */
+  suggestions: string[];
+}
+
 export interface AccountDetail {
   id: string;
   name: string;
@@ -198,6 +215,8 @@ export interface UiState {
   detail: AccountDetail | null;
   /** One line per channel reader, so a channel that stopped working is named instead of averaged away. */
   modules: ReaderHealth[];
+  /** The docked customer's panel. Built only while a chat is docked. */
+  customer: CustomerView | null;
   /** What led up to this account losing its login, and since when. Built only while that screen is open. */
   lostLogin: { since: number | null; items: TimelineRow[] } | null;
   /** What each channel's reader has been doing, across every account on it. Built only while Readers is open. */
@@ -215,6 +234,8 @@ export interface Context {
   calls?: Calls;
   /** What each account's reads did. Only read while the lost-login or reader screen is open. */
   events?: Events;
+  /** Notes, tags and what the reads have seen of each customer. Only read while a chat is docked. */
+  customers?: Customers;
   /** The location chosen in the title bar, or null for all. Reports and their exports cover only that location. */
   scope?: string | null;
   route: Route;
@@ -327,6 +348,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     reports: ctx.route === 'reports' ? reportsFor(config, snapshots, times, judge, ctx, live) : null,
     digest: ctx.route === 'digest' ? digestFor(config, snapshots, times, judge, ctx, live) : null,
     modules: ctx.modules.map(readerHealth),
+    customer: ctx.route === 'dock' && ctx.visible ? customerView(config, snapshots, ctx) : null,
     lostLogin: ctx.route === 'lost-login' && ctx.visible
       ? { since: signedOutSince(ctx.events ?? {}, ctx.visible), items: timelineRows(lostLoginTimeline(ctx.events ?? {}, ctx.visible, ctx.now), ctx.now) }
       : null,
@@ -339,6 +361,40 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
       holidays: config.holidays,
     },
   };
+}
+
+/** The docked account's customers. Every line under "Seen by the app" is something a read saw: nothing is
+ *  inferred, and a chat the app has only just met says so rather than showing an empty list. Only chats that are
+ *  waiting or that the owner has written about are included: an account has hundreds of quiet ones.
+ */
+function customerView(config: Config, snapshots: Snapshots, ctx: Context): CustomerView | null {
+  const account = config.accounts.find((a) => a.id === ctx.visible);
+  if (!account) return null;
+  const customers = ctx.customers ?? {};
+  const day = (at: number) => new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  const time = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const spell = (n: number) => (n < 60 ? `${Math.round(n)} min` : `${Math.round(n / 60)} h`);
+  const byKey: Record<string, CustomerCard> = {};
+  for (const chat of snapshots[account.id]?.chats ?? []) {
+    const record = customerFor(customers, account.id, chat.conversationKey);
+    if (!record && !chat.awaiting) continue;
+    const seen: { label: string; value: string }[] = [
+      { label: 'Now', value: chat.awaiting ? `Waiting since ${time(chat.lastActivity)}` : 'Answered' },
+    ];
+    for (const a of [...(record?.answers ?? [])].reverse()) seen.push({ label: day(a.at), value: `Answered in ${spell(a.minutes)}` });
+    if (!record?.answers.length) seen.push({ label: 'Replies', value: 'None measured yet on this chat' });
+    if (record) {
+      // The count only exists from the read that first saw them waiting; before that, say when we met them.
+      seen.push({
+        label: 'First seen',
+        value: record.conversations
+          ? `${day(record.firstSeen)}, ${record.conversations} time${record.conversations === 1 ? '' : 's'} on the line since`
+          : day(record.firstSeen),
+      });
+    }
+    byKey[chat.conversationKey] = { seen, note: record?.note ?? '', tags: record?.tags ?? [] };
+  }
+  return { accountId: account.id, byKey, suggestions: tagsInUse(customers) };
 }
 
 /** The time a line happened, said as a person would: "4:12 pm" today, "Tue, 4:12 pm" before that, "Now" for a line

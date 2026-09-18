@@ -1,12 +1,11 @@
 // The day's work: the line, a chat docked beside it, what was set aside, and the morning digest.
-// The line, the dock, Set aside and the morning digest read the real view model. The customer panel's notes and
-// saved replies are sample figures until those features are wired.
-import { useEffect, useMemo, useState } from 'react';
+// All of it reads the real view model, the customer panel included; only the suggested reply is still sample,
+// until the assistant is wired in Phase 5.
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { QueueRow, UiState } from '../../app/view-model.ts';
 import { byChannel, Spark, TheLine, toneInk, waitLabel } from '../charts.tsx';
 import { channelIcon, Icon } from '../icons.tsx';
 import { bridge, Btn, Chip, Facts, Headline, isPreview, Panel, plural, Sample, type ScreenProps, Wait, waitText, type Fact } from '../parts.tsx';
-import { CUSTOMER } from '../sample.ts';
 
 const rowKey = (r: QueueRow) => `${r.accountId}:${r.key}`;
 /** Snoozing from the line or the dock is always an hour; the keys hint says so. */
@@ -230,8 +229,12 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
               <button aria-pressed={panel === 'customer'} onClick={() => setPanel('customer')}>Customer</button>
               <button aria-pressed={panel === 'reply'} onClick={() => setPanel('reply')}><Icon name="spark" size={12} /> Suggest a reply</button>
             </div>
-            <Sample />
-            {panel === 'customer' ? <CustomerPanel /> : <ReplyPanel name={customer?.customer ?? 'this customer'} />}
+            {panel === 'reply' && <Sample />}
+            {panel === 'customer' && customer
+              ? <CustomerPanel state={state} accountId={customer.accountId} chatKey={customer.key} name={customer.customer} />
+              : panel === 'customer'
+                ? <p className="sub">Choose a customer from the list to see what the app has seen of them.</p>
+                : <ReplyPanel name={customer?.customer ?? 'this customer'} />}
           </aside>
         </div>
       </section>
@@ -239,13 +242,69 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
   );
 }
 
-function CustomerPanel() {
+/** The panel beside the docked chat. The note and the tags are the owner's, kept on this PC; the lines under
+ *  "Seen by the app" are only what the reads saw. Saved replies are copied by hand: the app never sends. */
+function CustomerPanel({ state, accountId, chatKey, name }: { state: UiState; accountId: string; chatKey: string; name: string }) {
+  const card = state.customer?.byKey[chatKey];
+  const saved = state.settings.savedReplies;
+  const stored = card?.note ?? '';
+  const [note, setNote] = useState(stored);
+  const [adding, setAdding] = useState(false);
+  const [tag, setTag] = useState('');
+  // What the owner is typing is theirs until they leave the field, but the stored note has to be adopted when
+  // it arrives or changes — the first state push can land after this panel is already on screen.
+  const lastStored = useRef(stored);
+  useEffect(() => {
+    if (stored !== lastStored.current) { lastStored.current = stored; setNote(stored); }
+  }, [stored]);
+  // A different chat is a different note.
+  useEffect(() => { lastStored.current = stored; setNote(stored); setAdding(false); setTag(''); }, [accountId, chatKey]);
+  const save = (text: string) => { if (text !== (card?.note ?? '')) bridge.setNote(accountId, chatKey, text); };
+  const toggle = (t: string) => { bridge.toggleTag(accountId, chatKey, t); setTag(''); setAdding(false); };
+  const suggestions = (state.customer?.suggestions ?? []).filter((t) => !(card?.tags ?? []).some((have) => have.toLowerCase() === t.toLowerCase()));
+
   return (
     <>
-      <div><h4>Seen by the app</h4><div className="history">{CUSTOMER.history.map(([a, b]) => <div key={a}><span>{a}</span><span>{b}</span></div>)}</div></div>
-      <div><h4>Tags</h4><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{CUSTOMER.tags.map((t) => <span key={t} className="pill-tag"><Icon name="tag" size={11} />{t}</span>)}<span className="pill-tag" style={{ color: 'var(--ink-3)' }}>+ Add</span></div></div>
-      <div><h4>Note, kept on this PC</h4><p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, padding: '9px 10px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--raised)' }}>{CUSTOMER.note}</p></div>
-      <div><h4>Saved replies</h4><div className="saved">{CUSTOMER.saved.map((s) => <div key={s.title}><span><b>{s.title}</b>{s.body}</span><Btn icon="copy" onClick={() => void navigator.clipboard?.writeText(s.body)}>Copy</Btn></div>)}</div></div>
+      <div><h4>Seen by the app</h4>
+        {card
+          ? <div className="history">{card.seen.map((row) => <div key={`${row.label}:${row.value}`}><span>{row.label}</span><span>{row.value}</span></div>)}</div>
+          : <p className="sub" style={{ margin: 0 }}>Nothing has been recorded for {name} yet. Reads from now on are.</p>}
+      </div>
+      <div><h4>Tags</h4>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          {(card?.tags ?? []).map((t) => (
+            <button key={t} className="pill-tag" aria-label={`Remove the tag ${t}`} title={`Remove the tag ${t}`} onClick={() => toggle(t)}>
+              <Icon name="tag" size={11} />{t}<Icon name="x" size={10} />
+            </button>
+          ))}
+          {adding ? (
+            <input autoFocus value={tag} placeholder="Tag, then Enter" aria-label="New tag" maxLength={24}
+              onChange={(e) => setTag(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && tag.trim()) toggle(tag); if (e.key === 'Escape') { setAdding(false); setTag(''); } }}
+              onBlur={() => { if (!tag.trim()) setAdding(false); }}
+              style={{ height: 26, width: 130, border: '1px solid var(--line-2)', borderRadius: 999, background: 'var(--raised)', padding: '0 10px', font: 'inherit', fontSize: 12, color: 'var(--ink)' }} />
+          ) : <button className="pill-tag" style={{ color: 'var(--ink-3)' }} onClick={() => setAdding(true)}>+ Add</button>}
+        </div>
+        {adding && suggestions.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+            {suggestions.slice(0, 6).map((t) => <button key={t} className="pill-tag" style={{ color: 'var(--ink-2)' }} onClick={() => toggle(t)}>{t}</button>)}
+          </div>
+        )}
+      </div>
+      <div><h4>Note, kept on this PC</h4>
+        <textarea value={note} aria-label={`Note about ${name}`} rows={4} maxLength={2000}
+          placeholder="Anything worth remembering next time they write."
+          onChange={(e) => setNote(e.target.value)} onBlur={() => save(note)}
+          style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', fontSize: 13, lineHeight: 1.5, padding: '9px 10px', border: '1px solid var(--line)', borderRadius: 8, background: 'var(--raised)', color: 'var(--ink)', font: 'inherit' }} />
+        <span className="sub" style={{ fontSize: 11.5 }}>Saved when you click away. Never sent anywhere, and deleted with the account.</span>
+      </div>
+      <div><h4>Saved replies</h4>
+        {saved.length > 0
+          ? <div className="saved">{saved.map((s) => (
+            <div key={s.title}><span><b>{s.title}</b>{s.body}</span><Btn icon="copy" onClick={() => void navigator.clipboard?.writeText(s.body)}>Copy</Btn></div>
+          ))}</div>
+          : <p className="sub" style={{ margin: 0 }}>None yet. Keep the sentences you type often in Settings › Saved replies, and copy them from here.</p>}
+      </div>
     </>
   );
 }
