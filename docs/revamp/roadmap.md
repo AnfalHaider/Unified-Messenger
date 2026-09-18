@@ -32,8 +32,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 - **Reports** on recorded days, following the title bar's location filter: day records began 2026-09-13, reply times imported from v5 reach further back, and the coverage sentence says both. The weekly report saves as PDF, CSV or image; the Monday auto-save is off.
 - **Opening hours** can be edited per location and day, with holidays. All three locations carry v5's 11 am to 9 pm, Monday to Saturday, switched off, so waits still count around the clock (§5.3).
 - **Notifications** appear (Windows lists the app as `UnifiedMessenger.v6`) outside the quiet hours imported from v5, 9 pm to 11 am.
-- **Reading:** WhatsApp F-11 and Men DHA-2 (500 chats each), Instagram DHA-2 and F-11 (15 threads each), every minute. Google profiles are signed in but have no reader.
-- **Needs signing in by hand:** DHA-2 WhatsApp (QR code) and Men DHA-2 Instagram (password). Neither had a valid session in v5.
+- **Reading (2026-09-18):** WhatsApp F-11 (500 chats), Instagram DHA-2 and F-11 (15 threads each), every minute. Men DHA-2 WhatsApp stopped when its login went; Google profiles are signed in but have no reader. - **Needs signing in by hand (2026-09-18):** DHA-2 WhatsApp (QR code), Men DHA-2 Instagram (password) — neither had a valid session in v5 — and **Men DHA-2 WhatsApp**, which was reading 500 chats on 2026-09-15 and has shown a QR code on every read since the app was next opened. Nobody signed it out from the app; it needs a scan from the phone.
 - **Closing** hides the window to the tray and keeps reading (Settings › Look and reading › Closing the window). Tray menu: Open, Read every account now, Quit.
 - **Theme:** Match Windows, Light, Dark, applied to the whole window and the account pages.
 
