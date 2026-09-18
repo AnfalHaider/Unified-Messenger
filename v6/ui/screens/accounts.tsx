@@ -1,11 +1,10 @@
 // Accounts and readers: the grid of every location against every channel, one account in figures, a reader
-// that stopped working, and the record of a lost login. The grid and the figures read the real view model;
-// the two timelines are sample figures until the shell keeps those records on screen.
+// that stopped working, and the record of a lost login. All of it reads the real view model; the two timelines
+// are built from what each account's reads actually did (`core/events.ts`), outcomes and counts only.
 import type { UiState } from '../../app/view-model.ts';
 import { DayBars, toneInk } from '../charts.tsx';
 import { channelIcon, Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Check, Chip, Facts, Headline, Panel, plural, type ScreenProps, Timeline, Wait } from '../parts.tsx';
-import { LOST_LOGIN, READER_TIMELINE } from '../sample.ts';
 
 type Column = { key: string; name: string; icon: IconName; channels: string[] };
 const COLUMNS: Column[] = [
@@ -97,6 +96,7 @@ export function AccountDetailScreen({ state, nav }: ScreenProps) {
         <Btn icon="open" onClick={() => nav.go('dock', d.id)}>Open page</Btn>
         <Btn icon="refresh" onClick={() => bridge.readNow()}>Read now</Btn>
         <Btn icon="sleep" kind="quiet" onClick={() => bridge.sleepAccount(d.id)}>Sleep</Btn>
+        <Btn kind="quiet" onClick={() => nav.go('lost-login', d.id)}>Reading record</Btn>
         <Btn kind="quiet" onClick={() => nav.open('edit-account')}>Edit</Btn>
       </>}>
         {d.location || 'No location'} · {d.signedOut ? 'signed out' : 'signed in on this PC'} · {d.freshness.text.toLowerCase()}
@@ -132,15 +132,18 @@ export function AccountDetailScreen({ state, nav }: ScreenProps) {
 export function ReaderScreen({ state, nav }: ScreenProps) {
   const m = state.modules.find((x) => x.id === nav.view.sub) ?? state.modules.find((x) => x.tone === 'late') ?? state.modules[0];
   const others = state.modules.filter((x) => x !== m);
+  const story = (m && state.readerStory[m.id]) ?? [];
   const broken = m?.tone === 'late';
   return (
     <main className="main">
-      <Headline sample={!broken} title={m ? (broken ? `The ${m.name} reader stopped working` : `The ${m.name} reader`) : 'Channel readers'}
+      <Headline title={m ? (broken ? `The ${m.name} reader stopped working` : `The ${m.name} reader`) : 'Channel readers'}
         actions={<><Btn icon="refresh" onClick={() => bridge.readNow()}>Try again now</Btn><Btn icon="export" kind="primary" disabled title="Support reports are not connected yet">Save a report for support</Btn></>}>
         {m ? <>{m.detail}. {others.length > 0 && <>{others.map((o) => o.name).join(' and ')} {others.length === 1 ? 'is' : 'are'} checked separately.</>}</> : 'No account is on a channel with a reader yet.'}
       </Headline>
       <div className="grid2" style={{ gridTemplateColumns: 'minmax(0,1.25fr) minmax(0,1fr)' }}>
-        <Panel title="What happened" note="When a page changes shape, every account on that channel fails at once, so it is reported once, as the reader."><Timeline items={READER_TIMELINE} /></Panel>
+        <Panel title="What happened" note="When a page changes shape, every account on that channel fails at once, so it is reported once, as the reader.">
+          {story.length > 0 ? <Timeline items={story} /> : <p className="sub" style={{ margin: 0 }}>Nothing has been recorded for this reader yet. Its reads are written down from now on.</p>}
+        </Panel>
         <Panel title="Every reader">
           <div className="checks">
             {state.modules.map((x) => <Check key={x.id} tone={x.tone} icon={x.tone === 'ok' ? 'check' : x.tone === 'late' ? 'alert' : 'clock'} title={`${x.name}: ${x.status}`}>{x.detail}</Check>)}
@@ -153,20 +156,33 @@ export function ReaderScreen({ state, nav }: ScreenProps) {
 
 export function LostLoginScreen({ state, nav }: ScreenProps) {
   const a = state.accounts.find((x) => x.id === nav.view.accountId);
+  const record = state.lostLogin;
+  // The record decides, not this minute's reads: just after a restart nothing has been read yet, and the last
+  // thing that did happen is what the screen is here to explain.
+  const out = !!a?.signedOut || record?.since != null;
   return (
     <main className="main">
-      <Headline sample title={`${a?.name ?? 'This account'} ${a?.signedOut ? 'is signed out' : 'lost its login'}`}
-        actions={<Btn icon="qr" kind="primary" onClick={() => a && nav.go('dock', a.id)}>Sign in again</Btn>}>
-        Nobody signed it out from this app. The usual cause is the phone removing this PC under <b>Linked devices</b>, or WhatsApp ending a link that had not been used from the phone for 14 days.
+      <Headline title={`${a?.name ?? 'This account'} ${out ? 'is signed out' : 'is signed in'}`}
+        actions={<Btn icon={out ? 'qr' : 'open'} kind="primary" onClick={() => a && nav.go('dock', a.id)}>{out ? 'Sign in again' : 'Open the page'}</Btn>}>
+        {out
+          ? <>Nobody signed it out from this app. The usual cause is the phone removing this PC under <b>Linked devices</b>, or WhatsApp ending a link that had not been used from the phone for 14 days.</>
+          : <>It is being read as usual. Below is what its reads have been doing, kept so that a lost login can be explained rather than guessed at.</>}
       </Headline>
       <div className="grid2" style={{ gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)' }}>
-        <Panel title="Just before it happened"><Timeline items={LOST_LOGIN} /></Panel>
+        <Panel title={out ? 'Just before it happened' : 'What its reads have been doing'}
+          note="Outcomes and counts only: no customer names, numbers or messages are kept here.">
+          {record && record.items.length > 0
+            ? <Timeline items={record.items} />
+            : <p className="sub" style={{ margin: 0 }}>Nothing has been recorded for this account yet. Its reads are written down from now on.</p>}
+        </Panel>
         <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
-          <Panel title="Check on the phone">
-            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, display: 'grid', gap: 6 }}>
-              <li>WhatsApp › Settings › Linked devices.</li><li>If this PC is missing, it was removed: scan the new QR code here.</li><li>If it is listed, remove it, then scan again.</li>
-            </ol>
-          </Panel>
+          {out && (
+            <Panel title="Check on the phone">
+              <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13.5, display: 'grid', gap: 6 }}>
+                <li>WhatsApp › Settings › Linked devices.</li><li>If this PC is missing, it was removed: scan the new QR code here.</li><li>If it is listed, remove it, then scan again.</li>
+              </ol>
+            </Panel>
+          )}
           <Panel title="Where the login lives"><p className="sub" style={{ margin: 0, color: toneInk('neutral') }}>In this account’s own session on this PC. It is never copied to the workspace or to another PC.</p></Panel>
         </div>
       </div>

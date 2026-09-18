@@ -583,3 +583,55 @@ test('accounts can be added, edited and removed, and removing one forgets its da
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('the reading record and the reader timeline show what the reads actually did', async () => {
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [
+      { id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
+      { id: 'test-wa2', name: 'Second desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
+    ],
+    locations: [{ name: 'Main branch' }],
+  });
+  const event = (account: string, minutesAgo: number, outcome: string, o: Record<string, unknown> = {}) =>
+    ({ account, channel: 'whatsapp', at: now - minutesAgo * 60_000, outcome, chats: null, waiting: null, stage: null, ...o });
+  writeFileSync(join(data, 'events.json'), JSON.stringify({
+    'test-wa': [
+      event('test-wa', 12, 'read', { chats: 500, waiting: 6 }),
+      event('test-wa', 11, 'read', { chats: 500, waiting: 6 }),
+      event('test-wa', 10, 'reload'),
+      event('test-wa', 9, 'signed-out'),
+    ],
+    'test-wa2': [event('test-wa2', 9, 'empty', { stage: 'empty' })],
+  }));
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [] } }));
+
+  const { app, win } = await open(data);
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Accounts', exact: true }).click();
+    await win.getByRole('button', { name: 'Figures' }).first().click();
+    await win.getByRole('button', { name: 'Reading record' }).click();
+
+    await expect(heading(win, 'Test front desk is signed out')).toBeVisible();
+    const record = win.getByRole('main');
+    await expect(record).toContainText('2 good reads');
+    await expect(record).toContainText('The last saw 500 chats read, 6 waiting.');
+    await expect(record).toContainText('Page reloaded');
+    await expect(record).toContainText('Sign-in screen');
+    await expect(record).toContainText('Still signed out, 9 minutes');
+    await expect(record).not.toContainText('Sample figures');
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'reading-record.png') });
+
+    // The reader is one story across both accounts on the channel.
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Accounts', exact: true }).click();
+    await win.getByRole('button', { name: /WhatsApp reader/ }).click();
+    const reader = win.getByRole('main');
+    await expect(reader).toContainText('Nothing came back');
+    await expect(reader).toContainText('2 accounts stopped reading');
+    await expect(reader).not.toContainText('Sample figures');
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});

@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
-Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.9 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 4.10** (lost-login record and reader timeline), unless an owner decision
+Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.10 and Reports following the title bar's
+location filter, each installed on the owner's PC. **Next step: 4.11** (the customer panel), unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove. Open: 4.10 reader timeline, 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens. Open: 4.11 customer panel, 4.12 accessibility. Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -27,7 +27,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 ### What works on the owner's PC today
 
 - **Installed** per-user at `%LOCALAPPDATA%\Programs\UnifiedMessenger6`, Start Menu and desktop shortcut "Unified Messenger". v5 is uninstalled; its data folder `%LOCALAPPDATA%\UnifiedMessenger` was kept.
-- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `exports.json`, `digest.json`, `calls.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
+- **Data** in `%APPDATA%\unified-messenger-v6` (config, snapshot, reply times, overrides, `alerts.json`, `history.json`, `exports.json`, `digest.json`, `calls.json`, `events.json`, `app.log`, one `Partitions\<account id>` per login). Shared by the installed app and `npm start`; survives reinstall and uninstall.
 - **Working day:** the morning digest on the first opening of each day; Handled and Snooze on the line and the dock; Set aside with Put back; Open chat goes to the conversation (WhatsApp opens it, Instagram filters Direct and stops).
 - **Reports** on recorded days, following the title bar's location filter: day records began 2026-09-13, reply times imported from v5 reach further back, and the coverage sentence says both. The weekly report saves as PDF, CSV or image; the Monday auto-save is off.
 - **Opening hours** can be edited per location and day, with holidays. All three locations carry v5's 11 am to 9 pm, Monday to Saturday, switched off, so waits still count around the clock (§5.3).
@@ -44,7 +44,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | The line, lanes, queue, J/K/Enter | |
 | Handled and Snooze (buttons, H / S) on the line and the dock | Customer panel: history, tags, note, saved replies, suggested replies |
 | Set aside, with Put back | Privacy sizes |
-| Needs you | Reader timeline, lost-login record |
+| Needs you | |
 | Accounts grid, account figures | Reviews |
 | Channel readers list | |
 | Look and reading settings, closing, memory, notifications and quiet hours | Assistant screen and settings |
@@ -57,6 +57,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Morning digest, once a day | |
 | Missed calls: returned or not, how and how soon; the not-returned alert | |
 | Add, edit (name, location, counted) and remove accounts | |
+| The reading record: the lost-login timeline and the reader timeline | |
 
 ---
 
@@ -80,9 +81,10 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 261 tests
-npm run smoke       # 10 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
-                    # weekly report and exports, opening hours, digest, location filter, accounts
+npm test            # 269 tests
+npm run smoke       # 11 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
+                    # weekly report and exports, opening hours, digest, location filter, accounts,
+                    # the reading record
 ```
 
 Read every Playwright summary line: it prints `N failed` above `N passed`, so `tail -1` shows a red run as green
@@ -217,7 +219,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.9 Accounts: add, edit, remove.** Done 2026-09-14. `core/accounts.ts`: `addAccount` (a channel with a reader is counted by default; "Another page" needs an http(s) address; a new location is created, an existing one keeps its spelling and rules), `editAccount` (name, location, and "Count its customers", which is `professional`), `removeAccount` (the location and its hours stay), and `forgetAccount`, which deletes everything stored under the id in place: snapshot, marks, day records, reply times, calls and alert ids. Every change goes through `parseConfig`. IPC `add-account`, `edit-account`, `remove-account` (the old unexposed `wipe` handle is gone); main wakes a new account and the screen docks its page for sign-in; removal wipes the session's storage, forgets the data and saves every store. Dialogs in `overlays.tsx`: Add (six channels), Edit (from each Accounts cell and the account's figures screen), Remove (says the login is wiped, the figures deleted, and where to unlink this PC on the phone). The Accounts grid shows an uncounted account as "Not counted". Logs carry the id and channel only. Playwright adds an account at a new location (`.invalid` address, no real site), renames and uncounts one, removes it, and checks `config.json`, `snapshot.json` and `calls.json`. Not built: reordering accounts, and deleting a location (it stays after its last account goes).
 
-**4.10 Lost-login record and reader timeline.** Keep the last N read events per account in memory (they are already logged) and expose them in the view model; replace `LOST_LOGIN` and `READER_TIMELINE`. Done when a real sign-out shows its real timeline.
+**4.10 Lost-login record and reader timeline.** Done 2026-09-18. `core/events.ts` keeps the last 60 outcomes per account (`events.json`: read, empty, not-ready, signed-out, signed-in, failed, awake, asleep, reload, page-gone, with chat and waiting counts and the reader's stage — no names, numbers or message text, the `app.log` rule, because these lines are on screen). Saved as each one happens, so a sign-out at midnight is still explained in the morning; forgotten with the account by `forgetAccount`. `lostLoginTimeline` shows the reads before the sign-out, the sign-out itself and how long since; `readerTimeline` tells one story across every account on a channel, opening with "N accounts stopped reading" when more than one failed, and saying so when nothing has been read for five minutes. Runs of the same outcome collapse ("12 good reads"). Both screens lost their "Sample figures" marker; the record is reachable for any account from its figures screen ("Reading record"), and the headline follows the record rather than this minute's flags, because just after a restart nothing has been read yet. Tests: 8 core, and a Playwright test that seeds `events.json` and reads both screens. Not built: a support report to save from the reader screen (still disabled).
 
 **4.11 Customer panel.** Notes and tags in a local store keyed by account + conversation key; saved replies in config (they sync in Phase 6). History comes from the history store. Done when a note survives a restart and a saved reply copies.
 

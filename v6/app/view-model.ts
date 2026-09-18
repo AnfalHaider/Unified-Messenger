@@ -12,6 +12,7 @@ import { buildRollup } from '../core/rollup.ts';
 import { readableAccounts } from '../core/schedule.ts';
 import { DAY_MS, dayKey, startOfDay } from '../core/days.ts';
 import { callsIn, type Calls } from '../core/calls.ts';
+import { lostLoginTimeline, readerTimeline, signedOutSince, type Events, type TimelineItem } from '../core/events.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
@@ -148,6 +149,9 @@ const SET_ASIDE_ROWS = 200;
 
 export interface ReaderHealth { id: string; name: string; tone: Tone; status: string; detail: string }
 
+/** One line of what the reads did, said the way a person would. Drawn by the lost-login and reader screens. */
+export interface TimelineRow { at: string; tone: Tone | 'neutral'; title: string; detail: string }
+
 export interface AccountDetail {
   id: string;
   name: string;
@@ -194,6 +198,10 @@ export interface UiState {
   detail: AccountDetail | null;
   /** One line per channel reader, so a channel that stopped working is named instead of averaged away. */
   modules: ReaderHealth[];
+  /** What led up to this account losing its login, and since when. Built only while that screen is open. */
+  lostLogin: { since: number | null; items: TimelineRow[] } | null;
+  /** What each channel's reader has been doing, across every account on it. Built only while Readers is open. */
+  readerStory: Record<string, TimelineRow[]>;
   settings: Config['settings'];
   /** Settings › Opening hours: each location's hours as written (holidays kept apart), and the holidays. */
   openingHours: { locations: { name: string; accounts: number; hours: Config['locations'][number]['hours'] }[]; holidays: Config['holidays'] };
@@ -205,6 +213,8 @@ export interface Context {
   history?: History;
   /** Missed calls and whether they were returned. */
   calls?: Calls;
+  /** What each account's reads did. Only read while the lost-login or reader screen is open. */
+  events?: Events;
   /** The location chosen in the title bar, or null for all. Reports and their exports cover only that location. */
   scope?: string | null;
   route: Route;
@@ -311,12 +321,30 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     reports: ctx.route === 'reports' ? reportsFor(config, snapshots, times, judge, ctx, live) : null,
     digest: ctx.route === 'digest' ? digestFor(config, snapshots, times, judge, ctx, live) : null,
     modules: ctx.modules.map(readerHealth),
+    lostLogin: ctx.route === 'lost-login' && ctx.visible
+      ? { since: signedOutSince(ctx.events ?? {}, ctx.visible), items: timelineRows(lostLoginTimeline(ctx.events ?? {}, ctx.visible, ctx.now), ctx.now) }
+      : null,
+    readerStory: ctx.route === 'reader'
+      ? Object.fromEntries(ctx.modules.map((m) => [m.id, timelineRows(readerTimeline(ctx.events ?? {}, config.accounts.filter((a) => a.channel === m.id).map((a) => a.id), ctx.now), ctx.now)]))
+      : {},
     settings: config.settings,
     openingHours: {
       locations: config.locations.map((l) => ({ name: l.name, accounts: config.accounts.filter((a) => a.location === l.name).length, hours: l.hours })),
       holidays: config.holidays,
     },
   };
+}
+
+/** The time a line happened, said as a person would: "4:12 pm" today, "Tue, 4:12 pm" before that, "Now" for a line
+ *  about the present. */
+function timelineRows(items: TimelineItem[], now: number): TimelineRow[] {
+  const today = new Date(now).toDateString();
+  return items.map((i) => {
+    if (i.at === null) return { ...i, at: 'Now' };
+    const d = new Date(i.at);
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return { ...i, at: d.toDateString() === today ? time : `${d.toLocaleDateString(undefined, { weekday: 'short' })}, ${time}` };
+  });
 }
 
 /** A reader that fails sometimes is not the same as one that never works, and neither is one never used. */

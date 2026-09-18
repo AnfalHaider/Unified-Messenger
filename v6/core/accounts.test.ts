@@ -62,11 +62,12 @@ test('removing an account takes it out of the config and out of every store keye
     times: { pending: { a1: {}, b: {} }, watchStart: { a1: 1, b: 2 }, samples: { a1: [], b: [] } },
     calls: { 'a1|k|1': { account: 'a1' }, 'b|k|1': { account: 'b' } },
     notified: { 'near:a1:k:1': 1, 'signed-out:a1': 2, 'call:a1:k:1': 3, 'near:b:k:1': 4 },
+    events: { a1: [], b: [] },
   };
   forgetAccount('a1', stores);
   assert.deepEqual(stores, {
     snapshots: { b: 2 }, overrides: { b: {} }, history: { b: {} },
     times: { pending: { b: {} }, watchStart: { b: 2 }, samples: { b: [] } },
-    calls: { 'b|k|1': { account: 'b' } }, notified: { 'near:b:k:1': 4 },
+    calls: { 'b|k|1': { account: 'b' } }, notified: { 'near:b:k:1': 4 }, events: { b: [] },
   });
 });

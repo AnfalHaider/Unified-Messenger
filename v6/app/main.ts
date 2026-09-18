@@ -18,6 +18,7 @@ import { dayKey, recordHistory, type History } from '../core/history.ts';
 import { reportCsv, weekEnding, weeklyDue } from '../core/report.ts';
 import { digestDue } from '../core/digest.ts';
 import { pruneCalls, recordCalls, type Calls } from '../core/calls.ts';
+import { recordEvent, type Events, type Outcome } from '../core/events.ts';
 import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit, type NewAccount } from '../core/accounts.ts';
 import { awaitingChats, distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
@@ -57,6 +58,7 @@ const FILE = {
   exports: join(DATA, 'exports.json'),
   digest: join(DATA, 'digest.json'),
   calls: join(DATA, 'calls.json'),
+  events: join(DATA, 'events.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -87,6 +89,7 @@ const notified = loadJson<Notified>(FILE.alerts, {}, note('alerts'));
 const history = loadJson<History>(FILE.history, {}, note('history'));
 /** Missed calls and whether each was returned. Keys and times only. */
 const calls = loadJson<Calls>(FILE.calls, {}, note('calls'));
+const events = loadJson<Events>(FILE.events, {}, note('events'));
 pruneCalls(calls, Date.now());
 /** Which week's report was last saved on its own, so Monday's save happens once. */
 const exportsState = loadJson<{ lastWeeklyWeek: string | null }>(FILE.exports, { lastWeeklyWeek: null }, note('exports'));
@@ -171,7 +174,10 @@ function wake(a: Account) {
     });
   }
   // A page that crashes or fails to load says so in the log; otherwise it only shows up as reads that never come.
-  view.webContents.on('render-process-gone', (_e, details) => log({ event: 'page-gone', account: a.id, reason: details.reason, exitCode: details.exitCode }));
+  view.webContents.on('render-process-gone', (_e, details) => {
+    remember(a, 'page-gone');
+    log({ event: 'page-gone', account: a.id, reason: details.reason, exitCode: details.exitCode });
+  });
   view.webContents.on('did-fail-load', (_e, code, description, _url, isMainFrame) => {
     if (isMainFrame) log({ event: 'page-load-failed', account: a.id, code, description: String(description).slice(0, 80) });
   });
@@ -179,6 +185,7 @@ function wake(a: Account) {
   win.contentView.addChildView(view);
   views.set(a.id, view);
   lastUsedAt[a.id] = Date.now();
+  remember(a, 'awake');
   log({ event: 'awake', account: a.id, channel: a.channel });
 }
 
@@ -189,6 +196,8 @@ function sleep(id: string) {
   win.contentView.removeChildView(view);
   view.webContents.close();
   views.delete(id);
+  const a = account(id);
+  if (a) remember(a, 'asleep');
   log({ event: 'asleep', account: id });
 }
 
@@ -216,11 +225,23 @@ function pageAnswer<T>(view: WebContentsView, expression: string): Promise<T> {
   });
 }
 
+/** One line of an account's own record of what its reads did. Counts and outcomes only, like `app.log`, because
+ *  these lines are shown on the lost-login and reader screens. Saved as it goes, so a sign-out at midnight is still
+ *  explained in the morning. */
+function remember(a: Account, outcome: Outcome, o: { chats?: number | null; waiting?: number | null; stage?: string | null } = {}) {
+  recordEvent(events, {
+    account: a.id, channel: a.channel, at: Date.now(), outcome,
+    chats: o.chats ?? null, waiting: o.waiting ?? null, stage: o.stage ?? null,
+  });
+  saveJson(FILE.events, events);
+}
+
 async function readAccount(a: Account, reason: string) {
   const module = moduleFor(a.channel);
   const view = views.get(a.id);
   if (!module || !view) return;
   const now = Date.now();
+  const wasSignedOut = signedOut.has(a.id);
   try {
     const raw = await pageAnswer<unknown>(view, module.scan);
     // parse never throws: a page that changed shape costs this read, and the loop moves to the next account.
@@ -249,6 +270,8 @@ async function readAccount(a: Account, reason: string) {
       recordHealth(a.channel, true);
       const waiting = entries.filter((c) => c.awaiting).length;
       lastRead[a.id] = { chats: entries.length, awaiting: waiting, at: now };
+      if (wasSignedOut) remember(a, 'signed-in');
+      remember(a, 'read', { chats: entries.length, waiting });
       log({ event: 'read', account: a.id, channel: a.channel, reason, chats: entries.length, awaiting: waiting, skipped, awaitingInferred });
       saveJson(FILE.snapshot, snapshots);
       saveJson(FILE.times, times);
@@ -260,6 +283,7 @@ async function readAccount(a: Account, reason: string) {
     const state = await pageAnswer<Record<string, boolean>>(view, module.signedOutProbe).catch(() => ({} as Record<string, boolean>));
     if (state.qr || state.login) {
       signedOut.add(a.id);
+      if (!wasSignedOut) remember(a, 'signed-out', { stage: stage ?? null });
       log({ event: 'signed-out', account: a.id, channel: a.channel, reason, ...state, stage: stage ?? null, before: lastRead[a.id] ?? null });
       return;
     }
@@ -267,14 +291,17 @@ async function readAccount(a: Account, reason: string) {
     // Signed in, but the reader is still coming up. WhatsApp Web builds its stores a few seconds after the
     // page loads, so an early read legitimately has nothing to give and must not count as a failure.
     if (notReady) {
+      remember(a, 'not-ready', { stage: stage ?? null });
       log({ event: 'reader-not-ready', account: a.id, channel: a.channel, reason, stage: stage ?? null });
       return;
     }
     recordHealth(a.channel, false, skipped ? 'scan returned nothing usable' : 'scan returned nothing');
+    remember(a, 'empty', { stage: stage ?? null });
     log({ event: 'read-empty', account: a.id, channel: a.channel, reason, ...state, skipped, stage: stage ?? null, before: lastRead[a.id] ?? null });
   } catch (e) {
     lastReadAt[a.id] = now;
     recordHealth(a.channel, false, (e as Error).message);
+    remember(a, 'failed', { stage: (e as Error).message.slice(0, 80) });
     log({ event: 'read-failed', account: a.id, channel: a.channel, reason, error: (e as Error).message.slice(0, 120), before: lastRead[a.id] ?? null });
   }
 }
@@ -306,7 +333,7 @@ async function readPass(reason: string) {
 function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
-    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls,
+    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events,
   });
 }
 
@@ -679,6 +706,8 @@ app.whenReady().then(async () => {
   ipcMain.on('read-now', () => void tick('button'));
   ipcMain.on('reload-account', (_e, id: string) => {
     views.get(id)?.webContents.reload();
+    const a = account(id);
+    if (a) remember(a, 'reload');
     log({ event: 'reload', account: id });
   });
   ipcMain.on('sleep-account', (_e, id: string) => {
@@ -784,7 +813,7 @@ app.whenReady().then(async () => {
     const channel = account(id)?.channel;
     if (visible === id) { route = 'accounts'; visible = null; }
     await wipe(id);
-    forgetAccount(id, { snapshots, overrides, history, times, calls, notified });
+    forgetAccount(id, { snapshots, overrides, history, times, calls, notified, events });
     for (const o of [lastReadAt, lastUsedAt, lastRead, focusRequest]) delete o[id];
     signedOut.delete(id);
     applyConfig(result.config);
@@ -794,6 +823,7 @@ app.whenReady().then(async () => {
     saveJson(FILE.history, history);
     saveJson(FILE.calls, calls);
     saveJson(FILE.alerts, notified);
+    saveJson(FILE.events, events);
     layout();
     log({ event: 'account-removed', account: id, channel });
     push();

@@ -3,6 +3,7 @@
 //
 // The figures are invented and deliberately match the approved designs, not anyone's real business.
 import { defaultSettings } from '../core/config.ts';
+import { LOST_LOGIN, READER_TIMELINE } from './sample.ts';
 import type { QueueRow, SetAsideRow, UiState } from '../app/view-model.ts';
 
 const row = (customer: string, preview: string, waited: number, accountName: string, location: string, channel = 'whatsapp'): QueueRow => {
@@ -110,5 +111,7 @@ export const PREVIEW_STATE: UiState = {
     { id: 'whatsapp', name: 'WhatsApp', tone: 'ok', status: 'Healthy', detail: '48 good reads since the app started' },
     { id: 'instagram', name: 'Instagram', tone: 'due', status: 'Intermittent', detail: '12 good reads, 3 failed. Last problem: scan returned nothing' },
   ],
+  lostLogin: { since: Date.now() - 9.6 * 3_600_000, items: [...LOST_LOGIN] },
+  readerStory: { instagram: [...READER_TIMELINE], whatsapp: [...READER_TIMELINE].slice(-2) },
   settings: defaultSettings(),
 };

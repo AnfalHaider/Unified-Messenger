@@ -65,12 +65,13 @@ export interface AccountStores {
   times: { pending: Keyed; watchStart: Keyed; samples: Keyed };
   calls: Record<string, { account: string }>;
   notified: Record<string, number>;
+  events: Keyed;
 }
 
 /** Deletes everything stored under this account, in place: its chats, marks, day records, reply times, calls and
  *  alerts. In place because the app layer holds these objects and saves the same ones. */
 export function forgetAccount(id: string, stores: AccountStores) {
-  for (const o of [stores.snapshots, stores.overrides, stores.history, stores.times.pending, stores.times.watchStart, stores.times.samples]) delete o[id];
+  for (const o of [stores.snapshots, stores.overrides, stores.history, stores.events, stores.times.pending, stores.times.watchStart, stores.times.samples]) delete o[id];
   for (const [key, call] of Object.entries(stores.calls)) if (call.account === id) delete stores.calls[key];
   // Alert ids carry the account after the kind: "near:<account>:…", "signed-out:<account>".
   for (const key of Object.keys(stores.notified)) if (key.split(':')[1] === id) delete stores.notified[key];
