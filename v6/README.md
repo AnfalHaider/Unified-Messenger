@@ -73,7 +73,7 @@ out, and a lost login is recorded with what the previous read saw.
 The screens are the complete shell from the approved Front Desk renders (`docs/design/v6-front-desk`). The
 line, the docked account page, Set aside, the morning digest, Needs you, the accounts grid, one account's figures,
 the channel readers, Reports with the weekly report, and the reading, notification and opening-hours settings run
-on real data. Reviews, the suggested reply, the assistant, workspace, owner and the
+on real data. The suggested reply, the assistant, workspace, owner and the
 full-window states show their final layout with sample figures from `ui/sample.ts`, and say so on screen, until
 their features are wired (see `docs/revamp/roadmap.md` §1). Settings › About lists the moment-only
 screens so they can be reviewed. Opening `npm run ui` in a browser draws every screen with sample data.
@@ -106,6 +106,7 @@ saves as JSON, and "now" is always a parameter, which is what makes every rule t
 | `accounts` | Adding, editing and removing accounts, and forgetting everything stored under a removed one. | `InstanceRegistryService` |
 | `events` | What each account's reads did, and the timelines the lost-login and reader screens show. | — |
 | `customers` | One customer's note, tags and what the reads have seen of them. | — |
+| `reviews` | A Google profile's rating and total from the merchant view's text, and the latest reviews: worst first, the spread by stars. | `GoogleReviewSnapshotService` |
 
 Rules: follow the ponytail guideline (built-ins before dependencies, no abstractions without a second
 user); port v5 behaviour with its test cases before changing it; never commit `firebase-config.json`,

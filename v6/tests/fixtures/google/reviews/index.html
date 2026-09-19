@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- An invented stand-in for business.google.com/reviews, shaped the way v5 found the real page: every card holds the
+     location's name and address, the reviewer, a line of five identical icon-font stars (the rating is how many are
+     gold) followed by the age, the text with a "More" expander, and one Reply or Edit button. Nothing here is real. -->
+<html><head><meta charset="utf-8"><title>Reviews</title>
+<style>.on{color:rgb(251,188,4)}.off{color:rgb(218,220,224)}.card{padding:8px;border-bottom:1px solid #ccc}</style></head>
+<body>
+<div aria-label="Number of rows per page"><div jsname="LgbsSe" data-value="10">10</div><div data-value="25">25</div><div data-value="50">50</div></div>
+<div id="list"></div>
+<button aria-label="Next">navigate_next</button>
+<script>
+  var STAR = '';
+  var stars = function (n) { var s = ''; for (var i = 0; i < 5; i++) s += '<span class="' + (i < n ? 'on' : 'off') + '">' + STAR + '</span>'; return s; };
+  var reviews = [
+    { who: 'Sample Reviewer A', n: 1, age: '2 days ago', text: 'Waited forty minutes past my booking and nobody said', rest: ' why. Will not be back.', replied: false },
+    { who: 'Sample Reviewer B', n: 5, age: '3 days ago', text: 'Friendly and quick.', replied: true },
+    { who: 'Sample Reviewer C', n: 4, age: 'a day ago', text: "The user didn't write a review, and has left just a rating.", replied: false },
+    { who: 'Sample Reviewer D', n: 2, age: '5 days ago', text: 'Called twice and nobody answered.', replied: false },
+  ];
+  document.getElementById('list').innerHTML = reviews.map(function (r, i) {
+    return '<div class="card"><div>Sample Business North</div><div>1 Sample Street, Sample City</div>' +
+      '<div>' + r.who + '</div><div>' + stars(r.n) + '<span> ' + r.age + '</span></div>' +
+      '<div class="text" id="t' + i + '">' + r.text + (r.rest ? '... <span class="more" data-i="' + i + '">More</span>' : '') + '</div>' +
+      '<div><button>' + (r.replied ? 'Edit' : 'Reply') + '</button></div></div>';
+  }).join('');
+  document.querySelectorAll('.more').forEach(function (m) {
+    m.addEventListener('click', function () { var r = reviews[+m.dataset.i]; document.getElementById('t' + m.dataset.i).textContent = r.text + r.rest; });
+  });
+</script>
+</body></html>

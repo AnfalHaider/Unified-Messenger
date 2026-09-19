@@ -15,6 +15,7 @@ import { callsIn, type Calls } from '../core/calls.ts';
 import { lostLoginTimeline, readerTimeline, signedOutSince, type Events, type TimelineItem } from '../core/events.ts';
 import { customerFor, tagsInUse, type Customers } from '../core/customers.ts';
 import { durationText } from '../core/duration.ts';
+import { ageMinutes, needingReply, spread, type Reviews } from '../core/reviews.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
@@ -156,6 +157,35 @@ export interface ReaderHealth { id: string; name: string; tone: Tone; status: st
 /** One line of what the reads did, said the way a person would. Drawn by the lost-login and reader screens. */
 export interface TimelineRow { at: string; tone: Tone | 'neutral'; title: string; detail: string }
 
+/** One Google profile on the Reviews screen. Counts cover the latest reviews Google shows, and say so. */
+export interface ReviewProfileView {
+  accountId: string;
+  name: string;
+  location: string;
+  rating: number | null;
+  total: number | null;
+  /** How many reviews the last read saw, and whether Google has more beyond them. */
+  loaded: number;
+  more: boolean;
+  unanswered: number;
+  /** The latest reviews by stars, five down to one. */
+  spread: number[];
+  /** When the reviews were last read, or null before the first read. */
+  readAt: number | null;
+  signedOut: boolean;
+}
+
+export interface ReviewRow { id: string; accountId: string; location: string; reviewer: string; text: string; stars: number; age: string; replied: boolean }
+
+export interface ReviewsView {
+  /** Accounts on the Google channel, whether or not they have been read yet. */
+  profiles: ReviewProfileView[];
+  /** Unanswered reviews across the profiles in scope, worst first, then oldest. */
+  needing: ReviewRow[];
+  /** Every review the reads saw, newest first. */
+  recent: ReviewRow[];
+}
+
 /** One customer's panel: what the app has seen of them, and what the owner wrote about them. */
 export interface CustomerCard {
   /** "Seen by the app": only things the reads actually saw, newest first. */
@@ -220,6 +250,8 @@ export interface UiState {
   modules: ReaderHealth[];
   /** The docked customer's panel. Built only while a chat is docked. */
   customer: CustomerView | null;
+  /** Built only while Reviews is open. */
+  reviews: ReviewsView | null;
   /** What led up to this account losing its login, and since when. Built only while that screen is open. */
   lostLogin: { since: number | null; items: TimelineRow[] } | null;
   /** What each channel's reader has been doing, across every account on it. Built only while Readers is open. */
@@ -239,6 +271,8 @@ export interface Context {
   events?: Events;
   /** Notes, tags and what the reads have seen of each customer. Only read while a chat is docked. */
   customers?: Customers;
+  /** Each Google profile's latest reviews, rating and total. Only read while Reviews is open. */
+  reviews?: Reviews;
   /** The location chosen in the title bar, or null for all. Reports and their exports cover only that location. */
   scope?: string | null;
   route: Route;
@@ -357,6 +391,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     digest: ctx.route === 'digest' ? digestFor(config, snapshots, times, judge, ctx, live) : null,
     modules: ctx.modules.map(readerHealth),
     customer: ctx.route === 'dock' && ctx.visible ? customerView(config, snapshots, ctx) : null,
+    reviews: ctx.route === 'reviews' ? reviewsView(config, ctx) : null,
     lostLogin: ctx.route === 'lost-login' && ctx.visible
       ? { since: signedOutSince(ctx.events ?? {}, ctx.visible), items: timelineRows(lostLoginTimeline(ctx.events ?? {}, ctx.visible, ctx.now), ctx.now) }
       : null,
@@ -369,6 +404,29 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
       holidays: config.holidays,
     },
   };
+}
+
+/** The Reviews screen, for the location chosen in the title bar. Nothing here is guessed: a profile not read yet
+ *  says so, and the counts are of the reviews Google showed, with whether it has more. */
+function reviewsView(config: Config, ctx: Context): ReviewsView {
+  const store = ctx.reviews ?? {};
+  const accounts = config.accounts.filter((a) => a.channel === 'googlebusiness' && inScope(a.location, ctx.scope ?? null));
+  const rows = (a: (typeof accounts)[number]) => (store[a.id]?.cards ?? []).map((c, i): ReviewRow => ({
+    id: `${a.id}:${i}`, accountId: a.id, location: a.location || a.name, reviewer: c.reviewer, text: c.text, stars: c.stars, age: c.age, replied: c.replied,
+  }));
+  const profiles = accounts.map((a): ReviewProfileView => {
+    const p = store[a.id];
+    const cards = p?.cards ?? [];
+    return {
+      accountId: a.id, name: a.name, location: a.location || a.name, rating: p?.rating ?? null, total: p?.total ?? null,
+      loaded: cards.length, more: p?.more ?? false, unanswered: cards.filter((c) => !c.replied).length, spread: spread(cards),
+      readAt: p?.capturedAt || null, signedOut: ctx.signedOut.has(a.id),
+    };
+  });
+  const all = accounts.flatMap(rows);
+  const byAge = (r: ReviewRow) => ageMinutes(r.age) ?? Number.MAX_SAFE_INTEGER;
+  const needing = needingReply(all.map((r) => ({ ...r }))) as ReviewRow[];
+  return { profiles, needing, recent: [...all].sort((x, y) => byAge(x) - byAge(y)) };
 }
 
 /** The docked account's customers. Every line under "Seen by the app" is something a read saw: nothing is

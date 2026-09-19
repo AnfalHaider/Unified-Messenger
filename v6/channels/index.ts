@@ -24,6 +24,6 @@ export interface ModuleHealth {
   lastError: string | null;
 }
 
-export const newHealth = (m: ChannelModule): ModuleHealth => ({ id: m.id, name: m.name, ok: 0, failed: 0, lastOkAt: null, lastError: null });
+export const newHealth = (m: { id: string; name: string }): ModuleHealth => ({ id: m.id, name: m.name, ok: 0, failed: 0, lastOkAt: null, lastError: null });
 
 export type { ChannelModule, ReadResult, SignInState } from './types.ts';

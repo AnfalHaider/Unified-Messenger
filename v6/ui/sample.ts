@@ -33,22 +33,6 @@ export const LOST_LOGIN = [
   { at: 'Now', tone: 'neutral', title: 'Still signed out, 9 h 36 min', detail: 'Messages sent since then are not counted anywhere.' },
 ] as const;
 
-export const REVIEW_PROFILES = [
-  { location: 'F-11', rating: 4.6, total: 991, spread: [620, 210, 71, 38, 52] },
-  { location: 'DHA-2', rating: 4.6, total: 1671, spread: [1105, 330, 102, 55, 79] },
-  { location: 'Men DHA-2', rating: 4.7, total: 435, spread: [318, 71, 20, 9, 17] },
-];
-
-export const REVIEWS = [
-  { stars: 1, who: 'Areej S.', location: 'DHA-2', when: '2 days ago', text: 'Waited 40 minutes past my appointment and nobody told me why. I won’t come back.', replied: false },
-  { stars: 2, who: 'Hassan M.', location: 'Men DHA-2', when: '3 days ago', text: 'Called twice to book, no answer. Walked in and there was no slot.', replied: false },
-  { stars: 2, who: 'Mehwish T.', location: 'F-11', when: '5 days ago', text: 'Price on WhatsApp was different from what I paid at the counter.', replied: false },
-  { stars: 3, who: 'Rida A.', location: 'F-11', when: 'last week', text: 'Good service, but it was very crowded on Sunday.', replied: true },
-  { stars: 5, who: 'Saad K.', location: 'Men DHA-2', when: 'last week', text: 'Quick and friendly, Imran is great.', replied: true },
-];
-
-export const REVIEW_DRAFT = 'Dear Areej, thank you for telling us, and we’re sorry you were kept waiting 40 minutes without an explanation. That isn’t the visit we want anyone to have. Our DHA-2 manager would like to make it right; please message us on 0300 7654321.';
-
 export type Fact = { label: string; value: string; unit: string; note: string; tone: 'ok' | 'due' | 'late' | 'neutral'; trend?: number[] };
 
 export const MEMBERS = [

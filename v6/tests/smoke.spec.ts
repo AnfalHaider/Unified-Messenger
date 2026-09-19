@@ -20,7 +20,12 @@ function dataFolder(config: Record<string, unknown> = {}) {
 }
 
 async function open(data: string): Promise<{ app: ElectronApplication; win: Page }> {
-  const app = await electron.launch({ args: ['app/main.ts'], cwd: V6, env: { ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5') } });
+  // No test ever reaches Google: its two addresses are the invented pages in tests/fixtures/google.
+  const google = join(V6, 'tests', 'fixtures', 'google');
+  const app = await electron.launch({ args: ['app/main.ts'], cwd: V6, env: {
+    ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5'),
+    UM_GOOGLE_REVIEWS_URL: pathToFileURL(join(google, 'reviews', 'index.html')).href, UM_GOOGLE_PROFILE_URL: pathToFileURL(join(google, 'profile.html')).href,
+  } });
   return { app, win: await app.firstWindow() };
 }
 
@@ -967,6 +972,44 @@ test('help opens for the screen you are on, the Help screen holds every page, an
   }
 });
 
+test('the Google reviews reader reads the rating, the total and the reviews, stars from their colour, and logs no names', async () => {
+  const fixtures = join(V6, 'tests', 'fixtures', 'google');
+  const reviewsUrl = pathToFileURL(join(fixtures, 'reviews', 'index.html')).href;
+  const data = dataFolder({
+    accounts: [{ id: 'test-g', name: 'North branch Google', channel: 'googlebusiness', url: reviewsUrl, professional: false, location: 'North branch' }],
+    locations: [{ name: 'North branch' }],
+  });
+  const { app, win } = await open(data);
+  const log = () => readFileSync(join(data, 'app.log'), 'utf8');
+  try {
+    await expect.poll(log, { timeout: 60_000 }).toContain('"event":"reviews-read"');
+    expect(log()).toContain('"event":"profile-read","account":"test-g","rating":4.6,"total":991');
+    expect(log()).toMatch(/"event":"reviews-read","account":"test-g","reviews":4,"unanswered":3,"more":true,"starsRead":4/);
+    // The log is counts only: no reviewer and no review text.
+    expect(log()).not.toMatch(/Sample Reviewer|forty minutes/);
+
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Reviews', exact: true }).click();
+    await expect(heading(win, '3 recent reviews have no reply')).toBeVisible();
+    const card = win.locator('.panel').filter({ hasText: 'North branch' }).first();
+    await expect(card).toContainText('4.6');
+    await expect(card).toContainText('991 reviews');
+    await expect(card).toContainText('3 without a reply');
+    // Worst first, the stars read from their colour, and the long review expanded.
+    const rows = win.locator('.review');
+    await expect(rows.nth(0)).toContainText('Sample Reviewer A');
+    await expect(rows.nth(0).getByLabel('1 of 5 stars')).toBeVisible();
+    await expect(rows.nth(0)).toContainText('Will not be back.');
+    await expect(rows.nth(1)).toContainText('Sample Reviewer D');
+    await expect(rows.nth(2)).toContainText('A rating with no words.');
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'reviews.png') });
+    expect(await axe(win, 'reviews'), 'accessibility').toEqual([]);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 // ---- help screenshots ------------------------------------------------------------------------------------
 
 /**
@@ -1036,6 +1079,17 @@ test('help screenshots', async () => {
       'north-wa': Array.from({ length: 25 }, (_, i) => ({ answeredAt: now - i * 5 * H * 60_000, minutes: 6 + (i * 5) % 40 })),
     },
   }));
+  // Invented reviews, read 'just now', so the picture shows a working Reviews screen without any read happening.
+  const review = (reviewer: string, stars: number, age: string, text: string, replied = false) => ({ reviewer, stars, age, text, replied });
+  writeFileSync(join(data, 'reviews.json'), JSON.stringify({ 'north-g': {
+    capturedAt: now, ratingAt: now, rating: 4.6, total: 991, more: true, cards: [
+      review('Sample Reviewer A', 1, '2 days ago', 'Waited forty minutes past my booking and nobody said why.'),
+      review('Sample Reviewer B', 5, '3 days ago', '', true),
+      review('Sample Reviewer C', 4, 'a day ago', 'Good service, a little crowded on Sunday.'),
+      review('Sample Reviewer D', 2, '5 days ago', 'Called twice and nobody answered.'),
+      review('Sample Reviewer E', 5, 'a week ago', 'Quick and friendly.', true),
+    ],
+  } }));
   writeFileSync(join(data, 'calls.json'), JSON.stringify({
     'main-wa|e@c.us|1': { account: 'main-wa', key: 'e@c.us', at: now - 40 * 60_000, returnedAt: null, returnedBy: null },
   }));

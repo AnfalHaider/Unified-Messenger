@@ -116,6 +116,18 @@ export const PREVIEW_STATE: UiState = {
     seen: [{ label: 'Now', value: 'Waiting since 4:12 pm' }, { label: '2 Sept', value: 'Answered in 6 min' }, { label: 'Since', value: '19 Aug, 7 times on the line' }],
     note: 'Prefers evening appointments. Asked for a callback last time rather than a message.', tags: ['Regular', 'Evenings'],
   } } },
+  reviews: {
+    profiles: [
+      { accountId: 'g1', name: 'Main branch Google', location: 'Main branch', rating: 4.6, total: 991, loaded: 50, more: true, unanswered: 3, spread: [34, 9, 3, 1, 3], readAt: Date.now() - 12 * 60_000, signedOut: false },
+      { accountId: 'g2', name: 'North branch Google', location: 'North branch', rating: 4.7, total: 435, loaded: 50, more: true, unanswered: 1, spread: [40, 6, 2, 1, 1], readAt: Date.now() - 12 * 60_000, signedOut: false },
+    ],
+    needing: [
+      { id: 'g1:0', accountId: 'g1', location: 'Main branch', reviewer: 'Sample Reviewer A', text: 'Waited forty minutes past my booking and nobody said why.', stars: 1, age: '2 days ago', replied: false },
+      { id: 'g2:0', accountId: 'g2', location: 'North branch', reviewer: 'Sample Reviewer B', text: 'Called twice to book and nobody answered.', stars: 2, age: '3 days ago', replied: false },
+      { id: 'g1:1', accountId: 'g1', location: 'Main branch', reviewer: 'Sample Reviewer C', text: '', stars: 4, age: 'a day ago', replied: false },
+    ],
+    recent: [],
+  },
   lostLogin: { since: Date.now() - 9.6 * 3_600_000, items: [...LOST_LOGIN] },
   readerStory: { instagram: [...READER_TIMELINE], whatsapp: [...READER_TIMELINE].slice(-2) },
   settings: defaultSettings(),

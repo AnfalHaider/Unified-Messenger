@@ -1,4 +1,4 @@
-// Reviews and Reports. Reviews are sample figures until the Google reviews reader is wired; every report tab,
+// Reviews and Reports. Reviews come from the Google reviews reader (channels/google); every report tab,
 // the weekly report and its exports read the day records and measured replies.
 import { useState } from 'react';
 import type { ReportRange, ReportsView, UiState, WeeklyDoc } from '../../app/view-model.ts';
@@ -7,10 +7,9 @@ import { REPLY_BANDS } from '../../core/report.ts';
 import { Heatmap, Histogram, LineChart } from '../charts.tsx';
 import { Icon } from '../icons.tsx';
 import { bridge, Btn, Chip, Facts, Headline, Logo, Panel, Seg, Toggle, waitText, type ScreenProps } from '../parts.tsx';
-import { REVIEW_DRAFT, REVIEW_PROFILES, REVIEWS } from '../sample.ts';
 
 const Stars = ({ n, size = 13 }: { n: number; size?: number }) => (
-  <span className="stars" aria-label={`${n} of 5 stars`}>
+  <span className="stars" role="img" aria-label={`${n} of 5 stars`}>
     {[1, 2, 3, 4, 5].map((i) => (
       <svg key={i} width={size} height={size} viewBox="0 0 16 16" className={i <= n ? '' : 'off'} aria-hidden="true">
         <path d="M8 2.3l1.7 3.6 3.9.5-2.9 2.7.8 3.9L8 11.1 4.5 13l.8-3.9-2.9-2.7 3.9-.5z" fill="currentColor" />
@@ -19,46 +18,81 @@ const Stars = ({ n, size = 13 }: { n: number; size?: number }) => (
   </span>
 );
 
-export function ReviewsScreen(_: ScreenProps) {
+export function ReviewsScreen({ state, nav }: ScreenProps) {
+  const view = state.reviews;
   const [show, setShow] = useState<'needs' | 'all'>('needs');
   const [picked, setPicked] = useState(0);
-  const list = show === 'needs' ? REVIEWS.filter((r) => !r.replied) : REVIEWS;
-  const unanswered = REVIEWS.filter((r) => !r.replied).length;
+  if (!view) return <main className="main"><Headline title="Reviews">Gathering the reviews…</Headline></main>;
+  if (view.profiles.length === 0) {
+    return (
+      <main className="main">
+        <Headline title="No Google profile yet" actions={<Btn icon="users" kind="primary" onClick={() => nav.open('add-account')}>Add an account</Btn>}>
+          Add each location's Google Business profile as a Google Business account, and sign in on its page. The app then reads each
+          profile's rating, how many reviews it has, and which recent ones have no reply. It never posts anything.
+        </Headline>
+      </main>
+    );
+  }
+  const list = show === 'needs' ? view.needing : view.recent;
   const current = list[picked] ?? list[0];
+  const unread = view.profiles.filter((p) => p.readAt === null);
+  const unanswered = view.needing.length;
+  const unhappy = view.needing.filter((r) => r.stars >= 1 && r.stars <= 3).length;
   return (
     <main className="main">
-      <Headline sample title={`${unanswered} unhappy reviews have no reply`}
-        actions={<Seg label="Show" value={show} onChange={(v) => { setShow(v); setPicked(0); }} options={[['needs', `Needs a reply ${unanswered}`], ['all', 'All reviews']] as const} />}>
-        Oldest from 5 days ago at F-11. Replying within a day is what Google shows next to your rating.
+      <Headline title={unread.length === view.profiles.length ? 'Reading your Google profiles' : unanswered ? `${unanswered} recent review${unanswered === 1 ? ' has' : 's have'} no reply` : 'Every recent review has a reply'}
+        actions={<Seg label="Show" value={show} onChange={(v) => { setShow(v); setPicked(0); }} options={[['needs', `Needs a reply ${unanswered}`], ['all', 'All recent']] as const} />}>
+        {unread.length === view.profiles.length
+          ? 'Each profile is read within a few minutes of the app opening, then every half hour, never while its page is on screen.'
+          : <>{unhappy > 0 && <b>{unhappy} of them {unhappy === 1 ? 'is' : 'are'} three stars or fewer. </b>}Unhappy ones first, then oldest. Counts cover the latest reviews Google shows on each profile.</>}
       </Headline>
       <div className="grid3">
-        {REVIEW_PROFILES.map((p) => (
-          <div key={p.location} className="panel" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 16, alignItems: 'center' }}>
-            <div><span className="sub">{p.location}</span><div className="num" style={{ font: '600 40px/1 var(--text)', fontStretch: '80%' }}>{p.rating}</div><Stars n={Math.round(p.rating)} size={12} /><div className="sub num" style={{ marginTop: 4 }}>{p.total.toLocaleString()} reviews</div></div>
-            <div className="bars5">{p.spread.map((c, i) => <div key={i}><span>{5 - i}</span><span className="b"><i style={{ width: `${(c / p.spread[0]) * 100}%` }} /></span><span className="num" style={{ textAlign: 'right' }}>{c}</span></div>)}</div>
+        {view.profiles.map((p) => (
+          <div key={p.accountId} className="panel" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 16, alignItems: 'center' }}>
+            <div>
+              <span className="sub">{p.location}</span>
+              <div className="num" style={{ font: '600 40px/1 var(--text)', fontStretch: '80%' }}>{p.rating ?? '—'}</div>
+              {p.rating !== null && <Stars n={Math.round(p.rating)} size={12} />}
+              <div className="sub num" style={{ marginTop: 4 }}>{p.total !== null ? `${p.total.toLocaleString()} reviews` : p.readAt ? 'Total not read yet' : 'Not read yet'}</div>
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {p.signedOut ? <span className="sub">Asking for a Google sign-in. <button className="help-link" onClick={() => nav.go('dock', p.accountId)}>Sign in</button></span>
+                : p.loaded > 0 ? (
+                  <>
+                    <div className="bars5" aria-label={`The latest ${p.loaded} reviews by stars`}>{p.spread.map((c, i) => <div key={i}><span>{5 - i}</span><span className="b"><i style={{ width: `${(c / Math.max(1, ...p.spread)) * 100}%` }} /></span><span className="num" style={{ textAlign: 'right' }}>{c}</span></div>)}</div>
+                    <span className="sub">{p.unanswered ? <b className="late">{p.unanswered} without a reply</b> : 'All replied'} · latest {p.loaded}{p.more ? '' : ', all of them'}</span>
+                  </>
+                ) : <span className="sub">{p.readAt ? 'No reviews on the page.' : 'Reading soon.'}</span>}
+            </div>
           </div>
         ))}
       </div>
-      <div className="two" style={{ gridTemplateColumns: 'minmax(0,1fr) 400px' }}>
-        <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-          {list.map((r, i) => (
-            <div key={r.who} className={`review ${r === current ? 'sel' : ''}`} onClick={() => setPicked(i)} style={{ cursor: 'pointer' }}>
-              <div><Stars n={r.stars} /><div className="sub" style={{ marginTop: 4 }}>{r.when}</div></div>
-              <div><b style={{ fontWeight: 600 }}>{r.who}</b> <span className="sub">· {r.location}</span><p>{r.text}</p></div>
-              {r.replied ? <Chip tone="neutral">Replied</Chip> : <Chip tone="late">No reply</Chip>}
-            </div>
-          ))}
-          <div className="sub" style={{ padding: '10px 18px', borderTop: '1px solid var(--line)' }}>Covers the latest reviews the app could read from each profile. Complete history arrives with Google’s own reviews service.</div>
+      {list.length > 0 ? (
+        <div className="two" style={{ gridTemplateColumns: 'minmax(0,1fr) 400px' }}>
+          <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+            {list.map((r, i) => (
+              <div key={r.id} className={`review ${r === current ? 'sel' : ''}`} onClick={() => setPicked(i)} style={{ cursor: 'pointer' }}>
+                <div>{r.stars ? <Stars n={r.stars} /> : <span className="sub">Stars not read</span>}<div className="sub" style={{ marginTop: 4 }}>{r.age}</div></div>
+                <div><b style={{ fontWeight: 600 }}>{r.reviewer}</b> <span className="sub">· {r.location}</span><p>{r.text || <span className="sub">A rating with no words.</span>}</p></div>
+                {r.replied ? <Chip tone="neutral">Replied</Chip> : <Chip tone="late">No reply</Chip>}
+              </div>
+            ))}
+            <div className="sub" style={{ padding: '10px 18px', borderTop: '1px solid var(--line)' }}>The latest reviews on each profile, as Google lists them. Older ones are not read.</div>
+          </div>
+          {current && (
+            <Panel title={`${current.reviewer}, ${current.location}`} style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
+              <div>{current.stars ? <Stars n={current.stars} size={16} /> : null} <span className="sub">{current.age}</span></div>
+              <div style={{ border: '1px solid var(--line-2)', borderRadius: 10, background: 'var(--raised)', padding: 12, fontSize: 13.5, lineHeight: 1.55 }}>
+                {current.text || <span className="sub">This reviewer left a rating and no words.</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}><Btn icon="open" kind="primary" onClick={() => nav.go('dock', current.accountId)}>Open on Google</Btn></div>
+              <div className="sub" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><Icon name="shield" size={13} />Reply on Google yourself. The app never posts anything; drafted replies arrive with the assistant.</div>
+            </Panel>
+          )}
         </div>
-        {current && (
-          <Panel title={`Reply to ${current.who}`} style={{ display: 'grid', gap: 10, alignContent: 'start' }}>
-            <p className="sub" style={{ margin: 0 }}>A draft written on this PC from this review only. Edit it, copy it, and post it on Google yourself.</p>
-            <div style={{ border: '1px solid var(--line-2)', borderRadius: 10, background: 'var(--raised)', padding: 12, fontSize: 13.5, lineHeight: 1.55 }}>{REVIEW_DRAFT}</div>
-            <div style={{ display: 'flex', gap: 8 }}><Btn icon="copy" kind="primary" onClick={() => void navigator.clipboard?.writeText(REVIEW_DRAFT)}>Copy reply</Btn><Btn icon="open" disabled title="Not connected yet">Open on Google</Btn></div>
-            <div className="sub" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><Icon name="shield" size={13} />Nothing is posted by the app.</div>
-          </Panel>
-        )}
-      </div>
+      ) : (
+        <Panel><p className="sub" style={{ margin: 0 }}>{show === 'needs' ? 'Every review the app has read has a reply.' : 'No reviews have been read yet.'}</p></Panel>
+      )}
     </main>
   );
 }

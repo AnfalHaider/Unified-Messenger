@@ -8,6 +8,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
+import { google, GOOGLE_PROFILE_URL, GOOGLE_REVIEWS_URL, parseProfileRead } from '../channels/google/index.ts';
+import { parseProfile, parseReviewsRead, RATING_EVERY_MS, REVIEWS_EVERY_MS, type Reviews } from '../core/reviews.ts';
 import { alertsDue, pruneNotified, type Alert, type Notified } from '../core/alerts.ts';
 import { CHANNELS, emptyConfig, parseConfig, type Account, type Config } from '../core/config.ts';
 import { clear, markHandled, markNotCustomer, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
@@ -61,6 +63,7 @@ const FILE = {
   calls: join(DATA, 'calls.json'),
   events: join(DATA, 'events.json'),
   customers: join(DATA, 'customers.json'),
+  reviews: join(DATA, 'reviews.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -94,6 +97,8 @@ const calls = loadJson<Calls>(FILE.calls, {}, note('calls'));
 const events = loadJson<Events>(FILE.events, {}, note('events'));
 /** The owner's notes and tags, and what the reads have seen of each customer. Keys and times only. */
 const customers = loadJson<Customers>(FILE.customers, {}, note('customers'));
+/** Each Google profile's latest reviews, rating and total. Reviewer names and review text stay on this PC. */
+const reviews = loadJson<Reviews>(FILE.reviews, {}, note('reviews'));
 pruneCalls(calls, Date.now());
 pruneCustomers(customers, Date.now());
 /** Which week's report was last saved on its own, so Monday's save happens once. */
@@ -119,7 +124,7 @@ const health = new Map<string, ModuleHealth>();
 // Seeded from the accounts that exist, so the screen names every reader in use from the moment the app opens
 // rather than only once one has succeeded or failed.
 for (const a of config.accounts) {
-  const module = moduleFor(a.channel);
+  const module = moduleFor(a.channel) ?? (a.channel === 'googlebusiness' ? google : undefined);
   if (module && !health.has(a.channel)) health.set(a.channel, newHealth(module));
 }
 let route: Route = 'line';
@@ -131,7 +136,7 @@ let win: BrowserWindow;
 const account = (id: string) => config.accounts.find((a) => a.id === id);
 
 function recordHealth(channel: string, ok: boolean, error?: string) {
-  const module = moduleFor(channel);
+  const module = moduleFor(channel) ?? (channel === 'googlebusiness' ? google : undefined);
   if (!module) return;
   const entry = health.get(channel) ?? newHealth(module);
   if (ok) { entry.ok++; entry.lastOkAt = Date.now(); entry.lastError = null; }
@@ -316,6 +321,94 @@ async function readAccount(a: Account, reason: string) {
   }
 }
 
+// ---- Google reviews -------------------------------------------------------------------------------
+
+/** Loads an address and waits for it to settle. A client-side redirect aborts the first load, which is expected. */
+async function go(view: WebContentsView, url: string) {
+  await view.webContents.loadURL(url).catch(() => {});
+}
+
+/**
+ * One Google profile: the rating and total when they are due (every six hours), then the reviews page. Never while
+ * the owner has this page on screen: reading the rating takes the page to Google Search and back. Logs counts only.
+ */
+/** When each profile was last tried, read or not. Without it a failing profile was tried again every few seconds,
+ *  sending its page to Google Search and back each time. */
+const reviewsTriedAt: Record<string, number> = {};
+const REVIEWS_RETRY_MS = 10 * 60_000;
+
+/** Where a page is, for the log: host and path only, never the query, which can carry an address or a name. */
+const pageOf = (view: WebContentsView) => {
+  try { const u = new URL(view.webContents.getURL()); return u.host + u.pathname; } catch { return ''; }
+};
+
+async function readGoogle(a: Account, force: boolean) {
+  const view = views.get(a.id);
+  if (!view || visible === a.id) return;
+  const now = Date.now();
+  const had = reviews[a.id];
+  if (!force && had?.capturedAt && now - had.capturedAt < REVIEWS_EVERY_MS) return;
+  if (!force && now - (reviewsTriedAt[a.id] ?? 0) < REVIEWS_RETRY_MS) return;
+  reviewsTriedAt[a.id] = now;
+  // Signed out: leave the page on Google's sign-in, where the owner can sign in, rather than moving it about.
+  if (/(^|\.)accounts\.google\.com$/.test((() => { try { return new URL(view.webContents.getURL()).host; } catch { return ''; } })())) {
+    if (!signedOut.has(a.id)) remember(a, 'signed-out', { stage: 'google-sign-in' });
+    signedOut.add(a.id);
+    log({ event: 'reviews-failed', account: a.id, stage: 'signed-out', page: pageOf(view) });
+    return;
+  }
+  const source = google.script(script);
+  try {
+    let rating = had?.rating ?? null, total = had?.total ?? null, ratingAt = had?.ratingAt ?? null;
+    if (!ratingAt || now - ratingAt > RATING_EVERY_MS) {
+      await go(view, GOOGLE_PROFILE_URL);
+      const profile = parseProfileRead(await pageAnswer<string>(view, `${source};${google.profile}`));
+      if (profile.ok) {
+        const read = parseProfile(profile.text, profile.aria);
+        if (read.rating !== null || read.total !== null) { rating = read.rating; total = read.total; ratingAt = now; }
+        log({ event: 'profile-read', account: a.id, rating: read.rating, total: read.total });
+      } else {
+        log({ event: 'profile-read-failed', account: a.id, stage: profile.stage, page: pageOf(view) });
+      }
+    }
+    if (view.webContents.getURL() !== GOOGLE_REVIEWS_URL && !/business\.google\.com\/reviews/.test(view.webContents.getURL())) await go(view, GOOGLE_REVIEWS_URL);
+    const read = parseReviewsRead(await pageAnswer<string>(view, `${source};${google.reviews}`));
+    if (!read.ok) {
+      if (read.stage === 'signed-out') { signedOut.add(a.id); remember(a, 'signed-out', { stage: read.stage }); }
+      recordHealth(a.channel, false, `the reviews page answered: ${read.stage}`);
+      remember(a, 'empty', { stage: read.stage });
+      log({ event: 'reviews-failed', account: a.id, stage: read.stage, page: pageOf(view) });
+      if (ratingAt !== had?.ratingAt) reviews[a.id] = { ...(had ?? { capturedAt: 0, cards: [], more: false }), rating, total, ratingAt };
+      saveJson(FILE.reviews, reviews);
+      return;
+    }
+    signedOut.delete(a.id);
+    reviews[a.id] = { capturedAt: now, cards: read.cards, more: read.more, rating, total, ratingAt };
+    saveJson(FILE.reviews, reviews);
+    recordHealth(a.channel, true);
+    remember(a, 'read', { chats: read.cards.length, waiting: read.cards.filter((c) => !c.replied).length });
+    log({ event: 'reviews-read', account: a.id, reviews: read.cards.length, unanswered: read.cards.filter((c) => !c.replied).length, more: read.more,
+      starsRead: read.cards.filter((c) => c.stars > 0).length });
+  } catch (e) {
+    recordHealth(a.channel, false, (e as Error).message);
+    remember(a, 'failed', { stage: (e as Error).message.slice(0, 80) });
+    log({ event: 'reviews-failed', account: a.id, error: (e as Error).message.slice(0, 120), page: pageOf(view) });
+  }
+}
+
+let readingReviews = false;
+/** Every Google profile that is due, one at a time. `force` is the owner pressing Read now. */
+async function readReviews(force = false) {
+  if (readingReviews || quitting) return;
+  readingReviews = true;
+  try {
+    for (const a of config.accounts.filter((x) => x.channel === 'googlebusiness')) await readGoogle(a, force);
+  } finally {
+    readingReviews = false;
+    push();
+  }
+}
+
 /** One pass at a time. A page that is slow to answer must not stack the next pass on top of this one. */
 let ticking = false;
 
@@ -343,7 +436,7 @@ async function readPass(reason: string) {
 function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
-    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers,
+    now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers, reviews,
   });
 }
 
@@ -714,7 +807,7 @@ app.whenReady().then(async () => {
     layout();
     push();
   });
-  ipcMain.on('read-now', () => void tick('button'));
+  ipcMain.on('read-now', () => { void tick('button'); void readReviews(true); });
   ipcMain.on('reload-account', (_e, id: string) => {
     views.get(id)?.webContents.reload();
     const a = account(id);
@@ -845,6 +938,7 @@ app.whenReady().then(async () => {
     await wipe(id);
     forgetAccount(id, { snapshots, overrides, history, times, calls, notified, events });
     forgetAccountCustomers(customers, id);
+    delete reviews[id];
     for (const o of [lastReadAt, lastUsedAt, lastRead, focusRequest]) delete o[id];
     signedOut.delete(id);
     applyConfig(result.config);
@@ -856,13 +950,14 @@ app.whenReady().then(async () => {
     saveJson(FILE.alerts, notified);
     saveJson(FILE.events, events);
     saveJson(FILE.customers, customers);
+    saveJson(FILE.reviews, reviews);
     layout();
     log({ event: 'account-removed', account: id, channel });
     push();
     return {};
   });
 
-  readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); }, 5_000);
+  readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); void readReviews(); }, 5_000);
   push();
 
   // Unattended check: start, give the pages time to bring their readers up, read, write one line, quit.

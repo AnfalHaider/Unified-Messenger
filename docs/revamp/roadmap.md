@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 3.1** (the Google reviews reader), then 3.3 and 3.4, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: finish 3.1 live** (the owner signs in the three Google profiles; then check the ratings, totals and unanswered reviews against Google), then 3.3 and 3.4, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -32,7 +32,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 - **Reports** on recorded days, following the title bar's location filter: day records began 2026-09-13, reply times imported from v5 reach further back, and the coverage sentence says both. The weekly report saves as PDF, CSV or image; the Monday auto-save is off.
 - **Opening hours** can be edited per location and day, with holidays. All three locations carry v5's 11 am to 9 pm, Monday to Saturday, switched off, so waits still count around the clock (§5.3).
 - **Notifications** appear (Windows lists the app as `UnifiedMessenger.v6`) outside the quiet hours imported from v5, 9 pm to 11 am.
-- **Reading:** every minute. Google profiles are signed in but have no reader until 3.1. - **All six accounts reading (2026-09-19):** the owner signed in DHA-2 WhatsApp, Men DHA-2 WhatsApp (which had lost its login after 2026-09-15) and Men DHA-2 Instagram on the new build. WhatsApp reads 500 chats per account, Instagram 15–17 threads.
+- **Reading:** every minute. The Google reviews reader (3.1) found all three Google profiles on Google's "Choose an account" page on 2026-09-19: none is signed in on v6 yet, so the owner must sign in to each. - **All six accounts reading (2026-09-19):** the owner signed in DHA-2 WhatsApp, Men DHA-2 WhatsApp (which had lost its login after 2026-09-15) and Men DHA-2 Instagram on the new build. WhatsApp reads 500 chats per account, Instagram 15–17 threads.
 - **Closing** hides the window to the tray and keeps reading (Settings › Look and reading › Closing the window). Tray menu: Open, Read every account now, Quit.
 - **Theme:** Match Windows, Light, Dark, applied to the whole window and the account pages.
 
@@ -41,7 +41,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Real data | Sample figures (marked "Sample figures, not connected yet") |
 |---|---|
 | The line, lanes, queue, J/K/Enter | |
-| Handled and Snooze (buttons, H / S) on the line and the dock | Suggested replies (they arrive with the assistant, Phase 5) |
+| Handled and Snooze (buttons, H / S) on the line and the dock | Suggested replies and review drafts (they arrive with the assistant, Phase 5) |
 | Set aside, with Put back | Privacy sizes |
 | Needs you | |
 | Accounts grid, account figures | Reviews |
@@ -61,6 +61,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | Customer panel: note, tags, what the reads have seen, saved replies | |
 | Not a customer: the owner's mark and the staff-name and team-number rules | |
 | Help: a page per screen (? or F1) and the Help screen | |
+| Reviews: rating, total and the latest reviews per Google profile (built; waiting on the owner's Google sign-in to show real figures) | |
 
 ---
 
@@ -84,8 +85,8 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 291 tests
-npm run smoke       # 16 Playwright tests on invented data (plus one skipped: npm run help:shots): shell, marks, alerts, reports, Open chat,
+npm test            # 299 tests
+npm run smoke       # 17 Playwright tests on invented data (plus one skipped: npm run help:shots): shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter, accounts,
                     # the reading record, the line, the customer panel, WCAG 2.1 AA on every
                     # main screen and a dialog in light and dark
@@ -181,12 +182,7 @@ window on a temp data folder, asserts the first heading, moves to Accounts and q
 
 ### Phase 3 · Channel modules
 
-**3.1 Google reviews reader.**
-- v5 sources: `UnifiedMessenger/Services/Oversight/GoogleReviewSnapshotService.cs` and its scripts; verified facts in AGENTS.md "Google Business channel". Reviews and Q&A only, forever.
-- Add a reviews model to `core/` (review: stars, author, location, time, replied), a parser for both rating layouts (`Rated 4.6 out of 5,` and `4.6 ★ (991)`), and v5's test cases (`GoogleProfileTotalParsingTests`).
-- `channels/google/`: page script copied from v5, scan, sign-in probe, parser. Register in `channels/index.ts`; set `reads` appropriately in `core/config.ts` without making Google count as a conversation channel.
-- Wire the Reviews screen (`ui/screens/reports.tsx` `ReviewsScreen`) to the view model; delete `REVIEW_*` from `sample.ts`.
-- Done when the three Google profiles show real ratings, totals and unanswered reviews, and the reader's own health line appears.
+**3.1 Google reviews reader.** Built and tested on invented pages 2026-09-19; **live figures wait on the owner signing in the three Google profiles**, which the first live read found on Google's "Choose an account" page. Google is not a ChannelModule (it has no conversations): `channels/google/google-reviews.js` is v5's reader, rule for rule — Reply buttons are unanswered and Edit buttons answered; stars are the leading run of the first star's **colour**, because every star is the same glyph; the page size is raised to 50 once, and only once a control exists; only unanswered reviews are expanded, and only once; no paging, because v5's paging inflated ~239 reviews to 2,000. The merchant view's text and "Rated" labels go back to `core/reviews.ts parseProfile`, which pairs the rating with the total (both layouts, "4.6 ★ (991)" and "435 Google reviews"), with v5's test cases on invented names. Main reads each profile every 30 minutes (rating and total every 6 hours, which takes the page to Google Search and back), never while its page is on screen, one at a time, off the chat reads' flag; a failed or signed-out profile is tried again after 10 minutes, and a page on Google's sign-in is left there. `reviews.json` (names and text stay on the PC); `app.log` gets counts, the rating and total, and the page's host and path on a failure. Reviews screen is real: one card per profile (rating, total, the latest reviews' spread, how many without a reply), unanswered worst-first then oldest, All recent, full text, Open on Google; unanswered reviews are all one tone, because colour means lateness only. Tests: 8 core; Playwright reads invented Google pages (every test launch now points Google's two addresses at `tests/fixtures/google`, so no test can reach Google) and runs axe on the screen, which found and fixed star labels on unlabelled spans and the amber text at 4.31:1 (`--due` light #8A6208 → #845E08). Not built: an unhappy-review notification, Q&A, and drafted replies (Phase 5).
 
 **3.2 Open a specific chat.** Done 2026-09-13, verified on the owner's live pages. Every dock navigation carries the conversation key; main takes name and number from the snapshot and asks the page for a step every 700 ms, up to 20 s (`focusChat`, logged as `focus` with arrived / not-found / replaced / no-target, never the customer).
 - WhatsApp (`channels/whatsapp/whatsapp-focus.js`) opens the chat: a drawn row whose title is exactly the name or carries the number gets the pointer sequence; a chat not drawn is opened with WhatsApp's own `Cmd.openChatBottom({ chat })` from `ChatCollection.get(key)`; done only when the open chat's header matches. Live: drawn 3.6 s, not drawn 3.5 s, unsaved number 8.5 s, both accounts. v5's typed search no longer filters the list (lesson `v6-whatsapp-search-ignores-typed-text`).
