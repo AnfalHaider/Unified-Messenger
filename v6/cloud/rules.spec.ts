@@ -198,3 +198,14 @@ test('an admin renames an active workspace; a member cannot, and nobody deletes 
   await assertFails(deleteDoc(doc(ADMIN(), 'workspaces/w1')));
   await assertFails(deleteDoc(doc(OWNER(), 'workspaces/w1')));
 });
+
+test('the app finds its own membership by email, and nobody else’s', async () => {
+  await seed();
+  const mine = await assertSucceeds(getDocs(query(collectionGroup(STAFF(), 'members'), where('email', '==', 'staff@example.com'))));
+  assert.equal(mine.size, 1);
+  // Someone else's address, or every member: refused.
+  await assertFails(getDocs(query(collectionGroup(STRANGER(), 'members'), where('email', '==', 'staff@example.com'))));
+  await assertFails(getDocs(collectionGroup(STAFF(), 'members')));
+  // Nobody can put my address on an entry under their own id, so what I find is mine.
+  await assertFails(setDoc(doc(STRANGER(), 'workspaces/w1/members/stranger-uid'), { email: 'staff@example.com', name: 'x', role: 'member', status: 'active', joinedAt: serverTimestamp(), lastSeen: serverTimestamp() }));
+});

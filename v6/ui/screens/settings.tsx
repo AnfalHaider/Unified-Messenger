@@ -336,12 +336,13 @@ function Workspace({ state, nav }: ScreenProps) {
           ) : (
             <>
               <div style={{ display: 'grid', gap: 2 }}><b style={{ fontWeight: 600 }}>Not signed in</b>
-                <span className={c.error ? 'late' : 'sub'} role={c.error ? 'alert' : undefined}>{c.error ?? 'Nothing needs it yet. Workspaces, and the setup shared between PCs, come next.'}</span></div>
+                <span className={c.error ? 'late' : 'sub'} role={c.error ? 'alert' : undefined}>{c.error ?? 'Sign in to start a workspace, or to bring this business’s setup to this PC.'}</span></div>
               <div style={{ marginLeft: 'auto' }}><Btn kind="primary" onClick={() => bridge.signIn()}>Sign in with Google</Btn></div>
             </>
           )}
         </div>
       </div>
+      {c.phase === 'signed-in' && <YourWorkspace state={state} />}
       <div className="sgroup">
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Members of the workspace</h3><Sample />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}><Btn kind="quiet" icon="key" onClick={() => nav.go('owner')}>Owner console</Btn><Btn icon="users" kind="primary" disabled title="Invitations are not connected yet">Invite someone</Btn></div></div>
@@ -363,6 +364,56 @@ function Workspace({ state, nav }: ScreenProps) {
         <Panel title="What syncs"><p className="sub" style={{ margin: 0 }}>Accounts, locations, opening hours, holidays, targets and saved replies. Customer data never syncs.</p></Panel>
       </div>
     </>
+  );
+}
+
+/** The workspace this PC belongs to (6.3): start one from this PC's setup, or see that the setup is in step. */
+function YourWorkspace({ state }: { state: UiState }) {
+  const w = state.workspace;
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const create = async () => {
+    setBusy(true); setError('');
+    const r = await bridge.createWorkspace(name);
+    setBusy(false);
+    if (r.error) setError(r.error);
+  };
+  const synced = w.phase === 'member' && w.syncedAt ? new Date(w.syncedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+  return (
+    <div className="sgroup"><h3>Your workspace</h3>
+      <div className="panel" style={{ display: 'grid', gap: 10 }}>
+        {(w.phase === 'checking' || w.phase === 'signed-out') && <span className="sub" role="status">Looking for your workspace…</span>}
+        {w.phase === 'error' && <><span className="late" role="alert">{w.error}</span><div><Btn onClick={() => bridge.syncWorkspace()}>Try again</Btn></div></>}
+        {w.phase === 'none' && (
+          <>
+            <b style={{ fontWeight: 600 }}>No workspace yet</b>
+            <span className="sub">Start one from this PC's setup. Its accounts, locations, opening hours, holidays, reply target, saved replies and not-a-customer rules are kept in the workspace, so another PC signed in to it gets them too. Logins, messages, customers and figures never leave this PC.</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <label className="field" style={{ minWidth: 260 }}><span>Workspace name</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="The business’s name" maxLength={80} /></label>
+              <Btn kind="primary" disabled={busy || !name.trim()} onClick={() => void create()}>{busy ? 'Starting…' : 'Start the workspace'}</Btn>
+            </div>
+            {error && <span className="late" role="alert">{error}</span>}
+          </>
+        )}
+        {w.phase === 'member' && (
+          <>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'grid', gap: 2 }}>
+                <b style={{ fontWeight: 600 }}>{w.name}</b>
+                <span className="sub">{w.role === 'admin' ? 'You are an admin: changes made here reach the workspace.' : 'You are a member: this PC takes its setup from the workspace.'}</span>
+              </div>
+              {w.status === 'suspended' && <Chip tone="late">Suspended</Chip>}
+              <div style={{ marginLeft: 'auto' }}><Btn onClick={() => bridge.syncWorkspace()}>Sync now</Btn></div>
+            </div>
+            <span className="sub" role="status">{w.status === 'suspended' ? 'The workspace is suspended, so its setup is not read. This PC keeps the setup it has.' : synced ? `Setup in step with the workspace, last checked ${synced}.` : 'Bringing the setup from the workspace…'}</span>
+            {w.note && <span className="due" role="alert">{w.note}</span>}
+            {w.error && <span className="late" role="alert">{w.error}</span>}
+          </>
+        )}
+        {w.phase === 'removed' && <span className="late" role="alert">This Google account was removed from {w.name || 'the workspace'}. Ask one of its admins to invite you again.</span>}
+      </div>
+    </div>
   );
 }
 

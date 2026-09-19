@@ -26,7 +26,8 @@ async function open(data: string, env: Record<string, string> = {}): Promise<{ a
   const app = await electron.launch({ args: ['app/main.ts'], cwd: V6, env: {
     ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5'), UM_LOCALAPPDATA: join(data, 'no-local-app-data'),
     UM_GOOGLE_REVIEWS_URL: pathToFileURL(join(google, 'reviews', 'index.html')).href, UM_GOOGLE_PROFILE_URL: pathToFileURL(join(google, 'profile.html')).href,
-    UM_CLOUD_CONFIG: join(V6, 'tests', 'fixtures', 'cloud-config.json'), UM_CLOUD_ENDPOINT: 'http://127.0.0.1:9', ...env,
+    UM_CLOUD_CONFIG: join(V6, 'tests', 'fixtures', 'cloud-config.json'), UM_CLOUD_ENDPOINT: 'http://127.0.0.1:9',
+    UM_FIRESTORE: 'http://127.0.0.1:9/v1/projects/test-project/databases/(default)', ...env,
   } });
   return { app, win: await app.firstWindow() };
 }
@@ -1511,7 +1512,7 @@ test('signing in with Google: in the browser, kept encrypted across a restart, a
 
     // Signed out: forgotten on this PC.
     await win.getByRole('button', { name: 'Sign out' }).click();
-    await expect(win.getByText('Not signed in')).toBeVisible();
+    await expect(win.getByText('Not signed in', { exact: true })).toBeVisible();
     expect(readdirSync(data)).not.toContain('cloud.json');
 
     // Signed in again from the sign-in screen, which returns to the app by itself when done.
@@ -1541,5 +1542,112 @@ test('signing in with Google: in the browser, kept encrypted across a restart, a
     await app.close().catch(() => {});
     await cloud.close();
     rmSync(data, { recursive: true, force: true });
+  }
+});
+
+/** An invented Firestore in the test's own process, answering the three calls the app makes (a query across
+ *  collections by one field, a read, a write) the way the REST API does. It keeps no rules: the emulator tests in
+ *  cloud/ prove those. It records every document, so the test can check exactly what left the PC. */
+async function fakeFirestore() {
+  const { createServer } = await import('node:http');
+  const docs = new Map<string, { fields: Record<string, unknown>; updateTime: string }>();
+  let clock = 0;
+  const server = createServer(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    const url = new URL(req.url ?? '/', 'http://x');
+    const json = (status: number, v: unknown) => res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(v));
+    const root = url.pathname.split('/documents')[0].replace(/^\/v1\//, '') + '/documents';
+    if (url.pathname.endsWith('/documents:runQuery')) {
+      const q = JSON.parse(body).structuredQuery;
+      const { field, value } = q.where.fieldFilter;
+      const rows = [...docs.entries()].filter(([name, d]) => name.split('/').at(-2) === q.from[0].collectionId
+        && JSON.stringify(d.fields[field.fieldPath]) === JSON.stringify(value));
+      json(200, rows.length ? rows.map(([name, d]) => ({ document: { name, ...d } })) : [{ readTime: 'x' }]);
+    } else if (url.pathname.endsWith('/documents:commit')) {
+      const stamp = new Date(Date.now() + ++clock).toISOString();
+      for (const w of JSON.parse(body).writes) {
+        const prior = docs.get(w.update.name);
+        if (w.currentDocument?.exists === false && prior) return json(409, { error: { status: 'ALREADY_EXISTS' } });
+        if (w.currentDocument?.updateTime && prior?.updateTime !== w.currentDocument.updateTime) return json(400, { error: { status: 'FAILED_PRECONDITION' } });
+      }
+      const results = [];
+      for (const w of JSON.parse(body).writes) {
+        const prior = docs.get(w.update.name);
+        const fields = w.updateMask ? { ...(prior?.fields ?? {}), ...w.update.fields } : { ...w.update.fields };
+        for (const t of w.updateTransforms ?? []) fields[t.fieldPath] = { timestampValue: stamp };
+        docs.set(w.update.name, { fields, updateTime: stamp });
+        results.push({ updateTime: stamp });
+      }
+      json(200, { writeResults: results });
+    } else if (req.method === 'GET') {
+      const name = `${root}${url.pathname.split('/documents')[1]}`;
+      const d = docs.get(decodeURIComponent(name));
+      d ? json(200, { name, ...d }) : json(404, { error: { status: 'NOT_FOUND' } });
+    } else res.writeHead(404).end();
+  });
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  const port = (server.address() as { port: number }).port;
+  return { base: `http://127.0.0.1:${port}/v1/projects/test-project/databases/(default)`, docs, close: () => new Promise<void>((done) => server.close(() => done())) };
+}
+
+test('a workspace: started from this PC’s setup, and a second PC signed in to it gets the accounts', async () => {
+  const cloud = await fakeCloud();
+  const fs = await fakeFirestore();
+  const env = { UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
+  const first = dataFolder({
+    accounts: [
+      { id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
+      { id: 'test-ig', name: 'Test Instagram', channel: 'instagram', url: 'about:blank', professional: true, location: 'Main branch' },
+    ],
+    locations: [{ name: 'Main branch', slaMinutes: 20 }],
+    settings: { slaMinutes: 25, theme: 'dark', savedReplies: [{ title: 'Hours', body: 'We open at 11.' }] },
+  });
+  const second = dataFolder();
+  const workspace = async (win: Page) => {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
+  };
+  let { app, win } = await open(first, env);
+  try {
+    await workspace(win);
+    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await expect(win.getByText('No workspace yet')).toBeVisible();
+    await win.getByLabel('Workspace name').fill('Sample Business');
+    await win.getByRole('button', { name: 'Start the workspace' }).click();
+    await expect(win.getByText('You are an admin: changes made here reach the workspace.')).toBeVisible();
+    await expect(win.getByRole('status').filter({ hasText: 'Setup in step with the workspace' })).toBeVisible();
+
+    // What left the PC: the workspace, its first admin, and the shared setup. Nothing personal, nothing about customers.
+    const setup = [...fs.docs.entries()].find(([name]) => name.endsWith('/config/main'))![1];
+    const text = JSON.stringify(setup.fields);
+    expect(text).toContain('Test front desk');
+    expect(text).toContain('We open at 11.');
+    for (const personal of ['theme', 'dark', 'quietHours', 'assistant', 'muted']) expect(text, personal).not.toContain(personal);
+    expect(Object.keys(setup.fields).sort()).toEqual(['accounts', 'locations', 'settings', 'updatedAt', 'updatedBy']);
+    await quit(app, win);
+
+    // A second PC, signed in as the same person: the accounts and business rules arrive; its own theme stays its own.
+    ({ app, win } = await open(second, env));
+    await workspace(win);
+    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await expect(win.getByText('Sample Business')).toBeVisible();
+    await expect.poll(() => JSON.parse(readFileSync(join(second, 'config.json'), 'utf8')).accounts?.map((a: { name: string }) => a.name)).toEqual(['Test front desk', 'Test Instagram']);
+    const received = JSON.parse(readFileSync(join(second, 'config.json'), 'utf8'));
+    expect(received.settings.slaMinutes).toBe(25);
+    expect(received.settings.savedReplies).toEqual([{ title: 'Hours', body: 'We open at 11.' }]);
+    expect(received.settings.theme).toBe('system');
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Accounts', exact: true }).click();
+    await expect(win.getByRole('main')).toContainText('2 accounts at 1 location.');
+    // Nothing about the workspace's people or setup is in the log.
+    expect(readFileSync(join(second, 'app.log'), 'utf8')).not.toContain('Sample Business');
+    expect(readFileSync(join(second, 'app.log'), 'utf8')).not.toContain('Test front desk');
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await cloud.close();
+    await fs.close();
+    rmSync(first, { recursive: true, force: true });
+    rmSync(second, { recursive: true, force: true });
   }
 });

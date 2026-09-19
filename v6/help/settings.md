@@ -38,6 +38,11 @@ Sentences you type often, with a short name. They appear beside every chat with 
 ## Assistant, Workspace, Privacy, About
 
 - **Assistant** switches the local assistant on or off and downloads what it needs, only when you press the button. See [Assistant](help:assistant).
-- **Workspace** › **Your sign-in**: **Sign in with Google** opens your browser, where you choose your Google account; the app comes back by itself when you are done. You stay signed in until you press **Sign out**. Nothing needs the sign-in yet: workspaces, and the setup shared between PCs, come next. The members list below it is still a preview, and says so.
+- **Workspace** › **Your sign-in**: **Sign in with Google** opens your browser, where you choose your Google account; the app comes back by itself when you are done. You stay signed in until you press **Sign out**. Once signed in, **Your workspace** appears:
+  - **No workspace yet**: give it the business's name and press **Start the workspace**. This PC's accounts, locations, opening hours, holidays, reply target, saved replies and not-a-customer rules are kept in the workspace. Logins, messages, customers and figures never leave this PC.
+  - **A second PC** signed in with the same Google account gets that setup by itself. Its accounts arrive without their logins, so each shows **Sign in needed** until you sign in to it on that PC.
+  - **Changes**: an admin's changes reach the workspace within seconds; other PCs pick them up when they start, every six hours, or when you press **Sync now**. If two PCs change the setup at the same moment, the first change stands and the second PC says so.
+  - **What stays on each PC**: its theme, notifications, quiet hours, the assistant, the digest and which accounts are muted there.
+  The members list below it is still a preview, and says so.
 - **Privacy** lists what is kept on this PC.
 - **About** shows the version.

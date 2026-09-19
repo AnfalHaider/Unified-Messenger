@@ -24,6 +24,7 @@ import { explain } from '../core/reply-need.ts';
 import { awaitingChats, awaitingSplit, lastCaptured, notCustomerWhy, setAside, type Judge, type Snapshots } from '../core/snapshot.ts';
 import type { Overrides } from '../core/awaiting-overrides.ts';
 import type { CloudState } from '../core/cloud-auth.ts';
+import type { WorkspaceState } from './workspace.ts';
 
 /** How close to the target counts as "due soon". The design's warning window. */
 const DUE_SOON_MINUTES = 5;
@@ -258,6 +259,8 @@ export interface UiState {
   assistant: { state: EngineState; sentence: string; suggested: ModelChoice; memoryGB: number; models: ModelChoice[] };
   /** Signing in to the workspace: unavailable in a build without the project's config, else signed out, waiting or in. */
   cloud: CloudState;
+  /** The workspace this PC belongs to, and whether its setup is in step. */
+  workspace: WorkspaceState;
   /** What led up to this account losing its login, and since when. Built only while that screen is open. */
   lostLogin: { since: number | null; items: TimelineRow[] } | null;
   /** What each channel's reader has been doing, across every account on it. Built only while Readers is open. */
@@ -284,6 +287,7 @@ export interface Context {
   memoryGB?: number;
   /** Who is signed in to the workspace, if anyone. Never the tokens. */
   cloud?: CloudState;
+  workspace?: WorkspaceState;
   /** The location chosen in the title bar, or null for all. Reports and their exports cover only that location. */
   scope?: string | null;
   route: Route;
@@ -409,6 +413,7 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
       suggested: suggestModel(ctx.memoryGB ?? 8), memoryGB: Math.round(ctx.memoryGB ?? 0), models: MODELS,
     },
     cloud: ctx.cloud ?? { phase: 'unavailable' },
+    workspace: ctx.workspace ?? { phase: 'signed-out' },
     lostLogin: ctx.route === 'lost-login' && ctx.visible
       ? { since: signedOutSince(ctx.events ?? {}, ctx.visible), items: timelineRows(lostLoginTimeline(ctx.events ?? {}, ctx.visible, ctx.now), ctx.now) }
       : null,

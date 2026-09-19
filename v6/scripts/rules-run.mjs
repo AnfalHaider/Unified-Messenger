@@ -1,4 +1,5 @@
 // Runs the Firestore rules tests (cloud/rules.spec.ts) against the emulator: `npm run rules:test`.
+// One file at a time: both share the one emulator, and each test clears it.
 // Named -run, not -test, so `node --test` never picks it up (lesson v6-node-test-runs-dash-test-files).
 //
 // The emulator needs Java 21 or newer. CI installs it; on a PC whose `java` is older, this looks for a JDK 21+ under
@@ -24,5 +25,5 @@ if (versionOf('java') < 21) {
   env.PATH = `${join(home, 'bin')}${delimiter}${env.PATH}`;
   console.log(`Using Java from ${home}`);
 }
-const run = spawnSync('npx firebase emulators:exec --only firestore --project demo-unified-messenger "node --test cloud/rules.spec.ts"', { stdio: 'inherit', env, shell: true });
+const run = spawnSync('npx firebase emulators:exec --only firestore --project demo-unified-messenger "node --test --test-concurrency=1 cloud/rules.spec.ts cloud/sync.spec.ts"', { stdio: 'inherit', env, shell: true });
 process.exit(run.status ?? 1);

@@ -36,6 +36,9 @@ contextBridge.exposeInMainWorld('um', {
   signIn: () => ipcRenderer.send('cloud-sign-in'),
   cancelSignIn: () => ipcRenderer.send('cloud-cancel'),
   signOut: () => ipcRenderer.send('cloud-sign-out'),
+  /** Starts a workspace from this PC's setup; resolves with { error } when refused. Sync asks the workspace again now. */
+  createWorkspace: (name) => ipcRenderer.invoke('workspace-create', name),
+  syncWorkspace: () => ipcRenderer.send('workspace-sync'),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),
   editAccount: (accountId, change) => ipcRenderer.invoke('edit-account', accountId, change),

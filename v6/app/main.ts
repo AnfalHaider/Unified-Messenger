@@ -29,6 +29,8 @@ import { importFromV5 } from './first-run.ts';
 import { Engine, type ChatMessage } from './assistant.ts';
 import { Cloud } from './cloud.ts';
 import { GOOGLE_ENDPOINTS, parseCloudConfig, type Endpoints } from '../core/cloud-auth.ts';
+import { Workspace } from './workspace.ts';
+import { applySetup, sharedSetup, type SharedSetup } from '../core/workspace-sync.ts';
 import { answerFrom, answerQuestion, buildFacts } from '../core/assistant-summary.ts';
 import { parseDrafts, replyPrompt, type ChatLine } from '../core/assistant-reply.ts';
 import { loadJson, saveJson } from './store.ts';
@@ -143,8 +145,35 @@ const cloud = new Cloud({
   dataDir: DATA, config: cloudConfig, endpoints: cloudEndpoints, log: (entry) => log(entry),
   // Tests have no browser to open: the fake Google answers the request itself, straight back to the loopback port.
   open: (url) => (fakeCloud && process.env.UM_SIGNIN_OPEN === 'fetch' ? fetch(url) : shell.openExternal(url)),
-  changed: () => push(),
+  changed: () => {
+    // Signing in finds the workspace; signing out forgets it on this PC.
+    const phase = cloud.state.phase;
+    if (phase !== lastCloudPhase) {
+      if (phase === 'signed-in') void workspace.check();
+      else if (lastCloudPhase === 'signed-in') workspace.forget();
+      lastCloudPhase = phase;
+    }
+    push();
+  },
 });
+let lastCloudPhase = cloud.state.phase;
+
+/** The workspace (6.3): which one this person belongs to, and the business setup it shares between PCs. Tests point
+ *  UM_FIRESTORE at a closed port, so no test ever reaches the real project. */
+let applyFromWorkspace: (setup: SharedSetup) => string[] = () => [];
+const workspace = new Workspace({
+  base: process.env.UM_FIRESTORE || `https://firestore.googleapis.com/v1/projects/${cloudConfig?.firebase.projectId ?? 'none'}/databases/(default)`,
+  dataDir: DATA,
+  token: () => cloud.token(),
+  user: () => cloud.user,
+  local: () => sharedSetup(config),
+  apply: (setup) => applyFromWorkspace(setup),
+  changed: () => push(),
+  log: (entry) => log(entry),
+});
+/** Said when a member who is not an admin tries to change what the workspace shares. */
+const SHARED_READ_ONLY = 'This PC takes its accounts, locations and business rules from the workspace. Only a workspace admin can change them.';
+const SHARED_SETTINGS = ['slaMinutes', 'backlogAfterDays', 'filterClosedConversations', 'savedReplies', 'notCustomers'];
 
 const views = new Map<string, WebContentsView>();
 const lastReadAt: Record<string, number> = {};
@@ -482,7 +511,7 @@ function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
     now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers, reviews,
-    assistant: engine.state, memoryGB: totalmem() / 1024 ** 3, cloud: cloud.state,
+    assistant: engine.state, memoryGB: totalmem() / 1024 ** 3, cloud: cloud.state, workspace: workspace.state,
   });
 }
 
@@ -895,6 +924,7 @@ app.whenReady().then(async () => {
   // Opening hours and holidays go back through the config parser, so a window that closes before it opens, a
   // date that does not exist or a location that is gone is corrected here, never reaches the rules.
   const saveLocations = (event: string, next: unknown) => {
+    if (workspace.readOnly) { log({ event: 'shared-change-refused', what: event }); push(); return; }
     const { config: parsed } = parseConfig(next);
     config.locations = parsed.locations;
     config.holidays = parsed.holidays;
@@ -933,6 +963,11 @@ app.whenReady().then(async () => {
     push();
   });
   ipcMain.on('set-settings', (_e, patch: Record<string, unknown>) => {
+    if (workspace.readOnly && Object.keys(patch ?? {}).some((k) => SHARED_SETTINGS.includes(k))) {
+      log({ event: 'shared-change-refused', what: 'settings' });
+      push();
+      return;
+    }
     // Straight back through the config parser, so a value out of range is brought inside the limits here
     // rather than reaching the rules that use it.
     const { config: next } = parseConfig({ ...config, settings: { ...config.settings, ...patch } });
@@ -1012,6 +1047,7 @@ app.whenReady().then(async () => {
     saveJson(FILE.config, config);
   };
   ipcMain.handle('add-account', (_e, request: NewAccount) => {
+    if (workspace.readOnly) return { error: SHARED_READ_ONLY };
     const result = addAccount(config, request ?? {}, randomUUID().replace(/-/g, ''));
     if (result.error) return { error: result.error };
     applyConfig(result.config);
@@ -1025,6 +1061,7 @@ app.whenReady().then(async () => {
     return { id: added.id };
   });
   ipcMain.handle('edit-account', (_e, id: string, change: AccountEdit) => {
+    if (workspace.readOnly) return { error: SHARED_READ_ONLY };
     const result = editAccount(config, id, change ?? { name: '', location: '', professional: false });
     if (result.error) return { error: result.error };
     applyConfig(result.config);
@@ -1035,9 +1072,20 @@ app.whenReady().then(async () => {
   // Removing wipes the login saved on this PC and everything stored under the account. It cannot be undone, which is
   // why the screen asks first; the phone keeps this PC as a linked device until the owner removes it there.
   ipcMain.handle('remove-account', async (_e, id: string) => {
+    if (workspace.readOnly) return { error: SHARED_READ_ONLY };
     const result = removeAccount(config, id);
     if (result.error) return { error: result.error };
     const channel = account(id)?.channel;
+    await forgetHere(id);
+    applyConfig(result.config);
+    layout();
+    log({ event: 'account-removed', account: id, channel });
+    push();
+    return {};
+  });
+  /** Everything this PC holds for one account: its login and every record about it. Used when the owner removes an
+   *  account here, and when it was removed from the workspace on another PC. */
+  async function forgetHere(id: string) {
     if (visible === id) { route = 'accounts'; visible = null; }
     await wipe(id);
     forgetAccount(id, { snapshots, overrides, history, times, calls, notified, events });
@@ -1045,7 +1093,6 @@ app.whenReady().then(async () => {
     delete reviews[id];
     for (const o of [lastReadAt, lastUsedAt, lastRead, focusRequest]) delete o[id];
     signedOut.delete(id);
-    applyConfig(result.config);
     saveJson(FILE.snapshot, snapshots);
     saveJson(FILE.times, times);
     saveJson(FILE.overrides, overrides);
@@ -1055,15 +1102,38 @@ app.whenReady().then(async () => {
     saveJson(FILE.events, events);
     saveJson(FILE.customers, customers);
     saveJson(FILE.reviews, reviews);
-    layout();
-    log({ event: 'account-removed', account: id, channel });
-    push();
-    return {};
-  });
+  }
 
-  readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); void readReviews(); }, 5_000);
+  // A setup from the workspace: applied here, accounts it added woken (they have no login on this PC yet, so they
+  // show Sign in needed), and accounts removed on another PC forgotten here, login and all.
+  applyFromWorkspace = (setup) => {
+    const r = applySetup(config, setup, workspace.synced);
+    const gone = r.removed.map((id) => ({ id, channel: account(id)?.channel }));
+    config.accounts = r.config.accounts;
+    config.locations = r.config.locations;
+    config.holidays = r.config.holidays;
+    config.settings = r.config.settings;
+    saveJson(FILE.config, config);
+    for (const { id, channel } of gone) void forgetHere(id).then(() => { log({ event: 'account-removed', account: id, channel, by: 'workspace' }); push(); });
+    for (const id of r.added) {
+      const a = account(id);
+      if (!a) continue;
+      const module = moduleFor(a.channel);
+      if (module && !health.has(a.channel)) health.set(a.channel, newHealth(module));
+      wake(a);
+      log({ event: 'account-added', account: a.id, channel: a.channel, counted: a.professional, by: 'workspace' });
+    }
+    layout();
+    push();
+    return [...r.synced];
+  };
+  ipcMain.handle('workspace-create', (_e, name: string) => workspace.create(String(name ?? '')));
+  ipcMain.on('workspace-sync', () => void workspace.check());
+
+  readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); void readReviews(); workspace.tick(); }, 5_000);
   void engine.ensure(config.settings.assistant);
   cloud.load();
+  if (cloud.state.phase === 'signed-in') { lastCloudPhase = 'signed-in'; void workspace.check(); }
   push();
 
   // Unattended check: start, give the pages time to bring their readers up, read, write one line, quit.

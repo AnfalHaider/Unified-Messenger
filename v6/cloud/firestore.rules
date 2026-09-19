@@ -121,6 +121,13 @@ service cloud.firestore {
       }
     }
 
+    // Finding one's own membership across workspaces, when the app starts: only entries carrying one's own address.
+    // Checked against the address, not the id, which a query cannot prove; an entry carries an address only under
+    // that person's own id, because only they can create it (above). The app also checks the id.
+    match /{path=**}/members/{memberId} {
+      allow read: if signedIn() && verified() && resource.data.email == myEmail();
+    }
+
     // Finding one's own invitations across workspaces, when a new member first signs in.
     // Checked against the stored address: a query cannot be proven against document ids.
     match /{path=**}/invites/{email} {

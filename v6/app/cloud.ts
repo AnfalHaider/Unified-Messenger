@@ -25,8 +25,9 @@ interface Stored { uid: string; email: string; name: string; signedInAt: number;
 
 export class Cloud {
   state: CloudState;
-  /** The current Firebase id token, in memory only. The workspace calls (6.3) will send it. */
+  /** The current Firebase id token, in memory only, and when it was issued. Firebase's last an hour. */
   idToken = '';
+  private idTokenAt = 0;
   private session: CloudSession | null = null;
   private server: Server | null = null;
   private cancelWait: (() => void) | null = null;
@@ -133,6 +134,7 @@ export class Cloud {
       const r = readRefresh(res.status, await res.json().catch(() => ({})));
       if (r.ok) {
         this.idToken = r.idToken;
+        this.idTokenAt = Date.now();
         if (r.refreshToken && r.refreshToken !== this.session.refreshToken) { this.session.refreshToken = r.refreshToken; this.save(); }
         this.log({ event: 'cloud-refreshed' });
       } else if (r.final) {
@@ -142,6 +144,16 @@ export class Cloud {
     } catch {
       this.log({ event: 'cloud-refresh-failed', status: 0 });
     }
+  }
+
+  /** Who is signed in, for the workspace calls: the Firebase user id and Google's address. */
+  get user() { return this.session ? { uid: this.session.uid, email: this.session.email.toLowerCase(), name: this.session.name } : null; }
+
+  /** A token for the workspace calls, refreshed when it is older than 50 minutes. Null when signed out or offline. */
+  async token(): Promise<string | null> {
+    if (!this.session) return null;
+    if (!this.idToken || Date.now() - this.idTokenAt > 50 * 60_000) await this.refresh();
+    return this.idToken || null;
   }
 
   stop() { this.cancel(); this.closeServer(); if (this.timer) clearInterval(this.timer); }
@@ -160,6 +172,7 @@ export class Cloud {
   private forget(error?: string) {
     this.session = null;
     this.idToken = '';
+    this.idTokenAt = 0;
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
     rmSync(this.file, { force: true });
     this.set({ phase: 'signed-out', ...(error ? { error } : {}) });

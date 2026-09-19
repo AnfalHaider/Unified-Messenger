@@ -26,6 +26,8 @@ declare global {
       signIn(): void;
       cancelSignIn(): void;
       signOut(): void;
+      createWorkspace(name: string): Promise<{ error?: string }>;
+      syncWorkspace(): void;
       setNote(accountId: string, key: string, text: string): void;
       toggleTag(accountId: string, key: string, tag: string): void;
       addAccount(request: { channel: string; name: string; location: string; url?: string }): Promise<{ id?: string; error?: string }>;
@@ -56,7 +58,8 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
-  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {},
+  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {},
+  createWorkspace: async () => ({ error: 'workspaces need the app, not the browser preview' }),
   askAssistant: async () => ({ error: 'The assistant needs the app, not the browser preview.' }),
   suggestReply: async () => ({ error: 'The assistant needs the app, not the browser preview.' }),
   addAccount: async () => ({ error: 'accounts can only be added in the app, not the browser preview' }),
