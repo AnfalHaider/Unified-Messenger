@@ -39,6 +39,13 @@ contextBridge.exposeInMainWorld('um', {
   /** Starts a workspace from this PC's setup; resolves with { error } when refused. Sync asks the workspace again now. */
   createWorkspace: (name) => ipcRenderer.invoke('workspace-create', name),
   syncWorkspace: () => ipcRenderer.send('workspace-sync'),
+  /** Members (6.4). Each resolves with { error } when refused. The app sends no email: the admin tells the person. */
+  joinWorkspace: (id) => ipcRenderer.invoke('workspace-join', id),
+  inviteMember: (email, role) => ipcRenderer.invoke('workspace-invite', email, role),
+  withdrawInvite: (email) => ipcRenderer.invoke('workspace-withdraw', email),
+  setMemberStatus: (uid, status) => ipcRenderer.invoke('workspace-member-status', uid, status),
+  setMemberRole: (uid, role) => ipcRenderer.invoke('workspace-member-role', uid, role),
+  removalRead: () => ipcRenderer.send('workspace-removal-read'),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),
   editAccount: (accountId, change) => ipcRenderer.invoke('edit-account', accountId, change),

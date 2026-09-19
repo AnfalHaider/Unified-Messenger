@@ -103,9 +103,10 @@ test('only an admin changes the setup, and only its named fields', async () => {
 
 test('inviting: an admin invites by email; the person sees it, joins with that role, and clears it', async () => {
   await seed();
-  const invite = (role: string) => ({ email: 'new.staff@example.com', role, invitedBy: 'admin-uid', invitedAt: serverTimestamp() });
+  const invite = (role: string) => ({ email: 'new.staff@example.com', role, invitedBy: 'admin-uid', invitedAt: serverTimestamp(), workspaceName: 'Sample Business' });
   await assertFails(setDoc(doc(STAFF(), 'workspaces/w1/invites/new.staff@example.com'), { ...invite('member'), invitedBy: 'staff-uid' }));
   await assertFails(setDoc(doc(ADMIN(), 'workspaces/w1/invites/New.Staff@example.com'), { ...invite('member'), email: 'New.Staff@example.com' })); // keyed in lower case
+  await assertFails(setDoc(doc(ADMIN(), 'workspaces/w1/invites/new.staff@example.com'), { ...invite('member'), workspaceName: 'Another Business' })); // the name must be the workspace's own
   await assertSucceeds(setDoc(doc(ADMIN(), 'workspaces/w1/invites/new.staff@example.com'), invite('member')));
 
   // Signed in with a capitalised address, as Google may give it: still theirs.
@@ -124,7 +125,7 @@ test('inviting: an admin invites by email; the person sees it, joins with that r
 
 test('an invitation cannot be used by someone else, or with an address Google has not verified', async () => {
   await seed();
-  await assertSucceeds(setDoc(doc(ADMIN(), 'workspaces/w1/invites/new.staff@example.com'), { email: 'new.staff@example.com', role: 'member', invitedBy: 'admin-uid', invitedAt: serverTimestamp() }));
+  await assertSucceeds(setDoc(doc(ADMIN(), 'workspaces/w1/invites/new.staff@example.com'), { email: 'new.staff@example.com', role: 'member', invitedBy: 'admin-uid', invitedAt: serverTimestamp(), workspaceName: 'Sample Business' }));
   const member = { email: 'new.staff@example.com', name: 'x', role: 'member', status: 'active', joinedAt: serverTimestamp(), lastSeen: serverTimestamp() };
   await assertFails(setDoc(doc(STRANGER(), 'workspaces/w1/members/stranger-uid'), member));
   await assertFails(setDoc(doc(as('u9', 'new.staff@example.com', false), 'workspaces/w1/members/u9'), member));
@@ -168,7 +169,7 @@ test('suspending: only the product owner suspends or restores, and a suspended w
   await assertFails(getDoc(doc(ADMIN(), 'workspaces/w1/config/main')));
   await assertFails(setDoc(doc(ADMIN(), 'workspaces/w1/config/main'), config('admin-uid')));
   await assertFails(updateDoc(doc(ADMIN(), 'workspaces/w1/members/staff-uid'), { status: 'removed' }));
-  await assertFails(setDoc(doc(ADMIN(), 'workspaces/w1/invites/x@example.com'), { email: 'x@example.com', role: 'member', invitedBy: 'admin-uid', invitedAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(ADMIN(), 'workspaces/w1/invites/x@example.com'), { email: 'x@example.com', role: 'member', invitedBy: 'admin-uid', invitedAt: serverTimestamp(), workspaceName: 'Sample Business' }));
   await assertFails(updateDoc(doc(ADMIN(), 'workspaces/w1'), { name: 'Renamed' }));
   await assertFails(updateDoc(doc(ADMIN(), 'workspaces/w1'), { status: 'active', statusChangedAt: serverTimestamp() })); // the admin cannot lift it
 

@@ -28,6 +28,12 @@ declare global {
       signOut(): void;
       createWorkspace(name: string): Promise<{ error?: string }>;
       syncWorkspace(): void;
+      joinWorkspace(id: string): Promise<{ error?: string }>;
+      inviteMember(email: string, role: 'admin' | 'member'): Promise<{ error?: string }>;
+      withdrawInvite(email: string): Promise<{ error?: string }>;
+      setMemberStatus(uid: string, status: 'active' | 'removed'): Promise<{ error?: string }>;
+      setMemberRole(uid: string, role: 'admin' | 'member'): Promise<{ error?: string }>;
+      removalRead(): void;
       setNote(accountId: string, key: string, text: string): void;
       toggleTag(accountId: string, key: string, tag: string): void;
       addAccount(request: { channel: string; name: string; location: string; url?: string }): Promise<{ id?: string; error?: string }>;
@@ -58,7 +64,8 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
-  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {},
+  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {}, removalRead() {},
+  joinWorkspace: async () => ({}), inviteMember: async () => ({}), withdrawInvite: async () => ({}), setMemberStatus: async () => ({}), setMemberRole: async () => ({}),
   createWorkspace: async () => ({ error: 'workspaces need the app, not the browser preview' }),
   askAssistant: async () => ({ error: 'The assistant needs the app, not the browser preview.' }),
   suggestReply: async () => ({ error: 'The assistant needs the app, not the browser preview.' }),
@@ -72,8 +79,8 @@ export const bridge: Window['um'] = !isPreview ? window.um : {
 // ---- navigation ------------------------------------------------------------------------------------------
 
 /** Full-window screens that replace the shell: signing in, a removed PC, a paused workspace, the v5 move. */
-export type LockScreen = 'sign-in' | 'new-pc' | 'removed' | 'suspended' | 'upgrade';
-export type Overlay = 'palette' | 'needs' | 'help' | 'add-account' | 'edit-account' | 'remove-account' | 'remove-member' | 'update';
+export type LockScreen = 'sign-in' | 'new-pc' | 'removed' | 'reconnect' | 'suspended' | 'upgrade';
+export type Overlay = 'palette' | 'needs' | 'help' | 'add-account' | 'edit-account' | 'remove-account' | 'update';
 
 export interface View { route: Route; accountId: string | null; sub: string; overlay: Overlay | null; lock: LockScreen | null; offline: boolean }
 

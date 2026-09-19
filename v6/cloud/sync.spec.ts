@@ -43,12 +43,18 @@ const startingConfig = () => parseConfig({
 }).config;
 
 /** One PC: its own folder and config, and the workspace client wired the way main wires it. */
-function pc(user: typeof OWNER, config: Config = parseConfig({}).config) {
-  const dataDir = mkdtempSync(join(tmpdir(), 'um-sync-'));
+function pc(user: typeof OWNER, config: Config = parseConfig({}).config, o: { dataDir?: string; base?: string; now?: () => number } = {}) {
+  const dataDir = o.dataDir ?? mkdtempSync(join(tmpdir(), 'um-sync-'));
   folders.push(dataDir);
-  const here = { config, removed: [] as string[], added: [] as string[] };
+  const here = { config, dataDir, removed: [] as string[], added: [] as string[], wipedOnRemoval: [] as string[] };
   const ws: Workspace = new Workspace({
-    base: BASE, dataDir, token: async () => token(user.uid, user.email), user: () => user,
+    base: o.base ?? BASE, dataDir, token: async () => token(user.uid, user.email), user: () => user, now: o.now,
+    removed: async (ids) => {
+      here.wipedOnRemoval = ids;
+      const names = here.config.accounts.filter((a) => ids.includes(a.id)).map((a) => a.name);
+      here.config = parseConfig({ ...here.config, accounts: here.config.accounts.filter((a) => !ids.includes(a.id)) }).config;
+      return names;
+    },
     local: () => sharedSetup(here.config),
     apply: (setup) => {
       const r = applySetup(here.config, setup, ws.synced);
@@ -149,4 +155,100 @@ test('a removed member is told so, and gets nothing', async () => {
   assert.equal(s.ws.state.phase, 'removed');
   assert.equal((s.ws.state as { name: string }).name, 'Sample Business');
   assert.deepEqual(s.config.accounts, []);
+});
+
+const member = (state: Workspace['state']) => state as Extract<Workspace['state'], { phase: 'member' }>;
+const invitations = (state: Workspace['state']) => (state as Extract<Workspace['state'], { phase: 'none' }>).invitations;
+const ownOnly = () => parseConfig({ accounts: [{ id: 'mine', name: 'My own WhatsApp', channel: 'whatsapp', url: '', location: '', professional: false }] }).config;
+
+test('inviting: the admin invites by address, the person sees which workspace, joins, and gets the setup', async () => {
+  const a = pc(OWNER, startingConfig());
+  await a.ws.create('Sample Business');
+  assert.deepEqual(await a.ws.invite('Staff@Example.com', 'member'), {});
+  assert.deepEqual(member(a.ws.state).invites.map((i) => i.email), ['staff@example.com']);
+  assert.match((await a.ws.invite('staff@example.com', 'member')).error ?? '', /already invited/);
+  assert.match((await a.ws.invite('not an address', 'member')).error ?? '', /email address/);
+
+  // The invited person's own PC, with an account of their own that stays theirs.
+  const s = pc(STAFF, ownOnly());
+  await s.ws.check();
+  assert.equal(s.ws.state.phase, 'none');
+  const inv = invitations(s.ws.state);
+  assert.deepEqual(inv.map((i) => [i.workspaceName, i.role]), [['Sample Business', 'member']]);
+  assert.deepEqual(await s.ws.join(inv[0].id), {});
+  assert.equal(member(s.ws.state).role, 'member');
+  assert.deepEqual(s.config.accounts.map((x) => x.id), ['a1', 'a2', 'mine']);
+
+  // The admin sees them as a member now, and the invitation is gone.
+  await a.ws.check();
+  assert.deepEqual(member(a.ws.state).people.map((p) => [p.email, p.role, p.status]).sort(), [['owner@example.com', 'admin', 'active'], ['staff@example.com', 'member', 'active']]);
+  assert.deepEqual(member(a.ws.state).invites, []);
+  // A member who is not an admin cannot invite.
+  assert.match((await s.ws.invite('x@example.com', 'member')).error ?? '', /Only a workspace admin/);
+});
+
+test('removing: the removed PC wipes what it had from the workspace, keeps what was its own, and says so', async () => {
+  const a = pc(OWNER, startingConfig());
+  await a.ws.create('Sample Business');
+  await a.ws.invite('staff@example.com', 'member');
+  const s = pc(STAFF, ownOnly());
+  await s.ws.check();
+  await s.ws.join(invitations(s.ws.state)[0].id);
+
+  await a.ws.check();
+  const uid = member(a.ws.state).people.find((p) => p.email === STAFF.email)!.uid;
+  assert.match((await a.ws.setStatus(OWNER.uid, 'removed')).error ?? '', /cannot remove yourself/);
+  assert.deepEqual(await a.ws.setStatus(uid, 'removed'), {});
+
+  await s.ws.check();
+  assert.equal(s.ws.state.phase, 'removed');
+  assert.deepEqual([...s.wipedOnRemoval].sort(), ['a1', 'a2']);
+  assert.deepEqual(s.config.accounts.map((x) => x.id), ['mine']);
+  assert.deepEqual([...(s.ws.state as { wiped: string[] }).wiped].sort(), ['Main branch Instagram', 'Main branch WhatsApp']);
+  // The notice survives a restart until it is read.
+  const again = pc(STAFF, s.config, { dataDir: s.dataDir });
+  assert.equal(again.ws.state.phase, 'removed');
+  again.ws.acknowledgeRemoval();
+  assert.equal(pc(STAFF, s.config, { dataDir: s.dataDir }).ws.state.phase, 'signed-out');
+
+  // Restored by the admin: a member again at their next check.
+  assert.deepEqual(await a.ws.setStatus(uid, 'active'), {});
+  const back = pc(STAFF);
+  await back.ws.check();
+  assert.equal(back.ws.state.phase, 'member');
+});
+
+test('a PC that has not reached the workspace for a week asks to reconnect; a day offline carries on', async () => {
+  const a = pc(OWNER, startingConfig());
+  await a.ws.create('Sample Business');
+  const closed = 'http://127.0.0.1:9/v1/projects/demo-unified-messenger/databases/(default)';
+  const dayLater = pc(OWNER, a.config, { dataDir: a.dataDir, base: closed, now: () => Date.now() + 24 * 3600_000 });
+  await dayLater.ws.check();
+  assert.equal(member(dayLater.ws.state).reconnect, false);
+  assert.match(member(dayLater.ws.state).error ?? '', /could not be reached/);
+  const weekLater = pc(OWNER, a.config, { dataDir: a.dataDir, base: closed, now: () => Date.now() + 8 * 24 * 3600_000 });
+  await weekLater.ws.check();
+  assert.equal(member(weekLater.ws.state).reconnect, true);
+  // Reached again: the question goes away.
+  const online = pc(OWNER, a.config, { dataDir: a.dataDir, now: () => Date.now() + 8 * 24 * 3600_000 });
+  await online.ws.check();
+  assert.equal(member(online.ws.state).reconnect, false);
+});
+
+test('an admin makes a member an admin, and withdraws an invitation', async () => {
+  const a = pc(OWNER, startingConfig());
+  await a.ws.create('Sample Business');
+  await a.ws.invite('staff@example.com', 'member');
+  await a.ws.invite('later@example.com', 'admin');
+  assert.deepEqual(await a.ws.withdraw('later@example.com'), {});
+  assert.deepEqual(member(a.ws.state).invites.map((i) => i.email), ['staff@example.com']);
+  const s = pc(STAFF);
+  await s.ws.check();
+  await s.ws.join(invitations(s.ws.state)[0].id);
+  await a.ws.check();
+  const uid = member(a.ws.state).people.find((p) => p.email === STAFF.email)!.uid;
+  assert.deepEqual(await a.ws.setRole(uid, 'admin'), {});
+  await s.ws.check();
+  assert.equal(member(s.ws.state).role, 'admin');
+  assert.equal(s.ws.readOnly, false);
 });

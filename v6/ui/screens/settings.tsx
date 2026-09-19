@@ -4,7 +4,8 @@
 import { useState } from 'react';
 import { Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, Panel, Sample, Seg, SettingRow, Stepper, Toggle, type ScreenProps } from '../parts.tsx';
-import { ALERTS, KEPT, MEMBERS } from '../sample.ts';
+import { ALERTS, KEPT } from '../sample.ts';
+import { durationText } from '../../core/duration.ts';
 import type { UiState } from '../../app/view-model.ts';
 
 export const SETTINGS_SECTIONS = ['Look and reading', 'Opening hours', 'Notifications', 'Saved replies', 'Assistant', 'Workspace', 'Privacy', 'About'] as const;
@@ -343,22 +344,7 @@ function Workspace({ state, nav }: ScreenProps) {
         </div>
       </div>
       {c.phase === 'signed-in' && <YourWorkspace state={state} />}
-      <div className="sgroup">
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Members of the workspace</h3><Sample />
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}><Btn kind="quiet" icon="key" onClick={() => nav.go('owner')}>Owner console</Btn><Btn icon="users" kind="primary" disabled title="Invitations are not connected yet">Invite someone</Btn></div></div>
-        <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-          <table className="table"><thead><tr><th>Member</th><th>Role</th><th>PCs</th><th>Last online</th><th /></tr></thead><tbody>
-            {MEMBERS.map((m) => (
-              <tr key={m.name} style={m.role === 'Removed' ? { opacity: 0.7 } : undefined}>
-                <td><b style={{ fontWeight: 600 }}>{m.name}</b><div className="sub">{m.email}</div></td>
-                <td><Chip tone={m.role === 'Admin' ? 'ok' : m.role === 'Invited' ? 'due' : 'neutral'}>{m.role === 'Invited' ? 'Invite waiting' : m.role}</Chip></td>
-                <td className="sub">{m.pcs}</td><td>{m.seen}</td>
-                <td className="r">{m.role === 'Member' && <Btn kind="quiet" onClick={() => nav.open('remove-member')}>Remove</Btn>}{m.role === 'Invited' && <Btn disabled title="Not connected yet">Resend</Btn>}</td>
-              </tr>
-            ))}
-          </tbody></table>
-        </div>
-      </div>
+      {c.phase === 'signed-in' && state.workspace.phase === 'member' && <Members state={state} nav={nav} />}
       <div className="grid2">
         <Panel title="If a PC goes offline for a week"><p className="sub" style={{ margin: 0 }}>After 7 days without checking in, the app asks that PC to reconnect before it shows anything. A removed member cannot keep reading by staying offline.</p></Panel>
         <Panel title="What syncs"><p className="sub" style={{ margin: 0 }}>Accounts, locations, opening hours, holidays, targets and saved replies. Customer data never syncs.</p></Panel>
@@ -385,9 +371,18 @@ function YourWorkspace({ state }: { state: UiState }) {
       <div className="panel" style={{ display: 'grid', gap: 10 }}>
         {(w.phase === 'checking' || w.phase === 'signed-out') && <span className="sub" role="status">Looking for your workspace…</span>}
         {w.phase === 'error' && <><span className="late" role="alert">{w.error}</span><div><Btn onClick={() => bridge.syncWorkspace()}>Try again</Btn></div></>}
+        {w.phase === 'none' && w.invitations.map((i) => (
+          <div key={i.id} style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'grid', gap: 2 }}>
+              <b style={{ fontWeight: 600 }}>You are invited to {i.workspaceName || 'a workspace'}</b>
+              <span className="sub">As {i.role === 'admin' ? 'an admin' : 'a member'}. Joining brings its accounts, locations and business rules to this PC; each account then needs signing in here once. Accounts already on this PC stay.</span>
+            </div>
+            <div style={{ marginLeft: 'auto' }}><Btn kind="primary" disabled={busy} onClick={async () => { setBusy(true); setError(''); const r = await bridge.joinWorkspace(i.id); setBusy(false); if (r.error) setError(r.error); }}>Join {i.workspaceName}</Btn></div>
+          </div>
+        ))}
         {w.phase === 'none' && (
           <>
-            <b style={{ fontWeight: 600 }}>No workspace yet</b>
+            <b style={{ fontWeight: 600 }}>{w.invitations.length ? 'Or start a workspace of your own' : 'No workspace yet'}</b>
             <span className="sub">Start one from this PC's setup. Its accounts, locations, opening hours, holidays, reply target, saved replies and not-a-customer rules are kept in the workspace, so another PC signed in to it gets them too. Logins, messages, customers and figures never leave this PC.</span>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <label className="field" style={{ minWidth: 260 }}><span>Workspace name</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="The business’s name" maxLength={80} /></label>
@@ -412,6 +407,89 @@ function YourWorkspace({ state }: { state: UiState }) {
           </>
         )}
         {w.phase === 'removed' && <span className="late" role="alert">This Google account was removed from {w.name || 'the workspace'}. Ask one of its admins to invite you again.</span>}
+      </div>
+    </div>
+  );
+}
+
+/** When someone's PC last checked in, in words. */
+function seen(ms: number) {
+  if (!ms) return 'Not yet';
+  const minutes = Math.max(0, (Date.now() - ms) / 60_000);
+  return minutes < 2 ? 'Just now' : `${durationText(minutes)} ago`;
+}
+
+/** The members of the workspace (6.4). Everyone sees who is in it; admins invite, remove, restore and change roles.
+ *  The app sends no email: an admin tells the person to sign in with the address they were invited with. */
+function Members({ state }: ScreenProps) {
+  const w = state.workspace;
+  const [inviting, setInviting] = useState(false);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'admin' | 'member'>('member');
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  if (w.phase !== 'member') return null;
+  const admin = w.role === 'admin' && w.status === 'active';
+  const me = state.cloud.phase === 'signed-in' ? state.cloud.email.toLowerCase() : '';
+  const act = async (run: Promise<{ error?: string }>) => {
+    setBusy(true); setError('');
+    const r = await run;
+    setBusy(false);
+    if (r.error) setError(r.error);
+    return !r.error;
+  };
+  const people = [...w.people].sort((a, b) => Number(a.status === 'removed') - Number(b.status === 'removed') || a.email.localeCompare(b.email));
+  return (
+    <div className="sgroup">
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Members of the workspace</h3>
+        {admin && <div style={{ marginLeft: 'auto' }}><Btn icon="users" kind="primary" onClick={() => { setInviting(!inviting); setError(''); }}>Invite someone</Btn></div>}</div>
+      {inviting && admin && (
+        <div className="panel" style={{ display: 'grid', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <label className="field" style={{ minWidth: 280 }}><span>Their Google address</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></label>
+            <label className="field"><span>Role</span><select className="input" value={role} onChange={(e) => setRole(e.target.value === 'admin' ? 'admin' : 'member')}><option value="member">Member</option><option value="admin">Admin</option></select></label>
+            <Btn kind="primary" disabled={busy || !email.trim()} onClick={async () => { if (await act(bridge.inviteMember(email, role))) { setEmail(''); setInviting(false); } }}>Save the invitation</Btn>
+          </div>
+          <span className="sub">The app sends no email. Tell them to open Unified Messenger and sign in with this Google address: the invitation is waiting there. Members see the setup and can change nothing shared; admins can change it and manage members.</span>
+        </div>
+      )}
+      {error && <p className="late" role="alert" style={{ margin: 0 }}>{error}</p>}
+      <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+        <table className="table"><thead><tr><th>Member</th><th>Role</th><th>Last online</th><th /></tr></thead><tbody>
+          {people.map((p) => (
+            <tr key={p.uid} style={p.status === 'removed' ? { opacity: 0.7 } : undefined}>
+              <td><b style={{ fontWeight: 600 }}>{p.name || p.email}</b>{p.email === me && <span className="sub"> (you)</span>}<div className="sub">{p.email}</div></td>
+              <td>{p.status === 'removed' ? <Chip tone="neutral">Removed</Chip> : <Chip tone={p.role === 'admin' ? 'ok' : 'neutral'}>{p.role === 'admin' ? 'Admin' : 'Member'}</Chip>}</td>
+              <td>{seen(p.lastSeen)}</td>
+              <td className="r">
+                {admin && p.email !== me && confirm !== p.uid && (p.status === 'removed'
+                  ? <Btn kind="quiet" disabled={busy} onClick={() => void act(bridge.setMemberStatus(p.uid, 'active'))}>Restore</Btn>
+                  : <div style={{ display: 'inline-flex', gap: 6 }}>
+                      <Btn kind="quiet" disabled={busy} onClick={() => void act(bridge.setMemberRole(p.uid, p.role === 'admin' ? 'member' : 'admin'))}>{p.role === 'admin' ? 'Make member' : 'Make admin'}</Btn>
+                      <Btn kind="quiet" disabled={busy} onClick={() => setConfirm(p.uid)}>Remove</Btn>
+                    </div>)}
+                {confirm === p.uid && (
+                  <div role="alertdialog" aria-label={`Remove ${p.name || p.email}`} style={{ display: 'grid', gap: 8, justifyItems: 'end', textAlign: 'right', maxWidth: 420, marginLeft: 'auto' }}>
+                    <span className="sub">Their PCs sign out and wipe the logins they had from this workspace at their next check, which is when the app starts and every six hours while it runs. To cut access at once, also remove those PCs on the phone: WhatsApp › Linked devices.</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <Btn kind="quiet" onClick={() => setConfirm(null)}>Cancel</Btn>
+                      <Btn kind="danger" disabled={busy} onClick={async () => { if (await act(bridge.setMemberStatus(p.uid, 'removed'))) setConfirm(null); }}>Remove and wipe their logins</Btn>
+                    </div>
+                  </div>
+                )}
+              </td>
+            </tr>
+          ))}
+          {w.invites.map((i) => (
+            <tr key={i.email}>
+              <td><b style={{ fontWeight: 600 }}>{i.email}</b><div className="sub">Invited {seen(i.invitedAt).replace('Just now', 'just now')}</div></td>
+              <td><Chip tone="due">Invite waiting</Chip></td>
+              <td className="sub">{i.role === 'admin' ? 'As an admin' : 'As a member'}</td>
+              <td className="r">{admin && <Btn kind="quiet" disabled={busy} onClick={() => void act(bridge.withdrawInvite(i.email))}>Withdraw</Btn>}</td>
+            </tr>
+          ))}
+        </tbody></table>
       </div>
     </div>
   );

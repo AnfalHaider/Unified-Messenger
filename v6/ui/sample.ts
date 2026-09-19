@@ -35,15 +35,6 @@ export const LOST_LOGIN = [
 
 export type Fact = { label: string; value: string; unit: string; note: string; tone: 'ok' | 'due' | 'late' | 'neutral'; trend?: number[] };
 
-export const MEMBERS = [
-  { name: 'Anfal Haider', email: 'you@example.com', role: 'Admin', pcs: 'Office PC, Laptop', seen: 'Now' },
-  { name: 'Front desk F-11', email: 'desk.f11@example.com', role: 'Member', pcs: 'F-11 reception', seen: '6 min ago' },
-  { name: 'Front desk DHA-2', email: 'desk.dha2@example.com', role: 'Member', pcs: 'DHA-2 reception', seen: '1 h ago' },
-  { name: 'Men DHA-2 manager', email: 'men.dha2@example.com', role: 'Member', pcs: 'Manager laptop', seen: 'Yesterday' },
-  { name: 'Sadia (left in August)', email: 'sadia.k@example.com', role: 'Removed', pcs: 'F-11 back office', seen: 'Logins wiped 28 Aug' },
-  { name: 'ayesha.ops@example.com', email: 'Invited 2 days ago', role: 'Invited', pcs: 'Not signed in yet', seen: '—' },
-];
-
 export const WORKSPACES = [
   { name: 'Depilex', admin: 'Anfal Haider', members: 4, pcs: 5, seen: 'Now', active: true },
   { name: 'Northside Pharmacy', admin: 'Mehreen A.', members: 2, pcs: 2, seen: '3 h ago', active: true },

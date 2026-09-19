@@ -51,12 +51,18 @@ export function App() {
     return () => query.removeEventListener('change', apply);
   }, [state?.theme]);
 
+  // Full-window states the workspace decides, not the owner (6.4): removed from it, or a week without reaching it.
+  const forced: LockScreen | null = !state ? null
+    : state.workspace.phase === 'removed' ? 'removed'
+    : state.workspace.phase === 'member' && state.workspace.reconnect ? 'reconnect' : null;
+  const lock = forced ?? view.lock;
+
   // Main shows the account's page only on the dock, and only when nothing is laid over it: a native page always
   // draws above the screens, so an open overlay or a full-window state has to hide it.
   useEffect(() => {
-    const covered = view.overlay || view.lock;
+    const covered = view.overlay || lock;
     bridge.navigate(covered ? 'line' : view.route, view.accountId);
-  }, [view.route, view.accountId, view.overlay, view.lock]);
+  }, [view.route, view.accountId, view.overlay, lock]);
 
   const nav = useMemo<Nav>(() => ({
     view,
@@ -84,7 +90,7 @@ export function App() {
   return (
     <div className="app" style={{ position: 'relative' }}>
       <TitleBar state={state} nav={nav} scope={scope} onScope={setScope} />
-      {view.lock ? <Lock screen={view.lock} {...props} /> : (
+      {lock ? <Lock screen={lock} {...props} /> : (
         <div className="body">
           <Rail state={state} route={view.route} nav={nav} />
           <div className="screen">

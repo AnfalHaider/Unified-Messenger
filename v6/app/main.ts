@@ -161,6 +161,7 @@ let lastCloudPhase = cloud.state.phase;
 /** The workspace (6.3): which one this person belongs to, and the business setup it shares between PCs. Tests point
  *  UM_FIRESTORE at a closed port, so no test ever reaches the real project. */
 let applyFromWorkspace: (setup: SharedSetup) => string[] = () => [];
+let removedFromWorkspace: (ids: string[]) => Promise<string[]> = async () => [];
 const workspace = new Workspace({
   base: process.env.UM_FIRESTORE || `https://firestore.googleapis.com/v1/projects/${cloudConfig?.firebase.projectId ?? 'none'}/databases/(default)`,
   dataDir: DATA,
@@ -168,6 +169,7 @@ const workspace = new Workspace({
   user: () => cloud.user,
   local: () => sharedSetup(config),
   apply: (setup) => applyFromWorkspace(setup),
+  removed: (ids) => removedFromWorkspace(ids),
   changed: () => push(),
   log: (entry) => log(entry),
 });
@@ -1127,7 +1129,31 @@ app.whenReady().then(async () => {
     push();
     return [...r.synced];
   };
+  // Removed from the workspace by an admin: the accounts this PC had from it are forgotten, login and all, and the
+  // person is signed out. Accounts that were only ever on this PC stay. Returns the names, for the screen that says so.
+  removedFromWorkspace = async (ids) => {
+    const names: string[] = [];
+    for (const id of ids) {
+      const a = account(id);
+      if (!a) continue;
+      names.push(a.name);
+      await forgetHere(id);
+      config.accounts = config.accounts.filter((x) => x.id !== id);
+      log({ event: 'account-removed', account: id, channel: a.channel, by: 'removal' });
+    }
+    saveJson(FILE.config, config);
+    layout();
+    cloud.signOut();
+    push();
+    return names;
+  };
   ipcMain.handle('workspace-create', (_e, name: string) => workspace.create(String(name ?? '')));
+  ipcMain.handle('workspace-join', (_e, id: string) => workspace.join(String(id ?? '')));
+  ipcMain.handle('workspace-invite', (_e, email: string, role: string) => workspace.invite(String(email ?? ''), role === 'admin' ? 'admin' : 'member'));
+  ipcMain.handle('workspace-withdraw', (_e, email: string) => workspace.withdraw(String(email ?? '')));
+  ipcMain.handle('workspace-member-status', (_e, uid: string, status: string) => workspace.setStatus(String(uid ?? ''), status === 'active' ? 'active' : 'removed'));
+  ipcMain.handle('workspace-member-role', (_e, uid: string, role: string) => workspace.setRole(String(uid ?? ''), role === 'admin' ? 'admin' : 'member'));
+  ipcMain.on('workspace-removal-read', () => workspace.acknowledgeRemoval());
   ipcMain.on('workspace-sync', () => void workspace.check());
 
   readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); void readReviews(); workspace.tick(); }, 5_000);

@@ -85,7 +85,45 @@ function SignIn({ state, nav, back }: ScreenProps & { back: ReactNode }) {
   );
 }
 
+/** Removed from the workspace by an admin (6.4): what this PC wiped, and what it kept. Shown until it is read. */
+function Removed({ state }: ScreenProps) {
+  const w = state.workspace;
+  if (w.phase !== 'removed') return null;
+  const at = new Date(w.at).toLocaleString('en-GB', { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', hour12: true });
+  return (
+    <LockCard>
+      <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--hover)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}><Icon name="lock" size={24} /></span>
+      <h1>This PC is no longer part of {w.name || 'the workspace'}</h1>
+      <p>An admin removed this Google account from the workspace. At {at} this PC signed out and wiped the logins it had from the workspace, with everything the app kept about those accounts here.</p>
+      <Panel><dl className="kv">
+        <dt>Logins wiped</dt><dd>{w.wiped.length ? w.wiped.join(', ') : 'None: this PC had no accounts from the workspace'}</dd>
+        <dt>Still here</dt><dd>The app, signed out, and any account that was only ever on this PC</dd>
+      </dl></Panel>
+      <p className="sub">If this is a mistake, ask a workspace admin to restore you, then sign in again.</p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Btn kind="primary" onClick={() => bridge.removalRead()}>Close</Btn></div>
+    </LockCard>
+  );
+}
+
+/** A week without reaching the workspace (6.4): the app asks to reconnect before it shows anything, so a PC whose
+ *  person was removed cannot keep reading by staying offline. Reading carries on underneath; nothing is wiped. */
+function Reconnect({ state }: ScreenProps) {
+  const w = state.workspace;
+  const last = w.phase === 'member' && w.lastContactAt ? new Date(w.lastContactAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : 'more than a week ago';
+  return (
+    <LockCard>
+      <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--due-w)', color: 'var(--due)', display: 'grid', placeItems: 'center' }}><Icon name="offline" size={24} /></span>
+      <h1>Reconnect to {w.phase === 'member' ? w.name : 'the workspace'}</h1>
+      <p>This PC last reached the workspace on {last}. After a week without checking in, the app waits for a connection before it shows anything again. Nothing on this PC has been deleted.</p>
+      {w.phase === 'member' && w.error && <p className="sub" role="status">{w.error}</p>}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Btn kind="primary" icon="refresh" onClick={() => bridge.syncWorkspace()}>Try again</Btn></div>
+    </LockCard>
+  );
+}
+
 function OtherLocks({ screen, state, nav, back }: ScreenProps & { screen: LockScreen; back: ReactNode }) {
+  if (screen === 'removed' && state.workspace.phase === 'removed') return <Removed state={state} nav={nav} />;
+  if (screen === 'reconnect') return <Reconnect state={state} nav={nav} />;
   if (screen === 'removed') return (
     <LockCard>
       <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--hover)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}><Icon name="lock" size={24} /></span>

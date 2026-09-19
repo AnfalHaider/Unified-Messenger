@@ -757,7 +757,8 @@ test('the customer panel keeps a note and tags across a restart, and a saved rep
     await expect(panel2).toContainText('Prices');
     if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'customer-panel.png') });
     await panel2.getByRole('button', { name: 'Copy' }).click();
-    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Our current price list is on the way.');
+    // Copying is asynchronous in the page, so wait for the text rather than read at once.
+    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Our current price list is on the way.');
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});
@@ -1270,7 +1271,7 @@ test('Suggest a reply drafts from the open chat’s own messages, copies one, an
     ].join('\n'));
 
     await panel.getByRole('button', { name: 'Copy' }).first().click();
-    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Yes, the blue one is in stock and you can collect it today from [time].');
+    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Yes, the blue one is in stock and you can collect it today from [time].');
     await quit(app, win);
 
     for (const f of readdirSync(data, { recursive: true }).map(String).filter((x) => /\.(json|log)$/.test(x))) {
@@ -1447,7 +1448,7 @@ test('help screenshots', async () => {
 async function fakeCloud() {
   const { createServer } = await import('node:http');
   const calls: { path: string; query: URLSearchParams; body: string }[] = [];
-  const o = { deny: false, refresh: 'ok' as 'ok' | 'expired' };
+  const o = { deny: false, refresh: 'ok' as 'ok' | 'expired', user: { uid: 'test-uid', email: 'owner@example.com', name: 'Sample Owner' } };
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
     let body = '';
@@ -1459,7 +1460,7 @@ async function fakeCloud() {
       back.search = new URLSearchParams(o.deny ? { error: 'access_denied', state: url.searchParams.get('state')! } : { code: 'test-code', state: url.searchParams.get('state')! }).toString();
       res.writeHead(302, { Location: back.toString() }).end();
     } else if (url.pathname === '/token') json(200, { id_token: 'test-id-token' });
-    else if (url.pathname === '/signin') json(200, { localId: 'test-uid', email: 'owner@example.com', displayName: 'Sample Owner', refreshToken: 'test-refresh-7731' });
+    else if (url.pathname === '/signin') json(200, { localId: o.user.uid, email: o.user.email, displayName: o.user.name, refreshToken: 'test-refresh-7731' });
     else if (url.pathname === '/refresh') o.refresh === 'ok' ? json(200, { id_token: 'fresh', refresh_token: 'test-refresh-7731' }) : json(400, { error: { message: 'TOKEN_EXPIRED' } });
     else res.writeHead(404).end();
   });
@@ -1567,12 +1568,14 @@ async function fakeFirestore() {
     } else if (url.pathname.endsWith('/documents:commit')) {
       const stamp = new Date(Date.now() + ++clock).toISOString();
       for (const w of JSON.parse(body).writes) {
+        if (w.delete) continue;
         const prior = docs.get(w.update.name);
         if (w.currentDocument?.exists === false && prior) return json(409, { error: { status: 'ALREADY_EXISTS' } });
         if (w.currentDocument?.updateTime && prior?.updateTime !== w.currentDocument.updateTime) return json(400, { error: { status: 'FAILED_PRECONDITION' } });
       }
       const results = [];
       for (const w of JSON.parse(body).writes) {
+        if (w.delete) { docs.delete(w.delete); results.push({}); continue; }
         const prior = docs.get(w.update.name);
         const fields = w.updateMask ? { ...(prior?.fields ?? {}), ...w.update.fields } : { ...w.update.fields };
         for (const t of w.updateTransforms ?? []) fields[t.fieldPath] = { timestampValue: stamp };
@@ -1580,6 +1583,10 @@ async function fakeFirestore() {
         results.push({ updateTime: stamp });
       }
       json(200, { writeResults: results });
+    } else if (req.method === 'GET' && url.pathname.split('/documents/')[1].split('/').length % 2 === 1) {
+      // A collection: its direct children.
+      const parent = decodeURIComponent(`${root}/${url.pathname.split('/documents/')[1]}`);
+      json(200, { documents: [...docs.entries()].filter(([name]) => name.startsWith(`${parent}/`) && !name.slice(parent.length + 1).includes('/')).map(([name, d]) => ({ name, ...d })) });
     } else if (req.method === 'GET') {
       const name = `${root}${url.pathname.split('/documents')[1]}`;
       const d = docs.get(decodeURIComponent(name));
@@ -1649,5 +1656,81 @@ test('a workspace: started from this PC’s setup, and a second PC signed in to 
     await fs.close();
     rmSync(first, { recursive: true, force: true });
     rmSync(second, { recursive: true, force: true });
+  }
+});
+
+test('members: an admin invites by address, the person joins on their PC, and removing them wipes what it had', async () => {
+  const cloud = await fakeCloud();
+  const fs = await fakeFirestore();
+  const env = { UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
+  const OWNER = { uid: 'test-uid', email: 'owner@example.com', name: 'Sample Owner' };
+  const STAFF = { uid: 'staff-uid', email: 'staff@example.com', name: 'Sample Staff' };
+  const ownerPc = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }],
+    locations: [{ name: 'Main branch' }],
+  });
+  const staffPc = dataFolder({ accounts: [{ id: 'own', name: 'Staff own WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: false, location: '' }] });
+  const workspace = async (win: Page) => {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
+  };
+  cloud.o.user = OWNER;
+  let { app, win } = await open(ownerPc, env);
+  try {
+    await workspace(win);
+    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await win.getByLabel('Workspace name').fill('Sample Business');
+    await win.getByRole('button', { name: 'Start the workspace' }).click();
+    await expect(win.getByRole('cell', { name: /Sample Owner \(you\)/ })).toBeVisible();
+    await win.getByRole('button', { name: 'Invite someone' }).click();
+    await win.getByLabel('Their Google address').fill('Staff@Example.com');
+    await win.getByRole('button', { name: 'Save the invitation' }).click();
+    await expect(win.getByRole('row', { name: /staff@example.com.*Invite waiting/ })).toBeVisible();
+    await quit(app, win);
+
+    // The invited person, on their own PC: which workspace, then Join.
+    cloud.o.user = STAFF;
+    ({ app, win } = await open(staffPc, env));
+    await workspace(win);
+    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await expect(win.getByText('You are invited to Sample Business')).toBeVisible();
+    await win.getByRole('button', { name: 'Join Sample Business' }).click();
+    await expect(win.getByText('You are a member: this PC takes its setup from the workspace.')).toBeVisible();
+    await expect.poll(() => JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8')).accounts.map((a: { id: string }) => a.id).sort()).toEqual(['own', 'test-wa']);
+    // A member sees who is in the workspace, and cannot manage it.
+    await expect(win.getByRole('cell', { name: /Sample Owner/ })).toBeVisible();
+    await expect(win.getByRole('button', { name: 'Invite someone' })).toHaveCount(0);
+    await expect(win.getByRole('button', { name: 'Remove' })).toHaveCount(0);
+    await quit(app, win);
+
+    // The admin removes them, after being told what it does.
+    cloud.o.user = OWNER;
+    ({ app, win } = await open(ownerPc, env));
+    await workspace(win);
+    const row = win.getByRole('row', { name: /Sample Staff/ });
+    await row.getByRole('button', { name: 'Remove' }).click();
+    await expect(row.getByRole('alertdialog')).toContainText('Linked devices');
+    await row.getByRole('button', { name: 'Remove and wipe their logins' }).click();
+    await expect(row.getByText('Removed')).toBeVisible();
+    await quit(app, win);
+
+    // Their PC at its next check: signed out, the workspace's account wiped, their own kept, and a screen that says so.
+    cloud.o.user = STAFF;
+    ({ app, win } = await open(staffPc, env));
+    await expect(win.getByRole('heading', { name: 'This PC is no longer part of Sample Business' })).toBeVisible();
+    await expect(win.getByText('Test front desk')).toBeVisible();
+    expect(JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8')).accounts.map((a: { id: string }) => a.id)).toEqual(['own']);
+    expect(readdirSync(staffPc)).not.toContain('cloud.json');
+    await win.getByRole('button', { name: 'Close' }).click();
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible();
+    // No name or address in the log.
+    for (const f of [ownerPc, staffPc]) for (const secret of ['staff@example.com', 'Sample Staff', 'Sample Business']) expect(readFileSync(join(f, 'app.log'), 'utf8')).not.toContain(secret);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await cloud.close();
+    await fs.close();
+    rmSync(ownerPc, { recursive: true, force: true });
+    rmSync(staffPc, { recursive: true, force: true });
   }
 });

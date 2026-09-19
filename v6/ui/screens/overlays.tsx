@@ -22,7 +22,6 @@ export function Overlays({ state, nav }: ScreenProps) {
       {which === 'add-account' && <AddAccount state={state} nav={nav} close={close} />}
       {which === 'edit-account' && <EditAccount state={state} nav={nav} close={close} />}
       {which === 'remove-account' && <RemoveAccount state={state} nav={nav} close={close} />}
-      {which === 'remove-member' && <RemoveMember close={close} />}
       {which === 'update' && <Update close={close} />}
     </div>
   );
@@ -262,21 +261,6 @@ function RemoveAccount({ state, nav, close }: ScreenProps & { close: () => void 
       <p className="sub">Its location and opening hours stay. This cannot be undone.</p>
       {error && <p className="late" role="alert" style={{ margin: 0 }}>{error}</p>}
       <div className="foot"><Btn kind="quiet" onClick={close}>Keep it</Btn><Btn kind="danger" disabled={busy} onClick={() => void remove()}>Remove and wipe login</Btn></div>
-    </div>
-  );
-}
-
-function RemoveMember({ close }: { close: () => void }) {
-  return (
-    <div className="dialog" role="dialog" aria-label="Remove member" style={{ width: 560 }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><h3>Remove Front desk DHA-2?</h3><Sample /></div>
-      <p>desk.dha2@example.com loses access to the workspace on every PC they use.</p>
-      <div className="panel" style={{ display: 'grid', gap: 4 }}>
-        <Check icon="check" tone="neutral" title="When DHA-2 reception is next online">The app signs out and wipes the account logins saved on that PC. It was last online 1 hour ago.</Check>
-        <Check icon="alert" tone="due" title="To cut access right now">On the phone: WhatsApp › Linked devices › remove “DHA-2 reception”. Do the same for Instagram’s login activity.</Check>
-      </div>
-      <p className="sub">Their history on that PC is wiped with the logins. Figures on your own PCs are not affected.</p>
-      <div className="foot"><Btn kind="quiet" onClick={close}>Cancel</Btn><Btn kind="danger" disabled title="Removing members is not connected yet">Remove and wipe logins</Btn></div>
     </div>
   );
 }

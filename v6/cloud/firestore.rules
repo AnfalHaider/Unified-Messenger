@@ -11,7 +11,7 @@ rules_version = '2';
 //   owners/{uid}                              the product owner; made by hand in the console, read by that account only
 //   workspaces/{wid}                          name, status active|suspended, createdBy, createdAt, statusChangedAt
 //   workspaces/{wid}/members/{uid}            email, name, role admin|member, status active|removed, joinedAt, lastSeen
-//   workspaces/{wid}/invites/{email}          email, role, invitedBy, invitedAt (id = the email in lower case)
+//   workspaces/{wid}/invites/{email}          email, role, invitedBy, invitedAt, workspaceName (id = the email in lower case)
 //   workspaces/{wid}/config/main              accounts, locations, settings, updatedAt, updatedBy
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -97,8 +97,10 @@ service cloud.firestore {
       match /invites/{email} {
         // Admins see the invitations; the invited person sees their own, so the app can offer to join.
         allow read: if isAdmin(wid) || (signedIn() && verified() && myEmail() == email);
+        // The workspace's name travels with the invitation: the invited person cannot read the workspace until they join.
         allow create: if isAdmin(wid) && active(wid)
-          && request.resource.data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedAt'])
+          && request.resource.data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedAt', 'workspaceName'])
+          && request.resource.data.workspaceName == ws(wid).name
           && request.resource.data.email == email && email == email.lower()
           && request.resource.data.role in ['admin', 'member']
           && request.resource.data.invitedBy == uid()

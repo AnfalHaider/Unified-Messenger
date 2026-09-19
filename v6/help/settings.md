@@ -43,6 +43,12 @@ Sentences you type often, with a short name. They appear beside every chat with 
   - **A second PC** signed in with the same Google account gets that setup by itself. Its accounts arrive without their logins, so each shows **Sign in needed** until you sign in to it on that PC.
   - **Changes**: an admin's changes reach the workspace within seconds; other PCs pick them up when they start, every six hours, or when you press **Sync now**. If two PCs change the setup at the same moment, the first change stands and the second PC says so.
   - **What stays on each PC**: its theme, notifications, quiet hours, the assistant, the digest and which accounts are muted there.
-  The members list below it is still a preview, and says so.
+  - **Invited?** When someone has invited your Google address, **Your workspace** says which workspace and offers **Join**. Joining brings its setup; accounts already on your PC stay.
+- **Members of the workspace** lists who is in it and when each person's PC last checked in. Admins can:
+  - **Invite someone** by their Google address, as a member or an admin. The app sends no email: tell them to open Unified Messenger and sign in with that address.
+  - **Make admin** or **Make member**. Members see the shared setup and cannot change it; admins can change it and manage members.
+  - **Remove** someone. Their PCs sign out and wipe the logins they had from the workspace at their next check (when the app starts, and every six hours while it runs), and say so on screen. Accounts that were only ever on their PC stay. To cut access at once, also remove their PC on the phone: WhatsApp › **Linked devices**.
+  - **Restore** someone removed, and **Withdraw** an invitation not yet taken up.
+- **A week offline:** a PC that has not reached the workspace for seven days asks to reconnect before it shows anything, so someone removed cannot keep reading by staying offline. Nothing is deleted; it carries on as soon as it reaches the workspace.
 - **Privacy** lists what is kept on this PC.
 - **About** shows the version.
