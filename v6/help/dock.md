@@ -25,4 +25,11 @@ This is the account's real WhatsApp or Instagram page. Reply there, as you norma
 - **Note**: anything worth remembering next time. It is saved when you click away, kept on this PC, and deleted if the account is removed.
 - **Saved replies**: sentences you type often. Press **Copy** and paste it into the chat yourself. Write them in [Settings](help:settings) › Saved replies.
 
-**Suggest a reply** is a preview of the assistant, which is not connected yet.
+## Suggest a reply
+
+With the [assistant](help:assistant) switched on, **Suggest a reply** › **Draft replies** reads this chat's messages (what WhatsApp has loaded for it) and writes two drafts on this PC: a warm, complete one and a short one.
+
+- **Copy** one, paste it into the chat, edit it, and send it yourself. The app never sends.
+- Anything the conversation does not say, such as a price or a time, is left as [price] or [time] for you to fill in.
+- Nothing is saved: not the messages it read, not the drafts.
+- It works for WhatsApp chats. Instagram's messages are not read by the app.

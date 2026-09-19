@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 5.4** (Suggest a reply), then 5.5, in the release plan below, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: 5.5** (the assistant's 30-question test on the real model), in the release plan below, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -263,7 +263,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **5.3 Chat.** Done 2026-09-19. The Assistant screen is real: questions (typed or suggested) go through IPC `assistant-ask` to the local model with the summary and at most the last three exchanges; the answer shows beside "Figures given, from the app"; customers the answer names are matched against the queue and offered as Open chat buttons. Nothing is kept: not the question, not the answer, not in the log (which records only that a question was asked and how long it took). A plain message when Ollama is not ready. Test: Playwright against the fake Ollama checks what was sent, the answer, the Open chat button, and that no file holds the question or the answer afterwards.
 
-**5.4 Suggest a reply.** From the docked chat's last few messages only (needs the reader to expose recent messages for the focused chat), copy-only; the app never sends.
+**5.4 Suggest a reply.** Done 2026-09-19 for WhatsApp. `channels/whatsapp/whatsapp-messages.js` reads the open chat's messages from WhatsApp's own in-memory chat when the owner presses Draft replies (media by name and caption, since a photo's `body` is its thumbnail; system notices skipped). `core/assistant-reply.ts` keeps the newest messages that fit (owner: the whole conversation may be read), asks for two drafts in a fixed form, forbids invented prices, times and promises (placeholders like [price] instead), and parses the answer, keeping one draft when the model ignores the form. The dock's panel is real: Draft replies, two drafts, Copy; the owner sends. Nothing is saved or logged but counts. Instagram: not offered (its messages are not read). Tests: 5 core; Playwright with an invented chat checks exactly what the model received and that nothing is kept.
 
 **5.5 Test set.** 30 realistic questions with expected figures; a pass mark agreed with the owner. Done when it passes and the app behaves identically with the assistant off.
 

@@ -16,7 +16,7 @@ const TRUNCATE =
 export const whatsapp: ChannelModule = {
   id: 'whatsapp',
   name: 'WhatsApp',
-  inject: (load) => TRUNCATE + load('whatsapp/whatsapp-store-bridge.js') + load('whatsapp/whatsapp-idb.js') + load('whatsapp/whatsapp-focus.js'),
+  inject: (load) => TRUNCATE + load('whatsapp/whatsapp-store-bridge.js') + load('whatsapp/whatsapp-idb.js') + load('whatsapp/whatsapp-focus.js') + load('whatsapp/whatsapp-messages.js'),
   // Opens the chat. On WhatsApp that is safe for the figures: waiting is judged by who wrote last, not by unread.
   focus: (t) => `window.__umFocusWhatsApp ? window.__umFocusWhatsApp(${JSON.stringify(t.key)}, ${JSON.stringify(t.name)}, ${JSON.stringify(t.phone)}) : 'working'`,
   // The store bridge, and WhatsApp's saved chat list when the bridge has found nothing for three minutes on a

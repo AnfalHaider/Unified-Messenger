@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('um', {
   installAssistant: () => ipcRenderer.send('assistant-install'),
   /** A question for the local assistant; resolves with { answer, people } or { error }. Nothing is kept. */
   askAssistant: (question, history) => ipcRenderer.invoke('assistant-ask', question, history),
+  /** Drafts for the open chat, from its messages; resolves with { drafts, read } or { error }. Nothing is kept. */
+  suggestReply: (accountId, key) => ipcRenderer.invoke('assistant-suggest', accountId, key),
   pullAssistantModel: () => ipcRenderer.send('assistant-pull'),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),

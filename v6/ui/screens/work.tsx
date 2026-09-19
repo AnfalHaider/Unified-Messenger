@@ -1,11 +1,11 @@
 // The day's work: the line, a chat docked beside it, what was set aside, and the morning digest.
-// All of it reads the real view model, the customer panel included; only the suggested reply is still sample,
-// until the assistant is wired in Phase 5.
+// All of it reads the real view model, the customer panel included; suggested replies come from the local
+// assistant (Phase 5), drafted on this PC and copied by hand.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { QueueRow, UiState } from '../../app/view-model.ts';
 import { byChannel, Spark, TheLine, toneInk, waitLabel } from '../charts.tsx';
 import { channelIcon, Icon } from '../icons.tsx';
-import { bridge, Btn, Chip, Facts, Headline, isPreview, Panel, plural, Sample, type ScreenProps, Wait, waitText, type Fact } from '../parts.tsx';
+import { bridge, Btn, Chip, Facts, Headline, isPreview, type Nav, Panel, plural, type ScreenProps, Wait, waitText, type Fact } from '../parts.tsx';
 
 const rowKey = (r: QueueRow) => `${r.accountId}:${r.key}`;
 /** Snoozing from the line or the dock is always an hour; the keys hint says so. */
@@ -236,12 +236,12 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
               <button aria-pressed={panel === 'customer'} onClick={() => setPanel('customer')}>Customer</button>
               <button aria-pressed={panel === 'reply'} onClick={() => setPanel('reply')}><Icon name="spark" size={12} /> Suggest a reply</button>
             </div>
-            {panel === 'reply' && <Sample />}
             {panel === 'customer' && customer
               ? <CustomerPanel state={state} accountId={customer.accountId} chatKey={customer.key} name={customer.customer} />
               : panel === 'customer'
                 ? <p className="sub">Choose a customer from the list to see what the app has seen of them.</p>
-                : <ReplyPanel name={customer?.customer ?? 'this customer'} />}
+                : customer ? <ReplyPanel state={state} nav={nav} accountId={customer.accountId} chatKey={customer.key} channel={customer.channel} />
+                  : <p className="sub">Choose a customer from the list first.</p>}
           </aside>
         </div>
       </section>
@@ -316,21 +316,48 @@ function CustomerPanel({ state, accountId, chatKey, name }: { state: UiState; ac
   );
 }
 
-function ReplyPanel({ name }: { name: string }) {
-  const drafts = [
-    ['Warm and complete', `Thank you for your message, ${name.split(' ')[0]}. We can certainly help with that — shall I hold a time for you today or tomorrow?`],
-    ['Short', 'Thanks for writing! Which time suits you?'],
-  ];
+/** Suggest a reply: two drafts from the open chat, written on this PC, to copy and send yourself. */
+function ReplyPanel({ state, nav, accountId, chatKey, channel }: { state: UiState; nav: Nav; accountId: string; chatKey: string; channel: string }) {
+  const [drafts, setDrafts] = useState<{ title: string; body: string }[]>([]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [read, setRead] = useState(0);
+  const ready = state.assistant.state.phase === 'ready';
+  // A different chat starts empty: drafts belong to the conversation they were written for.
+  useEffect(() => { setDrafts([]); setError(''); setRead(0); }, [accountId, chatKey]);
+
+  if (!channel.startsWith('whatsapp')) {
+    return <p className="sub" style={{ margin: 0 }}>Suggest a reply works for WhatsApp chats. Instagram's messages are not read by the app.</p>;
+  }
+  if (!ready) {
+    return (
+      <div style={{ display: 'grid', gap: 10 }}>
+        <p className="sub" style={{ margin: 0 }}>{state.assistant.state.phase === 'off' ? 'The assistant is off.' : state.assistant.sentence} Drafts are written on this PC once it is ready.</p>
+        <div><Btn icon="gear" onClick={() => nav.go('settings', null, 'Assistant')}>Assistant settings</Btn></div>
+      </div>
+    );
+  }
+  const draft = async () => {
+    setBusy(true); setError('');
+    const result = await bridge.suggestReply(accountId, chatKey);
+    setBusy(false);
+    if (result.error) { setError(result.error); setDrafts([]); return; }
+    setDrafts(result.drafts ?? []);
+    setRead(result.read ?? 0);
+  };
   return (
     <>
-      <p className="sub" style={{ margin: 0 }}>Drafted on this PC from this chat’s last few messages only. Copy it and send it yourself.</p>
-      {drafts.map(([title, body], i) => (
-        <div key={title} style={{ border: `1px solid ${i === 0 ? 'var(--ink)' : 'var(--line-2)'}`, borderRadius: 10, padding: 12, background: 'var(--raised)', display: 'grid', gap: 8 }}>
-          <b style={{ fontWeight: 600, fontSize: 13 }}>{title}</b><span style={{ fontSize: 13.5, lineHeight: 1.55 }}>{body}</span>
-          <div style={{ display: 'flex', gap: 6 }}><Btn icon="copy" kind={i === 0 ? 'primary' : undefined} onClick={() => void navigator.clipboard?.writeText(body)}>Copy</Btn></div>
+      <p className="sub" style={{ margin: 0 }}>Drafted on this PC from this chat's messages. Copy one, edit it, and send it yourself.</p>
+      <div><Btn icon="spark" kind={drafts.length ? undefined : 'primary'} disabled={busy} onClick={() => void draft()}>{busy ? 'Reading the chat and drafting…' : drafts.length ? 'Draft again' : 'Draft replies'}</Btn></div>
+      {error && <p className="late" role="alert" style={{ margin: 0 }}>{error}</p>}
+      {drafts.map((d, i) => (
+        <div key={d.title} style={{ border: `1px solid ${i === 0 ? 'var(--ink)' : 'var(--line-2)'}`, borderRadius: 10, padding: 12, background: 'var(--raised)', display: 'grid', gap: 8 }}>
+          <b style={{ fontWeight: 600, fontSize: 13 }}>{d.title}</b><span style={{ fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{d.body}</span>
+          <div style={{ display: 'flex', gap: 6 }}><Btn icon="copy" kind={i === 0 ? 'primary' : undefined} onClick={() => void navigator.clipboard?.writeText(d.body)}>Copy</Btn></div>
         </div>
       ))}
-      <div className="sub" style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 'auto' }}><Icon name="shield" size={13} />The app cannot send messages.</div>
+      {read > 0 && <span className="sub" style={{ fontSize: 12 }}>From the last {read} message{read === 1 ? '' : 's'} WhatsApp has loaded for this chat. Anything in [brackets] is for you to fill in.</span>}
+      <div className="sub" style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 'auto' }}><Icon name="shield" size={13} />The app cannot send messages. Nothing here is saved.</div>
     </>
   );
 }

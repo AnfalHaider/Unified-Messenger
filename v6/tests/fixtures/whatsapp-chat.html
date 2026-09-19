@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- An invented WhatsApp page holding one conversation in WhatsApp's own shape, for Suggest a reply: a question, our
+     answer, a photo with a caption (its body is image data, never words), a voice note, a security-code notice nobody
+     wrote, and a last question. Nothing here is real. -->
+<html><head><meta charset="utf-8"><title>WhatsApp</title></head>
+<body>
+<div id="app">Chat</div>
+<script>
+  var now = Math.floor(Date.now() / 1000);
+  var msgs = [
+    { id: { fromMe: false }, type: 'chat', body: 'Hi, do you have the blue one in stock?', t: now - 3600 },
+    { id: { fromMe: true }, type: 'chat', body: 'Let me check for you.', t: now - 3500 },
+    { id: { fromMe: false }, type: 'image', body: '/9j/4AAQSkZJRgABAQ-thumbnail-data', caption: 'this one', t: now - 3400 },
+    { id: { fromMe: false }, type: 'ptt', body: '', t: now - 3300 },
+    { id: { fromMe: false }, type: 'e2e_notification', body: 'security code changed', t: now - 3200 },
+    { id: { fromMe: false }, type: 'chat', body: 'Can I collect it today?', t: now - 600 },
+  ];
+  window.require = function (name) {
+    if (name === 'WAWebChatCollection') return { ChatCollection: { get: function (key) { return key === 'a@c.us' ? { id: key, msgs: { getModelsArray: function () { return msgs; } } } : undefined; } } };
+    throw new Error('no module ' + name);
+  };
+</script>
+</body></html>

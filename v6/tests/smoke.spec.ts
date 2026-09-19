@@ -1217,6 +1217,61 @@ test('the assistant answers from the app’s own figures, offers the chat it nam
   }
 });
 
+test('Suggest a reply drafts from the open chat’s own messages, copies one, and keeps nothing', async () => {
+  const ollama = await fakeOllama(() => 'WARM:\nYes, the blue one is in stock and you can collect it today from [time].\nSHORT:\nYes, collect it today from [time].');
+  ollama.models.push('gemma3:4b');
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Main branch WhatsApp', channel: 'whatsapp', professional: true, location: 'Main branch',
+      url: pathToFileURL(join(V6, 'tests', 'fixtures', 'whatsapp-chat.html')).href }],
+    locations: [{ name: 'Main branch' }],
+    settings: { assistant: { enabled: true, model: 'gemma3:4b', endpoint: ollama.endpoint } },
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [{
+    conversationKey: 'a@c.us', customerName: 'Sample Customer A', unread: 1, lastActivity: now - 10 * 60_000, preview: 'Can I collect it today?',
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  }] } }));
+  const { app, win } = await open(data);
+  try {
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    await win.getByRole('button', { name: 'Open chat' }).first().click();
+    const panel = win.getByRole('complementary', { name: 'About this customer' });
+    await panel.getByRole('button', { name: 'Suggest a reply' }).click();
+    await expect(panel).not.toContainText('Sample figures');
+    await panel.getByRole('button', { name: 'Draft replies' }).click();
+
+    await expect(panel).toContainText('Yes, the blue one is in stock and you can collect it today from [time].');
+    await expect(panel).toContainText('Yes, collect it today from [time].');
+    await expect(panel).toContainText('From the last 5 messages');
+
+    // What the model was given: the chat as the customer and us, a photo by its caption, a voice note by name, and no
+    // thumbnail data or security notice.
+    const [system, user] = ollama.asked[0];
+    expect(system.content).toContain('"Main branch WhatsApp"');
+    expect(user.content).toBe([
+      'The conversation so far, oldest first:',
+      'Customer: Hi, do you have the blue one in stock?',
+      'Us: Let me check for you.',
+      'Customer: [photo] this one',
+      'Customer: [voice message]',
+      'Customer: Can I collect it today?',
+    ].join('\n'));
+
+    await panel.getByRole('button', { name: 'Copy' }).first().click();
+    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Yes, the blue one is in stock and you can collect it today from [time].');
+    await quit(app, win);
+
+    for (const f of readdirSync(data, { recursive: true }).map(String).filter((x) => /\.(json|log)$/.test(x))) {
+      const text = readFileSync(join(data, f), 'utf8');
+      expect(text, f).not.toContain('blue one');
+    }
+  } finally {
+    await app.close().catch(() => {});
+    await ollama.close();
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 // ---- help screenshots ------------------------------------------------------------------------------------
 
 /**

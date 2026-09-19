@@ -28,6 +28,7 @@ import { awaitingChats, distrustColdScan, notCustomerWhy, recordRead, type Snaps
 import { importFromV5 } from './first-run.ts';
 import { Engine, type ChatMessage } from './assistant.ts';
 import { buildSummary } from '../core/assistant-summary.ts';
+import { parseDrafts, replyPrompt, type ChatLine } from '../core/assistant-reply.ts';
 import { loadJson, saveJson } from './store.ts';
 import { ACCOUNT_ROUTES, buildUiState, judgeFor, reportAccounts, targetFor, waitingQueue, type Route } from './view-model.ts';
 
@@ -942,6 +943,28 @@ app.whenReady().then(async () => {
     } catch (e) {
       log({ event: 'assistant-ask-failed', error: (e as Error).message.slice(0, 120) });
       return { error: /not ready/i.test((e as Error).message) ? 'The assistant is not ready yet. See Settings › Assistant.' : 'The assistant did not answer. Ollama may still be starting; try again in a moment.' };
+    }
+  });
+  // Suggest a reply: the open chat's messages, read from its page only now, go to the local model and come back as
+  // drafts. Never saved; the log gets how many messages were read and how long it took.
+  ipcMain.handle('assistant-suggest', async (_e, accountId: string, key: string) => {
+    const started = Date.now();
+    const a = account(accountId);
+    const view = views.get(accountId);
+    if (!a || !view || !a.channel.startsWith('whatsapp')) return { error: 'Drafts are available for WhatsApp chats whose page is open.' };
+    try {
+      const raw = await pageAnswer<string>(view, `window.__umChatMessages ? window.__umChatMessages(${JSON.stringify(key)}, 400) : ''`);
+      const read = raw ? JSON.parse(raw) as { state?: string; messages?: ChatLine[] } : {};
+      const lines = (read.messages ?? []).filter((m) => m && typeof m.text === 'string');
+      if (!lines.length) return { error: 'WhatsApp has not loaded this chat\u2019s messages yet. Open the chat on the page, then try again.' };
+      const prompt = replyPrompt(lines, a.name);
+      const answer = await engine.chat([{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }]);
+      const drafts = parseDrafts(answer);
+      log({ event: 'assistant-suggested', messages: prompt.used, drafts: drafts.length, ms: Date.now() - started });
+      return drafts.length ? { drafts, read: prompt.used } : { error: 'The assistant did not write a draft. Try again.' };
+    } catch (e) {
+      log({ event: 'assistant-suggest-failed', error: (e as Error).message.slice(0, 120) });
+      return { error: /not ready/i.test((e as Error).message) ? 'The assistant is not ready yet. See Settings \u203a Assistant.' : 'No draft this time. The page or the assistant did not answer; try again in a moment.' };
     }
   });
   ipcMain.on('assistant-install', () => void engine.installRuntime(config.settings.assistant));
