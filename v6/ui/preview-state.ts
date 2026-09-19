@@ -3,6 +3,7 @@
 //
 // The figures are invented and deliberately match the approved designs, not anyone's real business.
 import { defaultSettings } from '../core/config.ts';
+import { MODELS, offState, suggestModel } from '../core/assistant.ts';
 import { LOST_LOGIN, READER_TIMELINE } from './sample.ts';
 import type { QueueRow, SetAsideRow, UiState } from '../app/view-model.ts';
 
@@ -116,6 +117,10 @@ export const PREVIEW_STATE: UiState = {
     seen: [{ label: 'Now', value: 'Waiting since 4:12 pm' }, { label: '2 Sept', value: 'Answered in 6 min' }, { label: 'Since', value: '19 Aug, 7 times on the line' }],
     note: 'Prefers evening appointments. Asked for a callback last time rather than a message.', tags: ['Regular', 'Evenings'],
   } } },
+  assistant: {
+    state: { ...offState('gemma3:4b'), phase: 'downloading-model', progress: 0.64, runtime: 'installed' },
+    sentence: 'Downloading the gemma3:4b model… 64%', suggested: suggestModel(16), memoryGB: 16, models: MODELS,
+  },
   reviews: {
     profiles: [
       { accountId: 'g1', name: 'Main branch Google', location: 'Main branch', rating: 4.6, total: 991, loaded: 50, more: true, unanswered: 3, spread: [34, 9, 3, 1, 3], readAt: Date.now() - 12 * 60_000, signedOut: false },

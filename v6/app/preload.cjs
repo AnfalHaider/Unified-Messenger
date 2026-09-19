@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('um', {
   /** The owner's own note and tags about one customer. Kept on this PC; never sent anywhere. */
   setNote: (accountId, key, text) => ipcRenderer.send('set-note', accountId, key, text),
   toggleTag: (accountId, key, tag) => ipcRenderer.send('toggle-tag', accountId, key, tag),
+  /** The assistant's two downloads: Ollama itself, and the model. Each only when the owner presses its button. */
+  installAssistant: () => ipcRenderer.send('assistant-install'),
+  pullAssistantModel: () => ipcRenderer.send('assistant-pull'),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),
   editAccount: (accountId, change) => ipcRenderer.invoke('edit-account', accountId, change),

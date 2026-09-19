@@ -16,6 +16,7 @@ import { lostLoginTimeline, readerTimeline, signedOutSince, type Events, type Ti
 import { customerFor, tagsInUse, type Customers } from '../core/customers.ts';
 import { durationText } from '../core/duration.ts';
 import { ageMinutes, needingReply, spread, type Reviews } from '../core/reviews.ts';
+import { engineSentence, MODELS, offState, suggestModel, type EngineState, type ModelChoice } from '../core/assistant.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
@@ -252,6 +253,8 @@ export interface UiState {
   customer: CustomerView | null;
   /** Built only while Reviews is open. */
   reviews: ReviewsView | null;
+  /** The local assistant: its engine's state in a sentence, and the model suggested for this PC. */
+  assistant: { state: EngineState; sentence: string; suggested: ModelChoice; memoryGB: number; models: ModelChoice[] };
   /** What led up to this account losing its login, and since when. Built only while that screen is open. */
   lostLogin: { since: number | null; items: TimelineRow[] } | null;
   /** What each channel's reader has been doing, across every account on it. Built only while Readers is open. */
@@ -273,6 +276,9 @@ export interface Context {
   customers?: Customers;
   /** Each Google profile's latest reviews, rating and total. Only read while Reviews is open. */
   reviews?: Reviews;
+  /** The local assistant's engine, and this PC's memory for suggesting a model. */
+  assistant?: EngineState;
+  memoryGB?: number;
   /** The location chosen in the title bar, or null for all. Reports and their exports cover only that location. */
   scope?: string | null;
   route: Route;
@@ -392,6 +398,11 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     modules: ctx.modules.map(readerHealth),
     customer: ctx.route === 'dock' && ctx.visible ? customerView(config, snapshots, ctx) : null,
     reviews: ctx.route === 'reviews' ? reviewsView(config, ctx) : null,
+    assistant: {
+      state: ctx.assistant ?? offState(config.settings.assistant.model),
+      sentence: engineSentence(ctx.assistant ?? offState(config.settings.assistant.model)),
+      suggested: suggestModel(ctx.memoryGB ?? 8), memoryGB: Math.round(ctx.memoryGB ?? 0), models: MODELS,
+    },
     lostLogin: ctx.route === 'lost-login' && ctx.visible
       ? { since: signedOutSince(ctx.events ?? {}, ctx.visible), items: timelineRows(lostLoginTimeline(ctx.events ?? {}, ctx.visible, ctx.now), ctx.now) }
       : null,

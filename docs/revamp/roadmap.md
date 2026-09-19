@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: Phase 5 (the assistant)**, in the release plan below, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: 5.2 and 5.3** (the summary and the chat), in the release plan below, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -257,7 +257,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 ### Phase 5 · Assistant
 
-**5.1 Engine.** Settings switch (default off) → detect memory (`os.totalmem()`), suggest a model size, download Ollama and the model the way v5 did (`OllamaInferenceClient`, bundled runtime under the data folder), with progress in Settings › Assistant. Beware two Ollama installs on this PC fighting for port 11434.
+**5.1 Engine.** Done 2026-09-19. Owner decisions: **off until switched on**, **reuse an Ollama already on the PC and download one only when there is none**, never a second Ollama on the same port. `core/assistant.ts` decides (candidates in order: the Ollama the owner installed, `%LOCALAPPDATA%\Programs\Ollama`; v5's bundled copy with its own models folder; the app's own download under the data folder), suggests a model from memory (gemma3:1b below 8 GB, gemma3:4b otherwise; 12b offered, never suggested), reads pull progress and says every state in a sentence. `app/assistant.ts` carries it out: an Ollama already answering is used as it is; otherwise the first installed one is started with `serve` on the settings' port (and stopped at quit; one it did not start is left alone); Ollama itself (v5's pinned v0.30.8, checked against its SHA-256, unpacked with `tar`) and the model (`/api/pull`, with progress) are downloaded only when the owner presses the button in Settings › Assistant, which is real now. The owner's PC has Ollama 0.34 with gemma3:4b already, so it needs no download. Tests: 5 core, and Playwright against a fake Ollama inside the test (off → switched on → model downloaded on request → ready → off) and with none at all (says so, offers the download, starts nothing). Every test launch points the engine's `LOCALAPPDATA` at its own folder (`UM_LOCALAPPDATA`), so no test can start the owner's real Ollama. Not exercised by a test: the real 1.2 GB download.
 
 **5.2 Summary builder.** `core/assistant-summary.ts`: waiting customers, counts, freshness, per-location figures, built from the view model only. Tests.
 
@@ -300,7 +300,7 @@ Google Business Profile API for complete review history (needs Google approval);
 1. **Auto-update approach** (7.3).
 2. **The Co-Authored-By trailer** already on commits 235627d, 824eb60 and faa4e3a (and older ones from other sessions): leave them, or rewrite `main` history with a force-push.
 3. **Opening hours:** the editor exists (Settings › Opening hours). On the owner's PC (checked 2026-09-14) all three locations carry v5's hours, 11 am to 9 pm Monday to Saturday, with the switch off, so waits count around the clock; there are no holidays. Switching a location on uses those hours until edited. Only the owner knows whether they are right.
-4. **Imported assistant settings:** v5's config came across with the assistant marked enabled (`llama3.2:3b`); v6 ignores it until Phase 5. Decide the default then.
+4. ~~**Imported assistant settings.**~~ Decided 2026-09-19: the assistant starts **off** on every PC, whatever v5 had; Ollama already on the PC is reused; the test set's pass mark is **30 of 30**; Suggest a reply may read the whole open conversation (what WhatsApp has loaded for it), on the PC only.
 5. **Code signing** (7.4). Smart App Control blocked an unsigned build for two hours on 2026-09-13; until this is decided, an install can be held up with nothing to do but wait.
 6. ~~**Alert volume.**~~ Decided 2026-09-18: keep **one notification per customer**, as it is. A busy Instagram hour can fill the notification centre; the owner would rather see each real customer than a summary. Revisit only if it becomes a nuisance in practice.
 7. **v5's daily history** (4.6): import `analytics.json` and `kpi-trend.json` as a clearly labelled "before v6" series in Reports, or leave Reports starting from 13 September 2026.

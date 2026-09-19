@@ -23,7 +23,7 @@ async function open(data: string): Promise<{ app: ElectronApplication; win: Page
   // No test ever reaches Google: its two addresses are the invented pages in tests/fixtures/google.
   const google = join(V6, 'tests', 'fixtures', 'google');
   const app = await electron.launch({ args: ['app/main.ts'], cwd: V6, env: {
-    ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5'),
+    ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5'), UM_LOCALAPPDATA: join(data, 'no-local-app-data'),
     UM_GOOGLE_REVIEWS_URL: pathToFileURL(join(google, 'reviews', 'index.html')).href, UM_GOOGLE_PROFILE_URL: pathToFileURL(join(google, 'profile.html')).href,
   } });
   return { app, win: await app.firstWindow() };
@@ -1077,6 +1077,88 @@ test('break test: one channel whose reader throws costs only its own figures, an
     await expect(win.getByRole('main')).toContainText('the page has changed, and the reader could not read it');
     await expect(win.getByRole('main')).not.toContainText('renderer console');
     if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'break-test.png') });
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+// ---- the assistant ----------------------------------------------------------------------------------------
+
+/** A stand-in for Ollama on this machine: answers the four calls the app makes, and records the questions it is
+ *  asked, so a test can check what the app sent. It never runs a model. */
+async function fakeOllama(answer: (messages: { role: string; content: string }[]) => string = () => 'A test answer.') {
+  const { createServer } = await import('node:http');
+  const models: string[] = [];
+  const asked: { role: string; content: string }[][] = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      const json = (o: unknown) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(o)); };
+      if (req.url === '/api/version') return json({ version: 'test' });
+      if (req.url === '/api/tags') return json({ models: models.map((name) => ({ name })) });
+      if (req.url === '/api/pull') {
+        const { model } = JSON.parse(body) as { model: string };
+        res.setHeader('content-type', 'application/x-ndjson');
+        const lines = [{ status: 'pulling manifest' }, { status: 'pulling', total: 100, completed: 40 }, { status: 'pulling', total: 100, completed: 100 }, { status: 'success' }];
+        let i = 0;
+        const next = () => { if (i < lines.length) { res.write(`${JSON.stringify(lines[i++])}\n`); setTimeout(next, 150); } else { models.push(model); res.end(); } };
+        return next();
+      }
+      if (req.url === '/api/chat') {
+        const { messages } = JSON.parse(body) as { messages: { role: string; content: string }[] };
+        asked.push(messages);
+        return json({ message: { role: 'assistant', content: answer(messages) } });
+      }
+      res.statusCode = 404; res.end();
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  const port = (server.address() as { port: number }).port;
+  return { endpoint: `http://127.0.0.1:${port}/`, models, asked, close: () => new Promise<void>((r) => server.close(() => r())) };
+}
+
+test('the assistant is off until switched on, finds Ollama, downloads the model only on request, and says so', async () => {
+  const ollama = await fakeOllama();
+  const data = dataFolder({ settings: { assistant: { enabled: false, model: 'gemma3:4b', endpoint: ollama.endpoint } } });
+  const { app, win } = await open(data);
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Assistant' }).click();
+    await expect(win.getByRole('main')).not.toContainText('Sample figures');
+    await expect(win.getByRole('status')).toHaveCount(0);
+
+    await win.getByRole('switch', { name: 'Use the assistant' }).click();
+    const status = win.getByRole('status');
+    await expect(status).toHaveText('Ready to download the gemma3:4b model.');
+    expect(ollama.models, 'nothing is downloaded until asked').toEqual([]);
+
+    await win.getByRole('button', { name: /Download the model/ }).click();
+    await expect(status).toHaveText('Ready, using gemma3:4b through the Ollama already running on this PC.');
+    expect(ollama.models).toEqual(['gemma3:4b']);
+    expect(JSON.parse(readFileSync(join(data, 'config.json'), 'utf8')).settings.assistant.enabled).toBe(true);
+
+    await win.getByRole('switch', { name: 'Use the assistant' }).click();
+    await expect(status).toHaveCount(0);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await ollama.close();
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('with no Ollama anywhere, the assistant says so and offers the download, without starting one', async () => {
+  // A port nothing listens on, and a LOCALAPPDATA with no Ollama in it (the open() helper points it at the data folder).
+  const data = dataFolder({ settings: { assistant: { enabled: true, model: 'gemma3:4b', endpoint: 'http://127.0.0.1:9/' } } });
+  const { app, win } = await open(data);
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Assistant' }).click();
+    await expect(win.getByRole('status')).toHaveText('Ollama is not on this PC yet. It is free and runs entirely on this PC.');
+    await expect(win.getByRole('button', { name: /Download Ollama/ })).toBeVisible();
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

@@ -25,7 +25,7 @@ export function SettingsScreen(props: ScreenProps) {
           {section === 'Opening hours' && <Hours {...props} />}
           {section === 'Notifications' && <Notifications {...props} />}
           {section === 'Saved replies' && <SavedReplies {...props} />}
-          {section === 'Assistant' && <AssistantSettings />}
+          {section === 'Assistant' && <AssistantSettings {...props} />}
           {section === 'Workspace' && <Workspace {...props} />}
           {section === 'Privacy' && <Privacy />}
           {section === 'About' && <About {...props} />}
@@ -260,32 +260,54 @@ function Notifications({ state }: ScreenProps) {
   );
 }
 
-function AssistantSettings() {
-  const [enabled, setEnabled] = useState(false);
-  const [model, setModel] = useState('4B');
+/** The local assistant: off until switched on, reusing an Ollama already on this PC, and downloading anything only
+ *  when a button here is pressed. */
+function AssistantSettings({ state }: ScreenProps) {
+  const settings = state.settings.assistant;
+  const view = state.assistant;
+  const engine = view.state;
+  const set = (patch: Partial<typeof settings>) => bridge.setSettings({ assistant: { ...settings, ...patch } });
+  const chosen = view.models.find((m) => m.model === settings.model);
+  const busy = engine.phase === 'downloading-runtime' || engine.phase === 'downloading-model';
+  const tooBig = chosen && view.memoryGB > 0 && view.memoryGB < chosen.minMemoryGB;
   return (
     <>
-      <div className="sgroup"><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Assistant</h3><Sample /></div>
-        <p>Answers questions about waiting, replies, reviews and calls, and drafts replies to copy. It runs entirely on this PC.</p>
+      <div className="sgroup"><h3>Assistant</h3>
+        <p>Answers questions about waiting, replies, reviews and calls, and drafts replies to copy. It runs entirely on this PC, through a free program called Ollama; nothing it reads or writes leaves this PC.</p>
         <div className="panel" style={{ padding: 0 }}>
-          <SettingRow title="Use the assistant" detail="Off by default. Nothing is downloaded until this is on."><Toggle label="Use the assistant" on={enabled} onChange={setEnabled} /></SettingRow>
-          <SettingRow title="Model" detail="Chosen from this PC’s memory, so answers stay quick.">
-            <Seg label="Model size" value={model} onChange={setModel} options={[['1B', 'Small, 1B'], ['4B', 'Balanced, 4B'], ['12B', 'Large, 12B']] as const} />
+          <SettingRow title="Use the assistant" detail="Off by default. Nothing is downloaded or started until this is on.">
+            <Toggle label="Use the assistant" on={settings.enabled} onChange={(v) => set({ enabled: v })} />
+          </SettingRow>
+          <SettingRow title="Model" detail={`Suggested for this PC's ${view.memoryGB} GB of memory: ${view.suggested.label}. Larger answers better and more slowly.`}>
+            <Seg label="Model size" value={settings.model} onChange={(v) => set({ model: v })}
+              options={view.models.map((m) => [m.model, `${m.label}, ${m.sizeGB} GB`] as const)} />
           </SettingRow>
         </div>
+        {tooBig && <p className="sub" style={{ marginTop: 8 }}>This PC has less memory than the {chosen!.label.toLowerCase()} model needs ({chosen!.minMemoryGB} GB); answers may be very slow.</p>}
       </div>
-      {enabled && (
+      {settings.enabled && (
         <Panel style={{ display: 'grid', gap: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}><b style={{ fontWeight: 600 }}>Downloading the {model} model</b><span className="sub num">2.1 of 3.3 GB · about 4 minutes left</span></div>
-          <div className="progress"><i style={{ width: '64%' }} /></div>
-          <div style={{ display: 'flex', gap: 18 }} className="sub"><span><Icon name="check" size={13} stroke={2} /> Engine installed</span><span><Icon name="download" size={13} /> Model downloading</span><span style={{ opacity: 0.6 }}>Ready to answer</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+            <b role="status" style={{ fontWeight: 600 }}>{view.sentence}</b>
+            {engine.phase === 'ready' && <Chip tone="ok" icon="check">Ready</Chip>}
+          </div>
+          {busy && <div className="progress" role="progressbar" aria-label="Download" aria-valuenow={Math.round((engine.progress ?? 0) * 100)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.round((engine.progress ?? 0) * 100)}%` }} /></div>}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {engine.phase === 'no-runtime' && <Btn icon="download" kind="primary" onClick={() => bridge.installAssistant()}>Download Ollama (about 1.2 GB)</Btn>}
+            {engine.phase === 'no-model' && <Btn icon="download" kind="primary" onClick={() => bridge.pullAssistantModel()}>Download the model ({chosen?.sizeGB ?? '?'} GB)</Btn>}
+            {engine.phase === 'error' && <Btn icon="refresh" onClick={() => set({ enabled: true })}>Try again</Btn>}
+          </div>
+          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }} className="sub">
+            <span style={{ opacity: engine.runtime ? 1 : 0.6 }}><Icon name={engine.runtime ? 'check' : 'download'} size={13} stroke={2} /> Ollama {engine.runtime ? 'found' : 'needed'}</span>
+            <span style={{ opacity: engine.phase === 'ready' ? 1 : 0.6 }}><Icon name={engine.phase === 'ready' ? 'check' : 'download'} size={13} stroke={2} /> Model {engine.phase === 'ready' ? 'on this PC' : 'needed'}</span>
+          </div>
         </Panel>
       )}
       <div className="sgroup"><h3>What it can see</h3>
         <div className="panel" style={{ padding: 0 }}>
-          <SettingRow title="Figures and waiting customers" detail="Counts, times, names and previews the app already shows you."><Toggle label="Figures" on /></SettingRow>
-          <SettingRow title="A chat’s last messages, when you ask for a reply" detail="Only that conversation, only when you press Suggest a reply."><Toggle label="Chat messages" on /></SettingRow>
-          <SettingRow title="Customer notes" detail="Off: notes stay out of the assistant unless you allow it."><Toggle label="Customer notes" on={false} /></SettingRow>
+          <SettingRow title="Figures and waiting customers" detail="Counts, waits, names and previews the app already shows you, when you ask a question." />
+          <SettingRow title="A chat's messages, when you ask for a reply" detail="Only the chat that is open, only when you press Suggest a reply, and only what WhatsApp has loaded for it." />
+          <SettingRow title="Customer notes" detail="Never: your notes stay out of the assistant." />
         </div>
       </div>
     </>

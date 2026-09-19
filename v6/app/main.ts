@@ -4,6 +4,7 @@
 // computed twice.
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, Notification, session, Tray, WebContentsView } from 'electron';
 import { randomUUID } from 'node:crypto';
+import { totalmem } from 'node:os';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +26,7 @@ import { forgetAccountCustomers, pruneCustomers, recordCustomers, setNote, toggl
 import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit, type NewAccount } from '../core/accounts.ts';
 import { awaitingChats, distrustColdScan, notCustomerWhy, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
+import { Engine } from './assistant.ts';
 import { loadJson, saveJson } from './store.ts';
 import { ACCOUNT_ROUTES, buildUiState, judgeFor, reportAccounts, targetFor, waitingQueue, type Route } from './view-model.ts';
 
@@ -111,6 +113,17 @@ const digestState = loadJson<{ lastShownDay: string | null }>(FILE.digest, { las
 for (const snap of Object.values(snapshots)) snap.chats = distrustColdScan(snap.chats);
 pruneResponseTimes(times);
 pruneExpired(overrides, Date.now());
+
+/** The local assistant's engine. Off until the owner switches it on; see app/assistant.ts. */
+let pushSoon: ReturnType<typeof setTimeout> | null = null;
+const engine = new Engine({
+  data: DATA,
+  // Tests point this at their own folder, so no test ever finds and starts the owner's real Ollama.
+  localAppData: process.env.UM_LOCALAPPDATA || process.env.LOCALAPPDATA || join(app.getPath('home'), 'AppData', 'Local'),
+  log: (entry) => log(entry),
+  // A download reports progress many times a second; the screens need it a couple of times a second at most.
+  changed: () => { if (!pushSoon) pushSoon = setTimeout(() => { pushSoon = null; push(); }, 400); },
+}, config.settings.assistant.model);
 
 const views = new Map<string, WebContentsView>();
 const lastReadAt: Record<string, number> = {};
@@ -448,6 +461,7 @@ function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
     now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers, reviews,
+    assistant: engine.state, memoryGB: totalmem() / 1024 ** 3,
   });
 }
 
@@ -744,6 +758,7 @@ async function quitNow(reason: string) {
   quitting = true;
   const started = Date.now();
   clearInterval(readTimer);
+  engine.stop();
   log({ event: 'quitting', reason, awake: views.size });
   await Promise.all(config.accounts.map((a) => new Promise<void>((done) => {
     session.fromPartition(`persist:${a.id}`).flushStorageData();
@@ -902,8 +917,12 @@ app.whenReady().then(async () => {
     config.settings = next.settings;
     saveJson(FILE.config, config);
     log({ event: 'settings-changed', keys: Object.keys(patch) });
+    if ('assistant' in patch) void engine.ensure(config.settings.assistant);
     push();
   });
+  // The two downloads, each only when the owner presses its button.
+  ipcMain.on('assistant-install', () => void engine.installRuntime(config.settings.assistant));
+  ipcMain.on('assistant-pull', () => void engine.pullModel(config.settings.assistant));
   ipcMain.on('window-action', (_e, action: 'minimise' | 'maximise' | 'close') => {
     if (action === 'minimise') win.minimize();
     else if (action === 'close') closeWindow('close-button');
@@ -969,6 +988,7 @@ app.whenReady().then(async () => {
   });
 
   readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); void readReviews(); }, 5_000);
+  void engine.ensure(config.settings.assistant);
   push();
 
   // Unattended check: start, give the pages time to bring their readers up, read, write one line, quit.
