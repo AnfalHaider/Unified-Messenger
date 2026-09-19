@@ -1167,7 +1167,13 @@ test('with no Ollama anywhere, the assistant says so and offers the download, wi
 });
 
 test('the assistant answers from the app’s own figures, offers the chat it names, and keeps nothing', async () => {
-  const ollama = await fakeOllama(() => 'Sample Customer A has waited longest, 40 min.');
+  // The fake model chooses the fact about the longest wait, as the real one is asked to: by its id. Then it passes
+  // the check the app puts to each chosen fact.
+  const ollama = await fakeOllama((messages) => {
+    if (messages[0].content.startsWith('Does the fact below answer the question?')) return JSON.stringify({ answers: true });
+    const line = messages[0].content.split('\n').find((l) => l.includes('The longest wait is')) ?? '';
+    return JSON.stringify({ facts: [line.split(':')[0]] });
+  });
   ollama.models.push('gemma3:4b');
   const now = Date.now();
   const data = dataFolder({
@@ -1189,13 +1195,16 @@ test('the assistant answers from the app’s own figures, offers the chat it nam
     await input.fill('Who has waited longest? (secret-marker-7731)');
     await win.getByRole('button', { name: 'Ask', exact: true }).click();
 
-    await expect(win.getByText('Sample Customer A has waited longest, 40 min.')).toBeVisible();
-    // What the model was given: the rules, the app's own worked-out figures, the waiting customers, and the question.
+    // The answer is the app's own fact, word for word.
+    await expect(win.getByText('The longest wait is Sample Customer A, 40 min, on Test front desk at Main branch.')).toBeVisible();
+    // What the model was given: the instructions to choose, the app's own facts, and the question.
     const sent = ollama.asked[0];
     expect(sent[0].role).toBe('system');
-    expect(sent[0].content).toContain('Answer ONLY from the facts below.');
-    expect(sent[0].content).toContain('Customers waiting for a reply now: 2 (2 on WhatsApp).');
-    expect(sent[0].content).toContain('1. Sample Customer A: waiting 40 min on Test front desk at Main branch, past the target');
+    expect(sent[0].content).toContain('Reply with JSON only');
+    expect(sent[0].content).toContain('2 customers are waiting for a reply.');
+    expect(sent[0].content).toContain('C1: Sample Customer A is waiting on the account Test front desk at Main branch, for 40 min, and is past the target');
+    // And the chosen fact was checked against the question before it was shown.
+    expect(ollama.asked[1][0].content).toContain('Fact: The longest wait is Sample Customer A');
     expect(sent.at(-1)).toEqual({ role: 'user', content: 'Who has waited longest? (secret-marker-7731)' });
 
     // The customer the answer names is offered, and opens.
@@ -1208,7 +1217,7 @@ test('the assistant answers from the app’s own figures, offers the chat it nam
     for (const f of files) {
       const text = readFileSync(join(data, f), 'utf8');
       expect(text, f).not.toContain('secret-marker-7731');
-      expect(text, f).not.toContain('has waited longest');
+      expect(text, f).not.toContain('The longest wait is');
     }
   } finally {
     await app.close().catch(() => {});

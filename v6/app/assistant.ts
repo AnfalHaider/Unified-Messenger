@@ -24,6 +24,10 @@ export interface EngineDeps {
   changed: () => void;
 }
 
+/** The same for every question, and for the test set (5.5): low temperature and a fixed seed, so an answer can be
+ *  checked and checked again. */
+export const ASK_OPTIONS = { temperature: 0.1, seed: 7, num_ctx: 8192 };
+
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
 
 const withTimeout = async (url: string, init: RequestInit, ms: number) => {
@@ -167,11 +171,11 @@ export class Engine {
   }
 
   /** One answer from the local model. The caller builds the messages; nothing is kept here. */
-  async chat(messages: ChatMessage[], timeoutMs = 120_000): Promise<string> {
+  async chat(messages: ChatMessage[], { json = false, timeoutMs = 120_000 }: { json?: boolean; timeoutMs?: number } = {}): Promise<string> {
     if (this.state.phase !== 'ready') throw new Error('The assistant is not ready.');
     const res = await withTimeout(`${this.endpoint}api/chat`, {
       method: 'POST',
-      body: JSON.stringify({ model: this.state.model, messages, stream: false, options: { temperature: 0.1, num_ctx: 8192 } }),
+      body: JSON.stringify({ model: this.state.model, messages, stream: false, options: ASK_OPTIONS, ...(json ? { format: 'json' } : {}) }),
     }, timeoutMs);
     if (!res.ok) throw new Error(`Ollama answered ${res.status}`);
     const body = await res.json() as { message?: { content?: string } };

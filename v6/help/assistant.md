@@ -1,6 +1,6 @@
 # Assistant
 
-Ask a question about who is waiting and get a short answer, written on this PC by a local model from the figures the app already shows.
+Ask a question about who is waiting and get the answer in the app's own figures. A local model on this PC only picks which of the app's figures answer your question; it does not write the answer, so it cannot get a number wrong.
 
 ![Assistant](shot:assistant)
 
@@ -12,9 +12,10 @@ The assistant is **off** until you switch it on in [Settings](help:settings) ›
 
 - Type a question, or press one of the suggestions, then **Ask**.
 - It answers from the figures the app has worked out: who is waiting and for how long, who is past the target, each location, each channel, accounts that need signing in, replies measured today.
-- If a question is not covered by those figures, it says **"The app doesn't have that figure."** instead of guessing.
+- Each figure it picks is checked against your question before it is shown. If none fits, it says **"The app doesn't have that figure."** instead of showing the nearest one. Reviews, calls, sales and past days are not covered yet.
+- An answer takes a few seconds, longer on a slower PC.
 - When the answer names a customer who is waiting, a button opens their chat.
-- Beside each answer, **Figures given, from the app** shows the figures it was given. If the answer and these disagree, believe the figures.
+- Beside each answer, **At a glance, from the app** shows how many are waiting, how many are past the target and the longest wait.
 
 ## What stays private
 

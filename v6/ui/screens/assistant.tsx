@@ -1,5 +1,6 @@
-// The assistant: questions answered on this PC by a local model, each beside the figures it was given. The answer
-// is the model's; the figures column is the app's own, so when they disagree the owner can see which to believe.
+// The assistant: questions answered in the app's own sentences. A local model on this PC only chooses which of the
+// app's facts answer the question, and checks each; it writes nothing, so an answer cannot carry a figure the app did
+// not work out. Beside each answer, the day at a glance.
 // The conversation lives only on this screen: it is not saved, and it is gone when the app closes.
 import { useState } from 'react';
 import { durationText } from '../../core/duration.ts';
@@ -39,7 +40,7 @@ export function AssistantScreen({ state, nav }: ScreenProps) {
   return (
     <main className="main" style={{ gap: 16, maxWidth: 1180 }}>
       <Headline title="Assistant" actions={<><Chip tone="ok" icon="shield">On this PC</Chip><Btn kind="quiet" onClick={() => nav.go('settings', null, 'Assistant')}>Assistant settings</Btn></>}>
-        Answers are written on this PC by a local model, from the figures the app already shows. It can point you to a chat; it has no way to send one.
+        Answers are the app’s own figures, word for word: a local model on this PC only picks which ones answer your question. It can point you to a chat; it has no way to send one.
       </Headline>
       {!ready && (
         <div className="panel" style={{ display: 'grid', gap: 10 }}>
@@ -64,9 +65,8 @@ export function AssistantScreen({ state, nav }: ScreenProps) {
                 )}
               </div>
               <div className="evidence">
-                <h5>Figures given, from the app</h5>
+                <h5>At a glance, from the app</h5>
                 {t.figures.map(([k, v, bad]) => <div key={k}><span>{k}</span><b style={bad ? { color: 'var(--late)' } : undefined}>{v}</b></div>)}
-                <span className="sub" style={{ marginTop: 4 }}>If these and the answer disagree, the figures are right.</span>
               </div>
             </div>
           </div>

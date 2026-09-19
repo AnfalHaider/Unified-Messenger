@@ -27,7 +27,7 @@ import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit
 import { awaitingChats, distrustColdScan, notCustomerWhy, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { Engine, type ChatMessage } from './assistant.ts';
-import { buildSummary } from '../core/assistant-summary.ts';
+import { answerFrom, answerQuestion, buildFacts } from '../core/assistant-summary.ts';
 import { parseDrafts, replyPrompt, type ChatLine } from '../core/assistant-reply.ts';
 import { loadJson, saveJson } from './store.ts';
 import { ACCOUNT_ROUTES, buildUiState, judgeFor, reportAccounts, targetFor, waitingQueue, type Route } from './view-model.ts';
@@ -929,16 +929,17 @@ app.whenReady().then(async () => {
   ipcMain.handle('assistant-ask', async (_e, question: string, history: ChatMessage[]) => {
     const started = Date.now();
     try {
+      void history; // each question stands alone: the model chooses facts, and facts do not need the last answer
       const state = stateFor(route);
       const queue = waitingQueue(config, snapshots, overrides, Date.now(), signedOut);
-      const summary = buildSummary({ ...state, queue, queueTotal: queue.length }, new Date());
-      const turns = (Array.isArray(history) ? history : []).filter((m) => m && (m.role === 'user' || m.role === 'assistant')).slice(-6)
-        .map((m) => ({ role: m.role, content: String(m.content).slice(0, 2000) }));
-      const answer = await engine.chat([{ role: 'system', content: summary }, ...turns, { role: 'user', content: String(question).slice(0, 1000) }]);
-      // Customers the answer names, so the screen can offer their chats. Matched against the queue, never guessed.
+      const facts = buildFacts({ ...state, queue, queueTotal: queue.length }, new Date());
+      // The model chooses which of the app's facts answer and checks each; the owner reads those facts, word for word.
+      const kept = await answerQuestion(String(question).slice(0, 1000), facts, (messages) => engine.chat(messages, { json: true }));
+      const answer = answerFrom(kept);
+      // Customers the chosen facts name, so the screen can offer their chats. Matched against the queue, never guessed.
       const people = queue.filter((r) => r.customer.length > 2 && answer.includes(r.customer)).slice(0, 3)
         .map((r) => ({ accountId: r.accountId, key: r.key, customer: r.customer }));
-      log({ event: 'assistant-asked', ms: Date.now() - started, people: people.length });
+      log({ event: 'assistant-asked', ms: Date.now() - started, facts: kept.length, people: people.length });
       return { answer, people };
     } catch (e) {
       log({ event: 'assistant-ask-failed', error: (e as Error).message.slice(0, 120) });
