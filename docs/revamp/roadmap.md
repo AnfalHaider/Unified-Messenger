@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 5.2 and 5.3** (the summary and the chat), in the release plan below, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: 5.4** (Suggest a reply), then 5.5, in the release plan below, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -259,9 +259,9 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **5.1 Engine.** Done 2026-09-19. Owner decisions: **off until switched on**, **reuse an Ollama already on the PC and download one only when there is none**, never a second Ollama on the same port. `core/assistant.ts` decides (candidates in order: the Ollama the owner installed, `%LOCALAPPDATA%\Programs\Ollama`; v5's bundled copy with its own models folder; the app's own download under the data folder), suggests a model from memory (gemma3:1b below 8 GB, gemma3:4b otherwise; 12b offered, never suggested), reads pull progress and says every state in a sentence. `app/assistant.ts` carries it out: an Ollama already answering is used as it is; otherwise the first installed one is started with `serve` on the settings' port (and stopped at quit; one it did not start is left alone); Ollama itself (v5's pinned v0.30.8, checked against its SHA-256, unpacked with `tar`) and the model (`/api/pull`, with progress) are downloaded only when the owner presses the button in Settings › Assistant, which is real now. The owner's PC has Ollama 0.34 with gemma3:4b already, so it needs no download. Tests: 5 core, and Playwright against a fake Ollama inside the test (off → switched on → model downloaded on request → ready → off) and with none at all (says so, offers the download, starts nothing). Every test launch points the engine's `LOCALAPPDATA` at its own folder (`UM_LOCALAPPDATA`), so no test can start the owner's real Ollama. Not exercised by a test: the real 1.2 GB download.
 
-**5.2 Summary builder.** `core/assistant-summary.ts`: waiting customers, counts, freshness, per-location figures, built from the view model only. Tests.
+**5.2 Summary builder.** Done 2026-09-19. `core/assistant-summary.ts` turns the view model into numbered facts the model only has to look up, never compute: waiting now with the count per channel, past target and due soon, the longest wait and who, answered on time, median first reply, caught up, backlog, closed by rule, set aside by kind, every location (waiting, per channel, past target, longest), accounts needing sign-in, readers with problems, and up to 25 waiting customers with their wait and last message. The rules come first: only these facts, exact figures, and "The app doesn't have that figure." when a question is not covered. Main gives it the whole waiting queue, not the view model's first 60 rows. Tests: 4.
 
-**5.3 Chat.** Wire `assistant.tsx`: send the summary and the question to local Ollama; show the answer beside the figures used (already rendered from real data). Never send data anywhere else.
+**5.3 Chat.** Done 2026-09-19. The Assistant screen is real: questions (typed or suggested) go through IPC `assistant-ask` to the local model with the summary and at most the last three exchanges; the answer shows beside "Figures given, from the app"; customers the answer names are matched against the queue and offered as Open chat buttons. Nothing is kept: not the question, not the answer, not in the log (which records only that a question was asked and how long it took). A plain message when Ollama is not ready. Test: Playwright against the fake Ollama checks what was sent, the answer, the Open chat button, and that no file holds the question or the answer afterwards.
 
 **5.4 Suggest a reply.** From the docked chat's last few messages only (needs the reader to expose recent messages for the focused chat), copy-only; the app never sends.
 

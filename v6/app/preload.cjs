@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('um', {
   toggleTag: (accountId, key, tag) => ipcRenderer.send('toggle-tag', accountId, key, tag),
   /** The assistant's two downloads: Ollama itself, and the model. Each only when the owner presses its button. */
   installAssistant: () => ipcRenderer.send('assistant-install'),
+  /** A question for the local assistant; resolves with { answer, people } or { error }. Nothing is kept. */
+  askAssistant: (question, history) => ipcRenderer.invoke('assistant-ask', question, history),
   pullAssistantModel: () => ipcRenderer.send('assistant-pull'),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),

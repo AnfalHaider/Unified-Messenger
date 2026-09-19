@@ -1166,6 +1166,57 @@ test('with no Ollama anywhere, the assistant says so and offers the download, wi
   }
 });
 
+test('the assistant answers from the app’s own figures, offers the chat it names, and keeps nothing', async () => {
+  const ollama = await fakeOllama(() => 'Sample Customer A has waited longest, 40 min.');
+  ollama.models.push('gemma3:4b');
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }],
+    locations: [{ name: 'Main branch' }],
+    settings: { assistant: { enabled: true, model: 'gemma3:4b', endpoint: ollama.endpoint } },
+  });
+  const chat = (key: string, customer: string, minutesAgo: number) => ({
+    conversationKey: key, customerName: customer, unread: 1, lastActivity: now - minutesAgo * 60_000, preview: 'Is the order ready?',
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [chat('a@c.us', 'Sample Customer A', 40), chat('b@c.us', 'Sample Customer B', 5)] } }));
+  const { app, win } = await open(data);
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Assistant', exact: true }).click();
+    await expect(win.getByRole('main')).not.toContainText('Sample figures');
+    const input = win.getByRole('textbox', { name: 'Ask the assistant' });
+    await expect(input).toBeEnabled({ timeout: 15_000 });
+    await input.fill('Who has waited longest? (secret-marker-7731)');
+    await win.getByRole('button', { name: 'Ask', exact: true }).click();
+
+    await expect(win.getByText('Sample Customer A has waited longest, 40 min.')).toBeVisible();
+    // What the model was given: the rules, the app's own worked-out figures, the waiting customers, and the question.
+    const sent = ollama.asked[0];
+    expect(sent[0].role).toBe('system');
+    expect(sent[0].content).toContain('Answer ONLY from the facts below.');
+    expect(sent[0].content).toContain('Customers waiting for a reply now: 2 (2 on WhatsApp).');
+    expect(sent[0].content).toContain('1. Sample Customer A: waiting 40 min on Test front desk at Main branch, past the target');
+    expect(sent.at(-1)).toEqual({ role: 'user', content: 'Who has waited longest? (secret-marker-7731)' });
+
+    // The customer the answer names is offered, and opens.
+    await win.getByRole('button', { name: 'Open Sample Customer A’s chat' }).click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Customer A');
+    await quit(app, win);
+
+    // Nothing kept: neither the question nor the answer is in any file, the log included.
+    const files = readdirSync(data, { recursive: true }).map(String).filter((f) => /\.(json|log)$/.test(f));
+    for (const f of files) {
+      const text = readFileSync(join(data, f), 'utf8');
+      expect(text, f).not.toContain('secret-marker-7731');
+      expect(text, f).not.toContain('has waited longest');
+    }
+  } finally {
+    await app.close().catch(() => {});
+    await ollama.close();
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 // ---- help screenshots ------------------------------------------------------------------------------------
 
 /**

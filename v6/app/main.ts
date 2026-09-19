@@ -26,7 +26,8 @@ import { forgetAccountCustomers, pruneCustomers, recordCustomers, setNote, toggl
 import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit, type NewAccount } from '../core/accounts.ts';
 import { awaitingChats, distrustColdScan, notCustomerWhy, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
-import { Engine } from './assistant.ts';
+import { Engine, type ChatMessage } from './assistant.ts';
+import { buildSummary } from '../core/assistant-summary.ts';
 import { loadJson, saveJson } from './store.ts';
 import { ACCOUNT_ROUTES, buildUiState, judgeFor, reportAccounts, targetFor, waitingQueue, type Route } from './view-model.ts';
 
@@ -921,6 +922,28 @@ app.whenReady().then(async () => {
     push();
   });
   // The two downloads, each only when the owner presses its button.
+  // A question for the assistant. The summary is built here from the view model, with the whole waiting queue (the
+  // view model draws only the first 60), and goes to the local model with at most the last three exchanges. Nothing is
+  // kept: not the question, not the answer. The log gets that a question was asked and how long it took.
+  ipcMain.handle('assistant-ask', async (_e, question: string, history: ChatMessage[]) => {
+    const started = Date.now();
+    try {
+      const state = stateFor(route);
+      const queue = waitingQueue(config, snapshots, overrides, Date.now(), signedOut);
+      const summary = buildSummary({ ...state, queue, queueTotal: queue.length }, new Date());
+      const turns = (Array.isArray(history) ? history : []).filter((m) => m && (m.role === 'user' || m.role === 'assistant')).slice(-6)
+        .map((m) => ({ role: m.role, content: String(m.content).slice(0, 2000) }));
+      const answer = await engine.chat([{ role: 'system', content: summary }, ...turns, { role: 'user', content: String(question).slice(0, 1000) }]);
+      // Customers the answer names, so the screen can offer their chats. Matched against the queue, never guessed.
+      const people = queue.filter((r) => r.customer.length > 2 && answer.includes(r.customer)).slice(0, 3)
+        .map((r) => ({ accountId: r.accountId, key: r.key, customer: r.customer }));
+      log({ event: 'assistant-asked', ms: Date.now() - started, people: people.length });
+      return { answer, people };
+    } catch (e) {
+      log({ event: 'assistant-ask-failed', error: (e as Error).message.slice(0, 120) });
+      return { error: /not ready/i.test((e as Error).message) ? 'The assistant is not ready yet. See Settings › Assistant.' : 'The assistant did not answer. Ollama may still be starting; try again in a moment.' };
+    }
+  });
   ipcMain.on('assistant-install', () => void engine.installRuntime(config.settings.assistant));
   ipcMain.on('assistant-pull', () => void engine.pullModel(config.settings.assistant));
   ipcMain.on('window-action', (_e, action: 'minimise' | 'maximise' | 'close') => {

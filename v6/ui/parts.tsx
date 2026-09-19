@@ -20,6 +20,7 @@ declare global {
       setScope(location: string | null): void;
       notCustomer(accountId: string, key: string): void;
       installAssistant(): void;
+      askAssistant(question: string, history: { role: 'user' | 'assistant'; content: string }[]): Promise<{ answer?: string; error?: string; people?: { accountId: string; key: string; customer: string }[] }>;
       pullAssistantModel(): void;
       setNote(accountId: string, key: string, text: string): void;
       toggleTag(accountId: string, key: string, tag: string): void;
@@ -52,6 +53,7 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
   openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {},
+  askAssistant: async () => ({ error: 'The assistant needs the app, not the browser preview.' }),
   addAccount: async () => ({ error: 'accounts can only be added in the app, not the browser preview' }),
   editAccount: async () => ({}), removeAccount: async () => ({}), setLocationHours() {}, setHolidays() {}, markHandled() {}, snooze() {}, putBack() {}, printRendered() {},
   exportReport: async () => ({ error: 'exports need the app, not the browser preview' }),
