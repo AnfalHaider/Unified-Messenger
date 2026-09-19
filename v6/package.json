@@ -19,6 +19,7 @@
     "install-local": "node scripts/dist.mjs --install"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@electron/packager": "^20.3.0",
     "@playwright/test": "^1.63.0",
     "@types/node": "22.20.2",

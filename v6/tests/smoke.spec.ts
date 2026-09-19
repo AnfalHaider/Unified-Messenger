@@ -1,6 +1,7 @@
 // The window opens, draws a screen, moves to another, and quits the ordinary way. Needs `npx vite build` first:
 // without dist-ui the window stays blank and this fails, which is the point.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { AxeBuilder } from '@axe-core/playwright';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -748,6 +749,92 @@ test('the customer panel keeps a note and tags across a restart, and a saved rep
     if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'customer-panel.png') });
     await panel2.getByRole('button', { name: 'Copy' }).click();
     expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Our current price list is on the way.');
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+// ---- accessibility -----------------------------------------------------------------------------------------
+
+/** Every WCAG 2.1 A and AA rule axe knows, on one screen. Returns one line per problem so a failure says what and
+ *  where without opening a report. */
+async function axe(win: Page, where: string) {
+  // Legacy mode runs axe inside the page itself; the default opens a second blank page to finish, which
+  // Electron refuses (Target.createTarget is not supported).
+  const { violations } = await new AxeBuilder({ page: win }).setLegacyMode().withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  return violations.flatMap((v) => v.nodes.map((n) => {
+    const c = n.any.find((x) => x.id === 'color-contrast')?.data as { fgColor?: string; bgColor?: string; contrastRatio?: number; expectedContrastRatio?: string } | undefined;
+    const why = c?.contrastRatio ? ` · ${c.fgColor} on ${c.bgColor} is ${c.contrastRatio}:1, needs ${c.expectedContrastRatio}` : '';
+    return `${where} · ${v.id} (${v.impact}) · ${n.target.join(' ')}${why}`;
+  }));
+}
+
+test('every main screen and a dialog pass the WCAG 2.1 AA checks, in light and in dark', async () => {
+  test.setTimeout(180_000);
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [
+      { id: 'test-wa', name: 'Front desk WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
+      { id: 'test-ig', name: 'Front desk Instagram', channel: 'instagram', url: 'about:blank', professional: true, location: 'Main branch' },
+    ],
+    locations: [{ name: 'Main branch' }],
+  });
+  const chat = (key: string, customer: string, minutesAgo: number) => ({
+    conversationKey: key, customerName: customer, unread: 1, lastActivity: now - minutesAgo * 60_000, preview: 'Hello there',
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({
+    'test-wa': { capturedAt: now, chats: [chat('a', 'Sample Customer A', 4), chat('b', 'Sample Customer B', 12), chat('c', 'Sample Customer C', 90)] },
+    'test-ig': { capturedAt: now, chats: [chat('d', 'Sample Customer D', 30)] },
+  }));
+
+  const { app, win } = await open(data);
+  const problems: string[] = [];
+  const rail = (name: string | RegExp) => win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name, exact: typeof name === 'string' });
+  try {
+    for (const theme of ['Light', 'Dark'] as const) {
+      await win.getByRole('button', { name: theme, exact: true }).click();
+      await rail(/^The line/).click();
+      await expect(heading(win, '4 customers are waiting')).toBeVisible();
+      problems.push(...await axe(win, `${theme} · the line`));
+
+      await win.getByRole('button', { name: 'Open chat' }).first().click();
+      await expect(win.locator('.dock-bar .who b')).toBeVisible();
+      problems.push(...await axe(win, `${theme} · docked chat`));
+      await win.keyboard.press('Escape');
+
+      await rail('Accounts').click();
+      await expect(heading(win, 'Accounts')).toBeVisible();
+      problems.push(...await axe(win, `${theme} · accounts`));
+
+      await win.getByRole('button', { name: 'Add an account' }).click();
+      await expect(win.getByRole('dialog', { name: 'Add an account' })).toBeVisible();
+      problems.push(...await axe(win, `${theme} · add an account`));
+      await win.keyboard.press('Escape');
+
+      await win.getByRole('button', { name: 'Figures' }).first().click();
+      problems.push(...await axe(win, `${theme} · account figures`));
+      await win.getByRole('button', { name: 'Reading record' }).click();
+      problems.push(...await axe(win, `${theme} · reading record`));
+
+      await rail('Reports').click();
+      await expect(win.getByRole('group', { name: 'Report' })).toBeVisible();
+      problems.push(...await axe(win, `${theme} · reports`));
+
+      await rail('Settings').click();
+      for (const section of ['Look and reading', 'Opening hours', 'Notifications', 'Saved replies']) {
+        await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section }).click();
+        problems.push(...await axe(win, `${theme} · settings › ${section}`));
+      }
+
+      await win.keyboard.press('Control+k');
+      await expect(win.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+      problems.push(...await axe(win, `${theme} · command palette`));
+      await win.keyboard.press('Escape');
+    }
+    expect(problems, problems.join('\n')).toEqual([]);
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

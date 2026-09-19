@@ -14,7 +14,7 @@
 /* ---- tokens: light on bare :root, dark twice (system + explicit) ------------------------------ */
 :root {
   --ground: #ECEEEA; --surface: #FBFBF9; --raised: #FFFFFF; --chrome: #E2E5E0;
-  --ink: #1A1D1B; --ink-2: #4F5650; --ink-3: #6A716B;
+  --ink: #1A1D1B; --ink-2: #4F5650; --ink-3: #5F6660;
   --line: #DCE0DA; --line-2: #C4CAC3;
   --sel: #1A1D1B; --sel-ink: #FBFBF9; --hover: #F1F3EF;
   --ok: #1B6B43; --due: #8A6208; --late: #A3243D;
@@ -29,7 +29,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --ground: #121513; --surface: #1B1F1C; --raised: #232824; --chrome: #0D100E;
-    --ink: #E6E9E4; --ink-2: #A6ADA7; --ink-3: #858D86;
+    --ink: #E6E9E4; --ink-2: #A6ADA7; --ink-3: #89918A;
     --line: #2E342F; --line-2: #3E4540;
     --sel: #E6E9E4; --sel-ink: #121513; --hover: #222723;
     --ok: #62C28F; --due: #E0B24A; --late: #F07A86;
@@ -42,7 +42,7 @@
 }
 :root[data-theme="dark"] {
   --ground: #121513; --surface: #1B1F1C; --raised: #232824; --chrome: #0D100E;
-  --ink: #E6E9E4; --ink-2: #A6ADA7; --ink-3: #858D86;
+  --ink: #E6E9E4; --ink-2: #A6ADA7; --ink-3: #89918A;
   --line: #2E342F; --line-2: #3E4540;
   --sel: #E6E9E4; --sel-ink: #121513; --hover: #222723;
   --ok: #62C28F; --due: #E0B24A; --late: #F07A86;

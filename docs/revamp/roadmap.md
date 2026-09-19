@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
-Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, 4.1–4.11, 4.13 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 4.12** (accessibility), unless an owner decision
+Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
+location filter, each installed on the owner's PC. **Next step: 3.1** (the Google reviews reader), then 3.3 and 3.4, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -18,7 +18,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
-| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass, 4.11 the customer panel. Open: 4.12 accessibility. Remaining sample screens are marked. |
+| 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass, 4.11 the customer panel, 4.12 accessibility (automated; the owner's Narrator pass is open). Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
@@ -83,9 +83,10 @@ cd v6
 npm install
 npm run typecheck
 npm test            # 277 tests
-npm run smoke       # 13 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
+npm run smoke       # 14 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter, accounts,
-                    # the reading record, the line, the customer panel
+                    # the reading record, the line, the customer panel, WCAG 2.1 AA on every
+                    # main screen and a dialog in light and dark
 ```
 
 Read every Playwright summary line: it prints `N failed` above `N passed`, so `tail -1` shows a red run as green
@@ -228,7 +229,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.11 Customer panel.** Done 2026-09-18. `core/customers.ts` keeps one record per account and conversation (`customers.json`): the owner's note and tags, and what the reads saw — when the conversation was first read, how many times it has come back to the line, and the last five answers with how long each took. Keys and times only; the name beside them comes from the snapshot. The reply-time store could not answer "how fast was this customer answered", because its samples carry no conversation key, which is why this keeps its own; the rule for what counts is the same (a gap over seven days was answered somewhere else). Records are written on the read that sees a change, only for chats that are waiting or that the owner has written about, pruned after 120 quiet days unless the owner wrote on them, and deleted with the account. IPC `set-note` and `toggle-tag`; tags match without case, so "Regular" typed twice toggles rather than duplicates, and tags already used are offered. Saved replies live in the config (`settings.savedReplies`, new Settings › Saved replies) and are copied by hand — the app still never sends. The panel lost its "Sample figures" marker; only Suggest a reply is still sample, until Phase 5. Tests: 8 core, and a Playwright test that writes a note and a tag, restarts, and copies a saved reply to the clipboard.
 
-**4.12 Accessibility.** Add `@axe-core/playwright` checks to the Playwright job for the line, accounts, settings and a dialog; then a Narrator pass by the owner. Known gaps: rail buttons now have labels; the dock's page slot and toggles need checking.
+**4.12 Accessibility.** Done 2026-09-19, apart from the owner's Narrator pass. `@axe-core/playwright` runs every WCAG 2.1 A and AA rule in a Playwright test over the line, a docked chat, Accounts, Add an account, an account's figures, the reading record, Reports, four Settings sections and the command palette, in light and in dark — 26 screens, and the test fails on any finding. Axe runs in legacy mode, because its default opens a second blank page to finish and Electron refuses that. First run found 11 distinct problems, all fixed: every contrast failure was one token, the tertiary grey `--ink-3`, just under 4.5:1 (light #6A716B → #5F6660, dark #858D86 → #89918A, the nearest greys that clear 4.6:1 on the darkest ground they sit on), and the command palette's results could not be scrolled from the keyboard (now a focusable, labelled region). Not covered by axe: the account pages themselves (a `WebContentsView`, outside the DOM), and what a screen reader actually says — that is the Narrator pass.
 
 ### Phase 5 · Assistant
 

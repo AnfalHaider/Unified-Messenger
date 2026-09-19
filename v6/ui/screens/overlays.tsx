@@ -78,7 +78,8 @@ function Palette({ state, nav }: ScreenProps) {
           style={{ flex: 1, border: 0, background: 'transparent', font: 'inherit', color: 'var(--ink)', outline: 'none' }} />
         <kbd>Esc</kbd>
       </div>
-      <div style={{ maxHeight: 460, overflow: 'auto', paddingBottom: 8 }}>
+      {/* Focusable so the results can be scrolled from the keyboard as well as moved through with the arrows. */}
+      <div tabIndex={0} role="region" aria-label="Results" style={{ maxHeight: 460, overflow: 'auto', paddingBottom: 8 }}>
         {items.map((i, n) => (
           <div key={`${i.group}:${i.label}:${n}`}>
             {(n === 0 || items[n - 1].group !== i.group) && <h5>{i.group}</h5>}
