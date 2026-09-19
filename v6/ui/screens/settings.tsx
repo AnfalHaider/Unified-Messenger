@@ -73,6 +73,7 @@ function Look({ state }: ScreenProps) {
           </SettingRow>
         </div>
       </div>
+      <NotCustomers state={state} />
       <div className="sgroup"><h3>Closing the window</h3>
         <div className="panel" style={{ padding: 0 }}>
           <SettingRow title="When I close the window" detail={s.closeToBackground
@@ -358,6 +359,37 @@ function SavedReplies({ state }: ScreenProps) {
         </div>
       </Panel>
     </>
+  );
+}
+
+/** Who is never counted: staff, the team's own numbers, suppliers. Group chats, broadcasts and channels are left
+ *  out already by the readers. Every chat these rules leave out is listed in Set aside with the rule that did it. */
+function NotCustomers({ state }: { state: UiState }) {
+  const rules = state.settings.notCustomers;
+  const [words, setWords] = useState(rules.words.join(', '));
+  const [numbers, setNumbers] = useState(rules.numbers.join('\n'));
+  const saveWords = () => bridge.setSettings({ notCustomers: { ...rules, words: words.split(',').map((w) => w.trim()).filter(Boolean) } });
+  const saveNumbers = () => bridge.setSettings({ notCustomers: { ...rules, numbers: numbers.split(/[\n,;]+/).map((n) => n.trim()).filter(Boolean) } });
+  const field = { border: '1px solid var(--line-2)', borderRadius: 8, background: 'var(--raised)', padding: '8px 11px', font: 'inherit', fontSize: 13.5, color: 'var(--ink)', width: '100%', boxSizing: 'border-box' as const };
+  return (
+    <div className="sgroup"><h3>Not customers</h3>
+      <div className="panel" style={{ display: 'grid', gap: 14 }}>
+        <p className="sub" style={{ margin: 0 }}>
+          Chats that should never be counted: staff, the team's own numbers, suppliers. Group chats, broadcasts and channels are
+          already left out. A single chat can also be marked from the chat itself, with <b>Not a customer</b>. Everything left
+          out is listed in Set aside with the reason.
+        </p>
+        <label className="field"><span>Names containing any of these words</span>
+          <input value={words} placeholder="For example: Staff, Team, Supplier" onChange={(e) => setWords(e.target.value)} onBlur={saveWords} style={field} />
+          <span className="sub" style={{ fontSize: 12 }}>Separate words with commas. A whole word only: “Staff” leaves out “Bilal Staff”, not “Staffordshire”.</span>
+        </label>
+        <label className="field"><span>The team's own numbers</span>
+          <textarea value={numbers} rows={3} placeholder={'0300 1234567\n+92 321 7654321'} onChange={(e) => setNumbers(e.target.value)} onBlur={saveNumbers} style={{ ...field, resize: 'vertical' }} />
+          <span className="sub" style={{ fontSize: 12 }}>One per line, written any way: +92 300…, 0300…, with or without spaces. Kept on this PC.</span>
+        </label>
+        <span className="sub" style={{ fontSize: 12 }}>{rules.words.length} word{rules.words.length === 1 ? '' : 's'} and {rules.numbers.length} number{rules.numbers.length === 1 ? '' : 's'} in use. Saved when you click away.</span>
+      </div>
+    </div>
   );
 }
 

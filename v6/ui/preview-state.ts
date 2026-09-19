@@ -21,7 +21,7 @@ const row = (customer: string, preview: string, waited: number, accountName: str
   };
 };
 
-const aside = (why: SetAsideRow['why'], customer: string, accountName: string, preview: string, next: string, hoursAgo: number, backInHours?: number): SetAsideRow => ({
+const aside = (why: SetAsideRow['why'], customer: string, accountName: string, preview: string, next: string, hoursAgo: number, backInHours?: number): SetAsideRow => ({ canPutBack: why !== 'Closed by rule',
   accountId: accountName, accountName, key: customer, customer, preview, why, next,
   at: Date.now() - hoursAgo * 3_600_000, until: backInHours ? Date.now() + backInHours * 3_600_000 : null,
 });

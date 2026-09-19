@@ -1,10 +1,12 @@
 // Port of AwaitingOverrideStore.cs, minus the file handling: the app layer saves this object as JSON.
 // The owner hides a waiting chat they dealt with elsewhere (phone, call, in person). Both kinds expire on
 // their own so the backlog can never be faked for good: "handled" lasts until a newer customer message
-// arrives, "snoozed" until a time.
+// arrives, "snoozed" until a time. The third kind is different on purpose: "not a customer" is for a chat that
+// should never have been counted — a member of staff, the team's own number — so it does not expire. It is
+// listed in Set aside with the others and can be put back from there.
 
 /** `at` is when the mark was made, for the Set aside list. Marks imported from v5 have none. */
-export type Override = ({ kind: 'handled'; activity: number } | { kind: 'snoozed'; until: number }) & { at?: number };
+export type Override = ({ kind: 'handled'; activity: number } | { kind: 'snoozed'; until: number } | { kind: 'excluded' }) & { at?: number };
 /** accountId → conversationKey → override. Times are epoch milliseconds. */
 export type Overrides = Record<string, Record<string, Override>>;
 
@@ -21,6 +23,9 @@ export const markHandled = (o: Overrides, account: string, chat: string, lastAct
 export const snooze = (o: Overrides, account: string, chat: string, until: number, at?: number) =>
   put(o, account, chat, { kind: 'snoozed', until, ...dated(at) });
 
+export const markNotCustomer = (o: Overrides, account: string, chat: string, at?: number) =>
+  put(o, account, chat, { kind: 'excluded', ...dated(at) });
+
 export function clear(o: Overrides, account: string, chat: string) {
   delete o[account.trim()]?.[chat];
 }
@@ -28,6 +33,7 @@ export function clear(o: Overrides, account: string, chat: string) {
 export function isSuppressed(o: Overrides, account: string, chat: string, lastActivity: number, now: number): boolean {
   const ov = o[account.trim()]?.[chat];
   if (!ov) return false;
+  if (ov.kind === 'excluded') return true;
   return ov.kind === 'handled' ? lastActivity <= ov.activity : now < ov.until;
 }
 

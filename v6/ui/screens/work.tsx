@@ -217,6 +217,13 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
           <div className="actions">
             <Btn icon="check" disabled={!customer} title="Answered another way. Returns if they write again." onClick={() => act('handled')}>Handled <kbd>H</kbd></Btn>
             <Btn icon="snooze" disabled={!customer} title="Off the line for an hour" onClick={() => act('snooze')}>Snooze <kbd>S</kbd></Btn>
+            <Btn icon="x" kind="quiet" disabled={!customer} title="Staff, the team's own number, a supplier: never counted again, until put back from Set aside"
+              onClick={() => {
+                if (!customer) return;
+                bridge.notCustomer(customer.accountId, customer.key);
+                const next = rows.filter((r) => !(r.accountId === customer.accountId && r.key === customer.key))[0];
+                if (next) nav.go('dock', next.accountId, next.key); else nav.go('line');
+              }}>Not a customer</Btn>
             {d && <Btn icon="refresh" kind="quiet" onClick={() => bridge.reloadAccount(d.id)}>Reload</Btn>}
             <Btn icon="x" kind="quiet" onClick={() => nav.go('line')}>Close</Btn>
           </div>
@@ -344,7 +351,7 @@ export function SetAsideScreen({ state }: ScreenProps) {
   return (
     <main className="main">
       <Headline title="Set aside" actions={
-        <div className="seg" role="group" aria-label="Show">{['All', 'Snoozed', 'Handled', 'Closed by rule'].map((f) => <button key={f} aria-pressed={f === filter} onClick={() => setFilter(f)}>{f}</button>)}</div>}>
+        <div className="seg" role="group" aria-label="Show">{['All', 'Snoozed', 'Handled', 'Closed by rule', 'Not a customer'].map((f) => <button key={f} aria-pressed={f === filter} onClick={() => setFilter(f)}>{f}</button>)}</div>}>
         Customers still waiting who are off the line without a reply, newest first. The “ended the chat” rule closed <b>{state.split.closedAutomatically}</b> on its own; turn it off in Settings to count them again.
       </Headline>
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
@@ -355,8 +362,8 @@ export function SetAsideScreen({ state }: ScreenProps) {
               <td><b style={{ fontWeight: 600 }}>{s.customer}</b><div className="sub">{s.accountName}</div></td>
               <td className="sub">{s.preview || 'No preview could be read'}</td>
               <td>{s.until ? `Back ${when(s.until)}` : s.next}</td>
-              <td className="sub">{s.why === 'Closed by rule' ? 'Automatic' : 'You'}, {when(s.at)}</td>
-              <td className="r">{s.why !== 'Closed by rule' && <Btn icon="reopen" onClick={() => bridge.putBack(s.accountId, s.key)}>Put back</Btn>}</td>
+              <td className="sub">{s.canPutBack ? 'You' : 'Automatic'}, {when(s.at)}</td>
+              <td className="r">{s.canPutBack && <Btn icon="reopen" onClick={() => bridge.putBack(s.accountId, s.key)}>Put back</Btn>}</td>
             </tr>
           ))}
           {list.length === 0 && <tr><td colSpan={6} className="sub" style={{ padding: 18 }}>{filter === 'All' ? 'Nothing is set aside. Every waiting customer is on the line.' : `No chats are ${filter === 'Closed by rule' ? 'closed by the rule' : filter.toLowerCase()}.`}</td></tr>}

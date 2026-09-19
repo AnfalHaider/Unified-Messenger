@@ -18,6 +18,7 @@ declare global {
       sleepAccount(accountId: string): void;
       openChat(accountId: string, key: string): void;
       setScope(location: string | null): void;
+      notCustomer(accountId: string, key: string): void;
       setNote(accountId: string, key: string, text: string): void;
       toggleTag(accountId: string, key: string, tag: string): void;
       addAccount(request: { channel: string; name: string; location: string; url?: string }): Promise<{ id?: string; error?: string }>;
@@ -48,7 +49,7 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
-  openChat() {}, setScope() {}, setNote() {}, toggleTag() {},
+  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {},
   addAccount: async () => ({ error: 'accounts can only be added in the app, not the browser preview' }),
   editAccount: async () => ({}), removeAccount: async () => ({}), setLocationHours() {}, setHolidays() {}, markHandled() {}, snooze() {}, putBack() {}, printRendered() {},
   exportReport: async () => ({ error: 'exports need the app, not the browser preview' }),

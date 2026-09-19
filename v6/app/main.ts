@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
 import { alertsDue, pruneNotified, type Alert, type Notified } from '../core/alerts.ts';
 import { CHANNELS, emptyConfig, parseConfig, type Account, type Config } from '../core/config.ts';
-import { clear, markHandled, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
+import { clear, markHandled, markNotCustomer, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
 import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.ts';
 import { DAY_MS } from '../core/days.ts';
@@ -21,10 +21,10 @@ import { pruneCalls, recordCalls, type Calls } from '../core/calls.ts';
 import { recordEvent, type Events, type Outcome } from '../core/events.ts';
 import { forgetAccountCustomers, pruneCustomers, recordCustomers, setNote, toggleTag, type Customers } from '../core/customers.ts';
 import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit, type NewAccount } from '../core/accounts.ts';
-import { awaitingChats, distrustColdScan, recordRead, type Snapshots } from '../core/snapshot.ts';
+import { awaitingChats, distrustColdScan, notCustomerWhy, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { loadJson, saveJson } from './store.ts';
-import { ACCOUNT_ROUTES, buildUiState, reportAccounts, targetFor, waitingQueue, type Route } from './view-model.ts';
+import { ACCOUNT_ROUTES, buildUiState, judgeFor, reportAccounts, targetFor, waitingQueue, type Route } from './view-model.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -258,7 +258,7 @@ async function readAccount(a: Account, reason: string) {
       // The day's record, by the same waiting rule as the line: overrides and the closed-chat setting apply.
       // A history file edited into a strange shape costs the day's record, never the read or the reader's health.
       try {
-        const judge = { now, overrides, filterClosed: config.settings.filterClosedConversations };
+        const judge = judgeFor(config, overrides, now);
         recordHistory(history, a.id, prior, snapshots[a.id].chats, {
           now, samples: times.samples[a.id] ?? [], targetMinutes: targetFor(config, a),
           waitingOverADay: awaitingChats(snapshots, a.id, judge).filter((c) => c.lastActivity < now - DAY_MS).length,
@@ -540,9 +540,10 @@ function notifyDue() {
     signedOut: config.accounts.filter((a) => signedOut.has(a.id)).map((a) => ({ id: a.id, name: a.name })),
     // lastRead is set only by a read that found chats, so it is proof of a login this run.
     signedIn: Object.keys(lastRead).filter((id) => !signedOut.has(id)),
-    calls: Object.values(calls).filter((c) => c.returnedAt === null && !signedOut.has(c.account)).map((c) => {
+    calls: Object.values(calls).filter((c) => c.returnedAt === null && !signedOut.has(c.account)).flatMap((c) => {
       const chat = snapshots[c.account]?.chats.find((x) => x.conversationKey === c.key);
-      return { accountId: c.account, accountName: account(c.account)?.name ?? c.account, key: c.key, customer: chat?.customerName || chat?.contactPhone || 'A customer', at: c.at };
+      if (chat && notCustomerWhy(c.account, chat, judgeFor(config, overrides, now))) return [];
+      return [{ accountId: c.account, accountName: account(c.account)?.name ?? c.account, key: c.key, customer: chat?.customerName || chat?.contactPhone || 'A customer', at: c.at }];
     }),
     settings: config.settings, now,
   }, notified);
@@ -728,6 +729,13 @@ app.whenReady().then(async () => {
   });
   // The note and the tags are the owner's own words about a customer. They stay on this PC, are never logged,
   // and are deleted with the account.
+  // Permanent, unlike Handled and Snooze: for staff and the team's own chats. Put back undoes it.
+  ipcMain.on('not-customer', (_e, accountId: string, key: string) => {
+    markNotCustomer(overrides, accountId, key, Date.now());
+    saveJson(FILE.overrides, overrides);
+    log({ event: 'not-customer', account: accountId });
+    push();
+  });
   ipcMain.on('set-note', (_e, accountId: string, key: string, text: string) => {
     setNote(customers, accountId, key, String(text ?? ''), Date.now());
     saveJson(FILE.customers, customers);

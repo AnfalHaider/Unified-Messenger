@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 3.1** (the Google reviews reader), then 3.3 and 3.4, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: 4.16** (help: a ? on every screen and a Help screen, one source), then 3.1, 3.3 and 3.4, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -59,6 +59,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | The reading record: the lost-login timeline and the reader timeline | |
 | The line's indicators, per-channel counts and click-to-open chart | |
 | Customer panel: note, tags, what the reads have seen, saved replies | |
+| Not a customer: the owner's mark and the staff-name and team-number rules | |
 
 ---
 
@@ -82,8 +83,8 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 281 tests
-npm run smoke       # 14 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
+npm test            # 287 tests
+npm run smoke       # 15 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter, accounts,
                     # the reading record, the line, the customer panel, WCAG 2.1 AA on every
                     # main screen and a dialog in light and dark
@@ -227,6 +228,10 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.11 Customer panel.** Notes and tags in a local store keyed by account + conversation key; saved replies in config (they sync in Phase 6). History comes from the history store. Done when a note survives a restart and a saved reply copies.
 
+**4.15 Not a customer.** Done 2026-09-19, decided with the owner ("mark + rules"). Group chats, broadcasts, status and channels were already left out by the WhatsApp reader; what was missing was one-to-one chats with staff and the team — the owner's own line showed "Bilal Staff Depilex" waiting 166 h. `notCustomerWhy` in `core/snapshot.ts` is the one question every count asks (the line, the split, caught up, reports, alerts, the digest and missed calls): the owner's permanent mark (override kind `excluded`, from **Not a customer** in the dock; unlike Handled it survives new messages and never expires), a whole word in the name (`settings.notCustomers.words`, "Staff" matches "Bilal Staff" but not "Staffordshire"), or one of the team's numbers (`settings.notCustomers.numbers`, compared on the last ten digits, so +92 300…, 0300… and the @c.us key are one number). A chat left out is in no figure at all, not counted as caught up. Set aside lists every one with the reason and a "Not a customer" filter; Put back undoes a mark, a rule is changed in Settings › Look and reading › Not customers. Main's history and call-alert judges now come from the view model's `judgeFor`, so they cannot disagree with the screens. Tests: 6 core, and a Playwright test for the rule, the mark, Set aside, Put back and a number typed with a +92.
+
+**4.16 Help, written once.** Decided with the owner: a **?** on every screen opens that screen's page beside it (what each part shows, how to move around, the keys), and a Help screen holds every page plus an owner guide and a front-desk guide. Pages are Markdown shipped inside the app, so they work offline; screenshots are taken by the Playwright run on invented data, so they cannot go stale and can never show a real customer. Done when every screen has a page, the ? opens the right one, and a test fails when a screen has no page.
+
 **4.14 Durations said in days, weeks and months.** Done 2026-09-19, from the owner's screenshot ("148 h", "95 h"). `core/duration.ts` is now the one rule for every wait on every screen, chart, timeline and panel — four separate formatters had each rounded hours their own way. Under an hour: minutes; under a day: hours (minutes dropped from 10 h); under three days: "1 day 22 h"; then days, weeks, months, years. The line itself never shows more than days, because past `backlogAfterDays` (7) a wait is backlog; weeks and months appear in Reports › Backlog.
 
 **4.11 Customer panel.** Done 2026-09-18. `core/customers.ts` keeps one record per account and conversation (`customers.json`): the owner's note and tags, and what the reads saw — when the conversation was first read, how many times it has come back to the line, and the last five answers with how long each took. Keys and times only; the name beside them comes from the snapshot. The reply-time store could not answer "how fast was this customer answered", because its samples carry no conversation key, which is why this keeps its own; the rule for what counts is the same (a gap over seven days was answered somewhere else). Records are written on the read that sees a change, only for chats that are waiting or that the owner has written about, pruned after 120 quiet days unless the owner wrote on them, and deleted with the account. IPC `set-note` and `toggle-tag`; tags match without case, so "Regular" typed twice toggles rather than duplicates, and tags already used are offered. Saved replies live in the config (`settings.savedReplies`, new Settings › Saved replies) and are copied by hand — the app still never sends. The panel lost its "Sample figures" marker; only Suggest a reply is still sample, until Phase 5. Tests: 8 core, and a Playwright test that writes a note and a tag, restarts, and copies a saved reply to the clipboard.

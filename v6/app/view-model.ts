@@ -19,7 +19,7 @@ import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
 import { explain } from '../core/reply-need.ts';
-import { awaitingChats, awaitingSplit, lastCaptured, setAside, type Judge, type Snapshots } from '../core/snapshot.ts';
+import { awaitingChats, awaitingSplit, lastCaptured, notCustomerWhy, setAside, type Judge, type Snapshots } from '../core/snapshot.ts';
 import type { Overrides } from '../core/awaiting-overrides.ts';
 
 /** How close to the target counts as "due soon". The design's warning window. */
@@ -137,7 +137,9 @@ export interface SetAsideRow {
   key: string;
   customer: string;
   preview: string;
-  why: 'Handled' | 'Snoozed' | 'Closed by rule';
+  why: 'Handled' | 'Snoozed' | 'Closed by rule' | 'Not a customer';
+  /** Only the owner's own marks can be put back from here; a rule is changed in Settings. */
+  canPutBack: boolean;
   /** For a closure, the rule's reason; for a mark, what brings it back. */
   next: string;
   /** When a snooze ends. */
@@ -248,8 +250,10 @@ export interface Context {
   modules: ModuleHealth[];
 }
 
-const judgeFor = (config: Config, overrides: Overrides, now: number): Judge =>
-  ({ now, overrides, filterClosed: config.settings.filterClosedConversations });
+/** The one judge: the owner's marks, the closed-chat setting and the not-a-customer rules. Main uses it too, so
+ *  the day records and alerts cannot count a chat the screens leave out. */
+export const judgeFor = (config: Config, overrides: Overrides, now: number): Judge =>
+  ({ now, overrides, filterClosed: config.settings.filterClosedConversations, notCustomers: config.settings.notCustomers });
 
 // A signed-out account's last snapshot is history, not a live queue: its chats stay off the line and out of
 // the counts until it reads again, exactly as its figures are hidden rather than guessed.
@@ -326,8 +330,11 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
       return {
         accountId: x.account, accountName: account?.name ?? x.account, key: x.chat.conversationKey,
         customer: x.chat.customerName || x.chat.contactPhone || 'Unknown number', preview: x.chat.preview, at: x.at,
-        why: x.kind === 'closed' ? 'Closed by rule' : x.kind === 'handled' ? 'Handled' : 'Snoozed',
-        next: x.kind === 'closed' ? explain(x.verdict.reason) : x.kind === 'handled' ? 'Returns if they write again' : 'Returns when the snooze ends',
+        why: x.kind === 'closed' ? 'Closed by rule' : x.kind === 'not-customer' ? 'Not a customer' : x.kind === 'handled' ? 'Handled' : 'Snoozed',
+        canPutBack: x.kind === 'handled' || x.kind === 'snoozed' || (x.kind === 'not-customer' && x.marked),
+        next: x.kind === 'closed' ? explain(x.verdict.reason)
+          : x.kind === 'not-customer' ? (x.marked ? `${x.why}. Never counted until put back` : `${x.why}: change it in Settings › Look and reading`)
+          : x.kind === 'handled' ? 'Returns if they write again' : 'Returns when the snooze ends',
         until: x.kind === 'snoozed' && x.override.kind === 'snoozed' ? x.override.until : null,
       };
     }),
@@ -592,7 +599,7 @@ function reportsFor(config: Config, snapshots: Snapshots, times: ResponseTimes, 
   const here = live.filter((id) => inScope(config.accounts.find((a) => a.id === id)?.location ?? '', scope));
 
   const waiting = here.flatMap((id) => awaitingChats(snapshots, id, judge).map((chat) => ({ id, chat })));
-  const callsBetween = (from: number, to: number) => callRows(config, snapshots, ctx.calls ?? {}, here, from, to);
+  const callsBetween = (from: number, to: number) => callRows(config, snapshots, ctx.calls ?? {}, here, from, to, judge);
   const unansweredCalls = callsBetween(now - 31 * DAY_MS, now + 1).filter((c) => c.returnedAt === null);
   const callsFor = (days: number, end = now) => callsBetween(startOfDay(end, days - 1), startOfDay(end, -1));
   const backlog = waiting
@@ -688,7 +695,7 @@ function weeklyDoc(which: 'this' | 'last', report: Report, target: number, calls
 function digestFor(config: Config, snapshots: Snapshots, times: ResponseTimes, judge: Judge, ctx: Context, live: string[]): DigestView {
   const { now } = ctx;
   const split = morningSplit(config, snapshots, judge, live, now);
-  const callsNotReturned = callRows(config, snapshots, ctx.calls ?? {}, live, now - 2 * DAY_MS, now + 1).filter((c) => c.returnedAt === null).length;
+  const callsNotReturned = callRows(config, snapshots, ctx.calls ?? {}, live, now - 2 * DAY_MS, now + 1, judge).filter((c) => c.returnedAt === null).length;
   const accounts = reportAccounts(config);
   const history = ctx.history ?? {};
   const yesterdayNoon = startOfDay(now, 1) + 12 * 3_600_000;
@@ -734,13 +741,16 @@ function digestFor(config: Config, snapshots: Snapshots, times: ResponseTimes, j
 }
 
 /** Missed calls on these accounts between two times, newest first, named from the snapshot (the store keeps no names). */
-function callRows(config: Config, snapshots: Snapshots, calls: Calls, accounts: string[], from: number, to: number): CallRow[] {
-  return callsIn(calls, accounts, from, to).map((c) => {
+/** Missed calls in a range. A call from someone who is not a customer — staff, the team's own number — is not a
+ *  missed customer call, and is left out by the same rule as the line. */
+function callRows(config: Config, snapshots: Snapshots, calls: Calls, accounts: string[], from: number, to: number, judge: Judge): CallRow[] {
+  return callsIn(calls, accounts, from, to).flatMap((c) => {
     const account = config.accounts.find((a) => a.id === c.account);
     const chat = snapshots[c.account]?.chats.find((x) => x.conversationKey === c.key);
-    return {
+    if (chat && notCustomerWhy(c.account, chat, judge)) return [];
+    return [{
       accountId: c.account, accountName: account?.name ?? c.account, location: account?.location ?? '', key: c.key,
       customer: chat?.customerName || chat?.contactPhone || 'Unknown caller', at: c.at, returnedAt: c.returnedAt, returnedBy: c.returnedBy,
-    };
+    }];
   });
 }

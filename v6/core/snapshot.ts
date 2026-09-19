@@ -22,6 +22,33 @@ export interface Judge {
   filterClosed: boolean;
   /** The local model's cached answer for a preview the word rules could not place. Read, never awaited. */
   aiNeedsReply?: (preview: string) => boolean | null | undefined;
+  /** The owner's rules for chats that are not customers: words in a name, and the team's own numbers. */
+  notCustomers?: NotCustomerRules;
+}
+
+export interface NotCustomerRules { words: string[]; numbers: string[] }
+
+/** The last ten digits: "+92 300 1234567", "0300 1234567" and "923001234567@c.us" are one number. */
+const tail = (digits: string) => digits.slice(-10);
+const chatDigits = (chat: ChatEntry) => (chat.contactPhone || (chat.conversationKey.endsWith('@c.us') ? chat.conversationKey : '')).replace(/\D/g, '');
+const escape = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Why this chat is not a customer, or null when it is. The owner's own mark first, then the rules. Every count asks
+ * this one question — the line, the figures, reports, alerts and Set aside — so a staff chat cannot be left out of
+ * one and counted in another.
+ */
+export function notCustomerWhy(account: string, chat: ChatEntry, judge: Judge): string | null {
+  if (judge.overrides[account.trim()]?.[chat.conversationKey]?.kind === 'excluded') return 'Marked as not a customer';
+  const rules = judge.notCustomers;
+  if (!rules) return null;
+  const name = chat.customerName ?? '';
+  for (const word of rules.words) {
+    if (word && new RegExp(`(^|[^\\p{L}\\p{N}])${escape(word)}($|[^\\p{L}\\p{N}])`, 'iu').test(name)) return `Name contains “${word}”`;
+  }
+  const digits = chatDigits(chat);
+  if (digits.length >= 7 && rules.numbers.some((n) => n.length >= 7 && tail(n) === tail(digits))) return 'One of the team’s numbers';
+  return null;
 }
 
 /** Stores a fresh read and feeds response times the post-sticky state, so they measure real transitions. */
@@ -60,9 +87,10 @@ export function verdictFor(chat: ChatEntry, judge: Judge): ReplyNeedVerdict {
 
 export const isAutomaticallyClosed = (chat: ChatEntry, judge: Judge) => judge.filterClosed && !verdictFor(chat, judge).needsReply;
 
-/** Waiting, not closed by the classifier, and not marked handled or snoozed by the owner. */
+/** Waiting, a customer, not closed by the classifier, and not marked handled or snoozed by the owner. */
 export const isAwaiting = (account: string, chat: ChatEntry, judge: Judge) =>
-  chat.awaiting && !isAutomaticallyClosed(chat, judge) && !isSuppressed(judge.overrides, account, chat.conversationKey, chat.lastActivity, judge.now);
+  chat.awaiting && !notCustomerWhy(account, chat, judge) && !isAutomaticallyClosed(chat, judge)
+  && !isSuppressed(judge.overrides, account, chat.conversationKey, chat.lastActivity, judge.now);
 
 /** A waiting chat is current state: always active and never caught up, whatever the window, because a customer
  *  waiting since yesterday still needs a reply today. The window scopes only the caught-up chats. Null without a read. */
@@ -71,6 +99,7 @@ export function windowed(snapshots: Snapshots, account: string, judge: Judge, fr
   if (!snap) return null;
   let active = 0, caughtUp = 0;
   for (const c of snap.chats) {
+    if (notCustomerWhy(id, c, judge)) continue;
     if (isAwaiting(id, c, judge)) active++;
     else if ((from === null || c.lastActivity >= from) && (to === null || c.lastActivity <= to)) { active++; caughtUp++; }
   }
@@ -92,7 +121,7 @@ export function awaitingSplit(snapshots: Snapshots, accounts: string[], judge: J
   const split: AwaitingSplit = { needsReply: 0, backlog: 0, closedAutomatically: 0, unreadable: 0 };
   for (const [id, c] of chatsOf(snapshots, accounts)) {
     // Mark-handled is the owner's decision, not the classifier's, so it leaves every bucket.
-    if (!c.awaiting || isSuppressed(judge.overrides, id, c.conversationKey, c.lastActivity, judge.now)) continue;
+    if (!c.awaiting || notCustomerWhy(id, c, judge) || isSuppressed(judge.overrides, id, c.conversationKey, c.lastActivity, judge.now)) continue;
     if (isAutomaticallyClosed(c, judge)) split.closedAutomatically++;
     else if (c.lastActivity < cutoff) split.backlog++;
     else {
@@ -107,7 +136,7 @@ export function awaitingSplit(snapshots: Snapshots, accounts: string[], judge: J
 export function automaticallyClosed(snapshots: Snapshots, accounts: string[], judge: Judge) {
   const closed: { account: string; chat: ChatEntry; verdict: ReplyNeedVerdict }[] = [];
   for (const [account, chat] of chatsOf(snapshots, accounts)) {
-    if (!chat.awaiting || isSuppressed(judge.overrides, account, chat.conversationKey, chat.lastActivity, judge.now)) continue;
+    if (!chat.awaiting || notCustomerWhy(account, chat, judge) || isSuppressed(judge.overrides, account, chat.conversationKey, chat.lastActivity, judge.now)) continue;
     const verdict = verdictFor(chat, judge);
     if (!verdict.needsReply) closed.push({ account, chat, verdict });
   }
@@ -116,7 +145,9 @@ export function automaticallyClosed(snapshots: Snapshots, accounts: string[], ju
 
 export type SetAside = { account: string; chat: ChatEntry; at: number } & (
   | { kind: 'handled' | 'snoozed'; override: Override }
-  | { kind: 'closed'; verdict: ReplyNeedVerdict });
+  | { kind: 'closed'; verdict: ReplyNeedVerdict }
+  /** `marked` is the owner's own mark, which Put back undoes; otherwise a rule in Settings left it out. */
+  | { kind: 'not-customer'; why: string; marked: boolean });
 
 /** Every waiting chat that is off the line without a reply: the owner's marks and the rule's closures, each once,
  *  newest move first. A mark is dated when it was made; a closure by the message that closed it. */
@@ -124,8 +155,17 @@ export function setAside(snapshots: Snapshots, accounts: string[], judge: Judge)
   const list: SetAside[] = automaticallyClosed(snapshots, accounts, judge)
     .map(({ account, chat, verdict }) => ({ account, chat, verdict, kind: 'closed' as const, at: chat.lastActivity }));
   for (const [account, chat] of chatsOf(snapshots, accounts)) {
-    if (!chat.awaiting || !isSuppressed(judge.overrides, account, chat.conversationKey, chat.lastActivity, judge.now)) continue;
+    if (!chat.awaiting) continue;
+    const why = notCustomerWhy(account, chat, judge);
+    if (why) {
+      const mark = judge.overrides[account]?.[chat.conversationKey];
+      const marked = mark?.kind === 'excluded';
+      list.push({ account, chat, kind: 'not-customer', why, marked, at: (marked ? mark?.at : undefined) ?? chat.lastActivity });
+      continue;
+    }
+    if (!isSuppressed(judge.overrides, account, chat.conversationKey, chat.lastActivity, judge.now)) continue;
     const override = judge.overrides[account][chat.conversationKey];
+    if (override.kind === 'excluded') continue; // listed above, with its reason
     list.push({ account, chat, override, kind: override.kind, at: override.at ?? chat.lastActivity });
   }
   return list.sort((a, b) => b.at - a.at);

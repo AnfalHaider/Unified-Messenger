@@ -847,3 +847,62 @@ test('every main screen and a dialog pass the WCAG 2.1 AA checks, in light and i
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('staff and team chats are left out by a rule or a mark, listed in Set aside, and a mark can be put back', async () => {
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true }],
+    settings: { notCustomers: { words: ['Staff'], numbers: [] } },
+  });
+  const chat = (key: string, customer: string, minutesAgo: number) => ({
+    conversationKey: key, customerName: customer, unread: 1, lastActivity: now - minutesAgo * 60_000, preview: 'Is the order ready?',
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [
+    chat('923001112233@c.us', 'Sample Customer A', 20),
+    chat('923004445566@c.us', 'Bilal Staff Front Desk', 30),
+    chat('923007778899@c.us', 'Sample Supplier', 10),
+  ] } }));
+
+  const { app, win } = await open(data);
+  const config = () => JSON.parse(readFileSync(join(data, 'config.json'), 'utf8'));
+  try {
+    // The rule leaves the staff chat out from the start.
+    await expect(heading(win, '2 customers are waiting')).toBeVisible();
+    await expect(win.locator('.queue')).not.toContainText('Bilal Staff');
+
+    // A mark from the dock leaves out one more, for good.
+    await win.locator('.queue .row').filter({ hasText: 'Sample Supplier' }).dblclick();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Supplier');
+    await win.locator('.dock-bar').getByRole('button', { name: 'Not a customer' }).click();
+    await expect(win.locator('.dock-bar .who b')).toHaveText('Sample Customer A');
+    await expect.poll(() => JSON.parse(readFileSync(join(data, 'overrides.json'), 'utf8'))['test-wa']['923007778899@c.us']?.kind).toBe('excluded');
+    await win.keyboard.press('Escape');
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+
+    // Set aside lists both with the reason; only the mark can be put back.
+    await win.keyboard.press('Control+k');
+    await win.getByRole('textbox', { name: 'Search' }).fill('Set aside');
+    await win.keyboard.press('Enter');
+    await win.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Not a customer' }).click();
+    const rowOf = (name: string) => win.getByRole('row').filter({ hasText: name });
+    await expect(rowOf('Bilal Staff Front Desk')).toContainText('Name contains “Staff”');
+    await expect(rowOf('Bilal Staff Front Desk').getByRole('button', { name: 'Put back' })).toHaveCount(0);
+    await expect(rowOf('Sample Supplier')).toContainText('Marked as not a customer');
+    await rowOf('Sample Supplier').getByRole('button', { name: 'Put back' }).click();
+    await expect(rowOf('Sample Supplier')).toHaveCount(0);
+
+    // A team number added in Settings is saved digits-only, however it was typed.
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Look and reading' }).click();
+    await win.getByRole('textbox', { name: "The team's own numbers" }).fill('+92 300 7778899');
+    await win.getByRole('textbox', { name: 'Names containing any of these words' }).click();
+    await expect.poll(() => config().settings.notCustomers.numbers).toEqual(['923007778899']);
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});

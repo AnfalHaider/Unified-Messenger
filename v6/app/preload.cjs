@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('um', {
   openChat: (accountId, key) => ipcRenderer.send('open-chat', accountId, key),
   /** The location chosen in the title bar; null for all. Reports follow it. */
   setScope: (location) => ipcRenderer.send('set-scope', location ?? null),
+  /** Never counted again, until put back from Set aside: for staff and the team's own chats. */
+  notCustomer: (accountId, key) => ipcRenderer.send('not-customer', accountId, key),
   /** The owner's own note and tags about one customer. Kept on this PC; never sent anywhere. */
   setNote: (accountId, key, text) => ipcRenderer.send('set-note', accountId, key, text),
   toggleTag: (accountId, key, tag) => ipcRenderer.send('toggle-tag', accountId, key, tag),

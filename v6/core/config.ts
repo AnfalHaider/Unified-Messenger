@@ -71,6 +71,8 @@ export interface Settings {
   morningDigest: boolean;
   /** Sentences the owner keeps to hand, to copy into a chat themselves. The app never sends one. */
   savedReplies: SavedReply[];
+  /** Chats that are never counted: a word in the name ("Staff") or one of the team's own numbers (digits only). */
+  notCustomers: { words: string[]; numbers: string[] };
 }
 
 export interface WeeklyInclude { figures: boolean; locations: boolean; accounts: boolean; calls: boolean; names: boolean }
@@ -97,6 +99,7 @@ export const defaultSettings = (): Settings => ({
   weeklyReport: { autoSave: false, include: { figures: true, locations: true, accounts: true, calls: true, names: false } },
   morningDigest: true,
   savedReplies: [],
+  notCustomers: { words: [], numbers: [] },
 });
 
 export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [], locations: [], holidays: [], settings: defaultSettings() });
@@ -239,6 +242,19 @@ function parseSavedReplies(raw: unknown): SavedReply[] {
   return out;
 }
 
+/** Words are kept as typed (trimmed, each once); numbers keep their digits only, and anything too short to be a
+ *  phone number is dropped rather than left to match half the address book. */
+function parseNotCustomers(raw: unknown): Settings['notCustomers'] {
+  const r = isObject(raw) ? raw : {};
+  const list = (v: unknown) => (Array.isArray(v) ? v.map((x) => String(x ?? '')) : []);
+  const words: string[] = [];
+  for (const w of list(r.words).map((x) => x.trim().slice(0, 30))) {
+    if (w && !words.some((have) => have.toLowerCase() === w.toLowerCase())) words.push(w);
+  }
+  const numbers = [...new Set(list(r.numbers).map((x) => x.replace(/\D/g, '')).filter((d) => d.length >= 7 && d.length <= 15))];
+  return { words: words.slice(0, 40), numbers: numbers.slice(0, 200) };
+}
+
 function parseSettings(raw: unknown): Settings {
   const d = defaultSettings();
   if (!isObject(raw)) return d;
@@ -276,6 +292,7 @@ function parseSettings(raw: unknown): Settings {
     },
     morningDigest: bool(raw.morningDigest, d.morningDigest),
     savedReplies: parseSavedReplies(raw.savedReplies),
+    notCustomers: parseNotCustomers(raw.notCustomers),
     weeklyReport: {
       autoSave: bool(weekly.autoSave, d.weeklyReport.autoSave),
       include: {
