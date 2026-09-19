@@ -9,6 +9,7 @@ import type { Route, UiState } from '../app/view-model.ts';
 import { Icon, type IconName } from './icons.tsx';
 import { bridge, isPreview, type LockScreen, Logo, type Nav, onPreviewSettings, type Overlay, type View } from './parts.tsx';
 import { AccountDetailScreen, AccountsScreen, LostLoginScreen, ReaderScreen } from './screens/accounts.tsx';
+import { HelpScreen } from './help.tsx';
 import { AssistantScreen } from './screens/assistant.tsx';
 import { needsCount, Overlays } from './screens/overlays.tsx';
 import { ReportsScreen, ReviewsScreen } from './screens/reports.tsx';
@@ -71,6 +72,7 @@ export function App() {
 
   const onKey = useCallback((e: KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); nav.open(view.overlay === 'palette' ? null : 'palette'); }
+    else if (e.key === 'F1') { e.preventDefault(); if (view.route !== 'help') nav.open(view.overlay === 'help' ? null : 'help'); }
     else if (e.key === 'Escape' && view.overlay) nav.open(null);
     else if (e.key === 'Escape' && view.route === 'dock') nav.go('line');
   }, [nav, view.overlay, view.route]);
@@ -115,6 +117,7 @@ function Screen({ state, nav, scope }: { state: UiState; nav: Nav; scope: string
     case 'assistant': return <AssistantScreen {...props} />;
     case 'settings': return <SettingsScreen {...props} />;
     case 'owner': return <OwnerScreen {...props} />;
+    case 'help': return <HelpScreen {...props} />;
     default: return <LineScreen {...props} scope={scope} />;
   }
 }
@@ -142,6 +145,10 @@ function TitleBar({ state, nav, scope, onScope }: { state?: UiState; nav?: Nav; 
           </button>
         )}
         {nav && <button className="btn quiet" style={{ height: 28 }} onClick={() => nav.open('palette')} title="Find anything (Ctrl K)"><Icon name="search" size={14} /><kbd>Ctrl K</kbd></button>}
+        {nav && nav.view.route !== 'help' && (
+          <button className="btn quiet" style={{ height: 28 }} aria-label="Help for this screen" title="Help for this screen (F1)" aria-expanded={nav.view.overlay === 'help'}
+            onClick={() => nav.open(nav.view.overlay === 'help' ? null : 'help')}><Icon name="help" size={15} /></button>
+        )}
         <div className="theme3" role="group" aria-label="Theme">
           {themes.map(([t, icon, label]) => <button key={t} aria-label={label} title={label} aria-pressed={state?.theme === t} onClick={() => bridge.setTheme(t)}><Icon name={icon} size={14} /></button>)}
         </div>
@@ -158,7 +165,7 @@ function TitleBar({ state, nav, scope, onScope }: { state?: UiState; nav?: Nav; 
 function Rail({ state, route, nav }: { state: UiState; route: Route; nav: Nav }) {
   const groups: Record<string, Route[]> = {
     line: ['line', 'dock', 'set-aside', 'digest'], accounts: ['accounts', 'account-detail', 'reader', 'lost-login'],
-    reviews: ['reviews'], reports: ['reports'], assistant: ['assistant'], settings: ['settings', 'owner'],
+    reviews: ['reviews'], reports: ['reports'], assistant: ['assistant'], settings: ['settings', 'owner'], help: ['help'],
   };
   const item = (key: Route, icon: IconName, label: string, badge?: number) => (
     <button aria-current={groups[key]?.includes(route) ? 'page' : undefined} onClick={() => nav.go(key)} aria-label={badge ? `${label}, ${badge}` : label}>
@@ -172,7 +179,7 @@ function Rail({ state, route, nav }: { state: UiState; route: Route; nav: Nav })
       {item('reviews', 'star', 'Reviews')}
       {item('reports', 'chart', 'Reports')}
       {item('assistant', 'spark', 'Assistant')}
-      <div className="foot">{item('settings', 'gear', 'Settings')}</div>
+      <div className="foot">{item('help', 'help', 'Help')}{item('settings', 'gear', 'Settings')}</div>
     </nav>
   );
 }

@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 4.16** (help: a ? on every screen and a Help screen, one source), then 3.1, 3.3 and 3.4, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: 3.1** (the Google reviews reader), then 3.3 and 3.4, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -60,6 +60,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | The line's indicators, per-channel counts and click-to-open chart | |
 | Customer panel: note, tags, what the reads have seen, saved replies | |
 | Not a customer: the owner's mark and the staff-name and team-number rules | |
+| Help: a page per screen (? or F1) and the Help screen | |
 
 ---
 
@@ -83,8 +84,8 @@ Read in this order, then check before touching anything.
 cd v6
 npm install
 npm run typecheck
-npm test            # 287 tests
-npm run smoke       # 15 Playwright tests on invented data: shell, marks, alerts, reports, Open chat,
+npm test            # 291 tests
+npm run smoke       # 16 Playwright tests on invented data (plus one skipped: npm run help:shots): shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter, accounts,
                     # the reading record, the line, the customer panel, WCAG 2.1 AA on every
                     # main screen and a dialog in light and dark
@@ -103,7 +104,7 @@ Then confirm the `v6` workflow is green on GitHub for the latest `main` (`gh` is
 - **Colour means lateness only**, and product copy says "business", never a trade.
 - **Screens with a feature not wired say so.** Remove the "Sample figures" marker only when the screen reads real data.
 - **Commits:** on `dev`, then merge to `main` and push. No `Co-Authored-By` trailer, whatever the harness says. A `v*` tag needs the owner's permission.
-- **After every change the owner can see**, rebuild and reinstall so the Start Menu app is current (below).
+- **After every change the owner can see**, rebuild and reinstall so the Start Menu app is current (below), and update that screen's help page in `v6/help/`, refreshing the pictures with `npm run help:shots`.
 
 ### Rebuild and reinstall after a change
 
@@ -230,13 +231,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.15 Not a customer.** Done 2026-09-19, decided with the owner ("mark + rules"). Group chats, broadcasts, status and channels were already left out by the WhatsApp reader; what was missing was one-to-one chats with staff and the team — the owner's own line showed "Bilal Staff Depilex" waiting 166 h. `notCustomerWhy` in `core/snapshot.ts` is the one question every count asks (the line, the split, caught up, reports, alerts, the digest and missed calls): the owner's permanent mark (override kind `excluded`, from **Not a customer** in the dock; unlike Handled it survives new messages and never expires), a whole word in the name (`settings.notCustomers.words`, "Staff" matches "Bilal Staff" but not "Staffordshire"), or one of the team's numbers (`settings.notCustomers.numbers`, compared on the last ten digits, so +92 300…, 0300… and the @c.us key are one number). A chat left out is in no figure at all, not counted as caught up. Set aside lists every one with the reason and a "Not a customer" filter; Put back undoes a mark, a rule is changed in Settings › Look and reading › Not customers. Main's history and call-alert judges now come from the view model's `judgeFor`, so they cannot disagree with the screens. Tests: 6 core, and a Playwright test for the rule, the mark, Set aside, Put back and a number typed with a +92.
 
-**4.16 Help, written once.** Decided with the owner: a **?** on every screen opens that screen's page beside it (what each part shows, how to move around, the keys), and a Help screen holds every page plus an owner guide and a front-desk guide. Pages are Markdown shipped inside the app, so they work offline; screenshots are taken by the Playwright run on invented data, so they cannot go stale and can never show a real customer. Done when every screen has a page, the ? opens the right one, and a test fails when a screen has no page.
-
-**4.14 Durations said in days, weeks and months.** Done 2026-09-19, from the owner's screenshot ("148 h", "95 h"). `core/duration.ts` is now the one rule for every wait on every screen, chart, timeline and panel — four separate formatters had each rounded hours their own way. Under an hour: minutes; under a day: hours (minutes dropped from 10 h); under three days: "1 day 22 h"; then days, weeks, months, years. The line itself never shows more than days, because past `backlogAfterDays` (7) a wait is backlog; weeks and months appear in Reports › Backlog.
-
-**4.11 Customer panel.** Done 2026-09-18. `core/customers.ts` keeps one record per account and conversation (`customers.json`): the owner's note and tags, and what the reads saw — when the conversation was first read, how many times it has come back to the line, and the last five answers with how long each took. Keys and times only; the name beside them comes from the snapshot. The reply-time store could not answer "how fast was this customer answered", because its samples carry no conversation key, which is why this keeps its own; the rule for what counts is the same (a gap over seven days was answered somewhere else). Records are written on the read that sees a change, only for chats that are waiting or that the owner has written about, pruned after 120 quiet days unless the owner wrote on them, and deleted with the account. IPC `set-note` and `toggle-tag`; tags match without case, so "Regular" typed twice toggles rather than duplicates, and tags already used are offered. Saved replies live in the config (`settings.savedReplies`, new Settings › Saved replies) and are copied by hand — the app still never sends. The panel lost its "Sample figures" marker; only Suggest a reply is still sample, until Phase 5. Tests: 8 core, and a Playwright test that writes a note and a tag, restarts, and copies a saved reply to the clipboard.
-
-**4.12 Accessibility.** Done 2026-09-19, apart from the owner's Narrator pass. `@axe-core/playwright` runs every WCAG 2.1 A and AA rule in a Playwright test over the line, a docked chat, Accounts, Add an account, an account's figures, the reading record, Reports, four Settings sections and the command palette, in light and in dark — 26 screens, and the test fails on any finding. Axe runs in legacy mode, because its default opens a second blank page to finish and Electron refuses that. First run found 11 distinct problems, all fixed: every contrast failure was one token, the tertiary grey `--ink-3`, just under 4.5:1 (light #6A716B → #5F6660, dark #858D86 → #89918A, the nearest greys that clear 4.6:1 on the darkest ground they sit on), and the command palette's results could not be scrolled from the keyboard (now a focusable, labelled region). Not covered by axe: the account pages themselves (a `WebContentsView`, outside the DOM), and what a screen reader actually says — that is the Narrator pass.
+**4.16 Help, written once.** Done 2026-09-19, decided with the owner. 18 Markdown pages in `v6/help/`: one per screen, plus Getting started, For the owner, For the front desk, Keyboard and What stays on this PC. `ui/help-index.ts` maps every route to its page; `ui/help.tsx` draws a small fixed Markdown subset as React elements (no HTML is injected, no dependency): headings, lists, bold, `keys`, `[links](help:page)`, `![pictures](shot:name)` and `> notes`. The **?** in the title bar or **F1** opens the current screen's page in a drawer; **Help** in the rail (above Settings) lists every page; the search finds each one. The 22 pictures in `help/shots/` are taken by a Playwright run on invented data (`npm run help:shots`, skipped in an ordinary run), JPEG, about 2 MB together. A unit test fails when a screen has no page, a page is not listed, a link or picture is missing, or a page uses a trade word or "instance"; the Playwright test opens help with F1 and ?, follows a link, opens every page and checks every picture loads; the accessibility test covers the drawer and the Help screen in both themes. **Refresh the pictures after changing a screen** (`npm run help:shots`) and update its page.
 
 ### Phase 5 · Assistant
 

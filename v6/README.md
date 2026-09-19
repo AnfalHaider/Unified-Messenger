@@ -9,6 +9,7 @@ until v6 reaches parity. Roadmap: the "Revamp Blueprint" artifact; Phase 1 resul
 | `app/` | The Electron shell: one signed-in session per account, the read scheduler, the JSON stores, lost-login logging. |
 | `channels/<name>/` | One module per channel: reader, find-a-chat, health check, tests. |
 | `ui/` | React screens. |
+| `help/` | The help pages, one Markdown file per screen plus guides, and `shots/`, their pictures from invented data. |
 | `assistant/` | Local Ollama chat. Off by default. |
 | `cloud/` | Firebase sign-in, membership and configuration sync. |
 
@@ -22,6 +23,7 @@ npm start              # opens the window from source and starts reading
 npm run smoke          # Playwright: the window renders, navigates and quits (own temp data folder)
 npm run dist           # builds dist\UnifiedMessenger6Setup.exe
 npm run install-local  # builds it, installs it on this PC and opens the installed app
+npm run help:shots     # retakes the help pictures (help/shots) from invented data, after a screen changes
 ```
 
 ## Installing on this PC

@@ -61,7 +61,7 @@ export const bridge: Window['um'] = !isPreview ? window.um : {
 
 /** Full-window screens that replace the shell: signing in, a removed PC, a paused workspace, the v5 move. */
 export type LockScreen = 'sign-in' | 'new-pc' | 'removed' | 'suspended' | 'upgrade';
-export type Overlay = 'palette' | 'needs' | 'add-account' | 'edit-account' | 'remove-account' | 'remove-member' | 'update';
+export type Overlay = 'palette' | 'needs' | 'help' | 'add-account' | 'edit-account' | 'remove-account' | 'remove-member' | 'update';
 
 export interface View { route: Route; accountId: string | null; sub: string; overlay: Overlay | null; lock: LockScreen | null; offline: boolean }
 

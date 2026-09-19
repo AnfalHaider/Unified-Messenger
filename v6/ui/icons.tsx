@@ -15,6 +15,7 @@ const MARKUP = {
   open: "<path d=\"M9 3h4v4M13 3L7.5 8.5\"/><path d=\"M11 9.5V13H3V5h3.5\"/>",
   snooze: "<circle cx=\"8\" cy=\"8.5\" r=\"5\"/><path d=\"M8 5.8v2.9l2 1.2M3 2.5l2 1.3M13 2.5l-2 1.3\"/>",
   lock: "<rect x=\"3.5\" y=\"7\" width=\"9\" height=\"6.5\" rx=\"1.3\"/><path d=\"M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7\"/>",
+  help: "<circle cx=\"8\" cy=\"8\" r=\"6.2\"/><path d=\"M6.3 6.3a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.9.7-.9 1.3v.3M8 11.3v.2\"/>",
   alert: "<path d=\"M8 2.5l6 10.5H2z\"/><path d=\"M8 6.5v3M8 11.3v.2\"/>",
   bell: "<path d=\"M4 11V7a4 4 0 0 1 8 0v4l1.2 1.5H2.8z\"/><path d=\"M6.6 14a1.5 1.5 0 0 0 2.8 0\"/>",
   x: "<path d=\"M4 4l8 8M12 4l-8 8\"/>",

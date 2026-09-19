@@ -32,7 +32,7 @@ export type Tone = 'ok' | 'due' | 'late' | 'neutral';
 export type Route =
   | 'line' | 'dock' | 'set-aside' | 'digest'
   | 'accounts' | 'account-detail' | 'reader' | 'lost-login'
-  | 'reviews' | 'reports' | 'assistant' | 'settings' | 'owner';
+  | 'reviews' | 'reports' | 'assistant' | 'settings' | 'owner' | 'help';
 
 /** Screens that are about one account, so navigating to them keeps that account in view. */
 export const ACCOUNT_ROUTES: readonly Route[] = ['dock', 'account-detail', 'lost-login'];

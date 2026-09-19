@@ -16,7 +16,8 @@
     "ui": "vite",
     "dev": "electron app/main.ts",
     "dist": "node scripts/dist.mjs",
-    "install-local": "node scripts/dist.mjs --install"
+    "install-local": "node scripts/dist.mjs --install",
+    "help:shots": "node scripts/help-shots.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

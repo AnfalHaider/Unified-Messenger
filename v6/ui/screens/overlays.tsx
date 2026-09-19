@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Route } from '../../app/view-model.ts';
 import { channelIcon, Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Check, type LockScreen, type Nav, type Overlay, Sample, type ScreenProps, Toggle } from '../parts.tsx';
+import { HelpDrawer } from '../help.tsx';
+import { HELP_PAGES } from '../help-index.ts';
 import { REPORT_TABS } from './reports.tsx';
 import { SETTINGS_SECTIONS } from './settings.tsx';
 
@@ -16,6 +18,7 @@ export function Overlays({ state, nav }: ScreenProps) {
       <div className="scrim" onClick={close} />
       {which === 'palette' && <Palette state={state} nav={nav} />}
       {which === 'needs' && <NeedsYou state={state} nav={nav} />}
+      {which === 'help' && <HelpDrawer nav={nav} />}
       {which === 'add-account' && <AddAccount state={state} nav={nav} close={close} />}
       {which === 'edit-account' && <EditAccount state={state} nav={nav} close={close} />}
       {which === 'remove-account' && <RemoveAccount state={state} nav={nav} close={close} />}
@@ -43,6 +46,7 @@ function Palette({ state, nav }: ScreenProps) {
       ['grid', 'Accounts', go('accounts')], ['star', 'Reviews', go('reviews')], ['spark', 'Assistant', go('assistant')], ['key', 'Owner console', go('owner')],
       ...REPORT_TABS.map((t): [IconName, string, () => void] => ['chart', `Reports: ${t}`, go('reports', null, t)]),
       ...SETTINGS_SECTIONS.map((s): [IconName, string, () => void] => ['gear', `Settings: ${s}`, go('settings', null, s)]),
+      ...HELP_PAGES.map((p): [IconName, string, () => void] => ['help', `Help: ${p.title}`, go('help', null, p.id)]),
       ['lock', 'Preview: sign in with Google', lock('sign-in')], ['users', 'Preview: a new PC', lock('new-pc')],
       ['lock', 'Preview: a removed PC', lock('removed')], ['alert', 'Preview: a suspended workspace', lock('suspended')],
       ['download', 'Preview: moving from the previous version', lock('upgrade')],

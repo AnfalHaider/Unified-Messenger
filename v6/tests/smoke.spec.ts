@@ -839,6 +839,14 @@ test('every main screen and a dialog pass the WCAG 2.1 AA checks, in light and i
       await expect(win.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
       problems.push(...await axe(win, `${theme} · command palette`));
       await win.keyboard.press('Escape');
+      await win.keyboard.press('F1');
+      await expect(win.getByRole('complementary', { name: /^Help: / })).toBeVisible();
+      problems.push(...await axe(win, `${theme} · help drawer`));
+      await win.getByRole('button', { name: 'All help' }).click();
+      await expect(heading(win, 'Help')).toBeVisible();
+      problems.push(...await axe(win, `${theme} · help screen`));
+      await win.keyboard.press('Control+k');
+      await win.keyboard.press('Escape');
     }
     expect(problems, problems.join('\n')).toEqual([]);
     await quit(app, win);
@@ -900,6 +908,205 @@ test('staff and team chats are left out by a rule or a mark, listed in Set aside
     await expect.poll(() => config().settings.notCustomers.numbers).toEqual(['923007778899']);
     await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
     await expect(heading(win, '1 customer is waiting')).toBeVisible();
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('help opens for the screen you are on, the Help screen holds every page, and the pictures load', async () => {
+  const now = Date.now();
+  const data = dataFolder({ accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true }] });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [{
+    conversationKey: 'a@c.us', customerName: 'Sample Customer A', unread: 1, lastActivity: now - 5 * 60_000, preview: 'Hello',
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  }] } }));
+  const { app, win } = await open(data);
+  const loaded = (where: ReturnType<Page['locator']>) => where.locator('img').evaluateAll((imgs) =>
+    Promise.all(imgs.map((i) => (i as HTMLImageElement).decode().then(() => (i as HTMLImageElement).naturalWidth > 0, () => false))));
+  try {
+    await expect(heading(win, '1 customer is waiting')).toBeVisible();
+
+    // F1 opens this screen's page beside it, and closes it again.
+    await win.keyboard.press('F1');
+    const drawer = win.getByRole('complementary', { name: 'Help: The line' });
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toContainText('Longest wait first');
+    expect(await loaded(drawer)).not.toContain(false);
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'help-drawer.png') });
+    await win.keyboard.press('F1');
+    await expect(drawer).toHaveCount(0);
+
+    // The ? on another screen opens that screen's page.
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Accounts', exact: true }).click();
+    await win.getByRole('button', { name: 'Help for this screen' }).click();
+    await expect(win.getByRole('complementary', { name: 'Help: Accounts' })).toContainText('Add an account');
+
+    // A link in a page goes to the Help screen at that page.
+    await win.getByRole('complementary', { name: 'Help: Accounts' }).getByRole('button', { name: 'Channel readers' }).first().click();
+    await expect(heading(win, 'Help')).toBeVisible();
+    await expect(win.getByRole('article', { name: 'Channel readers' })).toBeVisible();
+
+    // Every page can be opened from the list, and every picture on it loads.
+    const pages = win.getByRole('navigation', { name: 'Help pages' }).getByRole('button');
+    const count = await pages.count();
+    expect(count).toBeGreaterThan(15);
+    for (let i = 0; i < count; i++) {
+      const title = (await pages.nth(i).textContent()) ?? '';
+      await pages.nth(i).click();
+      const article = win.getByRole('article', { name: title });
+      await expect(article.getByRole('heading', { level: 2, name: title })).toBeVisible();
+      expect(await loaded(article), title).not.toContain(false);
+    }
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'help-screen.png') });
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+// ---- help screenshots ------------------------------------------------------------------------------------
+
+/**
+ * The pictures in the help pages, taken from invented data so they can never show a real customer. Skipped in an
+ * ordinary run; `npm run help:shots` sets UM_HELP_SHOTS and writes them to help/shots, where the pages find them.
+ */
+test('help screenshots', async () => {
+  test.skip(!process.env.UM_HELP_SHOTS, 'only when refreshing the help pictures: npm run help:shots');
+  test.setTimeout(180_000);
+  const out = join(V6, 'help', 'shots');
+  mkdirSync(out, { recursive: true });
+  const now = Date.now();
+  const H = 60, D = 24 * H;
+  const data = dataFolder({
+    accounts: [
+      { id: 'main-wa', name: 'Main branch WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
+      { id: 'main-ig', name: 'Main branch Instagram', channel: 'instagram', url: 'about:blank', professional: true, location: 'Main branch' },
+      { id: 'north-wa', name: 'North branch WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'North branch' },
+      { id: 'north-g', name: 'North branch Google', channel: 'googlebusiness', url: 'about:blank', professional: false, location: 'North branch' },
+    ],
+    locations: [{ name: 'Main branch' }, { name: 'North branch' }],
+    settings: {
+      notCustomers: { words: ['Staff'], numbers: [] },
+      savedReplies: [
+        { title: 'Opening hours', body: 'We are open 11 am to 9 pm, Monday to Saturday.' },
+        { title: 'Prices', body: 'Our current price list is attached. Let us know which option suits you.' },
+      ],
+    },
+  });
+  const chat = (key: string, customer: string, minutesAgo: number, preview: string, o: Record<string, unknown> = {}) => ({
+    conversationKey: key, customerName: customer, unread: 1, lastActivity: now - minutesAgo * 60_000, preview,
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '', ...o,
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({
+    'main-wa': { capturedAt: now, chats: [
+      chat('a@c.us', 'Sample Customer A', 3, 'Do you have space on Friday afternoon?'),
+      chat('b@c.us', 'Sample Customer B', 12, 'What time do you open tomorrow?'),
+      chat('c@c.us', 'Sample Customer C', 26, 'Can I change my booking to next week?'),
+      chat('d@c.us', 'Sample Customer D', 2 * D + 5 * H, 'Is the offer still on?'),
+      chat('e@c.us', 'Sample Customer E', 40, '', { lastMessageType: 'call_log', lastCallOutcome: 'Missed' }),
+      chat('f@c.us', 'Sample Staff Member', 90, 'Can you check the stock list?'),
+      chat('g@c.us', 'Sample Customer G', 60, 'ok thanks'),
+    ] },
+    'main-ig': { capturedAt: now, chats: [chat('ig-1', 'Sample Customer H', 18, ''), chat('ig-2', 'Sample Customer I', 7, '')] },
+    'north-wa': { capturedAt: now, chats: [
+      chat('j@c.us', 'Sample Customer J', 9, 'Price for the full package?'),
+      chat('k@c.us', 'Sample Customer K', 3 * H, 'Hello, anyone there?'),
+    ] },
+  }));
+  // A fortnight of invented days and replies, so Reports has something to draw.
+  const days = Array.from({ length: 14 }, (_, i) => {
+    const at = new Date(now - (13 - i) * D * 60_000);
+    const day = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
+    const wrote = 18 + ((i * 7) % 11);
+    return {
+      day, customersWrote: wrote, wroteByHour: Array.from({ length: 24 }, (_, h) => (h >= 11 && h <= 20 ? Math.round(wrote / 10) + (h % 3) : 0)),
+      replies: wrote - 3, medianReplyMinutes: 9 + (i % 5), repliesWithinTarget: wrote - 6, targetMinutes: 15,
+      waitingOverADayAtFirstRead: 2 + (i % 3), reopened: i % 4, missedCalls: i % 3,
+    };
+  });
+  writeFileSync(join(data, 'history.json'), JSON.stringify(Object.fromEntries(['main-wa', 'main-ig', 'north-wa'].map((id) =>
+    [id, { watchStart: now - 20 * D * 60_000, days, seen: {} }]))));
+  writeFileSync(join(data, 'response-times.json'), JSON.stringify({
+    pending: {}, watchStart: { 'main-wa': now - 20 * D * 60_000, 'north-wa': now - 20 * D * 60_000 },
+    samples: {
+      'main-wa': Array.from({ length: 40 }, (_, i) => ({ answeredAt: now - i * 3 * H * 60_000, minutes: 4 + (i * 7) % 30 })),
+      'north-wa': Array.from({ length: 25 }, (_, i) => ({ answeredAt: now - i * 5 * H * 60_000, minutes: 6 + (i * 5) % 40 })),
+    },
+  }));
+  writeFileSync(join(data, 'calls.json'), JSON.stringify({
+    'main-wa|e@c.us|1': { account: 'main-wa', key: 'e@c.us', at: now - 40 * 60_000, returnedAt: null, returnedBy: null },
+  }));
+
+  const { app, win } = await open(data);
+  const shot = (name: string) => win.screenshot({ path: join(out, `${name}.jpg`), type: 'jpeg', quality: 82 });
+  const rail = (name: string | RegExp) => win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name, exact: typeof name === 'string' });
+  const palette = async (what: string) => {
+    await win.keyboard.press('Control+k');
+    await win.getByRole('textbox', { name: 'Search' }).fill(what);
+    await win.keyboard.press('Enter');
+  };
+  try {
+    await win.getByRole('button', { name: 'Light', exact: true }).click();
+    await expect(heading(win, /customers are waiting/)).toBeVisible();
+    await shot('line');
+
+    await win.getByRole('button', { name: 'Open chat' }).first().click();
+    await expect(win.locator('.dock-bar .who b')).toBeVisible();
+    await shot('dock');
+    await win.keyboard.press('Escape');
+
+    await win.getByRole('button', { name: /^Needs you/ }).click();
+    await shot('needs');
+    await win.keyboard.press('Escape');
+
+    await win.keyboard.press('Control+k');
+    await expect(win.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+    await shot('palette');
+    await win.keyboard.press('Escape');
+
+    await palette('Set aside');
+    await expect(heading(win, 'Set aside')).toBeVisible();
+    await shot('set-aside');
+
+    await palette('Morning digest');
+    await shot('digest');
+
+    await rail('Accounts').click();
+    await expect(heading(win, 'Accounts')).toBeVisible();
+    await shot('accounts');
+    await win.getByRole('button', { name: 'Add an account' }).click();
+    await shot('add-account');
+    await win.keyboard.press('Escape');
+    await win.getByRole('button', { name: 'Figures' }).first().click();
+    await shot('account-detail');
+    await win.getByRole('button', { name: 'Reading record' }).click();
+    await shot('lost-login');
+    await rail('Accounts').click();
+    await win.getByRole('button', { name: /WhatsApp reader/ }).click();
+    await shot('reader');
+
+    await rail('Reviews').click();
+    await shot('reviews');
+
+    await rail('Reports').click();
+    await expect(win.getByRole('group', { name: 'Report' })).toBeVisible();
+    await shot('reports');
+    for (const tab of ['Reply times', 'Backlog and reopened', 'Missed calls', 'Weekly report']) {
+      await win.getByRole('group', { name: 'Report' }).getByRole('button', { name: tab }).click();
+      await shot(`reports-${tab.toLowerCase().replace(/\s+/g, '-')}`);
+    }
+
+    await rail('Assistant').click();
+    await shot('assistant');
+
+    await rail('Settings').click();
+    for (const section of ['Look and reading', 'Opening hours', 'Notifications', 'Saved replies']) {
+      await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section }).click();
+      await shot(`settings-${section.toLowerCase().replace(/\s+/g, '-')}`);
+    }
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});
