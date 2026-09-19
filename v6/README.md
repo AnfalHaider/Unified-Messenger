@@ -11,7 +11,7 @@ until v6 reaches parity. Roadmap: the "Revamp Blueprint" artifact; Phase 1 resul
 | `ui/` | React screens. |
 | `help/` | The help pages, one Markdown file per screen plus guides, and `shots/`, their pictures from invented data. |
 | `assistant/` | Local Ollama chat. Off by default. |
-| `cloud/` | Firebase sign-in, membership and configuration sync. |
+| `cloud/` | The Firestore rules (`firestore.rules`) and their emulator tests (`rules.spec.ts`). Sign-in itself is `app/cloud.ts` and `core/cloud-auth.ts`. |
 
 Folders appear when their first file does.
 
@@ -24,6 +24,8 @@ npm run smoke          # Playwright: the window renders, navigates and quits (ow
 npm run dist           # builds dist\UnifiedMessenger6Setup.exe
 npm run install-local  # builds it, installs it on this PC and opens the installed app
 npm run help:shots     # retakes the help pictures (help/shots) from invented data, after a screen changes
+npm run rules:test     # the Firestore rules against the emulator (needs Java 21+; see scripts/rules-run.mjs)
+npm run assistant:test # the assistant's 30 questions against the real local model (needs Ollama running)
 ```
 
 ## Installing on this PC

@@ -18,17 +18,21 @@
     "dist": "node scripts/dist.mjs",
     "install-local": "node scripts/dist.mjs --install",
     "help:shots": "node scripts/help-shots.mjs",
-    "assistant:test": "node scripts/assistant-eval.ts"
+    "assistant:test": "node scripts/assistant-eval.ts",
+    "rules:test": "node scripts/rules-run.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@electron/packager": "^20.3.0",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@playwright/test": "^1.63.0",
     "@types/node": "22.20.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "electron": "^44.3.0",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.30.2",
     "typescript": "7.0.2",
     "vite": "^8.3.0"
   },

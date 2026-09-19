@@ -41,6 +41,34 @@ jobs:
       - name: Tests
         run: npm test
 
+  rules:
+    # The Firestore rules against the emulator. The emulator needs Java 21 or newer; setup-java puts it first on PATH.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: v6/package-lock.json
+
+      - run: npm ci
+
+      - name: Keep the emulator download between runs
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('v6/package-lock.json') }}
+
+      - name: Rules tests
+        run: npm run rules:test
+
   smoke:
     # Windows, because that is the only place the app ships: the window has to open, draw a screen, move to
     # another and quit on the real platform, not just compile.

@@ -1,0 +1,130 @@
+rules_version = '2';
+
+// Unified Messenger's cloud (roadmap 6.2). Firebase's free plan has no server code, so these rules are the whole of
+// the access control: who may read or change a workspace, its members, its invitations and its setup, and the product
+// owner's ability to suspend a workspace. Tested in cloud/rules.spec.ts against the emulator (npm run rules:test).
+//
+// What is here, and nothing more: a workspace's name and status; each member's email, name, role, status and last
+// seen; invitations by email; and the business setup (accounts, locations, settings). Never oversight data: no
+// messages, customers, figures or logins. The setup document accepts only those named fields.
+//
+//   owners/{uid}                              the product owner; made by hand in the console, read by that account only
+//   workspaces/{wid}                          name, status active|suspended, createdBy, createdAt, statusChangedAt
+//   workspaces/{wid}/members/{uid}            email, name, role admin|member, status active|removed, joinedAt, lastSeen
+//   workspaces/{wid}/invites/{email}          email, role, invitedBy, invitedAt (id = the email in lower case)
+//   workspaces/{wid}/config/main              accounts, locations, settings, updatedAt, updatedBy
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    // Google's own verified address, lower case, as invitations are keyed.
+    function myEmail() { return request.auth.token.email.lower(); }
+    function verified() { return request.auth.token.email_verified == true; }
+    function isOwner() { return signedIn() && exists(/databases/$(database)/documents/owners/$(uid())); }
+
+    function ws(wid) { return get(/databases/$(database)/documents/workspaces/$(wid)).data; }
+    function active(wid) { return ws(wid).status == 'active'; }
+    function memberPath(wid, u) { return /databases/$(database)/documents/workspaces/$(wid)/members/$(u); }
+    function me(wid) { return get(memberPath(wid, uid())).data; }
+    function isMember(wid) { return signedIn() && exists(memberPath(wid, uid())) && me(wid).status == 'active'; }
+    function isAdmin(wid) { return isMember(wid) && me(wid).role == 'admin'; }
+
+    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function name(s) { return s is string && s.size() > 0 && s.size() <= 80; }
+
+    // The product owner's own marker: readable by that account, so the app knows to offer the Owner screen.
+    match /owners/{ownerId} {
+      allow read: if signedIn() && uid() == ownerId;
+      allow write: if false;
+    }
+
+    match /workspaces/{wid} {
+      // Members see their workspace, suspended or not, so a suspended PC can say so. The owner sees every workspace.
+      allow read: if isMember(wid) || isOwner()
+        // A removed member still reads it, to learn they were removed and wipe the logins on that PC.
+        || (signedIn() && exists(memberPath(wid, uid())));
+
+      // Anyone signed in may start a workspace, as its first admin, in the same write as their member entry.
+      allow create: if signedIn() && verified()
+        && request.resource.data.keys().hasOnly(['name', 'status', 'createdBy', 'createdAt'])
+        && name(request.resource.data.name)
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.createdAt == request.time
+        && getAfter(memberPath(wid, uid())).data.role == 'admin';
+
+      // An admin renames an active workspace; only the product owner suspends or restores one.
+      allow update: if (isAdmin(wid) && active(wid) && changedOnly(['name']) && name(request.resource.data.name))
+        || (isOwner() && changedOnly(['status', 'statusChangedAt'])
+            && request.resource.data.status in ['active', 'suspended']
+            && request.resource.data.statusChangedAt == request.time);
+      allow delete: if false;
+
+      match /members/{memberId} {
+        allow read: if isMember(wid) || isOwner() || (signedIn() && uid() == memberId);
+
+        allow create: if signedIn() && uid() == memberId && verified()
+          && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'status', 'joinedAt', 'lastSeen'])
+          && request.resource.data.email == myEmail()
+          && request.resource.data.status == 'active'
+          && request.resource.data.joinedAt == request.time
+          && request.resource.data.lastSeen == request.time
+          && (
+            // The workspace's creator, in the same write that creates it.
+            (request.resource.data.role == 'admin'
+              && !exists(/databases/$(database)/documents/workspaces/$(wid))
+              && getAfter(/databases/$(database)/documents/workspaces/$(wid)).data.createdBy == uid())
+            // Or someone accepting their invitation, with the role it gave, into an active workspace.
+            || (active(wid)
+              && exists(/databases/$(database)/documents/workspaces/$(wid)/invites/$(myEmail()))
+              && get(/databases/$(database)/documents/workspaces/$(wid)/invites/$(myEmail())).data.role == request.resource.data.role)
+          );
+
+        allow update: if
+          // A member's own PC checks in: last seen, and their name as Google has it. Not while removed.
+          (signedIn() && uid() == memberId && resource.data.status == 'active'
+            && changedOnly(['lastSeen', 'name']) && request.resource.data.lastSeen == request.time)
+          // An admin removes someone else, or changes their role, while the workspace is active. Removal is a status,
+          // not a delete, so the removed PC can read it and wipe its logins.
+          || (isAdmin(wid) && active(wid) && uid() != memberId
+            && changedOnly(['role', 'status'])
+            && request.resource.data.role in ['admin', 'member']
+            && request.resource.data.status in ['active', 'removed']);
+        allow delete: if false;
+      }
+
+      match /invites/{email} {
+        // Admins see the invitations; the invited person sees their own, so the app can offer to join.
+        allow read: if isAdmin(wid) || (signedIn() && verified() && myEmail() == email);
+        allow create: if isAdmin(wid) && active(wid)
+          && request.resource.data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedAt'])
+          && request.resource.data.email == email && email == email.lower()
+          && request.resource.data.role in ['admin', 'member']
+          && request.resource.data.invitedBy == uid()
+          && request.resource.data.invitedAt == request.time;
+        // Withdrawn by an admin, or cleared by the person once they have joined.
+        allow delete: if isAdmin(wid) || (signedIn() && verified() && myEmail() == email && exists(memberPath(wid, uid())));
+        allow update: if false;
+      }
+
+      // The business setup. Only while the workspace is active: a suspended workspace keeps it, but no PC can read it.
+      match /config/{doc} {
+        allow read: if doc == 'main' && isMember(wid) && active(wid);
+        allow write: if doc == 'main' && isAdmin(wid) && active(wid)
+          && request.resource.data.keys().hasOnly(['accounts', 'locations', 'settings', 'updatedAt', 'updatedBy'])
+          && request.resource.data.accounts is list && request.resource.data.accounts.size() <= 200
+          && request.resource.data.locations is list && request.resource.data.locations.size() <= 100
+          && request.resource.data.settings is map
+          && request.resource.data.updatedBy == uid()
+          && request.resource.data.updatedAt == request.time;
+      }
+    }
+
+    // Finding one's own invitations across workspaces, when a new member first signs in.
+    // Checked against the stored address: a query cannot be proven against document ids.
+    match /{path=**}/invites/{email} {
+      allow read: if signedIn() && verified() && resource.data.email == myEmail();
+    }
+  }
+}

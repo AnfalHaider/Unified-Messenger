@@ -42,8 +42,9 @@ await packager({
   // Only what runs: app/, core/, channels/, assets/, the built screens and package.json. Nothing in
   // node_modules is needed at run time, because the screens are bundled and main uses only Node and Electron.
   ignore: [
-    /^\/(ui|out|dist|scripts|node_modules|\.vite)(\/|$)/,
-    /^\/(tsconfig\.json|vite\.config\.ts|installer\.iss|README\.md|package-lock\.json)$/,
+    // cloud/ holds the Firestore rules and their tests: deployed to Firebase, never run by the app.
+    /^\/(ui|out|dist|scripts|tests|cloud|node_modules|\.vite)(\/|$)/,
+    /^\/(tsconfig\.json|vite\.config\.ts|installer\.iss|README\.md|package-lock\.json|firebase\.json)$/,
     /\.test\.ts$/,
   ],
 });

@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, all of Phase 5 (the assistant, 30 of 30 on the real model) and 6.1 (Google sign-in), each installed on the owner's PC. **Next step: 6.2** (Firestore rules and their tests), in the release plan below, unless an owner decision
+location filter, all of Phase 5 (the assistant, 30 of 30 on the real model) 6.1 (Google sign-in) and 6.2 (the Firestore rules, tested), each installed on the owner's PC. **Next step: 6.3** (workspaces and setup sync), after the owner's Firestore step in §5, in the release plan below, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -20,7 +20,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 3 · Channel modules | Done apart from the Google API (3.1b): WhatsApp, WhatsApp Business and Instagram read live, Open chat goes to the conversation (3.2), WhatsApp falls back to its saved chat list (3.3), the break test is observed (3.4), and the Google reviews reader is built (3.1) but Google blocks sign-in inside the app, so it waits on the official API. |
 | 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass, 4.11 the customer panel, 4.12 accessibility (automated; the owner's Narrator pass is open). Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
-| 6 · Cloud and membership | 6.1 sign-in done. Members, owner and suspended screens are still sample. Firebase project `unified-messenger-5549a`. |
+| 6 · Cloud and membership | 6.1 sign-in and 6.2 rules done; the rules are not yet deployed (§5). Members, owner and suspended screens are still sample. Firebase project `unified-messenger-5549a`. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
 | 8 · After launch | Not started. |
 
@@ -170,25 +170,44 @@ v6/
 
 ---
 
-## Release plan (owner, 2026-09-19)
-
-Finish everything that remains, **ship v6 to v5's users as an update**, let them use it, then connect Google's API and
-send a second update. In order:
-
-1. **3.3** WhatsApp IndexedDB fallback, **3.4** break test.
-2. **Phase 5**, the assistant.
-3. **Phase 6**, cloud and membership. Its browser sign-in (6.1) and homepage and privacy pages (6.6) are what Google's
-   API needs too.
-4. **3.1b** the Google reviews API reader, built and switched off until Google approves access.
-5. **Phase 7**, ship: the first v6 update to v5 users. Needs the owner's decisions on auto-update (7.3) and code signing
-   (7.4) by then.
-6. **At the end, with the owner:** the Google Cloud setup in [`google-api-checklist.md`](google-api-checklist.md). The
-   owner signs in; Claude configures, asking before each change. Then the second update switches the API reader on.
-
-Google blocks sign-in inside the app's pages ("Couldn't sign you in. This browser or app may not be secure"),
-which is why reviews move to the API. Pretending to be Chrome was discussed and set aside: every customer would
-meet the same block, and a disguise Google closes breaks all of them at once.
-
+## Release plan (owner, 2026-09-19)
+
+
+
+Finish everything that remains, **ship v6 to v5's users as an update**, let them use it, then connect Google's API and
+
+send a second update. In order:
+
+
+
+1. **3.3** WhatsApp IndexedDB fallback, **3.4** break test.
+
+2. **Phase 5**, the assistant.
+
+3. **Phase 6**, cloud and membership. Its browser sign-in (6.1) and homepage and privacy pages (6.6) are what Google's
+
+   API needs too.
+
+4. **3.1b** the Google reviews API reader, built and switched off until Google approves access.
+
+5. **Phase 7**, ship: the first v6 update to v5 users. Needs the owner's decisions on auto-update (7.3) and code signing
+
+   (7.4) by then.
+
+6. **At the end, with the owner:** the Google Cloud setup in [`google-api-checklist.md`](google-api-checklist.md). The
+
+   owner signs in; Claude configures, asking before each change. Then the second update switches the API reader on.
+
+
+
+Google blocks sign-in inside the app's pages ("Couldn't sign you in. This browser or app may not be secure"),
+
+which is why reviews move to the API. Pretending to be Chrome was discussed and set aside: every customer would
+
+meet the same block, and a disguise Google closes breaks all of them at once.
+
+
+
 ## 4. Remaining work, phase by phase
 
 Each step lists what to build, where, and how you know it is done. Do them in order within a phase.
@@ -247,12 +266,16 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 **4.10 Lost-login record and reader timeline.** Done 2026-09-18. `core/events.ts` keeps the last 60 outcomes per account (`events.json`: read, empty, not-ready, signed-out, signed-in, failed, awake, asleep, reload, page-gone, with chat and waiting counts and the reader's stage — no names, numbers or message text, the `app.log` rule, because these lines are on screen). Saved as each one happens, so a sign-out at midnight is still explained in the morning; forgotten with the account by `forgetAccount`. `lostLoginTimeline` shows the reads before the sign-out, the sign-out itself and how long since; `readerTimeline` tells one story across every account on a channel, opening with "N accounts stopped reading" when more than one failed, and saying so when nothing has been read for five minutes. Runs of the same outcome collapse ("12 good reads"). Both screens lost their "Sample figures" marker; the record is reachable for any account from its figures screen ("Reading record"), and the headline follows the record rather than this minute's flags, because just after a restart nothing has been read yet. Tests: 8 core, and a Playwright test that seeds `events.json` and reads both screens. Not built: a support report to save from the reader screen (still disabled).
 
-**4.13 The line, second pass.** Done 2026-09-18, from the owner's own screenshots. Six indicators above the chart (waiting now with the count per channel, past target, longest wait and who it is, caught up, answered on time, first reply), counted from the rows on screen so the title bar's location filter moves them too. The chart carries each channel: counts per channel in its top bar and in every lane label, and a channel badge on every token. Clicking a token opens that conversation instead of only selecting it. Everyone past an hour is one chip per lane ("N over 1 h, longest 9 h", opening the longest) rather than a pile of tokens whose positions no longer say anything, and the axis ends "over 1 h". A customer saved only as a number gets its last two digits instead of "+3". The list below fills the window (`.screen > .main` takes the height it is given). **Corrected while doing it:** the headline figure labelled "Answered on time" was the rollup's caught-up share (answered ÷ active), not replies against the target — the owner's own screen read "93% answered on time" beside "median first reply 130 minutes". They are now two figures, and the measured one says "—" until something is measured rather than 0%. Tests: a Playwright test for the channels, the chip and both clicks.
-
+**4.13 The line, second pass.** Done 2026-09-18, from the owner's own screenshots. Six indicators above the chart (waiting now with the count per channel, past target, longest wait and who it is, caught up, answered on time, first reply), counted from the rows on screen so the title bar's location filter moves them too. The chart carries each channel: counts per channel in its top bar and in every lane label, and a channel badge on every token. Clicking a token opens that conversation instead of only selecting it. Everyone past an hour is one chip per lane ("N over 1 h, longest 9 h", opening the longest) rather than a pile of tokens whose positions no longer say anything, and the axis ends "over 1 h". A customer saved only as a number gets its last two digits instead of "+3". The list below fills the window (`.screen > .main` takes the height it is given). **Corrected while doing it:** the headline figure labelled "Answered on time" was the rollup's caught-up share (answered ÷ active), not replies against the target — the owner's own screen read "93% answered on time" beside "median first reply 130 minutes". They are now two figures, and the measured one says "—" until something is measured rather than 0%. Tests: a Playwright test for the channels, the chip and both clicks.
+
+
+
 **4.11 Customer panel.** Notes and tags in a local store keyed by account + conversation key; saved replies in config (they sync in Phase 6). History comes from the history store. Done when a note survives a restart and a saved reply copies.
 
-**4.15 Not a customer.** Done 2026-09-19, decided with the owner ("mark + rules"). Group chats, broadcasts, status and channels were already left out by the WhatsApp reader; what was missing was one-to-one chats with staff and the team — the owner's own line showed "Bilal Staff Depilex" waiting 166 h. `notCustomerWhy` in `core/snapshot.ts` is the one question every count asks (the line, the split, caught up, reports, alerts, the digest and missed calls): the owner's permanent mark (override kind `excluded`, from **Not a customer** in the dock; unlike Handled it survives new messages and never expires), a whole word in the name (`settings.notCustomers.words`, "Staff" matches "Bilal Staff" but not "Staffordshire"), or one of the team's numbers (`settings.notCustomers.numbers`, compared on the last ten digits, so +92 300…, 0300… and the @c.us key are one number). A chat left out is in no figure at all, not counted as caught up. Set aside lists every one with the reason and a "Not a customer" filter; Put back undoes a mark, a rule is changed in Settings › Look and reading › Not customers. Main's history and call-alert judges now come from the view model's `judgeFor`, so they cannot disagree with the screens. Tests: 6 core, and a Playwright test for the rule, the mark, Set aside, Put back and a number typed with a +92.
-
+**4.15 Not a customer.** Done 2026-09-19, decided with the owner ("mark + rules"). Group chats, broadcasts, status and channels were already left out by the WhatsApp reader; what was missing was one-to-one chats with staff and the team — the owner's own line showed "Bilal Staff Depilex" waiting 166 h. `notCustomerWhy` in `core/snapshot.ts` is the one question every count asks (the line, the split, caught up, reports, alerts, the digest and missed calls): the owner's permanent mark (override kind `excluded`, from **Not a customer** in the dock; unlike Handled it survives new messages and never expires), a whole word in the name (`settings.notCustomers.words`, "Staff" matches "Bilal Staff" but not "Staffordshire"), or one of the team's numbers (`settings.notCustomers.numbers`, compared on the last ten digits, so +92 300…, 0300… and the @c.us key are one number). A chat left out is in no figure at all, not counted as caught up. Set aside lists every one with the reason and a "Not a customer" filter; Put back undoes a mark, a rule is changed in Settings › Look and reading › Not customers. Main's history and call-alert judges now come from the view model's `judgeFor`, so they cannot disagree with the screens. Tests: 6 core, and a Playwright test for the rule, the mark, Set aside, Put back and a number typed with a +92.
+
+
+
 **4.16 Help, written once.** Done 2026-09-19, decided with the owner. 18 Markdown pages in `v6/help/`: one per screen, plus Getting started, For the owner, For the front desk, Keyboard and What stays on this PC. `ui/help-index.ts` maps every route to its page; `ui/help.tsx` draws a small fixed Markdown subset as React elements (no HTML is injected, no dependency): headings, lists, bold, `keys`, `[links](help:page)`, `![pictures](shot:name)` and `> notes`. The **?** in the title bar or **F1** opens the current screen's page in a drawer; **Help** in the rail (above Settings) lists every page; the search finds each one. The 22 pictures in `help/shots/` are taken by a Playwright run on invented data (`npm run help:shots`, skipped in an ordinary run), JPEG, about 2 MB together. A unit test fails when a screen has no page, a page is not listed, a link or picture is missing, or a page uses a trade word or "instance"; the Playwright test opens help with F1 and ?, follows a link, opens every page and checks every picture loads; the accessibility test covers the drawer and the Help screen in both themes. **Refresh the pictures after changing a screen** (`npm run help:shots`) and update its page.
 
 ### Phase 5 · Assistant
@@ -272,7 +295,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 Firebase Spark only, no Cloud Functions; rules enforce everything. Data model in the blueprint (`workspaces/{id}`, `members/{userId}`, `config/main`, `owners/{userId}`).
 
 **6.1 Sign-in.** Done 2026-09-19. `core/cloud-auth.ts` (pure: PKCE, the authorize URL, Google's reply, request bodies, Firebase's replies in words) and `app/cloud.ts` (carries it out): Google in the owner's own browser, `openid email profile` only, a one-time loopback port on 127.0.0.1, then Firebase `accounts:signInWithIdp` over REST, no SDK, as the Phase 1 proof did. Kept in `cloud.json`: user id, name, email, sign-in time, and the refresh token encrypted with `safeStorage` (Windows DPAPI; where that is unavailable, kept only while the app runs). Refreshed at startup and hourly; only Firebase's final codes (expired, disabled, not found) end the sign-in, so offline keeps it. **How the config ships (decided):** `scripts/cloud-config.mjs` writes `v6/cloud-config.json` (gitignored) from the proof folder's `firebase-config.json` and `oauth-client.json` (or `UM_CLOUD_SOURCE`); `dist.mjs` runs it, and the packager copies it beside the app. Both are public identifiers by Google's own definition; they stay out of the repository all the same. A build without them says "Sign-in is not available in this build"; `startup` logs `signIn: available|unavailable`. Screens: the sign-in screen is real (waiting, cancel, errors in words, back to the app by itself when done) and Settings › Workspace › Your sign-in (who, since when, Sign out). **Nothing is locked behind it yet:** until workspaces exist (6.3) signing in unlocks nothing. Tests: 7 core; Playwright against a fake Google and Firebase in the test (cancelled, signed in with the PKCE challenge checked, token encrypted on disk and no email in the log, kept across a restart, signed out, again from the sign-in screen, ended by Firebase, and a build without config); every test launch points sign-in at an invented project and a closed port. **Not exercised by a test:** the real Google page; the owner's first real sign-in checks it.
-**6.2 Rules and rules tests** with the Firestore emulator, run locally and in CI.
+**6.2 Rules and rules tests.** Done 2026-09-19, for everything 6.3 to 6.5 needs, so the access model is settled before any app code depends on it. `v6/cloud/firestore.rules`: members read their workspace, its members and its setup; only admins change the setup, and only its named fields (accounts, locations, settings, so no customer data or figure fits); a workspace is started only by its first admin in the same write as their member entry; **invitations** are keyed by lower-case email under `workspaces/{id}/invites`, readable by the invited person (also across workspaces, for the first sign-in) and accepted only with Google's verified address and the role the invitation gave; **removal** is a status, never a delete, so a removed PC can still read that it was removed (and nothing else) and wipe its logins; only the **product owner** (`owners/{uid}`, made by hand in the console) suspends or restores, sees workspaces and members, and never a business's setup; a **suspended** workspace keeps its setup but no PC can read or change it, while members still see that it is suspended; last seen is the server's time. Tests: `v6/cloud/rules.spec.ts`, 12, `npm run rules:test` (the emulator on port 8181, project `demo-unified-messenger`, which never reaches the real one) and a `rules` job in CI with Java 21. Checked by breaking the rules on purpose: a break that let members change their own role survived, because the test's write also lacked the check-in time; the test now fails on the role alone. The emulator needs Java 21+; this PC has 17, so `scripts/rules-run.mjs` finds a portable Temurin 21 in `%USERPROFILE%.jdks` (unpacked there 2026-09-19, checksum checked; no system change). **Not deployed yet:** the real project has no Firestore database or rules until the owner's step in §5.
 **6.3 Workspaces and config sync:** accounts, locations, hours, targets, saved replies; never oversight data. A new PC shows every account as Sign in needed (the new-PC screen exists).
 **6.4 Invite and remove members;** removal wipes logins on that PC at its next online check; 7 days offline asks to reconnect.
 **6.5 Suspension** by the owner console; suspended PCs lock without wiping.
@@ -304,6 +327,7 @@ Google Business Profile API for complete review history (needs Google approval);
 5. **Code signing** (7.4). Smart App Control blocked an unsigned build for two hours on 2026-09-13; until this is decided, an install can be held up with nothing to do but wait.
 6. ~~**Alert volume.**~~ Decided 2026-09-18: keep **one notification per customer**, as it is. A busy Instagram hour can fill the notification centre; the owner would rather see each real customer than a summary. Revisit only if it becomes a nuisance in practice.
 7. **v5's daily history** (4.6): import `analytics.json` and `kpi-trend.json` as a clearly labelled "before v6" series in Reports, or leave Reports starting from 13 September 2026.
+8. **Firestore for 6.3.** The project needs its Firestore database created (free plan; the location is permanent: `asia-south1`, Mumbai, is nearest to the owner) and the rules deployed. Both need the owner signed in to Firebase: in the console, or `npx firebase login` then `npx firebase deploy --only firestore:rules --project unified-messenger-5549a` from `v6/`. Also add the owner's own account to `owners/{uid}` by hand, once they have signed in to the app.
 
 ## 6. Known limits today
 
