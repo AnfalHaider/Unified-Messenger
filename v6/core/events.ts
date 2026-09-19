@@ -1,6 +1,8 @@
 // What happened on each account's reads, so the app can say what led up to a lost login or a broken reader instead
 // of guessing. Counts and outcomes only: never a customer name, a number or message text — this is the same rule as
 // `app.log`, because these lines are shown on screen and could be read out to support.
+import { durationText } from './duration.ts';
+
 export type Outcome = 'read' | 'empty' | 'not-ready' | 'signed-out' | 'signed-in' | 'failed' | 'awake' | 'asleep' | 'reload' | 'page-gone';
 
 export interface ReadEvent {
@@ -52,9 +54,7 @@ export function signedOutSince(events: Events, account: string): number | null {
 }
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
-const minutesText = (minutes: number) => (minutes < 60
-  ? plural(minutes, 'minute')
-  : `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''}`);
+const minutesText = durationText;
 
 function readDetail(e: ReadEvent): string {
   const chats = e.chats === null ? 'The page answered' : `${plural(e.chats, 'chat')} read`;

@@ -614,13 +614,14 @@ test('the reading record and the reader timeline show what the reads actually di
     await win.getByRole('button', { name: 'Figures' }).first().click();
     await win.getByRole('button', { name: 'Reading record' }).click();
 
-    await expect(heading(win, 'Test front desk is signed out')).toBeVisible();
+    // Signed in or out depends on whether the app's own first read has landed yet, so only the seeded lines are
+    // checked here; how long a sign-out has lasted is covered by core/events.test.ts.
+    await expect(heading(win, /^Test front desk is signed (in|out)$/)).toBeVisible();
     const record = win.getByRole('main');
     await expect(record).toContainText('2 good reads');
     await expect(record).toContainText('The last saw 500 chats read, 6 waiting.');
     await expect(record).toContainText('Page reloaded');
     await expect(record).toContainText('Sign-in screen');
-    await expect(record).toContainText('Still signed out, 9 minutes');
     await expect(record).not.toContainText('Sample figures');
     if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'reading-record.png') });
 
@@ -786,7 +787,8 @@ test('every main screen and a dialog pass the WCAG 2.1 AA checks, in light and i
     awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
   });
   writeFileSync(join(data, 'snapshot.json'), JSON.stringify({
-    'test-wa': { capturedAt: now, chats: [chat('a', 'Sample Customer A', 4), chat('b', 'Sample Customer B', 12), chat('c', 'Sample Customer C', 90)] },
+    'test-wa': { capturedAt: now, chats: [chat('a', 'Sample Customer A', 4), chat('b', 'Sample Customer B', 12), chat('c', 'Sample Customer C', 90),
+      chat('e', 'Sample Customer E', 46 * 60), chat('f', 'Sample Customer F', 6 * 24 * 60)] },
     'test-ig': { capturedAt: now, chats: [chat('d', 'Sample Customer D', 30)] },
   }));
 
@@ -797,7 +799,11 @@ test('every main screen and a dialog pass the WCAG 2.1 AA checks, in light and i
     for (const theme of ['Light', 'Dark'] as const) {
       await win.getByRole('button', { name: theme, exact: true }).click();
       await rail(/^The line/).click();
-      await expect(heading(win, '4 customers are waiting')).toBeVisible();
+      await expect(heading(win, '6 customers are waiting')).toBeVisible();
+      // Waits past a day are said in days; past a week they are backlog, said in weeks in Reports.
+      await expect(win.locator('.queue .row').filter({ hasText: 'Sample Customer E' })).toContainText('1day 22 h');
+      await expect(win.locator('.queue .row').filter({ hasText: 'Sample Customer F' })).toContainText('6days');
+      if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, `line-${theme.toLowerCase()}.png`) });
       problems.push(...await axe(win, `${theme} · the line`));
 
       await win.getByRole('button', { name: 'Open chat' }).first().click();

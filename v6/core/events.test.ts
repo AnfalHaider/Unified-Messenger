@@ -34,7 +34,7 @@ test('the lost-login timeline shows the reads before it, the sign-out, and how l
     event('wa', NOW - MIN, 'signed-out'),
   );
   const items = lostLoginTimeline(events, 'wa', NOW);
-  assert.deepEqual(items.map((i) => i.title), ['5 good reads', 'Page reloaded', 'Sign-in screen', 'Still signed out, 3 minutes']);
+  assert.deepEqual(items.map((i) => i.title), ['5 good reads', 'Page reloaded', 'Sign-in screen', 'Still signed out, 3 min']);
   assert.equal(items[0].detail, 'The last saw 500 chats read, 6 waiting.');
   assert.equal(items.at(-1)!.at, null);
   assert.deepEqual(items.map((i) => i.tone), ['ok', 'due', 'late', 'neutral']);
@@ -70,7 +70,7 @@ test('the reader timeline reports one cause across accounts, not one per account
 
 test('a reader that has not read for a while says so; a healthy one does not', () => {
   const quiet = add({}, event('a', NOW - 40 * MIN, 'read'));
-  assert.equal(readerTimeline(quiet, ['a'], NOW).at(-1)!.title, 'Nothing read for 40 minutes');
+  assert.equal(readerTimeline(quiet, ['a'], NOW).at(-1)!.title, 'Nothing read for 40 min');
   const fine = add({}, event('a', NOW - 30_000, 'read'));
   assert.deepEqual(readerTimeline(fine, ['a'], NOW).map((i) => i.title), ['Good read']);
   assert.deepEqual(readerTimeline({}, ['a'], NOW), []);

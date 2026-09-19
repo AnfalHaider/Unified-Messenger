@@ -14,6 +14,7 @@ import { DAY_MS, dayKey, startOfDay } from '../core/days.ts';
 import { callsIn, type Calls } from '../core/calls.ts';
 import { lostLoginTimeline, readerTimeline, signedOutSince, type Events, type TimelineItem } from '../core/events.ts';
 import { customerFor, tagsInUse, type Customers } from '../core/customers.ts';
+import { durationText } from '../core/duration.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
 import { buildReport, weekEnding, type Report } from '../core/report.ts';
@@ -373,7 +374,7 @@ function customerView(config: Config, snapshots: Snapshots, ctx: Context): Custo
   const customers = ctx.customers ?? {};
   const day = (at: number) => new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   const time = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const spell = (n: number) => (n < 60 ? `${Math.round(n)} min` : `${Math.round(n / 60)} h`);
+  const spell = durationText;
   const byKey: Record<string, CustomerCard> = {};
   for (const chat of snapshots[account.id]?.chats ?? []) {
     const record = customerFor(customers, account.id, chat.conversationKey);

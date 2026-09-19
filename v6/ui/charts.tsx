@@ -3,6 +3,7 @@
 // a label at their end, never by hue.
 import type { QueueRow, Tone } from '../app/view-model.ts';
 import { channelIcon, Icon } from './icons.tsx';
+import { durationText } from '../core/duration.ts';
 
 // ---- the line ----------------------------------------------------------------------------------------
 
@@ -32,12 +33,9 @@ export function byChannel(rows: QueueRow[]): { channel: string; name: string; co
     .sort((a, b) => b.count - a.count);
 }
 
-/** A wait said the way a person would: 38 min, 2 h, 7 days. */
-export function waitLabel(minutes: number) {
-  if (minutes < 60) return `${Math.round(minutes)} min`;
-  const hours = minutes / 60;
-  return hours < 48 ? `${Math.round(hours)} h` : `${Math.round(hours / 24)} days`;
-}
+/** A wait said the way a person would: 38 min, 1 day 22 h, 3 weeks. */
+export const waitLabel = durationText;
+
 
 const channelTitle = (c: { count: number; name: string }) => `${c.count} waiting on ${c.name}`;
 

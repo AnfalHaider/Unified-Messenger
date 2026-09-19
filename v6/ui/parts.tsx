@@ -3,6 +3,7 @@
 import type { Route, Tone, UiState } from '../app/view-model.ts';
 import { Spark, toneInk } from './charts.tsx';
 import { Icon, type IconName } from './icons.tsx';
+import { durationParts } from '../core/duration.ts';
 import logo from '../assets/logo.png';
 
 declare global {
@@ -183,12 +184,11 @@ export function Stepper({ value, options, format, onChange, label }: { value: nu
   );
 }
 
-/** A wait in opening-hours minutes, readable at any size: 38 min, 2 h 5 min, 31 h. */
+/** A wait in opening-hours minutes, as number and unit: 38 min, 2 h 5 min, 1 day 22 h, 3 weeks. The rule is core/duration.ts. */
 export function waitText(minutes: number): [string, string] {
-  if (minutes < 60) return [String(minutes), 'min'];
-  const h = Math.floor(minutes / 60), m = minutes % 60;
-  return h >= 10 || m === 0 ? [String(h), 'h'] : [String(h), `h ${m} min`];
+  return durationParts(minutes);
 }
+
 
 export const Wait = ({ minutes, tone }: { minutes: number; tone: string }) => {
   const [value, unit] = waitText(minutes);
