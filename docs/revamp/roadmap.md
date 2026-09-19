@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 3.3**, then the release plan below, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: 3.4**, then the release plan below, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -86,7 +86,7 @@ cd v6
 npm install
 npm run typecheck
 npm test            # 299 tests
-npm run smoke       # 17 Playwright tests on invented data (plus one skipped: npm run help:shots): shell, marks, alerts, reports, Open chat,
+npm run smoke       # 18 Playwright tests on invented data (plus one skipped: npm run help:shots): shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter, accounts,
                     # the reading record, the line, the customer panel, WCAG 2.1 AA on every
                     # main screen and a dialog in light and dark
@@ -215,7 +215,7 @@ the end, from `docs/revamp/google-api-checklist.md`. The page reader from 3.1 st
 - Instagram (`channels/instagram/instagram-focus.js`) goes to Direct, focuses the search box, types the name and stops; it never opens a thread (a Seen, and the unread that marks waiting, would go). Live on both signed-in accounts; the reader still reads on Direct (more threads there than on the feed). A title made only of emoji now gives way to the `@handle`.
 - Tests: `channels/focus.test.ts` holds both scripts away from message boxes, typing (WhatsApp) and thread links (Instagram); a Playwright test drives both against invented pages in `tests/fixtures`.
 
-**3.3 WhatsApp IndexedDB fallback.** Port v5's IndexedDB scan (`whatsapp-adapter.js`, bounded `chat` `getAll`) as a second scan the module uses when the store bridge reports `no-store` for longer than a few minutes on a signed-in page. Done when a deliberately disabled bridge still yields chats.
+**3.3 WhatsApp IndexedDB fallback.** Done 2026-09-19. `channels/whatsapp/whatsapp-idb.js` wraps the store bridge: when the bridge finds nothing for three minutes on a signed-in page (WhatsApp's `last-wid-md` marker, no QR code), the scan reads WhatsApp's saved chat list (`model-storage`: one bounded `getAll` of `chat`, one of `contact`, never a cursor over `message`), with v5's rules: no groups, broadcasts, status, channels, `0@c.us` or the self-chat; privacy ids resolved through the contact list, and dropped when they have neither a number nor a name; a revoked last message is not waiting; a cold read's "no message" becomes unknown. Same output shape as the bridge, so the parser is unchanged; a read from it logs `"source":"saved-list"`. A signed-out page never falls back (the saved list outlives a sign-out). Weaker by nature: previews are mostly missing (bodies are encrypted at rest) and a phone reply shows once WhatsApp syncs it. Test: a Playwright run on an invented page with no bridge stores at all and a saved list of five chats reads exactly the two waiting customers.
 
 **3.4 Break test.** With `UM_DATA` pointing at a copy of the data, replace one module's `scan` with a throwing expression and run `UM_SELFTEST=1`; confirm the other channels still log `read` and the broken one shows "Not reading" in Accounts. Record it in `v6/channels/README.md`. Done when observed, not assumed.
 

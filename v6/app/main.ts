@@ -287,7 +287,7 @@ async function readAccount(a: Account, reason: string) {
       lastRead[a.id] = { chats: entries.length, awaiting: waiting, at: now };
       if (wasSignedOut) remember(a, 'signed-in');
       remember(a, 'read', { chats: entries.length, waiting });
-      log({ event: 'read', account: a.id, channel: a.channel, reason, chats: entries.length, awaiting: waiting, skipped, awaitingInferred });
+      log({ event: 'read', account: a.id, channel: a.channel, reason, chats: entries.length, awaiting: waiting, skipped, awaitingInferred, ...(stage === 'saved-list' ? { source: 'saved-list' } : {}) });
       saveJson(FILE.snapshot, snapshots);
       saveJson(FILE.times, times);
       saveJson(FILE.history, history);

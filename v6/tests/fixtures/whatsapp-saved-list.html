@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- An invented WhatsApp page whose in-memory stores the bridge cannot find (no window.require at all), but whose
+     saved chat list (IndexedDB 'model-storage') holds chats, the way WhatsApp keeps them. Everything is made up. -->
+<html><head><meta charset="utf-8"><title>WhatsApp</title></head>
+<body>
+<div id="app">Chats</div>
+<script>
+  // Signed in, by WhatsApp's own marker; and the test does not wait the three minutes the fallback normally allows.
+  localStorage.setItem('last-wid-md', '"923000000000:1@c.us"');
+  window.__umSavedListNow = true;
+
+  var now = Math.floor(Date.now() / 1000);
+  var chats = [
+    { id: '923001112233@c.us', name: 'Sample Customer A', t: now - 20 * 60, unreadCount: 1, lastMessage: { t: now - 20 * 60, fromMe: false, body: 'Is the order ready?', type: 'chat' } },
+    { id: '923004445566@c.us', name: 'Sample Customer B', t: now - 10 * 60, unreadCount: 0, lastMessage: { t: now - 10 * 60, fromMe: true, body: 'Yes, collect any time.', type: 'chat' } },
+    { id: '120363000000000000@g.us', name: 'Sample Team Group', t: now - 5 * 60, unreadCount: 3, lastMessage: { t: now - 5 * 60, fromMe: false, body: 'Meeting at 5', type: 'chat' } },
+    { id: '923000000000@c.us', name: 'Me', t: now - 60, unreadCount: 0, lastMessage: { t: now - 60, fromMe: false, body: 'note to self', type: 'chat' } },
+    { id: '100200300400500@lid', t: now - 8 * 60, unreadCount: 1, lastMessage: { t: now - 8 * 60, fromMe: false, body: 'Hello, are you open today?', type: 'chat' } },
+  ];
+  var contacts = [{ id: '100200300400500@lid', phoneNumber: '923007778899@c.us', pushname: 'Sample Customer C' }];
+
+  var open = indexedDB.open('model-storage', 1);
+  open.onupgradeneeded = function () {
+    var db = open.result;
+    db.createObjectStore('chat', { keyPath: 'id' });
+    db.createObjectStore('contact', { keyPath: 'id' });
+  };
+  open.onsuccess = function () {
+    var db = open.result;
+    var tx = db.transaction(['chat', 'contact'], 'readwrite');
+    chats.forEach(function (c) { tx.objectStore('chat').put(c); });
+    contacts.forEach(function (c) { tx.objectStore('contact').put(c); });
+    tx.oncomplete = function () { db.close(); document.getElementById('app').dataset.ready = 'yes'; };
+  };
+</script>
+</body></html>

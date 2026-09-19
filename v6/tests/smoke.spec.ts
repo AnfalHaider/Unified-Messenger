@@ -1010,6 +1010,29 @@ test('the Google reviews reader reads the rating, the total and the reviews, sta
   }
 });
 
+test('when the WhatsApp store bridge finds nothing, the saved chat list still yields the customers waiting', async () => {
+  const data = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', professional: true,
+      url: pathToFileURL(join(V6, 'tests', 'fixtures', 'whatsapp-saved-list.html')).href }],
+  });
+  const { app, win } = await open(data);
+  const log = () => readFileSync(join(data, 'app.log'), 'utf8');
+  try {
+    await expect.poll(log, { timeout: 90_000 }).toContain('"source":"saved-list"');
+    // A waits, B was answered, the group and the account's own number are not customers, and C's number came
+    // from the contact list because the chat itself is keyed by a privacy id.
+    expect(log()).toMatch(/"event":"read","account":"test-wa"[^\n]*"chats":3,"awaiting":2/);
+    await expect(heading(win, '2 customers are waiting')).toBeVisible();
+    await expect(win.locator('.queue .row').filter({ hasText: 'Sample Customer A' })).toContainText('Is the order ready?');
+    await expect(win.locator('.queue .row').filter({ hasText: 'Sample Customer C' })).toBeVisible();
+    await expect(win.locator('.queue')).not.toContainText('Sample Team Group');
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 // ---- help screenshots ------------------------------------------------------------------------------------
 
 /**

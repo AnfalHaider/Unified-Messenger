@@ -16,12 +16,12 @@ const TRUNCATE =
 export const whatsapp: ChannelModule = {
   id: 'whatsapp',
   name: 'WhatsApp',
-  inject: (load) => TRUNCATE + load('whatsapp/whatsapp-store-bridge.js') + load('whatsapp/whatsapp-focus.js'),
+  inject: (load) => TRUNCATE + load('whatsapp/whatsapp-store-bridge.js') + load('whatsapp/whatsapp-idb.js') + load('whatsapp/whatsapp-focus.js'),
   // Opens the chat. On WhatsApp that is safe for the figures: waiting is judged by who wrote last, not by unread.
   focus: (t) => `window.__umFocusWhatsApp ? window.__umFocusWhatsApp(${JSON.stringify(t.key)}, ${JSON.stringify(t.name)}, ${JSON.stringify(t.phone)}) : 'working'`,
-  // Start the scan and take whatever the last one produced: executeJavaScript does not await a promise, so
-  // the reader is written as start-then-collect rather than as one call that returns a promise.
-  scan: 'window.__umStartStoreScan ? (window.__umStartStoreScan(500), window.__umGetStoreScanResult()) : ""',
+  // The store bridge, and WhatsApp's saved chat list when the bridge has found nothing for three minutes on a
+  // signed-in page (whatsapp-idb.js). executeJavaScript waits for the promise it returns.
+  scan: 'window.__umWhatsAppScan ? window.__umWhatsAppScan(500) : (window.__umStartStoreScan ? (window.__umStartStoreScan(500), window.__umGetStoreScanResult()) : "")',
   // The sign-in screen, by the selectors v5 measured against the live page. A bare `canvas` is not enough:
   // WhatsApp's loading screen draws one too, which reads as "still starting" when the owner is signed out.
   signedOutProbe: `({
@@ -37,7 +37,9 @@ export const whatsapp: ChannelModule = {
       const result = parseConversations(root);
       // The bridge names why it found nothing. WhatsApp Web builds its stores a few seconds after the page
       // loads, so "no store" and "no models" mean too early, not broken.
-      const stage = (root as { diag?: { stage?: string } })?.diag?.stage;
+      const diag = (root as { diag?: { stage?: string; source?: string } })?.diag;
+      // A read from the saved list says so, so the log and the reading record show the fallback is in use.
+      const stage = diag?.source === 'indexeddb' && diag.stage === 'done' ? 'saved-list' : diag?.stage;
       if (!result.entries.length && (stage === 'no-store' || stage === 'no-models' || stage === 'start')) {
         return { ...result, notReady: true, stage };
       }

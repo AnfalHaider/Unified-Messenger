@@ -66,3 +66,20 @@ Each module's page script lives in its own folder (`whatsapp/whatsapp-store-brid
 `instagram/instagram-adapter.js`), so the installed app carries its readers. They started as copies of v5's
 shipped readers, which stay in `UnifiedMessenger/Assets/Scripts` until v5 is retired; a fix made to one is not
 made to the other, so change the v6 copy.
+
+## WhatsApp's fallback: the saved chat list
+
+`whatsapp/whatsapp-idb.js` wraps the store bridge. When the bridge finds nothing for three minutes on a page that is
+signed in (WhatsApp's `last-wid-md` marker present, no QR code on screen), it reads WhatsApp Web's own saved chat
+list instead: the `model-storage` IndexedDB, one bounded `getAll` of `chat` and one of `contact`, never a cursor over
+`message`. The same customer rules apply (no groups, broadcasts, status, channels, WhatsApp's own account or the
+"message yourself" chat; privacy ids resolved through the contact list). It is weaker and says so: previews are
+mostly missing because message bodies are encrypted at rest, and a reply sent from the phone shows only once
+WhatsApp syncs it. A read from it logs `"source":"saved-list"`. A signed-out page never falls back, because the saved
+list outlives a sign-out.
+
+## Google reviews
+
+`google/` is not a `ChannelModule`: Google has no conversations. Its reader returns reviews, and main runs it on its own
+half-hourly schedule, never while the page is on screen. Google refuses to let anyone sign in inside the app's page,
+so the page reader waits on the official Business Profile API (roadmap 3.1b, `docs/revamp/google-api-checklist.md`).
