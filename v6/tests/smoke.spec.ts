@@ -1033,6 +1033,57 @@ test('when the WhatsApp store bridge finds nothing, the saved chat list still yi
   }
 });
 
+test('break test: one channel whose reader throws costs only its own figures, and says so everywhere', async () => {
+  const fixtures = join(V6, 'tests', 'fixtures');
+  const data = dataFolder({
+    // Instagram first, so every pass reads the broken page before the working one.
+    accounts: [
+      { id: 'test-ig', name: 'Test Instagram', channel: 'instagram', professional: true, location: 'Main branch',
+        url: pathToFileURL(join(fixtures, 'broken-instagram.html')).href },
+      { id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', professional: true, location: 'Main branch',
+        url: pathToFileURL(join(fixtures, 'whatsapp-saved-list.html')).href },
+    ],
+    locations: [{ name: 'Main branch' }],
+    settings: { readEverySeconds: 30 },
+  });
+  const { app, win } = await open(data);
+  const events = () => readFileSync(join(data, 'app.log'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { event: string; account?: string });
+  const rail = (name: string) => win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name, exact: true });
+  try {
+    // Two passes: Instagram fails on each, and WhatsApp is read after each failure.
+    await expect.poll(() => events().filter((e) => e.event === 'read-failed' && e.account === 'test-ig').length, { timeout: 90_000 }).toBeGreaterThanOrEqual(2);
+    const log = events();
+    const firstFailure = log.findIndex((e) => e.event === 'read-failed' && e.account === 'test-ig');
+    expect(log.slice(firstFailure).some((e) => e.event === 'read' && e.account === 'test-wa'), 'WhatsApp is read after Instagram fails').toBe(true);
+
+    // The line carries on with WhatsApp's customers.
+    await expect(heading(win, '2 customers are waiting')).toBeVisible();
+
+    // Accounts names the reader, not the account, and shows no zero for the broken channel.
+    await rail('Accounts').click();
+    await expect(win.getByRole('main')).toContainText('1 reading, 1 not being read');
+    const igCell = win.locator('.cell').filter({ hasText: 'Reader not working' });
+    await expect(igCell).toBeVisible();
+    await expect(igCell).not.toContainText('0waiting');
+    await expect(win.getByRole('button', { name: /Instagram reader/ })).toContainText('Not reading');
+    await expect(win.getByRole('button', { name: /WhatsApp reader/ })).toContainText('Healthy');
+
+    // Needs you and the reader screen say the same.
+    await win.getByRole('button', { name: /^Needs you/ }).click();
+    await expect(win.getByRole('complementary', { name: 'Needs you' })).toContainText('Instagram reader: Not reading');
+    await win.keyboard.press('Escape');
+    await win.getByRole('button', { name: /Instagram reader/ }).click();
+    await expect(heading(win, 'The Instagram reader stopped working')).toBeVisible();
+    await expect(win.getByRole('main')).toContainText('the page has changed, and the reader could not read it');
+    await expect(win.getByRole('main')).not.toContainText('renderer console');
+    if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'break-test.png') });
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
 // ---- help screenshots ------------------------------------------------------------------------------------
 
 /**

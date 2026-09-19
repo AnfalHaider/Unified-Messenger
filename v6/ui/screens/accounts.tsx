@@ -20,7 +20,9 @@ export function AccountsScreen({ state, nav }: ScreenProps) {
   const locations = [...new Set(state.accounts.map((a) => a.location || 'No location'))];
   const others = state.accounts.filter((a) => !COLUMNS.some((c) => c.channels.includes(a.channel)));
   const columns = others.length ? [...COLUMNS, { key: 'other', name: 'Other pages', icon: 'more' as IconName, channels: [...new Set(others.map((a) => a.channel))] }] : COLUMNS;
-  const reading = state.accounts.filter((a) => a.waiting !== null && !a.signedOut).length;
+  const brokenReader = (channel: string) => moduleFor(state, channel)?.tone === 'late';
+  const reading = state.accounts.filter((a) => a.waiting !== null && !a.signedOut && !brokenReader(a.channel)).length;
+  const notReading = state.accounts.filter((a) => a.reads && a.counted && !a.signedOut && brokenReader(a.channel)).length;
   const signIn = state.accounts.filter((a) => a.signedOut).length;
   const noReader = state.accounts.filter((a) => !a.reads && !a.signedOut).length;
   const personal = state.accounts.filter((a) => a.reads && !a.counted).length;
@@ -29,7 +31,7 @@ export function AccountsScreen({ state, nav }: ScreenProps) {
     <main className="main">
       <Headline title="Accounts" actions={<><Btn icon="refresh" onClick={() => bridge.readNow()}>Read all now</Btn><Btn icon="users" kind="primary" onClick={() => nav.open('add-account')}>Add an account</Btn></>}>
         {plural(state.accounts.length, 'account')} at {plural(locations.length, 'location')}. <b>{reading} reading</b>
-        {signIn > 0 && <>, <b className="late">{signIn} need signing in</b></>}{noReader > 0 && <>, {noReader} with no reader yet</>}{personal > 0 && <>, {personal} not counted</>}.
+        {signIn > 0 && <>, <b className="late">{signIn} need signing in</b></>}{notReading > 0 && <>, <b className="late">{notReading} not being read</b></>}{noReader > 0 && <>, {noReader} with no reader yet</>}{personal > 0 && <>, {personal} not counted</>}.
       </Headline>
       <div className="board-grid" style={{ gridTemplateColumns: `170px repeat(${columns.length}, minmax(0, 1fr))` }}>
         <div className="bg-h" />
@@ -56,6 +58,7 @@ export function AccountsScreen({ state, nav }: ScreenProps) {
                         {inCell.length > 1 && <b style={{ fontWeight: 600, fontSize: 13 }}>{a.name}</b>}
                         {a.signedOut ? <p>The page is asking for a login, so its customers are not being counted.</p>
                           : personal ? <p>A personal account: its page stays open, and nobody on it is counted.</p>
+                          : broken ? <p>Its page cannot be read right now, so its customers are not being counted. This is not zero.</p>
                           : a.waiting === null ? <p>This channel has no reader yet, so it shows no figures rather than zeroes.</p>
                             : <span className="big num">{a.waiting}<small>waiting</small></span>}
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

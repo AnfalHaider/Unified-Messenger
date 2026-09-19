@@ -478,10 +478,10 @@ function timelineRows(items: TimelineItem[], now: number): TimelineRow[] {
 /** A reader that fails sometimes is not the same as one that never works, and neither is one never used. */
 function readerHealth(m: ModuleHealth): ReaderHealth {
   if (m.lastError && m.ok === 0) {
-    return { id: m.id, name: m.name, tone: 'late', status: 'Not reading', detail: `Nothing has been read. Last problem: ${m.lastError}` };
+    return { id: m.id, name: m.name, tone: 'late', status: 'Not reading', detail: `Nothing has been read. Last problem: ${m.lastError.replace(/\.$/, '')}.` };
   }
   if (m.lastError) {
-    return { id: m.id, name: m.name, tone: 'due', status: 'Intermittent', detail: `${m.ok} good read${m.ok === 1 ? '' : 's'}, ${m.failed} failed. Last problem: ${m.lastError}` };
+    return { id: m.id, name: m.name, tone: 'due', status: 'Intermittent', detail: `${m.ok} good read${m.ok === 1 ? '' : 's'}, ${m.failed} failed. Last problem: ${m.lastError?.replace(/\.$/, '')}.` };
   }
   if (m.ok) return { id: m.id, name: m.name, tone: 'ok', status: 'Healthy', detail: `${m.ok} good read${m.ok === 1 ? '' : 's'} since the app started` };
   return { id: m.id, name: m.name, tone: 'neutral', status: 'Idle', detail: 'No read yet' };

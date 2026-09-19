@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- The break test's Instagram: a signed-in page whose reader throws on every read, the way it would the day Instagram
+     changes shape under it. The app installs its reader when the page loads; this page keeps replacing it with one
+     that throws. Nothing here is real. -->
+<html><head><meta charset="utf-8"><title>Instagram</title></head>
+<body>
+<div>Inbox</div>
+<script>
+  setInterval(function () {
+    window.__umReadInstagramThreads = function () { throw new Error('the inbox has a shape the reader does not know'); };
+  }, 100);
+</script>
+</body></html>

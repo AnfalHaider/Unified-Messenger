@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: 3.4**, then the release plan below, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: Phase 5 (the assistant)**, in the release plan below, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -17,7 +17,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 0 · Decisions | Done. Rules changed in AGENTS.md; Firebase Spark only; ponytail code. |
 | 1 · Proof build | Done (`docs/revamp/phase-1-proof.md`). |
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
-| 3 · Channel modules | WhatsApp, WhatsApp Business and Instagram read live, and Open chat goes to the conversation (3.2). Open: Google reviews reader, WhatsApp IndexedDB fallback, the deliberate break test. |
+| 3 · Channel modules | Done apart from the Google API (3.1b): WhatsApp, WhatsApp Business and Instagram read live, Open chat goes to the conversation (3.2), WhatsApp falls back to its saved chat list (3.3), the break test is observed (3.4), and the Google reviews reader is built (3.1) but Google blocks sign-in inside the app, so it waits on the official API. |
 | 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass, 4.11 the customer panel, 4.12 accessibility (automated; the owner's Narrator pass is open). Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
 | 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
@@ -86,7 +86,7 @@ cd v6
 npm install
 npm run typecheck
 npm test            # 299 tests
-npm run smoke       # 18 Playwright tests on invented data (plus one skipped: npm run help:shots): shell, marks, alerts, reports, Open chat,
+npm run smoke       # 19 Playwright tests on invented data (plus one skipped: npm run help:shots): shell, marks, alerts, reports, Open chat,
                     # weekly report and exports, opening hours, digest, location filter, accounts,
                     # the reading record, the line, the customer panel, WCAG 2.1 AA on every
                     # main screen and a dialog in light and dark
@@ -217,7 +217,7 @@ the end, from `docs/revamp/google-api-checklist.md`. The page reader from 3.1 st
 
 **3.3 WhatsApp IndexedDB fallback.** Done 2026-09-19. `channels/whatsapp/whatsapp-idb.js` wraps the store bridge: when the bridge finds nothing for three minutes on a signed-in page (WhatsApp's `last-wid-md` marker, no QR code), the scan reads WhatsApp's saved chat list (`model-storage`: one bounded `getAll` of `chat`, one of `contact`, never a cursor over `message`), with v5's rules: no groups, broadcasts, status, channels, `0@c.us` or the self-chat; privacy ids resolved through the contact list, and dropped when they have neither a number nor a name; a revoked last message is not waiting; a cold read's "no message" becomes unknown. Same output shape as the bridge, so the parser is unchanged; a read from it logs `"source":"saved-list"`. A signed-out page never falls back (the saved list outlives a sign-out). Weaker by nature: previews are mostly missing (bodies are encrypted at rest) and a phone reply shows once WhatsApp syncs it. Test: a Playwright run on an invented page with no bridge stores at all and a saved list of five chats reads exactly the two waiting customers.
 
-**3.4 Break test.** With `UM_DATA` pointing at a copy of the data, replace one module's `scan` with a throwing expression and run `UM_SELFTEST=1`; confirm the other channels still log `read` and the broken one shows "Not reading" in Accounts. Record it in `v6/channels/README.md`. Done when observed, not assumed.
+**3.4 Break test.** Done 2026-09-19, observed and kept as the Playwright "break test": an Instagram page whose reader throws beside a WhatsApp page that reads. Every pass fails Instagram and still reads WhatsApp; the line carries on; Accounts, Needs you and the reader screen all name the Instagram reader. It found two defects, both fixed: a broken reader's account showed "0 waiting" (now "not being counted. This is not zero", and the headline counts it as not being read), and Electron's raw error text reached the reader screen (now `plainError` in main: the page did not answer in time / the page has changed / could not be reached; the raw text stays in `app.log`). Run on invented pages, not a copy of the owner's data, because a second app opening the owner's real WhatsApp sessions could disturb their logins. Recorded in `v6/channels/README.md`.
 
 ### Phase 4 · Screens: wire the sample screens
 

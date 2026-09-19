@@ -235,6 +235,17 @@ function pageAnswer<T>(view: WebContentsView, expression: string): Promise<T> {
   });
 }
 
+/** A read that threw, said the way the owner can act on. Electron's own wording ("Script failed to execute, this
+ *  normally means an error was thrown. Check the renderer console") reached the reader screen word for word. The raw
+ *  message still goes to app.log, where support reads it. */
+function plainError(e: unknown): string {
+  const m = e instanceof Error ? e.message : String(e);
+  if (/did not answer within/i.test(m)) return 'the page did not answer in time';
+  if (/script failed to execute|error was thrown/i.test(m)) return 'the page has changed, and the reader could not read it';
+  if (/ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|ERR_NETWORK/i.test(m)) return 'the page could not be reached; check the connection';
+  return 'the reader stopped with an error';
+}
+
 /** One line of an account's own record of what its reads did. Counts and outcomes only, like `app.log`, because
  *  these lines are shown on the lost-login and reader screens. Saved as it goes, so a sign-out at midnight is still
  *  explained in the morning. */
@@ -315,8 +326,8 @@ async function readAccount(a: Account, reason: string) {
     log({ event: 'read-empty', account: a.id, channel: a.channel, reason, ...state, skipped, stage: stage ?? null, before: lastRead[a.id] ?? null });
   } catch (e) {
     lastReadAt[a.id] = now;
-    recordHealth(a.channel, false, (e as Error).message);
-    remember(a, 'failed', { stage: (e as Error).message.slice(0, 80) });
+    recordHealth(a.channel, false, plainError(e));
+    remember(a, 'failed', { stage: plainError(e) });
     log({ event: 'read-failed', account: a.id, channel: a.channel, reason, error: (e as Error).message.slice(0, 120), before: lastRead[a.id] ?? null });
   }
 }
@@ -390,8 +401,8 @@ async function readGoogle(a: Account, force: boolean) {
     log({ event: 'reviews-read', account: a.id, reviews: read.cards.length, unanswered: read.cards.filter((c) => !c.replied).length, more: read.more,
       starsRead: read.cards.filter((c) => c.stars > 0).length });
   } catch (e) {
-    recordHealth(a.channel, false, (e as Error).message);
-    remember(a, 'failed', { stage: (e as Error).message.slice(0, 80) });
+    recordHealth(a.channel, false, plainError(e));
+    remember(a, 'failed', { stage: plainError(e) });
     log({ event: 'reviews-failed', account: a.id, error: (e as Error).message.slice(0, 120), page: pageOf(view) });
   }
 }

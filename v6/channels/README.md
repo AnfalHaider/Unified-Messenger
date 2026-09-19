@@ -83,3 +83,21 @@ list outlives a sign-out.
 `google/` is not a `ChannelModule`: Google has no conversations. Its reader returns reviews, and main runs it on its own
 half-hourly schedule, never while the page is on screen. Google refuses to let anyone sign in inside the app's page,
 so the page reader waits on the official Business Profile API (roadmap 3.1b, `docs/revamp/google-api-checklist.md`).
+
+## The break test (3.4)
+
+Observed 2026-09-19, and kept as a Playwright test ("break test") so it stays observed. An Instagram page whose reader
+throws on every read, next to a WhatsApp page that reads normally:
+
+- every pass logs `read-failed` for Instagram and still reads WhatsApp after it, so one broken channel costs only
+  its own figures;
+- the line carries on with WhatsApp's customers;
+- Accounts says "1 reading, 1 not being read", the Instagram cell says **Reader not working** and "This is not zero"
+  (it showed "0 waiting" until this test caught it), and the readers list shows Instagram **Not reading**, WhatsApp
+  **Healthy**;
+- Needs you lists the Instagram reader, and its reader screen says it stopped working in plain words ("the page has
+  changed, and the reader could not read it"). Electron's own error text goes to `app.log` only; it used to reach
+  the screen word for word.
+
+It runs on invented pages rather than a copy of the owner's data: a second copy of the app opening the owner's real
+WhatsApp sessions could disturb the logins on the owner's PC.
