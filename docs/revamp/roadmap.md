@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, each installed on the owner's PC. **Next step: finish 3.1 live** (the owner signs in the three Google profiles; then check the ratings, totals and unanswered reviews against Google), then 3.3 and 3.4, unless an owner decision
+location filter, each installed on the owner's PC. **Next step: 3.3**, then the release plan below, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -170,6 +170,25 @@ v6/
 
 ---
 
+## Release plan (owner, 2026-09-19)
+
+Finish everything that remains, **ship v6 to v5's users as an update**, let them use it, then connect Google's API and
+send a second update. In order:
+
+1. **3.3** WhatsApp IndexedDB fallback, **3.4** break test.
+2. **Phase 5**, the assistant.
+3. **Phase 6**, cloud and membership. Its browser sign-in (6.1) and homepage and privacy pages (6.6) are what Google's
+   API needs too.
+4. **3.1b** the Google reviews API reader, built and switched off until Google approves access.
+5. **Phase 7**, ship: the first v6 update to v5 users. Needs the owner's decisions on auto-update (7.3) and code signing
+   (7.4) by then.
+6. **At the end, with the owner:** the Google Cloud setup in [`google-api-checklist.md`](google-api-checklist.md). The
+   owner signs in; Claude configures, asking before each change. Then the second update switches the API reader on.
+
+Google blocks sign-in inside the app's pages ("Couldn't sign you in. This browser or app may not be secure"),
+which is why reviews move to the API. Pretending to be Chrome was discussed and set aside: every customer would
+meet the same block, and a disguise Google closes breaks all of them at once.
+
 ## 4. Remaining work, phase by phase
 
 Each step lists what to build, where, and how you know it is done. Do them in order within a phase.
@@ -183,6 +202,13 @@ window on a temp data folder, asserts the first heading, moves to Accounts and q
 ### Phase 3 · Channel modules
 
 **3.1 Google reviews reader.** Built and tested on invented pages 2026-09-19; **live figures wait on the owner signing in the three Google profiles**, which the first live read found on Google's "Choose an account" page. Google is not a ChannelModule (it has no conversations): `channels/google/google-reviews.js` is v5's reader, rule for rule — Reply buttons are unanswered and Edit buttons answered; stars are the leading run of the first star's **colour**, because every star is the same glyph; the page size is raised to 50 once, and only once a control exists; only unanswered reviews are expanded, and only once; no paging, because v5's paging inflated ~239 reviews to 2,000. The merchant view's text and "Rated" labels go back to `core/reviews.ts parseProfile`, which pairs the rating with the total (both layouts, "4.6 ★ (991)" and "435 Google reviews"), with v5's test cases on invented names. Main reads each profile every 30 minutes (rating and total every 6 hours, which takes the page to Google Search and back), never while its page is on screen, one at a time, off the chat reads' flag; a failed or signed-out profile is tried again after 10 minutes, and a page on Google's sign-in is left there. `reviews.json` (names and text stay on the PC); `app.log` gets counts, the rating and total, and the page's host and path on a failure. Reviews screen is real: one card per profile (rating, total, the latest reviews' spread, how many without a reply), unanswered worst-first then oldest, All recent, full text, Open on Google; unanswered reviews are all one tone, because colour means lateness only. Tests: 8 core; Playwright reads invented Google pages (every test launch now points Google's two addresses at `tests/fixtures/google`, so no test can reach Google) and runs axe on the screen, which found and fixed star labels on unlabelled spans and the amber text at 4.31:1 (`--due` light #8A6208 → #845E08). Not built: an unhappy-review notification, Q&A, and drafted replies (Phase 5).
+
+**3.1b Google reviews through the official API.** Decided with the owner 2026-09-19, after Google refused sign-in inside
+the app's page. Desktop OAuth in the system browser (loopback, PKCE; shared with 6.1), scope `business.manage`, the
+token encrypted with `safeStorage` on the PC, `accounts.locations.reviews.list` every half hour into the existing
+`core/reviews.ts` records and Reviews screen (every review, not the latest 50). No cost; quota 0 until Google approves
+the project, then 300 a minute. Built and switched off until approval; the Google Cloud setup is done with the owner at
+the end, from `docs/revamp/google-api-checklist.md`. The page reader from 3.1 stays as the fallback it already is.
 
 **3.2 Open a specific chat.** Done 2026-09-13, verified on the owner's live pages. Every dock navigation carries the conversation key; main takes name and number from the snapshot and asks the page for a step every 700 ms, up to 20 s (`focusChat`, logged as `focus` with arrived / not-found / replaced / no-target, never the customer).
 - WhatsApp (`channels/whatsapp/whatsapp-focus.js`) opens the chat: a drawn row whose title is exactly the name or carries the number gets the pointer sequence; a chat not drawn is opened with WhatsApp's own `Cmd.openChatBottom({ chat })` from `ChatCollection.get(key)`; done only when the open chat's header matches. Live: drawn 3.6 s, not drawn 3.5 s, unsaved number 8.5 s, both accounts. v5's typed search no longer filters the list (lesson `v6-whatsapp-search-ignores-typed-text`).
