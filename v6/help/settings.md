@@ -37,6 +37,7 @@ Sentences you type often, with a short name. They appear beside every chat with 
 
 ## Assistant, Workspace, Privacy, About
 
-- **Assistant** and **Workspace** are previews of features that are not connected yet, and say so.
+- **Assistant** switches the local assistant on or off and downloads what it needs, only when you press the button. See [Assistant](help:assistant).
+- **Workspace** › **Your sign-in**: **Sign in with Google** opens your browser, where you choose your Google account; the app comes back by itself when you are done. You stay signed in until you press **Sign out**. Nothing needs the sign-in yet: workspaces, and the setup shared between PCs, come next. The members list below it is still a preview, and says so.
 - **Privacy** lists what is kept on this PC.
 - **About** shows the version.

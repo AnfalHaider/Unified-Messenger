@@ -10,6 +10,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeCloudConfig } from './cloud-config.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ISCC = 'C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe';
@@ -18,6 +19,9 @@ const step = (name) => console.log(`\n== ${name}`);
 
 step('screens');
 execSync('npx vite build', { cwd: ROOT, stdio: 'inherit' });
+
+step('cloud config');
+writeCloudConfig();
 
 step('app');
 await packager({

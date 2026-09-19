@@ -1,8 +1,9 @@
 // Workspace and system states: the owner console, and the full-window screens the app shows only in particular
 // moments — signing in, a new PC, a removed PC, a paused workspace, and the move from the previous version.
-// The new-PC checklist reads the real accounts; the rest are sample until Phase 6 and Phase 7 wire them.
+// Signing in is real (6.1); the new-PC checklist reads the real accounts; the rest are sample until Phase 6 and 7.
+import { useEffect, useState, type ReactNode } from 'react';
 import { channelIcon, Icon } from '../icons.tsx';
-import { Btn, Chip, Headline, Logo, Panel, plural, Sample, type LockScreen, type Nav, type ScreenProps } from '../parts.tsx';
+import { bridge, Btn, Chip, Headline, Logo, Panel, plural, Sample, type LockScreen, type Nav, type ScreenProps } from '../parts.tsx';
 import { WORKSPACES } from '../sample.ts';
 
 export function OwnerScreen(_: ScreenProps) {
@@ -41,21 +42,50 @@ const GOOGLE = (
 /** A full-window state. Every one of them has a way back while the shell is being reviewed. */
 export function Lock({ screen, state, nav }: ScreenProps & { screen: LockScreen }) {
   const back = <Btn kind="quiet" onClick={() => nav.lock(null)}>Back to the app</Btn>;
-  if (screen === 'sign-in') return (
+  if (screen === 'sign-in') return <SignIn state={state} nav={nav} back={back} />;
+  if (screen === 'new-pc') return <NewPc state={state} nav={nav} />;
+  return <OtherLocks screen={screen} state={state} nav={nav} back={back} />;
+}
+
+/** Signing in to the workspace (6.1): Google in the owner's own browser, never inside the app. Until workspaces exist
+ *  (6.3) nothing is locked behind it, so the way back to the app stays. */
+function SignIn({ state, nav, back }: ScreenProps & { back: ReactNode }) {
+  const c = state.cloud;
+  const [seen, setSeen] = useState(c.phase);
+  // Signed in just now, from this screen: back to the app, as the owner expects after finishing in the browser.
+  useEffect(() => { if (seen === 'waiting' && c.phase === 'signed-in') nav.lock(null); setSeen(c.phase); }, [c.phase]);
+  return (
     <LockCard>
       <Logo size={52} />
       <h1>Sign in to see all your business’s messages in one place</h1>
       <p>Your Google account tells the app which workspace you belong to. Your WhatsApp, Instagram and Google logins are then made on this PC.</p>
-      <button className="btn primary" style={{ height: 44, fontSize: 14.5, justifyContent: 'center', gap: 10 }} disabled title="Sign-in is not connected yet">{GOOGLE}Continue with Google</button>
+      {c.phase === 'waiting' ? (
+        <div role="status" style={{ display: 'grid', gap: 10, justifyItems: 'center' }}>
+          <b style={{ fontWeight: 600 }}>Finish signing in in your browser.</b>
+          <span className="sub">Choose your Google account there. This window comes back by itself when you are done.</span>
+          <Btn onClick={() => bridge.cancelSignIn()}>Cancel</Btn>
+        </div>
+      ) : c.phase === 'signed-in' ? (
+        <p role="status"><b style={{ fontWeight: 600 }}>Signed in as {c.name || c.email}</b>{c.name && <span className="sub"> · {c.email}</span>}</p>
+      ) : (
+        <>
+          <button className="btn primary" style={{ height: 44, fontSize: 14.5, justifyContent: 'center', gap: 10 }} disabled={c.phase === 'unavailable'}
+            title={c.phase === 'unavailable' ? 'Sign-in is not available in this build' : undefined} onClick={() => bridge.signIn()}>{GOOGLE}Continue with Google</button>
+          {c.phase === 'signed-out' && c.error && <p className="late" role="alert" style={{ margin: 0 }}>{c.error}</p>}
+          {c.phase === 'unavailable' && <p className="sub" style={{ margin: 0 }}>Sign-in is not available in this build of the app.</p>}
+        </>
+      )}
       <span className="sub">Opens your browser. Unified Messenger asks Google for your name and email address, nothing else.</span>
       <div className="grid2" style={{ gap: 12, marginTop: 10 }}>
         <Panel title={<span style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Icon name="cloud" size={16} />Kept in the workspace</span>}><p className="sub" style={{ margin: 0 }}>Who is a member, and the list of accounts, locations and settings, so a new PC is ready in minutes.</p></Panel>
         <Panel title={<span style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Icon name="shield" size={16} />Never leaves this PC</span>}><p className="sub" style={{ margin: 0 }}>Messages, customer names, reply times, notes, assistant chats and the account logins themselves.</p></Panel>
       </div>
-      <div><Sample /> {back}</div>
+      <div>{back}</div>
     </LockCard>
   );
-  if (screen === 'new-pc') return <NewPc state={state} nav={nav} />;
+}
+
+function OtherLocks({ screen, state, nav, back }: ScreenProps & { screen: LockScreen; back: ReactNode }) {
   if (screen === 'removed') return (
     <LockCard>
       <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--hover)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}><Icon name="lock" size={24} /></span>

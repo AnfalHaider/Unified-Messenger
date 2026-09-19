@@ -1,3 +1,4 @@
+// Named -eval, not -test: `node --test` runs every *-test.ts file it finds, and this one needs a real Ollama.
 // Runs the assistant's test set against the real local model, the way the app asks it: same summary, same options.
 // Needs Ollama running with the model: `npm run assistant:test`, or set UM_OLLAMA / UM_MODEL to point elsewhere.
 // Prints each question's result and exits 1 below the owner's pass mark (30 of 30, no made-up figure).

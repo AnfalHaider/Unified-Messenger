@@ -313,8 +313,12 @@ function Invoke-Check {
 
   Write-Output ''
   Write-Output '== stale file references =='
+  # A superseded lesson is kept as it was, so a file it names may since have moved; its successor names the new one.
+  $retired = @{}
+  foreach ($l in $lessons) { foreach ($old in @($l.supersedes)) { if (-not [string]::IsNullOrWhiteSpace($old)) { $retired["$old"] = $true } } }
   $staleCount = 0
   foreach ($l in $lessons) {
+    if ($retired.ContainsKey("$($l.id)")) { continue }
     foreach ($ref in @($l.files)) {
       if ([string]::IsNullOrWhiteSpace($ref)) { continue }
       $candidate = if ([System.IO.Path]::IsPathRooted($ref)) { $ref } else { Join-Path $RepoRoot $ref }

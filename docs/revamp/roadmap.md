@@ -1,7 +1,7 @@
 # Unified Messenger v6 roadmap
 
 Updated 2026-09-14. Since the shell and installer session: 2.1, 3.2, all of Phase 4 and Reports following the title bar's
-location filter, and all of Phase 5 (the assistant, 30 of 30 on the real model), each installed on the owner's PC. **Next step: 6.1** (sign-in), in the release plan below, unless an owner decision
+location filter, all of Phase 5 (the assistant, 30 of 30 on the real model) and 6.1 (Google sign-in), each installed on the owner's PC. **Next step: 6.2** (Firestore rules and their tests), in the release plan below, unless an owner decision
 in §5 changes the order. This replaces the roadmap section of the "Revamp Blueprint" artifact wherever the two
 disagree; the blueprint's stack, rules and data model still stand.
 
@@ -20,7 +20,7 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 3 · Channel modules | Done apart from the Google API (3.1b): WhatsApp, WhatsApp Business and Instagram read live, Open chat goes to the conversation (3.2), WhatsApp falls back to its saved chat list (3.3), the break test is observed (3.4), and the Google reviews reader is built (3.1) but Google blocks sign-in inside the app, so it waits on the official API. |
 | 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass, 4.11 the customer panel, 4.12 accessibility (automated; the owner's Narrator pass is open). Remaining sample screens are marked. |
 | 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
-| 6 · Cloud and membership | Not started (sign-in, members, owner, suspended screens exist as sample). Firebase project `unified-messenger-5549a` exists. |
+| 6 · Cloud and membership | 6.1 sign-in done. Members, owner and suspended screens are still sample. Firebase project `unified-messenger-5549a`. |
 | 7 · Ship v6 | Local installer done and in use. Auto-update, cookie encryption, upgrade flow, v5 retirement and AGENTS.md rewrite open. |
 | 8 · After launch | Not started. |
 
@@ -271,7 +271,7 @@ marks leave the line and survive a restart; snooze expiry is covered by the core
 
 Firebase Spark only, no Cloud Functions; rules enforce everything. Data model in the blueprint (`workspaces/{id}`, `members/{userId}`, `config/main`, `owners/{userId}`).
 
-**6.1 Sign-in.** Desktop OAuth in the system browser with a loopback redirect, then `signInWithCredential`. Credentials files (`oauth-client.json`, `firebase-config.json`) live in the proof folder, never the repo; decide how the app ships the public Firebase config.
+**6.1 Sign-in.** Done 2026-09-19. `core/cloud-auth.ts` (pure: PKCE, the authorize URL, Google's reply, request bodies, Firebase's replies in words) and `app/cloud.ts` (carries it out): Google in the owner's own browser, `openid email profile` only, a one-time loopback port on 127.0.0.1, then Firebase `accounts:signInWithIdp` over REST, no SDK, as the Phase 1 proof did. Kept in `cloud.json`: user id, name, email, sign-in time, and the refresh token encrypted with `safeStorage` (Windows DPAPI; where that is unavailable, kept only while the app runs). Refreshed at startup and hourly; only Firebase's final codes (expired, disabled, not found) end the sign-in, so offline keeps it. **How the config ships (decided):** `scripts/cloud-config.mjs` writes `v6/cloud-config.json` (gitignored) from the proof folder's `firebase-config.json` and `oauth-client.json` (or `UM_CLOUD_SOURCE`); `dist.mjs` runs it, and the packager copies it beside the app. Both are public identifiers by Google's own definition; they stay out of the repository all the same. A build without them says "Sign-in is not available in this build"; `startup` logs `signIn: available|unavailable`. Screens: the sign-in screen is real (waiting, cancel, errors in words, back to the app by itself when done) and Settings › Workspace › Your sign-in (who, since when, Sign out). **Nothing is locked behind it yet:** until workspaces exist (6.3) signing in unlocks nothing. Tests: 7 core; Playwright against a fake Google and Firebase in the test (cancelled, signed in with the PKCE challenge checked, token encrypted on disk and no email in the log, kept across a restart, signed out, again from the sign-in screen, ended by Firebase, and a build without config); every test launch points sign-in at an invented project and a closed port. **Not exercised by a test:** the real Google page; the owner's first real sign-in checks it.
 **6.2 Rules and rules tests** with the Firestore emulator, run locally and in CI.
 **6.3 Workspaces and config sync:** accounts, locations, hours, targets, saved replies; never oversight data. A new PC shows every account as Sign in needed (the new-PC screen exists).
 **6.4 Invite and remove members;** removal wipes logins on that PC at its next online check; 7 days offline asks to reconnect.

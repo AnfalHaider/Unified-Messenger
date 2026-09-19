@@ -1,0 +1,4 @@
+{
+  "firebase": { "apiKey": "test-key", "projectId": "test-project" },
+  "oauth": { "clientId": "test-client", "clientSecret": "test-secret" }
+}

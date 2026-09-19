@@ -18,7 +18,7 @@
     "dist": "node scripts/dist.mjs",
     "install-local": "node scripts/dist.mjs --install",
     "help:shots": "node scripts/help-shots.mjs",
-    "assistant:test": "node scripts/assistant-test.ts"
+    "assistant:test": "node scripts/assistant-eval.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

@@ -121,6 +121,7 @@ export const PREVIEW_STATE: UiState = {
     state: { ...offState('gemma3:4b'), phase: 'downloading-model', progress: 0.64, runtime: 'installed' },
     sentence: 'Downloading the gemma3:4b model… 64%', suggested: suggestModel(16), memoryGB: 16, models: MODELS,
   },
+  cloud: { phase: 'signed-out' },
   reviews: {
     profiles: [
       { accountId: 'g1', name: 'Main branch Google', location: 'Main branch', rating: 4.6, total: 991, loaded: 50, more: true, unanswered: 3, spread: [34, 9, 3, 1, 3], readAt: Date.now() - 12 * 60_000, signedOut: false },

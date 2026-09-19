@@ -14,6 +14,7 @@ The app reads your customer conversations so that it can count who is waiting. W
 
 - **Nothing is sent.** The app never sends a message, never posts a reply to a review, and never clicks anything in a chat.
 - **Nothing leaves the PC.** No figures, customer names, messages or notes go to any online service. There is no tracking and no crash report sent anywhere.
+- **Signing in** (Settings › Workspace) tells the app's own workspace service your Google name and email address, and nothing else. The sign-in is kept on this PC, protected by Windows so other users of the PC cannot read it. Sign out forgets it.
 - **Nothing is shared between PCs** today. Each PC keeps its own.
 
 ## Removing an account

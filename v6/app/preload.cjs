@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('um', {
   /** Drafts for the open chat, from its messages; resolves with { drafts, read } or { error }. Nothing is kept. */
   suggestReply: (accountId, key) => ipcRenderer.invoke('assistant-suggest', accountId, key),
   pullAssistantModel: () => ipcRenderer.send('assistant-pull'),
+  /** Sign in to the workspace in the owner's browser; cancel the wait; or forget the sign-in on this PC. */
+  signIn: () => ipcRenderer.send('cloud-sign-in'),
+  cancelSignIn: () => ipcRenderer.send('cloud-cancel'),
+  signOut: () => ipcRenderer.send('cloud-sign-out'),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),
   editAccount: (accountId, change) => ipcRenderer.invoke('edit-account', accountId, change),

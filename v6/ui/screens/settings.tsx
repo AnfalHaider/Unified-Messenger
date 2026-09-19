@@ -314,9 +314,34 @@ function AssistantSettings({ state }: ScreenProps) {
   );
 }
 
-function Workspace({ nav }: ScreenProps) {
+function Workspace({ state, nav }: ScreenProps) {
+  const c = state.cloud;
+  const since = c.phase === 'signed-in' ? new Date(c.since).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   return (
     <>
+      <div className="sgroup"><h3>Your sign-in</h3>
+        <div className="panel" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          {c.phase === 'signed-in' ? (
+            <>
+              <div style={{ display: 'grid', gap: 2 }}><b style={{ fontWeight: 600 }}>Signed in as {c.name || c.email}</b><span className="sub">{c.name ? `${c.email} · ` : ''}since {since}</span></div>
+              <div style={{ marginLeft: 'auto' }}><Btn onClick={() => bridge.signOut()}>Sign out</Btn></div>
+            </>
+          ) : c.phase === 'waiting' ? (
+            <>
+              <span role="status">Finish signing in in your browser.</span>
+              <div style={{ marginLeft: 'auto' }}><Btn onClick={() => bridge.cancelSignIn()}>Cancel</Btn></div>
+            </>
+          ) : c.phase === 'unavailable' ? (
+            <span className="sub">Sign-in is not available in this build of the app.</span>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gap: 2 }}><b style={{ fontWeight: 600 }}>Not signed in</b>
+                <span className={c.error ? 'late' : 'sub'} role={c.error ? 'alert' : undefined}>{c.error ?? 'Nothing needs it yet. Workspaces, and the setup shared between PCs, come next.'}</span></div>
+              <div style={{ marginLeft: 'auto' }}><Btn kind="primary" onClick={() => bridge.signIn()}>Sign in with Google</Btn></div>
+            </>
+          )}
+        </div>
+      </div>
       <div className="sgroup">
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Members of the workspace</h3><Sample />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}><Btn kind="quiet" icon="key" onClick={() => nav.go('owner')}>Owner console</Btn><Btn icon="users" kind="primary" disabled title="Invitations are not connected yet">Invite someone</Btn></div></div>

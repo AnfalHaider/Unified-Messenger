@@ -100,3 +100,6 @@ v6/out/
 v6/dist/
 v6/test-results/
 v6/playwright-report/
+
+# v6: the Firebase project and sign-in client identifiers, made by v6/scripts/cloud-config.mjs
+v6/cloud-config.json

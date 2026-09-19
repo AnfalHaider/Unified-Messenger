@@ -19,12 +19,14 @@ function dataFolder(config: Record<string, unknown> = {}) {
   return data;
 }
 
-async function open(data: string): Promise<{ app: ElectronApplication; win: Page }> {
-  // No test ever reaches Google: its two addresses are the invented pages in tests/fixtures/google.
+async function open(data: string, env: Record<string, string> = {}): Promise<{ app: ElectronApplication; win: Page }> {
+  // No test ever reaches Google: its two addresses are the invented pages in tests/fixtures/google, and sign-in uses
+  // an invented project whose every address is a closed port unless the test brings a fake of its own.
   const google = join(V6, 'tests', 'fixtures', 'google');
   const app = await electron.launch({ args: ['app/main.ts'], cwd: V6, env: {
     ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5'), UM_LOCALAPPDATA: join(data, 'no-local-app-data'),
     UM_GOOGLE_REVIEWS_URL: pathToFileURL(join(google, 'reviews', 'index.html')).href, UM_GOOGLE_PROFILE_URL: pathToFileURL(join(google, 'profile.html')).href,
+    UM_CLOUD_CONFIG: join(V6, 'tests', 'fixtures', 'cloud-config.json'), UM_CLOUD_ENDPOINT: 'http://127.0.0.1:9', ...env,
   } });
   return { app, win: await app.firstWindow() };
 }
@@ -1435,6 +1437,109 @@ test('help screenshots', async () => {
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+/** An invented Google and Firebase in the test's own process: the authorize page sends the browser straight back to
+ *  the app's loopback port, and each call is recorded so the test can check what was sent. */
+async function fakeCloud() {
+  const { createServer } = await import('node:http');
+  const calls: { path: string; query: URLSearchParams; body: string }[] = [];
+  const o = { deny: false, refresh: 'ok' as 'ok' | 'expired' };
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? '/', 'http://x');
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    calls.push({ path: url.pathname, query: url.searchParams, body });
+    const json = (status: number, v: unknown) => res.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(v));
+    if (url.pathname === '/authorize') {
+      const back = new URL(url.searchParams.get('redirect_uri')!);
+      back.search = new URLSearchParams(o.deny ? { error: 'access_denied', state: url.searchParams.get('state')! } : { code: 'test-code', state: url.searchParams.get('state')! }).toString();
+      res.writeHead(302, { Location: back.toString() }).end();
+    } else if (url.pathname === '/token') json(200, { id_token: 'test-id-token' });
+    else if (url.pathname === '/signin') json(200, { localId: 'test-uid', email: 'owner@example.com', displayName: 'Sample Owner', refreshToken: 'test-refresh-7731' });
+    else if (url.pathname === '/refresh') o.refresh === 'ok' ? json(200, { id_token: 'fresh', refresh_token: 'test-refresh-7731' }) : json(400, { error: { message: 'TOKEN_EXPIRED' } });
+    else res.writeHead(404).end();
+  });
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  const endpoint = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  return { endpoint, calls, o, close: () => new Promise<void>((done) => server.close(() => done())) };
+}
+
+test('signing in with Google: in the browser, kept encrypted across a restart, and signed out on request or when it ends', async () => {
+  const cloud = await fakeCloud();
+  const data = dataFolder();
+  const env = { UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch' };
+  const workspace = async (win: Page) => {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
+  };
+  let { app, win } = await open(data, env);
+  try {
+    // Cancelled in the browser: said in words, and nothing kept.
+    cloud.o.deny = true;
+    await win.getByRole('button', { name: 'Quit', exact: true }).waitFor();
+    await workspace(win);
+    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await expect(win.getByRole('alert')).toHaveText('Sign-in was cancelled in the browser.');
+
+    // Signed in: Google was asked for name and email only, with PKCE, and the reply came back to this PC.
+    cloud.o.deny = false;
+    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await expect(win.getByText('Signed in as Sample Owner')).toBeVisible();
+    const authorize = cloud.calls.filter((c) => c.path === '/authorize').at(-1)!;
+    expect(authorize.query.get('scope')).toBe('openid email profile');
+    expect(authorize.query.get('redirect_uri')).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+    const { createHash } = await import('node:crypto');
+    const verifier = new URLSearchParams(cloud.calls.find((c) => c.path === '/token')!.body).get('code_verifier')!;
+    expect(createHash('sha256').update(verifier).digest('base64url')).toBe(authorize.query.get('code_challenge'));
+    expect(cloud.calls.find((c) => c.path === '/signin')!.query.get('key')).toBe('test-key');
+
+    // Kept: the refresh token encrypted, and no email in the log.
+    const kept = readFileSync(join(data, 'cloud.json'), 'utf8');
+    expect(kept).toContain('owner@example.com');
+    expect(kept).not.toContain('test-refresh-7731');
+    expect(readFileSync(join(data, 'app.log'), 'utf8')).not.toContain('owner@example.com');
+    await quit(app, win);
+
+    // After a restart: still signed in, and the kept token was decrypted and used.
+    ({ app, win } = await open(data, env));
+    await workspace(win);
+    await expect(win.getByText('Signed in as Sample Owner')).toBeVisible();
+    await expect.poll(() => cloud.calls.filter((c) => c.path === '/refresh').some((c) => new URLSearchParams(c.body).get('refresh_token') === 'test-refresh-7731')).toBe(true);
+
+    // Signed out: forgotten on this PC.
+    await win.getByRole('button', { name: 'Sign out' }).click();
+    await expect(win.getByText('Not signed in')).toBeVisible();
+    expect(readdirSync(data)).not.toContain('cloud.json');
+
+    // Signed in again from the sign-in screen, which returns to the app by itself when done.
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'About' }).click();
+    // Its first screen is the sign-in screen.
+    await win.getByRole('button', { name: 'Show' }).first().click();
+    await win.getByRole('button', { name: 'Continue with Google' }).click();
+    await expect(win.getByRole('button', { name: 'Continue with Google' })).toBeHidden();
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible();
+    await quit(app, win);
+
+    // Firebase says the sign-in is over: signed out at the next start, with the reason.
+    cloud.o.refresh = 'expired';
+    ({ app, win } = await open(data, env));
+    await workspace(win);
+    await expect(win.getByRole('alert')).toHaveText('Your sign-in has ended. Sign in again.');
+    expect(readdirSync(data)).not.toContain('cloud.json');
+    await quit(app, win);
+
+    // A build without the project's identifiers says so, and offers nothing to press.
+    ({ app, win } = await open(data, { UM_CLOUD_CONFIG: join(data, 'none.json') }));
+    await workspace(win);
+    await expect(win.getByText('Sign-in is not available in this build of the app.')).toBeVisible();
+    await expect(win.getByRole('button', { name: 'Sign in with Google' })).toHaveCount(0);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await cloud.close();
     rmSync(data, { recursive: true, force: true });
   }
 });

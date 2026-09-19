@@ -2,7 +2,7 @@
 // to read, what counts as waiting and when to sleep an account lives in core/; how a channel is read lives in
 // channels/. This file only carries both out, and hands the screens a finished view model so no figure is
 // computed twice.
-import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, Notification, session, Tray, WebContentsView } from 'electron';
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, Notification, session, shell, Tray, WebContentsView } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { totalmem } from 'node:os';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -27,6 +27,8 @@ import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit
 import { awaitingChats, distrustColdScan, notCustomerWhy, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { Engine, type ChatMessage } from './assistant.ts';
+import { Cloud } from './cloud.ts';
+import { GOOGLE_ENDPOINTS, parseCloudConfig, type Endpoints } from '../core/cloud-auth.ts';
 import { answerFrom, answerQuestion, buildFacts } from '../core/assistant-summary.ts';
 import { parseDrafts, replyPrompt, type ChatLine } from '../core/assistant-reply.ts';
 import { loadJson, saveJson } from './store.ts';
@@ -126,6 +128,23 @@ const engine = new Engine({
   // A download reports progress many times a second; the screens need it a couple of times a second at most.
   changed: () => { if (!pushSoon) pushSoon = setTimeout(() => { pushSoon = null; push(); }, 400); },
 }, config.settings.assistant.model);
+
+/** Signing in to the workspace (6.1). The project's public identifiers ship beside the app as cloud-config.json, made
+ *  by scripts/cloud-config.mjs from the project's own files, which never enter the repository. A build without them
+ *  says sign-in is not available rather than failing. Tests point every endpoint at a fake server of their own. */
+const cloudConfig = (() => {
+  try { return parseCloudConfig(readFileSync(process.env.UM_CLOUD_CONFIG || join(app.getAppPath(), 'cloud-config.json'), 'utf8')); } catch { return null; }
+})();
+const fakeCloud = process.env.UM_CLOUD_ENDPOINT;
+const cloudEndpoints: Endpoints = fakeCloud
+  ? { authorize: `${fakeCloud}/authorize`, token: `${fakeCloud}/token`, firebaseSignIn: `${fakeCloud}/signin`, firebaseRefresh: `${fakeCloud}/refresh` }
+  : GOOGLE_ENDPOINTS;
+const cloud = new Cloud({
+  dataDir: DATA, config: cloudConfig, endpoints: cloudEndpoints, log: (entry) => log(entry),
+  // Tests have no browser to open: the fake Google answers the request itself, straight back to the loopback port.
+  open: (url) => (fakeCloud && process.env.UM_SIGNIN_OPEN === 'fetch' ? fetch(url) : shell.openExternal(url)),
+  changed: () => push(),
+});
 
 const views = new Map<string, WebContentsView>();
 const lastReadAt: Record<string, number> = {};
@@ -463,7 +482,7 @@ function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
     now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers, reviews,
-    assistant: engine.state, memoryGB: totalmem() / 1024 ** 3,
+    assistant: engine.state, memoryGB: totalmem() / 1024 ** 3, cloud: cloud.state,
   });
 }
 
@@ -761,6 +780,7 @@ async function quitNow(reason: string) {
   const started = Date.now();
   clearInterval(readTimer);
   engine.stop();
+  cloud.stop();
   log({ event: 'quitting', reason, awake: views.size });
   await Promise.all(config.accounts.map((a) => new Promise<void>((done) => {
     session.fromPartition(`persist:${a.id}`).flushStorageData();
@@ -788,7 +808,7 @@ app.whenReady().then(async () => {
   // One theme for everything in the window. nativeTheme drives prefers-color-scheme in every page (so WhatsApp
   // and Instagram follow it), plus menus, scrollbars and form controls; "system" tracks Windows live.
   nativeTheme.themeSource = config.settings.theme;
-  log({ event: 'startup', electron: process.versions.electron, node: process.versions.node, importedFromV5: imported, accounts: config.accounts.length, readable: readableAccounts(config).length, droppedFromConfig: dropped, problems: problems.length });
+  log({ event: 'startup', electron: process.versions.electron, node: process.versions.node, importedFromV5: imported, accounts: config.accounts.length, readable: readableAccounts(config).length, droppedFromConfig: dropped, problems: problems.length, signIn: cloudConfig ? 'available' : 'unavailable' });
 
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 1100, minHeight: 700, show: false,
@@ -970,6 +990,13 @@ app.whenReady().then(async () => {
   });
   ipcMain.on('assistant-install', () => void engine.installRuntime(config.settings.assistant));
   ipcMain.on('assistant-pull', () => void engine.pullModel(config.settings.assistant));
+  // Sign-in to the workspace: the browser does the Google part; the app comes back to the front when it is done.
+  ipcMain.on('cloud-sign-in', async () => {
+    await cloud.signIn();
+    if (cloud.state.phase === 'signed-in' && win && !win.isDestroyed()) { win.show(); win.focus(); }
+  });
+  ipcMain.on('cloud-cancel', () => cloud.cancel());
+  ipcMain.on('cloud-sign-out', () => cloud.signOut());
   ipcMain.on('window-action', (_e, action: 'minimise' | 'maximise' | 'close') => {
     if (action === 'minimise') win.minimize();
     else if (action === 'close') closeWindow('close-button');
@@ -1036,6 +1063,7 @@ app.whenReady().then(async () => {
 
   readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); void readReviews(); }, 5_000);
   void engine.ensure(config.settings.assistant);
+  cloud.load();
   push();
 
   // Unattended check: start, give the pages time to bring their readers up, read, write one line, quit.
