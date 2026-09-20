@@ -19,7 +19,8 @@
     "install-local": "node scripts/dist.mjs --install",
     "help:shots": "node scripts/help-shots.mjs",
     "assistant:test": "node scripts/assistant-eval.ts",
-    "rules:test": "node scripts/rules-run.mjs"
+    "rules:test": "node scripts/rules-run.mjs",
+    "site:deploy": "firebase deploy --only hosting --project unified-messenger-5549a"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

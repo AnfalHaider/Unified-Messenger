@@ -11,9 +11,11 @@ The owner signs in to Google Cloud; Claude does the configuring, asking before e
 - [ ] Signed in to **Google Cloud Console** with the Google account that owns project **`unified-messenger-5549a`**.
 - [ ] That account, or one we add, is an **owner or manager of the three Business Profiles** (DHA-2, F-11, Men DHA-2),
       and the profiles are **verified**.
-- [ ] A **website** for the product, and an **email address on the same domain**. Google's access form checks that
-      the two match. (Phase 6.6 builds the homepage and privacy policy; Firebase Hosting on the free plan can serve
-      them.)
+- [x] A **website** for the product: built in 6.6 (`v6/site/`), served free by Firebase Hosting at
+      `https://unified-messenger-5549a.web.app` — home and privacy policy.
+- [ ] An **email address on the same domain** as that website. Google's access form checks that the two match, and a
+      `web.app` address cannot have email, so this needs a domain the owner buys (and then a custom domain on the same
+      free hosting). Not needed for the consent screen in Testing, only for the Business Profile API access form.
 - [ ] About thirty minutes for the setup, then waiting for Google's approval email (usually days to a couple of
       weeks).
 

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy — Unified Messenger</title>
+<meta name="description" content="What Unified Messenger keeps on your PC, the little it sends, and how to remove it.">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><span class="mark" aria-hidden="true"></span> Unified Messenger</a>
+  <nav><a href="/">Home</a></nav>
+</header>
+
+<main>
+  <h1>Privacy policy</h1>
+  <p class="updated">In force from 20 September 2026.</p>
+
+  <p>Unified Messenger is a Windows app that runs on a business's own PCs. It watches the messaging accounts that
+    business is already signed in to and shows who is waiting for a reply. This policy covers the app and these two
+    pages. There is no other service, and no account to create with us.</p>
+
+  <section>
+    <h2>What stays on the PC</h2>
+    <p>All of the following is kept on the machine that read it, in the app's own folder, and is never uploaded to us
+      or to anyone else:</p>
+    <dl>
+      <dt>Messages and customers</dt><dd>Conversations, customer names and numbers, previews, notes and tags.</dd>
+      <dt>Figures</dt><dd>Who is waiting, for how long, reply times, backlog, missed calls, reviews and every report.</dd>
+      <dt>Account logins</dt><dd>The signed-in sessions for WhatsApp, Instagram and Google, exactly as a browser keeps
+        them. They never leave the PC, which is why each PC signs in to each account once.</dd>
+      <dt>The assistant</dt><dd>Optional and off until switched on. It runs on the PC through Ollama; questions,
+        answers and drafted replies are not saved and are never sent anywhere.</dd>
+      <dt>The support log</dt><dd>Counts and timings only — never a name, a number or a message — so it can be sent to
+        us if you ask for help.</dd>
+    </dl>
+    <p>There is no analytics, no tracking and no crash reporting in the app.</p>
+  </section>
+
+  <section>
+    <h2>What the app sends, and why</h2>
+    <p>Only if you sign in with Google, and only for workspaces: a workspace lets one business share its setup between
+      its own PCs.</p>
+    <dl>
+      <dt>Your Google name and email address</dt><dd>Taken from Google when you sign in, and stored in the workspace so
+        the business's admins can see who is a member and invite people by address.</dd>
+      <dt>When your PC last checked in</dt><dd>A date and time, once a day, so admins can see which PCs are still in
+        use.</dd>
+      <dt>The business setup</dt><dd>The names of the accounts and the pages they open, locations, opening hours,
+        holidays, the reply target, saved replies and the "not a customer" rules. Nothing about customers, messages or
+        figures, and never an account login.</dd>
+    </dl>
+    <p>This is held in the app's own Google Firebase project (Cloud Firestore, in India), and the rules on that
+      database refuse anything else. People outside your workspace cannot read any of it.</p>
+  </section>
+
+  <section>
+    <h2>Google user data</h2>
+    <p>Signing in uses Google's own sign-in page in your browser. The app asks Google only for your name and email
+      address (<code>openid</code>, <code>email</code>, <code>profile</code>), and uses them only to identify you to
+      your workspace, as described above. The sign-in is kept on your PC, protected by Windows, and forgotten when you
+      sign out.</p>
+    <p>Unified Messenger's use of information received from Google APIs follows the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noreferrer">Google API Services
+      User Data Policy</a>, including its Limited Use requirements. We do not sell this information, do not use it for
+      advertising, and do not let humans read it except where you ask us for support, where the law requires it, or to
+      keep the service secure.</p>
+    <p>A later version will be able to read a business's Google reviews through Google's Business Profile API, with
+      that business's permission. Those reviews will be read and kept on the PC like everything else, and nothing about
+      them will be uploaded. This policy will be updated before that feature is switched on.</p>
+  </section>
+
+  <section>
+    <h2>What other services see</h2>
+    <p>The app opens WhatsApp, Instagram and Google in their own windows on your PC. Your use of those sites is between
+      you and them, under their own policies, exactly as if you opened them in a browser. We receive nothing from them.
+      Unified Messenger is not affiliated with WhatsApp, Meta or Google.</p>
+  </section>
+
+  <section>
+    <h2>Removing it</h2>
+    <dl>
+      <dt>On the PC</dt><dd>Removing an account in the app wipes its login and everything recorded about it.
+        Uninstalling and deleting the app's folder in <code>%APPDATA%\unified-messenger-v6</code> removes the rest.</dd>
+      <dt>From a workspace</dt><dd>Sign out in Settings › Workspace, or ask an admin to remove you: at that PC's next
+        check it signs out and wipes the logins it had from the workspace. To have your member entry deleted from the
+        workspace altogether, write to us at the address below and we will remove it.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>These pages</h2>
+    <p>The site is served by Firebase Hosting, which keeps standard web-server request logs. There are no cookies, no
+      analytics and no trackers on either page.</p>
+  </section>
+
+  <section>
+    <h2>Changes, and getting in touch</h2>
+    <p>If this policy changes, the date at the top changes with it. Questions, or a request to remove your information:
+      <a href="mailto:anfalhaider@gmail.com">anfalhaider@gmail.com</a>.</p>
+  </section>
+</main>
+
+<footer>
+  <p><a href="/">Home</a> · <a href="mailto:anfalhaider@gmail.com">anfalhaider@gmail.com</a></p>
+</footer>
+</body>
+</html>

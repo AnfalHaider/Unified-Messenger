@@ -1,0 +1,65 @@
+/* The product's two public pages. One stylesheet, no fonts to fetch, no scripts, light and dark. */
+:root {
+  color-scheme: light dark;
+  --paper: #FBFAF8;
+  --ink: #1A1D1B;
+  --ink-2: #4A514C;
+  --ink-3: #5F6660;
+  --line: #E3E0DA;
+  --raised: #FFFFFF;
+  --accent: #1F6F4A;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #141613;
+    --ink: #ECEFEA;
+    --ink-2: #C3CABF;
+    --ink-3: #89918A;
+    --line: #2A2F2A;
+    --raised: #1B1E1A;
+    --accent: #7CC6A0;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16.5px/1.65 ui-sans-serif, system-ui, "Segoe UI", -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+.top {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  max-width: 820px; margin: 0 auto; padding: 22px 20px;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--ink); text-decoration: none; }
+.mark { width: 20px; height: 20px; border-radius: 6px; background: var(--accent); display: inline-block; }
+.top nav { margin-left: auto; }
+
+main { max-width: 820px; margin: 0 auto; padding: 8px 20px 24px; }
+section { margin: 0 0 40px; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; letter-spacing: -0.01em; margin: 18px 0 14px; }
+h2 { font-size: 21px; margin: 0 0 12px; }
+h3 { font-size: 16.5px; margin: 0 0 6px; }
+p { margin: 0 0 14px; color: var(--ink-2); max-width: 65ch; }
+.lede { font-size: 18.5px; color: var(--ink); }
+.sub { color: var(--ink-3); font-size: 15px; }
+
+.cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.cards li { background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.cards p { margin: 0; font-size: 15px; }
+
+dl { margin: 0 0 16px; }
+dt { font-weight: 650; margin-top: 14px; }
+dd { margin: 4px 0 0; color: var(--ink-2); max-width: 65ch; }
+
+footer {
+  max-width: 820px; margin: 0 auto; padding: 22px 20px 48px;
+  border-top: 1px solid var(--line); color: var(--ink-3); font-size: 14px;
+}
+footer p { color: inherit; margin: 0 0 8px; }
+.updated { color: var(--ink-3); font-size: 14px; }

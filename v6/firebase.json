@@ -1,4 +1,40 @@
 {
-  "firestore": { "rules": "cloud/firestore.rules" },
-  "emulators": { "firestore": { "host": "127.0.0.1", "port": 8181 }, "ui": { "enabled": false }, "singleProjectMode": true }
+  "firestore": {
+    "rules": "cloud/firestore.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8181
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  },
+  "hosting": {
+    "public": "site",
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "no-referrer"
+          }
+        ]
+      }
+    ]
+  }
 }
