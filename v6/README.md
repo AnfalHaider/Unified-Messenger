@@ -1,7 +1,8 @@
 # Unified Messenger v6
 
-The Electron + TypeScript rebuild (MASTER-PLAN D-11). The v5 app in `UnifiedMessenger/` keeps shipping
-until v6 reaches parity. Roadmap: the "Revamp Blueprint" artifact; Phase 1 results: `docs/revamp/phase-1-proof.md`.
+The app itself: Electron + TypeScript + React. The WinUI 3 / .NET versions (1 to 5) were retired on
+2026-09-20 and live in git history. Status and the reasoning behind each step: `docs/revamp/roadmap.md`;
+what the first build proved: `docs/revamp/phase-1-proof.md`.
 
 | Folder | Holds |
 |---|---|

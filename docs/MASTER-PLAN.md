@@ -1,5 +1,10 @@
 # Unified Messenger — Master Plan (single source of truth)
 
+> **History, not the plan.** This describes the v5 app (WinUI 3 / .NET), which was retired on 2026-09-20 and
+> lives in git history. The live plan and status are [`revamp/roadmap.md`](revamp/roadmap.md); what the product
+> is and how to work on it are in the repository's `AGENTS.md`. Kept because the reasoning behind many product
+> decisions was written down here first.
+
 **Status:** Authoritative. Supersedes the planning/research docs listed in §16.
 **Baseline build:** v4.6.0 · **Last updated:** 2026-06-16
 **One-line objective:** a **free, fully-local Windows app that gives a business owner digestible oversight of customer conversations across their locations and channels** — without reading every chat.

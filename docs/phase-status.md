@@ -1,5 +1,10 @@
 # Build status — Phases 1–5 (done / left)
 
+> **History, not the plan.** This describes the v5 app (WinUI 3 / .NET), which was retired on 2026-09-20 and
+> lives in git history. The live plan and status are [`revamp/roadmap.md`](revamp/roadmap.md); what the product
+> is and how to work on it are in the repository's `AGENTS.md`. Kept because the reasoning behind many product
+> decisions was written down here first.
+
 **Date:** 2026-09-03 · **Baseline:** v4.99.84 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 **Current backlog:** [remaining-work.md §0](remaining-work.md) — the live list. This file is per-phase build status.
 **Legend:** ✅ done (works; may need adapting to new IA) · ◑ partial (exists in primitive form) · ☐ not started (net-new)

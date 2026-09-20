@@ -29,8 +29,8 @@ It is an **oversight tool**, not a messaging client. It never sends.
 1. No paid APIs, no recurring cost. The only cloud service is the app's own free Firebase project — Google
    sign-in, workspace membership, business configuration — never oversight data. Access is by membership.
 2. **Zero oversight data leaves the machine** — no telemetry, analytics or crash upload, ever. This governs
-   data the app derives. A browse tab the owner opens is their own traffic, on a separate WebView2 profile;
-   oversight data must never reach it.
+   data the app derives. A page the owner opens themselves is their own traffic; oversight data must never
+   reach it. The update check is a plain GET to GitHub, carrying no identifier.
 3. The app never auto-sends. Read-only scraping only.
 4. All AI is on-device via Ollama.
 5. No unofficial protocol libraries (Baileys, whatsmeow, …) — ban risk. Readable for DOM knowledge, never
@@ -42,17 +42,19 @@ It is an **oversight tool**, not a messaging client. It never sends.
 
 ## Vocabulary
 
-The product's word is **account**. "Instance" is a type name and must not appear in any user-visible string
-or accessible name — `AccountVocabularyTests` fails the build on it. The one allowed phrase is "Ollama
-instance".
+The product's word is **account**, never "instance". The product is for a **business**, never a salon.
+Colour on screen means lateness, nothing else.
 
 ## Stack
 
-WinUI 3 / Windows App SDK, .NET 8, unpackaged (`WindowsPackageType=None`), WebView2 per account,
-CommunityToolkit.Mvvm, OllamaSharp, xUnit, Inno Setup.
+Electron + TypeScript + React, in `v6/`. Node runs the TypeScript directly by stripping the types, so there
+is no build step for the main process; Vite builds the screens. Node's own test runner for logic, Playwright
+for the running app, the Firestore emulator for the cloud rules. Inno Setup makes the installer.
+
+The previous WinUI 3 / .NET app was retired on 2026-09-20 and lives in git history only.
 
 ## Before you push
 
-Run the **full** test suite — `dotnet test UnifiedMessenger.Tests/UnifiedMessenger.Tests.csproj -c Release`.
-Kill any running `UnifiedMessenger.exe` first, or the single-instance pipe tests fail for reasons that look
-like code breakage. Filters are for iteration only; they have hidden red tests across several pushes before.
+From `v6/`: `npm run typecheck && npm test && npm run smoke`, plus `npm run rules:test` when the change
+touches `cloud/`. Run the whole suite, not a filter: filters have hidden red tests across several pushes
+before.

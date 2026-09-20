@@ -1,5 +1,10 @@
 # Remaining work — prioritized backlog
 
+> **History, not the plan.** This describes the v5 app (WinUI 3 / .NET), which was retired on 2026-09-20 and
+> lives in git history. The live plan and status are [`revamp/roadmap.md`](revamp/roadmap.md); what the product
+> is and how to work on it are in the repository's `AGENTS.md`. Kept because the reasoning behind many product
+> decisions was written down here first.
+
 **As of:** 2026-08-28 · **Baseline:** v4.99.58 · **Source of truth:** [MASTER-PLAN.md](MASTER-PLAN.md)
 
 > **Read §0 first.** Everything below §0 was written against **v4.56.0** and is a *historical* record of a

@@ -316,6 +316,10 @@ function Invoke-Check {
   # A superseded lesson is kept as it was, so a file it names may since have moved; its successor names the new one.
   $retired = @{}
   foreach ($l in $lessons) { foreach ($old in @($l.supersedes)) { if (-not [string]::IsNullOrWhiteSpace($old)) { $retired["$old"] = $true } } }
+  # The v5 app (UnifiedMessenger*, its installers and its solution) was retired on 2026-09-20 and lives in git
+  # history. Lessons that name its files are still worth reading, so those paths are counted, not failed.
+  $RetiredPattern = '^(UnifiedMessenger|installer[-.]|Directory\.Build\.props|third_party/|\.github/workflows/(build|ui-smoke-nightly)\.yml)'
+  $retiredRefs = 0
   $staleCount = 0
   foreach ($l in $lessons) {
     if ($retired.ContainsKey("$($l.id)")) { continue }
@@ -323,6 +327,7 @@ function Invoke-Check {
       if ([string]::IsNullOrWhiteSpace($ref)) { continue }
       $candidate = if ([System.IO.Path]::IsPathRooted($ref)) { $ref } else { Join-Path $RepoRoot $ref }
       if (-not (Test-Path -LiteralPath $candidate)) {
+        if ($ref -match $RetiredPattern) { $retiredRefs++; continue }
         Write-Output ("  STALE {0} -> {1}" -f $l.id, $ref)
         $staleCount++
         $failed = $true
@@ -330,6 +335,7 @@ function Invoke-Check {
     }
   }
   if ($staleCount -eq 0) { Write-Output '  PASS: no missing files named in lessons' }
+  if ($retiredRefs -gt 0) { Write-Output ("  NOTE: {0} reference(s) to the retired v5 app, kept on purpose (git history)" -f $retiredRefs) }
 
   Write-Output ''
   Write-Output '== script encoding =='

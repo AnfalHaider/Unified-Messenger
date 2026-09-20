@@ -63,9 +63,9 @@ must say so, and its accounts show no figures rather than zeroes.
 ## The page scripts
 
 Each module's page script lives in its own folder (`whatsapp/whatsapp-store-bridge.js`,
-`instagram/instagram-adapter.js`), so the installed app carries its readers. They started as copies of v5's
-shipped readers, which stay in `UnifiedMessenger/Assets/Scripts` until v5 is retired; a fix made to one is not
-made to the other, so change the v6 copy.
+`instagram/instagram-adapter.js`), so the installed app carries its readers. They started as copies of the
+v5 app's shipped readers; v5 was retired on 2026-09-20, so these are now the only ones, and its copies are in
+git history if a rule's reasoning needs checking.
 
 ## WhatsApp's fallback: the saved chat list
 

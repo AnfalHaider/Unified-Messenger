@@ -2,7 +2,7 @@
   "name": "unified-messenger-v6",
   "version": "6.0.0",
   "private": true,
-  "description": "Unified Messenger v6: Electron + TypeScript rebuild. v5 (UnifiedMessenger/) keeps shipping until parity.",
+  "description": "Unified Messenger: the app. Electron + TypeScript; the WinUI 3 / .NET versions were retired on 2026-09-20.",
   "type": "module",
   "engines": {
     "node": ">=24.12"
