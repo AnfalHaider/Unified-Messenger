@@ -54,6 +54,8 @@ export function App() {
   // Full-window states the workspace decides, not the owner (6.4): removed from it, or a week without reaching it.
   const forced: LockScreen | null = !state ? null
     : state.workspace.phase === 'removed' ? 'removed'
+    // The product owner is not locked out by a workspace they suspended: the console is how it is lifted again.
+    : state.workspace.phase === 'member' && state.workspace.status === 'suspended' && !state.owner.isOwner ? 'suspended'
     : state.workspace.phase === 'member' && state.workspace.reconnect ? 'reconnect' : null;
   const lock = forced ?? view.lock;
 

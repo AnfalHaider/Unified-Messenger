@@ -41,9 +41,12 @@ service cloud.firestore {
 
     match /workspaces/{wid} {
       // Members see their workspace, suspended or not, so a suspended PC can say so. The owner sees every workspace.
-      allow read: if isMember(wid) || isOwner()
+      // Read one by one, because the checks are about this workspace; listing them all is the product owner's alone
+      // (a query cannot be proven against a path, as the membership checks here are).
+      allow get: if isMember(wid) || isOwner()
         // A removed member still reads it, to learn they were removed and wipe the logins on that PC.
         || (signedIn() && exists(memberPath(wid, uid())));
+      allow list: if isOwner();
 
       // Anyone signed in may start a workspace, as its first admin, in the same write as their member entry.
       allow create: if signedIn() && verified()
@@ -62,7 +65,9 @@ service cloud.firestore {
       allow delete: if false;
 
       match /members/{memberId} {
-        allow read: if isMember(wid) || isOwner() || (signedIn() && uid() == memberId);
+        allow get: if isMember(wid) || isOwner() || (signedIn() && uid() == memberId);
+        // The members list: for the workspace's own people, and for the product owner's console.
+        allow list: if isMember(wid) || isOwner();
 
         allow create: if signedIn() && uid() == memberId && verified()
           && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'status', 'joinedAt', 'lastSeen'])

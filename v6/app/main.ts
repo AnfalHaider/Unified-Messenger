@@ -513,7 +513,7 @@ function stateFor(forRoute: Route) {
   const asleep = new Set(config.accounts.filter((a) => !views.has(a.id)).map((a) => a.id));
   return buildUiState(config, snapshots, times, overrides, {
     now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers, reviews,
-    assistant: engine.state, memoryGB: totalmem() / 1024 ** 3, cloud: cloud.state, workspace: workspace.state,
+    assistant: engine.state, memoryGB: totalmem() / 1024 ** 3, cloud: cloud.state, workspace: workspace.state, owner: workspace.owner,
   });
 }
 
@@ -1154,6 +1154,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('workspace-member-status', (_e, uid: string, status: string) => workspace.setStatus(String(uid ?? ''), status === 'active' ? 'active' : 'removed'));
   ipcMain.handle('workspace-member-role', (_e, uid: string, role: string) => workspace.setRole(String(uid ?? ''), role === 'admin' ? 'admin' : 'member'));
   ipcMain.on('workspace-removal-read', () => workspace.acknowledgeRemoval());
+  // The product owner's console (6.5): suspending a workspace locks its PCs at their next check, wiping nothing.
+  ipcMain.handle('workspace-status', (_e, id: string, status: string) => workspace.setWorkspaceStatus(String(id ?? ''), status === 'suspended' ? 'suspended' : 'active'));
+  ipcMain.on('owner-refresh', () => void workspace.loadOwner());
   ipcMain.on('workspace-sync', () => void workspace.check());
 
   readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); void readReviews(); workspace.tick(); }, 5_000);

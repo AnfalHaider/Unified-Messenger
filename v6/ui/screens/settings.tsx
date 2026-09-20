@@ -343,6 +343,15 @@ function Workspace({ state, nav }: ScreenProps) {
           )}
         </div>
       </div>
+      {c.phase === 'signed-in' && state.owner.isOwner && (
+        <div className="sgroup"><h3>Unified Messenger</h3>
+          <div className="panel" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'grid', gap: 2 }}><b style={{ fontWeight: 600 }}>You are signed in as the product owner</b>
+              <span className="sub">The owner console lists every workspace, how many members each has and when one was last seen, and suspends or restores one.</span></div>
+            <div style={{ marginLeft: 'auto' }}><Btn icon="key" onClick={() => nav.go('owner')}>Owner console</Btn></div>
+          </div>
+        </div>
+      )}
       {c.phase === 'signed-in' && <YourWorkspace state={state} />}
       {c.phase === 'signed-in' && state.workspace.phase === 'member' && <Members state={state} nav={nav} />}
       <div className="grid2">

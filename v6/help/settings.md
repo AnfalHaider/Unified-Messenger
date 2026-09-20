@@ -49,6 +49,7 @@ Sentences you type often, with a short name. They appear beside every chat with 
   - **Make admin** or **Make member**. Members see the shared setup and cannot change it; admins can change it and manage members.
   - **Remove** someone. Their PCs sign out and wipe the logins they had from the workspace at their next check (when the app starts, and every six hours while it runs), and say so on screen. Accounts that were only ever on their PC stay. To cut access at once, also remove their PC on the phone: WhatsApp › **Linked devices**.
   - **Restore** someone removed, and **Withdraw** an invitation not yet taken up.
+- **If the workspace is paused**, every PC in it shows a screen saying so and nothing else, until it is active again. Nothing on those PCs is deleted. See [Owner console](help:owner).
 - **A week offline:** a PC that has not reached the workspace for seven days asks to reconnect before it shows anything, so someone removed cannot keep reading by staying offline. Nothing is deleted; it carries on as soon as it reaches the workspace.
 - **Privacy** lists what is kept on this PC.
 - **About** shows the version.

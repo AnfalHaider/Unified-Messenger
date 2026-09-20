@@ -17,6 +17,11 @@ export type Role = 'admin' | 'member';
 export interface Person { uid: string; email: string; name: string; role: Role; status: 'active' | 'removed'; lastSeen: number }
 /** An invitation not yet taken up, as admins see it. */
 export interface Invite { email: string; role: Role; invitedAt: number }
+/** One workspace as the product owner's console lists it: membership and last seen only, never a business's setup. */
+export interface OwnerWorkspace { id: string; name: string; status: 'active' | 'suspended'; members: number; admins: string[]; lastSeen: number; statusChangedAt: number }
+/** What the product owner's console shows. Everyone else sees isOwner false and no list. */
+export interface OwnerView { isOwner: boolean; workspaces: OwnerWorkspace[]; error?: string }
+
 /** An invitation to this signed-in person, from a workspace they have not joined. */
 export interface Invitation { id: string; workspaceName: string; role: Role }
 
@@ -58,6 +63,8 @@ export interface WorkspaceHost {
 
 export class Workspace {
   state: WorkspaceState = { phase: 'signed-out' };
+  /** The product owner's console (6.5). Read from owners/{uid}: nobody else can list workspaces. */
+  owner: OwnerView = { isOwner: false, workspaces: [] };
   private kept: Kept | null = null;
   private busy: Promise<void> = Promise.resolve();
   /** After a failed send, the next try waits a minute rather than every tick. */
@@ -110,6 +117,7 @@ export class Workspace {
         this.dropKept();
         this.set({ phase: 'none', invitations });
         this.h.log({ event: 'workspace-none', invitations: invitations.length });
+        await this.loadOwner();
         return;
       }
       const ws = await this.get(`workspaces/${entry.id}`);
@@ -125,6 +133,7 @@ export class Workspace {
       this.h.log({ event: 'workspace-found', role, status });
       if (status === 'active') { await this.pullNow(); await this.checkInIfDue(); }
       await this.loadPeople();
+      await this.loadOwner();
     } catch (e) {
       this.h.log({ event: 'workspace-check-failed', error: String((e as Error).message).slice(0, 120) });
       this.unreachable();
@@ -295,6 +304,57 @@ export class Workspace {
       })
       : [];
     if (this.state.phase === 'member') this.set({ ...this.state, people, invites });
+  }
+
+  /** The product owner's own marker, then every workspace: how many members, who the admins are, when any of their
+   *  PCs was last seen, and whether it is suspended. Never a workspace's setup, which the rules refuse the owner. */
+  async loadOwner(): Promise<void> {
+    const user = this.h.user();
+    if (!user) { this.owner = { isOwner: false, workspaces: [] }; return; }
+    try {
+      const marker = await this.get(`owners/${user.uid}`);
+      if (!marker) { this.owner = { isOwner: false, workspaces: [] }; this.h.changed(); return; }
+      const workspaces: OwnerWorkspace[] = [];
+      for (const d of await this.list('workspaces')) {
+        const f = fromFields(d.fields ?? {}) as { name?: string; status?: string; statusChangedAt?: number };
+        const id = d.name.split('/').pop()!;
+        const people = (await this.list(`workspaces/${id}/members`)).map((m) => fromFields(m.fields ?? {}) as { email?: string; role?: string; status?: string; lastSeen?: number });
+        const live = people.filter((p) => p.status !== 'removed');
+        workspaces.push({
+          id, name: f.name ?? '', status: f.status === 'suspended' ? 'suspended' : 'active', statusChangedAt: Number(f.statusChangedAt) || 0,
+          members: live.length, admins: live.filter((p) => p.role === 'admin').map((p) => p.email ?? ''),
+          lastSeen: Math.max(0, ...live.map((p) => Number(p.lastSeen) || 0)),
+        });
+      }
+      workspaces.sort((a, b) => a.name.localeCompare(b.name));
+      this.owner = { isOwner: true, workspaces };
+      this.h.log({ event: 'owner-console-read', workspaces: workspaces.length });
+    } catch (e) {
+      this.h.log({ event: 'owner-console-failed', error: String((e as Error).message).slice(0, 120) });
+      this.owner = { isOwner: this.owner.isOwner, workspaces: this.owner.workspaces, error: 'The workspaces could not be read. Check the connection and try again.' };
+    }
+    this.h.changed();
+  }
+
+  /** The product owner suspends a workspace or restores it. Every PC in it locks at its next check, wiping nothing. */
+  setWorkspaceStatus(id: string, status: 'active' | 'suspended'): Promise<{ error?: string }> {
+    return this.serial(async () => {
+      if (!this.owner.isOwner) return { error: 'Only the product owner can do that.' };
+      try {
+        await this.commit([{
+          update: { name: this.path(`workspaces/${id}`), fields: toFields({ status }) },
+          updateMask: { fieldPaths: ['status', 'statusChangedAt'] }, updateTransforms: [now('statusChangedAt')],
+        }]);
+        this.h.log({ event: status === 'suspended' ? 'workspace-suspended' : 'workspace-restored' });
+      } catch (e) {
+        this.h.log({ event: 'workspace-status-failed', error: String((e as Error).message).slice(0, 120) });
+        return { error: 'That did not work. Check the connection and try again.' };
+      }
+      await this.loadOwner();
+      // This PC may be in the workspace it just changed.
+      if (this.kept?.id === id) await this.checkNow();
+      return {};
+    });
   }
 
   /** Every six hours, or on request: the setup from the workspace, applied if it changed since the last one here. */

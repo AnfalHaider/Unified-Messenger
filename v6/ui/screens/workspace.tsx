@@ -2,30 +2,59 @@
 // moments — signing in, a new PC, a removed PC, a paused workspace, and the move from the previous version.
 // Signing in is real (6.1); the new-PC checklist reads the real accounts; the rest are sample until Phase 6 and 7.
 import { useEffect, useState, type ReactNode } from 'react';
+import { durationText } from '../../core/duration.ts';
 import { channelIcon, Icon } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, Logo, Panel, plural, Sample, type LockScreen, type Nav, type ScreenProps } from '../parts.tsx';
-import { WORKSPACES } from '../sample.ts';
 
-export function OwnerScreen(_: ScreenProps) {
-  const members = WORKSPACES.reduce((n, w) => n + w.members, 0);
-  const pcs = WORKSPACES.reduce((n, w) => n + w.pcs, 0);
+/** The product owner's console (6.5): every workspace, its membership and last seen, and suspend or restore. It reads
+ *  membership only — the rules refuse the product owner a business's setup, and no customer data is in the cloud. */
+export function OwnerScreen({ state }: ScreenProps) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [confirm, setConfirm] = useState<string | null>(null);
+  useEffect(() => { bridge.refreshOwner(); }, []);
+  const owner = state.owner;
+  if (!owner.isOwner) return (
+    <main className="main">
+      <Headline title="Owner console">Only the product owner's own Google account opens this screen. {state.cloud.phase === 'signed-in' ? 'This one is signed in as somebody else.' : 'Sign in first, in Settings › Workspace.'}</Headline>
+    </main>
+  );
+  const act = async (run: Promise<{ error?: string }>) => { setBusy(true); setError(''); const r = await run; setBusy(false); if (r.error) setError(r.error); return !r.error; };
+  const members = owner.workspaces.reduce((n, w) => n + w.members, 0);
   return (
     <main className="main">
-      <Headline sample eyebrow={<span className="phase"><Icon name="key" size={12} /> Owner only</span>} title="All workspaces">
-        {WORKSPACES.length} workspaces, {members} members, {pcs} PCs. It reads membership and last-seen only; no workspace’s customer data exists in the cloud to show.
+      <Headline title="Owner console" actions={<Btn icon="refresh" onClick={() => bridge.refreshOwner()}>Refresh</Btn>}>
+        {plural(owner.workspaces.length, 'workspace')}, {plural(members, 'member')}. Membership and last seen only: no workspace's customer data or setup is here to show.
       </Headline>
+      {owner.error && <p className="late" role="alert">{owner.error}</p>}
+      {error && <p className="late" role="alert">{error}</p>}
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-        <table className="table"><thead><tr><th>Workspace</th><th>Admin</th><th className="r">Members</th><th className="r">PCs</th><th>Last seen</th><th>Status</th><th /></tr></thead><tbody>
-          {WORKSPACES.map((w) => (
-            <tr key={w.name}>
-              <td><b style={{ fontWeight: 600 }}>{w.name}</b></td><td className="sub">{w.admin}</td><td className="r">{w.members}</td><td className="r">{w.pcs}</td><td>{w.seen}</td>
-              <td>{w.active ? <Chip tone="ok">Active</Chip> : <Chip tone="late">Suspended</Chip>}</td>
-              <td className="r"><Btn kind={w.active ? undefined : 'primary'} disabled title="Not connected yet">{w.active ? 'Suspend' : 'Restore'}</Btn></td>
+        <table className="table"><thead><tr><th>Workspace</th><th>Admins</th><th className="r">Members</th><th>Last seen</th><th>Status</th><th /></tr></thead><tbody>
+          {owner.workspaces.map((w) => (
+            <tr key={w.id}>
+              <td><b style={{ fontWeight: 600 }}>{w.name || 'Unnamed'}</b></td>
+              <td className="sub">{w.admins.join(', ') || '—'}</td>
+              <td className="r">{w.members}</td>
+              <td>{w.lastSeen ? `${durationText(Math.max(0, (Date.now() - w.lastSeen) / 60_000))} ago` : 'Not yet'}</td>
+              <td>{w.status === 'active' ? <Chip tone="ok">Active</Chip> : <Chip tone="late">Suspended</Chip>}</td>
+              <td className="r">
+                {confirm === w.id ? (
+                  <div role="alertdialog" aria-label={`Suspend ${w.name}`} style={{ display: 'grid', gap: 8, justifyItems: 'end', textAlign: 'right', maxWidth: 420, marginLeft: 'auto' }}>
+                    <span className="sub">Every PC in this workspace locks at its next check, within six hours. Nothing is deleted: logins, history and the setup are kept, and restoring brings it all straight back.</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <Btn kind="quiet" onClick={() => setConfirm(null)}>Cancel</Btn>
+                      <Btn kind="danger" disabled={busy} onClick={async () => { if (await act(bridge.setWorkspaceStatus(w.id, 'suspended'))) setConfirm(null); }}>Suspend</Btn>
+                    </div>
+                  </div>
+                ) : w.status === 'active'
+                  ? <Btn kind="quiet" disabled={busy} onClick={() => setConfirm(w.id)}>Suspend</Btn>
+                  : <Btn kind="quiet" disabled={busy} onClick={() => void act(bridge.setWorkspaceStatus(w.id, 'active'))}>Restore</Btn>}
+              </td>
             </tr>
           ))}
+          {!owner.workspaces.length && <tr><td colSpan={6} className="sub">No workspaces yet.</td></tr>}
         </tbody></table>
       </div>
-      <Panel title="What suspending does"><p className="sub" style={{ margin: 0 }}>Every PC in the workspace locks at its next check, within a day, and shows who to contact. Logins are kept, so restoring brings it straight back. Enforced by the database rules, not by the app, so it cannot be skipped.</p></Panel>
     </main>
   );
 }
@@ -85,6 +114,25 @@ function SignIn({ state, nav, back }: ScreenProps & { back: ReactNode }) {
   );
 }
 
+/** A workspace the product owner suspended (6.5): every PC in it locks, and nothing on them is touched. */
+function Suspended({ state }: ScreenProps) {
+  const w = state.workspace;
+  if (w.phase !== 'member') return null;
+  return (
+    <LockCard>
+      <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--due-w)', color: 'var(--due)', display: 'grid', placeItems: 'center' }}><Icon name="alert" size={24} /></span>
+      <h1>{w.name || 'This workspace'} is suspended</h1>
+      <p>Unified Messenger has paused this workspace. Nothing on this PC has been deleted: the logins, the history and the setup are kept, and everything returns as it was once the workspace is active again.</p>
+      <Panel><dl className="kv">
+        <dt>Kept on this PC</dt><dd>Account logins, waiting times, notes and every figure the app recorded</dd>
+        <dt>Paused</dt><dd>Reading, the screens and the shared setup</dd>
+      </dl></Panel>
+      <p className="sub">Get in touch about the account to have it restored.</p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Btn kind="primary" icon="refresh" onClick={() => bridge.syncWorkspace()}>Check again</Btn></div>
+    </LockCard>
+  );
+}
+
 /** Removed from the workspace by an admin (6.4): what this PC wiped, and what it kept. Shown until it is read. */
 function Removed({ state }: ScreenProps) {
   const w = state.workspace;
@@ -124,6 +172,7 @@ function Reconnect({ state }: ScreenProps) {
 function OtherLocks({ screen, state, nav, back }: ScreenProps & { screen: LockScreen; back: ReactNode }) {
   if (screen === 'removed' && state.workspace.phase === 'removed') return <Removed state={state} nav={nav} />;
   if (screen === 'reconnect') return <Reconnect state={state} nav={nav} />;
+  if (screen === 'suspended' && state.workspace.phase === 'member' && state.workspace.status === 'suspended') return <Suspended state={state} nav={nav} />;
   if (screen === 'removed') return (
     <LockCard>
       <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--hover)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}><Icon name="lock" size={24} /></span>

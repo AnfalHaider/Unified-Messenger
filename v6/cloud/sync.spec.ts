@@ -32,6 +32,7 @@ const token = (uid: string, email: string) => {
 
 const OWNER = { uid: 'owner-uid', email: 'owner@example.com', name: 'Sample Owner' };
 const STAFF = { uid: 'staff-uid', email: 'staff@example.com', name: 'Sample Staff' };
+const PRODUCT_OWNER = { uid: 'product-owner-uid', email: 'product.owner@example.com', name: 'Product Owner' };
 
 const startingConfig = () => parseConfig({
   accounts: [
@@ -251,4 +252,60 @@ test('an admin makes a member an admin, and withdraws an invitation', async () =
   await s.ws.check();
   assert.equal(member(s.ws.state).role, 'admin');
   assert.equal(s.ws.readOnly, false);
+});
+
+test('the product owner sees every workspace, suspends one, and its PCs lock without losing anything', async () => {
+  const a = pc(OWNER, startingConfig());
+  await a.ws.create('Sample Business');
+  await a.ws.invite('staff@example.com', 'member');
+  const s = pc(STAFF);
+  await s.ws.check();
+  await s.ws.join(invitations(s.ws.state)[0].id);
+  const id = member(a.ws.state).id;
+
+  // Not the product owner: no console, and the list of workspaces is refused.
+  await a.ws.loadOwner();
+  assert.deepEqual(a.ws.owner, { isOwner: false, workspaces: [] });
+
+  // The product owner is an account with its own marker, made by hand in the console.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore() as unknown as Firestore, `owners/${PRODUCT_OWNER.uid}`), { note: 'product owner' });
+  });
+  const console_ = pc(PRODUCT_OWNER);
+  await console_.ws.check();
+  assert.equal(console_.ws.owner.isOwner, true);
+  assert.deepEqual(console_.ws.owner.workspaces.map((w) => [w.name, w.members, w.status, w.admins]), [['Sample Business', 2, 'active', ['owner@example.com']]]);
+  assert.ok(console_.ws.owner.workspaces[0].lastSeen > 0);
+
+  // Suspended: both PCs see it at their next check, and neither loses anything.
+  assert.deepEqual(await console_.ws.setWorkspaceStatus(id, 'suspended'), {});
+  assert.equal(console_.ws.owner.workspaces[0].status, 'suspended');
+  await s.ws.check();
+  assert.equal(member(s.ws.state).status, 'suspended');
+  assert.deepEqual(s.config.accounts.map((x) => x.id), ['a1', 'a2'], 'nothing wiped');
+  // An admin cannot lift it, and cannot change the setup while it is suspended.
+  await a.ws.check();
+  assert.equal(member(a.ws.state).status, 'suspended');
+  assert.equal(a.ws.readOnly, true);
+  assert.match((await a.ws.invite('later@example.com', 'member')).error ?? '', /suspended/);
+
+  // Restored: back to normal.
+  assert.deepEqual(await console_.ws.setWorkspaceStatus(id, 'active'), {});
+  await s.ws.check();
+  assert.equal(member(s.ws.state).status, 'active');
+  assert.deepEqual(s.config.accounts.map((x) => x.id), ['a1', 'a2']);
+});
+
+test('the product owner sees membership only, never a workspace’s setup', async () => {
+  const a = pc(OWNER, startingConfig());
+  await a.ws.create('Sample Business');
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore() as unknown as Firestore, `owners/${PRODUCT_OWNER.uid}`), { note: 'product owner' });
+  });
+  const console_ = pc(PRODUCT_OWNER);
+  await console_.ws.check();
+  assert.equal(console_.ws.owner.isOwner, true);
+  // Their own app has no workspace, and the setup of somebody else's never reaches this PC.
+  assert.equal(console_.ws.state.phase, 'none');
+  assert.deepEqual(console_.config.accounts, []);
 });

@@ -35,13 +35,6 @@ export const LOST_LOGIN = [
 
 export type Fact = { label: string; value: string; unit: string; note: string; tone: 'ok' | 'due' | 'late' | 'neutral'; trend?: number[] };
 
-export const WORKSPACES = [
-  { name: 'Depilex', admin: 'Anfal Haider', members: 4, pcs: 5, seen: 'Now', active: true },
-  { name: 'Northside Pharmacy', admin: 'Mehreen A.', members: 2, pcs: 2, seen: '3 h ago', active: true },
-  { name: 'Clifton Auto Service', admin: 'Z. Siddiqui', members: 3, pcs: 3, seen: 'Yesterday', active: true },
-  { name: 'Trial: Brightway Tutors', admin: 'owner@example.com', members: 1, pcs: 1, seen: '19 days ago', active: false },
-];
-
 /** Alerts whose reader or feature does not exist yet; Settings lists them as not connected. */
 export const ALERTS = [
   { title: 'A channel reader stops working', detail: 'After 3 failed reads in a row' },

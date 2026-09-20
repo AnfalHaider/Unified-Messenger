@@ -1734,3 +1734,95 @@ test('members: an admin invites by address, the person joins on their PC, and re
     rmSync(staffPc, { recursive: true, force: true });
   }
 });
+
+test('the owner console suspends a workspace, and the PCs in it lock without losing anything', async () => {
+  const cloud = await fakeCloud();
+  const fs = await fakeFirestore();
+  const env = { UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
+  const PRODUCT_OWNER = { uid: 'test-uid', email: 'owner@example.com', name: 'Sample Owner' };
+  const STAFF = { uid: 'staff-uid', email: 'staff@example.com', name: 'Sample Staff' };
+  // The product owner's marker, made by hand in the console.
+  fs.docs.set('projects/test-project/databases/(default)/documents/owners/test-uid', { fields: { note: { stringValue: 'product owner' } }, updateTime: new Date().toISOString() });
+  const ownerPc = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }],
+    locations: [{ name: 'Main branch' }],
+  });
+  const staffPc = dataFolder();
+  const workspace = async (win: Page) => {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
+  };
+  cloud.o.user = PRODUCT_OWNER;
+  let { app, win } = await open(ownerPc, env);
+  try {
+    await workspace(win);
+    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await win.getByLabel('Workspace name').fill('Sample Business');
+    await win.getByRole('button', { name: 'Start the workspace' }).click();
+    await expect(win.getByText('You are an admin: changes made here reach the workspace.')).toBeVisible();
+    await win.getByRole('button', { name: 'Invite someone' }).click();
+    await win.getByLabel('Their Google address').fill('staff@example.com');
+    await win.getByRole('button', { name: 'Save the invitation' }).click();
+    await expect(win.getByRole('row', { name: /staff@example.com/ })).toBeVisible();
+    await quit(app, win);
+
+    // The member joins on their own PC, and gets the account.
+    cloud.o.user = STAFF;
+    ({ app, win } = await open(staffPc, env));
+    await workspace(win);
+    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await win.getByRole('button', { name: 'Join Sample Business' }).click();
+    await expect.poll(() => JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8')).accounts?.length ?? 0).toBe(1);
+    await quit(app, win);
+
+    // The product owner's console: every workspace, membership only, and Suspend.
+    cloud.o.user = PRODUCT_OWNER;
+    ({ app, win } = await open(ownerPc, env));
+    await workspace(win);
+    await win.getByRole('button', { name: 'Owner console' }).click();
+    const row = win.getByRole('row', { name: /Sample Business/ });
+    await expect(row).toContainText('Active');
+    await expect(row).toContainText('owner@example.com');
+    await row.getByRole('button', { name: 'Suspend' }).click();
+    await expect(row.getByRole('alertdialog')).toContainText('Nothing is deleted');
+    await row.getByRole('button', { name: 'Suspend' }).click();
+    await expect(row).toContainText('Suspended');
+    // The keyboard shortcut still opens the palette on a window opened later in the session.
+    await win.keyboard.press('Control+k');
+    await expect(win.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+    await win.keyboard.press('Escape');
+    // The product owner is not locked out of their own console by it.
+    await expect(win.getByRole('heading', { name: 'Owner console' })).toBeVisible();
+    await quit(app, win);
+
+    // The member's PC locks at its next check, and keeps everything.
+    cloud.o.user = STAFF;
+    ({ app, win } = await open(staffPc, env));
+    await expect(win.getByRole('heading', { name: 'Sample Business is suspended' })).toBeVisible();
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toHaveCount(0);
+    expect(JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8')).accounts?.length ?? 0).toBe(1);
+    expect(readdirSync(staffPc)).toContain('cloud.json');
+    await quit(app, win);
+
+    // Restored: the member's PC comes back by itself.
+    cloud.o.user = PRODUCT_OWNER;
+    ({ app, win } = await open(ownerPc, env));
+    await workspace(win);
+    await win.getByRole('button', { name: 'Owner console' }).click();
+    await win.getByRole('row', { name: /Sample Business/ }).getByRole('button', { name: 'Restore' }).click();
+    await expect(win.getByRole('row', { name: /Sample Business/ })).toContainText('Active');
+    await quit(app, win);
+
+    cloud.o.user = STAFF;
+    ({ app, win } = await open(staffPc, env));
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible();
+    await expect(win.getByRole('heading', { name: /is suspended/ })).toHaveCount(0);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await cloud.close();
+    await fs.close();
+    rmSync(ownerPc, { recursive: true, force: true });
+    rmSync(staffPc, { recursive: true, force: true });
+  }
+});

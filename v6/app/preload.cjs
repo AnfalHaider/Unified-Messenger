@@ -46,6 +46,9 @@ contextBridge.exposeInMainWorld('um', {
   setMemberStatus: (uid, status) => ipcRenderer.invoke('workspace-member-status', uid, status),
   setMemberRole: (uid, role) => ipcRenderer.invoke('workspace-member-role', uid, role),
   removalRead: () => ipcRenderer.send('workspace-removal-read'),
+  /** The product owner's console: suspend or restore a workspace, and read the list again. */
+  setWorkspaceStatus: (id, status) => ipcRenderer.invoke('workspace-status', id, status),
+  refreshOwner: () => ipcRenderer.send('owner-refresh'),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),
   editAccount: (accountId, change) => ipcRenderer.invoke('edit-account', accountId, change),

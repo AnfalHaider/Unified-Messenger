@@ -34,6 +34,8 @@ declare global {
       setMemberStatus(uid: string, status: 'active' | 'removed'): Promise<{ error?: string }>;
       setMemberRole(uid: string, role: 'admin' | 'member'): Promise<{ error?: string }>;
       removalRead(): void;
+      setWorkspaceStatus(id: string, status: 'active' | 'suspended'): Promise<{ error?: string }>;
+      refreshOwner(): void;
       setNote(accountId: string, key: string, text: string): void;
       toggleTag(accountId: string, key: string, tag: string): void;
       addAccount(request: { channel: string; name: string; location: string; url?: string }): Promise<{ id?: string; error?: string }>;
@@ -64,7 +66,8 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
-  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {}, removalRead() {},
+  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {}, removalRead() {}, refreshOwner() {},
+  setWorkspaceStatus: async () => ({}),
   joinWorkspace: async () => ({}), inviteMember: async () => ({}), withdrawInvite: async () => ({}), setMemberStatus: async () => ({}), setMemberRole: async () => ({}),
   createWorkspace: async () => ({ error: 'workspaces need the app, not the browser preview' }),
   askAssistant: async () => ({ error: 'The assistant needs the app, not the browser preview.' }),
