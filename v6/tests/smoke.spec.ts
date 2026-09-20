@@ -2,7 +2,7 @@
 // without dist-ui the window stays blank and this fails, which is the point.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1824,5 +1824,135 @@ test('the owner console suspends a workspace, and the PCs in it lock without los
     await fs.close();
     rmSync(ownerPc, { recursive: true, force: true });
     rmSync(staffPc, { recursive: true, force: true });
+  }
+});
+
+/** An invented GitHub Releases, and the Setup it carries. */
+async function fakeReleases(o: { version?: string; bytes?: number } = {}) {
+  const { createServer } = await import('node:http');
+  const version = o.version ?? '9.9.9';
+  const setup = Buffer.alloc(o.bytes ?? 4096, 7);
+  let at = '';
+  const server = createServer((req, res) => {
+    if (req.url?.startsWith('/releases/latest')) {
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+        tag_name: `v${version}`,
+        body: '- A made-up improvement for this test.\n- Another one.',
+        assets: [{ name: 'UnifiedMessenger6Setup.exe', size: setup.length, browser_download_url: `${at}/setup` }],
+      }));
+    } else if (req.url === '/setup') {
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': String(setup.length) }).end(setup);
+    } else res.writeHead(404).end();
+  });
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  at = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  return { url: `${at}/releases/latest`, setupBytes: setup.length, close: () => new Promise<void>((done) => { server.close(() => done()); }) };
+}
+
+test('an update: found, downloaded when the owner asks, and installed only when they say', async () => {
+  const releases = await fakeReleases();
+  const data = dataFolder();
+  const { app, win } = await open(data, { UM_UPDATE_URL: releases.url });
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'About' }).click();
+    await expect(win.getByText(/^Version \d/)).toBeVisible();
+    // Nothing is downloaded before the owner asks.
+    await win.getByRole('button', { name: 'Check for updates' }).click();
+    await expect(win.getByRole('status').filter({ hasText: 'Version 9.9.9 is ready to download.' })).toBeVisible();
+    expect(readdirSync(data)).not.toContain('updates');
+
+    await win.getByRole('button', { name: 'Show the update' }).click();
+    const drawer = win.getByRole('dialog', { name: 'Update' });
+    await expect(drawer).toContainText('A made-up improvement for this test.');
+    await drawer.getByRole('button', { name: 'Download it' }).click();
+    await expect(drawer.getByRole('button', { name: 'Install and restart' })).toBeVisible({ timeout: 15_000 });
+    await expect(drawer).toContainText('Logins, figures and waiting customers are all kept.');
+    // The Setup is on this PC, whole.
+    const file = join(data, 'updates', '9.9.9', 'UnifiedMessenger6Setup.exe');
+    expect(statSync(file).size).toBe(releases.setupBytes);
+    // Putting it off leaves it downloaded and the app running.
+    await drawer.getByRole('button', { name: 'When the business closes' }).click();
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible();
+    // The check said nothing about this PC: it is a plain GET, and the log holds counts only.
+    const log = readFileSync(join(data, 'app.log'), 'utf8');
+    expect(log).toContain('"event":"update-checked"');
+    expect(log).toContain('"event":"update-downloaded"');
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await releases.close();
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('an update already installed is not offered again', async () => {
+  const current = JSON.parse(readFileSync(join(V6, 'package.json'), 'utf8')).version as string;
+  const releases = await fakeReleases({ version: current });
+  const data = dataFolder();
+  const { app, win } = await open(data, { UM_UPDATE_URL: releases.url });
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'About' }).click();
+    await win.getByRole('button', { name: 'Check for updates' }).click();
+    await expect(win.getByRole('status').filter({ hasText: 'Unified Messenger is up to date.' })).toBeVisible();
+    await expect(win.getByRole('button', { name: 'Show the update' })).toHaveCount(0);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await releases.close();
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test('moving from the previous version: everything comes across, and the screen says what to do once', async () => {
+  // A v5 install of its own: two accounts and the settings beside them. Only ever read.
+  const v5 = mkdtempSync(join(tmpdir(), 'um-v5-'));
+  writeFileSync(join(v5, 'instances.json'), JSON.stringify({ version: 3, instances: [
+    { id: 'acc-1', displayName: 'Main branch WhatsApp', profileName: 'whatsapp-acc-1', startUrl: 'about:blank', platform: 'whatsapp', category: 'Professional', branchKey: 'Main branch' },
+    { id: 'acc-2', displayName: 'Main branch Instagram', profileName: 'instagram-acc-2', startUrl: 'about:blank', platform: 'instagram', category: 'Professional', branchKey: 'Main branch' },
+  ] }));
+  writeFileSync(join(v5, 'settings.json'), JSON.stringify({ slaThresholdMinutes: 20, themePreference: 'Dark' }));
+  const data = mkdtempSync(join(tmpdir(), 'um-smoke-'));
+  const { app, win } = await open(data, { UM_V5: v5 });
+  try {
+    // The screen stands in front of everything, once.
+    await expect(win.getByRole('heading', { name: /Everything came across/ })).toBeVisible();
+    await expect(win.getByText('Main branch WhatsApp')).toBeVisible();
+    await expect(win.getByText('Main branch Instagram')).toBeVisible();
+    await expect(win.getByText(/Scan the code on the phone/)).toBeVisible();
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toHaveCount(0);
+    // The setup itself came across, and v5's own files were only read.
+    const config = JSON.parse(readFileSync(join(data, 'config.json'), 'utf8'));
+    expect(config.accounts.map((a: { name: string }) => a.name)).toEqual(['Main branch WhatsApp', 'Main branch Instagram']);
+    expect(config.settings.slaMinutes).toBe(20);
+    expect(readdirSync(v5).sort()).toEqual(['instances.json', 'settings.json']);
+
+    // Read once: the app opens, and the next launch will not show it again.
+    await win.getByRole('button', { name: 'Start using it' }).click();
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible();
+    await expect.poll(() => JSON.parse(readFileSync(join(data, 'upgraded.json'), 'utf8')).read).toBe(true);
+  } finally {
+    // v5 carries no "closing really quits" setting, so this app would sit in the tray: end it outright.
+    await app.evaluate(({ app: electronApp }) => electronApp.exit(0)).catch(() => {});
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+    rmSync(v5, { recursive: true, force: true });
+  }
+});
+
+test('the upgrade screen is shown until it has been read, and never again after', async () => {
+  for (const [read, shown] of [[false, true], [true, false]] as const) {
+    const data = dataFolder({ accounts: [{ id: 'a1', name: 'Main branch WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }] });
+    writeFileSync(join(data, 'upgraded.json'), JSON.stringify({ read }));
+    const { app, win } = await open(data);
+    try {
+      await expect(win.getByRole('heading', { name: /Everything came across/ })).toHaveCount(shown ? 1 : 0);
+      await expect(win.getByRole('navigation', { name: 'Screens' })).toHaveCount(shown ? 0 : 1);
+      await quit(app, win);
+    } finally {
+      await app.close().catch(() => {});
+      rmSync(data, { recursive: true, force: true });
+    }
   }
 });

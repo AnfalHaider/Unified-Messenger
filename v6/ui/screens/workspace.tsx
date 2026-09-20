@@ -73,6 +73,7 @@ export function Lock({ screen, state, nav }: ScreenProps & { screen: LockScreen 
   const back = <Btn kind="quiet" onClick={() => nav.lock(null)}>Back to the app</Btn>;
   if (screen === 'sign-in') return <SignIn state={state} nav={nav} back={back} />;
   if (screen === 'new-pc') return <NewPc state={state} nav={nav} />;
+  if (screen === 'upgrade') return <Upgrade state={state} nav={nav} />;
   return <OtherLocks screen={screen} state={state} nav={nav} back={back} />;
 }
 
@@ -211,6 +212,44 @@ function OtherLocks({ screen, state, nav, back }: ScreenProps & { screen: LockSc
 const LockCard = ({ children, wide }: { children: React.ReactNode; wide?: boolean }) => (
   <div className="lock lock-screen"><div className="lock-card" style={wide ? { width: 680 } : undefined}>{children}</div></div>
 );
+
+/** Moving from v5 (7.5). Everything the app recorded came across; the logins could not, because the new engine keeps
+ *  them differently, so each account is signed in once more on this PC. Shown once, after the import. */
+function Upgrade({ state, nav }: { state: ScreenProps['state']; nav: Nav }) {
+  const signedIn = state.accounts.filter((a) => !a.signedOut).length;
+  return (
+    <div className="lock-screen" style={{ padding: '32px 48px' }}>
+      <main className="main" style={{ maxWidth: 1080, margin: '0 auto', overflow: 'visible' }}>
+        <Headline title="Everything came across. Each account signs in once more." actions={<Btn kind="primary" onClick={() => { bridge.upgradeRead(); nav.lock(null); }}>Start using it</Btn>}>
+          This is the new Unified Messenger. Your accounts, locations, opening hours, targets and the history it had
+          recorded are all here. The logins could not come with them: the app runs on a different engine now, and it
+          keeps each signed-in account in its own place.
+        </Headline>
+        <div className="grid2">
+          <Panel title="Came across"><dl className="kv">
+            <dt>Accounts</dt><dd>{plural(state.accounts.length, 'account')} at {plural(new Set(state.accounts.map((a) => a.location || 'No location')).size, 'location')}</dd>
+            <dt>Kept</dt><dd>Waiting times, reply times, handled and snoozed chats, opening hours, targets and saved replies</dd>
+          </dl></Panel>
+          <Panel title="To do once"><dl className="kv">
+            <dt>WhatsApp</dt><dd>Scan the code on the phone, as when it was first set up: WhatsApp › Linked devices</dd>
+            <dt>Instagram and Google</dt><dd>Sign in on the account's page</dd>
+          </dl></Panel>
+        </div>
+        <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
+          {state.accounts.map((a) => (
+            <div key={a.id} className="signin">
+              <Icon name={channelIcon(a.channel)} size={18} />
+              <b>{a.name}</b>
+              <span style={{ color: a.signedOut ? 'var(--due)' : 'var(--ok)', fontWeight: 600 }}>{a.signedOut ? 'Needs signing in' : 'Signed in'}</span>
+              {a.signedOut ? <Btn kind="primary" onClick={() => { bridge.upgradeRead(); nav.lock(null); nav.go('dock', a.id); }}>Open it</Btn> : <span />}
+            </div>
+          ))}
+        </div>
+        <p className="sub" style={{ margin: 0 }}>{signedIn} of {state.accounts.length} signed in so far. The old version is still installed and can be opened; nothing of yours was changed there.</p>
+      </main>
+    </div>
+  );
+}
 
 function NewPc({ state, nav }: { state: ScreenProps['state']; nav: Nav }) {
   const ready = state.accounts.filter((a) => !a.signedOut).length;

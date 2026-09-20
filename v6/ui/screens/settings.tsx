@@ -6,6 +6,7 @@ import { Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, Panel, Sample, Seg, SettingRow, Stepper, Toggle, type ScreenProps } from '../parts.tsx';
 import { ALERTS, KEPT } from '../sample.ts';
 import { durationText } from '../../core/duration.ts';
+import { updateSentence } from '../../core/update.ts';
 import type { UiState } from '../../app/view-model.ts';
 
 export const SETTINGS_SECTIONS = ['Look and reading', 'Opening hours', 'Notifications', 'Saved replies', 'Assistant', 'Workspace', 'Privacy', 'About'] as const;
@@ -596,20 +597,27 @@ function Privacy() {
   );
 }
 
-function About({ nav }: ScreenProps) {
+function About({ state, nav }: ScreenProps) {
   const screens: [string, () => void][] = [
     ['Sign in with Google', () => nav.lock('sign-in')],
     ['A new PC: bring the accounts in', () => nav.lock('new-pc')],
     ['On the PC of someone removed', () => nav.lock('removed')],
     ['A suspended workspace', () => nav.lock('suspended')],
     ['Moving from the previous version', () => nav.lock('upgrade')],
-    ['An update, when it suits', () => nav.open('update')],
     ['Offline', () => nav.setOffline(!nav.view.offline)],
     ['The morning digest', () => nav.go('digest')],
   ];
   return (
     <>
       <div className="sgroup"><h3>Unified Messenger 6</h3>
+        <div className="panel" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gap: 2 }}><b style={{ fontWeight: 600 }}>Version {state.version || '6'}</b>
+            <span className="sub" role="status">{updateSentence(state.update)}</span></div>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {state.update.phase !== 'none' && <Btn icon="download" onClick={() => nav.open('update')}>Show the update</Btn>}
+            <Btn icon="refresh" onClick={() => bridge.checkForUpdate()}>Check for updates</Btn>
+          </div>
+        </div>
         <Panel><p className="sub" style={{ margin: 0 }}>In development. The line, the docked page, accounts, readers and the reading settings work on your real accounts. Screens marked “Sample figures” show their final layout with invented numbers until their feature is connected.</p></Panel>
       </div>
       <div className="sgroup"><h3>Preview the other screens</h3><p>Screens the app shows only in particular moments, so they can be reviewed now.</p>

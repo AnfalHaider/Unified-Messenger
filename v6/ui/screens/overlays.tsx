@@ -1,6 +1,8 @@
 // Everything that opens over a screen: the command palette, Needs you, and the dialogs. The palette, Needs you and
 // the account dialogs are real; removing a member and the update dialog are sample until Phases 6 and 7.
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { updateSentence } from '../../core/update.ts';
+import type { UiState } from '../../app/view-model.ts';
 import type { Route } from '../../app/view-model.ts';
 import { channelIcon, Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Check, type LockScreen, type Nav, type Overlay, Sample, type ScreenProps, Toggle } from '../parts.tsx';
@@ -22,7 +24,7 @@ export function Overlays({ state, nav }: ScreenProps) {
       {which === 'add-account' && <AddAccount state={state} nav={nav} close={close} />}
       {which === 'edit-account' && <EditAccount state={state} nav={nav} close={close} />}
       {which === 'remove-account' && <RemoveAccount state={state} nav={nav} close={close} />}
-      {which === 'update' && <Update close={close} />}
+      {which === 'update' && <Update state={state} close={close} />}
     </div>
   );
 }
@@ -267,15 +269,26 @@ function RemoveAccount({ state, nav, close }: ScreenProps & { close: () => void 
   );
 }
 
-function Update({ close }: { close: () => void }) {
+/** An update (7.3): what is new, and the owner decides when. Nothing downloads or installs on its own. */
+function Update({ state, close }: { state: UiState; close: () => void }) {
+  const u = state.update;
+  const [error, setError] = useState('');
+  const release = u.phase === 'found' || u.phase === 'downloading' || u.phase === 'ready' ? u.release : null;
   return (
-    <div className="drawer" role="dialog" aria-label="Update ready" style={{ right: 180 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Icon name="download" size={18} /><h3>Version 6.1 is ready</h3><Sample /></div>
-      <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6, fontSize: 13.5 }}>
-        <li>Missed calls show whether a customer wrote after calling.</li><li>The Instagram reader copes with the new inbox layout.</li><li>Reports export to CSV with location names.</li>
-      </ul>
-      <p className="sub" style={{ margin: 0 }}>Restarting takes about 10 seconds. Logins and waiting customers are kept.</p>
-      <div style={{ display: 'flex', gap: 8 }}><Btn icon="refresh" kind="primary" disabled title="Updates are not connected yet">Restart now</Btn><Btn onClick={close}>When the business closes</Btn></div>
+    <div className="drawer" role="dialog" aria-label="Update" style={{ right: 180 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Icon name="download" size={18} /><h3>{release ? `Version ${release.version}` : 'Updates'}</h3></div>
+      <p className="sub" style={{ margin: 0 }} role="status">{updateSentence(u)}</p>
+      {release && release.notes.length > 0 && (
+        <ul style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6, fontSize: 13.5 }}>{release.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+      )}
+      {u.phase === 'ready' && <p className="sub" style={{ margin: 0 }}>Installing closes the app and opens it again, which takes about half a minute. Logins, figures and waiting customers are all kept.</p>}
+      {error && <p className="late" role="alert" style={{ margin: 0 }}>{error}</p>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        {u.phase === 'found' && <Btn icon="download" kind="primary" onClick={() => bridge.downloadUpdate()}>Download it</Btn>}
+        {u.phase === 'ready' && <Btn icon="refresh" kind="primary" onClick={async () => { const r = await bridge.installUpdate(); if (r.error) setError(r.error); }}>Install and restart</Btn>}
+        {(u.phase === 'none' || u.phase === 'failed') && <Btn icon="refresh" onClick={() => bridge.checkForUpdate()}>Check again</Btn>}
+        <Btn onClick={close}>{u.phase === 'ready' ? 'When the business closes' : 'Close'}</Btn>
+      </div>
     </div>
   );
 }

@@ -25,6 +25,7 @@ import { awaitingChats, awaitingSplit, lastCaptured, notCustomerWhy, setAside, t
 import type { Overrides } from '../core/awaiting-overrides.ts';
 import type { CloudState } from '../core/cloud-auth.ts';
 import type { OwnerView, WorkspaceState } from './workspace.ts';
+import type { UpdateState } from '../core/update.ts';
 
 /** How close to the target counts as "due soon". The design's warning window. */
 const DUE_SOON_MINUTES = 5;
@@ -263,6 +264,12 @@ export interface UiState {
   workspace: WorkspaceState;
   /** The product owner's console: empty and isOwner false for everyone else. */
   owner: OwnerView;
+  /** A newer version, if one has been found. Nothing downloads or installs by itself. */
+  update: UpdateState;
+  /** The version running now. */
+  version: string;
+  /** True until the "moving from the previous version" screen has been read. */
+  upgraded: boolean;
   /** What led up to this account losing its login, and since when. Built only while that screen is open. */
   lostLogin: { since: number | null; items: TimelineRow[] } | null;
   /** What each channel's reader has been doing, across every account on it. Built only while Readers is open. */
@@ -291,6 +298,10 @@ export interface Context {
   cloud?: CloudState;
   workspace?: WorkspaceState;
   owner?: OwnerView;
+  update?: UpdateState;
+  version?: string;
+  /** The first launch after everything came across from v5: the upgrade screen, once. */
+  upgraded?: boolean;
   /** The location chosen in the title bar, or null for all. Reports and their exports cover only that location. */
   scope?: string | null;
   route: Route;
@@ -418,6 +429,9 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     cloud: ctx.cloud ?? { phase: 'unavailable' },
     workspace: ctx.workspace ?? { phase: 'signed-out' },
     owner: ctx.owner ?? { isOwner: false, workspaces: [] },
+    update: ctx.update ?? { phase: 'none' },
+    version: ctx.version ?? '',
+    upgraded: ctx.upgraded ?? false,
     lostLogin: ctx.route === 'lost-login' && ctx.visible
       ? { since: signedOutSince(ctx.events ?? {}, ctx.visible), items: timelineRows(lostLoginTimeline(ctx.events ?? {}, ctx.visible, ctx.now), ctx.now) }
       : null,

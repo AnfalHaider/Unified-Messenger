@@ -5,6 +5,35 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v6.0.0
+
+> **What you will notice:** the app is new. Everything it recorded comes across on the first launch, and each
+> account signs in once more on this PC.
+
+**Unified Messenger 6.** The app has been rebuilt. It does the same job — watching the accounts you are already
+signed in to and showing who is waiting for a reply — on a new engine, with screens built around the question
+a business actually asks in the morning.
+
+- **The line.** Every unanswered conversation across every account in one list, longest wait first, with the
+  reply target you set and a warning before it runs out. Colour means lateness, nothing else.
+- **Your accounts, side by side.** Each one stays signed in in its own window. The app reads; it never sends a
+  message, replies to a review, or clicks anything in a chat.
+- **Reports** for today, the last 7 days and the last 30: reply times, backlog and reopened conversations,
+  missed calls, busy hours, each exportable.
+- **Google reviews**: the rating, the lifetime total, and which reviews still have no reply.
+- **An assistant on this PC**, off until you switch it on. It answers from the app's own figures and can draft a
+  reply for you to send yourself. Nothing it reads or writes leaves the machine.
+- **A workspace, if you want one.** Sign in with Google to share the setup — accounts, locations, opening hours,
+  targets, saved replies — between your own PCs. Customers, messages, figures and logins never leave the PC.
+- **Updates**: the app checks for a newer version, downloads it when you ask, and installs it when you say.
+
+**Moving from version 5.** On the first launch everything comes across: accounts, locations, opening hours,
+targets, the waiting times and reply times already recorded, and the chats you had handled or snoozed. The
+logins cannot come with them, because the new engine keeps each signed-in account differently: WhatsApp is
+scanned once more from the phone (Linked devices), Instagram and Google are signed in on their pages. A screen
+on that first launch says so and lists the accounts. Version 5 stays installed until you remove it, and nothing
+in it is changed.
+
 ## v5.1.0
 
 > **What you will notice:** open an Instagram account once and its waiting customers gain message text —

@@ -32,6 +32,7 @@ import { GOOGLE_ENDPOINTS, parseCloudConfig, type Endpoints } from '../core/clou
 import { Workspace } from './workspace.ts';
 import { applySetup, sharedSetup, type SharedSetup } from '../core/workspace-sync.ts';
 import { GoogleBusiness } from './google-api.ts';
+import { Updater } from './update.ts';
 import { answerFrom, answerQuestion, buildFacts } from '../core/assistant-summary.ts';
 import { parseDrafts, replyPrompt, type ChatLine } from '../core/assistant-reply.ts';
 import { loadJson, saveJson } from './store.ts';
@@ -73,6 +74,7 @@ const FILE = {
   events: join(DATA, 'events.json'),
   customers: join(DATA, 'customers.json'),
   reviews: join(DATA, 'reviews.json'),
+  upgraded: join(DATA, 'upgraded.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -94,6 +96,9 @@ const note = (file: string) => (why: string) => { problems.push(`${file}: ${why}
 // Before anything is loaded: a first launch on a PC that already runs v5 brings the whole install across,
 // history included. It writes the files below, which are then read exactly as if they had always been there.
 const imported = importFromV5(FILE, log);
+// The screen a v5 customer meets once, after everything came across: shown until they have read it (7.5).
+let upgraded = imported || (existsSync(FILE.upgraded) && loadJson<{ read?: boolean }>(FILE.upgraded, { read: true }, () => {}).read === false);
+if (imported) saveJson(FILE.upgraded, { read: false });
 
 const { config, dropped } = parseConfig(loadJson<unknown>(FILE.config, emptyConfig(), note('config')));
 const snapshots = loadJson<Snapshots>(FILE.snapshot, {}, note('snapshot'));
@@ -174,6 +179,21 @@ const workspace = new Workspace({
   changed: () => push(),
   log: (entry) => log(entry),
 });
+/** Updates (7.3). Owner's decision: keep this installer, ask GitHub Releases whether a newer one exists, download
+ *  only when the owner asks, and install only when they say when. Tests point UM_UPDATE_URL at a GitHub of their own,
+ *  so no test ever reaches the real one. */
+const VERSION = (() => {
+  try { return String(JSON.parse(readFileSync(join(HERE, '..', 'package.json'), 'utf8')).version ?? ''); } catch { return app.getVersion(); }
+})();
+const updater = new Updater({
+  url: process.env.UM_UPDATE_URL,
+  version: VERSION,
+  dir: join(DATA, 'updates'),
+  quit: () => void quitNow('update'),
+  log: (entry) => log(entry),
+  changed: () => push(),
+});
+
 /** Google's own Business Profile API as the reviews source (3.1b). Switched off: Google grants access to these APIs
  *  by application, so until that is granted nothing here is used and reviews are read from the page as before. The
  *  reader itself is built and tested (app/google-api.test.ts); connecting a profile arrives with the approval. */
@@ -546,6 +566,7 @@ function stateFor(forRoute: Route) {
   return buildUiState(config, snapshots, times, overrides, {
     now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers, reviews,
     assistant: engine.state, memoryGB: totalmem() / 1024 ** 3, cloud: cloud.state, workspace: workspace.state, owner: workspace.owner,
+    update: updater.state, version: VERSION, upgraded,
   });
 }
 
@@ -844,6 +865,7 @@ async function quitNow(reason: string) {
   clearInterval(readTimer);
   engine.stop();
   cloud.stop();
+  updater.stop();
   log({ event: 'quitting', reason, awake: views.size });
   await Promise.all(config.accounts.map((a) => new Promise<void>((done) => {
     session.fromPartition(`persist:${a.id}`).flushStorageData();
@@ -1189,11 +1211,18 @@ app.whenReady().then(async () => {
   // The product owner's console (6.5): suspending a workspace locks its PCs at their next check, wiping nothing.
   ipcMain.handle('workspace-status', (_e, id: string, status: string) => workspace.setWorkspaceStatus(String(id ?? ''), status === 'suspended' ? 'suspended' : 'active'));
   ipcMain.on('owner-refresh', () => void workspace.loadOwner());
+  // Updates: the owner asks, the owner downloads, the owner says when.
+  ipcMain.on('update-check', () => void updater.check(true));
+  ipcMain.on('update-download', () => void updater.download());
+  ipcMain.handle('update-install', () => updater.install());
+  // The screen a v5 customer meets once, after everything came across (7.5).
+  ipcMain.on('upgrade-read', () => { upgraded = false; saveJson(FILE.upgraded, { read: true }); push(); });
   ipcMain.on('workspace-sync', () => void workspace.check());
 
   readTimer = setInterval(() => { void tick('schedule'); void saveWeeklyIfDue(); void readReviews(); workspace.tick(); }, 5_000);
   void engine.ensure(config.settings.assistant);
   cloud.load();
+  updater.start();
   if (cloud.state.phase === 'signed-in') { lastCloudPhase = 'signed-in'; void workspace.check(); }
   push();
 

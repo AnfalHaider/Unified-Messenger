@@ -49,6 +49,12 @@ contextBridge.exposeInMainWorld('um', {
   /** The product owner's console: suspend or restore a workspace, and read the list again. */
   setWorkspaceStatus: (id, status) => ipcRenderer.invoke('workspace-status', id, status),
   refreshOwner: () => ipcRenderer.send('owner-refresh'),
+  /** Updates: look for one, fetch it, and install it when the owner says. Nothing happens by itself. */
+  checkForUpdate: () => ipcRenderer.send('update-check'),
+  downloadUpdate: () => ipcRenderer.send('update-download'),
+  installUpdate: () => ipcRenderer.invoke('update-install'),
+  /** The "moving from the previous version" screen was read. */
+  upgradeRead: () => ipcRenderer.send('upgrade-read'),
   /** Accounts. Each resolves with { error } when refused, so the dialog can say why; add also returns the new id. */
   addAccount: (request) => ipcRenderer.invoke('add-account', request),
   editAccount: (accountId, change) => ipcRenderer.invoke('edit-account', accountId, change),

@@ -6,6 +6,7 @@
 // Run install-local from your own terminal. An agent's shell sits in a sandbox that redirects installs to a
 // private copy, so an install started from there lands where the Start Menu shortcut never looks.
 import { packager } from '@electron/packager';
+import { flipFuses, FuseV1Options, FuseVersion } from '@electron/fuses';
 import { execSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -35,9 +36,7 @@ await packager({
   appVersion: version,
   icon: join(ROOT, 'assets', 'icon.ico'),
   win32metadata: { ProductName: 'Unified Messenger', FileDescription: 'Unified Messenger', CompanyName: 'Unified Messenger' },
-  // ponytail: no asar, so Electron runs the TypeScript exactly as it does from source. Pack it once a build
-  // step exists for other reasons.
-  asar: false,
+  asar: true,
   prune: false,
   // Only what runs: app/, core/, channels/, assets/, the built screens and package.json. Nothing in
   // node_modules is needed at run time, because the screens are bundled and main uses only Node and Electron.
@@ -49,6 +48,19 @@ await packager({
     /\.test\.ts$/,
   ],
 });
+
+step('fuses');
+// Electron leaves cookie encryption off, so every login cookie sits in plaintext on disk (lesson
+// v6-electron-cookies-are-plaintext). This fuse turns Chromium's own encryption on for the packaged app; cookies
+// already written in plaintext keep working, because Chromium reads the plain `value` when there is no encrypted one.
+await flipFuses(join(ROOT, 'out', 'Unified Messenger-win32-x64', 'UnifiedMessenger6.exe'), {
+  version: FuseVersion.V1,
+  resetAdHocDarwinSignature: false,
+  [FuseV1Options.EnableCookieEncryption]: true,
+  // The app is packed into app.asar (below), so Electron should refuse a loose app folder dropped beside it.
+  [FuseV1Options.OnlyLoadAppFromAsar]: true,
+});
+console.log('EnableCookieEncryption and OnlyLoadAppFromAsar on');
 
 step('installer');
 if (!existsSync(ISCC)) throw new Error(`Inno Setup not found at ${ISCC}`);

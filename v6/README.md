@@ -27,6 +27,7 @@ npm run install-local  # builds it, installs it on this PC and opens the install
 npm run help:shots     # retakes the help pictures (help/shots) from invented data, after a screen changes
 npm run rules:test     # the Firestore rules against the emulator (needs Java 21+; see scripts/rules-run.mjs)
 npm run site:deploy    # publishes site/ to Firebase Hosting (needs `npx firebase login` once)
+npm run dist           # the Setup a release carries (fuses: cookie encryption, app only from asar)
 npm run assistant:test # the assistant's 30 questions against the real local model (needs Ollama running)
 ```
 
@@ -115,3 +116,16 @@ saves as JSON, and "now" is always a parameter, which is what makes every rule t
 Rules: follow the ponytail guideline (built-ins before dependencies, no abstractions without a second
 user); port v5 behaviour with its test cases before changing it; never commit `firebase-config.json`,
 `oauth-client.json` or any other credential.
+
+## Releasing
+
+The app checks GitHub Releases for a newer version (`core/update.ts`), downloads the Setup when the owner asks, and
+installs it when they say. So a release is: a tag, and the Setup attached to it.
+
+1. Bump `version` in `v6/package.json`, and add the release notes to the repository's `CHANGELOG.md`.
+2. `npm run dist` writes the Setup into `dist/`, with `cloud-config.json` inside it, which is why a release is built
+   here rather than in CI: that file never enters the repository.
+3. Commit, merge to `main`, push. **Ask the owner before creating the tag**: a `v*` tag publishes a release.
+4. Tag `v6.1.0`, make the GitHub release from it, and attach `UnifiedMessenger6Setup.exe` **under that exact name** —
+   the update check looks for it by name, and ignores a draft, a pre-release, or a release with no Setup.
+5. Installed copies find it within six hours, or when someone presses Check for updates in Settings > About.

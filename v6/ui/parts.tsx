@@ -36,6 +36,10 @@ declare global {
       removalRead(): void;
       setWorkspaceStatus(id: string, status: 'active' | 'suspended'): Promise<{ error?: string }>;
       refreshOwner(): void;
+      checkForUpdate(): void;
+      downloadUpdate(): void;
+      installUpdate(): Promise<{ error?: string }>;
+      upgradeRead(): void;
       setNote(accountId: string, key: string, text: string): void;
       toggleTag(accountId: string, key: string, tag: string): void;
       addAccount(request: { channel: string; name: string; location: string; url?: string }): Promise<{ id?: string; error?: string }>;
@@ -66,7 +70,8 @@ export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettin
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
   onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
-  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {}, removalRead() {}, refreshOwner() {},
+  openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {}, removalRead() {}, refreshOwner() {}, checkForUpdate() {}, downloadUpdate() {}, upgradeRead() {},
+  installUpdate: async () => ({}),
   setWorkspaceStatus: async () => ({}),
   joinWorkspace: async () => ({}), inviteMember: async () => ({}), withdrawInvite: async () => ({}), setMemberStatus: async () => ({}), setMemberRole: async () => ({}),
   createWorkspace: async () => ({ error: 'workspaces need the app, not the browser preview' }),
