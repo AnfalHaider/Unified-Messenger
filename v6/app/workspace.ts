@@ -476,7 +476,13 @@ export class Workspace {
     const res = await this.call(`${this.h.base}/documents:runQuery`, { method: 'POST', body: JSON.stringify({
       structuredQuery: { from: [{ collectionId, allDescendants: true }], where: { fieldFilter: { field: { fieldPath: field }, op: 'EQUAL', value: { stringValue: value } } } },
     }) });
-    if (!res.ok) throw Object.assign(new Error(`query ${res.status}`), { status: res.status });
+    // Carry Firestore's own condition with the status, as commit() does. FAILED_PRECONDITION is what a
+    // collection-group query without its index returns, and `query 400` alone could not tell us that.
+    // Safe for app.log: it is Firestore's word for the fault, never a name, an address or a figure.
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: { status?: string } };
+      throw Object.assign(new Error(`query ${res.status} ${body.error?.status ?? ''}`.trim()), { status: res.status });
+    }
     return ((await res.json()) as { document?: Doc }[]).map((r) => r.document).filter((d): d is Doc => !!d);
   }
 

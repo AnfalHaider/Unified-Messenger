@@ -1,0 +1,26 @@
+{
+  "//": "A PC asks 'which workspace am I in?' with a collection-group query: members (and invites) across every workspace, by the signed-in address. Firestore indexes a field automatically only within one collection, so a group query needs the field listed here with COLLECTION_GROUP scope, or it is refused with 400 FAILED_PRECONDITION. The emulator does not enforce this, which is why the rules tests passed while the live service refused the same query (app.ts logged workspace-check-failed). A fieldOverride replaces the automatic indexing for that field, so the three ordinary scopes are repeated here alongside the group one.",
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "members",
+      "fieldPath": "email",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "invites",
+      "fieldPath": "email",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
+}

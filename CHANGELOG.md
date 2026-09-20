@@ -5,6 +5,16 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v6.0.1
+
+A fix for workspaces, and one for the notes you are reading.
+
+- **Workspaces work again.** A PC asks which workspace it belongs to by looking for your address across every
+  workspace at once, and the database was refusing that question, so the app could not tell you which workspace
+  you were in. Nothing was lost while it could not: your accounts, history and settings are kept on the PC, and
+  the setup it already had stayed in use. Reading, reports, alerts and the assistant were never affected.
+- **The notes in the update drawer are whole sentences again**, instead of stopping at the end of a line.
+
 ## v6.0.0
 
 > **What you will notice:** the app is new. Everything it recorded comes across on the first launch, and each
