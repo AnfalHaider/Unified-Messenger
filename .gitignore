@@ -103,3 +103,6 @@ v6/playwright-report/
 
 # v6: the Firebase project and sign-in client identifiers, made by v6/scripts/cloud-config.mjs
 v6/cloud-config.json
+
+# Firebase CLI deploy cache
+v6/.firebase/
