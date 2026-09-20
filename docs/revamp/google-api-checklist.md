@@ -30,15 +30,13 @@ The owner signs in to Google Cloud; Claude does the configuring, asking before e
       `unified-messenger-5549a.firebaseapp.com`. Read back after a reload.
 - [x] **Publishing status left as Firebase made it: External, In production.** This checklist used to say keep it
       in Testing; that was written before workspaces existed. Testing admits only a list of test users, which would
-      stop a customer signing in to their own workspace. In production with an unverified restricted scope means the
-      `business.manage` consent shows an "unverified app" warning and counts against a 100-user cap until Google
-      approves - fine for the owner's own profiles, and verification comes with the access application anyway.
-- [ ] **Scopes not yet listed on the consent screen** (Data Access: `openid`, `userinfo.email`, `userinfo.profile`,
-      `business.manage`). Tried three times; the browser pane kept losing its rendering while the app window was in
-      the background, and the dialog's Save went with it. Nothing depends on this today - the app asks for its
-      scopes at sign-in - but Google's verification submission wants them listed. Two minutes by hand: Data Access,
-      Add or remove scopes, tick the three basic ones, paste
-      `https://www.googleapis.com/auth/business.manage` into "manually paste scopes", Add to table, Update, Save.
+      stop a customer signing in to their own workspace.
+- [x] **All four scopes listed and saved** (2026-09-21): `openid`, `userinfo.email`, `userinfo.profile` and
+      `business.manage`, read back after a reload. **Google files `business.manage` as non-sensitive**, not
+      restricted: the console's own three tables put all four in "non-sensitive", and the sensitive and restricted
+      tables are empty. So there is no verification burden and no 100-user cap from the scope itself - the gate is
+      the Business Profile API access application, which is a separate thing. Earlier notes here guessed the
+      opposite; the console's classification is what counts.
 - [ ] **Not applied for yet:** the Business Profile API access form itself, which still wants an email address on
       the website's own domain (see above).
 
