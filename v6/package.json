@@ -16,6 +16,7 @@
     "ui": "vite",
     "dev": "electron app/main.ts",
     "dist": "node scripts/dist.mjs",
+    "release:notes": "node scripts/release-notes.mjs",
     "install-local": "node scripts/dist.mjs --install",
     "help:shots": "node scripts/help-shots.mjs",
     "assistant:test": "node scripts/assistant-eval.ts",

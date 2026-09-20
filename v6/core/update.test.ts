@@ -39,6 +39,36 @@ test('the notes are the release’s own words, short', () => {
   assert.equal(notesFrom(`- ${'x'.repeat(400)}`)[0].length, 160);
 });
 
+test('a bullet wrapped across lines is one bullet, not three', () => {
+  // The v6.0.0 release body, wrapped as CHANGELOG.md is written. Before this, the drawer stopped at "with the".
+  const body = [
+    '> **What you will notice:** the app is new. Everything it recorded comes across on the first launch,',
+    '> and each account signs in once more on this PC.',
+    '',
+    '**Unified Messenger 6.** The app has been rebuilt. It watches the accounts you are',
+    'already signed in to and shows who is waiting for a reply.',
+    '',
+    '- **The line.** Every unanswered conversation across every account in one list, longest wait first,',
+    '  with the reply target you set.',
+    '- **Google reviews**: the rating, the lifetime total, and which reviews still have no reply.',
+  ].join('\n');
+  assert.deepEqual(notesFrom(body), [
+    '**The line.** Every unanswered conversation across every account in one list, longest wait first, with the reply target you set.',
+    '**Google reviews**: the rating, the lifetime total, and which reviews still have no reply.',
+  ]);
+  // Paragraphs join the same way, for a release with no bullets at all. The quote is not one of them.
+  assert.deepEqual(notesFrom(body.split('\n').slice(0, 5).join('\n')), [
+    '**Unified Messenger 6.** The app has been rebuilt. It watches the accounts you are already signed in to and shows who is waiting for a reply.',
+  ]);
+});
+
+test('a cut never leaves half a character', () => {
+  // 159 letters then an emoji: the 160th unit is the emoji's first half, so the cut stops before it.
+  assert.equal(notesFrom(`- ${'x'.repeat(159)}SMILE and more`.replace('SMILE', '\u{1F642}'))[0], 'x'.repeat(159));
+  assert.equal(notesFrom(`- ${'x'.repeat(158)}SMILE and more`.replace('SMILE', '\u{1F642}'))[0],
+    `${'x'.repeat(158)}\u{1F642}`, 'a whole emoji stays');
+});
+
 test('the owner is told in one sentence, and nothing is installed by itself', () => {
   const r = readRelease(release(), '6.0.0')!;
   assert.equal(updateSentence({ phase: 'none' }), 'Unified Messenger is up to date.');

@@ -128,5 +128,10 @@ installs it when they say. So a release is: a tag, and the Setup attached to it.
    here rather than in CI: that file never enters the repository.
 3. Commit, merge to `main`, push. **Ask the owner before creating the tag**: a `v*` tag publishes a release.
 4. Tag `v6.1.0`, make the GitHub release from it, and attach `UnifiedMessenger6Setup.exe` **under that exact name** —
-   the update check looks for it by name, and ignores a draft, a pre-release, or a release with no Setup.
-5. Installed copies find it within six hours, or when someone presses Check for updates in Settings > About.
+   the update check looks for it by name, and ignores a draft, a pre-release, or a release with no Setup. The
+   file is about 140 MB, past what any browser tool will upload, so it goes onto the release by hand.
+5. **The release body is `npm run release:notes`, not the `CHANGELOG` entry copied as it stands.** That prints the
+   entry with each bullet on one line. `notesFrom` joins wrapped lines from the next release on, but the copies
+   already installed do not, and they are the ones who read the next release's notes: a wrapped body reaches them
+   cut mid-sentence.
+6. Installed copies find it within six hours, or when someone presses Check for updates in Settings > About.

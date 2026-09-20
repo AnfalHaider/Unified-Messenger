@@ -41,12 +41,44 @@ export function readRelease(raw: unknown, current: string, releasesUrl: string =
   return { version, notes: notesFrom(String(r.body ?? '')), url, size: Number(asset?.size) || 0 };
 }
 
-/** The release's lines as a short list: bullets if it has them, else its first sentences. Six at most. */
+/**
+ * The release's lines as a short list: bullets if it has them, else its first sentences. Six at most.
+ *
+ * A release body is written wrapped, the way any Markdown file is, so one bullet usually runs over two or three
+ * lines. Those lines are one bullet, not three, and reading them as three showed the owner half-sentences cut at
+ * the wrap. A line that does not begin a block of its own belongs to the block above it.
+ */
 export function notesFrom(body: string): string[] {
-  const lines = body.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const bullets = lines.filter((l) => /^[-*]\s+/.test(l)).map((l) => l.replace(/^[-*]\s+/, ''));
-  const rest = lines.filter((l) => !/^[-*#>]/.test(l));
-  return (bullets.length ? bullets : rest).slice(0, 6).map((l) => l.slice(0, 160));
+  const blocks = blocksOf(body);
+  const bullets = blocks.filter((l) => /^[-*]\s+/.test(l)).map((l) => l.replace(/^[-*]\s+/, ''));
+  // A heading, a quote and a bullet are not prose; `**Bold.** A sentence` is, so the test is for a marker
+  // followed by a space, not for a bare asterisk, which starts half the sentences this product writes.
+  const rest = blocks.filter((l) => !STARTS.test(l));
+  return (bullets.length ? bullets : rest).slice(0, 6).map((l) => cut(l, 160));
+}
+
+/** What begins a block of its own: a bullet, a heading, a quote. */
+const STARTS = /^([-*]\s+|#|>)/;
+
+/** Wrapped lines gathered back into what they were written as: a bullet, a heading, a quote, a paragraph. */
+function blocksOf(body: string): string[] {
+  const blocks: string[] = [];
+  for (const raw of body.split(/\r?\n/)) {
+    const line = raw.trim();
+    // A blank line ends the block above it; the empty entry is the marker, and is dropped at the end.
+    if (!line) { blocks.push(''); continue; }
+    const last = blocks[blocks.length - 1];
+    if (STARTS.test(line) || !last) blocks.push(line);
+    else blocks[blocks.length - 1] = `${last} ${line}`;
+  }
+  return blocks.filter(Boolean);
+}
+
+/** A cut that never leaves half a character: a slice through an emoji leaves a lone surrogate behind. */
+function cut(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const c = text.charCodeAt(max - 1);
+  return text.slice(0, c >= 0xd800 && c <= 0xdbff ? max - 1 : max);
 }
 
 /** Where a download may come from: GitHub, or the same place the release list came from. */
