@@ -16,6 +16,8 @@ test('the defaults match the owner decisions: accounts awake, assistant off, clo
   assert.equal(s.sleepUnusedAccounts, false);
   assert.equal(s.closeToBackground, true, 'closing keeps the app reading unless the owner turns it off');
   assert.equal(s.assistant.enabled, false);
+  // Google's own API is off until Google grants this app access (3.1b): reviews come from the page until then.
+  assert.equal(s.googleApi.enabled, false);
   assert.equal(s.filterClosedConversations, true);
 });
 
@@ -53,6 +55,8 @@ test('numbers are held inside their limits', () => {
   assert.equal(settings({ readEverySeconds: 5 }).readEverySeconds, 15);
   assert.equal(settings({ quietHours: { startHour: 30 } }).quietHours.startHour, 23);
   assert.equal(settings({ assistant: { endpoint: 'http://127.0.0.1:11434' } }).assistant.endpoint, 'http://127.0.0.1:11434/');
+  assert.equal(settings({ googleApi: 'yes' }).googleApi.enabled, false, 'nonsense leaves it off');
+  assert.equal(settings({ googleApi: { enabled: true } }).googleApi.enabled, true);
 });
 
 test('locations need a name, and keep one entry each', () => {

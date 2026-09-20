@@ -61,11 +61,15 @@ export function newAttempt(random = randomBytes) {
 }
 
 /** The page the owner's browser opens. Name and email only: `openid email profile`, nothing more. */
-export function authorizeUrl(ep: Endpoints, config: CloudConfig, redirect: string, attempt: { challenge: string; state: string }): string {
+export function authorizeUrl(ep: Endpoints, config: CloudConfig, redirect: string, attempt: { challenge: string; state: string },
+  // Connecting a Google Business profile (3.1b) asks for another scope, and for a refresh token, which Google only
+  // sends when it is asked to (`access_type=offline`) and the person is asked again (`prompt=consent`).
+  o: { scope?: string; offline?: boolean } = {}): string {
   const url = new URL(ep.authorize);
   url.search = new URLSearchParams({
-    client_id: config.oauth.clientId, redirect_uri: redirect, response_type: 'code', scope: 'openid email profile',
-    code_challenge: attempt.challenge, code_challenge_method: 'S256', state: attempt.state, prompt: 'select_account',
+    client_id: config.oauth.clientId, redirect_uri: redirect, response_type: 'code', scope: o.scope ?? 'openid email profile',
+    code_challenge: attempt.challenge, code_challenge_method: 'S256', state: attempt.state,
+    ...(o.offline ? { access_type: 'offline', prompt: 'consent' } : { prompt: 'select_account' }),
   }).toString();
   return url.toString();
 }

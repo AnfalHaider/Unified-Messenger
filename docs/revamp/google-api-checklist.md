@@ -19,6 +19,13 @@ The owner signs in to Google Cloud; Claude does the configuring, asking before e
 - [ ] About thirty minutes for the setup, then waiting for Google's approval email (usually days to a couple of
       weeks).
 
+## What is already built
+
+The reader is done and tested (3.1b, 2026-09-20): `v6/core/google-api.ts` and `v6/app/google-api.ts`, switched off
+behind `settings.googleApi.enabled`. Once Google approves, switching it on and adding a Connect button to the Google
+account's screen is all that is left — nothing else in the app changes, because the API's reviews become the same
+cards the page reader already produces.
+
 ## What Claude configures, with the owner's approval at each step
 
 1. **Enable the APIs** in the project: My Business Account Management API and My Business Business Information API.

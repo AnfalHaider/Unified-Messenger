@@ -60,6 +60,9 @@ export interface Settings {
   closeToBackground: boolean;
   /** The local assistant is off by default, so a low-end PC never pays for it. */
   assistant: { enabled: boolean; model: string; endpoint: string };
+  /** Google's own Business Profile API as the reviews source (3.1b). Off until Google grants this app access: until
+   *  then every call is refused, and reviews are read from the page as before. */
+  googleApi: { enabled: boolean };
   theme: 'system' | 'light' | 'dark';
   quietHours: { enabled: boolean; startHour: number; endHour: number };
   /** Windows notifications, each switchable. Quiet hours hold all of them back. */
@@ -93,6 +96,7 @@ export const defaultSettings = (): Settings => ({
   sleepAfterMinutes: 20,
   readEverySeconds: 60,
   assistant: { enabled: false, model: 'gemma3:4b', endpoint: 'http://127.0.0.1:11434/' },
+  googleApi: { enabled: false },
   theme: 'system',
   quietHours: { enabled: false, startHour: 21, endHour: 8 },
   alerts: { nearTarget: true, waitedHour: true, signedOut: true, callNotReturned: true },
@@ -278,6 +282,7 @@ function parseSettings(raw: unknown): Settings {
       model: str(assistant.model) || d.assistant.model,
       endpoint: endpoint(str(assistant.endpoint) || d.assistant.endpoint),
     },
+    googleApi: { enabled: bool((isObject(raw.googleApi) ? raw.googleApi : {}).enabled, d.googleApi.enabled) },
     theme: theme === 'light' || theme === 'dark' || theme === 'system' ? theme : d.theme,
     quietHours: {
       enabled: bool(quiet.enabled, d.quietHours.enabled),

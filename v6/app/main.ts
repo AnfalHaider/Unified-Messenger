@@ -2,7 +2,7 @@
 // to read, what counts as waiting and when to sleep an account lives in core/; how a channel is read lives in
 // channels/. This file only carries both out, and hands the screens a finished view model so no figure is
 // computed twice.
-import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, Notification, session, shell, Tray, WebContentsView } from 'electron';
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, Notification, safeStorage, session, shell, Tray, WebContentsView } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { totalmem } from 'node:os';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -31,6 +31,7 @@ import { Cloud } from './cloud.ts';
 import { GOOGLE_ENDPOINTS, parseCloudConfig, type Endpoints } from '../core/cloud-auth.ts';
 import { Workspace } from './workspace.ts';
 import { applySetup, sharedSetup, type SharedSetup } from '../core/workspace-sync.ts';
+import { GoogleBusiness } from './google-api.ts';
 import { answerFrom, answerQuestion, buildFacts } from '../core/assistant-summary.ts';
 import { parseDrafts, replyPrompt, type ChatLine } from '../core/assistant-reply.ts';
 import { loadJson, saveJson } from './store.ts';
@@ -173,6 +174,19 @@ const workspace = new Workspace({
   changed: () => push(),
   log: (entry) => log(entry),
 });
+/** Google's own Business Profile API as the reviews source (3.1b). Switched off: Google grants access to these APIs
+ *  by application, so until that is granted nothing here is used and reviews are read from the page as before. The
+ *  reader itself is built and tested (app/google-api.test.ts); connecting a profile arrives with the approval. */
+const googleBusiness = new GoogleBusiness({
+  dataDir: DATA,
+  config: cloudConfig,
+  endpoints: cloudEndpoints,
+  open: (url) => shell.openExternal(url),
+  secret: { available: () => safeStorage.isEncryptionAvailable(), encrypt: (s) => safeStorage.encryptString(s).toString('base64'), decrypt: (s) => safeStorage.decryptString(Buffer.from(s, 'base64')) },
+  log: (entry) => log(entry),
+  changed: () => push(),
+});
+
 /** Said when a member who is not an admin tries to change what the workspace shares. */
 const SHARED_READ_ONLY = 'This PC takes its accounts, locations and business rules from the workspace. Only a workspace admin can change them.';
 const SHARED_SETTINGS = ['slaMinutes', 'backlogAfterDays', 'filterClosedConversations', 'savedReplies', 'notCustomers'];
@@ -419,11 +433,29 @@ const pageOf = (view: WebContentsView) => {
 };
 
 async function readGoogle(a: Account, force: boolean) {
-  const view = views.get(a.id);
-  if (!view || visible === a.id) return;
   const now = Date.now();
   const had = reviews[a.id];
   if (!force && had?.capturedAt && now - had.capturedAt < REVIEWS_EVERY_MS) return;
+  // Google's own API, when this build has it switched on and the profile is connected: every review rather than the
+  // latest page, and no page to move. Until Google grants access this is never true.
+  if (googleBusiness.reads(a.id, config.settings.googleApi.enabled)) {
+    if (!force && now - (reviewsTriedAt[a.id] ?? 0) < REVIEWS_RETRY_MS) return;
+    reviewsTriedAt[a.id] = now;
+    const result = await googleBusiness.read(a.id);
+    if ('error' in result) {
+      recordHealth(a.channel, false, result.error);
+      remember(a, 'failed', { stage: 'google-api' });
+      return;
+    }
+    reviews[a.id] = result.reviews;
+    saveJson(FILE.reviews, reviews);
+    recordHealth(a.channel, true);
+    remember(a, 'read', { chats: result.reviews.cards.length, waiting: result.reviews.cards.filter((c) => !c.replied).length });
+    push();
+    return;
+  }
+  const view = views.get(a.id);
+  if (!view || visible === a.id) return;
   if (!force && now - (reviewsTriedAt[a.id] ?? 0) < REVIEWS_RETRY_MS) return;
   reviewsTriedAt[a.id] = now;
   // Signed out: leave the page on Google's sign-in, where the owner can sign in, rather than moving it about.
