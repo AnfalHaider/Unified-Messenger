@@ -2,6 +2,13 @@
 
 Newest entries on top. Append only — never edit an older entry.
 
+## 2026-09-21 — v6.0.0 published (7.8), and the Google Cloud console configured
+
+- Phase 6 finished and Phase 7 with it: sign-in, rules, workspaces, members, suspension and the owner console, the public pages, the API reviews reader (3.1b, switched off), cookie encryption, asar, updates, the upgrade screen, release notes, v5 retired.
+- **v6.0.0 tagged and released** with the owner's explicit permission: gate green (352 unit, 31 on screen, 25 emulator, typecheck clean), `main` at `6a5c59b`, the release published from the owner's own Chrome with the `CHANGELOG` entry as its notes.
+- **The Setup could not be attached by an agent** (138 MB against a 10 MB browser-upload cap, no `gh`, and a REST upload would want a token). Proved against the live API that this is harmless: `readRelease` returns `null` for an assetless release, so no copy is offered a broken update. Lesson `v6-release-asset-needs-the-owners-hand`.
+- Google Cloud: both Business Profile APIs enabled, consent screen saved, all four scopes listed. Corrected an earlier claim of mine — `business.manage` is filed **non-sensitive**, so no verification or 100-user cap follows from it; the gate is the access application, which still wants an email on a domain the owner owns.
+
 ## 2026-09-13 (later) — v6 roadmap 4.5, 4.6, alert fix, two install incidents
 
 - 4.5 `core/history.ts` (per account per local day, `history.json`), verified surviving a restart on the owner's PC. 4.6 `core/report.ts` and four real Reports tabs; weekly document and exports split out as 4.6b.
