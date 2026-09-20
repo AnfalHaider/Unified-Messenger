@@ -20,6 +20,28 @@ The owner signs in to Google Cloud; Claude does the configuring, asking before e
 - [ ] About thirty minutes for the setup, then waiting for Google's approval email (usually days to a couple of
       weeks).
 
+## Done in the console, 2026-09-20/21 (owner signed in, Claude driving the browser)
+
+- [x] **Both APIs enabled** on `unified-messenger-5549a`: My Business Account Management, and My Business
+      Business Information. (The reviews API, "Google My Business API" v4, only becomes enable-able after approval.)
+- [x] **Consent screen (Branding) saved**: app name *Unified Messenger*, support email and developer contact
+      `anfalhaider@gmail.com`, home page `https://unified-messenger-5549a.web.app/`, privacy policy
+      `https://unified-messenger-5549a.web.app/privacy`, authorised domains `unified-messenger-5549a.web.app` and
+      `unified-messenger-5549a.firebaseapp.com`. Read back after a reload.
+- [x] **Publishing status left as Firebase made it: External, In production.** This checklist used to say keep it
+      in Testing; that was written before workspaces existed. Testing admits only a list of test users, which would
+      stop a customer signing in to their own workspace. In production with an unverified restricted scope means the
+      `business.manage` consent shows an "unverified app" warning and counts against a 100-user cap until Google
+      approves - fine for the owner's own profiles, and verification comes with the access application anyway.
+- [ ] **Scopes not yet listed on the consent screen** (Data Access: `openid`, `userinfo.email`, `userinfo.profile`,
+      `business.manage`). Tried three times; the browser pane kept losing its rendering while the app window was in
+      the background, and the dialog's Save went with it. Nothing depends on this today - the app asks for its
+      scopes at sign-in - but Google's verification submission wants them listed. Two minutes by hand: Data Access,
+      Add or remove scopes, tick the three basic ones, paste
+      `https://www.googleapis.com/auth/business.manage` into "manually paste scopes", Add to table, Update, Save.
+- [ ] **Not applied for yet:** the Business Profile API access form itself, which still wants an email address on
+      the website's own domain (see above).
+
 ## What is already built
 
 The reader is done and tested (3.1b, 2026-09-20): `v6/core/google-api.ts` and `v6/app/google-api.ts`, switched off
