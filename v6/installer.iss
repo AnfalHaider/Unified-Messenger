@@ -81,8 +81,11 @@ begin
   Result := True;
   if not IsRunning() then exit;
   if FileExists(ExpandConstant('{app}\{#ExeName}')) then begin
+    { Up to two minutes: a shutdown closes every account page in turn, and a PC with six of them has taken
+      88 seconds. Giving up early let the install carry on under the running copy, and the app it then started
+      met the old one still holding the single-instance lock and exited, leaving no app open at all. }
     Exec(ExpandConstant('{app}\{#ExeName}'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code);
-    if WaitUntilClosed(20000) then exit;
+    if WaitUntilClosed(120000) then exit;
   end;
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM {#ExeName}', '', SW_HIDE, ewWaitUntilTerminated, Code);
   Result := WaitUntilClosed(30000);
