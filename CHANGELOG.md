@@ -5,6 +5,24 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v6.1.0
+
+Unified Messenger now asks who you are before it opens, and an invitation says which accounts that person may
+see.
+
+- **Sign in before anything loads.** On a new PC the app opens on the sign-in screen and stays there: it reads
+  nothing, opens no account page and shows no figures until the Google address you signed in with has been
+  invited to a workspace. If it has not, the app says so and names the address, in case it was the wrong
+  Google account. Nothing already on the PC is touched while it waits.
+- **An invitation names the accounts.** When you invite someone you choose the whole business, or tick the
+  accounts they may see — branch by branch, so ticking a branch ticks its accounts. Their PC only ever
+  receives those, so it never signs in to the rest. Change it later beside their name; what they lose is
+  wiped from their PC at its next check, login and all.
+- **Joining is where you meet it.** An invited person sees what they were invited to, and Join, on the first
+  screen — no hunting through Settings.
+- A PC that has been removed from a workspace still sees why, and what was wiped, before anything else.
+
+
 ## v6.0.2
 
 A fix for workspaces, two more things the app can tell you about, and the last screens that were showing
