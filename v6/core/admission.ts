@@ -4,7 +4,11 @@
 // the workspace has said they belong. That is what makes an invite list mean something: a stranger who finds the
 // installer gets as far as the sign-in screen and no further.
 //
-// Two ways in that are not an invitation, and both are deliberate:
+// Three ways in that are not an invitation, and all are deliberate:
+//   - **the product's own address**, baked into the build below. It opens the app's screens and nothing more:
+//     power over workspaces comes from the `owners/{uid}` record, which the security rules enforce and a
+//     client cannot fake. This is so the person who makes the app can never be shut out of it — offline, on a
+//     new PC, or with the database unreachable.
 //   - **the product owner**, whose `owners/{uid}` marker admits them anywhere. Without this the first person
 //     ever to sign in would be locked out of their own app, because no workspace exists yet to invite them.
 //   - **a build with no cloud config**, which cannot ask anyone. That is a developer's build and the tests'.
@@ -27,7 +31,10 @@ export type AdmissionPhase =
   /** Signed in, but the workspace could not be reached and this PC has never been admitted. */
   | 'unreachable';
 
-export type AdmittedBecause = 'no-cloud-in-this-build' | 'product-owner' | 'workspace-member' | 'admitted-before';
+export type AdmittedBecause = 'no-cloud-in-this-build' | 'product-owner' | 'product-owner-address' | 'workspace-member' | 'admitted-before';
+
+/** The address the app belongs to. Admits only to the app's own screens; see the note at the top. */
+export const PRODUCT_OWNER_EMAIL = 'anfalhaider@gmail.com';
 
 export interface AdmissionInput {
   /** False in a build with no cloud config: there is nobody to ask. */
@@ -37,6 +44,8 @@ export interface AdmissionInput {
   uid: string | null;
   /** The `owners/{uid}` marker: the product owner is never locked out. */
   isOwner: boolean;
+  /** The signed-in address, matched against the product's own. */
+  email: string | null;
   /** What the workspace check has made of this account so far. */
   workspace: 'checking' | 'member' | 'removed' | 'none' | 'unreachable';
   /** Invitations waiting for this address. */
@@ -58,6 +67,7 @@ export function admission(i: AdmissionInput): Admission {
   if (!i.cloudAvailable) return { phase: 'open', because: 'no-cloud-in-this-build' };
   if (!i.signedIn) return { phase: 'signed-out', because: null };
   if (i.isOwner) return { phase: 'admitted', because: 'product-owner' };
+  if (i.email && i.email.trim().toLowerCase() === PRODUCT_OWNER_EMAIL) return { phase: 'admitted', because: 'product-owner-address' };
   if (i.workspace === 'member' || i.workspace === 'removed') return { phase: 'admitted', because: 'workspace-member' };
   // Admitted here before: a member whose workspace cannot be reached today still opens the app, exactly as one
   // whose workspace is simply slow does. Losing membership is not decided by a failed request; `removed` is.

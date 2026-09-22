@@ -3,7 +3,7 @@
 // are wired, and say so.
 import { useState } from 'react';
 import { Icon, type IconName } from '../icons.tsx';
-import { bridge, Btn, Chip, Headline, Panel, Sample, Seg, SettingRow, Stepper, Toggle, type ScreenProps } from '../parts.tsx';
+import { bridge, Btn, Check, Chip, Headline, Panel, Seg, SettingRow, Stepper, Toggle, type ScreenProps } from '../parts.tsx';
 import { durationText } from '../../core/duration.ts';
 import { updateSentence } from '../../core/update.ts';
 import type { UiState } from '../../app/view-model.ts';
@@ -440,6 +440,10 @@ function Members({ state }: ScreenProps) {
   const [inviting, setInviting] = useState(false);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'admin' | 'member'>('member');
+  // Null is the whole business; a list is exactly those accounts. An admin who ticks nothing has said
+  // something, so it is never quietly read as everything.
+  const [access, setAccess] = useState<string[] | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -463,18 +467,30 @@ function Members({ state }: ScreenProps) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <label className="field" style={{ minWidth: 280 }}><span>Their Google address</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></label>
             <label className="field"><span>Role</span><select className="input" value={role} onChange={(e) => setRole(e.target.value === 'admin' ? 'admin' : 'member')}><option value="member">Member</option><option value="admin">Admin</option></select></label>
-            <Btn kind="primary" disabled={busy || !email.trim()} onClick={async () => { if (await act(bridge.inviteMember(email, role))) { setEmail(''); setInviting(false); } }}>Save the invitation</Btn>
+            <Btn kind="primary" disabled={busy || !email.trim()} onClick={async () => { if (await act(bridge.inviteMember(email, role, access))) { setEmail(''); setAccess(null); setInviting(false); } }}>Save the invitation</Btn>
           </div>
+          <AccountAccess state={state} value={access} onChange={setAccess} />
           <span className="sub">The app sends no email. Tell them to open Unified Messenger and sign in with this Google address: the invitation is waiting there. Members see the setup and can change nothing shared; admins can change it and manage members.</span>
         </div>
       )}
       {error && <p className="late" role="alert" style={{ margin: 0 }}>{error}</p>}
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-        <table className="table"><thead><tr><th>Member</th><th>Role</th><th>Last online</th><th /></tr></thead><tbody>
+        <table className="table"><thead><tr><th>Member</th><th>Role</th><th>Accounts</th><th>Last online</th><th /></tr></thead><tbody>
           {people.map((p) => (
             <tr key={p.uid} style={p.status === 'removed' ? { opacity: 0.7 } : undefined}>
               <td><b style={{ fontWeight: 600 }}>{p.name || p.email}</b>{p.email === me && <span className="sub"> (you)</span>}<div className="sub">{p.email}</div></td>
               <td>{p.status === 'removed' ? <Chip tone="neutral">Removed</Chip> : <Chip tone={p.role === 'admin' ? 'ok' : 'neutral'}>{p.role === 'admin' ? 'Admin' : 'Member'}</Chip>}</td>
+              <td>{p.accounts === null ? 'All' : `${p.accounts.length} of ${state.accounts.length}`}
+                {admin && p.email !== me && p.status !== 'removed' && (
+                  <div><Btn kind="quiet" onClick={() => setEditing(editing === p.uid ? null : p.uid)}>Change</Btn></div>
+                )}
+                {editing === p.uid && (
+                  <div style={{ marginTop: 8 }}>
+                    <AccountAccess state={state} value={p.accounts} onChange={(v) => void act(bridge.setMemberAccounts(p.uid, v))} />
+                    <span className="sub">Their PC narrows at its next check: what they lose is wiped there, login and all.</span>
+                  </div>
+                )}
+              </td>
               <td>{seen(p.lastSeen)}</td>
               <td className="r">
                 {admin && p.email !== me && confirm !== p.uid && (p.status === 'removed'
@@ -579,6 +595,62 @@ function NotCustomers({ state }: { state: UiState }) {
         </label>
         <span className="sub" style={{ fontSize: 12 }}>{rules.words.length} word{rules.words.length === 1 ? '' : 's'} and {rules.numbers.length} number{rules.numbers.length === 1 ? '' : 's'} in use. Saved when you click away.</span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Which accounts an invitation or a member may see. Grouped by branch, because that is how a business thinks
+ * about who handles what: ticking a branch ticks its accounts, and the branch shows as part-ticked when only
+ * some are. “The whole business” is its own choice rather than every box ticked, so an account added later
+ * reaches them too, which is what an admin meant when they said everything.
+ */
+const Tick = ({ label, on, bold, onChange }: { label: string; on: boolean; bold?: boolean; onChange: () => void }) => (
+  <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+    <input type="checkbox" checked={on} onChange={onChange} />
+    <span style={bold ? { fontWeight: 600 } : undefined}>{label}</span>
+  </label>
+);
+
+function AccountAccess({ state, value, onChange }: { state: UiState; value: string[] | null; onChange: (v: string[] | null) => void }) {
+  const all = state.accounts;
+  const chosen = new Set(value ?? all.map((a) => a.id));
+  const branches = [...new Set(all.map((a) => a.location || 'No branch'))];
+  const set = (ids: Set<string>) => onChange(all.map((a) => a.id).filter((id) => ids.has(id)));
+  const toggle = (id: string) => { const next = new Set(chosen); if (next.has(id)) next.delete(id); else next.add(id); set(next); };
+  const toggleBranch = (branch: string) => {
+    const ids = all.filter((a) => (a.location || 'No branch') === branch).map((a) => a.id);
+    const next = new Set(chosen);
+    if (ids.every((id) => next.has(id))) for (const id of ids) next.delete(id);
+    else for (const id of ids) next.add(id);
+    set(next);
+  };
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <b style={{ fontWeight: 600 }}>Accounts they can see</b>
+        <Seg label="Accounts they can see" value={value === null ? 'all' : 'some'}
+          onChange={(v) => onChange(v === 'all' ? null : [])}
+          options={[['all', 'The whole business'], ['some', 'Only the ones I pick']] as const} />
+      </div>
+      {value !== null && (
+        <div className="panel" style={{ display: 'grid', gap: 10 }}>
+          {branches.map((branch) => {
+            const here = all.filter((a) => (a.location || 'No branch') === branch);
+            const every = here.every((a) => chosen.has(a.id));
+            return (
+              <div key={branch} style={{ display: 'grid', gap: 4 }}>
+                <Tick label={branch} on={every} bold onChange={() => toggleBranch(branch)} />
+                <div style={{ display: 'grid', gap: 4, paddingLeft: 22 }}>
+                  {here.map((a) => <Tick key={a.id} label={a.name} on={chosen.has(a.id)} onChange={() => toggle(a.id)} />)}
+                </div>
+              </div>
+            );
+          })}
+          {!all.length && <span className="sub">This workspace has no accounts yet.</span>}
+          {value.length === 0 && <span className="sub">Nothing ticked: they will see no accounts at all.</span>}
+        </div>
+      )}
     </div>
   );
 }

@@ -210,3 +210,35 @@ test('the app finds its own membership by email, and nobody else’s', async () 
   // Nobody can put my address on an entry under their own id, so what I find is mine.
   await assertFails(setDoc(doc(STRANGER(), 'workspaces/w1/members/stranger-uid'), { email: 'staff@example.com', name: 'x', role: 'member', status: 'active', joinedAt: serverTimestamp(), lastSeen: serverTimestamp() }));
 });
+
+test('access to accounts is an admin’s to give: a member cannot widen their own, and a joiner takes what the invitation named', async () => {
+  await seed();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore() as unknown as Firestore;
+    // The member was given one account of the two the workspace has.
+    await updateDoc(doc(db, 'workspaces/w1/members/staff-uid'), { accounts: ['a1'] });
+    // And someone invited, to one account only.
+    await setDoc(doc(db, 'workspaces/w1/invites/new@example.com'), {
+      email: 'new@example.com', role: 'member', invitedBy: 'admin-uid', invitedAt: new Date(), workspaceName: 'Sample Business', accounts: ['a1'],
+    });
+  });
+
+  // The member may still check in, which is the write they are allowed, and it leaves their access alone.
+  await assertSucceeds(updateDoc(doc(STAFF(), 'workspaces/w1/members/staff-uid'), { lastSeen: serverTimestamp(), name: 'Sample Staff' }));
+  // What they must not do: give themselves the rest of the business, on its own or alongside a check-in.
+  await assertFails(updateDoc(doc(STAFF(), 'workspaces/w1/members/staff-uid'), { accounts: ['a1', 'a2'] }));
+  await assertFails(updateDoc(doc(STAFF(), 'workspaces/w1/members/staff-uid'), { lastSeen: serverTimestamp(), accounts: ['a1', 'a2'] }));
+  // Nor may another member hand it to them.
+  await assertFails(updateDoc(doc(STAFF(), 'workspaces/w1/members/admin-uid'), { accounts: ['a1', 'a2'] }));
+  // An admin may, and that is the whole point of the feature.
+  await assertSucceeds(updateDoc(doc(ADMIN(), 'workspaces/w1/members/staff-uid'), { accounts: ['a1', 'a2'] }));
+
+  // Joining: the accounts come from the invitation, not from the person joining.
+  const newcomer = as('new-uid', 'new@example.com');
+  const joinWith = (accounts: string[]) => setDoc(doc(newcomer, 'workspaces/w1/members/new-uid'), {
+    email: 'new@example.com', name: 'A Newcomer', role: 'member', status: 'active',
+    joinedAt: serverTimestamp(), lastSeen: serverTimestamp(), accounts,
+  });
+  await assertFails(joinWith(['a1', 'a2']));
+  await assertSucceeds(joinWith(['a1']));
+});

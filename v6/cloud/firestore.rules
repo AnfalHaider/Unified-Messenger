@@ -70,7 +70,7 @@ service cloud.firestore {
         allow list: if isMember(wid) || isOwner();
 
         allow create: if signedIn() && uid() == memberId && verified()
-          && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'status', 'joinedAt', 'lastSeen'])
+          && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'status', 'joinedAt', 'lastSeen', 'accounts'])
           && request.resource.data.email == myEmail()
           && request.resource.data.status == 'active'
           && request.resource.data.joinedAt == request.time
@@ -83,7 +83,11 @@ service cloud.firestore {
             // Or someone accepting their invitation, with the role it gave, into an active workspace.
             || (active(wid)
               && exists(/databases/$(database)/documents/workspaces/$(wid)/invites/$(myEmail()))
-              && get(/databases/$(database)/documents/workspaces/$(wid)/invites/$(myEmail())).data.role == request.resource.data.role)
+              && get(/databases/$(database)/documents/workspaces/$(wid)/invites/$(myEmail())).data.role == request.resource.data.role
+              // The accounts are the invitation's, not the joiner's: nobody lets themselves into more than
+              // they were invited to, and an invitation naming none carries none.
+              && request.resource.data.get('accounts', null) ==
+                 get(/databases/$(database)/documents/workspaces/$(wid)/invites/$(myEmail())).data.get('accounts', null))
           );
 
         allow update: if
@@ -93,7 +97,7 @@ service cloud.firestore {
           // An admin removes someone else, or changes their role, while the workspace is active. Removal is a status,
           // not a delete, so the removed PC can read it and wipe its logins.
           || (isAdmin(wid) && active(wid) && uid() != memberId
-            && changedOnly(['role', 'status'])
+            && changedOnly(['role', 'status', 'accounts'])
             && request.resource.data.role in ['admin', 'member']
             && request.resource.data.status in ['active', 'removed']);
         allow delete: if false;
@@ -104,7 +108,7 @@ service cloud.firestore {
         allow read: if isAdmin(wid) || (signedIn() && verified() && myEmail() == email);
         // The workspace's name travels with the invitation: the invited person cannot read the workspace until they join.
         allow create: if isAdmin(wid) && active(wid)
-          && request.resource.data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedAt', 'workspaceName'])
+          && request.resource.data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedAt', 'workspaceName', 'accounts'])
           && request.resource.data.workspaceName == ws(wid).name
           && request.resource.data.email == email && email == email.lower()
           && request.resource.data.role in ['admin', 'member']

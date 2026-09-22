@@ -41,7 +41,8 @@ contextBridge.exposeInMainWorld('um', {
   syncWorkspace: () => ipcRenderer.send('workspace-sync'),
   /** Members (6.4). Each resolves with { error } when refused. The app sends no email: the admin tells the person. */
   joinWorkspace: (id) => ipcRenderer.invoke('workspace-join', id),
-  inviteMember: (email, role) => ipcRenderer.invoke('workspace-invite', email, role),
+  inviteMember: (email, role, accounts) => ipcRenderer.invoke('workspace-invite', email, role, accounts),
+  setMemberAccounts: (uid, accounts) => ipcRenderer.invoke('workspace-member-accounts', uid, accounts),
   withdrawInvite: (email) => ipcRenderer.invoke('workspace-withdraw', email),
   setMemberStatus: (uid, status) => ipcRenderer.invoke('workspace-member-status', uid, status),
   setMemberRole: (uid, role) => ipcRenderer.invoke('workspace-member-role', uid, role),

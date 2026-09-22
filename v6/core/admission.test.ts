@@ -1,10 +1,10 @@
 // The gate decides who may use the app at all, so every case here is one somebody could be standing in.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { admission, admissionSentence, mayRun, type AdmissionInput } from './admission.ts';
+import { admission, admissionSentence, mayRun, PRODUCT_OWNER_EMAIL, type AdmissionInput } from './admission.ts';
 
 const input = (o: Partial<AdmissionInput> = {}): AdmissionInput => ({
-  cloudAvailable: true, signedIn: true, uid: 'uid-1', isOwner: false,
+  cloudAvailable: true, signedIn: true, uid: 'uid-1', isOwner: false, email: 'someone@example.com',
   workspace: 'none', invitations: 0, admittedBefore: null, ...o,
 });
 
@@ -71,4 +71,19 @@ test('a build with no cloud config cannot ask anyone, so it gates nobody', () =>
   const a = admission(input({ cloudAvailable: false, signedIn: false, uid: null }));
   assert.deepEqual(a, { phase: 'open', because: 'no-cloud-in-this-build' });
   assert.equal(mayRun(a), true);
+});
+
+test("the product's own address is always let in, whatever the database says or cannot say", () => {
+  // The point is that the person who makes the app cannot be shut out of it: no marker, no workspace, no network.
+  for (const o of [{}, { workspace: 'none' as const }, { workspace: 'unreachable' as const }, { workspace: 'checking' as const }]) {
+    const a = admission(input({ email: PRODUCT_OWNER_EMAIL, isOwner: false, ...o }));
+    assert.deepEqual(a, { phase: 'admitted', because: 'product-owner-address' }, JSON.stringify(o));
+  }
+  // Spelt any way, and with the odd space a paste leaves behind.
+  assert.equal(admission(input({ email: ` ${PRODUCT_OWNER_EMAIL.toUpperCase()} ` })).phase, 'admitted');
+  // And it admits that address only.
+  assert.equal(admission(input({ email: 'anfalhaider@example.com' })).phase, 'refused');
+  assert.equal(admission(input({ email: `x${PRODUCT_OWNER_EMAIL}` })).phase, 'refused');
+  // Signed out, the address proves nothing: there is nobody to be.
+  assert.equal(admission(input({ email: PRODUCT_OWNER_EMAIL, signedIn: false })).phase, 'signed-out');
 });

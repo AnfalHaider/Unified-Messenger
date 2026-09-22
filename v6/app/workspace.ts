@@ -10,20 +10,22 @@
 // and counts, never a name or an email.
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fromFields, readSetup, setupKey, toFields, type FsValue, type SharedSetup } from '../core/workspace-sync.ts';
+import { accountsAllowed, fromFields, readSetup, setupFor, setupKey, toFields, type FsValue, type SharedSetup } from '../core/workspace-sync.ts';
 
 export type Role = 'admin' | 'member';
 /** A member as the members list shows them. `lastSeen` is when their PC last checked in, in milliseconds. */
-export interface Person { uid: string; email: string; name: string; role: Role; status: 'active' | 'removed'; lastSeen: number }
+export interface Person { uid: string; email: string; name: string; role: Role; status: 'active' | 'removed'; lastSeen: number;
+  /** The accounts they may see. Null is the whole business, and is what everyone invited before this had. */
+  accounts: string[] | null }
 /** An invitation not yet taken up, as admins see it. */
-export interface Invite { email: string; role: Role; invitedAt: number }
+export interface Invite { email: string; role: Role; invitedAt: number; accounts: string[] | null }
 /** One workspace as the product owner's console lists it: membership and last seen only, never a business's setup. */
 export interface OwnerWorkspace { id: string; name: string; status: 'active' | 'suspended'; members: number; admins: string[]; lastSeen: number; statusChangedAt: number }
 /** What the product owner's console shows. Everyone else sees isOwner false and no list. */
 export interface OwnerView { isOwner: boolean; workspaces: OwnerWorkspace[]; error?: string }
 
 /** An invitation to this signed-in person, from a workspace they have not joined. */
-export interface Invitation { id: string; workspaceName: string; role: Role }
+export interface Invitation { id: string; workspaceName: string; role: Role; accounts: string[] | null }
 
 export type WorkspaceState =
   | { phase: 'signed-out' }
@@ -35,7 +37,10 @@ export type WorkspaceState =
   | { phase: 'removed'; name: string; at: number; wiped: string[] }
   | { phase: 'error'; error: string };
 
-interface Kept { id: string; name: string; role: Role; synced: string[]; appliedKey: string; appliedUpdateTime: string; checkedInAt: number; syncedAt: number; lastContactAt: number }
+interface Kept { id: string; name: string; role: Role; synced: string[]; appliedKey: string; appliedUpdateTime: string; checkedInAt: number; syncedAt: number; lastContactAt: number;
+  /** The accounts this PC's member may see; null is the whole business. Kept so an offline start applies the
+   *  same setup it applied yesterday, rather than briefly showing accounts they are not allowed. */
+  accounts?: string[] | null }
 interface Removal { name: string; at: number; wiped: string[] }
 interface Doc { name: string; fields?: Record<string, FsValue>; updateTime?: string }
 
@@ -106,13 +111,13 @@ export class Workspace {
     if (this.state.phase !== 'member') this.set({ phase: 'checking' });
     try {
       const mine = await this.query('members', 'email', user.email);
-      const entries = mine.map((d) => ({ id: d.name.split('/').slice(-3)[0], uid: d.name.split('/').pop()!, ...(fromFields(d.fields ?? {}) as { role?: string; status?: string }) }))
+      const entries = mine.map((d) => ({ id: d.name.split('/').slice(-3)[0], uid: d.name.split('/').pop()!, ...(fromFields(d.fields ?? {}) as { role?: string; status?: string; accounts?: unknown }) }))
         .filter((m) => m.uid === user.uid);
       const entry = entries.find((m) => m.status === 'active') ?? entries[0];
       if (!entry) {
         const invitations = (await this.query('invites', 'email', user.email)).map((d) => {
-          const f = fromFields(d.fields ?? {}) as { workspaceName?: string; role?: string };
-          return { id: d.name.split('/').slice(-3)[0], workspaceName: f.workspaceName ?? '', role: (f.role === 'admin' ? 'admin' : 'member') as Role };
+          const f = fromFields(d.fields ?? {}) as { workspaceName?: string; role?: string; accounts?: unknown };
+          return { id: d.name.split('/').slice(-3)[0], workspaceName: f.workspaceName ?? '', role: (f.role === 'admin' ? 'admin' : 'member') as Role, accounts: idList(f.accounts) };
         });
         this.dropKept();
         this.set({ phase: 'none', invitations });
@@ -127,7 +132,12 @@ export class Workspace {
       const role: Role = entry.role === 'admin' ? 'admin' : 'member';
       const status = w.status === 'suspended' ? 'suspended' : 'active';
       if (!this.kept || this.kept.id !== entry.id) this.kept = { id: entry.id, name, role, synced: [], appliedKey: '', appliedUpdateTime: '', checkedInAt: 0, syncedAt: 0, lastContactAt: 0 };
-      Object.assign(this.kept, { name, role, lastContactAt: this.clock });
+      const allowed = idList(entry.accounts);
+      // Access changed since the last check: the setup has to be applied again, or the accounts they lost
+      // would stay on this PC until the workspace's own setup happened to change.
+      const accessChanged = JSON.stringify(this.kept.accounts ?? null) !== JSON.stringify(allowed);
+      if (accessChanged) this.kept.appliedUpdateTime = '';
+      Object.assign(this.kept, { name, role, accounts: allowed, lastContactAt: this.clock });
       this.save();
       this.set({ phase: 'member', id: entry.id, name, role, status, syncedAt: this.kept.syncedAt, lastContactAt: this.kept.lastContactAt, reconnect: false, people: [], invites: [] });
       this.h.log({ event: 'workspace-found', role, status });
@@ -216,7 +226,7 @@ export class Workspace {
       if (!invitation) return { error: 'That invitation is no longer there. Ask the admin to invite you again.' };
       try {
         await this.commit([{
-          update: { name: this.path(`workspaces/${workspaceId}/members/${user.uid}`), fields: toFields({ email: user.email, name: user.name.slice(0, 80), role: invitation.role, status: 'active' }) },
+          update: { name: this.path(`workspaces/${workspaceId}/members/${user.uid}`), fields: toFields({ email: user.email, name: user.name.slice(0, 80), role: invitation.role, status: 'active', ...(invitation.accounts === null ? {} : { accounts: invitation.accounts }) }) },
           currentDocument: { exists: false }, updateTransforms: [now('joinedAt'), now('lastSeen')],
         }]);
         // The invitation is spent; clearing it is tidiness, so a failure here does not undo the join.
@@ -232,7 +242,7 @@ export class Workspace {
   }
 
   /** An admin invites someone by their Google address. The app sends nothing: the admin tells them to sign in. */
-  invite(email: string, role: Role): Promise<{ error?: string }> {
+  invite(email: string, role: Role, accounts: string[] | null): Promise<{ error?: string }> {
     return this.admin(async (k) => {
       const address = String(email ?? '').trim().toLowerCase();
       if (!EMAIL.test(address)) return { error: 'That does not look like an email address.' };
@@ -240,12 +250,28 @@ export class Workspace {
       const removedPerson = this.state.phase === 'member' ? this.state.people.find((p) => p.email === address && p.status === 'removed') : undefined;
       if (removedPerson) return { error: 'They were removed from this workspace. Use Restore beside their name instead.' };
       await this.commit([{
-        update: { name: this.path(`workspaces/${k.id}/invites/${address}`), fields: toFields({ email: address, role: role === 'admin' ? 'admin' : 'member', invitedBy: this.h.user()!.uid, workspaceName: k.name }) },
+        // `accounts` absent means the whole business, which is what every invitation carried before this.
+        update: { name: this.path(`workspaces/${k.id}/invites/${address}`), fields: toFields({ email: address, role: role === 'admin' ? 'admin' : 'member', invitedBy: this.h.user()!.uid, workspaceName: k.name, ...(accounts === null ? {} : { accounts }) }) },
         currentDocument: { exists: false }, updateTransforms: [now('invitedAt')],
       }]).catch((e) => { throw /409|ALREADY_EXISTS/.test(String(e.message)) ? new Error('already invited') : e; });
-      this.h.log({ event: 'member-invited', role });
+      this.h.log({ event: 'member-invited', role, accounts: accounts === null ? 'all' : accounts.length });
       return {};
     }, (e) => /already invited/.test(e) ? 'They are already invited.' : 'The invitation could not be saved. Check the connection and try again.');
+  }
+
+  /** An admin changes which accounts a member may see. Their PC narrows at its next check, wiping what it loses. */
+  setAccounts(uid: string, accounts: string[] | null): Promise<{ error?: string }> {
+    return this.admin(async (k) => {
+      if (uid === this.h.user()?.uid) return { error: 'You cannot change your own access.' };
+      const safe = accountsAllowed(accounts, this.h.local());
+      await this.commit([{
+        update: { name: this.path(`workspaces/${k.id}/members/${uid}`), fields: toFields(safe === null ? {} : { accounts: safe }) },
+        updateMask: { fieldPaths: ['accounts'] },
+      }]);
+      this.h.log({ event: 'member-access-changed', accounts: safe === null ? 'all' : safe.length });
+      await this.loadPeople();
+      return {};
+    });
   }
 
   withdraw(email: string): Promise<{ error?: string }> {
@@ -295,12 +321,12 @@ export class Workspace {
     if (!this.kept || this.state.phase !== 'member') return;
     const people = (await this.list(`workspaces/${this.kept.id}/members`)).map((d): Person => {
       const f = fromFields(d.fields ?? {}) as Partial<Person>;
-      return { uid: d.name.split('/').pop()!, email: f.email ?? '', name: f.name ?? '', role: f.role === 'admin' ? 'admin' : 'member', status: f.status === 'removed' ? 'removed' : 'active', lastSeen: Number(f.lastSeen) || 0 };
+      return { uid: d.name.split('/').pop()!, email: f.email ?? '', name: f.name ?? '', role: f.role === 'admin' ? 'admin' : 'member', status: f.status === 'removed' ? 'removed' : 'active', lastSeen: Number(f.lastSeen) || 0, accounts: idList((f as { accounts?: unknown }).accounts) };
     });
     const invites = this.state.role === 'admin'
       ? (await this.list(`workspaces/${this.kept.id}/invites`)).map((d): Invite => {
-        const f = fromFields(d.fields ?? {}) as { email?: string; role?: string; invitedAt?: number };
-        return { email: f.email ?? '', role: f.role === 'admin' ? 'admin' : 'member', invitedAt: Number(f.invitedAt) || 0 };
+        const f = fromFields(d.fields ?? {}) as { email?: string; role?: string; invitedAt?: number; accounts?: unknown };
+        return { email: f.email ?? '', role: f.role === 'admin' ? 'admin' : 'member', invitedAt: Number(f.invitedAt) || 0, accounts: idList(f.accounts) };
       })
       : [];
     if (this.state.phase === 'member') this.set({ ...this.state, people, invites });
@@ -386,7 +412,9 @@ export class Workspace {
       this.kept.syncedAt = this.clock;
       this.kept.lastContactAt = this.clock;
       if (doc && doc.updateTime !== this.kept.appliedUpdateTime) {
-        const setup = readSetup(doc.fields);
+        // Only the accounts this member was invited to: the rest never reach this PC at all, so it never
+        // holds a login for them (owner's decision 2026-09-22).
+        const setup = setupFor(readSetup(doc.fields), this.kept.accounts ?? null);
         this.kept.synced = this.h.apply(setup);
         this.kept.appliedUpdateTime = doc.updateTime ?? '';
         this.h.log({ event: 'workspace-pulled', accounts: setup.accounts.length });
@@ -499,3 +527,6 @@ export class Workspace {
 }
 
 const now = (fieldPath: string) => ({ fieldPath, setToServerValue: 'REQUEST_TIME' });
+
+/** An `accounts` field as stored: absent is the whole business, a list is exactly those. Never a guess. */
+const idList = (v: unknown): string[] | null => (Array.isArray(v) ? v.map((x) => String(x)) : null);

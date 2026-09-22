@@ -2078,3 +2078,85 @@ test('the gate: a fresh install reads nothing until it has been let in, and a st
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('an invitation names the accounts: the member gets only those, and loses one when the admin narrows it', async () => {
+  const cloud = await fakeCloud();
+  const fs = await fakeFirestore();
+  const env = { ...CLOUD, UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
+  const OWNER = { uid: 'test-uid', email: 'owner@example.com', name: 'Sample Owner' };
+  const STAFF = { uid: 'staff-uid', email: 'staff@example.com', name: 'Sample Staff' };
+  fs.docs.set(`projects/test-project/databases/(default)/documents/owners/${OWNER.uid}`,
+    { fields: { note: { stringValue: 'product owner' } }, updateTime: new Date().toISOString() });
+  const ownerPc = dataFolder({
+    accounts: [
+      { id: 'dha-wa', name: 'DHA-2 WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'DHA-2' },
+      { id: 'dha-ig', name: 'DHA-2 Instagram', channel: 'instagram', url: 'about:blank', professional: true, location: 'DHA-2' },
+      { id: 'f11-wa', name: 'F-11 WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'F-11' },
+    ],
+    locations: [{ name: 'DHA-2' }, { name: 'F-11' }],
+  });
+  const staffPc = dataFolder();
+  const settings = async (win: Page) => {
+    const rail = win.getByRole('navigation', { name: 'Screens' });
+    const gateIn = win.getByRole('button', { name: 'Continue with Google' });
+    await gateIn.or(rail).first().waitFor({ timeout: 30_000 });
+    if (await gateIn.isVisible()) { await gateIn.click(); await rail.waitFor({ timeout: 30_000 }); }
+    await rail.getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
+  };
+  const staffAccounts = () => JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8')).accounts.map((a: { id: string }) => a.id).sort();
+
+  cloud.o.user = OWNER;
+  let { app, win } = await open(ownerPc, env);
+  try {
+    await settings(win);
+    await win.getByLabel('Workspace name').fill('Sample Business');
+    await win.getByRole('button', { name: 'Start the workspace' }).click();
+    await expect(win.getByText('You are an admin: changes made here reach the workspace.')).toBeVisible();
+
+    // Invited to one branch, not the business: ticking the branch ticks its accounts.
+    await win.getByRole('button', { name: 'Invite someone' }).click();
+    await win.getByLabel('Their Google address').fill('staff@example.com');
+    await win.getByRole('group', { name: 'Accounts they can see' }).getByRole('button', { name: 'Only the ones I pick' }).click();
+    await win.getByRole('checkbox', { name: 'DHA-2', exact: true }).check();
+    await expect(win.getByRole('checkbox', { name: 'DHA-2 WhatsApp' })).toBeChecked();
+    await expect(win.getByRole('checkbox', { name: 'F-11 WhatsApp' })).not.toBeChecked();
+    await win.getByRole('button', { name: 'Save the invitation' }).click();
+    await expect(win.getByText('staff@example.com')).toBeVisible();
+    await quit(app, win);
+
+    // Their PC gets the two DHA-2 accounts and never hears of F-11.
+    cloud.o.user = STAFF;
+    ({ app, win } = await open(staffPc, env));
+    await win.getByRole('button', { name: 'Continue with Google' }).click();
+    await win.getByRole('button', { name: 'Join Sample Business' }).click({ timeout: 30_000 });
+    await win.getByRole('navigation', { name: 'Screens' }).waitFor({ timeout: 30_000 });
+    await expect.poll(staffAccounts, { timeout: 30_000 }).toEqual(['dha-ig', 'dha-wa']);
+    const theirs = JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8'));
+    // A branch with none of their accounts is not sent at all.
+    expect(theirs.locations.map((l: { name: string }) => l.name)).toEqual(['DHA-2']);
+    await quit(app, win);
+
+    // The admin narrows it to one account; their PC drops the other at its next check.
+    cloud.o.user = OWNER;
+    ({ app, win } = await open(ownerPc, env));
+    await settings(win);
+    const row = win.getByRole('row').filter({ hasText: 'staff@example.com' });
+    await expect(row).toContainText('2 of 3');
+    await row.getByRole('button', { name: 'Change' }).click();
+    await row.getByRole('checkbox', { name: 'DHA-2 Instagram' }).click();
+    await expect(row).toContainText('1 of 3');
+    await quit(app, win);
+
+    cloud.o.user = STAFF;
+    ({ app, win } = await open(staffPc, env));
+    await expect.poll(staffAccounts, { timeout: 60_000 }).toEqual(['dha-wa']);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await cloud.close();
+    await fs.close();
+    rmSync(ownerPc, { recursive: true, force: true });
+    rmSync(staffPc, { recursive: true, force: true });
+  }
+});

@@ -165,10 +165,10 @@ const ownOnly = () => parseConfig({ accounts: [{ id: 'mine', name: 'My own Whats
 test('inviting: the admin invites by address, the person sees which workspace, joins, and gets the setup', async () => {
   const a = pc(OWNER, startingConfig());
   await a.ws.create('Sample Business');
-  assert.deepEqual(await a.ws.invite('Staff@Example.com', 'member'), {});
+  assert.deepEqual(await a.ws.invite('Staff@Example.com', 'member', null), {});
   assert.deepEqual(member(a.ws.state).invites.map((i) => i.email), ['staff@example.com']);
-  assert.match((await a.ws.invite('staff@example.com', 'member')).error ?? '', /already invited/);
-  assert.match((await a.ws.invite('not an address', 'member')).error ?? '', /email address/);
+  assert.match((await a.ws.invite('staff@example.com', 'member', null)).error ?? '', /already invited/);
+  assert.match((await a.ws.invite('not an address', 'member', null)).error ?? '', /email address/);
 
   // The invited person's own PC, with an account of their own that stays theirs.
   const s = pc(STAFF, ownOnly());
@@ -185,13 +185,13 @@ test('inviting: the admin invites by address, the person sees which workspace, j
   assert.deepEqual(member(a.ws.state).people.map((p) => [p.email, p.role, p.status]).sort(), [['owner@example.com', 'admin', 'active'], ['staff@example.com', 'member', 'active']]);
   assert.deepEqual(member(a.ws.state).invites, []);
   // A member who is not an admin cannot invite.
-  assert.match((await s.ws.invite('x@example.com', 'member')).error ?? '', /Only a workspace admin/);
+  assert.match((await s.ws.invite('x@example.com', 'member', null)).error ?? '', /Only a workspace admin/);
 });
 
 test('removing: the removed PC wipes what it had from the workspace, keeps what was its own, and says so', async () => {
   const a = pc(OWNER, startingConfig());
   await a.ws.create('Sample Business');
-  await a.ws.invite('staff@example.com', 'member');
+  await a.ws.invite('staff@example.com', 'member', null);
   const s = pc(STAFF, ownOnly());
   await s.ws.check();
   await s.ws.join(invitations(s.ws.state)[0].id);
@@ -239,8 +239,8 @@ test('a PC that has not reached the workspace for a week asks to reconnect; a da
 test('an admin makes a member an admin, and withdraws an invitation', async () => {
   const a = pc(OWNER, startingConfig());
   await a.ws.create('Sample Business');
-  await a.ws.invite('staff@example.com', 'member');
-  await a.ws.invite('later@example.com', 'admin');
+  await a.ws.invite('staff@example.com', 'member', null);
+  await a.ws.invite('later@example.com', 'admin', null);
   assert.deepEqual(await a.ws.withdraw('later@example.com'), {});
   assert.deepEqual(member(a.ws.state).invites.map((i) => i.email), ['staff@example.com']);
   const s = pc(STAFF);
@@ -257,7 +257,7 @@ test('an admin makes a member an admin, and withdraws an invitation', async () =
 test('the product owner sees every workspace, suspends one, and its PCs lock without losing anything', async () => {
   const a = pc(OWNER, startingConfig());
   await a.ws.create('Sample Business');
-  await a.ws.invite('staff@example.com', 'member');
+  await a.ws.invite('staff@example.com', 'member', null);
   const s = pc(STAFF);
   await s.ws.check();
   await s.ws.join(invitations(s.ws.state)[0].id);
@@ -287,7 +287,7 @@ test('the product owner sees every workspace, suspends one, and its PCs lock wit
   await a.ws.check();
   assert.equal(member(a.ws.state).status, 'suspended');
   assert.equal(a.ws.readOnly, true);
-  assert.match((await a.ws.invite('later@example.com', 'member')).error ?? '', /suspended/);
+  assert.match((await a.ws.invite('later@example.com', 'member', null)).error ?? '', /suspended/);
 
   // Restored: back to normal.
   assert.deepEqual(await console_.ws.setWorkspaceStatus(id, 'active'), {});

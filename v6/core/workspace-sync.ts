@@ -28,6 +28,32 @@ export function sharedSetup(config: Config): SharedSetup {
   };
 }
 
+/**
+ * The setup as one member is allowed to see it (owner's decision 2026-09-22: an invitation names the accounts).
+ *
+ * `allowed` is null for everyone who was invited before this existed, and for anyone given the whole business:
+ * null means all, and an empty list means none — those are different answers, and an admin who ticks nothing
+ * has said something, so it is not quietly read as everything.
+ *
+ * A branch with none of their accounts goes too: an empty branch on the line is noise, not information. The
+ * business rules — the reply target, saved replies, who is not a customer, the holidays — are not assets and
+ * reach every member, or two people at the same desk would measure the same customer differently.
+ */
+export function setupFor(setup: SharedSetup, allowed: string[] | null): SharedSetup {
+  if (allowed === null) return setup;
+  const mine = new Set(allowed);
+  const accounts = setup.accounts.filter((a) => mine.has(a.id));
+  const branches = new Set(accounts.map((a) => a.location));
+  return { accounts, locations: setup.locations.filter((l) => branches.has(l.name)), settings: setup.settings };
+}
+
+/** What an admin ticked, made safe to store: known ids only, no repeats, in the setup's own order. */
+export function accountsAllowed(ids: unknown, setup: SharedSetup): string[] | null {
+  if (ids === null || ids === undefined) return null;
+  const asked = new Set((Array.isArray(ids) ? ids : []).map((v) => String(v)));
+  return setup.accounts.map((a) => a.id).filter((id) => asked.has(id));
+}
+
 /** A fingerprint of the shared part, to tell whether it changed. Key order does not matter. */
 export function setupKey(setup: SharedSetup): string {
   const sort = (v: unknown): unknown => Array.isArray(v) ? v.map(sort)

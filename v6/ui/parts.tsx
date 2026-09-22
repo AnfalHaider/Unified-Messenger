@@ -29,7 +29,8 @@ declare global {
       createWorkspace(name: string): Promise<{ error?: string }>;
       syncWorkspace(): void;
       joinWorkspace(id: string): Promise<{ error?: string }>;
-      inviteMember(email: string, role: 'admin' | 'member'): Promise<{ error?: string }>;
+      inviteMember(email: string, role: 'admin' | 'member', accounts: string[] | null): Promise<{ error?: string }>;
+      setMemberAccounts(uid: string, accounts: string[] | null): Promise<{ error?: string }>;
       withdrawInvite(email: string): Promise<{ error?: string }>;
       setMemberStatus(uid: string, status: 'active' | 'removed'): Promise<{ error?: string }>;
       setMemberRole(uid: string, role: 'admin' | 'member'): Promise<{ error?: string }>;
@@ -74,7 +75,7 @@ export const bridge: Window['um'] = !isPreview ? window.um : {
   openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {}, removalRead() {}, refreshOwner() {}, checkForUpdate() {}, downloadUpdate() {}, upgradeRead() {},
   installUpdate: async () => ({}),
   setWorkspaceStatus: async () => ({}),
-  joinWorkspace: async () => ({}), inviteMember: async () => ({}), withdrawInvite: async () => ({}), setMemberStatus: async () => ({}), setMemberRole: async () => ({}),
+  joinWorkspace: async () => ({}), inviteMember: async () => ({}), setMemberAccounts: async () => ({}), withdrawInvite: async () => ({}), setMemberStatus: async () => ({}), setMemberRole: async () => ({}),
   createWorkspace: async () => ({ error: 'workspaces need the app, not the browser preview' }),
   askAssistant: async () => ({ error: 'The assistant needs the app, not the browser preview.' }),
   suggestReply: async () => ({ error: 'The assistant needs the app, not the browser preview.' }),
