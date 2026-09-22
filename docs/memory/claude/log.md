@@ -2,6 +2,14 @@
 
 Newest entries on top. Append only — never edit an older entry.
 
+## 2026-09-22 — 6.0.1: the live database was refusing the workspace check
+
+- Installing the released Setup on the owner's PC showed `workspace-check-failed error=query 400` in `app.log`. The workspace check is a **collection-group** query, which needs an index Firestore does not create automatically — and **the emulator never asks for one**, so 25 green rules tests sat beside a query the live service refused.
+- Fixed with `cloud/firestore.indexes.json` (a `fieldOverride` for `members.email` and `invites.email`), deployed with the new `npm run cloud:deploy` and read back from the service. Being server-side it **repaired the copy already installed**: the owner's 6.0.0 logged `workspace-none invitations=0` on its next restart. Lesson `v6-group-query-needs-an-index-the-emulator-never-asks-for`.
+- `query()` now carries Firestore's own condition into the log the way `commit()` did — `query 400` alone could not be acted on.
+- 6.0.1 built; **Smart App Control refused to run the new Setup** (CodeIntegrity 3033/3077/3118, exit code 1 in two seconds, no installer log), then lifted by itself overnight and the same file installed cleanly the next day. Second time this has happened; the existing SAC lessons hold.
+- Verified on 6.0.1: no 400, digest shown, week saved, all six accounts reading, every login intact through the upgrade.
+
 ## 2026-09-21 — v6.0.0 published (7.8), and the Google Cloud console configured
 
 - Phase 6 finished and Phase 7 with it: sign-in, rules, workspaces, members, suspension and the owner console, the public pages, the API reviews reader (3.1b, switched off), cookie encryption, asar, updates, the upgrade screen, release notes, v5 retired.
