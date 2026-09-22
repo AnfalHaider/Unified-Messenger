@@ -4,11 +4,12 @@
 // computed twice.
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, nativeTheme, Notification, safeStorage, session, shell, Tray, WebContentsView } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { totalmem } from 'node:os';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { release, totalmem } from 'node:os';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
+import { supportReport } from '../core/support-report.ts';
 import { google, GOOGLE_PROFILE_URL, GOOGLE_REVIEWS_URL, parseProfileRead } from '../channels/google/index.ts';
 import { parseProfile, parseReviewsRead, RATING_EVERY_MS, REVIEWS_EVERY_MS, unhappyReviews, type Reviews } from '../core/reviews.ts';
 import { alertsDue, pruneNotified, type Alert, type Notified } from '../core/alerts.ts';
@@ -21,12 +22,13 @@ import { dayKey, recordHistory, type History } from '../core/history.ts';
 import { reportCsv, weekEnding, weeklyDue } from '../core/report.ts';
 import { digestDue } from '../core/digest.ts';
 import { pruneCalls, recordCalls, type Calls } from '../core/calls.ts';
-import { readersStopped, recordEvent, type Events, type Outcome } from '../core/events.ts';
+import { eventsFor, readersStopped, recordEvent, type Events, type Outcome } from '../core/events.ts';
 import { forgetAccountCustomers, pruneCustomers, recordCustomers, setNote, toggleTag, type Customers } from '../core/customers.ts';
 import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit, type NewAccount } from '../core/accounts.ts';
 import { awaitingChats, distrustColdScan, notCustomerWhy, recordRead, type Snapshots } from '../core/snapshot.ts';
 import { importFromV5 } from './first-run.ts';
 import { Engine, type ChatMessage } from './assistant.ts';
+import { MODELS } from '../core/assistant.ts';
 import { Cloud } from './cloud.ts';
 import { GOOGLE_ENDPOINTS, parseCloudConfig, type Endpoints } from '../core/cloud-auth.ts';
 import { Workspace } from './workspace.ts';
@@ -84,6 +86,38 @@ app.setAppUserModelId('UnifiedMessenger.v6');
 /** Counts only. Never a customer name, a phone number or message text — this is the file support asks for. */
 const log = (entry: Record<string, unknown>) =>
   appendFileSync(FILE.log, `${JSON.stringify({ t: new Date().toISOString(), ...entry })}\n`);
+
+/** A file's size on disk, or null when it is not there or cannot be read: nothing found and nothing measured
+ *  are different answers, and Settings › Privacy says which. */
+function sizeOf(path: string): number | null {
+  try {
+    const s = statSync(path);
+    if (!s.isDirectory()) return s.size;
+    let total = 0;
+    for (const entry of readdirSync(path, { withFileTypes: true })) {
+      const inner = sizeOf(join(path, entry.name));
+      if (inner !== null) total += inner;
+    }
+    return total;
+  } catch {
+    return null;
+  }
+}
+
+/** Several paths as one figure. Null only when not one of them could be measured. */
+function sizeOfAll(paths: string[]): number | null {
+  const known = paths.map(sizeOf).filter((n): n is number => n !== null);
+  return known.length ? known.reduce((a, b) => a + b, 0) : null;
+}
+
+/** The end of the log, for the support report. A missing or unreadable log costs the tail, not the report. */
+function tailOfLog(lines: number): string[] {
+  try {
+    return readFileSync(FILE.log, 'utf8').split(/\r?\n/).filter(Boolean).slice(-lines);
+  } catch {
+    return [];
+  }
+}
 
 // Page scripts live beside the module that injects them, so the installed app carries its own readers.
 const script = (file: string) => readFileSync(join(HERE, '..', 'channels', file), 'utf8');
@@ -567,6 +601,18 @@ function stateFor(forRoute: Route) {
     now: Date.now(), route: forRoute, visible, signedOut, asleep, modules: [...health.values()], history, scope, calls, events, customers, reviews,
     assistant: engine.state, memoryGB: totalmem() / 1024 ** 3, cloud: cloud.state, workspace: workspace.state, owner: workspace.owner,
     update: updater.state, version: VERSION, upgraded,
+    // Measured only while Settings is open: walking the session folders costs a moment, and no other screen
+    // asks. The assistant's model is Ollama's, outside the app, so it is taken from what Ollama reports.
+    kept: forRoute === 'settings' ? {
+      logins: sizeOf(join(DATA, 'Partitions')),
+      recorded: sizeOfAll([FILE.snapshot, FILE.times, FILE.history, FILE.calls, FILE.events, FILE.overrides, FILE.digest, FILE.alerts, FILE.exports]),
+      customers: sizeOf(FILE.customers),
+      reviews: sizeOf(FILE.reviews),
+      log: sizeOf(FILE.log),
+      model: engine.state.models.includes(config.settings.assistant.model)
+        ? (MODELS.find((m) => m.model === config.settings.assistant.model)?.sizeGB ?? 0) * 1024 ** 3
+        : null,
+    } : undefined,
   });
 }
 
@@ -1001,6 +1047,34 @@ app.whenReady().then(async () => {
     saveLocations('hours-changed', { ...config, locations: config.locations.map((l) => (l.name === name ? { ...l, hours: merged } : l)) });
   });
   ipcMain.on('set-holidays', (_e, holidays: unknown) => saveLocations('holidays-changed', { ...config, holidays }));
+  // The report the owner saves from the reader screen and sends to support. Counts, timings and their own
+  // labels; nothing a customer wrote. core/support-report.ts holds the rule, and a test breaks it on purpose.
+  ipcMain.handle('save-support-report', async () => {
+    try {
+      const text = supportReport({
+        version: VERSION, electron: process.versions.electron, node: process.versions.node,
+        platform: `${process.platform} ${release()}`, now: Date.now(), settings: config.settings,
+        accounts: config.accounts.map((a) => {
+          const last = lastRead[a.id];
+          return {
+            id: a.id, name: a.name, channel: a.channel, location: a.location,
+            awake: views.has(a.id), signedOut: signedOut.has(a.id),
+            lastReadAt: last?.at ?? null, chats: last?.chats ?? null, waiting: last?.awaiting ?? null,
+            recent: eventsFor(events, a.id).slice(-12).map((e) => e.outcome),
+          };
+        }),
+        modules: [...health.values()].map((m) => ({ id: m.id, name: m.name, ok: m.ok, failed: m.failed, lastError: m.lastError })),
+        log: tailOfLog(400),
+      });
+      const name = `Unified Messenger report ${new Date().toISOString().slice(0, 10)}.txt`;
+      const result = await saveAs(name, { name: 'Text', extensions: ['txt'] }, text);
+      log({ event: 'support-report', result: result.cancelled ? 'cancelled' : 'saved', lines: text.split('\n').length });
+      return result;
+    } catch (e) {
+      log({ event: 'support-report', result: 'error', error: (e as Error).message.slice(0, 120) });
+      return { error: (e as Error).message };
+    }
+  });
   ipcMain.handle('export-report',async (_e, request: ExportRequest) => {
     try {
       const result = await exportReport(request);

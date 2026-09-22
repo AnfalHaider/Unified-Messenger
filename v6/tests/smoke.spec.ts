@@ -117,6 +117,7 @@ test('handled and snoozed chats leave the line, stay off it after a restart, and
 
     await rowOf('Sample Customer C').getByRole('button', { name: 'Put back' }).click();
     await expect(rowOf('Sample Customer C')).toHaveCount(0);
+
     await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
     await expect(heading(win, '1 customer is waiting')).toBeVisible();
     await quit(app, win);
@@ -915,6 +916,18 @@ test('staff and team chats are left out by a rule or a mark, listed in Set aside
     await win.getByRole('textbox', { name: "The team's own numbers" }).fill('+92 300 7778899');
     await win.getByRole('textbox', { name: 'Names containing any of these words' }).click();
     await expect.poll(() => config().settings.notCustomers.numbers).toEqual(['923007778899']);
+
+    // Settings › Privacy measures this PC rather than showing invented sizes, and says where each thing is managed.
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Privacy' }).click();
+    const keptRow = (name: string) => win.getByRole('row').filter({ hasText: name });
+    await expect(keptRow('Account logins')).toContainText('Accounts \u203a Remove');
+    // The log is written from the first launch, so it has a real size; the table never says 'Sample figures'.
+    await expect(keptRow('The support log')).toContainText(/\d+(\.\d)? (B|KB|MB)/);
+    await expect(keptRow('All of it')).toContainText(/\d+(\.\d)? (B|KB|MB|GB)/);
+    await expect(win.getByRole('main')).not.toContainText('Sample figures');
+    // Nothing is downloaded in a test, so the model row says so instead of quoting a size this PC does not hold.
+    await expect(keptRow('model')).toContainText('Nothing downloaded');
+
     await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
     await expect(heading(win, '1 customer is waiting')).toBeVisible();
     await quit(app, win);
@@ -1050,7 +1063,8 @@ test('break test: one channel whose reader throws costs only its own figures, an
     locations: [{ name: 'Main branch' }],
     settings: { readEverySeconds: 30 },
   });
-  const { app, win } = await open(data);
+  const reports = mkdtempSync(join(tmpdir(), 'um-support-'));
+  const { app, win } = await open(data, { UM_EXPORT_DIR: reports });
   const events = () => readFileSync(join(data, 'app.log'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { event: string; account?: string });
   const rail = (name: string) => win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name, exact: true });
   try {
@@ -1081,6 +1095,17 @@ test('break test: one channel whose reader throws costs only its own figures, an
     await expect(win.getByRole('main')).toContainText('the page has changed, and the reader could not read it');
     await expect(win.getByRole('main')).not.toContainText('renderer console');
     if (process.env.UM_SHOTS) await win.screenshot({ path: join(process.env.UM_SHOTS, 'break-test.png') });
+
+    // The report support asks for, saved from this very screen, and safe to send as it is.
+    await win.getByRole('button', { name: 'Save a report for support' }).click();
+    await expect(win.getByRole('main')).toContainText(/Saved to .*Unified Messenger report \d{4}-\d{2}-\d{2}\.txt/, { timeout: 30_000 });
+    const saved = readFileSync(join(reports, readdirSync(reports)[0]), 'utf8');
+    expect(saved).toContain('Test Instagram \u2014 instagram at Main branch');
+    expect(saved).toContain('Test front desk');
+    expect(saved).toMatch(/Readers/);
+    expect(saved).toContain('report for support');
+    // The fixture's own customers are in the snapshot and the line; none of them is the report's business.
+    for (const secret of ['Sample Customer', 'Hello?', '@c.us']) expect(saved, secret).not.toContain(secret);
     await quit(app, win);
   } finally {
     await app.close().catch(() => {});

@@ -4,7 +4,6 @@
 import { useState } from 'react';
 import { Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, Panel, Sample, Seg, SettingRow, Stepper, Toggle, type ScreenProps } from '../parts.tsx';
-import { KEPT } from '../sample.ts';
 import { durationText } from '../../core/duration.ts';
 import { updateSentence } from '../../core/update.ts';
 import type { UiState } from '../../app/view-model.ts';
@@ -29,7 +28,7 @@ export function SettingsScreen(props: ScreenProps) {
           {section === 'Saved replies' && <SavedReplies {...props} />}
           {section === 'Assistant' && <AssistantSettings {...props} />}
           {section === 'Workspace' && <Workspace {...props} />}
-          {section === 'Privacy' && <Privacy />}
+          {section === 'Privacy' && <Privacy {...props} />}
           {section === 'About' && <About {...props} />}
         </div>
       </div>
@@ -584,19 +583,30 @@ function NotCustomers({ state }: { state: UiState }) {
   );
 }
 
-function Privacy() {
+function Privacy({ state }: ScreenProps) {
+  const kept = state.kept;
   return (
     <>
-      <div className="sgroup"><div style={{ display: 'flex', gap: 12, alignItems: 'center' }}><h3>Kept on this PC</h3><Sample /></div>
+      <div className="sgroup"><h3>Kept on this PC</h3>
         <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
-          <table className="table"><thead><tr><th>What</th><th>Kept for</th><th className="r">Size</th><th /></tr></thead><tbody>
-            {KEPT.map((k) => <tr key={k.what}><td><b style={{ fontWeight: 600 }}>{k.what}</b></td><td className="sub">{k.kept}</td><td className="r">{k.size}</td><td className="r">{k.action && <Btn kind="quiet" disabled title="Not connected yet">{k.action}</Btn>}</td></tr>)}
+          <table className="table"><thead><tr><th>What</th><th>Kept for</th><th className="r">Size</th><th>Where it is managed</th></tr></thead><tbody>
+            {kept?.rows.map((k, i) => (
+              <tr key={k.what}>
+                <td><b style={{ fontWeight: 600 }}>{k.what}</b></td>
+                <td className="sub">{k.kept}</td>
+                <td className="r">{kept.sizes[i]}</td>
+                <td className="sub">{k.where}</td>
+              </tr>
+            ))}
+            {kept && <tr><td><b style={{ fontWeight: 600 }}>All of it</b></td><td /><td className="r"><b style={{ fontWeight: 600 }}>{kept.total}</b></td><td /></tr>}
           </tbody></table>
         </div>
+        <p className="sub">Measured from this PC when the screen opened. Anything that could not be measured says so
+          rather than showing nothing: an unread folder and an empty one are different answers.</p>
       </div>
       <div className="grid2">
         <Panel title="Sent off this PC"><p className="sub" style={{ margin: 0 }}>Your name and email to Google at sign-in, and the workspace setup: accounts, locations, hours, targets and saved replies. No messages, customers, figures or logins. No analytics, no crash reports.</p></Panel>
-        <Panel title="The support log"><p className="sub" style={{ margin: 0 }}>app.log holds counts and timings only, never a name, number or message, so it can be sent to support as it is.</p></Panel>
+        <Panel title="The support log"><p className="sub" style={{ margin: 0 }}>app.log holds counts and timings only, never a name, number or message, so it can be sent to support as it is. Save a copy from Channel readers.</p></Panel>
       </div>
     </>
   );
@@ -623,9 +633,9 @@ function About({ state, nav }: ScreenProps) {
             <Btn icon="refresh" onClick={() => bridge.checkForUpdate()}>Check for updates</Btn>
           </div>
         </div>
-        <Panel><p className="sub" style={{ margin: 0 }}>In development. The line, the docked page, accounts, readers and the reading settings work on your real accounts. Screens marked “Sample figures” show their final layout with invented numbers until their feature is connected.</p></Panel>
+        <Panel><p className="sub" style={{ margin: 0 }}>Every screen draws your own accounts and your own figures. Where something could not be read, it says so rather than showing a zero. Google reviews are the one thing still waiting: Google does not allow signing in inside the app, so they need its official API.</p></Panel>
       </div>
-      <div className="sgroup"><h3>Preview the other screens</h3><p>Screens the app shows only in particular moments, so they can be reviewed now.</p>
+      <div className="sgroup"><h3>Preview the other screens</h3><p>Screens the app shows only in particular moments. Opened here they describe what they would say, from this PC’s own workspace — never an invented one.</p>
         <div className="panel" style={{ padding: 0 }}>
           {screens.map(([name, open]) => <SettingRow key={name} title={name}><Btn icon="open" onClick={open}>Show</Btn></SettingRow>)}
         </div>

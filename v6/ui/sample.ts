@@ -1,21 +1,6 @@
-// Sample figures for the screens whose feature is not connected yet: reviews,
-// the assistant, workspace and owner screens, the customer panel and parts of Settings and Accounts. Every screen that draws from here
-// shows a "Sample figures" marker, so none of this can pass for the owner's real data. As each feature is
-// wired, its screen switches to the view model and its block here is deleted.
-//
-// Customers, reviews, members and figures are invented. The same invented week is used everywhere, so the
-// numbers agree from one screen to the next.
-
-export const CUSTOMER = {
-  history: [['Today', 'Waiting now'], ['2 Sept', 'Answered in 6 min'], ['19 Aug', 'Answered in 41 min'], ['Since', 'July, 7 conversations']],
-  tags: ['Regular', 'Evenings'],
-  note: 'Prefers evening appointments. Asked for a callback last time rather than a message.',
-  saved: [
-    { title: 'Reschedule', body: 'Of course. Tomorrow at the same time is free…' },
-    { title: 'Prices', body: 'Our current price list is attached…' },
-    { title: 'Location', body: 'We are at Shop 4, F-11 Markaz…' },
-  ],
-};
+// Invented figures for the design preview only: opening the screens in a plain browser has no main process to
+// ask, so ui/preview-state.ts draws these and the page says so. **Nothing here reaches the installed app.**
+// Every screen in the app now draws the owner's own data; as each one was wired, its block here was deleted.
 
 export const READER_TIMELINE = [
   { at: '10:14', tone: 'late', title: 'First unrecognised read', detail: 'F-11 Instagram. The page loaded and was signed in, but the inbox list had a new layout.' },
@@ -34,11 +19,3 @@ export const LOST_LOGIN = [
 ] as const;
 
 export type Fact = { label: string; value: string; unit: string; note: string; tone: 'ok' | 'due' | 'late' | 'neutral'; trend?: number[] };
-
-export const KEPT = [
-  { what: 'Account logins', kept: 'Until you sign out or wipe', size: '486 MB', action: 'Wipe an account' },
-  { what: 'Who was waiting, reply times', kept: '90 days, then summarised', size: '38 MB', action: 'Clear history' },
-  { what: 'Notes, tags and saved replies', kept: 'Until deleted', size: '0.2 MB', action: '' },
-  { what: 'Assistant conversations', kept: '30 days', size: '1.1 MB', action: 'Clear' },
-  { what: 'Assistant model', kept: 'Until the assistant is turned off', size: '3.3 GB', action: 'Remove' },
-];

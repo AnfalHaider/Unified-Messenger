@@ -65,6 +65,7 @@ contextBridge.exposeInMainWorld('um', {
   setHolidays: (holidays) => ipcRenderer.send('set-holidays', holidays),
   /** A report saved (PDF, CSV) or copied as an image. Resolves with where it went, or why it did not. */
   exportReport: (request) => ipcRenderer.invoke('export-report', request),
+  saveSupportReport: () => ipcRenderer.invoke('save-support-report'),
   /** The hidden report window says it has drawn the page, and how tall the page is. */
   printRendered: (height) => ipcRenderer.send('print-rendered', height),
   /** Undoes either mark. */

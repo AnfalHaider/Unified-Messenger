@@ -4,7 +4,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { durationText } from '../../core/duration.ts';
 import { channelIcon, Icon } from '../icons.tsx';
-import { bridge, Btn, Chip, Headline, Logo, Panel, plural, Sample, type LockScreen, type Nav, type ScreenProps } from '../parts.tsx';
+import { bridge, Btn, Chip, Headline, Logo, Panel, plural, type LockScreen, type Nav, type ScreenProps } from '../parts.tsx';
 
 /** The product owner's console (6.5): every workspace, its membership and last seen, and suspend or restore. It reads
  *  membership only — the rules refuse the product owner a business's setup, and no customer data is in the cloud. */
@@ -174,23 +174,33 @@ function OtherLocks({ screen, state, nav, back }: ScreenProps & { screen: LockSc
   if (screen === 'removed' && state.workspace.phase === 'removed') return <Removed state={state} nav={nav} />;
   if (screen === 'reconnect') return <Reconnect state={state} nav={nav} />;
   if (screen === 'suspended' && state.workspace.phase === 'member' && state.workspace.status === 'suspended') return <Suspended state={state} nav={nav} />;
+  // Neither state is in force, so there is nothing real to draw. The palette calls these Preview, and they say
+  // what the screen would say — with this PC's own workspace, never an invented business or an invented date.
   if (screen === 'removed') return (
     <LockCard>
       <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--hover)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}><Icon name="lock" size={24} /></span>
-      <h1>This PC is no longer part of the workspace</h1>
-      <p>An admin removed <b>desk.dha2@example.com</b> on 13 September at 10:41 am. The account logins saved on this PC, and the history the app kept here, were wiped at 10:44 am.</p>
-      <Panel><dl className="kv"><dt>Logins wiped</dt><dd>DHA-2 WhatsApp, DHA-2 Instagram, DHA-2 Google</dd><dt>History wiped</dt><dd>Waiting times, notes and assistant chats on this PC</dd><dt>Still here</dt><dd>The app itself, signed out</dd></dl></Panel>
-      <p className="sub">If this is a mistake, ask a workspace admin to invite this email again.</p>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Btn disabled title="Not connected yet">Sign in with a different account</Btn><Sample />{back}</div>
+      <h1>This PC has not been removed from a workspace</h1>
+      <p>{state.workspace.phase === 'member'
+        ? `If an admin of ${state.workspace.name} removed this PC, the screen here would name who did it and when, and list what was wiped.`
+        : 'This PC is in no workspace. If it joined one and was later removed, the screen here would name who removed it and when, and list what was wiped.'}</p>
+      <Panel><dl className="kv">
+        <dt>What would be wiped</dt><dd>The logins this PC holds for the workspace's accounts, and the history kept for them</dd>
+        <dt>What would stay</dt><dd>Accounts only ever added on this PC, and the app itself, signed out</dd>
+      </dl></Panel>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{back}</div>
     </LockCard>
   );
   if (screen === 'suspended') return (
     <LockCard>
       <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--due-w)', color: 'var(--due)', display: 'grid', placeItems: 'center' }}><Icon name="alert" size={24} /></span>
-      <h1>The Brightway Tutors workspace is paused</h1>
-      <p>Unified Messenger was suspended for this workspace on 25 August. Nothing on this PC has been deleted: the logins and history are kept, and everything returns as it was once the workspace is restored.</p>
-      <Panel><dl className="kv"><dt>Workspace</dt><dd>Trial: Brightway Tutors</dd><dt>Admin</dt><dd>owner@example.com</dd><dt>What to do</dt><dd>Ask the workspace admin to contact Unified Messenger</dd></dl></Panel>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Btn icon="refresh" kind="primary" disabled title="Not connected yet">Check again</Btn><Sample />{back}</div>
+      <h1>{state.workspace.phase === 'member' ? `${state.workspace.name} is not suspended` : 'No workspace is suspended'}</h1>
+      <p>If it were, this screen would stand in front of everything until it was restored. Nothing on this PC
+        would be deleted: the logins and the history stay, and everything returns as it was.</p>
+      <Panel><dl className="kv">
+        <dt>Workspace</dt><dd>{state.workspace.phase === 'member' ? state.workspace.name : 'None on this PC'}</dd>
+        <dt>What to do, if it happened</dt><dd>Ask one of its admins to contact Unified Messenger</dd>
+      </dl></Panel>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Btn icon="refresh" kind="primary" onClick={() => bridge.syncWorkspace()}>Check again</Btn>{back}</div>
     </LockCard>
   );
   return (

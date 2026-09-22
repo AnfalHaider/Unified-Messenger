@@ -1,11 +1,11 @@
 // Everything that opens over a screen: the command palette, Needs you, and the dialogs. The palette, Needs you and
-// the account dialogs are real; removing a member and the update dialog are sample until Phases 6 and 7.
+// every dialog here is real: the account dialogs, removing a member, and the update drawer.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { updateSentence } from '../../core/update.ts';
 import type { UiState } from '../../app/view-model.ts';
 import type { Route } from '../../app/view-model.ts';
 import { channelIcon, Icon, type IconName } from '../icons.tsx';
-import { bridge, Btn, Check, type LockScreen, type Nav, type Overlay, Sample, type ScreenProps, Toggle } from '../parts.tsx';
+import { bridge, Btn, Check, type LockScreen, type Nav, type Overlay, type ScreenProps, Toggle } from '../parts.tsx';
 import { HelpDrawer } from '../help.tsx';
 import { HELP_PAGES } from '../help-index.ts';
 import { REPORT_TABS } from './reports.tsx';

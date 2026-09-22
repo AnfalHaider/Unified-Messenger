@@ -56,7 +56,9 @@ Sentences you type often, with a short name. They appear beside every chat with 
   - **Restore** someone removed, and **Withdraw** an invitation not yet taken up.
 - **If the workspace is paused**, every PC in it shows a screen saying so and nothing else, until it is active again. Nothing on those PCs is deleted. See [Owner console](help:owner).
 - **A week offline:** a PC that has not reached the workspace for seven days asks to reconnect before it shows anything, so someone removed cannot keep reading by staying offline. Nothing is deleted; it carries on as soon as it reaches the workspace.
-- **Privacy** lists what is kept on this PC.
+- **Privacy** lists what is kept on this PC, measured from disk when you open it: the account logins, what the
+  app recorded, your notes and saved replies, the reviews last read, the support log and the assistant's model,
+  with where each one is managed. Anything that could not be measured says so rather than showing nothing.
 - **About** shows the version you are running and looks for newer ones. **Check for updates** asks GitHub for the
   latest release; the app also asks by itself a couple of minutes after it starts and every six hours. Nothing is
   downloaded until you press **Download it**, and nothing is installed until you press **Install and restart**, because

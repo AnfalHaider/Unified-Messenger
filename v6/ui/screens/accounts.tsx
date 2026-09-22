@@ -1,6 +1,7 @@
 // Accounts and readers: the grid of every location against every channel, one account in figures, a reader
 // that stopped working, and the record of a lost login. All of it reads the real view model; the two timelines
 // are built from what each account's reads actually did (`core/events.ts`), outcomes and counts only.
+import { useState } from 'react';
 import type { UiState } from '../../app/view-model.ts';
 import { DayBars, toneInk } from '../charts.tsx';
 import { channelIcon, Icon, type IconName } from '../icons.tsx';
@@ -134,14 +135,23 @@ export function AccountDetailScreen({ state, nav }: ScreenProps) {
 
 export function ReaderScreen({ state, nav }: ScreenProps) {
   const m = state.modules.find((x) => x.id === nav.view.sub) ?? state.modules.find((x) => x.tone === 'late') ?? state.modules[0];
+  // The report is written and saved by main; the screen only says how it went, so the owner knows there is a
+  // file to attach and where it went.
+  const [report, setReport] = useState<string>('');
+  const saveReport = async () => {
+    setReport('Saving\u2026');
+    const result = await bridge.saveSupportReport();
+    setReport(result.error ? `It could not be saved: ${result.error}` : result.cancelled ? '' : `Saved to ${result.saved}`);
+  };
   const others = state.modules.filter((x) => x !== m);
   const story = (m && state.readerStory[m.id]) ?? [];
   const broken = m?.tone === 'late';
   return (
     <main className="main">
       <Headline title={m ? (broken ? `The ${m.name} reader stopped working` : `The ${m.name} reader`) : 'Channel readers'}
-        actions={<><Btn icon="refresh" onClick={() => bridge.readNow()}>Try again now</Btn><Btn icon="export" kind="primary" disabled title="Support reports are not connected yet">Save a report for support</Btn></>}>
+        actions={<><Btn icon="refresh" onClick={() => bridge.readNow()}>Try again now</Btn><Btn icon="export" kind="primary" onClick={saveReport} title="Counts, timings and your own account names. No customers, no messages, no logins.">Save a report for support</Btn></>}>
         {m ? <>{m.detail}. {others.length > 0 && <>{others.map((o) => o.name).join(' and ')} {others.length === 1 ? 'is' : 'are'} checked separately.</>}</> : 'No account is on a channel with a reader yet.'}
+        {report && <p className="sub" style={{ margin: '8px 0 0' }}>{report}</p>}
       </Headline>
       <div className="grid2" style={{ gridTemplateColumns: 'minmax(0,1.25fr) minmax(0,1fr)' }}>
         <Panel title="What happened" note="When a page changes shape, every account on that channel fails at once, so it is reported once, as the reader.">

@@ -16,6 +16,7 @@ import { lostLoginTimeline, readerTimeline, signedOutSince, type Events, type Ti
 import { customerFor, tagsInUse, type Customers } from '../core/customers.ts';
 import { durationText } from '../core/duration.ts';
 import { ageMinutes, needingReply, spread, type Reviews } from '../core/reviews.ts';
+import { keptRows, keptTotal, sizeText, type KeptRow, type KeptSizes } from '../core/kept.ts';
 import { engineSentence, MODELS, offState, suggestModel, type EngineState, type ModelChoice } from '../core/assistant.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
@@ -256,6 +257,8 @@ export interface UiState {
   customer: CustomerView | null;
   /** Built only while Reviews is open. */
   reviews: ReviewsView | null;
+  /** What this PC is holding, for Settings › Privacy. Null on every other screen: it is measured from disk. */
+  kept: { rows: KeptRow[]; sizes: string[]; total: string } | null;
   /** The local assistant: its engine's state in a sentence, and the model suggested for this PC. */
   assistant: { state: EngineState; sentence: string; suggested: ModelChoice; memoryGB: number; models: ModelChoice[] };
   /** Signing in to the workspace: unavailable in a build without the project's config, else signed out, waiting or in. */
@@ -281,6 +284,8 @@ export interface UiState {
 
 export interface Context {
   now: number;
+  /** What this PC is holding, measured from disk. Only while Settings is open. */
+  kept?: KeptSizes;
   /** The day records. Only read while Reports is open. */
   history?: History;
   /** Missed calls and whether they were returned. */
@@ -421,6 +426,8 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
     modules: ctx.modules.map(readerHealth),
     customer: ctx.route === 'dock' && ctx.visible ? customerView(config, snapshots, ctx) : null,
     reviews: ctx.route === 'reviews' ? reviewsView(config, ctx) : null,
+    // The screen shows what it is given: the rows, each size already in words, and the total.
+    kept: ctx.kept ? { rows: keptRows(ctx.kept), sizes: keptRows(ctx.kept).map((r) => sizeText(r.bytes)), total: sizeText(keptTotal(ctx.kept)) } : null,
     assistant: {
       state: ctx.assistant ?? offState(config.settings.assistant.model),
       sentence: engineSentence(ctx.assistant ?? offState(config.settings.assistant.model)),

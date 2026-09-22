@@ -50,6 +50,7 @@ declare global {
       setHolidays(holidays: { name: string; date: string; locations: string[] }[]): void;
       /** Saves a report after asking where (PDF, CSV), or copies it as an image (PNG). */
       exportReport(request: { format: 'pdf' | 'csv' | 'png'; week?: 'this' | 'last'; days?: number }): Promise<{ saved?: string; copied?: boolean; cancelled?: boolean; error?: string }>;
+      saveSupportReport(): Promise<{ saved?: string; cancelled?: boolean; error?: string }>;
       /** Only in the hidden window a report is drawn in: says the page is drawn, and how tall it is. */
       printRendered(height: number): void;
       markHandled(accountId: string, key: string): void;
@@ -80,6 +81,7 @@ export const bridge: Window['um'] = !isPreview ? window.um : {
   addAccount: async () => ({ error: 'accounts can only be added in the app, not the browser preview' }),
   editAccount: async () => ({}), removeAccount: async () => ({}), setLocationHours() {}, setHolidays() {}, markHandled() {}, snooze() {}, putBack() {}, printRendered() {},
   exportReport: async () => ({ error: 'exports need the app, not the browser preview' }),
+  saveSupportReport: async () => ({ error: 'a support report needs the app, not the browser preview' }),
   setSettings(patch) { previewSettings?.(patch); },
   setTheme(theme) { previewSettings?.({ theme }); },
 };
