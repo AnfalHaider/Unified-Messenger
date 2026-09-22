@@ -125,6 +125,25 @@ export function needingReply(cards: ReviewCard[]): ReviewCard[] {
   return cards.filter((c) => !c.replied).sort((a, b) => rank(a) - rank(b) || (ageMinutes(b.age) ?? 0) - (ageMinutes(a.age) ?? 0));
 }
 
+/**
+ * One- and two-star reviews that appeared within `withinMinutes`, newest first: what the owner would want to
+ * know about today rather than at the end of the week. A review whose stars could not be read is not one of
+ * them — guessing an unhappy review from a missing figure would cry wolf. Google says the age in words, so a
+ * review it no longer dates ("a month ago" and older) simply falls outside the window.
+ */
+export function unhappyReviews(reviews: Reviews, withinMinutes = 60): { accountId: string; card: ReviewCard; minutes: number }[] {
+  const out: { accountId: string; card: ReviewCard; minutes: number }[] = [];
+  for (const [accountId, profile] of Object.entries(reviews)) {
+    for (const card of profile.cards) {
+      if (card.stars < 1 || card.stars > 2) continue;
+      const minutes = ageMinutes(card.age);
+      if (minutes === null || minutes > withinMinutes) continue;
+      out.push({ accountId, card, minutes });
+    }
+  }
+  return out.sort((a, b) => a.minutes - b.minutes);
+}
+
 /** How the latest reviews spread over five stars down to one, for the bar chart. */
 export const spread = (cards: ReviewCard[]) => [5, 4, 3, 2, 1].map((s) => cards.filter((c) => c.stars === s).length);
 

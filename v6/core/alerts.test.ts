@@ -109,3 +109,39 @@ test('remembered chat alerts are forgotten after two days', () => {
   pruneNotified(notified, NOW);
   assert.deepEqual(Object.keys(notified), ['recent']);
 });
+
+test('a reader that has stopped is announced once, and again only after it reads and fails afresh', () => {
+  const notified: Notified = {};
+  const stopped = [{ id: 'acct', name: 'DHA-2 WhatsApp' }];
+  const [alert] = alertsDue(input([], { stopped }), notified);
+  assert.equal(alert.kind, 'reader-stopped');
+  assert.match(alert.title, /DHA-2 WhatsApp is not being read/);
+  assert.equal(alert.key, null, 'there is no chat to open: this is about the account');
+  assert.deepEqual(alertsDue(input([], { stopped }), notified), [], 'still stopped is not news');
+  // Reading again clears it, the way signing back in clears the sign-in alert.
+  assert.deepEqual(alertsDue(input([], { reading: ['acct'] }), notified), []);
+  assert.equal(kinds(alertsDue(input([], { stopped }), notified))[0], 'reader-stopped', 'it can stop again');
+  const off = parseConfig({ settings: { alerts: { readerStopped: false } } }).config.settings;
+  assert.deepEqual(alertsDue(input([], { stopped, settings: off }), {}), []);
+});
+
+test('an unhappy review is announced once, however Google rewords its age', () => {
+  const notified: Notified = {};
+  const unhappy = (minutes: number) => [{ accountId: 'g1', accountName: 'DHA-2 on Google', reviewer: 'A Reviewer', stars: 1, minutes }];
+  const [alert] = alertsDue(input([], { unhappy: unhappy(12) }), notified);
+  assert.equal(alert.kind, 'unhappy-review');
+  assert.match(alert.title, /A Reviewer left a one-star review/);
+  assert.match(alert.body, /DHA-2 on Google/);
+  assert.match(alert.body, /12 min ago/);
+  // The same review at the next read, with Google's wording moved on: not announced again.
+  assert.deepEqual(alertsDue(input([], { unhappy: unhappy(47) }), notified), []);
+  const off = parseConfig({ settings: { alerts: { unhappyReview: false } } }).config.settings;
+  assert.deepEqual(alertsDue(input([], { unhappy: unhappy(5), settings: off }), {}), []);
+});
+
+test('four accounts that stopped reading are one alert, not four', () => {
+  const stopped = ['a', 'b', 'c', 'd'].map((id) => ({ id, name: `Account ${id}` }));
+  const shown = alertsDue(input([], { stopped }), {});
+  assert.equal(shown.length, 1);
+  assert.match(shown[0].title, /4 accounts are not being read/);
+});

@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
 import { google, GOOGLE_PROFILE_URL, GOOGLE_REVIEWS_URL, parseProfileRead } from '../channels/google/index.ts';
-import { parseProfile, parseReviewsRead, RATING_EVERY_MS, REVIEWS_EVERY_MS, type Reviews } from '../core/reviews.ts';
+import { parseProfile, parseReviewsRead, RATING_EVERY_MS, REVIEWS_EVERY_MS, unhappyReviews, type Reviews } from '../core/reviews.ts';
 import { alertsDue, pruneNotified, type Alert, type Notified } from '../core/alerts.ts';
 import { CHANNELS, emptyConfig, parseConfig, type Account, type Config } from '../core/config.ts';
 import { clear, markHandled, markNotCustomer, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
@@ -21,7 +21,7 @@ import { dayKey, recordHistory, type History } from '../core/history.ts';
 import { reportCsv, weekEnding, weeklyDue } from '../core/report.ts';
 import { digestDue } from '../core/digest.ts';
 import { pruneCalls, recordCalls, type Calls } from '../core/calls.ts';
-import { recordEvent, type Events, type Outcome } from '../core/events.ts';
+import { readersStopped, recordEvent, type Events, type Outcome } from '../core/events.ts';
 import { forgetAccountCustomers, pruneCustomers, recordCustomers, setNote, toggleTag, type Customers } from '../core/customers.ts';
 import { addAccount, editAccount, forgetAccount, removeAccount, type AccountEdit, type NewAccount } from '../core/accounts.ts';
 import { awaitingChats, distrustColdScan, notCustomerWhy, recordRead, type Snapshots } from '../core/snapshot.ts';
@@ -363,7 +363,7 @@ async function readAccount(a: Account, reason: string) {
   const now = Date.now();
   const wasSignedOut = signedOut.has(a.id);
   try {
-    const raw = await pageAnswer<unknown>(view, module.scan);
+    const raw = await pageAnswer<unknown>(view, module.scan(config.settings.readLimits));
     // parse never throws: a page that changed shape costs this read, and the loop moves to the next account.
     const { entries, skipped, awaitingInferred, notReady, stage } = module.parse(raw);
     lastReadAt[a.id] = now;
@@ -768,6 +768,11 @@ function notifyDue() {
       if (chat && notCustomerWhy(c.account, chat, judgeFor(config, overrides, now))) return [];
       return [{ accountId: c.account, accountName: account(c.account)?.name ?? c.account, key: c.key, customer: chat?.customerName || chat?.contactPhone || 'A customer', at: c.at }];
     }),
+    // A reader that has stopped: three failed reads in a row on the same account, from the record the reader
+    // screens already draw. An account reading again clears it, so one bad afternoon is announced once.
+    stopped: readersStopped(events).flatMap((id) => { const a = account(id); return a ? [{ id, name: a.name }] : []; }),
+    reading: Object.keys(lastRead).filter((id) => !signedOut.has(id)),
+    unhappy: unhappyReviews(reviews).map((r) => ({ accountId: r.accountId, accountName: account(r.accountId)?.name ?? r.accountId, reviewer: r.card.reviewer, stars: r.card.stars, minutes: r.minutes })),
     settings: config.settings, now,
   }, notified);
   pruneNotified(notified, now);

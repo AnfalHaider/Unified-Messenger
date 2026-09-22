@@ -35,12 +35,6 @@ export const LOST_LOGIN = [
 
 export type Fact = { label: string; value: string; unit: string; note: string; tone: 'ok' | 'due' | 'late' | 'neutral'; trend?: number[] };
 
-/** Alerts whose reader or feature does not exist yet; Settings lists them as not connected. */
-export const ALERTS = [
-  { title: 'A channel reader stops working', detail: 'After 3 failed reads in a row' },
-  { title: 'A one- or two-star review arrives', detail: 'Within an hour of it appearing' },
-];
-
 export const KEPT = [
   { what: 'Account logins', kept: 'Until you sign out or wipe', size: '486 MB', action: 'Wipe an account' },
   { what: 'Who was waiting, reply times', kept: '90 days, then summarised', size: '38 MB', action: 'Clear history' },

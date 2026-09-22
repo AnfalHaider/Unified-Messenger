@@ -26,7 +26,9 @@ export const instagram: ChannelModule = {
   inject: (load) => load('instagram/instagram-adapter.js') + load('instagram/instagram-focus.js'),
   // Finds the thread and stops: opening it would send a "Seen" and clear the unread that marks it waiting.
   focus: (t) => `window.__umFocusInstagram ? window.__umFocusInstagram(${JSON.stringify(t.name)}) : 'working'`,
-  scan: 'window.__umReadInstagramThreads ? window.__umReadInstagramThreads() : ""',
+  // No limit to pass: Instagram's page holds the top threads of Primary and nothing more, so how many
+  // threads a read sees is Instagram's decision, not a setting the app could honour.
+  scan: () => 'window.__umReadInstagramThreads ? window.__umReadInstagramThreads() : ""',
   signedOutProbe: `({
     qr: false,
     login: !!document.querySelector('input[name="username"], input[name="password"], input[type="password"], form#loginForm, a[href^="/accounts/signup"]'),

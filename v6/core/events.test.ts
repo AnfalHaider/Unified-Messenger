@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { KEEP_EVENTS, lostLoginTimeline, readerTimeline, recordEvent, signedOutSince, type Events, type Outcome, type ReadEvent } from './events.ts';
+import { KEEP_EVENTS, lostLoginTimeline, readersStopped, readerTimeline, recordEvent, signedOutSince, type Events, type Outcome, type ReadEvent } from './events.ts';
 
 const MIN = 60_000;
 const NOW = new Date(2026, 8, 14, 23, 30).getTime();
@@ -80,4 +80,20 @@ test('nothing on a timeline can carry a customer name, a number or message text'
   const events = add({}, event('wa', NOW - MIN, 'read', { chats: 500, waiting: 6 }), event('wa', NOW, 'signed-out'));
   const text = JSON.stringify([...lostLoginTimeline(events, 'wa', NOW), ...readerTimeline(events, ['wa'], NOW)]);
   for (const forbidden of ['@c.us', '+92', 'Sara', 'preview']) assert.ok(!text.includes(forbidden));
+});
+
+test('a reader that failed three times running is stopped; one bad pass is not', () => {
+  const events: Events = {};
+  const at = (n: number) => NOW + n * 60_000;
+  const put = (account: string, outcome: Outcome, n: number) =>
+    recordEvent(events, { account, channel: 'whatsapp', at: at(n), outcome, chats: null, waiting: null, stage: null });
+  put('one', 'read', 1); put('one', 'failed', 2); put('one', 'read', 3);
+  put('two', 'failed', 1); put('two', 'failed', 2);
+  put('three', 'read', 1); put('three', 'failed', 2); put('three', 'failed', 3); put('three', 'failed', 4);
+  assert.deepEqual(readersStopped(events), ['three']);
+  // A warm-up is not a failure, and must not sit between the failures and hide them.
+  put('three', 'not-ready', 5);
+  assert.deepEqual(readersStopped(events), ['three'], 'a not-ready read neither saves nor condemns a reader');
+  put('three', 'read', 6);
+  assert.deepEqual(readersStopped(events), [], 'one good read is enough to say it is reading again');
 });

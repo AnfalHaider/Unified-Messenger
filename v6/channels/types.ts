@@ -36,6 +36,9 @@ export interface FocusTarget { key: string; name: string; phone: string }
  */
 export type FocusStep = 'done' | 'working' | 'not-found' | 'no-target';
 
+/** What the owner allows one read to take in (core/config.ts settings.readLimits). */
+export interface ReadLimits { whatsappChats: number }
+
 export interface ChannelModule {
   /** Matches the ChannelId in core/config.ts. */
   id: string;
@@ -46,8 +49,11 @@ export interface ChannelModule {
    * needs without reaching for the disk itself.
    */
   inject(load: (file: string) => string): string;
-  /** Expression evaluated in the page. Returns a JSON string, or "" when the reader is not installed yet. */
-  scan: string;
+  /**
+   * Expression evaluated in the page. Returns a JSON string, or "" when the reader is not installed yet.
+   * `limits` carries what the owner set in Settings; a channel whose page decides for itself ignores it.
+   */
+  scan(limits: ReadLimits): string;
   /** Expression returning a SignInState, so an empty read can say why rather than reading as a quiet day. */
   signedOutProbe: string;
   /** Never throws. A page that changed shape costs this read, not the app. */

@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Chip, Headline, Panel, Sample, Seg, SettingRow, Stepper, Toggle, type ScreenProps } from '../parts.tsx';
-import { ALERTS, KEPT } from '../sample.ts';
+import { KEPT } from '../sample.ts';
 import { durationText } from '../../core/duration.ts';
 import { updateSentence } from '../../core/update.ts';
 import type { UiState } from '../../app/view-model.ts';
@@ -69,6 +69,11 @@ function Look({ state }: ScreenProps) {
           </SettingRow>
           <SettingRow title="Backlog after" detail="Waiting longer than this is counted as backlog and reported separately, never hidden.">
             <Stepper label="backlog" value={s.backlogAfterDays} options={[1, 3, 7, 14, 30]} format={(d) => `${d} day${d === 1 ? '' : 's'}`} onChange={(v) => set({ backlogAfterDays: v })} />
+          </SettingRow>
+          <SettingRow title="Chats each WhatsApp read takes in"
+            detail="How far back a read looks. Higher sees older conversations and costs a little more time on every pass; Instagram has no such number, because its page holds only the top threads of Primary.">
+            <Stepper label="chats per WhatsApp read" value={s.readLimits.whatsappChats} options={[100, 250, 500, 1000, 1500, 2000]}
+              format={(n) => `${n} chats`} onChange={(v) => set({ readLimits: { ...s.readLimits, whatsappChats: v } })} />
           </SettingRow>
           <SettingRow title="Leave out chats that ended themselves" detail="A last message like “ok thanks” is not someone waiting.">
             <Toggle label="Leave out chats that ended themselves" on={s.filterClosedConversations} onChange={(v) => set({ filterClosedConversations: v })} />
@@ -226,6 +231,8 @@ function Notifications({ state }: ScreenProps) {
     ['waitedHour', 'Someone has waited over an hour', 'Once per customer'],
     ['signedOut', 'An account needs signing in again', 'As soon as the app notices'],
     ['callNotReturned', 'A missed call has not been returned', '30 minutes after the call, with no call back or reply'],
+    ['readerStopped', 'An account has stopped being read', 'After three failed reads in a row, once until it reads again'],
+    ['unhappyReview', 'A one- or two-star review arrives', 'Within an hour of it appearing, once per review'],
   ];
   // Settings merge one level deep, so a nested group is always sent whole.
   const setAlert = (key: keyof typeof s.alerts, on: boolean) => bridge.setSettings({ alerts: { ...s.alerts, [key]: on } });
@@ -238,9 +245,7 @@ function Notifications({ state }: ScreenProps) {
           {alerts.map(([key, title, detail]) => (
             <SettingRow key={key} title={title} detail={detail}><Toggle label={title} on={s.alerts[key]} onChange={(v) => setAlert(key, v)} /></SettingRow>
           ))}
-          {ALERTS.map((a) => (
-            <SettingRow key={a.title} title={a.title} detail={a.detail}><span className="sub">Not connected yet</span></SettingRow>
-          ))}
+
         </div>
       </div>
       <div className="grid2" style={{ alignItems: 'start' }}>

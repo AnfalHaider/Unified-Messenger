@@ -116,6 +116,21 @@ export function lostLoginTimeline(events: Events, account: string, now: number, 
 
 /** What happened to a channel's reader across every account on it: one page changing shape breaks them all at once,
  *  so it is told as one story rather than per account. */
+/**
+ * Accounts whose last `runs` reads all failed: a reader that has stopped working, rather than one bad pass.
+ * A warm-up ('not-ready') is not a failure, and an account with fewer than `runs` reads on record has not
+ * failed often enough to say. Used for the alert, so it answers with ids and the caller names them.
+ */
+export function readersStopped(events: Events, runs = 3): string[] {
+  const stopped: string[] = [];
+  for (const [account, list] of Object.entries(events)) {
+    const reads = list.filter((e) => e.outcome === 'read' || e.outcome === 'empty' || e.outcome === 'failed');
+    const last = reads.slice(-runs);
+    if (last.length === runs && last.every((e) => e.outcome === 'failed')) stopped.push(account);
+  }
+  return stopped;
+}
+
 export function readerTimeline(events: Events, accounts: string[], now: number, lines = 6): TimelineItem[] {
   const all = accounts.flatMap((id) => eventsFor(events, id)).sort((a, b) => a.at - b.at);
   if (!all.length) return [];

@@ -2,7 +2,7 @@
 // page text here is invented: the layouts are real, the business names are not.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ageMinutes, needingReply, parseProfile, parseReviewsRead, spread, type ReviewCard } from './reviews.ts';
+import { ageMinutes, needingReply, parseProfile, parseReviewsRead, spread, unhappyReviews, type ReviewCard, type Reviews } from './reviews.ts';
 
 const total = (text: string) => parseProfile(text).total;
 
@@ -65,4 +65,21 @@ test('the reviews waiting for a reply come worst first, then oldest; the spread 
   const cards = [card(4, 'a day ago'), card(1, '2 days ago'), card(1, '5 days ago'), card(5, '3 days ago', true), card(0, 'an hour ago')];
   assert.deepEqual(needingReply(cards).map((c) => c.reviewer), ['R15 days ago', 'R12 days ago', 'R0an hour ago', 'R4a day ago']);
   assert.deepEqual(spread(cards), [1, 1, 0, 0, 2]);
+});
+
+test('the unhappy reviews of the last hour are the ones worth a notification', () => {
+  const card = (reviewer: string, stars: number, age: string): ReviewCard => ({ reviewer, text: 'x', stars, age, replied: false });
+  const reviews: Reviews = {
+    g1: { capturedAt: 0, more: false, rating: 4.6, total: 991, ratingAt: 0, cards: [
+      card('Recent One Star', 1, '10 minutes ago'),
+      card('Recent Two Star', 2, 'an hour ago'),
+      card('Recent Five Star', 5, '5 minutes ago'),
+      card('Old One Star', 1, '3 days ago'),
+      card('Unreadable Stars', 0, '2 minutes ago'),
+    ] },
+  };
+  assert.deepEqual(unhappyReviews(reviews).map((r) => r.card.reviewer), ['Recent One Star', 'Recent Two Star'],
+    'newest first; a happy review, an old one and one whose stars could not be read are all left out');
+  assert.deepEqual(unhappyReviews(reviews, 30).map((r) => r.card.reviewer), ['Recent One Star']);
+  assert.deepEqual(unhappyReviews({}), []);
 });

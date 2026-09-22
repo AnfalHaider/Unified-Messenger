@@ -25,11 +25,17 @@ export interface AlertInput {
   signedIn: string[];
   /** Missed calls not returned yet, with who called. Absent means none. */
   calls?: { accountId: string; accountName: string; key: string; customer: string; at: number }[];
+  /** Accounts whose last few reads all failed (core/events.ts readersStopped). Absent means none. */
+  stopped?: { id: string; name: string }[];
+  /** Accounts that read cleanly on this pass: like `signedIn`, they make the next failure news again. */
+  reading?: string[];
+  /** One- and two-star reviews seen within the hour (core/reviews.ts unhappyReviews). Absent means none. */
+  unhappy?: { accountId: string; accountName: string; reviewer: string; stars: number; minutes: number }[];
   settings: Settings;
   now: number;
 }
 
-export type AlertKind = 'near-target' | 'waited-hour' | 'signed-out' | 'call-not-returned';
+export type AlertKind = 'near-target' | 'waited-hour' | 'signed-out' | 'call-not-returned' | 'reader-stopped' | 'unhappy-review';
 
 /** Names a customer and an account, never message text: a toast can sit on a screen anyone walks past. */
 export interface Alert { id: string; kind: AlertKind; title: string; body: string; accountId: string | null; key: string | null; customer: string | null }
@@ -52,12 +58,14 @@ const FORGET_AFTER_MS = 2 * 24 * 60 * 60_000;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** Returns what to show now and records it in `notified`. Quiet hours hold alerts back without using them up. */
-export function alertsDue({ rows, signedOut, signedIn, calls = [], settings, now }: AlertInput, notified: Notified): Alert[] {
+export function alertsDue({ rows, signedOut, signedIn, calls = [], stopped = [], reading = [], unhappy = [], settings, now }: AlertInput, notified: Notified): Alert[] {
   // Signed back in: the next sign-out is news again.
   for (const id of signedIn) delete notified[`signed-out:${id}`];
+  // Reading again: so is the next time its reader stops.
+  for (const id of reading) delete notified[`reader-stopped:${id}`];
   if (inQuietHours(settings, now)) return [];
 
-  const { nearTarget, waitedHour, signedOut: signIn, callNotReturned } = settings.alerts;
+  const { nearTarget, waitedHour, signedOut: signIn, callNotReturned, readerStopped, unhappyReview } = settings.alerts;
   const candidates: Alert[] = [];
   for (const r of rows) {
     const chat = { accountId: r.accountId, key: r.key, customer: r.customer };
@@ -83,17 +91,32 @@ export function alertsDue({ rows, signedOut, signedIn, calls = [], settings, now
       candidates.push({ id: `signed-out:${a.id}`, kind: 'signed-out', title: `${a.name} needs signing in again`, body: 'Its figures are hidden until it is signed in.', accountId: a.id, key: null, customer: null });
     }
   }
+  if (readerStopped) {
+    // Once per run of failures, not once per failed read: the id clears when the account reads again.
+    for (const a of stopped) {
+      candidates.push({ id: `reader-stopped:${a.id}`, kind: 'reader-stopped', title: `${a.name} is not being read`, body: 'Three reads in a row failed. Its figures say so rather than showing zero.', accountId: a.id, key: null, customer: null });
+    }
+  }
+  if (unhappyReview) {
+    for (const r of unhappy) {
+      // Identified by who wrote it and how many stars, so the same review is not announced at every read as
+      // Google's wording of its age moves on.
+      candidates.push({ id: `unhappy:${r.accountId}:${r.reviewer}:${r.stars}`, kind: 'unhappy-review', title: `${r.reviewer} left a ${r.stars === 1 ? 'one' : 'two'}-star review`, body: `${r.accountName} \u00b7 ${r.minutes < 60 ? `${Math.max(1, Math.round(r.minutes))} min ago` : 'within the hour'}`, accountId: r.accountId, key: null, customer: r.reviewer });
+    }
+  }
 
   const fresh = candidates.filter((a) => !(a.id in notified));
   for (const a of fresh) notified[a.id] = now;
 
   const shown: Alert[] = [];
-  for (const kind of ['near-target', 'waited-hour', 'call-not-returned', 'signed-out'] as const) {
+  for (const kind of ['near-target', 'waited-hour', 'call-not-returned', 'signed-out', 'reader-stopped', 'unhappy-review'] as const) {
     const group = fresh.filter((a) => a.kind === kind);
     if (group.length <= MAX_SEPARATE) { shown.push(...group); continue; }
     const title = kind === 'near-target' ? `${group.length} customers pass the target within ${WARN_MINUTES} minutes`
       : kind === 'waited-hour' ? `${group.length} customers have waited over an hour`
         : kind === 'call-not-returned' ? `${group.length} missed calls have not been returned`
+        : kind === 'reader-stopped' ? `${group.length} accounts are not being read`
+        : kind === 'unhappy-review' ? `${group.length} one- and two-star reviews arrived`
         : `${group.length} accounts need signing in again`;
     shown.push({ id: `${kind}:summary:${now}`, kind, title, body: 'Open the app to see them.', accountId: null, key: null, customer: null });
   }

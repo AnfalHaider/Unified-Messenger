@@ -60,13 +60,17 @@ export interface Settings {
   closeToBackground: boolean;
   /** The local assistant is off by default, so a low-end PC never pays for it. */
   assistant: { enabled: boolean; model: string; endpoint: string };
+  /** How much of an account's inbox one read takes in. WhatsApp's own store holds far more than the line needs,
+   *  and every extra chat costs time on every pass, so the owner chooses. Instagram is not here: its page holds
+   *  the top threads of Primary and nothing more, so there is no number for the app to pick. */
+  readLimits: { whatsappChats: number };
   /** Google's own Business Profile API as the reviews source (3.1b). Off until Google grants this app access: until
    *  then every call is refused, and reviews are read from the page as before. */
   googleApi: { enabled: boolean };
   theme: 'system' | 'light' | 'dark';
   quietHours: { enabled: boolean; startHour: number; endHour: number };
   /** Windows notifications, each switchable. Quiet hours hold all of them back. */
-  alerts: { nearTarget: boolean; waitedHour: boolean; signedOut: boolean; callNotReturned: boolean };
+  alerts: { nearTarget: boolean; waitedHour: boolean; signedOut: boolean; callNotReturned: boolean; readerStopped: boolean; unhappyReview: boolean };
   /** What the weekly report includes, and whether last week's PDF is saved on Monday morning. Names are off by
    *  default so the report can go to anyone; saving files unasked is off by default too. */
   weeklyReport: { autoSave: boolean; include: WeeklyInclude };
@@ -96,10 +100,11 @@ export const defaultSettings = (): Settings => ({
   sleepAfterMinutes: 20,
   readEverySeconds: 60,
   assistant: { enabled: false, model: 'gemma3:4b', endpoint: 'http://127.0.0.1:11434/' },
+  readLimits: { whatsappChats: WHATSAPP_CHATS_DEFAULT },
   googleApi: { enabled: false },
   theme: 'system',
   quietHours: { enabled: false, startHour: 21, endHour: 8 },
-  alerts: { nearTarget: true, waitedHour: true, signedOut: true, callNotReturned: true },
+  alerts: { nearTarget: true, waitedHour: true, signedOut: true, callNotReturned: true, readerStopped: true, unhappyReview: true },
   weeklyReport: { autoSave: false, include: { figures: true, locations: true, accounts: true, calls: true, names: false } },
   morningDigest: true,
   savedReplies: [],
@@ -109,6 +114,8 @@ export const defaultSettings = (): Settings => ({
 export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [], locations: [], holidays: [], settings: defaultSettings() });
 
 export const SLA_MIN_MINUTES = 5, SLA_MAX_MINUTES = 120;
+/** The chats one WhatsApp read takes in: what v5 always used, and the range the owner may choose between. */
+export const WHATSAPP_CHATS_DEFAULT = 500, WHATSAPP_CHATS_MIN = 100, WHATSAPP_CHATS_MAX = 2000;
 
 /** Never throws. `dropped` counts accounts that could not be read; the caller logs it rather than losing it silently. */
 export function parseConfig(raw: unknown): { config: Config; dropped: number } {
@@ -282,6 +289,7 @@ function parseSettings(raw: unknown): Settings {
       model: str(assistant.model) || d.assistant.model,
       endpoint: endpoint(str(assistant.endpoint) || d.assistant.endpoint),
     },
+    readLimits: { whatsappChats: clampInt((isObject(raw.readLimits) ? raw.readLimits : {}).whatsappChats, WHATSAPP_CHATS_MIN, WHATSAPP_CHATS_MAX, d.readLimits.whatsappChats) },
     googleApi: { enabled: bool((isObject(raw.googleApi) ? raw.googleApi : {}).enabled, d.googleApi.enabled) },
     theme: theme === 'light' || theme === 'dark' || theme === 'system' ? theme : d.theme,
     quietHours: {
@@ -294,6 +302,8 @@ function parseSettings(raw: unknown): Settings {
       waitedHour: bool(alerts.waitedHour, d.alerts.waitedHour),
       signedOut: bool(alerts.signedOut, d.alerts.signedOut),
       callNotReturned: bool(alerts.callNotReturned, d.alerts.callNotReturned),
+      readerStopped: bool(alerts.readerStopped, d.alerts.readerStopped),
+      unhappyReview: bool(alerts.unhappyReview, d.alerts.unhappyReview),
     },
     morningDigest: bool(raw.morningDigest, d.morningDigest),
     savedReplies: parseSavedReplies(raw.savedReplies),

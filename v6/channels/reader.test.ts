@@ -81,7 +81,12 @@ for (const [channel, module] of Object.entries(MODULES)) {
   test(`${channel}: the page script and both probes are present`, () => {
     const injected = module.inject((file) => `/* ${file} */`);
     assert.match(injected, /\/\* .*\.js \*\//);
-    assert.ok(module.scan.length > 0);
+    assert.ok(module.scan({ whatsappChats: 500 }).length > 0);
+    // The owner’s limit has to reach the page, or the setting is decoration. WhatsApp carries it; Instagram
+    // has nothing to carry, because its page holds only the top threads of Primary.
+    const raised = module.scan({ whatsappChats: 1500 });
+    if (channel.startsWith('whatsapp')) assert.match(raised, /1500/);
+    else assert.equal(raised, module.scan({ whatsappChats: 500 }));
     assert.match(module.signedOutProbe, /qr|login/);
   });
 }

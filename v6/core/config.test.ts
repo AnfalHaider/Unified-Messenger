@@ -2,7 +2,7 @@
 // stop the app opening.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CHANNELS, defaultSettings, emptyConfig, hoursFor, parseConfig } from './config.ts';
+import { CHANNELS, defaultSettings, emptyConfig, hoursFor, parseConfig, WHATSAPP_CHATS_DEFAULT, WHATSAPP_CHATS_MAX, WHATSAPP_CHATS_MIN } from './config.ts';
 
 const parse = (raw: unknown) => parseConfig(raw).config;
 const account = (o: Record<string, unknown>) => parse({ accounts: [o] }).accounts[0];
@@ -19,6 +19,7 @@ test('the defaults match the owner decisions: accounts awake, assistant off, clo
   // Google's own API is off until Google grants this app access (3.1b): reviews come from the page until then.
   assert.equal(s.googleApi.enabled, false);
   assert.equal(s.filterClosedConversations, true);
+  assert.equal(s.readLimits.whatsappChats, WHATSAPP_CHATS_DEFAULT, 'what v5 always read, until the owner says otherwise');
 });
 
 test('an account keeps what it has and fills in what it lacks', () => {
@@ -57,6 +58,11 @@ test('numbers are held inside their limits', () => {
   assert.equal(settings({ assistant: { endpoint: 'http://127.0.0.1:11434' } }).assistant.endpoint, 'http://127.0.0.1:11434/');
   assert.equal(settings({ googleApi: 'yes' }).googleApi.enabled, false, 'nonsense leaves it off');
   assert.equal(settings({ googleApi: { enabled: true } }).googleApi.enabled, true);
+  // The chats one WhatsApp read takes in: the owner chooses, but never outside what the reader can stand.
+  assert.equal(settings({ readLimits: { whatsappChats: 1 } }).readLimits.whatsappChats, WHATSAPP_CHATS_MIN);
+  assert.equal(settings({ readLimits: { whatsappChats: 99999 } }).readLimits.whatsappChats, WHATSAPP_CHATS_MAX);
+  assert.equal(settings({ readLimits: 'lots' }).readLimits.whatsappChats, WHATSAPP_CHATS_DEFAULT, 'nonsense leaves the default');
+  assert.equal(settings({ readLimits: { whatsappChats: 1000 } }).readLimits.whatsappChats, 1000);
 });
 
 test('locations need a name, and keep one entry each', () => {
@@ -94,8 +100,8 @@ test('accounts that spell a location differently land in one group', () => {
 });
 
 test('alerts are on by default, and each can be switched off on its own', () => {
-  assert.deepEqual(defaultSettings().alerts, { nearTarget: true, waitedHour: true, signedOut: true, callNotReturned: true });
-  assert.deepEqual(parse({ settings: { alerts: { waitedHour: false, signedOut: 'no' } } }).settings.alerts, { nearTarget: true, waitedHour: false, signedOut: true, callNotReturned: true });
+  assert.deepEqual(defaultSettings().alerts, { nearTarget: true, waitedHour: true, signedOut: true, callNotReturned: true, readerStopped: true, unhappyReview: true });
+  assert.deepEqual(parse({ settings: { alerts: { waitedHour: false, signedOut: 'no' } } }).settings.alerts, { nearTarget: true, waitedHour: false, signedOut: true, callNotReturned: true, readerStopped: true, unhappyReview: true });
 });
 
 test('the weekly report leaves names out and saves nothing on its own until asked', () => {

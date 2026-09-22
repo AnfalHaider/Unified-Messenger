@@ -9,6 +9,9 @@ Everything that changes how the app counts, reads and tells you things. Changes 
 - **Appearance**: match Windows, light or dark. Also in the title bar.
 - **Reply target**: how quickly a customer should hear back. Everything red is measured against this.
 - **Read each account every**: how often each page is read. Reading is quiet and never opens a chat.
+- **Chats each WhatsApp read takes in**: how far back a read looks, from 100 chats to 2,000. Higher sees older
+  conversations and costs a little more time on every pass. Instagram has no such setting: its page holds only
+  the top threads of Primary, so that number is Instagram's, not the app's.
 - **Backlog after**: a customer waiting longer than this leaves the line and is counted as backlog in Reports.
 - **Leave out chats that ended themselves**: a last message like "ok thanks" is not someone waiting. Those chats are listed in [Set aside](help:set-aside).
 - **Not customers**: words that mark staff names ("Staff", "Team", "Supplier") and the team's own numbers. Chats they match are never counted, anywhere. A word must stand on its own: "Staff" catches "Bilal Staff" but not "Staffordshire". Numbers can be typed any way: +92 300…, 0300….
@@ -25,7 +28,9 @@ Each location's hours, day by day, and the days you are closed. While a location
 
 ![Notifications](shot:settings-notifications)
 
-- **Tell me when**: a customer is about to pass the target, someone has waited over an hour, an account needs signing in, a missed call has not been returned.
+- **Tell me when**: a customer is about to pass the target, someone has waited over an hour, an account needs
+  signing in, a missed call has not been returned, an account has stopped being read, or a one- or two-star
+  review arrives.
 - **Quiet hours**: no notifications between these times.
 - **Summaries**: the morning digest, and saving last week's report by itself on Mondays.
 

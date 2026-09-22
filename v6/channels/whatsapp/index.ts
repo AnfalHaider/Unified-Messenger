@@ -21,7 +21,10 @@ export const whatsapp: ChannelModule = {
   focus: (t) => `window.__umFocusWhatsApp ? window.__umFocusWhatsApp(${JSON.stringify(t.key)}, ${JSON.stringify(t.name)}, ${JSON.stringify(t.phone)}) : 'working'`,
   // The store bridge, and WhatsApp's saved chat list when the bridge has found nothing for three minutes on a
   // signed-in page (whatsapp-idb.js). executeJavaScript waits for the promise it returns.
-  scan: 'window.__umWhatsAppScan ? window.__umWhatsAppScan(500) : (window.__umStartStoreScan ? (window.__umStartStoreScan(500), window.__umGetStoreScanResult()) : "")',
+  scan: (limits) => {
+    const n = limits.whatsappChats;
+    return `window.__umWhatsAppScan ? window.__umWhatsAppScan(${n}) : (window.__umStartStoreScan ? (window.__umStartStoreScan(${n}), window.__umGetStoreScanResult()) : "")`;
+  },
   // The sign-in screen, by the selectors v5 measured against the live page. A bare `canvas` is not enough:
   // WhatsApp's loading screen draws one too, which reads as "still starting" when the owner is signed out.
   signedOutProbe: `({
