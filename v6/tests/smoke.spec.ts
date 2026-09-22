@@ -22,15 +22,22 @@ function dataFolder(config: Record<string, unknown> = {}) {
 async function open(data: string, env: Record<string, string> = {}): Promise<{ app: ElectronApplication; win: Page }> {
   // No test ever reaches Google: its two addresses are the invented pages in tests/fixtures/google, and sign-in uses
   // an invented project whose every address is a closed port unless the test brings a fake of its own.
+  //
+  // **No cloud config by default.** A build that cannot ask anyone gates nobody (core/admission.ts), which is what
+  // a test of the line or the reports wants. A test about signing in, workspaces or the gate itself passes CLOUD
+  // in its own env, and is then admitted the way a real person is: as a member, or as the product owner.
   const google = join(V6, 'tests', 'fixtures', 'google');
   const app = await electron.launch({ args: ['app/main.ts'], cwd: V6, env: {
     ...process.env, UM_DATA: data, UM_V5: join(data, 'no-v5'), UM_LOCALAPPDATA: join(data, 'no-local-app-data'),
     UM_GOOGLE_REVIEWS_URL: pathToFileURL(join(google, 'reviews', 'index.html')).href, UM_GOOGLE_PROFILE_URL: pathToFileURL(join(google, 'profile.html')).href,
-    UM_CLOUD_CONFIG: join(V6, 'tests', 'fixtures', 'cloud-config.json'), UM_CLOUD_ENDPOINT: 'http://127.0.0.1:9',
+    UM_CLOUD_ENDPOINT: 'http://127.0.0.1:9',
     UM_FIRESTORE: 'http://127.0.0.1:9/v1/projects/test-project/databases/(default)', ...env,
   } });
   return { app, win: await app.firstWindow() };
 }
+
+/** The invented project a cloud test signs in to. Only tests that want the cloud pass it. */
+const CLOUD = { UM_CLOUD_CONFIG: join(V6, 'tests', 'fixtures', 'cloud-config.json') };
 
 async function quit(app: ElectronApplication, win: Page) {
   const closed = app.waitForEvent('close');
@@ -1497,9 +1504,13 @@ async function fakeCloud() {
 test('signing in with Google: in the browser, kept encrypted across a restart, and signed out on request or when it ends', async () => {
   const cloud = await fakeCloud();
   const data = dataFolder();
-  const env = { UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch' };
+  const env = { ...CLOUD, UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch' };
+  // The gate shows the sign-in screen before anything else, so while signed out there is no rail to navigate;
+  // once signed in and admitted, the workspace panel is where the session is managed.
   const workspace = async (win: Page) => {
-    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    const rail = win.getByRole('navigation', { name: 'Screens' });
+    if (!(await rail.isVisible().catch(() => false))) return;
+    await rail.getByRole('button', { name: 'Settings', exact: true }).click();
     await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
   };
   let { app, win } = await open(data, env);
@@ -1507,14 +1518,15 @@ test('signing in with Google: in the browser, kept encrypted across a restart, a
     // Cancelled in the browser: said in words, and nothing kept.
     cloud.o.deny = true;
     await win.getByRole('button', { name: 'Quit', exact: true }).waitFor();
-    await workspace(win);
-    await win.getByRole('button', { name: 'Sign in with Google' }).click();
+    await win.getByRole('button', { name: 'Continue with Google' }).click();
     await expect(win.getByRole('alert')).toHaveText('Sign-in was cancelled in the browser.');
 
     // Signed in: Google was asked for name and email only, with PKCE, and the reply came back to this PC.
     cloud.o.deny = false;
-    await win.getByRole('button', { name: 'Sign in with Google' }).click();
-    await expect(win.getByText('Signed in as Sample Owner')).toBeVisible();
+    await win.getByRole('button', { name: 'Continue with Google' }).click();
+    // Signed in, and nothing admits this address: the gate says so and names it, rather than letting them in.
+    await expect(heading(win, 'This account has not been invited')).toBeVisible({ timeout: 30_000 });
+    await expect(win.locator('body')).toContainText('owner@example.com');
     const authorize = cloud.calls.filter((c) => c.path === '/authorize').at(-1)!;
     expect(authorize.query.get('scope')).toBe('openid email profile');
     expect(authorize.query.get('redirect_uri')).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
@@ -1530,26 +1542,23 @@ test('signing in with Google: in the browser, kept encrypted across a restart, a
     expect(readFileSync(join(data, 'app.log'), 'utf8')).not.toContain('owner@example.com');
     await quit(app, win);
 
-    // After a restart: still signed in, and the kept token was decrypted and used.
+    // After a restart: still signed in, so the gate goes straight back to what it said, and the kept token
+    // was decrypted and used.
     ({ app, win } = await open(data, env));
-    await workspace(win);
-    await expect(win.getByText('Signed in as Sample Owner')).toBeVisible();
+    await expect(heading(win, 'This account has not been invited')).toBeVisible({ timeout: 30_000 });
     await expect.poll(() => cloud.calls.filter((c) => c.path === '/refresh').some((c) => new URLSearchParams(c.body).get('refresh_token') === 'test-refresh-7731')).toBe(true);
 
-    // Signed out: forgotten on this PC.
+    // Signed out from the gate: forgotten on this PC, and the sign-in screen comes back.
     await win.getByRole('button', { name: 'Sign out' }).click();
-    await expect(win.getByText('Not signed in', { exact: true })).toBeVisible();
+    await expect(win.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
     expect(readdirSync(data)).not.toContain('cloud.json');
 
-    // Signed in again from the sign-in screen, which returns to the app by itself when done.
-    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'About' }).click();
-    // Its first screen is the sign-in screen.
-    await win.getByRole('button', { name: 'Show' }).first().click();
+    // Signed in again, straight from the gate.
     await win.getByRole('button', { name: 'Continue with Google' }).click();
-    await expect(win.getByRole('button', { name: 'Continue with Google' })).toBeHidden();
-    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible();
+    await expect(heading(win, 'This account has not been invited')).toBeVisible({ timeout: 30_000 });
+    // Still no rail: an account that has not been invited never reaches the app.
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toHaveCount(0);
     await quit(app, win);
-
     // Firebase says the sign-in is over: signed out at the next start, with the reason.
     cloud.o.refresh = 'expired';
     ({ app, win } = await open(data, env));
@@ -1558,8 +1567,10 @@ test('signing in with Google: in the browser, kept encrypted across a restart, a
     expect(readdirSync(data)).not.toContain('cloud.json');
     await quit(app, win);
 
-    // A build without the project's identifiers says so, and offers nothing to press.
+    // A build without the project's identifiers cannot ask anyone whether this PC may run, so it gates nobody:
+    // the app opens as usual, and Settings says sign-in is not available.
     ({ app, win } = await open(data, { UM_CLOUD_CONFIG: join(data, 'none.json') }));
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible({ timeout: 30_000 });
     await workspace(win);
     await expect(win.getByText('Sign-in is not available in this build of the app.')).toBeVisible();
     await expect(win.getByRole('button', { name: 'Sign in with Google' })).toHaveCount(0);
@@ -1626,7 +1637,7 @@ async function fakeFirestore() {
 test('a workspace: started from this PC’s setup, and a second PC signed in to it gets the accounts', async () => {
   const cloud = await fakeCloud();
   const fs = await fakeFirestore();
-  const env = { UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
+  const env = { ...CLOUD, UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
   const first = dataFolder({
     accounts: [
       { id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
@@ -1636,14 +1647,25 @@ test('a workspace: started from this PC’s setup, and a second PC signed in to 
     settings: { slaMinutes: 25, theme: 'dark', savedReplies: [{ title: 'Hours', body: 'We open at 11.' }] },
   });
   const second = dataFolder();
+  // Creating a workspace means being the product owner: with invitation-only access (core/admission.ts) nobody
+  // else is admitted to an app that belongs to no workspace yet. This is the marker made by hand in the console.
+  const ownerMarker = (uid: string) => fs.docs.set(`projects/test-project/databases/(default)/documents/owners/${uid}`,
+    { fields: { note: { stringValue: 'product owner' } }, updateTime: new Date().toISOString() });
+  ownerMarker('test-uid');
+  // Signed out, the gate is the whole window, and the window takes a moment to draw: wait for whichever of the
+  // two appears before deciding, or the check races the first render and reads 'no gate' every time.
   const workspace = async (win: Page) => {
-    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    const rail = win.getByRole('navigation', { name: 'Screens' });
+    const gateIn = win.getByRole('button', { name: 'Continue with Google' });
+    await gateIn.or(rail).first().waitFor({ timeout: 30_000 });
+    if (await gateIn.isVisible()) { await gateIn.click(); await rail.waitFor({ timeout: 30_000 }); }
+    await rail.getByRole('button', { name: 'Settings', exact: true }).click();
     await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
   };
   let { app, win } = await open(first, env);
   try {
+    // Signing in happens at the gate now, so Settings opens already signed in.
     await workspace(win);
-    await win.getByRole('button', { name: 'Sign in with Google' }).click();
     await expect(win.getByText('No workspace yet')).toBeVisible();
     await win.getByLabel('Workspace name').fill('Sample Business');
     await win.getByRole('button', { name: 'Start the workspace' }).click();
@@ -1662,7 +1684,6 @@ test('a workspace: started from this PC’s setup, and a second PC signed in to 
     // A second PC, signed in as the same person: the accounts and business rules arrive; its own theme stays its own.
     ({ app, win } = await open(second, env));
     await workspace(win);
-    await win.getByRole('button', { name: 'Sign in with Google' }).click();
     await expect(win.getByText('Sample Business')).toBeVisible();
     await expect.poll(() => JSON.parse(readFileSync(join(second, 'config.json'), 'utf8')).accounts?.map((a: { name: string }) => a.name)).toEqual(['Test front desk', 'Test Instagram']);
     const received = JSON.parse(readFileSync(join(second, 'config.json'), 'utf8'));
@@ -1687,23 +1708,32 @@ test('a workspace: started from this PC’s setup, and a second PC signed in to 
 test('members: an admin invites by address, the person joins on their PC, and removing them wipes what it had', async () => {
   const cloud = await fakeCloud();
   const fs = await fakeFirestore();
-  const env = { UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
+  const env = { ...CLOUD, UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
   const OWNER = { uid: 'test-uid', email: 'owner@example.com', name: 'Sample Owner' };
   const STAFF = { uid: 'staff-uid', email: 'staff@example.com', name: 'Sample Staff' };
+  // Only the product owner may open an app that belongs to no workspace yet (core/admission.ts), and that is
+  // who starts one: the marker is made by hand in the console.
+  fs.docs.set(`projects/test-project/databases/(default)/documents/owners/${OWNER.uid}`, { fields: { note: { stringValue: 'product owner' } }, updateTime: new Date().toISOString() });
   const ownerPc = dataFolder({
     accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' }],
     locations: [{ name: 'Main branch' }],
   });
   const staffPc = dataFolder({ accounts: [{ id: 'own', name: 'Staff own WhatsApp', channel: 'whatsapp', url: 'about:blank', professional: false, location: '' }] });
+  // The gate first: sign in there when it is showing, then Settings. The owner's marker is what admits the
+  // person who starts a workspace; everyone else gets in by being invited to one.
   const workspace = async (win: Page) => {
-    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    const rail = win.getByRole('navigation', { name: 'Screens' });
+    const gateIn = win.getByRole('button', { name: 'Continue with Google' });
+    await gateIn.or(rail).first().waitFor({ timeout: 30_000 });
+    if (await gateIn.isVisible()) { await gateIn.click(); await rail.waitFor({ timeout: 60_000 }); }
+    await rail.getByRole('button', { name: 'Settings', exact: true }).click();
     await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
   };
   cloud.o.user = OWNER;
   let { app, win } = await open(ownerPc, env);
   try {
+    // Signed in at the gate, so Settings opens already signed in.
     await workspace(win);
-    await win.getByRole('button', { name: 'Sign in with Google' }).click();
     await win.getByLabel('Workspace name').fill('Sample Business');
     await win.getByRole('button', { name: 'Start the workspace' }).click();
     await expect(win.getByRole('cell', { name: /Sample Owner \(you\)/ })).toBeVisible();
@@ -1715,11 +1745,15 @@ test('members: an admin invites by address, the person joins on their PC, and re
 
     // The invited person, on their own PC: which workspace, then Join.
     cloud.o.user = STAFF;
+    // The invited person meets the gate, not the app: it names who they are signed in as and what they were
+    // invited to, and Join is right there, because Settings is behind the gate.
     ({ app, win } = await open(staffPc, env));
-    await workspace(win);
-    await win.getByRole('button', { name: 'Sign in with Google' }).click();
-    await expect(win.getByText('You are invited to Sample Business')).toBeVisible();
+    await win.getByRole('button', { name: 'Continue with Google' }).click();
+    await expect(heading(win, 'You have been invited')).toBeVisible({ timeout: 30_000 });
+    await expect(win.locator('body')).toContainText('Sample Business');
     await win.getByRole('button', { name: 'Join Sample Business' }).click();
+    await win.getByRole('navigation', { name: 'Screens' }).waitFor({ timeout: 30_000 });
+    await workspace(win);
     await expect(win.getByText('You are a member: this PC takes its setup from the workspace.')).toBeVisible();
     await expect.poll(() => JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8')).accounts.map((a: { id: string }) => a.id).sort()).toEqual(['own', 'test-wa']);
     // A member sees who is in the workspace, and cannot manage it.
@@ -1747,7 +1781,10 @@ test('members: an admin invites by address, the person joins on their PC, and re
     expect(JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8')).accounts.map((a: { id: string }) => a.id)).toEqual(['own']);
     expect(readdirSync(staffPc)).not.toContain('cloud.json');
     await win.getByRole('button', { name: 'Close' }).click();
-    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible();
+    // Closing the notice does not let them back in: removal signed this PC out, and getting back in means being
+    // invited again.
+    await expect(win.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toHaveCount(0);
     // No name or address in the log.
     for (const f of [ownerPc, staffPc]) for (const secret of ['staff@example.com', 'Sample Staff', 'Sample Business']) expect(readFileSync(join(f, 'app.log'), 'utf8')).not.toContain(secret);
     await quit(app, win);
@@ -1763,7 +1800,7 @@ test('members: an admin invites by address, the person joins on their PC, and re
 test('the owner console suspends a workspace, and the PCs in it lock without losing anything', async () => {
   const cloud = await fakeCloud();
   const fs = await fakeFirestore();
-  const env = { UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
+  const env = { ...CLOUD, UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
   const PRODUCT_OWNER = { uid: 'test-uid', email: 'owner@example.com', name: 'Sample Owner' };
   const STAFF = { uid: 'staff-uid', email: 'staff@example.com', name: 'Sample Staff' };
   // The product owner's marker, made by hand in the console.
@@ -1773,15 +1810,21 @@ test('the owner console suspends a workspace, and the PCs in it lock without los
     locations: [{ name: 'Main branch' }],
   });
   const staffPc = dataFolder();
+  // The gate first: sign in there when it is showing, then Settings. The owner's marker is what admits the
+  // person who starts a workspace; everyone else gets in by being invited to one.
   const workspace = async (win: Page) => {
-    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    const rail = win.getByRole('navigation', { name: 'Screens' });
+    const gateIn = win.getByRole('button', { name: 'Continue with Google' });
+    await gateIn.or(rail).first().waitFor({ timeout: 30_000 });
+    if (await gateIn.isVisible()) { await gateIn.click(); await rail.waitFor({ timeout: 60_000 }); }
+    await rail.getByRole('button', { name: 'Settings', exact: true }).click();
     await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Workspace' }).click();
   };
   cloud.o.user = PRODUCT_OWNER;
   let { app, win } = await open(ownerPc, env);
   try {
+    // Signed in at the gate, so Settings opens already signed in.
     await workspace(win);
-    await win.getByRole('button', { name: 'Sign in with Google' }).click();
     await win.getByLabel('Workspace name').fill('Sample Business');
     await win.getByRole('button', { name: 'Start the workspace' }).click();
     await expect(win.getByText('You are an admin: changes made here reach the workspace.')).toBeVisible();
@@ -1794,9 +1837,10 @@ test('the owner console suspends a workspace, and the PCs in it lock without los
     // The member joins on their own PC, and gets the account.
     cloud.o.user = STAFF;
     ({ app, win } = await open(staffPc, env));
-    await workspace(win);
-    await win.getByRole('button', { name: 'Sign in with Google' }).click();
-    await win.getByRole('button', { name: 'Join Sample Business' }).click();
+    // Invited, so the gate carries the invitation and Join is on it.
+    await win.getByRole('button', { name: 'Continue with Google' }).click();
+    await win.getByRole('button', { name: 'Join Sample Business' }).click({ timeout: 30_000 });
+    await win.getByRole('navigation', { name: 'Screens' }).waitFor({ timeout: 30_000 });
     await expect.poll(() => JSON.parse(readFileSync(join(staffPc, 'config.json'), 'utf8')).accounts?.length ?? 0).toBe(1);
     await quit(app, win);
 
@@ -1979,5 +2023,58 @@ test('the upgrade screen is shown until it has been read, and never again after'
       await app.close().catch(() => {});
       rmSync(data, { recursive: true, force: true });
     }
+  }
+});
+
+test('the gate: a fresh install reads nothing until it has been let in, and a stranger never gets past it', async () => {
+  const cloud = await fakeCloud();
+  const fs = await fakeFirestore();
+  const env = { ...CLOUD, UM_CLOUD_ENDPOINT: cloud.endpoint, UM_SIGNIN_OPEN: 'fetch', UM_FIRESTORE: fs.base };
+  const fixtures = join(V6, 'tests', 'fixtures');
+  const data = dataFolder({
+    accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', professional: true, location: 'Main branch',
+      url: pathToFileURL(join(fixtures, 'whatsapp-saved-list.html')).href }],
+    locations: [{ name: 'Main branch' }],
+  });
+  const events = () => readFileSync(join(data, 'app.log'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { event: string });
+  const STRANGER = { uid: 'stranger-uid', email: 'stranger@example.com', name: 'A Stranger' };
+  cloud.o.user = STRANGER;
+
+  let { app, win } = await open(data, env);
+  try {
+    // Signed out: the sign-in screen is the whole window, and there is no way round it.
+    await expect(win.getByRole('button', { name: 'Continue with Google' })).toBeVisible({ timeout: 30_000 });
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toHaveCount(0);
+    await expect(win.getByRole('button', { name: 'Back to the app' })).toHaveCount(0);
+
+    // Long enough for two reading passes to have happened, and none has: nothing was read, and the account's
+    // page was never opened, so its WhatsApp session was not touched at all.
+    await win.waitForTimeout(8_000);
+    const before = events().map((e) => e.event);
+    expect(before.filter((e) => e === 'read' || e === 'read-empty' || e === 'read-failed' || e === 'reader-not-ready')).toEqual([]);
+    expect(before).not.toContain('awake');
+
+    // A stranger signs in: refused by name, still nothing read.
+    await win.getByRole('button', { name: 'Continue with Google' }).click();
+    await expect(heading(win, 'This account has not been invited')).toBeVisible({ timeout: 30_000 });
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toHaveCount(0);
+    expect(events().map((e) => e.event)).not.toContain('awake');
+    await quit(app, win);
+
+    // The same PC, with the product owner's marker in place: in, and reading within a pass.
+    fs.docs.set('projects/test-project/databases/(default)/documents/owners/stranger-uid',
+      { fields: { note: { stringValue: 'product owner' } }, updateTime: new Date().toISOString() });
+    ({ app, win } = await open(data, env));
+    await expect(win.getByRole('navigation', { name: 'Screens' })).toBeVisible({ timeout: 30_000 });
+    await expect.poll(() => events().filter((e) => e.event === 'read').length, { timeout: 90_000 }).toBeGreaterThanOrEqual(1);
+    expect(events().map((e) => e.event)).toContain('awake');
+    const gates = events().filter((e) => e.event === 'gate') as { event: string; phase?: string; because?: string }[];
+    expect(gates.some((g) => g.phase === 'admitted' && g.because === 'product-owner'), 'the log says why it opened').toBe(true);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    await cloud.close();
+    await fs.close();
+    rmSync(data, { recursive: true, force: true });
   }
 });

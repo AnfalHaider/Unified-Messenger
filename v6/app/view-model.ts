@@ -17,6 +17,7 @@ import { customerFor, tagsInUse, type Customers } from '../core/customers.ts';
 import { durationText } from '../core/duration.ts';
 import { ageMinutes, needingReply, spread, type Reviews } from '../core/reviews.ts';
 import { keptRows, keptTotal, sizeText, type KeptRow, type KeptSizes } from '../core/kept.ts';
+import { admissionSentence, mayRun, type Admission } from '../core/admission.ts';
 import { engineSentence, MODELS, offState, suggestModel, type EngineState, type ModelChoice } from '../core/assistant.ts';
 import { morningSplit } from '../core/digest.ts';
 import type { History } from '../core/history.ts';
@@ -259,6 +260,8 @@ export interface UiState {
   reviews: ReviewsView | null;
   /** What this PC is holding, for Settings › Privacy. Null on every other screen: it is measured from disk. */
   kept: { rows: KeptRow[]; sizes: string[]; total: string } | null;
+  /** Whether this copy has been let in at all, and what to say while it has not (core/admission.ts). */
+  gate: { phase: Admission['phase']; mayRun: boolean; sentence: string };
   /** The local assistant: its engine's state in a sentence, and the model suggested for this PC. */
   assistant: { state: EngineState; sentence: string; suggested: ModelChoice; memoryGB: number; models: ModelChoice[] };
   /** Signing in to the workspace: unavailable in a build without the project's config, else signed out, waiting or in. */
@@ -286,6 +289,8 @@ export interface Context {
   now: number;
   /** What this PC is holding, measured from disk. Only while Settings is open. */
   kept?: KeptSizes;
+  /** The gate's verdict. Absent in a preview, which is not gated. */
+  gate?: Admission;
   /** The day records. Only read while Reports is open. */
   history?: History;
   /** Missed calls and whether they were returned. */
@@ -434,6 +439,11 @@ export function buildUiState(config: Config, snapshots: Snapshots, times: Respon
       suggested: suggestModel(ctx.memoryGB ?? 8), memoryGB: Math.round(ctx.memoryGB ?? 0), models: MODELS,
     },
     cloud: ctx.cloud ?? { phase: 'unavailable' },
+    gate: {
+      phase: ctx.gate?.phase ?? 'open',
+      mayRun: ctx.gate ? mayRun(ctx.gate) : true,
+      sentence: ctx.gate ? admissionSentence(ctx.gate, ctx.cloud?.phase === 'signed-in' ? ctx.cloud.email : null) : '',
+    },
     workspace: ctx.workspace ?? { phase: 'signed-out' },
     owner: ctx.owner ?? { isOwner: false, workspaces: [] },
     update: ctx.update ?? { phase: 'none' },

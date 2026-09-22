@@ -89,7 +89,7 @@ export const bridge: Window['um'] = !isPreview ? window.um : {
 // ---- navigation ------------------------------------------------------------------------------------------
 
 /** Full-window screens that replace the shell: signing in, a removed PC, a paused workspace, the v5 move. */
-export type LockScreen = 'sign-in' | 'new-pc' | 'removed' | 'reconnect' | 'suspended' | 'upgrade';
+export type LockScreen = 'sign-in' | 'new-pc' | 'removed' | 'reconnect' | 'suspended' | 'upgrade' | 'not-invited';
 export type Overlay = 'palette' | 'needs' | 'help' | 'add-account' | 'edit-account' | 'remove-account' | 'update';
 
 export interface View { route: Route; accountId: string | null; sub: string; overlay: Overlay | null; lock: LockScreen | null; offline: boolean }

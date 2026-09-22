@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { moduleFor, newHealth, type ModuleHealth } from '../channels/index.ts';
 import { supportReport } from '../core/support-report.ts';
+import { admission, mayRun, type Admission } from '../core/admission.ts';
 import { google, GOOGLE_PROFILE_URL, GOOGLE_REVIEWS_URL, parseProfileRead } from '../channels/google/index.ts';
 import { parseProfile, parseReviewsRead, RATING_EVERY_MS, REVIEWS_EVERY_MS, unhappyReviews, type Reviews } from '../core/reviews.ts';
 import { alertsDue, pruneNotified, type Alert, type Notified } from '../core/alerts.ts';
@@ -77,6 +78,7 @@ const FILE = {
   customers: join(DATA, 'customers.json'),
   reviews: join(DATA, 'reviews.json'),
   upgraded: join(DATA, 'upgraded.json'),
+  admitted: join(DATA, 'admitted.json'),
   log: join(DATA, 'app.log'),
 };
 
@@ -193,6 +195,7 @@ const cloud = new Cloud({
       else if (lastCloudPhase === 'signed-in') workspace.forget();
       lastCloudPhase = phase;
     }
+    applyGate();
     push();
   },
 });
@@ -210,7 +213,8 @@ const workspace = new Workspace({
   local: () => sharedSetup(config),
   apply: (setup) => applyFromWorkspace(setup),
   removed: (ids) => removedFromWorkspace(ids),
-  changed: () => push(),
+  // The workspace's answer is what the gate turns on, so it is re-read on every change it reports.
+  changed: () => { applyGate(); push(); },
   log: (entry) => log(entry),
 });
 /** Updates (7.3). Owner's decision: keep this installer, ask GitHub Releases whether a newer one exists, download
@@ -575,6 +579,8 @@ async function readReviews(force = false) {
 let ticking = false;
 
 async function tick(reason: string) {
+  // Nothing is read until this copy has been let in: no page, no figures, no record.
+  if (!mayRun(gate)) return;
   if (ticking || quitting) return;
   ticking = true;
   try {
@@ -592,6 +598,53 @@ async function readPass(reason: string) {
   }
   for (const id of accountsToSleep(config, lastUsedAt, now, visible ?? undefined)) sleep(id);
   push();
+}
+
+// ---- the gate ------------------------------------------------------------------------------------
+
+/** Who this PC was admitted for last time, so a member whose workspace is unreachable still opens the app. */
+let admittedFor = loadJson<{ uid?: string }>(FILE.admitted, {}, note('admitted')).uid ?? null;
+let gate: Admission = { phase: 'signed-out', because: null };
+
+/** The gate's verdict from what the cloud and the workspace have said so far. Pure rule in core/admission.ts. */
+function verdict(): Admission {
+  const user = cloud.user;
+  const w = workspace.state;
+  const phase = w.phase === 'error' ? 'unreachable' as const
+    : w.phase === 'signed-out' ? 'checking' as const
+    : w.phase === 'none' ? 'none' as const
+    : w.phase;
+  return admission({
+    cloudAvailable: !!cloudConfig,
+    signedIn: cloud.state.phase === 'signed-in',
+    uid: user?.uid ?? null,
+    isOwner: workspace.owner.isOwner,
+    workspace: phase,
+    invitations: w.phase === 'none' ? w.invitations.length : 0,
+    admittedBefore: admittedFor,
+  });
+}
+
+/**
+ * Applies the gate. Until it says yes, no account page is opened, nothing is read, nothing is counted and no
+ * notification fires: a copy nobody has been let into never touches a WhatsApp or Instagram session.
+ * Owner's decision 2026-09-22, and the reason an invite list means anything.
+ */
+function applyGate() {
+  const before = gate;
+  gate = verdict();
+  const was = mayRun(before), now = mayRun(gate);
+  if (before.phase !== gate.phase) log({ event: 'gate', phase: gate.phase, because: gate.because });
+  if (now && !was) {
+    const uid = cloud.user?.uid;
+    if (uid && admittedFor !== uid) { admittedFor = uid; saveJson(FILE.admitted, { uid }); }
+    for (const a of config.accounts) wake(a);
+    layout();
+  } else if (!now && was) {
+    // Shut the pages, keep the logins: sleeping is exactly that, and the gate is not a wipe.
+    for (const id of [...views.keys()]) sleep(id);
+    layout();
+  }
 }
 
 /** The view model for a route: the one on screen, or 'reports' for the hidden window a report is saved from. */
@@ -613,6 +666,7 @@ function stateFor(forRoute: Route) {
         ? (MODELS.find((m) => m.model === config.settings.assistant.model)?.sizeGB ?? 0) * 1024 ** 3
         : null,
     } : undefined,
+    gate,
   });
 }
 
@@ -801,6 +855,7 @@ const toasts = new Set<Notification>();
 
 /** Runs with every push, so a wait crossing its warning point is caught within seconds, not at the next read. */
 function notifyDue() {
+  if (!mayRun(gate)) return;
   if (quitting || !Notification.isSupported()) return;
   const now = Date.now();
   const before = JSON.stringify(notified);
@@ -979,8 +1034,8 @@ app.whenReady().then(async () => {
   win.on('resize', layout);
 
   // Every account stays awake by default; the sleep setting is the exception, and never touches an account
-  // whose numbers the dashboard shows.
-  for (const a of config.accounts) wake(a);
+  // whose numbers the dashboard shows. Nothing wakes until the gate says this copy may run (core/admission.ts).
+  applyGate();
   layout();
 
   ipcMain.on('ready', (e) => { push(); if (e.sender === win.webContents) showDigestIfDue(); });

@@ -51,10 +51,14 @@ export function App() {
     return () => query.removeEventListener('change', apply);
   }, [state?.theme]);
 
-  // Full-window states the workspace decides, not the owner (6.4): removed from it, or a week without reaching it.
+  // Full-window states the owner does not choose. The gate comes first of all (core/admission.ts): until this
+  // copy has been let in, the only thing on screen is how to get in, and main has opened no account page.
   const forced: LockScreen | null = !state ? null
-    : state.upgraded ? 'upgrade'
+    // Being removed outranks the gate: that screen says who removed this PC and what was wiped, which is a
+    // better answer than “sign in” to someone who has just been shut out and is owed the reason.
     : state.workspace.phase === 'removed' ? 'removed'
+    : !state.gate.mayRun ? (state.gate.phase === 'signed-out' ? 'sign-in' : 'not-invited')
+    : state.upgraded ? 'upgrade'
     // The product owner is not locked out by a workspace they suspended: the console is how it is lifted again.
     : state.workspace.phase === 'member' && state.workspace.status === 'suspended' && !state.owner.isOwner ? 'suspended'
     : state.workspace.phase === 'member' && state.workspace.reconnect ? 'reconnect' : null;
@@ -93,7 +97,7 @@ export function App() {
   return (
     <div className="app" style={{ position: 'relative' }}>
       <TitleBar state={state} nav={nav} scope={scope} onScope={setScope} />
-      {lock ? <Lock screen={lock} {...props} /> : (
+      {lock ? <Lock screen={lock} gated={!state.gate.mayRun} {...props} /> : (
         <div className="body">
           <Rail state={state} route={view.route} nav={nav} />
           <div className="screen">

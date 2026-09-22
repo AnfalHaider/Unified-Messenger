@@ -68,13 +68,62 @@ const GOOGLE = (
   </svg>
 );
 
-/** A full-window state. Every one of them has a way back while the shell is being reviewed. */
-export function Lock({ screen, state, nav }: ScreenProps & { screen: LockScreen }) {
-  const back = <Btn kind="quiet" onClick={() => nav.lock(null)}>Back to the app</Btn>;
+/**
+ * A full-window state. Most have a way back while the shell is being reviewed; the gate does not, because a
+ * door you can walk around is not a door (core/admission.ts).
+ */
+export function Lock({ screen, state, nav, gated }: ScreenProps & { screen: LockScreen; gated?: boolean }) {
+  const back = gated ? null : <Btn kind="quiet" onClick={() => nav.lock(null)}>Back to the app</Btn>;
+  if (screen === 'not-invited') return <NotInvited state={state} nav={nav} />;
   if (screen === 'sign-in') return <SignIn state={state} nav={nav} back={back} />;
   if (screen === 'new-pc') return <NewPc state={state} nav={nav} />;
   if (screen === 'upgrade') return <Upgrade state={state} nav={nav} />;
   return <OtherLocks screen={screen} state={state} nav={nav} back={back} />;
+}
+
+/**
+ * Signed in, and nothing admits this account: no membership, no invitation. Says whose address was refused,
+ * because the commonest cause is signing in with the wrong Google account, and offers the two ways out.
+ */
+function NotInvited({ state, nav }: ScreenProps) {
+  const email = state.cloud.phase === 'signed-in' ? state.cloud.email : null;
+  const checking = state.gate.phase === 'checking' || state.gate.phase === 'unreachable';
+  // An invitation is accepted here, not in Settings: the gate covers Settings, so sending them there would be a
+  // door that opens onto a wall.
+  const invitations = state.workspace.phase === 'none' ? state.workspace.invitations : [];
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  return (
+    <LockCard>
+      <span style={{ width: 52, height: 52, borderRadius: '50%', background: 'var(--hover)', display: 'grid', placeItems: 'center', boxShadow: 'inset 0 0 0 1px var(--line-2)' }}><Icon name={checking ? 'refresh' : 'lock'} size={24} /></span>
+      <h1>{state.gate.phase === 'invited' ? 'You have been invited' : 'This account has not been invited'}</h1>
+      <p role="status">{state.gate.sentence}</p>
+      {state.gate.phase === 'invited'
+        ? <Panel><dl className="kv">
+            <dt>Signed in as</dt><dd>{email ?? 'nobody'}</dd>
+            <dt>Invited to</dt><dd>{invitations.map((i) => i.workspaceName).join(', ') || 'a workspace'}</dd>
+          </dl></Panel>
+        : <Panel><dl className="kv">
+            <dt>Signed in as</dt><dd>{email ?? 'nobody'}</dd>
+            <dt>What to do</dt><dd>Ask an admin of the workspace to invite this address, then check again</dd>
+            <dt>Wrong account?</dt><dd>Sign out and sign in with the address that was invited</dd>
+          </dl></Panel>}
+      <p className="sub">Nothing is read and no account page is opened until this account is let in.</p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {invitations.map((i) => (
+          <Btn key={i.id} kind="primary" disabled={busy} onClick={async () => {
+            setBusy(true); setError('');
+            const r = await bridge.joinWorkspace(i.id);
+            setBusy(false);
+            if (r.error) setError(r.error);
+          }}>Join {i.workspaceName}</Btn>
+        ))}
+        {!invitations.length && <Btn icon="refresh" kind="primary" onClick={() => bridge.syncWorkspace()}>Check again</Btn>}
+        <Btn onClick={() => bridge.signOut()}>Sign out</Btn>
+      </div>
+      {error && <p className="late" role="alert">{error}</p>}
+    </LockCard>
+  );
 }
 
 /** Signing in to the workspace (6.1): Google in the owner's own browser, never inside the app. Until workspaces exist

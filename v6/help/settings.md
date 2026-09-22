@@ -56,6 +56,10 @@ Sentences you type often, with a short name. They appear beside every chat with 
   - **Restore** someone removed, and **Withdraw** an invitation not yet taken up.
 - **If the workspace is paused**, every PC in it shows a screen saying so and nothing else, until it is active again. Nothing on those PCs is deleted. See [Owner console](help:owner).
 - **A week offline:** a PC that has not reached the workspace for seven days asks to reconnect before it shows anything, so someone removed cannot keep reading by staying offline. Nothing is deleted; it carries on as soon as it reaches the workspace.
+- **Workspace** is where you sign in, join a workspace you were invited to, and see who else is in it. The app
+  asks you to sign in with Google before it opens: it reads nothing and opens no account page until the address
+  you signed in with has been invited to a workspace. If it has not, the app says so and names the address, in
+  case it was the wrong Google account.
 - **Privacy** lists what is kept on this PC, measured from disk when you open it: the account logins, what the
   app recorded, your notes and saved replies, the reviews last read, the support log and the assistant's model,
   with where each one is managed. Anything that could not be measured says so rather than showing nothing.
