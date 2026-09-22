@@ -5,15 +5,27 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
-## v6.0.1
+## v6.0.2
 
-A fix for workspaces, and one for the notes you are reading.
+A fix for workspaces, two more things the app can tell you about, and the last screens that were showing
+invented numbers.
 
 - **Workspaces work again.** A PC asks which workspace it belongs to by looking for your address across every
   workspace at once, and the database was refusing that question, so the app could not tell you which workspace
   you were in. Nothing was lost while it could not: your accounts, history and settings are kept on the PC, and
   the setup it already had stayed in use. Reading, reports, alerts and the assistant were never affected.
+- **How far back a WhatsApp read looks is yours to set**, in Settings › Look and reading: from 100 chats to
+  2,000, starting at 500. Higher sees older conversations and costs a little more time on every pass.
+  Instagram has no such setting, because its page holds only the top threads of Primary.
+- **Two more notifications**, both on: *an account has stopped being read*, after three failed reads in a row,
+  said once until it reads again; and *a one- or two-star review arrives*, within an hour of it appearing.
+- **Save a report for support**, from Channel readers. It holds the version, what each account and reader is
+  doing, and the app's own log — counts and timings, and the names you gave your own accounts. No customer
+  names or numbers, no messages, no reviews, no logins, so you can send it without reading it first.
+- **Settings › Privacy now measures your PC** instead of showing example sizes: what each thing takes up, and
+  where it is managed. Anything it could not measure says so rather than showing nothing.
 - **The notes in the update drawer are whole sentences again**, instead of stopping at the end of a line.
+- Every screen now draws your own figures. Nothing in the app says “Sample figures” any more.
 
 ## v6.0.0
 
