@@ -3,6 +3,7 @@
 // assistant (Phase 5), drafted on this PC and copied by hand.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { QueueRow, UiState } from '../../app/view-model.ts';
+import { CHANNELS, type ChannelId } from '../../core/config.ts';
 import { byChannel, Spark, TheLine, toneInk, waitLabel } from '../charts.tsx';
 import { channelIcon, Icon } from '../icons.tsx';
 import { bridge, Btn, Chip, Facts, Headline, isPreview, type Nav, Panel, plural, type ScreenProps, Wait, waitText, type Fact } from '../parts.tsx';
@@ -172,6 +173,14 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
   const customer = rows.find((r) => r.accountId === nav.view.accountId && r.key === nav.view.sub)
     ?? rows.find((r) => r.accountId === nav.view.accountId);
   const [panel, setPanel] = useState<'customer' | 'reply'>('customer');
+  // The line is a queue of conversations and the customer panel is about one of them, so a page with no reader
+  // — a Custom URL, Meta Business Suite, an ERP the owner keeps here — has nothing for either to say, and starts
+  // with the window to itself. Anything else starts as it always did, and either can be flipped per account.
+  const readsChats = !d || CHANNELS[d.channel as ChannelId]?.reads !== false;
+  const [widened, setWidened] = useState<Record<string, boolean>>({});
+  const wide = !!d && (widened[d.id] ?? !readsChats);
+  // Main lays the account's real page over the page slot, so it has to be told the moment the panels move.
+  useEffect(() => { bridge.setDockWide(wide); }, [wide]);
   const late = rows.filter((r) => r.tone === 'late').length;
   const due = rows.filter((r) => r.tone === 'due').length;
   const target = state.settings.slaMinutes;
@@ -193,7 +202,7 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
   });
 
   return (
-    <div className="split">
+    <div className={`split${wide ? ' wide' : ''}`}>
       <main className="main" style={{ gap: 14, paddingRight: 16 }}>
         <Headline title={`${rows.length} waiting`}><b className="late">{late} past target</b>, {due} due soon</Headline>
         <div className="queue mini">
@@ -224,11 +233,14 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
                 const next = rows.filter((r) => !(r.accountId === customer.accountId && r.key === customer.key))[0];
                 if (next) nav.go('dock', next.accountId, next.key); else nav.go('line');
               }}>Not a customer</Btn>
+            {d && <Btn icon={wide ? 'min' : 'max'} kind="quiet"
+              title={wide ? 'Bring back the line and the customer panel' : 'Give this page the whole window'}
+              onClick={() => setWidened({ ...widened, [d.id]: !wide })}>{wide ? 'Show the line' : 'Full width'}</Btn>}
             {d && <Btn icon="refresh" kind="quiet" onClick={() => bridge.reloadAccount(d.id)}>Reload</Btn>}
             <Btn icon="x" kind="quiet" onClick={() => nav.go('line')}>Close</Btn>
           </div>
         </div>
-        <div className="dock3">
+        <div className={`dock3${wide ? ' wide' : ''}`}>
           {/* The account's real page is laid over this slot by the main process. */}
           <div className="page-slot">{isPreview ? 'The account’s own page appears here.' : d?.signedOut ? 'Sign in on the page to start reading.' : ''}</div>
           <aside className="cust" aria-label="About this customer">

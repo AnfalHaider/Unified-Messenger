@@ -397,6 +397,15 @@ button:disabled { cursor: default; opacity: .55; }
 .dock3 { grid-template-columns: minmax(0, 1fr) 290px; }
 .page-slot { min-height: 0; display: grid; place-items: center; background: var(--ground); color: var(--ink-3); font-size: 13px; }
 
+/* Collapsed: the docked page takes the whole window. app/main.ts lays the real page on these same edges, so
+   these two rules and its LINE and CUSTOMER constants change together. A page with no reader starts this way:
+   the line is a queue of conversations and the customer panel is about one of them, and a page that is neither
+   has nothing for either of them to say. */
+.split.wide { grid-template-columns: 0 minmax(0, 1fr); }
+.split.wide > .main { display: none; }
+.dock3.wide { grid-template-columns: minmax(0, 1fr) 0; }
+.dock3.wide > .cust { display: none; }
+
 /* Screens whose feature is not connected yet say so, once, beside the headline. */
 .sample { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); padding: 2px 9px; border-radius: 999px; border: 1px dashed var(--line-2); white-space: nowrap; }
 

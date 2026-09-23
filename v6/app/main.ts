@@ -287,12 +287,16 @@ function recordHealth(channel: string, ok: boolean, error?: string) {
 // dock bar above and the customer panel on the right.
 const BAR = 44, RAIL = 84, LINE = 400, DOCK_BAR = 57, CUSTOMER = 290;
 
+/** The dock with its side panels collapsed, so the page has the window. The screens set it; ui/tokens.css has
+ *  the matching rules, and the two must agree or the page lands over something. */
+let dockWide = false;
+
 function layout() {
   if (!win || win.isDestroyed()) return;
   const { width, height } = win.getContentBounds();
   for (const [id, view] of views) {
-    const x = RAIL + LINE, y = BAR + DOCK_BAR;
-    view.setBounds({ x, y, width: Math.max(0, width - x - CUSTOMER), height: Math.max(0, height - y) });
+    const x = RAIL + (dockWide ? 0 : LINE), y = BAR + DOCK_BAR;
+    view.setBounds({ x, y, width: Math.max(0, width - x - (dockWide ? 0 : CUSTOMER)), height: Math.max(0, height - y) });
     // Only the live-page route shows a page; the figures screen is ours to draw.
     view.setVisible(id === visible && route === 'dock');
   }
@@ -1059,6 +1063,7 @@ app.whenReady().then(async () => {
     layout();
     push();
   });
+  ipcMain.on('dock-wide', (_e, on: boolean) => { dockWide = !!on; layout(); });
   ipcMain.on('read-now', () => { void tick('button'); void readReviews(true); });
   ipcMain.on('reload-account', (_e, id: string) => {
     views.get(id)?.webContents.reload();

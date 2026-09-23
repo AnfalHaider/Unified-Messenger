@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('um', {
   /** Says the screens are mounted and want the first state. */
   ready: () => ipcRenderer.send('ready'),
   navigate: (route, accountId) => ipcRenderer.send('navigate', route, accountId ?? null),
+  setDockWide: (on) => ipcRenderer.send('dock-wide', on),
   readNow: () => ipcRenderer.send('read-now'),
   reloadAccount: (accountId) => ipcRenderer.send('reload-account', accountId),
   sleepAccount: (accountId) => ipcRenderer.send('sleep-account', accountId),

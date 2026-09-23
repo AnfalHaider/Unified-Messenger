@@ -33,3 +33,13 @@ With the [assistant](help:assistant) switched on, **Suggest a reply** › **Draf
 - Anything the conversation does not say, such as a price or a time, is left as [price] or [time] for you to fill in.
 - Nothing is saved: not the messages it read, not the drafts.
 - It works for WhatsApp chats. Instagram's messages are not read by the app.
+
+## Room for the page
+
+**Full width** in the bar above the page folds away the line on the left and the customer panel on the right,
+so the page has the whole window. **Show the line** brings them back. Each account remembers which you chose
+while the app is open.
+
+A page the app does not read — a Custom URL you keep here, Meta Business Suite, anything that is not a
+conversation channel — opens full width already. The line is a queue of conversations and the customer panel
+is about one of them, so neither has anything to say about a page that is neither.

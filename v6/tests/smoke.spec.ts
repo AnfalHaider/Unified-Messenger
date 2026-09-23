@@ -2207,3 +2207,57 @@ test('the window can be made see-through, live, and never far enough to lose it'
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('a docked page with no reader gets the window, and the line can be brought back', async () => {
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [
+      { id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
+      { id: 'test-erp', name: 'The office system', channel: 'custom', url: 'about:blank', professional: false, location: 'Main branch' },
+    ],
+    locations: [{ name: 'Main branch' }],
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [{
+    conversationKey: 'a@c.us', customerName: 'Sample Customer A', unread: 1, lastActivity: now - 40 * 60_000, preview: 'Hello?',
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  }] } }));
+  const { app, win } = await open(data);
+  // Where main actually put the account's page, which is the thing that has to move.
+  const pageX = (id: string) => app.evaluate(({ BrowserWindow }, wanted) => {
+    const w = BrowserWindow.getAllWindows()[0];
+    const v = w.contentView.children.find((c) => (c as { getBounds?: () => unknown }).getBounds) as { getBounds: () => { x: number; width: number } } | undefined;
+    return v ? v.getBounds() : { x: -1, width: -1 };
+  }, id);
+  try {
+    // A WhatsApp account: the line on the left and the customer panel on the right, as before.
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
+    await win.locator('.queue .row.sel').getByRole('button', { name: 'Open chat' }).click();
+    await expect(win.getByRole('button', { name: 'Full width' })).toBeVisible();
+    await expect(win.getByRole('complementary', { name: 'About this customer' })).toBeVisible();
+    const narrow = await pageX('test-wa');
+    expect(narrow.x).toBeGreaterThan(400);
+
+    // Widened: the page starts where the rail ends and runs to the edge.
+    await win.getByRole('button', { name: 'Full width' }).click();
+    await expect(win.getByRole('button', { name: 'Show the line' })).toBeVisible();
+    await expect(win.getByRole('complementary', { name: 'About this customer' })).toHaveCount(0);
+    await expect.poll(async () => (await pageX('test-wa')).x, { timeout: 10_000 }).toBeLessThan(narrow.x);
+    expect((await pageX('test-wa')).width).toBeGreaterThan(narrow.width);
+
+    // And back, so nothing is trapped.
+    await win.getByRole('button', { name: 'Show the line' }).click();
+    await expect.poll(async () => (await pageX('test-wa')).x, { timeout: 10_000 }).toBe(narrow.x);
+
+    // A page with no reader needs no asking: it opens with the window to itself.
+    // Straight to it through the palette, which docks an account by name.
+    await win.keyboard.press('Control+k');
+    await win.getByRole('textbox', { name: 'Search' }).fill('The office system');
+    await win.keyboard.press('Enter');
+    await expect(win.getByRole('button', { name: 'Show the line' })).toBeVisible();
+    await expect(win.getByRole('complementary', { name: 'About this customer' })).toHaveCount(0);
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});
