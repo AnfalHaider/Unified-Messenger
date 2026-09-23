@@ -1,6 +1,6 @@
 {
   "name": "unified-messenger-v6",
-  "version": "6.1.0",
+  "version": "6.1.1",
   "private": true,
   "description": "Unified Messenger: the app. Electron + TypeScript; the WinUI 3 / .NET versions were retired on 2026-09-20.",
   "type": "module",

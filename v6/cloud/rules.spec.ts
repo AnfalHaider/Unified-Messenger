@@ -242,3 +242,22 @@ test('access to accounts is an admin’s to give: a member cannot widen their ow
   await assertFails(joinWith(['a1', 'a2']));
   await assertSucceeds(joinWith(['a1']));
 });
+
+test('an invitation may carry a line from the admin, bounded, and nothing else new', async () => {
+  await seed();
+  const invite = (fields: Record<string, unknown>) => setDoc(doc(ADMIN(), 'workspaces/w1/invites/new@example.com'), {
+    email: 'new@example.com', role: 'member', invitedBy: 'admin-uid', invitedAt: serverTimestamp(), workspaceName: 'Sample Business', ...fields,
+  });
+  await assertSucceeds(invite({ note: 'Welcome — you are on the DHA-2 desk.' }));
+  await deleteDoc(doc(ADMIN(), 'workspaces/w1/invites/new@example.com'));
+  // With the accounts it names, which is what the live rules refused until they were deployed.
+  await assertSucceeds(invite({ accounts: ['a1'], note: 'DHA-2 only.' }));
+  await deleteDoc(doc(ADMIN(), 'workspaces/w1/invites/new@example.com'));
+  // An invitation with neither is still fine: both are optional.
+  await assertSucceeds(invite({}));
+  await deleteDoc(doc(ADMIN(), 'workspaces/w1/invites/new@example.com'));
+  // A note is one line from an admin, not a letter, and not a place to smuggle another shape.
+  await assertFails(invite({ note: 'x'.repeat(301) }));
+  await assertFails(invite({ note: 42 }));
+  await assertFails(invite({ note: 'fine', somethingElse: 'no' }));
+});

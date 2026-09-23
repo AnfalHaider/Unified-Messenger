@@ -5,6 +5,17 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v6.1.1
+
+- **Invitations save again.** An invitation that named the accounts was being refused by the database, which
+  had not been told that an invitation may carry them. Nothing was wrong with what you typed. Fixed on the
+  database side, so it works on the copy you already have.
+- **A line for them with the invitation.** Write a sentence when you invite someone — who they are, which
+  desk, anything they should know — and they see it on the screen that offers them Join. The app still sends
+  no email.
+- When the workspace refuses a change, the app says so instead of telling you to check your connection.
+
+
 ## v6.1.0
 
 Unified Messenger now asks who you are before it opens, and an invitation says which accounts that person may

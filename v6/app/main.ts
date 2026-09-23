@@ -1338,8 +1338,8 @@ app.whenReady().then(async () => {
   };
   ipcMain.handle('workspace-create', (_e, name: string) => workspace.create(String(name ?? '')));
   ipcMain.handle('workspace-join', (_e, id: string) => workspace.join(String(id ?? '')));
-  ipcMain.handle('workspace-invite', (_e, email: string, role: string, accounts: unknown) =>
-    workspace.invite(String(email ?? ''), role === 'admin' ? 'admin' : 'member', Array.isArray(accounts) ? accounts.map(String) : null));
+  ipcMain.handle('workspace-invite', (_e, email: string, role: string, accounts: unknown, note: unknown) =>
+    workspace.invite(String(email ?? ''), role === 'admin' ? 'admin' : 'member', Array.isArray(accounts) ? accounts.map(String) : null, String(note ?? '')));
   ipcMain.handle('workspace-member-accounts', (_e, uid: string, accounts: unknown) =>
     workspace.setAccounts(String(uid ?? ''), Array.isArray(accounts) ? accounts.map(String) : null));
   ipcMain.handle('workspace-withdraw', (_e, email: string) => workspace.withdraw(String(email ?? '')));

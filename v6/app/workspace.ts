@@ -18,14 +18,14 @@ export interface Person { uid: string; email: string; name: string; role: Role; 
   /** The accounts they may see. Null is the whole business, and is what everyone invited before this had. */
   accounts: string[] | null }
 /** An invitation not yet taken up, as admins see it. */
-export interface Invite { email: string; role: Role; invitedAt: number; accounts: string[] | null }
+export interface Invite { email: string; role: Role; invitedAt: number; accounts: string[] | null; note: string }
 /** One workspace as the product owner's console lists it: membership and last seen only, never a business's setup. */
 export interface OwnerWorkspace { id: string; name: string; status: 'active' | 'suspended'; members: number; admins: string[]; lastSeen: number; statusChangedAt: number }
 /** What the product owner's console shows. Everyone else sees isOwner false and no list. */
 export interface OwnerView { isOwner: boolean; workspaces: OwnerWorkspace[]; error?: string }
 
 /** An invitation to this signed-in person, from a workspace they have not joined. */
-export interface Invitation { id: string; workspaceName: string; role: Role; accounts: string[] | null }
+export interface Invitation { id: string; workspaceName: string; role: Role; accounts: string[] | null; note: string }
 
 export type WorkspaceState =
   | { phase: 'signed-out' }
@@ -116,8 +116,8 @@ export class Workspace {
       const entry = entries.find((m) => m.status === 'active') ?? entries[0];
       if (!entry) {
         const invitations = (await this.query('invites', 'email', user.email)).map((d) => {
-          const f = fromFields(d.fields ?? {}) as { workspaceName?: string; role?: string; accounts?: unknown };
-          return { id: d.name.split('/').slice(-3)[0], workspaceName: f.workspaceName ?? '', role: (f.role === 'admin' ? 'admin' : 'member') as Role, accounts: idList(f.accounts) };
+          const f = fromFields(d.fields ?? {}) as { workspaceName?: string; role?: string; accounts?: unknown; note?: unknown };
+          return { id: d.name.split('/').slice(-3)[0], workspaceName: f.workspaceName ?? '', role: (f.role === 'admin' ? 'admin' : 'member') as Role, accounts: idList(f.accounts), note: cut(String(f.note ?? ''), NOTE_MAX) };
         });
         this.dropKept();
         this.set({ phase: 'none', invitations });
@@ -242,7 +242,7 @@ export class Workspace {
   }
 
   /** An admin invites someone by their Google address. The app sends nothing: the admin tells them to sign in. */
-  invite(email: string, role: Role, accounts: string[] | null): Promise<{ error?: string }> {
+  invite(email: string, role: Role, accounts: string[] | null, note = ''): Promise<{ error?: string }> {
     return this.admin(async (k) => {
       const address = String(email ?? '').trim().toLowerCase();
       if (!EMAIL.test(address)) return { error: 'That does not look like an email address.' };
@@ -251,12 +251,18 @@ export class Workspace {
       if (removedPerson) return { error: 'They were removed from this workspace. Use Restore beside their name instead.' };
       await this.commit([{
         // `accounts` absent means the whole business, which is what every invitation carried before this.
-        update: { name: this.path(`workspaces/${k.id}/invites/${address}`), fields: toFields({ email: address, role: role === 'admin' ? 'admin' : 'member', invitedBy: this.h.user()!.uid, workspaceName: k.name, ...(accounts === null ? {} : { accounts }) }) },
+        // The admin's own line to them, shown on the screen that offers Join. Cut with the helper, never a raw
+        // slice: a cut through an emoji leaves half a character and JSON then throws.
+        update: { name: this.path(`workspaces/${k.id}/invites/${address}`), fields: toFields({ email: address, role: role === 'admin' ? 'admin' : 'member', invitedBy: this.h.user()!.uid, workspaceName: k.name, ...(accounts === null ? {} : { accounts }), ...(cut(note, NOTE_MAX) ? { note: cut(note, NOTE_MAX) } : {}) }) },
         currentDocument: { exists: false }, updateTransforms: [now('invitedAt')],
       }]).catch((e) => { throw /409|ALREADY_EXISTS/.test(String(e.message)) ? new Error('already invited') : e; });
       this.h.log({ event: 'member-invited', role, accounts: accounts === null ? 'all' : accounts.length });
       return {};
-    }, (e) => /already invited/.test(e) ? 'They are already invited.' : 'The invitation could not be saved. Check the connection and try again.');
+    }, (e) => /already invited/.test(e) ? 'They are already invited.'
+      // 403 is the workspace refusing the write, not a bad connection: saying "check the connection" sends the
+      // admin to look at their wifi when the answer is that this app and the rules disagree.
+      : /403|PERMISSION_DENIED/.test(e) ? 'The workspace refused the invitation. This copy of the app may be newer than the workspace expects; ask support.'
+      : 'The invitation could not be saved. Check the connection and try again.');
   }
 
   /** An admin changes which accounts a member may see. Their PC narrows at its next check, wiping what it loses. */
@@ -325,8 +331,8 @@ export class Workspace {
     });
     const invites = this.state.role === 'admin'
       ? (await this.list(`workspaces/${this.kept.id}/invites`)).map((d): Invite => {
-        const f = fromFields(d.fields ?? {}) as { email?: string; role?: string; invitedAt?: number; accounts?: unknown };
-        return { email: f.email ?? '', role: f.role === 'admin' ? 'admin' : 'member', invitedAt: Number(f.invitedAt) || 0, accounts: idList(f.accounts) };
+        const f = fromFields(d.fields ?? {}) as { email?: string; role?: string; invitedAt?: number; accounts?: unknown; note?: unknown };
+        return { email: f.email ?? '', role: f.role === 'admin' ? 'admin' : 'member', invitedAt: Number(f.invitedAt) || 0, accounts: idList(f.accounts), note: cut(String(f.note ?? ''), NOTE_MAX) };
       })
       : [];
     if (this.state.phase === 'member') this.set({ ...this.state, people, invites });
@@ -530,3 +536,14 @@ const now = (fieldPath: string) => ({ fieldPath, setToServerValue: 'REQUEST_TIME
 
 /** An `accounts` field as stored: absent is the whole business, a list is exactly those. Never a guess. */
 const idList = (v: unknown): string[] | null => (Array.isArray(v) ? v.map((x) => String(x)) : null);
+
+/** The longest note an invitation carries. One line from an admin, not a letter. */
+export const NOTE_MAX = 300;
+
+/** A cut that never leaves half a character: through an emoji, a raw slice leaves a lone surrogate. */
+function cut(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const c = t.charCodeAt(max - 1);
+  return t.slice(0, c >= 0xd800 && c <= 0xdbff ? max - 1 : max);
+}

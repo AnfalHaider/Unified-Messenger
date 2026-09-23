@@ -29,7 +29,7 @@ declare global {
       createWorkspace(name: string): Promise<{ error?: string }>;
       syncWorkspace(): void;
       joinWorkspace(id: string): Promise<{ error?: string }>;
-      inviteMember(email: string, role: 'admin' | 'member', accounts: string[] | null): Promise<{ error?: string }>;
+      inviteMember(email: string, role: 'admin' | 'member', accounts: string[] | null, note: string): Promise<{ error?: string }>;
       setMemberAccounts(uid: string, accounts: string[] | null): Promise<{ error?: string }>;
       withdrawInvite(email: string): Promise<{ error?: string }>;
       setMemberStatus(uid: string, status: 'active' | 'removed'): Promise<{ error?: string }>;

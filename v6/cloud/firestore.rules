@@ -108,7 +108,10 @@ service cloud.firestore {
         allow read: if isAdmin(wid) || (signedIn() && verified() && myEmail() == email);
         // The workspace's name travels with the invitation: the invited person cannot read the workspace until they join.
         allow create: if isAdmin(wid) && active(wid)
-          && request.resource.data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedAt', 'workspaceName', 'accounts'])
+          && request.resource.data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedAt', 'workspaceName', 'accounts', 'note'])
+          // A line from the admin, shown to the person on the screen that offers them Join. Bounded, because
+          // it is written by one person and read by another.
+          && (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 300))
           && request.resource.data.workspaceName == ws(wid).name
           && request.resource.data.email == email && email == email.lower()
           && request.resource.data.role in ['admin', 'member']

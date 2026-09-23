@@ -7,6 +7,7 @@ import { bridge, Btn, Check, Chip, Headline, Panel, Seg, SettingRow, Stepper, To
 import { durationText } from '../../core/duration.ts';
 import { updateSentence } from '../../core/update.ts';
 import type { UiState } from '../../app/view-model.ts';
+import { NOTE_MAX } from '../../app/workspace.ts';
 
 export const SETTINGS_SECTIONS = ['Look and reading', 'Opening hours', 'Notifications', 'Saved replies', 'Assistant', 'Workspace', 'Privacy', 'About'] as const;
 type Section = typeof SETTINGS_SECTIONS[number];
@@ -390,6 +391,7 @@ function YourWorkspace({ state }: { state: UiState }) {
             <div style={{ display: 'grid', gap: 2 }}>
               <b style={{ fontWeight: 600 }}>You are invited to {i.workspaceName || 'a workspace'}</b>
               <span className="sub">As {i.role === 'admin' ? 'an admin' : 'a member'}. Joining brings its accounts, locations and business rules to this PC; each account then needs signing in here once. Accounts already on this PC stay.</span>
+              {i.note && <span className="sub" style={{ fontStyle: 'italic' }}>“{i.note}”</span>}
             </div>
             <div style={{ marginLeft: 'auto' }}><Btn kind="primary" disabled={busy} onClick={async () => { setBusy(true); setError(''); const r = await bridge.joinWorkspace(i.id); setBusy(false); if (r.error) setError(r.error); }}>Join {i.workspaceName}</Btn></div>
           </div>
@@ -443,6 +445,8 @@ function Members({ state }: ScreenProps) {
   // Null is the whole business; a list is exactly those accounts. An admin who ticks nothing has said
   // something, so it is never quietly read as everything.
   const [access, setAccess] = useState<string[] | null>(null);
+  // The admin's own line to them, shown on the screen that offers Join. The app still sends no email.
+  const [note, setNote] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -467,9 +471,14 @@ function Members({ state }: ScreenProps) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <label className="field" style={{ minWidth: 280 }}><span>Their Google address</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" /></label>
             <label className="field"><span>Role</span><select className="input" value={role} onChange={(e) => setRole(e.target.value === 'admin' ? 'admin' : 'member')}><option value="member">Member</option><option value="admin">Admin</option></select></label>
-            <Btn kind="primary" disabled={busy || !email.trim()} onClick={async () => { if (await act(bridge.inviteMember(email, role, access))) { setEmail(''); setAccess(null); setInviting(false); } }}>Save the invitation</Btn>
+            <Btn kind="primary" disabled={busy || !email.trim()} onClick={async () => { if (await act(bridge.inviteMember(email, role, access, note))) { setEmail(''); setAccess(null); setNote(''); setInviting(false); } }}>Save the invitation</Btn>
           </div>
           <AccountAccess state={state} value={access} onChange={setAccess} />
+          <label className="field"><span>A line for them (optional)</span>
+            <textarea className="input" rows={2} maxLength={NOTE_MAX} value={note} onChange={(e) => setNote(e.target.value)}
+              placeholder="Welcome, Sana — you are on the DHA-2 desk. Ask me if anything looks wrong." />
+            <span className="sub">{note.trim().length}/{NOTE_MAX}. They see this on the screen that offers them Join.</span>
+          </label>
           <span className="sub">The app sends no email. Tell them to open Unified Messenger and sign in with this Google address: the invitation is waiting there. Members see the setup and can change nothing shared; admins can change it and manage members.</span>
         </div>
       )}

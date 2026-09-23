@@ -102,6 +102,9 @@ function NotInvited({ state, nav }: ScreenProps) {
         ? <Panel><dl className="kv">
             <dt>Signed in as</dt><dd>{email ?? 'nobody'}</dd>
             <dt>Invited to</dt><dd>{invitations.map((i) => i.workspaceName).join(', ') || 'a workspace'}</dd>
+            {invitations.some((i) => i.note) && (
+              <><dt>From the admin</dt><dd>{invitations.filter((i) => i.note).map((i) => i.note).join(' · ')}</dd></>
+            )}
           </dl></Panel>
         : <Panel><dl className="kv">
             <dt>Signed in as</dt><dd>{email ?? 'nobody'}</dd>

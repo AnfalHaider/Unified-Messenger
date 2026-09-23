@@ -2121,6 +2121,7 @@ test('an invitation names the accounts: the member gets only those, and loses on
     await win.getByRole('checkbox', { name: 'DHA-2', exact: true }).check();
     await expect(win.getByRole('checkbox', { name: 'DHA-2 WhatsApp' })).toBeChecked();
     await expect(win.getByRole('checkbox', { name: 'F-11 WhatsApp' })).not.toBeChecked();
+    await win.getByLabel('A line for them (optional)').fill('Welcome \u2014 you are on the DHA-2 desk.');
     await win.getByRole('button', { name: 'Save the invitation' }).click();
     await expect(win.getByText('staff@example.com')).toBeVisible();
     await quit(app, win);
@@ -2129,6 +2130,8 @@ test('an invitation names the accounts: the member gets only those, and loses on
     cloud.o.user = STAFF;
     ({ app, win } = await open(staffPc, env));
     await win.getByRole('button', { name: 'Continue with Google' }).click();
+    // The gate names what they were invited to, and carries the admin's own line to them.
+    await expect(win.locator('body')).toContainText('Welcome \u2014 you are on the DHA-2 desk.', { timeout: 30_000 });
     await win.getByRole('button', { name: 'Join Sample Business' }).click({ timeout: 30_000 });
     await win.getByRole('navigation', { name: 'Screens' }).waitFor({ timeout: 30_000 });
     await expect.poll(staffAccounts, { timeout: 30_000 }).toEqual(['dha-ig', 'dha-wa']);
