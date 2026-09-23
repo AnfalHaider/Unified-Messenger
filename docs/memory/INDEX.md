@@ -108,4 +108,4 @@
 | v6-whatsapp-search-ignores-typed-text | 2026-09-13 | claude | live | WhatsApp's chat-list search no longer reacts to a set value, so a chat off screen is opened through Cmd.openChatBottom | open chat, focus, focus conversation, search, not-found, __umFocusConversation, openChatBottom, WAWebCmd, ChatCollection, typed value, React input, Instagram search, filter did not apply |
 | v6-win32-process-quoting-fails-silently | 2026-09-13 | claude | live | A Win32_Process command line with nested quotes fails without an error; put the work in a .ps1 file | Win32_Process, Invoke-CimMethod, Create, cmd /c, powershell -Command, quoting, output file missing, Remove-Item blocked, /VERYSILENT, protected from removal, agent shell |
 
-Generated: 2026-09-22 21:29:24
+Generated: 2026-09-23 14:03:52

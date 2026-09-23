@@ -21,8 +21,8 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 | 2 · Foundation | Done, including the Playwright smoke test on Windows in CI. |
 | 3 · Channel modules | Done, including the API reader (3.1b), which waits switched off for Google's approval: WhatsApp, WhatsApp Business and Instagram read live, Open chat goes to the conversation (3.2), WhatsApp falls back to its saved chat list (3.3), the break test is observed (3.4), and the Google reviews reader is built (3.1) but Google blocks sign-in inside the app, so it waits on the official API. |
 | 4 · Screens | Done: 4.1 Handled and Snooze, 4.2 Set aside, 4.3 notifications, 4.4 opening hours and holidays, 4.5 daily history, 4.6 and 4.6b Reports with the weekly report and exports (all following the location filter), 4.7 morning digest, 4.8 missed calls and whether they were returned, 4.9 accounts add / edit / remove, 4.10 the reading record behind the lost-login and reader screens, 4.13 the line's second pass, 4.11 the customer panel, 4.12 accessibility (automated; the owner's Narrator pass is open). Remaining sample screens are marked. |
-| 5 · Assistant | Not started (settings screen and chat screen exist as sample). |
-| 6 · Cloud and membership | Done: 6.1 sign-in, 6.2 rules (live), 6.3 setup sync, 6.4 members, 6.5 suspension, 6.6 pages (publishing waits on `firebase login`). Members, owner and suspended screens are still sample. Firebase project `unified-messenger-5549a`. |
+| 5 · Assistant | Done: on-device through Ollama, off until switched on. 30 of 30 on the owner's pass mark, and Suggest a reply drafts from the open WhatsApp chat. |
+| 6 · Cloud and membership | Done: 6.1 sign-in, 6.2 rules (live), 6.3 setup sync, 6.4 members, 6.5 suspension, 6.6 pages (published). Every screen draws real data; the gate (4.18) and per-account access (4.19) build on this. Firebase project `unified-messenger-5549a`. |
 | 7 · Ship v6 | **Done.** Cookie encryption, asar, updates (GitHub Releases), the upgrade screen, release notes, v5 retired, the pages published, and v6.0.0 released with its Setup attached and verified byte for byte. |
 | 8 · After launch | Not started. |
 
@@ -40,8 +40,13 @@ uninstalled from the owner's PC and only kept as reference until Phase 7 retires
 
 ### What is real and what is sample in the shell
 
-| Real data | Sample figures (marked "Sample figures, not connected yet") |
-|---|---|
+Nothing is sample any more (4.17). Every screen draws this PC's own accounts and figures, and where something
+could not be read it says so rather than showing a zero. Two things are real but empty until something outside
+the app changes: **Reviews**, until Google grants API access, and **the workspace screens** on a PC that belongs
+to no workspace. `ui/sample.ts` now holds only what `ui/preview-state.ts` needs to draw the screens in a plain
+browser for design work; none of it reaches the installed app.
+
+---|---|
 | The line, lanes, queue, J/K/Enter | |
 | Handled and Snooze (buttons, H / S) on the line and the dock | Suggested replies and review drafts (they arrive with the assistant, Phase 5) |
 | Set aside, with Put back | Privacy sizes |
@@ -351,8 +356,6 @@ Google Business Profile API for complete review history (needs Google approval);
 - Notifications fire on the owner's PC (seen 2026-09-13 after 11 am; Windows lists the app as UnifiedMessenger.v6). Quiet hours came across from v5 as 9 pm to 11 am. Instagram counts every unread thread as waiting, so one busy Instagram account produced 13 near-target and 10 hour alerts in about 15 minutes, all for real chats: whether to rate-limit or summarise per account is an owner decision (§5).
 - A quit once left the main process alive after logging `quit`, and the installer, which checks for any process with the app's name, then installed nothing without a message (lesson `v6-quit-can-leave-a-husk-that-blocks-install`). Cause unknown. Worth making the installer say when it gives up, and checking `startup` in the log after every install.
 - On 2026-09-14 reads stalled for about ten minutes after an install: one account page never answered and reads run one at a time. A 30-second limit per page call now contains it; why the page went silent is unknown (lesson `v6-one-silent-page-stopped-every-read`).
-- Reviews is sample data until the Google reader (3.1). Holidays are whole days only, and opening hours cannot run past midnight (4.4).
+- Reviews reads nothing until Google grants API access (3.1b): the screen is real and empty, because Google refuses sign-in inside the app. Holidays are whole days only, and opening hours cannot run past midnight (4.4).
 - Not exercised by any test: the export save dialog, the clipboard copy, the Monday auto-save, and a click on a real Windows notification (the test sends the same message the click would).
-- Cookies are stored unencrypted on disk until 7.1.
-- The reader scripts exist twice (v5 tree and `v6/channels`); change the v6 copy.
 - The design renders (`docs/design/v6-front-desk`) must be served by a plain static server, not Vite.
