@@ -5,6 +5,16 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v6.1.3
+
+- **Room for a docked page.** **Full width** in the bar above a page folds away the line and the customer
+  panel, so the page has the whole window; **Show the line** brings them back. Each account remembers which
+  you chose while the app is open.
+- **A page the app does not read opens full width already** — a Custom URL you keep here, Meta Business Suite,
+  anything that is not a conversation channel. The line is a queue of conversations and the customer panel is
+  about one of them, so neither had anything to say about a page that is neither.
+
+
 ## v6.1.2
 
 - **You can make the window see-through**, in Settings › Look and reading: from solid to 40% see-through, in
