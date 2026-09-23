@@ -2,7 +2,7 @@
 // stop the app opening.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CHANNELS, defaultSettings, emptyConfig, hoursFor, parseConfig, WHATSAPP_CHATS_DEFAULT, WHATSAPP_CHATS_MAX, WHATSAPP_CHATS_MIN } from './config.ts';
+import { CHANNELS, defaultSettings, emptyConfig, hoursFor, OPACITY_MAX, OPACITY_MIN, parseConfig, WHATSAPP_CHATS_DEFAULT, WHATSAPP_CHATS_MAX, WHATSAPP_CHATS_MIN } from './config.ts';
 
 const parse = (raw: unknown) => parseConfig(raw).config;
 const account = (o: Record<string, unknown>) => parse({ accounts: [o] }).accounts[0];
@@ -20,6 +20,7 @@ test('the defaults match the owner decisions: accounts awake, assistant off, clo
   assert.equal(s.googleApi.enabled, false);
   assert.equal(s.filterClosedConversations, true);
   assert.equal(s.readLimits.whatsappChats, WHATSAPP_CHATS_DEFAULT, 'what v5 always read, until the owner says otherwise');
+  assert.equal(s.windowOpacity, 100, 'solid until the owner asks for otherwise');
 });
 
 test('an account keeps what it has and fills in what it lacks', () => {
@@ -63,6 +64,12 @@ test('numbers are held inside their limits', () => {
   assert.equal(settings({ readLimits: { whatsappChats: 99999 } }).readLimits.whatsappChats, WHATSAPP_CHATS_MAX);
   assert.equal(settings({ readLimits: 'lots' }).readLimits.whatsappChats, WHATSAPP_CHATS_DEFAULT, 'nonsense leaves the default');
   assert.equal(settings({ readLimits: { whatsappChats: 1000 } }).readLimits.whatsappChats, 1000);
+  // The window may be made see-through, but never so far that the figures cannot be read or the window found.
+  assert.equal(settings({ windowOpacity: 0 }).windowOpacity, OPACITY_MIN);
+  assert.equal(settings({ windowOpacity: 5 }).windowOpacity, OPACITY_MIN);
+  assert.equal(settings({ windowOpacity: 250 }).windowOpacity, OPACITY_MAX);
+  assert.equal(settings({ windowOpacity: 'clear' }).windowOpacity, 100, 'nonsense leaves it solid');
+  assert.equal(settings({ windowOpacity: 85 }).windowOpacity, 85);
 });
 
 test('locations need a name, and keep one entry each', () => {

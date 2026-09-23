@@ -5,6 +5,16 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v6.1.2
+
+- **You can make the window see-through**, in Settings › Look and reading: from solid to 40% see-through, in
+  steps. It takes the whole window, the account pages with it, and changes as you pick it. The figures get
+  harder to read the further you go, so it stops well before invisible.
+- **Changing what a member can see is usable again.** The picker was squeezed into one narrow column, and
+  every tick was saved to the workspace on its own, which made the screen crawl. It now opens in a row of
+  its own with room to read, and saves once when you press Save.
+
+
 ## v6.1.1
 
 - **Invitations save again.** An invitation that named the accounts was being refused by the database, which

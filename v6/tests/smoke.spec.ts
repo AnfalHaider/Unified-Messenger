@@ -2147,8 +2147,13 @@ test('an invitation names the accounts: the member gets only those, and loses on
     const row = win.getByRole('row').filter({ hasText: 'staff@example.com' });
     await expect(row).toContainText('2 of 3');
     await row.getByRole('button', { name: 'Change' }).click();
-    await row.getByRole('checkbox', { name: 'DHA-2 Instagram' }).click();
+    // The picker opens in a row of its own, under theirs, and writes once when Save is pressed.
+    const editor = win.getByRole('row').filter({ hasText: 'What Sample Staff can see' });
+    await editor.getByRole('checkbox', { name: 'DHA-2 Instagram' }).click();
+    await expect(row).toContainText('2 of 3', { timeout: 2_000 });
+    await editor.getByRole('button', { name: 'Save what they can see' }).click();
     await expect(row).toContainText('1 of 3');
+    await expect(win.getByRole('row').filter({ hasText: 'What Sample Staff can see' })).toHaveCount(0);
     await quit(app, win);
 
     cloud.o.user = STAFF;
@@ -2161,5 +2166,44 @@ test('an invitation names the accounts: the member gets only those, and loses on
     await fs.close();
     rmSync(ownerPc, { recursive: true, force: true });
     rmSync(staffPc, { recursive: true, force: true });
+  }
+});
+
+test('the window can be made see-through, live, and never far enough to lose it', async () => {
+  const data = dataFolder({ accounts: [{ id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true }] });
+  const { app, win } = await open(data);
+  // The real window's opacity, not the setting: the point is that the window actually changed.
+  const opacity = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getOpacity());
+  const config = () => JSON.parse(readFileSync(join(data, 'config.json'), 'utf8')) as { settings: { windowOpacity: number } };
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).waitFor({ timeout: 30_000 });
+    expect(await opacity()).toBeCloseTo(1, 2);
+
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: 'Settings', exact: true }).click();
+    await win.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Look and reading' }).click();
+    const stepper = win.getByRole('group', { name: 'window transparency' });
+    await expect(stepper).toContainText('Solid');
+
+    // Three steps down: the window follows at once, with no restart.
+    for (let i = 0; i < 3; i++) await stepper.getByRole('button', { name: 'More window transparency' }).click();
+    await expect(stepper).toContainText('15% see-through');
+    await expect.poll(opacity, { timeout: 10_000 }).toBeCloseTo(0.85, 2);
+    await expect.poll(() => config().settings.windowOpacity).toBe(85);
+
+    // Kept across a restart, and applied before the window is shown. Off Settings first: its close-behaviour
+    // choice has a Quit button of its own, which would make the title bar's ambiguous.
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
+    await quit(app, win);
+    const again = await open(data);
+    try {
+      await again.win.getByRole('navigation', { name: 'Screens' }).waitFor({ timeout: 30_000 });
+      expect(await again.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getOpacity())).toBeCloseTo(0.85, 2);
+      await quit(again.app, again.win);
+    } finally {
+      await again.app.close().catch(() => {});
+    }
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
   }
 });

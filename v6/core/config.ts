@@ -67,6 +67,9 @@ export interface Settings {
   /** Google's own Business Profile API as the reviews source (3.1b). Off until Google grants this app access: until
    *  then every call is refused, and reviews are read from the page as before. */
   googleApi: { enabled: boolean };
+  /** How see-through the window is, as a percentage. 100 is solid. The floor is well above invisible, so
+   *  the app can never be made impossible to find or read. */
+  windowOpacity: number;
   theme: 'system' | 'light' | 'dark';
   quietHours: { enabled: boolean; startHour: number; endHour: number };
   /** Windows notifications, each switchable. Quiet hours hold all of them back. */
@@ -102,6 +105,7 @@ export const defaultSettings = (): Settings => ({
   assistant: { enabled: false, model: 'gemma3:4b', endpoint: 'http://127.0.0.1:11434/' },
   readLimits: { whatsappChats: WHATSAPP_CHATS_DEFAULT },
   googleApi: { enabled: false },
+  windowOpacity: 100,
   theme: 'system',
   quietHours: { enabled: false, startHour: 21, endHour: 8 },
   alerts: { nearTarget: true, waitedHour: true, signedOut: true, callNotReturned: true, readerStopped: true, unhappyReview: true },
@@ -116,6 +120,9 @@ export const emptyConfig = (): Config => ({ version: CONFIG_VERSION, accounts: [
 export const SLA_MIN_MINUTES = 5, SLA_MAX_MINUTES = 120;
 /** The chats one WhatsApp read takes in: what v5 always used, and the range the owner may choose between. */
 export const WHATSAPP_CHATS_DEFAULT = 500, WHATSAPP_CHATS_MIN = 100, WHATSAPP_CHATS_MAX = 2000;
+/** Solid, and the most see-through the window may be. Below 60 the figures stop being readable, and a
+ *  frameless window nobody can see is a window nobody can put right. */
+export const OPACITY_MAX = 100, OPACITY_MIN = 60;
 
 /** Never throws. `dropped` counts accounts that could not be read; the caller logs it rather than losing it silently. */
 export function parseConfig(raw: unknown): { config: Config; dropped: number } {
@@ -291,6 +298,7 @@ function parseSettings(raw: unknown): Settings {
     },
     readLimits: { whatsappChats: clampInt((isObject(raw.readLimits) ? raw.readLimits : {}).whatsappChats, WHATSAPP_CHATS_MIN, WHATSAPP_CHATS_MAX, d.readLimits.whatsappChats) },
     googleApi: { enabled: bool((isObject(raw.googleApi) ? raw.googleApi : {}).enabled, d.googleApi.enabled) },
+    windowOpacity: clampInt(raw.windowOpacity, OPACITY_MIN, OPACITY_MAX, d.windowOpacity),
     theme: theme === 'light' || theme === 'dark' || theme === 'system' ? theme : d.theme,
     quietHours: {
       enabled: bool(quiet.enabled, d.quietHours.enabled),

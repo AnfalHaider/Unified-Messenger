@@ -7,6 +7,9 @@ Everything that changes how the app counts, reads and tells you things. Changes 
 ![Look and reading](shot:settings-look-and-reading)
 
 - **Appearance**: match Windows, light or dark. Also in the title bar.
+- **How see-through the window is**: from solid to 40% see-through, in steps. It takes the whole window, the
+  account pages with it, and changes as you pick it — no restart. The figures get harder to read the further you
+  go, so the app stops well before invisible.
 - **Reply target**: how quickly a customer should hear back. Everything red is measured against this.
 - **Read each account every**: how often each page is read. Reading is quiet and never opens a chat.
 - **Chats each WhatsApp read takes in**: how far back a read looks, from 100 chats to 2,000. Higher sees older

@@ -1,7 +1,7 @@
 // Settings. "Look and reading" and "Notifications" write to config.json and take effect at once. Opening hours and
 // holidays too. The assistant, the workspace and parts of privacy are sample settings until their features
 // are wired, and say so.
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Icon, type IconName } from '../icons.tsx';
 import { bridge, Btn, Check, Chip, Headline, Panel, Seg, SettingRow, Stepper, Toggle, type ScreenProps } from '../parts.tsx';
 import { durationText } from '../../core/duration.ts';
@@ -57,6 +57,14 @@ function Look({ state }: ScreenProps) {
               <span className="tname"><Icon name={icon} size={15} />{label}</span>
             </button>
           ))}
+        </div>
+        <div className="panel" style={{ padding: 0, marginTop: 10 }}>
+          <SettingRow title="How see-through the window is"
+            detail="The whole window, the account pages with it. Lower lets your desktop through; the figures get harder to read as it goes down, so the app stops well before invisible.">
+            <Stepper label="window transparency" value={s.windowOpacity} options={[100, 95, 90, 85, 80, 75, 70, 65, 60]}
+              format={(n) => (n === 100 ? 'Solid' : `${100 - n}% see-through`)}
+              onChange={(v) => set({ windowOpacity: v })} />
+          </SettingRow>
         </div>
       </div>
       <div className="sgroup"><h3>Reading</h3>
@@ -448,6 +456,8 @@ function Members({ state }: ScreenProps) {
   // The admin's own line to them, shown on the screen that offers Join. The app still sends no email.
   const [note, setNote] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
+  // The choice being made, kept here until Save: the workspace is written once, not on every tick.
+  const [draft, setDraft] = useState<string[] | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -486,18 +496,13 @@ function Members({ state }: ScreenProps) {
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
         <table className="table"><thead><tr><th>Member</th><th>Role</th><th>Accounts</th><th>Last online</th><th /></tr></thead><tbody>
           {people.map((p) => (
-            <tr key={p.uid} style={p.status === 'removed' ? { opacity: 0.7 } : undefined}>
+            <Fragment key={p.uid}>
+            <tr style={p.status === 'removed' ? { opacity: 0.7 } : undefined}>
               <td><b style={{ fontWeight: 600 }}>{p.name || p.email}</b>{p.email === me && <span className="sub"> (you)</span>}<div className="sub">{p.email}</div></td>
               <td>{p.status === 'removed' ? <Chip tone="neutral">Removed</Chip> : <Chip tone={p.role === 'admin' ? 'ok' : 'neutral'}>{p.role === 'admin' ? 'Admin' : 'Member'}</Chip>}</td>
               <td>{p.accounts === null ? 'All' : `${p.accounts.length} of ${state.accounts.length}`}
                 {admin && p.email !== me && p.status !== 'removed' && (
-                  <div><Btn kind="quiet" onClick={() => setEditing(editing === p.uid ? null : p.uid)}>Change</Btn></div>
-                )}
-                {editing === p.uid && (
-                  <div style={{ marginTop: 8 }}>
-                    <AccountAccess state={state} value={p.accounts} onChange={(v) => void act(bridge.setMemberAccounts(p.uid, v))} />
-                    <span className="sub">Their PC narrows at its next check: what they lose is wiped there, login and all.</span>
-                  </div>
+                  <div><Btn kind="quiet" onClick={() => { setEditing(editing === p.uid ? null : p.uid); setDraft(p.accounts); setError(''); }}>Change</Btn></div>
                 )}
               </td>
               <td>{seen(p.lastSeen)}</td>
@@ -519,6 +524,26 @@ function Members({ state }: ScreenProps) {
                 )}
               </td>
             </tr>
+            {editing === p.uid && (
+              // Its own full-width row: inside the Accounts cell the picker was squeezed to one column, every
+              // account name wrapped over three lines, and the row's own buttons were pushed out of reach.
+              <tr>
+                <td colSpan={5}>
+                  <div style={{ display: 'grid', gap: 10, padding: '4px 0 10px' }}>
+                    <b style={{ fontWeight: 600 }}>What {p.name || p.email} can see</b>
+                    <AccountAccess state={state} value={draft} onChange={setDraft} />
+                    <span className="sub">Their PC narrows at its next check: what they lose is wiped there, login and all.</span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {/* One write when they are done, not one per tick: a tick each was a round trip to the
+                          workspace and a reload of every member, which made the screen crawl. */}
+                      <Btn kind="primary" disabled={busy} onClick={async () => { if (await act(bridge.setMemberAccounts(p.uid, draft))) setEditing(null); }}>Save what they can see</Btn>
+                      <Btn disabled={busy} onClick={() => { setEditing(null); setError(''); }}>Cancel</Btn>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            )}
+            </Fragment>
           ))}
           {w.invites.map((i) => (
             <tr key={i.email}>

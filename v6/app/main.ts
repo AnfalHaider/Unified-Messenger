@@ -14,7 +14,7 @@ import { admission, mayRun, type Admission } from '../core/admission.ts';
 import { google, GOOGLE_PROFILE_URL, GOOGLE_REVIEWS_URL, parseProfileRead } from '../channels/google/index.ts';
 import { parseProfile, parseReviewsRead, RATING_EVERY_MS, REVIEWS_EVERY_MS, unhappyReviews, type Reviews } from '../core/reviews.ts';
 import { alertsDue, pruneNotified, type Alert, type Notified } from '../core/alerts.ts';
-import { CHANNELS, emptyConfig, parseConfig, type Account, type Config } from '../core/config.ts';
+import { CHANNELS, emptyConfig, OPACITY_MAX, OPACITY_MIN, parseConfig, type Account, type Config } from '../core/config.ts';
 import { clear, markHandled, markNotCustomer, pruneExpired, snooze, type Overrides } from '../core/awaiting-overrides.ts';
 import { emptyResponseTimes, pruneResponseTimes, type ResponseTimes } from '../core/response-times.ts';
 import { accountsToSleep, dueForRead, readableAccounts } from '../core/schedule.ts';
@@ -671,6 +671,17 @@ function stateFor(forRoute: Route) {
   });
 }
 
+/**
+ * How see-through the window is (owner's ask, 2026-09-23, after seeing it under a system-wide transparency
+ * script). setOpacity takes the whole window — the screens and the account pages inside it — which is the
+ * effect they liked. Only this window: the hidden page a report is drawn on must stay solid, or an exported
+ * PDF would come out faint.
+ */
+function applyOpacity() {
+  if (!win || win.isDestroyed()) return;
+  win.setOpacity(Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, config.settings.windowOpacity)) / 100);
+}
+
 /** The screens draw what this sends and nothing else. */
 function push() {
   if (!win || win.isDestroyed()) return;
@@ -1029,6 +1040,7 @@ app.whenReady().then(async () => {
   if (process.env.UM_DEV) await win.loadURL('http://localhost:5173');
   else if (existsSync(built)) await win.loadFile(built);
   else log({ event: 'no-ui', hint: 'run: npm run build:ui' });
+  applyOpacity();
   win.once('ready-to-show', () => win.show());
   // Only the main window hides or quits on close. Other windows (the hidden report page) just go.
   win.on('close', (e) => { if (!quitting) { e.preventDefault(); closeWindow('window-close'); } });
@@ -1166,6 +1178,7 @@ app.whenReady().then(async () => {
     saveJson(FILE.config, config);
     log({ event: 'settings-changed', keys: Object.keys(patch) });
     if ('assistant' in patch) void engine.ensure(config.settings.assistant);
+    if ('windowOpacity' in patch) applyOpacity();
     push();
   });
   // The two downloads, each only when the owner presses its button.
