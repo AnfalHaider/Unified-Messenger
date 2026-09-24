@@ -111,3 +111,20 @@ test('what an admin ticked is stored as ids the workspace knows, once each, in i
   assert.deepEqual(accountsAllowed(null, whole), null, 'not set means the whole business');
   assert.deepEqual(accountsAllowed('everything', whole), [], 'nonsense grants nothing rather than everything');
 });
+
+test('a location’s week reaches the other PC whole, closed days and all', () => {
+  // The shape the owner actually has: hours on, a window for each of the seven days, one of them closed. Until
+  // this test, every sync test used `hours: null`, so the one shape in use was the one never carried. If a day
+  // were lost on the way, two PCs would disagree about when the clock runs — and colour means lateness.
+  const week = [
+    { open: 11 * 60, close: 21 * 60 }, { open: 11 * 60, close: 21 * 60 }, null, { open: 10 * 60, close: 20 * 60 },
+    { open: 11 * 60, close: 21 * 60 }, { open: 11 * 60, close: 21 * 60 }, { open: 11 * 60, close: 21 * 60 },
+  ];
+  const hours = { enabled: true, openMinutes: 11 * 60, closeMinutes: 21 * 60, workingDays: [1, 2, 3, 4, 5, 6], week };
+  const here = parseConfig({ locations: [{ name: 'DHA-2', slaMinutes: 15, hours }] }).config;
+
+  const there = readSetup(toFields({ ...sharedSetup(here) })).locations[0].hours;
+  assert.deepEqual(there, here.locations[0].hours, 'the whole week, unchanged');
+  assert.deepEqual(there?.week?.[0], { open: 11 * 60, close: 21 * 60 }, 'Sunday open is not lost to the Monday-Saturday default');
+  assert.equal(there?.week?.[2], null, 'a closed day stays closed rather than falling back to the default window');
+});
