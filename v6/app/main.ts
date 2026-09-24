@@ -292,9 +292,13 @@ function recordHealth(channel: string, ok: boolean, error?: string) {
 
 // ---- window and sessions -------------------------------------------------------------------------
 
-// Must match tokens.css: the account's own page fills the dock's page slot, between the line on the left, the
-// dock bar above and the customer panel on the right.
+// Where the page goes before the screens have said. These follow tokens.css, and they are only the opening
+// guess: once the dock is on screen it measures its own slot and `slot` below takes over, so the two can no
+// longer drift apart, and a zoomed window no longer places the page by numbers that mean something else.
 const BAR = 44, RAIL = 84, LINE = 400, DOCK_BAR = 57, CUSTOMER = 290;
+
+/** The page slot as the screens measure it, in CSS pixels. Null until the dock has been on screen once. */
+let slot: { x: number; y: number; width: number; height: number } | null = null;
 
 /** The dock with its side panels collapsed, so the page has the window. The screens set it; ui/tokens.css has
  *  the matching rules, and the two must agree or the page lands over something. */
@@ -303,9 +307,23 @@ let dockWide = false;
 function layout() {
   if (!win || win.isDestroyed()) return;
   const { width, height } = win.getContentBounds();
+  // setBounds is in the window's own pixels; a screen measures CSS ones, and zooming the window is what makes
+  // the two differ. Kept inside the window whatever arrives, so a stale rect can never put the page off-screen.
+  const zoom = win.webContents.getZoomFactor() || 1;
+  const on = slot && slot.width > 0 && slot.height > 0 ? {
+    x: Math.max(0, Math.round(slot.x * zoom)),
+    y: Math.max(0, Math.round(slot.y * zoom)),
+    width: Math.round(slot.width * zoom),
+    height: Math.round(slot.height * zoom),
+  } : null;
+  const placed = on ? {
+    ...on,
+    width: Math.max(0, Math.min(on.width, width - on.x)),
+    height: Math.max(0, Math.min(on.height, height - on.y)),
+  } : null;
   for (const [id, view] of views) {
     const x = RAIL + (dockWide ? 0 : LINE), y = BAR + DOCK_BAR;
-    view.setBounds({ x, y, width: Math.max(0, width - x - (dockWide ? 0 : CUSTOMER)), height: Math.max(0, height - y) });
+    view.setBounds(placed ?? { x, y, width: Math.max(0, width - x - (dockWide ? 0 : CUSTOMER)), height: Math.max(0, height - y) });
     // Only the live-page route shows a page; the figures screen is ours to draw.
     view.setVisible(id === visible && route === 'dock');
   }
@@ -1075,6 +1093,14 @@ app.whenReady().then(async () => {
     push();
   });
   ipcMain.on('dock-wide', (_e, on: boolean) => { dockWide = !!on; layout(); });
+  // The dock reports its slot whenever it moves or changes size. Only numbers are taken, and only sane ones.
+  ipcMain.on('page-slot', (_e, rect: { x?: unknown; y?: unknown; width?: unknown; height?: unknown }) => {
+    const n = (v: unknown) => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number(v))) : NaN);
+    const next = { x: n(rect?.x), y: n(rect?.y), width: n(rect?.width), height: n(rect?.height) };
+    if (Object.values(next).some(Number.isNaN) || next.width <= 0 || next.height <= 0) return;
+    slot = next;
+    layout();
+  });
   ipcMain.on('read-now', () => { void tick('button'); void readReviews(true); });
   ipcMain.on('reload-account', (_e, id: string) => {
     views.get(id)?.webContents.reload();

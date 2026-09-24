@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('um', {
   ready: () => ipcRenderer.send('ready'),
   navigate: (route, accountId) => ipcRenderer.send('navigate', route, accountId ?? null),
   setDockWide: (on) => ipcRenderer.send('dock-wide', on),
+  /** Where the account's page actually goes, measured from the screen rather than guessed from the stylesheet. */
+  setPageSlot: (rect) => ipcRenderer.send('page-slot', rect),
   readNow: () => ipcRenderer.send('read-now'),
   reloadAccount: (accountId) => ipcRenderer.send('reload-account', accountId),
   sleepAccount: (accountId) => ipcRenderer.send('sleep-account', accountId),

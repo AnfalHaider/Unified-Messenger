@@ -157,8 +157,14 @@ kbd { font: 600 11px/1 var(--text); padding: 2px 5px; border-radius: 4px; border
 .split .main { padding-right: 20px; }
 .mini .row { grid-template-columns: 70px minmax(0, 1fr) 30px; height: 60px; gap: 12px; padding: 0 14px; }
 .mini .wait { font-size: 19px; }
-.dock { border-left: 1px solid var(--line-2); background: var(--surface); display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
-.dock-bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 18px; border-bottom: 1px solid var(--line); background: var(--raised); }
+.dock { border-left: 1px solid var(--line-2); background: var(--surface); display: grid;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; }
+.dock-bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px 10px 18px; border-bottom: 1px solid var(--line); background: var(--raised); min-width: 0; overflow: hidden; }
+/* The account's name gives way first: the buttons are what the bar is for, and a bar that cannot shrink makes
+   the whole dock wider than the window, which puts the page's own slot off the edge. */
+.dock-bar .who { flex: 1 1 auto; min-width: 0; }
+.dock-bar .who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dock-bar .actions { flex: 0 0 auto; }
 .dock-bar .who b { font-size: 14.5px; }
 .page-mock { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 0; background: #EFEAE2; color: #111B21; font-family: "Segoe UI", system-ui, sans-serif; }
 :root[data-theme="dark"] .page-mock { background: #0B141A; color: #E9EDEF; }
@@ -401,9 +407,11 @@ button:disabled { cursor: default; opacity: .55; }
    these two rules and its LINE and CUSTOMER constants change together. A page with no reader starts this way:
    the line is a queue of conversations and the customer panel is about one of them, and a page that is neither
    has nothing for either of them to say. */
-.split.wide { grid-template-columns: 0 minmax(0, 1fr); }
+/* One column, not a zero one beside it: `display: none` takes the hidden child out of the grid, so a
+   two-column template would put the one that is left in the first column and shrink it to nothing. */
+.split.wide { grid-template-columns: minmax(0, 1fr); }
 .split.wide > .main { display: none; }
-.dock3.wide { grid-template-columns: minmax(0, 1fr) 0; }
+.dock3.wide { grid-template-columns: minmax(0, 1fr); }
 .dock3.wide > .cust { display: none; }
 
 /* Screens whose feature is not connected yet say so, once, beside the headline. */

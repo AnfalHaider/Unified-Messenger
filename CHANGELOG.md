@@ -5,6 +5,15 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v6.2.1
+
+- **The bar above a docked page now reaches the end of the window.** It stopped part of the way across, with
+  bare background behind the rest of it.
+- **The page itself now fills the space it is given**, and follows it when the window is resized or the app is
+  zoomed. On some PCs it was drawn over the panels beside it, or stopped short of the edge.
+- **A narrow window no longer pushes the page off the edge.** The account's name in the bar gives way first;
+  the buttons stay.
+
 ## v6.2.0
 
 - **A conversation you have dealt with is dealt with on every PC.** **Handled**, **Snooze** and **Not a

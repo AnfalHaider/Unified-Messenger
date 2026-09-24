@@ -15,6 +15,7 @@ declare global {
       navigate(route: Route, accountId?: string | null): void;
       readNow(): void;
       setDockWide(on: boolean): void;
+      setPageSlot(rect: { x: number; y: number; width: number; height: number }): void;
       reloadAccount(accountId: string): void;
       sleepAccount(accountId: string): void;
       openChat(accountId: string, key: string): void;
@@ -72,7 +73,7 @@ let previewSettings: ((patch: Record<string, unknown>) => void) | null = null;
 export const onPreviewSettings = (fn: typeof previewSettings) => { previewSettings = fn; };
 
 export const bridge: Window['um'] = !isPreview ? window.um : {
-  onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, setDockWide() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
+  onState() {}, onOpen() {}, ready() {}, navigate() {}, readNow() {}, setDockWide() {}, setPageSlot() {}, reloadAccount() {}, sleepAccount() {}, windowAction() {},
   openChat() {}, setScope() {}, setNote() {}, toggleTag() {}, notCustomer() {}, installAssistant() {}, pullAssistantModel() {}, signIn() {}, cancelSignIn() {}, signOut() {}, syncWorkspace() {}, removalRead() {}, refreshOwner() {}, checkForUpdate() {}, downloadUpdate() {}, upgradeRead() {},
   installUpdate: async () => ({}),
   setWorkspaceStatus: async () => ({}),

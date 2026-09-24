@@ -2261,3 +2261,76 @@ test('a docked page with no reader gets the window, and the line can be brought 
     rmSync(data, { recursive: true, force: true });
   }
 });
+
+test('the docked page is laid on the slot the screen measures, wide or not, and at any zoom', async () => {
+  const now = Date.now();
+  const data = dataFolder({
+    accounts: [
+      { id: 'test-wa', name: 'Test front desk', channel: 'whatsapp', url: 'about:blank', professional: true, location: 'Main branch' },
+      { id: 'test-erp', name: 'The office system', channel: 'custom', url: 'about:blank', professional: false, location: 'Main branch' },
+    ],
+    locations: [{ name: 'Main branch' }],
+  });
+  writeFileSync(join(data, 'snapshot.json'), JSON.stringify({ 'test-wa': { capturedAt: now, chats: [{
+    conversationKey: 'a@c.us', customerName: 'Sample Customer A', unread: 1, lastActivity: now - 40 * 60_000, preview: 'Hello?',
+    awaiting: true, lastMessageFromMe: false, contactPhone: '', hasLastMessage: true, lastMessageType: 'chat', lastCallOutcome: '',
+  }] } }));
+  const { app, win } = await open(data);
+
+  /** The slot and the bar as the screen has them, in CSS pixels. */
+  const measured = () => win.evaluate(() => {
+    const box = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect();
+      return { x: Math.round(b.x), y: Math.round(b.y), width: Math.round(b.width), height: Math.round(b.height), right: Math.round(b.right) }; };
+    return { slot: box('.page-slot'), bar: box('.dock-bar'), dock: box('.dock'), inner: window.innerWidth };
+  });
+  /** Where main actually put the page, and the zoom that turns one into the other. */
+  const placed = () => app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows()[0];
+    const v = w.contentView.children.find((c) => (c as { getBounds?: () => unknown }).getBounds) as { getBounds: () => { x: number; y: number; width: number; height: number } } | undefined;
+    return { view: v ? v.getBounds() : null, zoom: w.webContents.getZoomFactor() };
+  });
+  /** "on the slot", or the two rectangles, so a failure says how far out it is rather than just that it is.
+   *  CSS pixels are the window's own times the zoom, which is the whole reason this can go wrong. */
+  const onTheSlot = async () => {
+    const m = await measured();
+    const { view, zoom } = await placed();
+    if (!m.slot || !view) return 'no slot or no page';
+    const s = m.slot;
+    const want = { x: Math.round(s.x * zoom), y: Math.round(s.y * zoom), width: Math.round(s.width * zoom), height: Math.round(s.height * zoom) };
+    const got = { x: view.x, y: view.y, width: view.width, height: view.height };
+    // The slot's own numbers come too: a slot wider than the window is its own fault, not the placing's.
+    return JSON.stringify(got) === JSON.stringify(want) ? 'on the slot' : JSON.stringify({ got, want, slot: s, zoom, inner: m.inner });
+  };
+
+  try {
+    await win.getByRole('navigation', { name: 'Screens' }).getByRole('button', { name: /^The line/ }).click();
+    await win.locator('.queue .row.sel').getByRole('button', { name: 'Open chat' }).click();
+    await expect(win.getByRole('button', { name: 'Full width' })).toBeVisible();
+
+    // The line and the customer panel beside the page: the page sits between them, on the slot and nowhere else.
+    await expect.poll(onTheSlot, { timeout: 10_000 }).toBe('on the slot');
+
+    // Widened. The bar has to reach the end of the dock: `display: none` takes the hidden panel out of the grid,
+    // and a template with a column for it left the one that is left in the wrong, narrow column.
+    await win.getByRole('button', { name: 'Full width' }).click();
+    await expect(win.getByRole('button', { name: 'Show the line' })).toBeVisible();
+    await expect.poll(async () => { const m = await measured(); return m.bar!.right - m.dock!.right; }, { timeout: 10_000 }).toBe(0);
+    await expect.poll(async () => { const m = await measured(); return m.slot!.right - m.dock!.right; }, { timeout: 10_000 }).toBe(0);
+    await expect.poll(onTheSlot, { timeout: 10_000 }).toBe('on the slot');
+
+    // Zoomed, which is where numbers copied from the stylesheet stop meaning what they say: a CSS pixel is no
+    // longer one of the window's own, so a page placed by those numbers lands over the panels or short of the edge.
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25));
+    await expect.poll(async () => (await placed()).zoom, { timeout: 10_000 }).toBeCloseTo(1.25, 2);
+    await expect.poll(onTheSlot, { timeout: 10_000 }).toBe('on the slot');
+
+    // And a smaller window, so the page follows the space rather than keeping the size it opened with.
+    await app.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setContentSize(1100, 700); });
+    await expect.poll(onTheSlot, { timeout: 10_000 }).toBe('on the slot');
+
+    await quit(app, win);
+  } finally {
+    await app.close().catch(() => {});
+    rmSync(data, { recursive: true, force: true });
+  }
+});

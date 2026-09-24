@@ -181,6 +181,30 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
   const wide = !!d && (widened[d.id] ?? !readsChats);
   // Main lays the account's real page over the page slot, so it has to be told the moment the panels move.
   useEffect(() => { bridge.setDockWide(wide); }, [wide]);
+
+  // And told *where*, measured from the slot itself. Numbers copied from the stylesheet drift the moment either
+  // side changes, and they are CSS pixels, which stop matching the window's own once it is zoomed. A resize, the
+  // line folding away and a zoom all move the slot, so all three are watched; the same rect is not sent twice.
+  const slot = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = slot.current;
+    if (!el) return;
+    let last = '';
+    const report = () => {
+      const b = el.getBoundingClientRect();
+      const rect = { x: Math.round(b.x), y: Math.round(b.y), width: Math.round(b.width), height: Math.round(b.height) };
+      const key = `${rect.x},${rect.y},${rect.width},${rect.height}`;
+      if (key === last) return;
+      last = key;
+      bridge.setPageSlot(rect);
+    };
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    ro.observe(document.documentElement);
+    window.addEventListener('resize', report);
+    return () => { ro.disconnect(); window.removeEventListener('resize', report); };
+  }, []);
   const late = rows.filter((r) => r.tone === 'late').length;
   const due = rows.filter((r) => r.tone === 'due').length;
   const target = state.settings.slaMinutes;
@@ -242,7 +266,7 @@ export function DockScreen({ state, nav, scope }: ScreenProps & { scope: string 
         </div>
         <div className={`dock3${wide ? ' wide' : ''}`}>
           {/* The account's real page is laid over this slot by the main process. */}
-          <div className="page-slot">{isPreview ? 'The account’s own page appears here.' : d?.signedOut ? 'Sign in on the page to start reading.' : ''}</div>
+          <div className="page-slot" ref={slot}>{isPreview ? 'The account’s own page appears here.' : d?.signedOut ? 'Sign in on the page to start reading.' : ''}</div>
           <aside className="cust" aria-label="About this customer">
             <div className="seg" role="group" aria-label="Panel" style={{ alignSelf: 'start' }}>
               <button aria-pressed={panel === 'customer'} onClick={() => setPanel('customer')}>Customer</button>
