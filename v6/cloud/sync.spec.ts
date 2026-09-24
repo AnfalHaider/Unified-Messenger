@@ -11,6 +11,7 @@ import { doc, setDoc, updateDoc, type Firestore } from 'firebase/firestore';
 import { Workspace } from '../app/workspace.ts';
 import { parseConfig, type Config } from '../core/config.ts';
 import { applySetup, sharedSetup } from '../core/workspace-sync.ts';
+import type { Overrides } from '../core/awaiting-overrides.ts';
 
 const PROJECT = 'demo-unified-messenger';
 const BASE = `http://127.0.0.1:8181/v1/projects/${PROJECT}/databases/(default)`;
@@ -47,7 +48,7 @@ const startingConfig = () => parseConfig({
 function pc(user: typeof OWNER, config: Config = parseConfig({}).config, o: { dataDir?: string; base?: string; now?: () => number } = {}) {
   const dataDir = o.dataDir ?? mkdtempSync(join(tmpdir(), 'um-sync-'));
   folders.push(dataDir);
-  const here = { config, dataDir, removed: [] as string[], added: [] as string[], wipedOnRemoval: [] as string[] };
+  const here = { config, dataDir, removed: [] as string[], added: [] as string[], wipedOnRemoval: [] as string[], overrides: {} as Overrides };
   const ws: Workspace = new Workspace({
     base: o.base ?? BASE, dataDir, token: async () => token(user.uid, user.email), user: () => user, now: o.now,
     removed: async (ids) => {
@@ -62,6 +63,9 @@ function pc(user: typeof OWNER, config: Config = parseConfig({}).config, o: { da
       here.config = r.config; here.added.push(...r.added); here.removed.push(...r.removed);
       return [...r.synced];
     },
+    // The marks this PC holds, kept the way main keeps them: one object, replaced wholesale by what the merge says.
+    marks: () => ({ overrides: here.overrides, pushed: ws.pushedMarks }),
+    applyMarks: (next) => { here.overrides = next; },
     changed: () => {}, log: () => {},
   });
   return Object.assign(here, { ws });
@@ -308,4 +312,51 @@ test('the product owner sees membership only, never a workspace’s setup', asyn
   // Their own app has no workspace, and the setup of somebody else's never reaches this PC.
   assert.equal(console_.ws.state.phase, 'none');
   assert.deepEqual(console_.config.accounts, []);
+});
+
+test('a mark made on one PC reaches the other, and a put-back reaches it too (6.7)', async () => {
+  const a = pc(OWNER, startingConfig());
+  await a.ws.create('Sample Business');
+  const b = pc(OWNER);
+  await b.ws.check();
+
+  // Answered by phone at the front desk: marked handled here.
+  a.overrides = { a1: { '923001234567@c.us': { kind: 'handled', activity: 1_000, at: 2_000 } } };
+  await a.ws.shareMarks();
+  await b.ws.shareMarks();
+  assert.deepEqual(b.overrides, { a1: { '923001234567@c.us': { kind: 'handled', activity: 1_000, at: 2_000 } } },
+    'the other PC no longer shows them waiting');
+
+  // Put back on the second PC: it was not dealt with after all.
+  b.overrides = {};
+  await b.ws.shareMarks();
+  await a.ws.shareMarks();
+  assert.deepEqual(a.overrides, {}, 'and the first PC shows them waiting again');
+
+  // Settled: neither PC keeps saying anything.
+  await a.ws.shareMarks();
+  await b.ws.shareMarks();
+  assert.deepEqual(a.overrides, {});
+  assert.deepEqual(b.overrides, {});
+});
+
+test('a member invited to one branch never sees, nor sends, another branch\u2019s marks (6.7)', async () => {
+  const a = pc(OWNER, startingConfig());
+  await a.ws.create('Sample Business');
+  assert.deepEqual(await a.ws.invite('staff@example.com', 'member', ['a1']), {});
+  const s = pc(STAFF, ownOnly());
+  await s.ws.check();
+  await s.ws.join(invitations(s.ws.state)[0].id);
+
+  a.overrides = { a1: { k1: { kind: 'excluded', at: 1_000 } }, a2: { k2: { kind: 'excluded', at: 1_000 } } };
+  await a.ws.shareMarks();
+  await s.ws.shareMarks();
+  assert.deepEqual(s.overrides, { a1: { k1: { kind: 'excluded', at: 1_000 } } }, 'only the branch they were given');
+
+  // A mark of theirs for the branch they do not have never leaves this PC, and the read still works.
+  s.overrides = { a1: { k1: { kind: 'excluded', at: 1_000 } }, a2: { k3: { kind: 'excluded', at: 3_000 } } } satisfies Overrides;
+  await s.ws.shareMarks();
+  await a.ws.shareMarks();
+  assert.deepEqual(Object.keys(a.overrides).sort(), ['a1', 'a2']);
+  assert.deepEqual(a.overrides.a2, { k2: { kind: 'excluded', at: 1_000 } }, 'nothing of theirs arrived for a2');
 });

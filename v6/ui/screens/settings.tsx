@@ -711,7 +711,7 @@ function Privacy({ state }: ScreenProps) {
           rather than showing nothing: an unread folder and an empty one are different answers.</p>
       </div>
       <div className="grid2">
-        <Panel title="Sent off this PC"><p className="sub" style={{ margin: 0 }}>Your name and email to Google at sign-in, and the workspace setup: accounts, locations, hours, targets and saved replies. No messages, customers, figures or logins. No analytics, no crash reports.</p></Panel>
+        <Panel title="Sent off this PC"><p className="sub" style={{ margin: 0 }}>Your name and email to Google at sign-in, and the workspace setup: accounts, locations, hours, targets and saved replies. In a workspace, also which conversations someone marked handled, snoozed or not a customer, so the same person is not chased twice from another PC — the conversation’s number, never a name, a message or a figure. No logins. No analytics, no crash reports.</p></Panel>
         <Panel title="The support log"><p className="sub" style={{ margin: 0 }}>app.log holds counts and timings only, never a name, number or message, so it can be sent to support as it is. Save a copy from Channel readers.</p></Panel>
       </div>
     </>

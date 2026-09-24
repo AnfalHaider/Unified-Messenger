@@ -34,7 +34,11 @@ test('the policy says what Google requires, and what the app actually does', () 
   assert.match(privacy, /In force from \d{1,2} \w+ \d{4}\./);
   // The claims that must not drift from the app: what leaves the PC is the setup, never customers or logins.
   assert.ok(privacy.includes('never an account login'));
-  assert.ok(/Nothing about customers, messages or figures/.test(privacy));
+  assert.ok(/No messages and no figures/.test(privacy));
+  // The one thing about a customer that a workspace shares (6.4). The policy has to name it, and name what it is.
+  assert.ok(/marked handled, snoozed or "not a customer"/.test(privacy));
+  assert.ok(/the customer's phone number/.test(privacy), 'the policy says what the identifier is, not just that there is one');
+  assert.ok(/not their name, not a message/.test(privacy));
 });
 
 test('the home page says plainly that the app only reads', () => {

@@ -29,6 +29,10 @@ service cloud.firestore {
     function me(wid) { return get(memberPath(wid, uid())).data; }
     function isMember(wid) { return signedIn() && exists(memberPath(wid, uid())) && me(wid).status == 'active'; }
     function isAdmin(wid) { return isMember(wid) && me(wid).role == 'admin'; }
+    // The accounts this member may see (4.19): absent is the whole business. A mark belongs to one account, so
+    // this is what decides whether a mark is theirs to read or to write.
+    function myAccounts(wid) { return me(wid).get('accounts', null); }
+    function canSee(wid, accountId) { return myAccounts(wid) == null || accountId in myAccounts(wid); }
 
     function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
     function name(s) { return s is string && s.size() > 0 && s.size() <= 80; }
@@ -132,6 +136,28 @@ service cloud.firestore {
           && request.resource.data.settings is map
           && request.resource.data.updatedBy == uid()
           && request.resource.data.updatedAt == request.time;
+      }
+
+      // The marks a read cannot recover: handled away from the chat, snoozed, not a customer, and the put-back
+      // that undoes them. **These carry a customer's identity** — a WhatsApp conversation key is their number —
+      // which is the one thing of a customer's this app sends anywhere, only inside a workspace, and only
+      // because two PCs that disagree about who was dealt with report different figures for the same business.
+      // site/privacy.html says so in the workspace section.
+      //
+      // Matched on the stored accountId, never on the document id, which a rule cannot test: a member with only
+      // some accounts must ask for those accounts, and a listing of everything fails on the first mark they
+      // may not see.
+      match /marks/{markId} {
+        allow read: if isMember(wid) && active(wid) && canSee(wid, resource.data.accountId);
+        allow create, update: if isMember(wid) && active(wid)
+          && request.resource.data.keys().hasOnly(['accountId', 'key', 'kind', 'at', 'activity', 'until'])
+          && request.resource.data.accountId is string && request.resource.data.accountId.size() > 0
+          && request.resource.data.key is string && request.resource.data.key.size() > 0
+          && request.resource.data.kind in ['handled', 'snoozed', 'excluded', 'cleared']
+          && request.resource.data.at is number
+          && canSee(wid, request.resource.data.accountId);
+        // Tidying old put-backs, and a member losing an account takes nothing else with it.
+        allow delete: if isMember(wid) && active(wid) && canSee(wid, resource.data.accountId);
       }
     }
 

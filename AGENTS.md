@@ -19,11 +19,15 @@ its files, which remain useful reading.
 - **No paid APIs. No recurring cost to run the app.** Free official APIs are allowed. The only cloud service
   is the app's own free Firebase project: Google sign-in, workspace membership, and business configuration
   (accounts, locations, settings). *(Owner decision 2026-09-11.)*
-- **Zero *oversight* data leaves the machine.** Never transmit metrics, message content, customer
-  identities, or AI prompts off-box — no telemetry, no analytics, no crash upload, ever. Business
-  configuration synced to Firebase is not oversight data, and nothing else goes there. The update check
-  (7.3) is a plain GET to GitHub carrying no identifier. A page the owner deliberately opens in the app is
-  their own traffic, not app-originated exfiltration — but oversight data must never reach such a page.
+- **Zero *oversight* data leaves the machine.** Never transmit metrics, message content, or AI prompts
+  off-box — no telemetry, no analytics, no crash upload, ever. Business configuration synced to Firebase is
+  not oversight data, and nothing else goes there. **The one exception, and it is the only one:** in a
+  workspace, the four out-of-band marks (handled, snoozed, not-a-customer, and the put-back that undoes them)
+  carry the conversation's key, which for WhatsApp is the customer's number. *(Owner decision 2026-09-24,
+  scoped to those four marks.)* No name, no message and no figure goes with them; `site/privacy.html` and
+  Settings › Privacy say so, and `site/site.test.ts` pins it. Do not widen this. The update check (7.3) is a
+  plain GET to GitHub carrying no identifier. A page the owner deliberately opens in the app is their own
+  traffic, not app-originated exfiltration — but oversight data must never reach such a page.
 - **The app never sends.** Automation is read-only.
 - **All AI is on-device via Ollama.** No cloud LLM.
 - **Access is by membership.** A workspace decides who may use its configuration; the product owner can

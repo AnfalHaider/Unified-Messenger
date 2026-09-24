@@ -48,8 +48,14 @@
       <dt>When your PC last checked in</dt><dd>A date and time, once a day, so admins can see which PCs are still in
         use.</dd>
       <dt>The business setup</dt><dd>The names of the accounts and the pages they open, locations, opening hours,
-        holidays, the reply target, saved replies and the "not a customer" rules. Nothing about customers, messages or
-        figures, and never an account login.</dd>
+        holidays, the reply target, saved replies and the "not a customer" rules. No messages and no figures, and
+        never an account login.</dd>
+      <dt>Conversations marked handled, snoozed or "not a customer"</dt><dd>When someone in the business deals with a
+        customer away from the chat &mdash; a call back, a visit, a reply from another phone &mdash; they mark the
+        conversation, and that mark is shared so the same customer is not chased twice from another PC. The mark is
+        stored against the conversation's identifier, which for WhatsApp is the customer's phone number. Nothing else
+        about them goes: not their name, not a message, not a word of what was said. A mark is readable only by the
+        members of that workspace who have been given that account, and a mark you undo is removed.</dd>
     </dl>
     <p>This is held in the app's own Google Firebase project (Cloud Firestore, in India), and the rules on that
       database refuse anything else. People outside your workspace cannot read any of it.</p>

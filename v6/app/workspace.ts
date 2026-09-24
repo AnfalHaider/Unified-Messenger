@@ -11,6 +11,8 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { accountsAllowed, fromFields, readSetup, setupFor, setupKey, toFields, type FsValue, type SharedSetup } from '../core/workspace-sync.ts';
+import { markId, mergeMarks, staleCleared, type Pushed, type SharedMark } from '../core/mark-sync.ts';
+import type { Overrides } from '../core/awaiting-overrides.ts';
 
 export type Role = 'admin' | 'member';
 /** A member as the members list shows them. `lastSeen` is when their PC last checked in, in milliseconds. */
@@ -40,12 +42,17 @@ export type WorkspaceState =
 interface Kept { id: string; name: string; role: Role; synced: string[]; appliedKey: string; appliedUpdateTime: string; checkedInAt: number; syncedAt: number; lastContactAt: number;
   /** The accounts this PC's member may see; null is the whole business. Kept so an offline start applies the
    *  same setup it applied yesterday, rather than briefly showing accounts they are not allowed. */
-  accounts?: string[] | null }
+  accounts?: string[] | null;
+  /** What this PC last sent for each mark (core/mark-sync.ts). */
+  pushedMarks?: Pushed }
 interface Removal { name: string; at: number; wiped: string[] }
 interface Doc { name: string; fields?: Record<string, FsValue>; updateTime?: string }
 
 const PULL_EVERY_MS = 6 * 60 * 60_000;
 const CHECK_IN_EVERY_MS = 24 * 60 * 60_000;
+/** Marks go both ways on this cadence. Often enough that two people at two PCs do not both ring the same
+ *  customer, cheap enough to leave running: one small read, and a write only when something changed. */
+const MARKS_EVERY_MS = 2 * 60_000;
 export const RECONNECT_AFTER_MS = 7 * 24 * 60 * 60_000;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -57,6 +64,10 @@ export interface WorkspaceHost {
   user: () => { uid: string; email: string; name: string } | null;
   /** The shared part of this PC's setup, now. */
   local: () => SharedSetup;
+  /** This PC's marks, and what it last sent, so the sync knows what has changed and what it has taken back. */
+  marks: () => { overrides: Overrides; pushed: Pushed };
+  /** The marks this PC should now hold, and what it has sent. Saves them and redraws. */
+  applyMarks: (overrides: Overrides, pushed: Pushed) => void;
   /** Applies a setup from the workspace to this PC; returns the ids of the accounts now held from the workspace. */
   apply: (setup: SharedSetup) => string[];
   /** This person was removed: forget these accounts here, login and all, and sign out. Returns the names wiped. */
@@ -91,6 +102,9 @@ export class Workspace {
 
   /** Accounts this PC holds from the workspace, so a pull can tell "removed on another PC" from "only ever here". */
   get synced(): ReadonlySet<string> { return new Set(this.kept?.synced ?? []); }
+
+  /** What this PC has already told the workspace about its marks. Empty in no workspace: nothing is shared then. */
+  get pushedMarks(): Pushed { return this.kept?.pushedMarks ?? {}; }
 
   /** Whether the shared setup may be changed on this PC: not by a member who is not an admin. */
   get readOnly(): boolean { return this.state.phase === 'member' && (this.state.role !== 'admin' || this.state.status !== 'active'); }
@@ -141,13 +155,101 @@ export class Workspace {
       this.save();
       this.set({ phase: 'member', id: entry.id, name, role, status, syncedAt: this.kept.syncedAt, lastContactAt: this.kept.lastContactAt, reconnect: false, people: [], invites: [] });
       this.h.log({ event: 'workspace-found', role, status });
-      if (status === 'active') { await this.pullNow(); await this.checkInIfDue(); }
+      if (status === 'active') { await this.pullNow(); await this.checkInIfDue(); this.marksAt = this.clock; await this.marksSafely(); }
       await this.loadPeople();
       await this.loadOwner();
     } catch (e) {
       this.h.log({ event: 'workspace-check-failed', error: String((e as Error).message).slice(0, 120) });
       this.unreachable();
     }
+  }
+
+  /**
+   * The marks a read cannot recover, brought together with the workspace's (core/mark-sync.ts decides what wins).
+   *
+   * A member with only some accounts asks for only those: the rules refuse a listing that would return a mark
+   * they may not see, so an unfiltered read would fail for them rather than quietly returning less.
+   */
+  /** Sends what this PC has just marked, and takes what the other PCs have. Called on a press and on the tick.
+   *  A failure is logged and left for the next round: a mark held here is not lost by a failed send. */
+  shareMarks(): Promise<void> {
+    this.marksAt = this.clock;
+    return this.serial(() => this.marksSafely());
+  }
+
+  private async marksSafely() {
+    try { await this.marksNow(); } catch (e) {
+      this.h.log({ event: 'marks-sync-failed', error: String((e as Error).message).slice(0, 120) });
+    }
+  }
+
+  private marksAt = 0;
+
+  private async marksNow() {
+    if (!this.kept || this.state.phase !== 'member' || this.state.status !== 'active') return;
+    const wid = this.kept.id;
+    const visible = this.kept.accounts ?? null;
+    const remote = await this.readMarks(wid, visible);
+    const { overrides, push, pushed } = mergeMarks({
+      ...this.h.marks(), remote, visible, now: this.clock,
+    });
+    if (push.length) {
+      // In batches: one commit per 300 marks, well inside Firestore's 500 writes.
+      for (let i = 0; i < push.length; i += 300) {
+        await this.commit(push.slice(i, i + 300).map((m) => ({
+          update: { name: this.path(`workspaces/${wid}/marks/${markId(m.accountId, m.key)}`), fields: toFields({ ...m }) },
+        })));
+      }
+      this.h.log({ event: 'marks-pushed', marks: push.length });
+    }
+    this.kept.pushedMarks = pushed;
+    this.save();
+    this.h.applyMarks(overrides, pushed);
+
+    // Put-backs that have done their job on every PC. Tidying only: a failure here costs nothing.
+    const stale = staleCleared(remote, this.clock).slice(0, 100);
+    if (stale.length) {
+      await this.commit(stale.map((m) => ({ delete: this.path(`workspaces/${wid}/marks/${markId(m.accountId, m.key)}`) })))
+        .catch(() => undefined);
+    }
+  }
+
+  /** Every mark this member may see. Asked for by account when their access is limited, because the rules judge
+   *  each mark a listing would return, and one they may not see refuses the whole read. */
+  private async readMarks(wid: string, visible: string[] | null): Promise<SharedMark[]> {
+    const rows: Doc[] = [];
+    if (visible === null) rows.push(...await this.list(`workspaces/${wid}/marks`));
+    else {
+      // Firestore takes at most 30 values in one `in`, so a very large workspace asks more than once.
+      for (let i = 0; i < visible.length; i += 30) {
+        rows.push(...await this.queryIn(wid, 'accountId', visible.slice(i, i + 30)));
+      }
+    }
+    return rows.map((doc) => {
+      const f = fromFields(doc.fields ?? {}) as Partial<SharedMark>;
+      return {
+        accountId: String(f.accountId ?? ''), key: String(f.key ?? ''),
+        kind: (['handled', 'snoozed', 'excluded', 'cleared'] as const).find((k) => k === f.kind) ?? 'cleared',
+        at: Number(f.at) || 0,
+        ...(f.activity === undefined ? {} : { activity: Number(f.activity) || 0 }),
+        ...(f.until === undefined ? {} : { until: Number(f.until) || 0 }),
+      };
+    }).filter((m) => m.accountId && m.key);
+  }
+
+  /** One collection, filtered to a set of accounts. Not a group query: no index of its own is needed. */
+  private async queryIn(wid: string, field: string, values: string[]): Promise<Doc[]> {
+    const res = await this.call(`${this.h.base}/documents/workspaces/${wid}:runQuery`, { method: 'POST', body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: 'marks' }],
+        where: { fieldFilter: { field: { fieldPath: field }, op: 'IN', value: { arrayValue: { values: values.map((v) => ({ stringValue: v })) } } } },
+      },
+    }) });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: { status?: string } };
+      throw Object.assign(new Error(`marks ${res.status} ${body.error?.status ?? ''}`.trim()), { status: res.status });
+    }
+    return ((await res.json()) as { document?: Doc }[]).map((r) => r.document).filter((d): d is Doc => !!d);
   }
 
   /** The workspace could not be reached. With a workspace kept here, carry on with its setup, until a week has passed
@@ -397,6 +499,7 @@ export class Workspace {
     if (this.state.phase !== 'member' || !this.kept) return;
     if (now - this.kept.syncedAt > PULL_EVERY_MS && now >= this.retryAt) { this.retryAt = now + 60_000; void this.check(); return; }
     if (this.state.status !== 'active') return;
+    if (now - this.marksAt > MARKS_EVERY_MS) void this.shareMarks();
     if (this.state.role === 'admin' && this.kept.appliedKey && now >= this.retryAt && setupKey(this.h.local()) !== this.kept.appliedKey) void this.serial(() => this.pushNow());
   }
 

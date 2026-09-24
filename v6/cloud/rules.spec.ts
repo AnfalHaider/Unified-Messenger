@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import {
-  collectionGroup, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch, type Firestore,
+  collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch, type Firestore,
 } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
@@ -260,4 +260,44 @@ test('an invitation may carry a line from the admin, bounded, and nothing else n
   await assertFails(invite({ note: 'x'.repeat(301) }));
   await assertFails(invite({ note: 42 }));
   await assertFails(invite({ note: 'fine', somethingElse: 'no' }));
+});
+
+test('marks: a member carries only the ones for accounts they may see, and nothing else may be stored on one', async () => {
+  await seed();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore() as unknown as Firestore;
+    // The member may see one account of the two; the admin sees everything.
+    await updateDoc(doc(db, 'workspaces/w1/members/staff-uid'), { accounts: ['a1'] });
+    await setDoc(doc(db, 'workspaces/w1/marks/a1__mine'), { accountId: 'a1', key: 'mine', kind: 'handled', at: 1, activity: 0 });
+    await setDoc(doc(db, 'workspaces/w1/marks/a2__theirs'), { accountId: 'a2', key: 'theirs', kind: 'excluded', at: 1 });
+  });
+
+  // Reading: their own account yes, the other no.
+  await assertSucceeds(getDoc(doc(STAFF(), 'workspaces/w1/marks/a1__mine')));
+  await assertFails(getDoc(doc(STAFF(), 'workspaces/w1/marks/a2__theirs')));
+  // The admin sees both, because their accounts are not limited.
+  await assertSucceeds(getDoc(doc(ADMIN(), 'workspaces/w1/marks/a2__theirs')));
+
+  // Listing: everything fails on the mark they may not see; asking for their own account succeeds.
+  await assertFails(getDocs(query(collection(STAFF(), 'workspaces/w1/marks'))));
+  await assertSucceeds(getDocs(query(collection(STAFF(), 'workspaces/w1/marks'), where('accountId', '==', 'a1'))));
+
+  // Writing: their own account only, and only the shape a mark has.
+  const mark = (db: Firestore, id: string, fields: Record<string, unknown>) => setDoc(doc(db, `workspaces/w1/marks/${id}`), fields);
+  await assertSucceeds(mark(STAFF(), 'a1__new', { accountId: 'a1', key: 'new', kind: 'snoozed', at: 2, until: 99 }));
+  await assertFails(mark(STAFF(), 'a2__new', { accountId: 'a2', key: 'new', kind: 'snoozed', at: 2, until: 99 }));
+  // The id is not what decides it: a mark claiming an account they may not see is refused whatever it is called.
+  await assertFails(mark(STAFF(), 'a1__sneaky', { accountId: 'a2', key: 'sneaky', kind: 'excluded', at: 2 }));
+  // Nothing about the customer beyond the conversation itself.
+  await assertFails(mark(STAFF(), 'a1__named', { accountId: 'a1', key: 'k', kind: 'handled', at: 2, customer: 'Ayesha Khan' }));
+  await assertFails(mark(STAFF(), 'a1__texted', { accountId: 'a1', key: 'k', kind: 'handled', at: 2, preview: 'see you Friday' }));
+  await assertFails(mark(STAFF(), 'a1__odd', { accountId: 'a1', key: 'k', kind: 'something-else', at: 2 }));
+
+  // A put-back is a mark like any other, and tidying one away is allowed for an account they may see.
+  await assertSucceeds(mark(STAFF(), 'a1__gone', { accountId: 'a1', key: 'gone', kind: 'cleared', at: 3 }));
+  await assertSucceeds(deleteDoc(doc(STAFF(), 'workspaces/w1/marks/a1__gone')));
+  await assertFails(deleteDoc(doc(STAFF(), 'workspaces/w1/marks/a2__theirs')));
+
+  // A stranger gets nothing, and a suspended workspace shows its marks to nobody.
+  await assertFails(getDoc(doc(STRANGER(), 'workspaces/w1/marks/a1__mine')));
 });

@@ -213,6 +213,15 @@ const workspace = new Workspace({
   local: () => sharedSetup(config),
   apply: (setup) => applyFromWorkspace(setup),
   removed: (ids) => removedFromWorkspace(ids),
+  // The four out-of-band marks, shared between the PCs of one workspace (6.7). Everything else stays on this PC.
+  marks: () => ({ overrides, pushed: workspace.pushedMarks }),
+  applyMarks: (next) => {
+    if (JSON.stringify(next) === JSON.stringify(overrides)) return;
+    for (const id of Object.keys(overrides)) delete overrides[id];
+    Object.assign(overrides, next);
+    saveJson(FILE.overrides, overrides);
+    push();
+  },
   // The workspace's answer is what the gate turns on, so it is re-read on every change it reports.
   changed: () => { applyGate(); push(); },
   log: (entry) => log(entry),
@@ -849,6 +858,8 @@ function saveOverrides(event: string, id: string) {
   saveJson(FILE.overrides, overrides);
   log({ event, account: id });
   push();
+  // In a workspace, the four marks are shared: a customer called back here is not still waiting on the other PC.
+  void workspace.shareMarks();
 }
 
 function markChatHandled(id: string, key: string) {
@@ -1082,9 +1093,7 @@ app.whenReady().then(async () => {
   // Permanent, unlike Handled and Snooze: for staff and the team's own chats. Put back undoes it.
   ipcMain.on('not-customer', (_e, accountId: string, key: string) => {
     markNotCustomer(overrides, accountId, key, Date.now());
-    saveJson(FILE.overrides, overrides);
-    log({ event: 'not-customer', account: accountId });
-    push();
+    saveOverrides('not-customer', accountId);
   });
   ipcMain.on('set-note', (_e, accountId: string, key: string, text: string) => {
     setNote(customers, accountId, key, String(text ?? ''), Date.now());

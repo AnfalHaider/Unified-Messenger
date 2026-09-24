@@ -5,6 +5,19 @@ All notable changes to Unified Messenger. Newest first.
 Release notes and installers for each version are on the
 [Releases page](https://github.com/AnfalHaider/Unified-Messenger/releases).
 
+## v6.2.0
+
+- **A conversation you have dealt with is dealt with on every PC.** **Handled**, **Snooze** and **Not a
+  customer** — and putting any of them back — now reach the other PCs in your workspace within a couple of
+  minutes. Call a customer back at the front desk, and the PC in the office stops showing them waiting; two
+  people no longer ring the same person twice.
+- **Only the mark travels.** The app sends which conversation was marked, which kind of mark, and when the
+  button was pressed. No name, no message, no figure — and nothing at all if this PC is in no workspace. A
+  mark can only be read by the members of your workspace who have been given that account, and undoing a mark
+  removes it everywhere. Settings › Privacy and the privacy policy both say so.
+- **The newer press wins.** If two PCs mark the same conversation, the one pressed last is the one that
+  stands, and putting a mark back always reaches the other PCs rather than being handed straight back.
+
 ## v6.1.3
 
 - **Room for a docked page.** **Full width** in the bar above a page folds away the line and the customer
