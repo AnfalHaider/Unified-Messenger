@@ -92,7 +92,7 @@ jobs:
 
       - name: Keep the failure trace
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: smoke-results
           path: v6/test-results
