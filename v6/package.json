@@ -35,7 +35,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "electron": "^44.3.0",
-    "firebase": "^12.19.0",
+    "firebase": "^13.0.0",
     "firebase-tools": "^15.30.2",
     "typescript": "7.0.2",
     "vite": "^8.3.0"
