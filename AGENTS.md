@@ -77,6 +77,41 @@ from an agent shell: it forks the store invisibly, and both paths then read iden
 
 ---
 
+## Boundaries (owner's answers, 2026-11-07)
+
+Each line is a boundary the owner set, with the reason it exists. They are not style preferences.
+
+- **`main` is what customers get; `dev` is where work happens.** A `v*` tag publishes a release and installed
+  copies offer it as an update, so a tag needs the owner's permission — **typed in the session that releases
+  it**, never relayed from another session or summarised by an agent. *A release done on a relayed "yes" is a
+  release nobody authorised.*
+- **A live deploy is reported before it runs and logged after.** `npm run cloud:deploy` and
+  `npm run site:deploy` write the Firestore rules and the public pages that already-installed copies read.
+  Write the exact command out, wait for the owner's go, then record that it ran. *The owner must be able to
+  see what touched live and when.*
+- **What is real here:** the Firebase project `unified-messenger-5549a`, the owner's installed app and its
+  data folder, the GitHub repository and its releases, and the owner's signed-in accounts. Everything an
+  agent reads or writes is one of those unless it is provably a fixture or an invented-data copy. Pictures,
+  tests and demos use invented data only (`npm run help:shots`). *Real-data screenshots in a repository are a
+  leak with a permanent history.*
+- **Confirm first, even though they look routine:** writing anything under the owner's app data folder, and
+  any `firebase deploy`. *The first forks the store invisibly; the second changes what installed copies read.*
+  Installing a build and ending the app are ordinary steps here and need no separate confirmation — but the
+  lessons on what a forced quit costs still stand (`mem "force kill"`).
+- **Other projects on this disk are not ours.** Nothing outside `D:\Projects\Unified Messenger` is written,
+  committed or pushed; read one only if a question needs it. *A fork that can push to its origin will, one
+  day, by accident.*
+- **Oversight data never reaches a page, a log or a service.** The one exception is the four out-of-band
+  marks named in the hard constraints above. *See the hard constraints; do not widen it.*
+- **"Done" is said with the command and its output beside it, or it is said as UNKNOWN.** The gate command
+  above is the proof; paste what it printed. *A confident report is not evidence, and a figure that could be
+  wrong must say what is missing instead.*
+- **Anything a person looks at is drawn before it is built.** Today's screen beside the proposal, same
+  labels, both themes, phone and desktop widths — approved, then built as drawn. *Every build from a sentence
+  was rebuilt; every build from a drawing went in once (the Front Desk design, `docs/design/v6-front-desk`).*
+
+---
+
 ## The app in one page
 
 Everything below has a longer form in [`v6/README.md`](v6/README.md).

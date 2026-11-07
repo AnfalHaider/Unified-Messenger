@@ -4,15 +4,16 @@
 
 ## claude
 
-## 2026-09-11 — Bootstrap Phases 6–7 (seed, prove) and mem.ps1 fixes
+## 2026-11-07 — Bootstrap re-run: nothing to mine, two stale threads, and the boundaries written down
 
-- Found Cursor's 2026-09-10 bootstrap present and working but uncommitted; skipped Phases 2–5.
-- Seeded 34 lessons: 5 from this session's Phase 0 findings, 29 mined by 6 subagents from 6 Claude sessions (69.4 MB, 0.60 MB of message text), 1 Cursor transcript (Cursor `agent-tools/` is cached text, not transcripts), and 39 correcting commits plus 7 CHANGELOG retractions. 4 duplicates dropped before placement. Privacy-scanned: no customer names, handles or numbers.
-- `scripts/mem.ps1`: ASCII-only, UTF-8 output without BOM, `check` now validates frontmatter, `supersedes` targets and the script's own encoding; new `supersedes: [id]` field is the way to correct an immutable lesson. Documented command now carries `-ExecutionPolicy Bypass` (AGENTS.md, `.cursorrules`, MEMORY.md).
-- Gate on `8e4ab6d`: 2204/2204 passed locally; CI verify, package and ui-smoke green at that sha.
-- Failed step, reported: while proving `check` in a scratchpad mirror, `.env` was copied because a lesson lists it in `files`. Never printed; replaced with an empty stub.
-- Blocked: moving the Neon MCP from user scope to `taskmasterx.com` project scope in `%USERPROFILE%\.claude.json` was denied by the permission classifier. Owner to rotate the key.
-- Nothing committed. Open: AGENTS.md forbids `Co-Authored-By` trailers, the Claude harness adds one — resolve before any commit.
+- Re-ran `/bootstrap-environment` on a repository already bootstrapped (Cursor 2026-09-10, Claude 2026-09-11). Phases 0, 1, 5 (absorb only), 6, 7 run; **Phases 2, 3 and 4 skipped** — the tooling was selected, installed and verified then, and re-litigating it costs context and risks clobbering working config.
+- Tree clean, `dev` and `main` both at `43f8fc3`, no work in flight. Last commit and last lesson are both 2026-09-24; the repository and the session stores agree that nothing happened in between.
+- **Phase 6 mined nothing, and that is the right answer.** The Claude store looked like six weeks of unmined history (169 MB, two files with October/November mtimes) but a resumed session had rewritten its mtime; message text was 1.09% of bytes and the post-2026-09-24 slice held one message — the interrupted `/bootstrap-environment` from earlier today. Lesson `bootstrap-session-store-mtime-is-not-session-date`.
+- **Two of six open threads in `MEMORY.md` had gone false while being trusted:** `python` is 3.10.11, not the recorded 3.12.10 (3.12 is installed but not first on PATH), and Ollama now has three models where the thread said it had none. Corrected in place with re-probe dates. Lesson `bootstrap-recorded-machine-facts-decay`.
+- Re-probed and still true: the `python3` Store stub, Neon MCP still user-scope in `%USERPROFILE%\.claude.json` (~150 tool names in every session here), `FIRECRAWL_API_KEY` in a gitignored `.env`, portable JDK 21.0.12.1+1 in `%USERPROFILE%\.jdks`. The 2.1 GB `.agent-bootstrap-backup-20260910-041530/` was **not found** where recorded — whereabouts UNKNOWN.
+- **The owner answered the four boundary questions that nothing recorded** (live deploys reported before and logged after; nothing outside this repository is written; writing under the app data folder and any `firebase deploy` confirmed first; the release word typed in the releasing session, never relayed). Written into `AGENTS.md` § Boundaries with their reasons, alongside the two operating rules it lacked — evidence-or-UNKNOWN, and draw a screen before building it.
+- **The gate is red on a clean tree, and it is the smoke suite, not the change.** `typecheck` clean, `npm test` 391/391. `npm run smoke` run twice on docs-only changes gave 1 failure then 4, with **no test failing in both**. Two of the four are `waitForEvent('close')` giving up at 30s — Playwright's own default, which the 90s test timeout does not override — against a shutdown `AGENTS.md` says can take 90 seconds, in a helper 57 tests call. The other two are different races and are not explained. Lesson `v6-smoke-quit-waits-thirty-seconds-for-a-ninety-second-shutdown`. **Not fixed here:** changing the gate every future agent relies on is the owner's call, not a bootstrap's.
+- `AGENTS.md` grew 10,224 → 12,986 chars; the `check` always-loaded total went 13,911 → 16,673 chars (~3,864 → ~4,631 tok, +19.9%) against a 70,000-char ceiling. 113 lessons, `CHECK OK`.
 
 ---
 
@@ -30,4 +31,4 @@
 
 ---
 
-Generated: 2026-09-11 17:45:32
+Generated: 2026-11-07 18:47:39

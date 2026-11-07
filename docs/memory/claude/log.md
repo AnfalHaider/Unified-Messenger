@@ -2,6 +2,17 @@
 
 Newest entries on top. Append only — never edit an older entry.
 
+## 2026-11-07 — Bootstrap re-run: nothing to mine, two stale threads, and the boundaries written down
+
+- Re-ran `/bootstrap-environment` on a repository already bootstrapped (Cursor 2026-09-10, Claude 2026-09-11). Phases 0, 1, 5 (absorb only), 6, 7 run; **Phases 2, 3 and 4 skipped** — the tooling was selected, installed and verified then, and re-litigating it costs context and risks clobbering working config.
+- Tree clean, `dev` and `main` both at `43f8fc3`, no work in flight. Last commit and last lesson are both 2026-09-24; the repository and the session stores agree that nothing happened in between.
+- **Phase 6 mined nothing, and that is the right answer.** The Claude store looked like six weeks of unmined history (169 MB, two files with October/November mtimes) but a resumed session had rewritten its mtime; message text was 1.09% of bytes and the post-2026-09-24 slice held one message — the interrupted `/bootstrap-environment` from earlier today. Lesson `bootstrap-session-store-mtime-is-not-session-date`.
+- **Two of six open threads in `MEMORY.md` had gone false while being trusted:** `python` is 3.10.11, not the recorded 3.12.10 (3.12 is installed but not first on PATH), and Ollama now has three models where the thread said it had none. Corrected in place with re-probe dates. Lesson `bootstrap-recorded-machine-facts-decay`.
+- Re-probed and still true: the `python3` Store stub, Neon MCP still user-scope in `%USERPROFILE%\.claude.json` (~150 tool names in every session here), `FIRECRAWL_API_KEY` in a gitignored `.env`, portable JDK 21.0.12.1+1 in `%USERPROFILE%\.jdks`. The 2.1 GB `.agent-bootstrap-backup-20260910-041530/` was **not found** where recorded — whereabouts UNKNOWN.
+- **The owner answered the four boundary questions that nothing recorded** (live deploys reported before and logged after; nothing outside this repository is written; writing under the app data folder and any `firebase deploy` confirmed first; the release word typed in the releasing session, never relayed). Written into `AGENTS.md` § Boundaries with their reasons, alongside the two operating rules it lacked — evidence-or-UNKNOWN, and draw a screen before building it.
+- **The gate is red on a clean tree, and it is the smoke suite, not the change.** `typecheck` clean, `npm test` 391/391. `npm run smoke` run twice on docs-only changes gave 1 failure then 4, with **no test failing in both**. Two of the four are `waitForEvent('close')` giving up at 30s — Playwright's own default, which the 90s test timeout does not override — against a shutdown `AGENTS.md` says can take 90 seconds, in a helper 57 tests call. The other two are different races and are not explained. Lesson `v6-smoke-quit-waits-thirty-seconds-for-a-ninety-second-shutdown`. **Not fixed here:** changing the gate every future agent relies on is the owner's call, not a bootstrap's.
+- `AGENTS.md` grew 10,224 → 12,986 chars; the `check` always-loaded total went 13,911 → 16,673 chars (~3,864 → ~4,631 tok, +19.9%) against a 70,000-char ceiling. 113 lessons, `CHECK OK`.
+
 ## 2026-09-22 — 6.0.1: the live database was refusing the workspace check
 
 - Installing the released Setup on the owner's PC showed `workspace-check-failed error=query 400` in `app.log`. The workspace check is a **collection-group** query, which needs an index Firestore does not create automatically — and **the emulator never asks for one**, so 25 green rules tests sat beside a query the live service refused.
