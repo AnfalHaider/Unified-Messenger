@@ -39,8 +39,13 @@ async function open(data: string, env: Record<string, string> = {}): Promise<{ a
 /** The invented project a cloud test signs in to. Only tests that want the cloud pass it. */
 const CLOUD = { UM_CLOUD_CONFIG: join(V6, 'tests', 'fixtures', 'cloud-config.json') };
 
+/** `timeout: 0` on purpose: a quit closes every account page in turn and can take far longer than the 30 seconds
+ *  `waitForEvent` defaults to, and that default does **not** inherit the test timeout — so a slow-but-healthy
+ *  shutdown failed tests at 30s while the test still had a minute in hand. With 0 the test timeout in
+ *  playwright.config.ts is the one limit, and a shutdown that never finishes fails as a test timeout, which says
+ *  so plainly. Every test that ends goes through here, so this is the only place to set it. */
 async function quit(app: ElectronApplication, win: Page) {
-  const closed = app.waitForEvent('close');
+  const closed = app.waitForEvent('close', { timeout: 0 });
   await win.getByRole('button', { name: 'Quit', exact: true }).click();
   await closed;
 }
